@@ -75,6 +75,21 @@ class RestHAClient:
         info = self._req("GET", "/api/") or {}
         return info.get("message", "connected")
 
+    def get_script(self, object_id: str) -> dict | None:
+        """Fetch a script's config, or None if it doesn't exist.
+        Used for create-if-absent so installer-edited scripts are never clobbered."""
+        try:
+            return self._req("GET", f"/api/config/script/config/{object_id}")
+        except RuntimeError as e:
+            if "HTTP 404" in str(e):
+                return None
+            raise
+
+    def upsert_script(self, object_id: str, config: dict) -> None:
+        """Create or replace a script via HA's REST config endpoint (auto-reloads)."""
+        self._req("POST", f"/api/config/script/config/{object_id}", config)
+
+
     def render_template(self, template: str) -> str:
         """Render a Jinja template server-side. Returns raw text (may be JSON)."""
         url = f"{self.base_url}/api/template"
