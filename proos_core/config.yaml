@@ -1,5 +1,5 @@
 name: ProOS Core
-version: "0.3.6"
+version: "0.3.7"
 slug: proos_core
 description: >-
   The operational layer above Home Assistant — state-based room control,
