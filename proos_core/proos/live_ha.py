@@ -89,7 +89,6 @@ class RestHAClient:
         """Create or replace a script via HA's REST config endpoint (auto-reloads)."""
         self._req("POST", f"/api/config/script/config/{object_id}", config)
 
-
     def render_template(self, template: str) -> str:
         """Render a Jinja template server-side. Returns raw text (may be JSON)."""
         url = f"{self.base_url}/api/template"
