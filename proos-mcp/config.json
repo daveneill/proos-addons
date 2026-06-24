@@ -1,6 +1,6 @@
 {
   "name": "ProOS AI Assistant",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "slug": "proos_mcp",
   "description": "AI assistant MCP server for ProOS smart home dashboard",
   "url": "https://github.com/your-org/proos-addon",
