@@ -1,0 +1,47 @@
+{
+  "name": "ProOS AI Assistant",
+  "version": "2.0.4",
+  "slug": "proos_mcp",
+  "description": "AI assistant MCP server for ProOS smart home dashboard",
+  "url": "https://github.com/your-org/proos-addon",
+  "arch": [
+    "aarch64",
+    "amd64",
+    "armhf",
+    "armv7",
+    "i386"
+  ],
+  "startup": "application",
+  "boot": "auto",
+  "ports": {
+    "3000/tcp": 3000
+  },
+  "ports_description": {
+    "3000/tcp": "ProOS MCP Server"
+  },
+  "options": {
+    "anthropic_api_key": "",
+    "allowed_origins": "*",
+    "log_level": "info",
+    "proos_core_url": "http://b333b432-proos-core:8770",
+    "require_auth": false
+  },
+  "schema": {
+    "anthropic_api_key": "str",
+    "allowed_origins": "str",
+    "log_level": "list(debug|info|warning|error)",
+    "proos_core_url": "str?",
+    "require_auth": "bool"
+  },
+  "hassio_api": true,
+  "homeassistant_api": true,
+  "auth_api": true,
+  "ingress": false,
+  "panel_icon": "mdi:brain",
+  "map": [
+    "config:rw"
+  ],
+  "environment": {
+    "NODE_ENV": "production"
+  }
+}
