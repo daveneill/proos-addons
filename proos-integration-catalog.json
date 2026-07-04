@@ -1,0 +1,111 @@
+{
+  "version": 1,
+  "updated": "2026-07-04",
+  "notes": "ProOS master integration catalog. Protech-owned source of truth for which HA integrations installers may use and how they're supported. Synced down to every ProCore. Edit here, commit, and each site picks it up on next sync. Tiers: 'certified' (Protech add-on with awareness/monitoring layer), 'native' (stock HA integration, usable but NOT maintained by Protech), 'hidden' (not shown to installers).",
+  "defaults": {
+    "uncatalogued_tier": "native",
+    "custom_component_hint": "certified"
+  },
+  "integrations": {
+    "apple_tv": {
+      "tier": "certified",
+      "label": "Apple TV",
+      "addon": null,
+      "monitoring": true,
+      "notes": "ProOS build. Two-signal watcher (device ping + integration health) distinguishes asleep vs offline vs wedged."
+    },
+    "samsungtv_smart": {
+      "tier": "certified",
+      "label": "Samsung TV",
+      "addon": null,
+      "monitoring": true,
+      "notes": "ProOS build. Full power/source/AVR control with TV-state awareness."
+    },
+    "homekit": {
+      "tier": "certified",
+      "label": "Apple Home Bridge",
+      "addon": null,
+      "monitoring": false,
+      "notes": "ProOS-configured HomeKit bridge (opt-in switchboard, full-restart apply)."
+    },
+    "elkm1": {
+      "tier": "native",
+      "label": "Elk-M1 Security",
+      "monitoring": false,
+      "notes": "Native HA integration. Candidate for certification (alarm-state awareness)."
+    },
+    "heos": {
+      "tier": "native",
+      "label": "Denon HEOS",
+      "notes": "Native HA integration. Not maintained by Protech."
+    },
+    "denonavr": {
+      "tier": "native",
+      "label": "Denon AVR",
+      "notes": "Native HA integration. Not maintained by Protech."
+    },
+    "sonos": {
+      "tier": "native",
+      "label": "Sonos",
+      "notes": "Native HA integration. Not maintained by Protech."
+    },
+    "unifiprotect": {
+      "tier": "native",
+      "label": "UniFi Protect",
+      "notes": "Native HA integration. Not maintained by Protech."
+    },
+    "cast": {
+      "tier": "native",
+      "label": "Google Cast",
+      "notes": "Native HA integration. Not maintained by Protech."
+    },
+    "androidtv_remote": {
+      "tier": "native",
+      "label": "Android TV Remote",
+      "notes": "Native HA integration. Not maintained by Protech."
+    },
+    "shelly": {
+      "tier": "native",
+      "label": "Shelly",
+      "notes": "Native HA integration. Not maintained by Protech."
+    },
+    "lifx": {
+      "tier": "native",
+      "label": "LIFX",
+      "notes": "Native HA integration. Not maintained by Protech."
+    },
+    "wiz": {
+      "tier": "native",
+      "label": "WiZ",
+      "notes": "Native HA integration. Not maintained by Protech."
+    },
+    "rachio": {
+      "tier": "native",
+      "label": "Rachio Irrigation",
+      "notes": "Native HA integration. Not maintained by Protech."
+    },
+    "matter": {
+      "tier": "native",
+      "label": "Matter",
+      "notes": "Native HA integration. Not maintained by Protech."
+    },
+    "thread": {
+      "tier": "native",
+      "label": "Thread",
+      "notes": "Native HA integration. Not maintained by Protech."
+    },
+    "bluetooth": {
+      "tier": "native",
+      "label": "Bluetooth",
+      "notes": "Native HA integration. Not maintained by Protech."
+    },
+    "ha_mcp_tools": {
+      "tier": "hidden",
+      "notes": "Internal ProOS component (Pro Assist MCP). Not an installer-facing integration."
+    },
+    "file": {
+      "tier": "hidden",
+      "notes": "Utility integration. Not installer-facing."
+    }
+  }
+}
