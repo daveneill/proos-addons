@@ -27,7 +27,7 @@ _HA = os.environ.get("PROOS_HA_DIRECT", "http://homeassistant:8123")
 _TTL = 60.0
 _CACHE = {}  # token -> (user, expiry)
 
-PUBLIC_PATHS = {"health"}  # reachable without a token even when armed
+PUBLIC_PATHS = {"health", "handover/claim"}  # reachable without a token even when armed
 
 
 def bearer(headers) -> str | None:
