@@ -61,6 +61,24 @@ CERTIFIED_CAPABILITIES = {
 }
 
 
+# ── THE MINIMUM BAR ──────────────────────────────────────────────────────────
+# The capabilities an integration MUST provide (AND verify on-box) to be CERTIFIED
+# for a role -- the "complete package". This is the machine-readable form of
+# ProOS_Certification_Standard.md, and it is BRAND-AGNOSTIC: certifying a new TV
+# brand later means declaring it meets these caps, with ZERO new logic in the
+# generator/watcher/UI (they all key off capabilities, never a brand name).
+#
+# Universal caps (reliable_state + awareness) are folded into every role below.
+# 'stable identity' and 'safe self-heal' from the written standard are behavioural
+# process checks, not runtime attributes, so they gate entry to CERTIFIED_INTEGRATIONS
+# rather than appearing here.
+REQUIRED_CAPABILITIES = {
+    "display": {"discrete_power", "discrete_input", "reliable_state", "awareness"},
+    "source":  {"discrete_power", "reliable_state", "awareness"},
+    "audio":   {"tv_audio", "reliable_state", "awareness"},
+}
+
+
 def tier(integration: str) -> str:
     if integration in CERTIFIED_INTEGRATIONS:
         return "certified"
@@ -72,6 +90,27 @@ def tier(integration: str) -> str:
 def capabilities(integration: str) -> list:
     """What a certified integration is validated to provide (empty for compatible)."""
     return sorted(CERTIFIED_CAPABILITIES.get(integration, []))
+
+
+def has_capability(integration: str, cap: str) -> bool:
+    """Does this integration provide a specific certified capability? The single
+    brand-agnostic question the generator/watcher/UI ask instead of 'is it a Samsung'."""
+    return cap in CERTIFIED_CAPABILITIES.get(integration, set())
+
+
+def missing_capabilities(integration: str, role: str) -> list:
+    """Which required capabilities this integration lacks for a role (empty = meets
+    the bar). Drives the honest 'certified driver, capability X not verified' UI."""
+    req = REQUIRED_CAPABILITIES.get(role, set())
+    have = set(CERTIFIED_CAPABILITIES.get(integration, set()))
+    return sorted(req - have)
+
+
+def meets_bar(integration: str, role: str) -> bool:
+    """True when the integration declares every capability the role's minimum bar
+    requires. (On-box verification -- e.g. discrete_input_verified -- is confirmed
+    separately at commission time; register membership alone isn't the badge.)"""
+    return not missing_capabilities(integration, role)
 
 
 # ProOS certified-driver versions — the version of ProOS's validated driver for each
