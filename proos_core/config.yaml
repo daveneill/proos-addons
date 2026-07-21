@@ -1,0 +1,118 @@
+name: ProOS Core
+version: "1.0.102"
+slug: proos_core
+description: >-
+  The operational layer above Home Assistant — state-based room control,
+  monitoring, and self-healing. The dashboard talks to this.
+url: "https://github.com/protechsystems/proos-core"
+arch:
+  - aarch64
+  - amd64
+  - armv7
+startup: application
+boot: auto
+init: false
+# Grants a Supervisor token + a proxy to HA core at http://supervisor/core,
+# so Core needs no manually-created long-lived token.
+homeassistant_api: true
+# Reset (restore the proos-baseline backup) needs Supervisor backup/restore access.
+hassio_api: true
+hassio_role: manager
+# Write off-device backup copies to a /share subfolder (a NAS/USB mounted in HA).
+# Read/write access to HA's config dir lets Core read the Music server token HA
+# already stored for its own integration (so commissioning needs no separate
+# login), and white-label the HomeKit bridge name in the config-entries store
+# (HA's API can't rename a bridge — see _homekit_brand / POST /homekit/brand).
+map:
+  # Tech-Tools terminal parity with HA's Terminal & SSH add-on: mount the same
+  # filesystem tree so file paths resolve identically (incl. the /config path HA
+  # users reach for out of habit, not just /homeassistant). Not a privileged
+  # container — host/Docker access is still the one thing only the SSH add-on has.
+  - homeassistant_config:rw
+  - config:rw
+  - ssl:rw
+  - addons:rw
+  - all_addon_configs:rw
+  - backup:rw
+  - share:rw
+  - media:rw
+# The dashboard reaches Core's API on this port.
+ports:
+  "8770/tcp": 8770
+ports_description:
+  "8770/tcp": ProOS Core API (the dashboard connects here)
+options:
+  home_id: dave-family-home
+  area: Family Room
+  monitor_interval: 20
+  auto_heal: false
+  # Music Assistant is an optional, certified ProOS integration — off by
+  # default. When false, Core never tries to commission or connect MA, so an
+  # absent MA produces no boot retries and no errors. Enable it to use
+  # cross-brand speaker grouping; Core then owns the music_assistant
+  # integration and connects to the MA server on boot.
+  music_assistant: false
+  # No-auto-room: HA stamps a device's area at pairing when its name matches a room, so
+  # it shows in that room uninvited. When on, ProOS clears the auto-set room off any AV
+  # media device the installer hasn't placed (committed, or pinned via an entity area
+  # override) so it lands in Unassigned. AV-scoped — lights/sensors/switches keep their
+  # rooms. Reasserted every scan + on a background loop. On by default; false = let HA's
+  # name-based area guess stand.
+  auto_room_quarantine: true
+  # Auto-backup: a daily encrypted backup, pruned to keep N, optionally copied
+  # off-device. Leave auto_backup_copy_to empty for on-device only; point it at a
+  # /share subfolder (a NAS/USB mounted in HA) to keep an off-device copy.
+  auto_backup: false
+  auto_backup_time: "03:30"
+  auto_backup_full: true
+  auto_backup_keep: 7
+  auto_backup_copy_to: ""
+  # Override the built-in white-label encryption key per fleet (masked in the UI).
+  backup_password: ""
+  # Protech servicing secret (masked). The hidden Developer/Owner account's
+  # password is derived per-box from this secret + the box's hardware id, so
+  # Protech can recompute it to service any box while a leak from one box never
+  # opens the fleet. SET THIS before shipping — the build-time fallback is for
+  # bench/dev boxes only and is NOT fleet-safe.
+  owner_secret: ""
+  # Default password the auto-created Installer login ships with; the installer
+  # is forced to change it on first commission. Leave blank for the built-in
+  # default (proos-install).
+  installer_password: ""
+  reachability:
+    - entity: media_player.family_room_apple_tv
+      sensor: binary_sensor.192_168_1_110
+  # Security / hardening — all off by default; flip after verifying.
+  #   require_auth:    reject callers to Core's API (:8770) without a valid HA token.
+  #   consent_enforce: let the homeowner/installer consent switches activate or
+  #                    deactivate accounts (not just record state).
+  #   set_hostname:    allow first boot to rename the box proos-<id> (factory only).
+  #   ha_direct:       override the HA core URL used to verify caller tokens,
+  #                    e.g. http://192.168.1.240:8123 (leave blank for the default).
+  require_auth: false
+  consent_enforce: false
+  set_hostname: false
+  ha_direct: ""
+schema:
+  home_id: str
+  area: str
+  monitor_interval: int(5,3600)
+  auto_heal: bool
+  music_assistant: bool
+  auto_room_quarantine: bool
+  auto_backup: bool
+  auto_backup_time: str
+  auto_backup_full: bool
+  auto_backup_keep: int(1,365)
+  auto_backup_copy_to: str?
+  backup_password: password?
+  owner_secret: password?
+  installer_password: str?
+  reachability:
+    - entity: str
+      sensor: str?
+      ip: str?
+  require_auth: bool
+  consent_enforce: bool
+  set_hostname: bool
+  ha_direct: str?
