@@ -1,0 +1,53 @@
+{
+  "_README": "Channel presets — a STARTING POINT for an installer, never an assertion. Numbers here are metro LCNs and go stale: regional affiliates renumber, networks close and launch channels. Every preset is marked unverified; an installer prunes and confirms on site, and only then is it exposed. Correct a number once here and every future install starts right. 'slug' points at the artwork in appart/ — shared with apps, so nothing needs a separate channel tile pack.",
+
+  "au_free_to_air": {
+    "name": "Australian free-to-air (metro)",
+    "region": "AU",
+    "method": "play_media",
+    "verified": false,
+    "note": "Metro numbering. Regional affiliates differ — confirm on the customer's own tuner before committing.",
+    "channels": [
+      { "num": "2",  "name": "ABC TV",          "slug": "abc_tv" },
+      { "num": "20", "name": "ABC Kids",         "slug": "abc_kids" },
+      { "num": "22", "name": "ABC TV Plus",      "slug": "abc_tv_plus" },
+      { "num": "24", "name": "ABC News",         "slug": "abc_news" },
+      { "num": "3",  "name": "SBS",              "slug": "sbs" },
+      { "num": "31", "name": "SBS Viceland",     "slug": "sbs_viceland" },
+      { "num": "32", "name": "SBS World Movies", "slug": "sbs_world_movies" },
+      { "num": "33", "name": "SBS Food",         "slug": "sbs_food" },
+      { "num": "34", "name": "NITV",             "slug": "nitv" },
+      { "num": "7",  "name": "Seven",            "slug": "seven" },
+      { "num": "72", "name": "7two",             "slug": "7two" },
+      { "num": "73", "name": "7mate",            "slug": "7mate" },
+      { "num": "74", "name": "7Bravo",           "slug": "7bravo" },
+      { "num": "76", "name": "7flix",            "slug": "7flix" },
+      { "num": "9",  "name": "Nine",             "slug": "nine" },
+      { "num": "92", "name": "9Gem",             "slug": "9gem" },
+      { "num": "93", "name": "9Go!",             "slug": "9go" },
+      { "num": "94", "name": "9Life",            "slug": "9life" },
+      { "num": "95", "name": "9Rush",            "slug": "9rush" },
+      { "num": "10", "name": "10",               "slug": "ten" },
+      { "num": "11", "name": "10 Peach",         "slug": "10_peach" },
+      { "num": "12", "name": "10 Bold",          "slug": "10_bold" }
+    ]
+  },
+
+  "foxtel_au": {
+    "name": "Foxtel (Australia)",
+    "region": "AU",
+    "method": "digits",
+    "verified": false,
+    "note": "Numbers NOT pre-filled: a Foxtel line-up depends on the customer's package, and a wrong number tunes the wrong thing. Add the channels this customer actually receives, reading the numbers off their box.",
+    "channels": []
+  },
+
+  "blank": {
+    "name": "Start empty",
+    "region": "",
+    "method": "play_media",
+    "verified": false,
+    "note": "Add every channel by hand.",
+    "channels": []
+  }
+}
