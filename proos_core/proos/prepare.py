@@ -1,0 +1,181 @@
+"""
+ProOS Core — preparation audit (matrix #13, first shippable slice).
+
+WHY THIS EXISTS (measured, 31 Jul – 1 Aug 2026)
+-----------------------------------------------
+A factory reset silently dropped three required settings, and each cost hours
+of log archaeology instead of seconds at commissioning:
+
+  * the Frame's `app_list` — the panel never answers ed.installedApp.get
+    (13+ requests, zero replies), so with no committed list the room has no
+    apps and nothing says why;
+  * `ip_control_art_mode` — absent means False in the fork, art readback fell
+    to the websocket client which misreports on this panel, and the room read
+    "Watch Apple TV" all night while showing artwork;
+  * UniFi `allow_bandwidth_sensors` — absent means False, zero data-rate
+    sensors existed, and every committed source raised "no network witness".
+
+The audit walks every committed room and names what is missing and how to fix
+it. It ADVISES — it never blocks a commit and never changes what green means.
+
+DESIGN RULES (same contract as netevidence.py)
+----------------------------------------------
+* Facts, not code: per-integration requirements live in PREPARE_FACTS.
+  Certifying a new brand is a table entry, never an engine change. No check
+  asks "is this a Samsung?" — it asks the table for the device's integration.
+* Observation first; options only where observation cannot tell. App
+  enumeration is judged from the published source_list. Art readback health
+  is invisible in entity state, so the entry's options are consulted —
+  supplied by the caller (the server reads them over HA's diagnostics REST
+  endpoint); this module does no I/O and benches offline.
+* Three verdicts per check: ok=True (proven), ok=False (proven missing, with
+  a `fix`), ok=None (cannot tell — an off panel or unreadable entry is
+  UNKNOWN, never failed; matrix #14 taught that lesson for source_list).
+* A device is never faulted for a capability it doesn't claim: a non-Frame
+  has no art checks, a compatible display gets no samsungtv facts, a music
+  room audits nothing (its preparation surface is the network provider's,
+  covered by netevidence.inspect).
+"""
+from __future__ import annotations
+
+import re
+
+# Mirrors appctl._INPUT_RE deliberately (one vocabulary for "input-shaped").
+_INPUT_RE = re.compile(
+    r"^(hdmi|av|input|source|component|composite|video|vga|dvi|scart|usb|pc|rgb|"
+    r"cable|antenna|tuner|aux|line|dtv|atv|tv|live tv|screen ?mirroring|airplay)\b",
+    re.I)
+
+
+def _has_apps(source_list) -> bool:
+    return any(isinstance(s, str) and s.strip() and not _INPUT_RE.match(s.strip())
+               for s in (source_list or []))
+
+
+# ---------------------------------------------------------------------------
+# Certification facts: what a prepared display of each integration looks like.
+# `when` gates a fact on entry data (e.g. Frame-only checks). `opt` facts read
+# the entry's options (absent == integration default); `obs` facts observe.
+# ---------------------------------------------------------------------------
+PREPARE_FACTS = {
+    "samsungtv_smart": [
+        {"id": "ip_control", "kind": "opt", "option": "enable_ip_control",
+         "want": True,
+         "label": "IP Control enabled",
+         "why": "power off, input, Art Mode and local verification all run on "
+                "the 1516/1515 channel",
+         "fix": "Configure → Show Advanced Options → enable IP Control "
+                "(enable_ip_control), then re-pair if the TV prompts"},
+        {"id": "art_readback", "kind": "opt", "option": "ip_control_art_mode",
+         "want": True, "when": lambda d: bool(d.get("is_frame_tv")),
+         "label": "Art Mode readback over IP Control",
+         "why": "the websocket art client misreports on this panel family; "
+                "without ip_control_art_mode the room misreads artwork as "
+                "watching (measured: TV Off flipped back in 136 ms)",
+         "fix": "Configure → Show Advanced Options → enable ip_control_art_mode"},
+        {"id": "power_on_wol", "kind": "opt", "option": "power_on_method",
+         "want": 1,
+         "label": "Power-on method is WOL",
+         "why": "nothing on a Samsung listens while it is fully off; any other "
+                "method adds a doomed attempt before WOL runs",
+         "fix": "Configure → set Power On Method to WOL (power_on_method=1)"},
+        {"id": "ping_port", "kind": "opt", "option": "ping_port", "want": "set",
+         "label": "Ping port committed",
+         "why": "presence detection needs the discovered open port (9197); "
+                "unset falls back to ICMP, blocked in the HA container",
+         "fix": "Configure → set ping_port to the discovered open port"},
+        {"id": "art_switch", "kind": "obs_art_switch",
+         "when": lambda d: bool(d.get("is_frame_tv")),
+         "label": "Art Mode switch entity present",
+         "why": "the room's off-state is Art Mode; without the switch the "
+                "generated TV Off cannot rest the panel",
+         "fix": "reload the integration; if still absent, re-pair with the "
+                "panel on a live input"},
+        {"id": "app_enumeration", "kind": "obs_apps",
+         "label": "Built-in apps available",
+         "why": "some panels never answer ed.installedApp.get (the 2020 Frame, "
+                "measured); without apps the room breaks the 'keep all "
+                "built-in TV apps' rule",
+         "fix": "commit the panel's apps manually: Configure → Show Advanced "
+                "Options → Configure Applications (app_list)"},
+    ],
+}
+
+
+def _check(fact, ok, extra=None):
+    out = {"id": fact["id"], "label": fact["label"], "ok": ok,
+           "why": fact["why"]}
+    if ok is False:
+        out["fix"] = fact["fix"]
+    if extra:
+        out.update(extra)
+    return out
+
+
+def audit_room(record, snap, entry) -> dict:
+    """Audit one committed room's display. Pure; benches offline.
+
+    record -- the committed area record (project.load() shape)
+    snap   -- {entity_id: {'state':..., 'attributes': {...}}}
+    entry  -- {'data': {...}, 'options': {...}} for the display's config
+              entry (server reads it via HA diagnostics), or None when
+              unreadable — option checks then report unknown, never failure.
+    """
+    out = {"area": (record or {}).get("name") or "",
+           "display": (record or {}).get("display"), "checks": []}
+    if not record or not record.get("committed"):
+        return out
+    disp = record.get("display")
+    if not disp:
+        return out                       # music rooms: nothing to prepare here
+
+    integ = ((record.get("meta") or {}).get(disp) or {}).get("integration") or ""
+    facts = PREPARE_FACTS.get(integ) or []
+    if not facts:
+        return out                       # no facts claimed => nothing faulted
+
+    data = (entry or {}).get("data") or {}
+    options = (entry or {}).get("options") or {}
+    st = (snap or {}).get(disp) or {}
+    attrs = st.get("attributes") or {}
+
+    for fact in facts:
+        when = fact.get("when")
+        if when and not when(data):
+            continue                     # capability not claimed: no check
+
+        if fact["kind"] == "opt":
+            if entry is None:
+                out["checks"].append(_check(fact, None))
+                continue
+            val = options.get(fact["option"])
+            if fact["want"] == "set":
+                ok = val not in (None, "", 0)
+            else:
+                ok = val == fact["want"]
+            out["checks"].append(_check(fact, bool(ok)))
+
+        elif fact["kind"] == "obs_art_switch":
+            found = any(eid.startswith("switch.") and eid.endswith("_art_mode")
+                        for eid in (snap or {}))
+            out["checks"].append(_check(fact, found))
+
+        elif fact["kind"] == "obs_apps":
+            # A committed app_list satisfies the requirement outright — that
+            # IS the documented route for a panel that will not enumerate.
+            if options.get("app_list"):
+                out["checks"].append(_check(fact, True,
+                                            {"via": "committed app_list"}))
+                continue
+            sl = attrs.get("source_list")
+            state = (st.get("state") or "").lower()
+            if sl is None or state in ("off", "unavailable", "unknown", ""):
+                # matrix #14: an off panel returns nothing — that is UNKNOWN,
+                # not failure, or every sleeping TV would be faulted nightly.
+                out["checks"].append(_check(fact, None,
+                                            {"note": "panel off — read with "
+                                                     "the TV on"}))
+            else:
+                out["checks"].append(_check(fact, _has_apps(sl)))
+
+    return out
