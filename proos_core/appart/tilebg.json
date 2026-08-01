@@ -1,0 +1,50 @@
+{
+  "_README": "Tile background colours, by slug. Put this file in the SAME folder as your logo PNGs and make_tiles.py picks it up automatically. If a colour here would make the supplied logo unreadable (e.g. a white logo on white), it is ignored and a readable one is chosen instead - so a wrong entry can never produce an invisible tile. Delete any line to let it auto-derive from the logo.",
+
+  "netflix": "#000000",
+  "disney": "#0E1B3D",
+  "prime_video": "#0F171E",
+  "youtube": "#0F0F0F",
+  "apple_tv": "#000000",
+
+  "kayo": "#000000",
+  "binge": "#000000",
+  "stan": "#000000",
+  "foxtel": "#0A0A0A",
+  "hbo_max": "#000000",
+  "paramount": "#0064FF",
+
+  "abc_iview": "#111111",
+  "9now": "#000000",
+  "7plus": "#0A1633",
+  "10_play": "#0A2FA0",
+  "sbs_on_demand": "#000000",
+  "britbox": "#0B1C3A",
+  "docplay": "#111111",
+  "tubi": "#170B3B",
+
+  "f1_tv": "#15151E",
+  "red_bull_tv": "#0A1A3F",
+  "ted": "#000000",
+
+  "plex": "#1F2326",
+  "infuse": "#101012",
+  "channels": "#101012",
+  "justwatchtv": "#0B0B0D",
+  "spotify": "#191414",
+
+  "music": "#0B0B0D",
+  "podcasts": "#0B0B0D",
+  "photos": "#0B0B0D",
+  "fitness": "#0B0B0D",
+  "arcade": "#0B0B0D",
+  "facetime": "#0B0B0D",
+  "app_store": "#0B0B0D",
+  "search": "#0B0B0D",
+  "settings": "#0B0B0D",
+  "computers": "#0B0B0D",
+
+  "unifi_protect": "#0E1114",
+  "nordvpn": "#0B0B0D",
+  "speedtest": "#0B0B0D"
+}
