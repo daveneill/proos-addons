@@ -1,0 +1,25 @@
+{
+  "_README": [
+    "Recovered Android TV app lists, keyed by config_entry_id. Every package id",
+    "here was OBSERVED RUNNING on that specific box - it is captured evidence,",
+    "not a guess list. Seeded into the ledger only when a box has no learned",
+    "apps yet, so it can never override or duplicate what a site has learned.",
+    "Entry ids are unique per install, so this file is inert everywhere else."
+  ],
+  "01KYEFRCCBJXGBEMNFVKX5BTGS": {
+    "au.com.streamotion.ares.tv": "Kayo",
+    "au.com.kayosports.tv": "Kayo Sports",
+    "com.sbs.ondemand.tv": "SBS On Demand",
+    "com.google.android.youtube.tv": "YouTube",
+    "com.amazon.amazonvideo.livingroom": "Prime Video",
+    "au.com.stan.and": "Stan",
+    "au.com.tenplay": "10 play",
+    "au.com.ninenow.ctv": "9Now",
+    "com.apple.atve.androidtv.appletv": "Apple TV",
+    "com.ubnt.unifi.protect": "UniFi Protect",
+    "au.com.foxtel.atv": "Foxtel",
+    "com.wbd.stream": "HBO Max",
+    "com.tubitv": "Tubi",
+    "com.swm.live": "7plus"
+  }
+}
