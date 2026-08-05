@@ -120,6 +120,13 @@ def _normalize_slots(rec: dict) -> None:
         video = _ents(slots.get("video"))
         audio = _ents(slots.get("audio"))
         va = _ents(slots.get("video_audio"))
+        # v2 (Endpoint Model Spec v2, 6 Aug): volume endpoints are first-class.
+        # A record written before the volume slots existed (Stage 3) must load
+        # BYTE-IDENTICALLY, so each defaults to the sensible auto-bind:
+        #   audio_volume -> the audio endpoints (a speaker owns its own volume);
+        #   video_volume -> the video's-audio owner (old video_audio / tvaudio).
+        vvol = _ents(slots.get("video_volume")) or list(va)
+        avol = _ents(slots.get("audio_volume")) or list(audio)
         rec["display"] = video[0] if video else None
         # A4 (3 Aug): a SECOND video endpoint was silently dropped from
         # every derived view — committed but invisible to awareness.
@@ -127,18 +134,26 @@ def _normalize_slots(rec: dict) -> None:
         rec["displays"] = list(video)
         rec["speakers"] = list(audio)
         rec["audio"] = list(audio)
-        rec["tvaudio"] = va[0] if va else None
+        rec["tvaudio"] = vvol[0] if vvol else (va[0] if va else None)
+        rec["video_volume"] = vvol
+        rec["audio_volume"] = avol
     else:
         # legacy record -> derive slots as the in-memory view
         audio = _ents(list(rec.get("speakers") or [])
                       + list(rec.get("audio") or []))
         sw = (rec.get("avswitch") or {}).get("entity")
+        tva = rec.get("tvaudio")
         rec["displays"] = [rec["display"]] if rec.get("display") else []
+        # v2: the TV-sound owner is the video-volume endpoint; each audio
+        # endpoint auto-binds as its own audio-volume endpoint.
+        rec["video_volume"] = [tva] if tva else []
+        rec["audio_volume"] = list(audio)
         rec["slots"] = {
             "video": [{"entity": rec["display"]}] if rec.get("display") else [],
             "audio": [{"entity": e} for e in audio],
-            "video_audio": ([{"entity": rec["tvaudio"]}]
-                            if rec.get("tvaudio") else []),
+            "video_audio": ([{"entity": tva}] if tva else []),
+            "video_volume": ([{"entity": tva}] if tva else []),
+            "audio_volume": [{"entity": e} for e in audio],
             "switch": {"entity": sw} if sw else None,
         }
 
@@ -498,7 +513,7 @@ def reconcile_identities(rec, registry):
     slots = rec.get("slots")
     if isinstance(slots, dict):
         slots = dict(slots)
-        for key in ("video", "audio", "video_audio"):
+        for key in ("video", "audio", "video_audio", "video_volume", "audio_volume"):
             slots[key] = [dict(x, entity=_sub(x.get("entity")))
                           if isinstance(x, dict) else x
                           for x in (slots.get(key) or [])]
