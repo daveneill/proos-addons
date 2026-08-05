@@ -579,13 +579,25 @@ def resolve_action(client, iid, action_kind=None):
                             {"entity_id": disp})
             except Exception:                                    # noqa: BLE001
                 pass
-            for _f in ("art_readback", "power_on_wol"):
-                _clear(_iid("prepare", inc.get("slug"), _f))
+            # Only clear a posture incident whose option ACTUALLY committed.
+            # Samsung hides some options ("show advanced options") behind a
+            # multi-step form this single-step apply can't reach, so never
+            # falsely clear something we didn't really fix (Dave, 5 Aug).
+            _applied = {
+                "power_on_wol": str(committed.get("power_on_method")) == "1",
+                "art_readback": committed.get("ip_control_art_mode") is True,
+            }
+            done = [f for f, ok in _applied.items()
+                    if ok and _clear(_iid("prepare", inc.get("slug"), f))]
             journal.emit(inc.get("slug", "site"), "repair",
                          {"incident": iid, "action": "settings_applied",
-                          "entity": disp, "options": committed})
-            return {"ok": True, "did": "settings_applied", "cleared": True,
-                    "entity": disp}
+                          "entity": disp, "options": committed, "cleared": done})
+            if not any(_applied.values()):
+                return {"error": "those settings are behind the TV's Advanced "
+                                 "options and could not be applied automatically "
+                                 "yet — set them in the device sheet for now"}
+            return {"ok": True, "did": "settings_applied",
+                    "cleared": bool(done), "entity": disp}
         except Exception as e:                                   # noqa: BLE001
             return {"error": "apply failed: %s" % e}
     if act["kind"] != "reload":
