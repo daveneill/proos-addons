@@ -206,9 +206,6 @@ def _scan(snapall, project_mod, get_controller, witnesses):
                     # STRAIGHT to where the fix lives.
                     "actions": ([{"kind": "room", "room": slug,
                                   "label": "Open %s" % room}]
-                                + ([{"kind": "copy_applist",
-                                     "label": "Copy app list"}]
-                                   if _fid == "app_enumeration" else [])
                                 + ([{"kind": "apply_settings", "room": slug,
                                      "label": "Apply recommended settings"}]
                                    if _fid in ("art_readback", "power_on_wol")

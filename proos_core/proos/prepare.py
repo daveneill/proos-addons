@@ -104,15 +104,8 @@ PREPARE_FACTS = {
                 "generated TV Off cannot rest the panel",
          "fix": "In Pro: Systems › Samsung TV › ⋮ → Reload; if still absent, "
                 "re-pair with the panel on a live input"},
-        {"id": "app_enumeration", "kind": "obs_apps",
-         "label": "Built-in apps available",
-         "why": "some panels never answer ed.installedApp.get (the 2020 Frame, "
-                "measured); without apps the room breaks the 'keep all "
-                "built-in TV apps' rule",
-         "fix": "In Pro: tap Copy app list on this alarm, tap the alarm to open "
-                "the room, open the TV's device sheet → Configure → tick "
-                "App & source setup → Submit → Configure Applications → "
-                "paste → Save Configuration"},
+        # (the "Built-in apps available" enumeration alarm was retired 5 Aug —
+        # apps are user-added shortcuts now, so nothing needs enumerating.)
     ],
 }
 
