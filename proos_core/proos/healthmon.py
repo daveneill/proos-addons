@@ -489,6 +489,25 @@ def _sweep_clears(seen):
         journal.broadcast("incidents", {"count": len(_open)})
 
 
+def _clear(iid):
+    """Clear one RESOLVED incident immediately — a definitive fix already
+    removed its condition, so there's no reason to wait for the next scan.
+    (Uncertain fixes like a reload do NOT call this: recovery isn't guaranteed,
+    so their card stays until a scan confirms the device is actually back.)"""
+    with _lock:
+        _load()
+        inc = _open.pop(iid, None)
+        _first_bad.pop(iid, None)
+        if inc:
+            _save()
+    if inc:
+        journal.emit(inc.get("slug", "site"), "incident_cleared",
+                     {"id": iid, "kind": inc.get("kind"),
+                      "title": inc.get("title")})
+        journal.broadcast("incidents", {"count": len(_open)})
+    return inc
+
+
 def resolve_action(client, iid, action_kind=None):
     """Execute an incident's mechanical repair. Only 'reload' acts on HA
     (homeassistant.reload_config_entry on the entity). recommit/witness are
@@ -522,7 +541,11 @@ def resolve_action(client, iid, action_kind=None):
             journal.emit(inc.get("slug", "site"), "repair",
                          {"incident": iid, "action": "witness_bound",
                           "entity": src, "sensors": sensors})
-            return {"ok": True, "did": "witness_bound",
+            # Definitive fix (Dave, 5 Aug): the witness IS bound, so the
+            # condition is gone — clear the card NOW, don't make the installer
+            # wait for the next sweep to see their tap take effect.
+            _clear(iid)
+            return {"ok": True, "did": "witness_bound", "cleared": True,
                     "entity": src, "sensors": sensors}
         except Exception as e:                                   # noqa: BLE001
             return {"error": "bind failed: %s" % e}
