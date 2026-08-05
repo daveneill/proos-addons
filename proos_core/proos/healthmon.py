@@ -7,12 +7,14 @@ project record) and the live state snapshot the ctlbridge sweep already
 fetched — no extra HA traffic, no engine involvement. Runs throttled off the
 sweep (about once a minute).
 
-The five failure classes it detects are exactly the ones that burned the
+The failure classes it detects are exactly the ones that burned the
 reference home:
   1. committed_unavailable — a committed entity gone/unavailable ≥30 min
      (identity churn: delete/re-add minted new ids, records rot silently).
-  2. duplicate_names      — two media players in one area sharing a friendly
-     name (the Cast-reclaimed-id trap that poisoned Family/Living).
+     This is the ID-based detector for the Cast-reclaimed-id trap that
+     poisoned Family/Living. (The old name-keyed `duplicate_names` check was
+     RETIRED 5 Aug 2026 — identity keys off ids, never display names — see the
+     tombstone at check #2. It was redundant with this one.)
   3. provisional_room     — room says committed but activities still carry
      provisional flags: the commit never fully reached the runtime.
   4. frozen_session       — witness traffic proves the device is alive on the
@@ -315,29 +317,16 @@ def _scan(snapall, project_mod, get_controller, witnesses):
                             print("  [healthmon] auto-heal reload failed "
                                   "for %s: %s" % (eid, _e), flush=True)
 
-        # 2 · duplicate friendly names among the room's media players
-        names = {}
-        for eid in src_eids + committed_eids:
-            if not eid.startswith("media_player."):
-                continue
-            fn = ((snapall.get(eid) or {}).get("attributes") or {}) \
-                .get("friendly_name")
-            if fn:
-                names.setdefault(fn.strip().lower(), set()).add(eid)
-        for fn, eids in names.items():
-            if len(eids) > 1:
-                cid = _iid("duplicate_names", slug, fn)
-                seen.add(cid)
-                _ensure(cid, {
-                    "kind": "duplicate_names", "room": room, "slug": slug,
-                    "severity": "warning",
-                    "title": "%s — two devices share one name" % room,
-                    "cause": "\"%s\" belongs to %s. A re-added integration "
-                             "reclaims names; committed sources can then "
-                             "point at the wrong id." % (fn, ", ".join(sorted(eids))),
-                    "subject": fn,
-                    "actions": [{"kind": "recommit", "room": slug,
-                                 "label": "Recommit room"}]})
+        # 2 · duplicate_names — RETIRED 5 Aug 2026 (Dave's ruling: identity keys
+        #     off immutable ids, never display names). This grouped a room's
+        #     media players by their display name and warned on a collision — a
+        #     name-keyed proxy for the re-added-integration trap. Check #1
+        #     (committed_unavailable) already catches that trap by the honest,
+        #     id-based signal: the committed id goes unavailable (its cause text
+        #     names the "NEW entity id" case). Keying on the display name only
+        #     added false positives — two live devices that legitimately share a
+        #     name — and broke on rename / remove-and-re-add. One mechanism per
+        #     question: #1 owns this.
 
         # 3 · provisional flags on a committed room
         if prov_keys:
