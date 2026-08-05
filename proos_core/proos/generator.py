@@ -846,6 +846,33 @@ def build_room_scripts(client, cluster, commissioning=None) -> dict:
     return scripts
 
 
+def _prune_orphans(client, tmpl, planned) -> list:
+    """Delete ProOS scripts for a room that the current plan (`planned` object_ids)
+    no longer includes — but ONLY when provably unedited (stored proos_hash still
+    matches the script's content), exactly like the twin-dedup in generate(). A
+    hand-edited orphan is left untouched. `tmpl` lists the room's ProOS scripts.
+    Returns the pruned object_ids."""
+    pruned = []
+    try:
+        for seid in json.loads(client.render_template(tmpl) or "[]"):
+            eoid = seid.split(".", 1)[1]
+            if eoid in planned:
+                continue
+            ecfg = _as_cfg(client.get_script(eoid))
+            if not isinstance(ecfg, dict):
+                continue
+            stored = (ecfg.get("variables") or {}).get("proos_hash")
+            if stored and stored == _content_hash(ecfg):
+                try:
+                    if client.delete_script(eoid):
+                        pruned.append(eoid)
+                except Exception:                                # noqa: BLE001
+                    pass
+    except Exception:                                            # noqa: BLE001
+        pass
+    return pruned
+
+
 def generate(client, cluster, commissioning=None, overwrite=False) -> dict:
     """Create-if-absent + self-heal (default), or force-regenerate (overwrite=True).
 
@@ -959,6 +986,13 @@ def generate(client, cluster, commissioning=None, overwrite=False) -> dict:
                 kept.append(oid)
         else:
             kept.append(oid)          # installer edited it -> protect
+    # ── Orphan prune ─────────────────────────────────────────────────────────
+    # A ProOS script for THIS room that the current plan NO LONGER includes (e.g.
+    # watch_<avr> after the AVR stopped being a watchable source) would otherwise
+    # linger as a provisional 'commit didn't fully apply', forcing the installer
+    # to hand-delete it. _prune_orphans deletes it — but ONLY when provably
+    # unedited (same hash safety as the twin-dedup); a hand-edited orphan is kept.
+    pruned = _prune_orphans(client, tmpl, set(scripts.keys()))
     return {"created": created, "kept": kept, "refreshed": refreshed,
-            "remapped": remapped, "deduped": deduped,
+            "remapped": remapped, "deduped": deduped, "pruned": pruned,
             "object_ids": list(scripts)}
