@@ -5204,6 +5204,7 @@ def main():
                 try:
                     _healthmon_mod.AUTO_HEAL = bool(_opt("auto_heal", False))
                     _healthmon_mod.CLIENT = _client
+                    _healthmon_mod.NET_CLIENT = _unifinet   # optional UniFi VLAN evidence
                 except Exception:                                # noqa: BLE001
                     pass
                 _ctlbridge.healthcheck = lambda snap: _healthmon_mod.scan(
