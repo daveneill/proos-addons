@@ -199,7 +199,7 @@ _TEMPLATE = """
   {%% for k in known %%}
     {%% if e in integration_entities(k) %%}{%% set integ.v = k %%}{%% endif %%}
   {%% endfor %%}
-  {%% set ns.rows = ns.rows + [{'entity': e, 'name': state_attr(e,'friendly_name'), 'integration': integ.v, 'device_class': state_attr(e,'device_class')}] %%}
+  {%% set ns.rows = ns.rows + [{'entity': e, 'name': state_attr(e,'friendly_name'), 'integration': integ.v, 'device_class': state_attr(e,'device_class'), 'model': device_attr(device_id(e),'model')}] %%}
 {%% endfor %%}
 {{ ns.rows | to_json }}
 """
@@ -212,6 +212,7 @@ class Device:
     integration: str
     device_class: str | None = None
     tier: str = "compatible"   # certified | compatible (set from integration in discover_av)
+    model: str | None = None   # HA device model, e.g. "HomePod Mini" / "Apple TV 4K" — the reliable audio/video discriminator for apple_tv
 
 
 @dataclass
@@ -256,7 +257,7 @@ class AVCluster:
         return label
 
 
-def role_for(integration: str, dev_class, has_remote=None):
+def role_for(integration: str, dev_class, has_remote=None, model=None):
     """Natural role for a discovered media_player. Pure; benched
     (tests/discovery_role_bench.py). Matrix #2's discovery half.
 
@@ -278,7 +279,14 @@ def role_for(integration: str, dev_class, has_remote=None):
     if role is None and dev_class == "tv":
         role = "display"
     if role == "source" and integration == "apple_tv":
-        if dev_class == "speaker" or has_remote is False:
+        # MODEL is the reliable discriminator. Proven on the live box (Bec's
+        # Office HomePod Mini, 6 Aug 2026): a HomePod registers on apple_tv AND
+        # exposes its own remote.<oid> — exactly like an Apple TV — so the
+        # remote-presence check alone CANNOT tell them apart. Apple hands us the
+        # model string ("HomePod ..." vs "Apple TV ..."); that is what an
+        # AV professional reads off the box. Model first, then the older
+        # device_class / remote fallbacks for firmwares that omit the model.
+        if (model and "homepod" in model.lower()) or dev_class == "speaker" or has_remote is False:
             role = "audio"
     return role
 
@@ -319,10 +327,11 @@ def discover_av(client, area: str) -> AVCluster:
     for r in rows:
         integ = r.get("integration", "unknown")
         dev = Device(r["entity"], r.get("name") or r["entity"], integ,
-                     r.get("device_class"), tier(integ))
+                     r.get("device_class"), tier(integ), model=r.get("model"))
         role = role_for(dev.integration, dev.device_class,
                         _apple_tv_has_remote(client, dev)
-                        if dev.integration == "apple_tv" else None)
+                        if dev.integration == "apple_tv" else None,
+                        model=dev.model)
         if role == "display" and cluster.display is None:
             cluster.display = dev
         elif role == "source":
