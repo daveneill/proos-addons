@@ -110,6 +110,10 @@ try:
 except Exception:  # noqa: BLE001
     _appfavs = None
 try:
+    from proos import shortcuts as _shortcuts       # per-room app shortcuts (widget model)
+except Exception:  # noqa: BLE001
+    _shortcuts = None
+try:
     from proos import appart as _appart   # app tile artwork (shipped pack + Tech Tools uploads)
 except Exception:  # noqa: BLE001
     _appart = None
@@ -3223,6 +3227,23 @@ class Handler(BaseHTTPRequestHandler):
                 if not (_appctl and project):
                     return self._send(200, {"area_id": parts[1], "apps": [], "devices": []})
                 return self._send(200, _appctl.room_apps(_client, project, parts[1]))
+            if parts == ["shortcuts", "catalogue"]:
+                # The registry as a setup pick-list (icon + platforms per app).
+                return self._send(200,
+                                  {"apps": _shortcuts.catalogue() if _shortcuts else []})
+            if parts == ["shortcuts", "support"]:
+                # The brand-support matrix — what each platform can launch and how
+                # proven it is. Shown in the setup UI's info tab; gaps stated.
+                return self._send(200,
+                                  _shortcuts.support_matrix() if _shortcuts
+                                  else {"platforms": [], "apps": []})
+            if len(parts) == 2 and parts[0] == "shortcuts":
+                # A room's app shortcuts, in order. Homeowner surface — the
+                # dashboard renders the widgets from this; any signed-in user.
+                if not _shortcuts:
+                    return self._send(200, {"area_id": parts[1], "shortcuts": []})
+                return self._send(200, {"area_id": parts[1],
+                                        "shortcuts": _shortcuts.room(parts[1])})
             if parts == ["whoami"]:
                 u = getattr(self, "_user", None)
                 if not u:
@@ -4516,6 +4537,47 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(503, {"error": "artwork unavailable"})
                 b = self._body() or {}
                 res = _appart.delete_tile(b.get("slug") or b.get("name") or "")
+                return self._send(400 if res.get("error") else 200, res)
+            if len(parts) == 3 and parts[0] == "shortcuts" and parts[2] == "launch":
+                # Dashboard app tile: launch a room's shortcut. Any signed-in user
+                # (homeowner surface). Uses the STORED shortcut so an installer's
+                # token override is honoured; builds one only if not yet saved.
+                if not _shortcuts:
+                    return self._send(503, {"error": "shortcuts unavailable"})
+                area = parts[1]
+                b = self._body() or {}
+                app = (b.get("app") or "").strip()
+                target = (b.get("target") or "").strip()
+                sc = next((x for x in _shortcuts.room(area)
+                           if x.get("app") == app and x.get("target") == target), None)
+                if not sc:
+                    sc, err = _shortcuts.from_request(_client, b)
+                    if err:
+                        return self._send(400, {"error": err})
+                return self._send(200, _shortcuts.launch(_client, project, area, sc))
+            if len(parts) == 3 and parts[0] == "shortcuts" \
+                    and parts[2] in ("add", "remove", "reorder", "test"):
+                # Room app-shortcut setup (Pro). Tech/owner only. 'test' fires the
+                # launch on the device now — the same path a widget tap runs.
+                u = self._user
+                if not (u and (u.get("is_owner") or (users and users.is_tech(u.get("id"))))):
+                    return self._send(403, {"error": "tech access required"})
+                if not _shortcuts:
+                    return self._send(503, {"error": "shortcuts unavailable"})
+                area = parts[1]
+                action = parts[2]
+                b = self._body() or {}
+                if action == "reorder":
+                    return self._send(200, _shortcuts.reorder(area, b.get("order") or []))
+                if action == "remove":
+                    return self._send(200, _shortcuts.remove(
+                        area, (b.get("app") or "").strip(), (b.get("target") or "").strip()))
+                sc, err = _shortcuts.from_request(_client, b)   # add / test build a shortcut
+                if err:
+                    return self._send(400, {"error": err})
+                if action == "test":
+                    return self._send(200, _shortcuts.launch(_client, project, area, sc))
+                res = _shortcuts.add(area, sc)
                 return self._send(400 if res.get("error") else 200, res)
             if parts == ["scenes", "photo"]:
                 # Set/remove a scene's photo + display-name override. Homeowner
