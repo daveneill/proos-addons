@@ -145,6 +145,24 @@ def _tokens(s: str) -> set:
     return {t for t in re.split(r"[^a-z0-9]+", (s or "").lower()) if len(t) > 2}
 
 
+def suggest_sensors(source_eid: str, rate_sensors: list, limit: int = 2) -> list:
+    """The top token-matched traffic sensors for a source — the SUGGESTION the
+    installer commits with ONE TAP. This is a suggestion, never a runtime match:
+    it fires only when a human triggers the bind (the doctrine keeps name-tokens
+    at the suggestion boundary; the runtime verdict never name-matches)."""
+    stoks = _tokens(source_eid)
+    scored = [(len(stoks & _tokens(s)), s) for s in (rate_sensors or [])]
+    scored = [(o, s) for o, s in scored if o]
+    scored.sort(reverse=True)
+    return [s for _, s in scored[:limit]]
+
+
+def rate_sensor_ids(all_ids: list) -> list:
+    """The certified UniFi traffic (data-rate) sensor ids among `all_ids`."""
+    pat = PROVIDERS["unifi"].get("traffic_sensor_pattern")
+    return [i for i in (all_ids or []) if pat and re.match(pat, i)]
+
+
 def inspect(client, project_mod, option_raw: str = "") -> dict:
     """Full awareness report for Pro. Observation only — no options assumed."""
     try:
@@ -178,18 +196,8 @@ def inspect(client, project_mod, option_raw: str = "") -> dict:
     for src in sources:
         w = witnesses.get(src["entity"])
         src["witness"] = w or None
-        if not w and unifi_sensors:
-            # suggestion only — installer commits; runtime never name-matches
-            stoks = _tokens(src["entity"])
-            scored = []
-            for sen in unifi_sensors:
-                ov = len(stoks & _tokens(sen))
-                if ov:
-                    scored.append((ov, sen))
-            scored.sort(reverse=True)
-            src["suggested"] = [s for _, s in scored[:2]]
-        else:
-            src["suggested"] = []
+        src["suggested"] = (suggest_sensors(src["entity"], unifi_sensors)
+                            if (not w and unifi_sensors) else [])
 
     covered = len([s for s in sources if s["witness"]])
     any_traffic = any(p.get("traffic_ready") for p in providers.values())

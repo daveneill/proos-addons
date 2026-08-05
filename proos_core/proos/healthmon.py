@@ -503,6 +503,29 @@ def resolve_action(client, iid, action_kind=None):
             break
     if not act:
         return {"error": "no such action"}
+    if act["kind"] == "witness":
+        # One-tap bind (Stage 9b): commit the suggested traffic sensors for this
+        # source — the installer's tap IS the commit (doctrine: name-tokens only
+        # at the suggestion boundary, never a runtime match). If no certified
+        # rate sensor matches, say so — never invent one.
+        try:
+            from . import netevidence as _ne
+            states = client._req("GET", "/api/states") or []
+            ids = [s.get("entity_id", "") for s in states]
+            src = inc.get("subject")
+            sensors = _ne.suggest_sensors(src, _ne.rate_sensor_ids(ids))
+            if not sensors:
+                return {"error": "no matching traffic sensor to bind — check the "
+                                 "UniFi Network integration is on and "
+                                 "allow_bandwidth_sensors is enabled"}
+            _ne.save_witness(src, sensors, None)
+            journal.emit(inc.get("slug", "site"), "repair",
+                         {"incident": iid, "action": "witness_bound",
+                          "entity": src, "sensors": sensors})
+            return {"ok": True, "did": "witness_bound",
+                    "entity": src, "sensors": sensors}
+        except Exception as e:                                   # noqa: BLE001
+            return {"error": "bind failed: %s" % e}
     if act["kind"] != "reload":
         return {"ok": True, "navigate": act}
     try:
