@@ -28,6 +28,7 @@ import json
 import os
 import threading
 import time
+import re
 
 from . import journal
 
@@ -42,6 +43,7 @@ except Exception:                                            # noqa: BLE001
 _sess: dict = {}
 AUTO_HEAL = False
 CLIENT = None
+NET_CLIENT = None            # set by server: certified UniFi Network client (optional)
 
 try:
     from . import prepare as _prepare
@@ -62,6 +64,16 @@ FROZEN_SECS = 10 * 60
 # per-pass HA call; the cache also keeps incidents alive between refreshes
 # so they clear only when the audit really passes.
 prepare_entry_fn = None      # set by server: display entity -> {data,options}
+
+
+def _ip_from_sensor(eid):
+    """Pull a dotted IPv4 out of a reachability sensor's object id, e.g.
+    binary_sensor.192_168_1_110 -> '192.168.1.110'. None if it isn't IP-named."""
+    if not eid:
+        return None
+    obj = str(eid).split(".", 1)[-1]
+    m = re.search(r"(\d{1,3})_(\d{1,3})_(\d{1,3})_(\d{1,3})", obj)
+    return ".".join(m.groups()) if m else None
 _prep_cache = {}             # slug -> {"ts": float, "fails": [(id,label,fix)]}
 _PREP_TTL = 30 * 60
 
@@ -165,6 +177,7 @@ def scan(snapall, project_mod, get_controller, witnesses=None):
 def _scan(snapall, project_mod, get_controller, witnesses):
     now = time.time()
     seen = set()       # condition-ids observed bad THIS pass
+    _uni_clients = None   # certified UniFi Network clients, fetched at most once
 
     proj = project_mod.load() or {}
     for key, rec in (proj.get("areas") or {}).items():
@@ -283,19 +296,52 @@ def _scan(snapall, project_mod, get_controller, witnesses):
                 if _sessmon.unstable(_sess, eid, now):
                     seen.add(cid)
                     _n = _sessmon.drop_count(_sess, eid, now)
+                    _cause = ("%s dropped its reporting link %d times in "
+                              "the last %d minutes. Its on/off and "
+                              "now-playing info cannot be trusted until "
+                              "the link holds. Reloading the integration "
+                              "usually restores it; if it keeps dropping, "
+                              "check the network path between the box and "
+                              "this device (mDNS/multicast on separated "
+                              "VLANs is the usual culprit)."
+                              % (eid, _n, int(_sessmon.WINDOW_S / 60)))
+                    # cure #2 (5 Aug) — OPTIONAL UniFi VLAN evidence. Runs only
+                    # when the certified UniFi Network integration is configured
+                    # AND this source has a commissioned reachability witness
+                    # (binary_sensor.<ip>). Nothing depends on UniFi: no UniFi /
+                    # no witness / not isolated adds nothing; failures swallowed.
+                    try:
+                        if NET_CLIENT is not None and NET_CLIENT.configured():
+                            _rs = None
+                            for _a in acts.values():
+                                if getattr(_a, "source_eid", None) == eid:
+                                    _rs = getattr(_a, "reachability_sensor",
+                                                  None)
+                                    break
+                            _ip = _ip_from_sensor(_rs)
+                            if _ip:
+                                if _uni_clients is None:
+                                    _uni_clients = NET_CLIENT.clients() or []
+                                from . import unifinet as _uni
+                                _iso = _uni.vlan_isolation(_uni_clients, ip=_ip)
+                                if _iso:
+                                    _cause += (
+                                        " Evidence (UniFi): this device is on "
+                                        "network '%s' (VLAN %s) while the home "
+                                        "is on '%s' (VLAN %s) — mDNS/Bonjour "
+                                        "does not cross VLANs, so enable "
+                                        "multicast/mDNS reflection between them "
+                                        "or move it to the main network."
+                                        % (_iso["network"], _iso["vlan"],
+                                           _iso["main_network"],
+                                           _iso["main_vlan"]))
+                    except Exception:                            # noqa: BLE001
+                        pass
                     _ensure(cid, {
                         "kind": "link_unstable", "room": room,
                         "slug": slug, "severity": "warning",
                         "title": "%s — device reporting link unstable" % room,
-                        "cause": "%s dropped its reporting link %d times in "
-                                 "the last %d minutes. Its on/off and "
-                                 "now-playing info cannot be trusted until "
-                                 "the link holds. Reloading the integration "
-                                 "usually restores it; if it keeps dropping, "
-                                 "check the network path between the box and "
-                                 "this device (mDNS/multicast on separated "
-                                 "VLANs is the usual culprit)."
-                                 % (eid, _n, int(_sessmon.WINDOW_S / 60)),
+                        "cause": _cause,
                         "subject": eid,
                         "actions": [{"kind": "reload", "entity": eid,
                                      "label": "Reload integration"}]})

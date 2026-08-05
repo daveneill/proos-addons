@@ -201,3 +201,57 @@ def suggest_poe_switch(net_client, ha_client, entity, ip=None, mac=None):
                 and e.get("platform") == "unifi" and want.search(eid)):
             return eid
     return None
+
+
+def vlan_isolation(clients, ip=None, mac=None):
+    """Is the client at `ip`/`mac` on a DIFFERENT network/VLAN than the home's
+    main LAN? A pyatv/Companion session that keeps flapping is very often an
+    Apple TV segregated onto an IoT/guest VLAN: mDNS/Bonjour (which pyatv uses
+    to keep the link alive) does not cross VLANs unless the network reflects
+    multicast. This reads the certified UniFi Network client list ProOS already
+    fetches and reports the isolation as EVIDENCE for the incident — never a gate.
+
+    Purely additive and OPTIONAL: returns None whenever it cannot be sure — no
+    clients, target not found, target has no network, or a single network in
+    play. Nothing in the system depends on UniFi; when it is not configured the
+    caller simply gets None and the incident keeps its generic advice.
+
+    The 'main LAN' is the most common network among WIRED clients — the ProOS
+    box and the infrastructure are wired there, so this needs no box-IP guess.
+    """
+    if not clients:
+        return None
+    ipn = _norm_ip(ip)
+    macn = (mac or "").strip().lower()
+    target = None
+    for c in clients:
+        cip = _norm_ip(c.get("ip") or c.get("last_ip") or c.get("fixed_ip"))
+        if ipn and cip == ipn:
+            target = c
+            break
+        if macn and (c.get("mac") or "").strip().lower() == macn:
+            target = c
+            break
+    if not target:
+        return None
+    t_net = target.get("network_id")
+    if not t_net:
+        return None
+    wired = [c.get("network_id") for c in clients
+             if c.get("is_wired") and c.get("network_id")]
+    pool = wired or [c.get("network_id") for c in clients if c.get("network_id")]
+    if not pool:
+        return None
+    counts = {}
+    for n in pool:
+        counts[n] = counts.get(n, 0) + 1
+    main_net = max(counts, key=counts.get)
+    if t_net == main_net:
+        return None                       # same LAN as the home — not the cause
+    main = next((c for c in clients if c.get("network_id") == main_net), {})
+    return {
+        "network": target.get("network") or t_net,
+        "vlan": target.get("gw_vlan"),
+        "main_network": main.get("network") or main_net,
+        "main_vlan": main.get("gw_vlan"),
+    }
