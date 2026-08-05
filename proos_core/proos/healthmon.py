@@ -208,7 +208,11 @@ def _scan(snapall, project_mod, get_controller, witnesses):
                                   "label": "Open %s" % room}]
                                 + ([{"kind": "copy_applist",
                                      "label": "Copy app list"}]
-                                   if _fid == "app_enumeration" else [])),
+                                   if _fid == "app_enumeration" else [])
+                                + ([{"kind": "apply_settings", "room": slug,
+                                     "label": "Apply recommended settings"}]
+                                   if _fid in ("art_readback", "power_on_wol")
+                                   else [])),
                 })
         except Exception:                                        # noqa: BLE001
             pass
@@ -549,6 +553,41 @@ def resolve_action(client, iid, action_kind=None):
                     "entity": src, "sensors": sensors}
         except Exception as e:                                   # noqa: BLE001
             return {"error": "bind failed: %s" % e}
+    if act["kind"] == "apply_settings":
+        # One-tap (Stage 11): the certification already knows the right OPTION
+        # values, so write them onto the display's integration via HA's options
+        # flow, then reload. Definitive — the room's applyable posture incidents
+        # clear immediately. Only fixed-value options are applied here; the
+        # discovered ping port and physical pairing stay their own steps.
+        try:
+            from . import prepare as _prep
+            disp = inc.get("subject")
+            entry_id = (client.resolve_config_entry(disp)
+                        if disp and hasattr(client, "resolve_config_entry")
+                        else None)
+            if not entry_id:
+                return {"error": "could not find the display's integration entry"}
+            data = ((prepare_entry_fn(disp) if callable(prepare_entry_fn)
+                     else None) or {}).get("data") or {}
+            want = {"power_on_method": "1"}
+            if data.get("is_frame_tv"):
+                want["ip_control_art_mode"] = True
+            committed = _prep.apply_recommended(client, entry_id, want)
+            try:
+                client._req("POST",
+                            "/api/services/homeassistant/reload_config_entry",
+                            {"entity_id": disp})
+            except Exception:                                    # noqa: BLE001
+                pass
+            for _f in ("art_readback", "power_on_wol"):
+                _clear(_iid("prepare", inc.get("slug"), _f))
+            journal.emit(inc.get("slug", "site"), "repair",
+                         {"incident": iid, "action": "settings_applied",
+                          "entity": disp, "options": committed})
+            return {"ok": True, "did": "settings_applied", "cleared": True,
+                    "entity": disp}
+        except Exception as e:                                   # noqa: BLE001
+            return {"error": "apply failed: %s" % e}
     if act["kind"] != "reload":
         return {"ok": True, "navigate": act}
     try:

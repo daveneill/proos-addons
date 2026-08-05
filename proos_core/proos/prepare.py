@@ -300,3 +300,67 @@ def audit_room(record, snap, entry) -> dict:
 
     out["checks"].extend(_source_checks(record, snap))
     return out
+
+
+# ── one-tap "Apply recommended settings" (Stage 11) ─────────────────────────
+# Completes the certification: it already KNOWS the right option values (the
+# facts above), so let it WRITE them. Options are set via HA's OPTIONS FLOW —
+# the supported path; direct .storage writes silently no-op for options. Safe by
+# construction: it reads the live form's current values and submits them with the
+# recommended ones merged over the top, overriding ONLY fields the form actually
+# renders, so nothing the installer set is disturbed and no field is invented.
+def _schema_defaults(form) -> dict:
+    """{field: current value} for every field in a flow form, recursing into
+    `expandable` groups. HA renders the form from the live entry, so the schema
+    defaults ARE the entry's current values."""
+    out = {}
+
+    def walk(fields):
+        for f in (fields or []):
+            if f.get("type") == "expandable" and isinstance(f.get("schema"), list):
+                walk(f["schema"])
+                continue
+            n = f.get("name")
+            if not n:
+                continue
+            if "default" in f:
+                out[n] = f["default"]
+            else:
+                sv = (f.get("description") or {}).get("suggested_value")
+                if sv is not None:
+                    out[n] = sv
+    walk(form.get("data_schema"))
+    return out
+
+
+def apply_recommended(client, entry_id, want) -> dict:
+    """Write recommended OPTIONS onto a config entry via HA's options flow.
+
+    Reads the live form, submits its current values with `want` merged over the
+    top (only for fields the form has), confirms HA committed, and never leaves a
+    flow half-open. Returns the committed options. Raises naming the failed step."""
+    flow = "/api/config/config_entries/options/flow"
+    start = client._req("POST", flow, {"handler": entry_id}) or {}
+    fid = start.get("flow_id")
+    if not fid:
+        raise RuntimeError("HA did not open an options flow for this device")
+    url = "%s/%s" % (flow, fid)
+    try:
+        if start.get("step_id") != "init":
+            raise RuntimeError("unexpected first step %r" % start.get("step_id"))
+        cur = _schema_defaults(start)
+        payload = dict(cur)
+        for k, v in (want or {}).items():
+            if k in cur:                         # override ONLY rendered fields
+                payload[k] = v
+        done = client._req("POST", url, payload) or {}
+        if done.get("type") != "create_entry":
+            raise RuntimeError("HA did not save (type=%r errors=%r)"
+                               % (done.get("type"), done.get("errors")))
+    except Exception:
+        try:                                     # never leave a flow half-open
+            client._req("DELETE", url, None)
+        except Exception:                        # noqa: BLE001
+            pass
+        raise
+    return dict(done.get("data") or {})
