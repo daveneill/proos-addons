@@ -276,12 +276,25 @@ def audit_room(record, snap, entry) -> dict:
                 continue
             sl = attrs.get("source_list")
             state = (st.get("state") or "").lower()
-            if sl is None or state in ("off", "unavailable", "unknown", ""):
-                # matrix #14: an off panel returns nothing — that is UNKNOWN,
-                # not failure, or every sleeping TV would be faulted nightly.
-                out["checks"].append(_check(fact, None,
-                                            {"note": "panel off — read with "
-                                                     "the TV on"}))
+            # Art Mode: a Frame showing art reads state 'on' but publishes ONLY
+            # its inputs and cannot enumerate apps — exactly like an off panel.
+            # art_mode_status misreports on this panel family, so trust the
+            # committed art switch (the same signal the off-state uses) and the
+            # panel's own media_title. Faulting a panel in Art Mode is a false
+            # positive (Dave, 5 Aug: the Frame alarm fired while in Art Mode).
+            _artsw = "switch.%s_art_mode" % disp.split(".", 1)[-1]
+            _art = (str((snap.get(_artsw) or {}).get("state") or "").lower()
+                    == "on"
+                    or str(attrs.get("art_mode_status") or "").lower() == "on"
+                    or str(attrs.get("media_title") or "").strip().lower()
+                    == "art mode")
+            if sl is None or state in ("off", "unavailable", "unknown", "") \
+                    or _art:
+                # off OR Art Mode: the panel returns only inputs — UNKNOWN, not
+                # failure (matrix #14 + the Frame's Art Mode false positive).
+                _note = ("panel in Art Mode — read with the TV on a live input"
+                         if _art else "panel off — read with the TV on")
+                out["checks"].append(_check(fact, None, {"note": _note}))
             else:
                 out["checks"].append(_check(fact, _has_apps(sl)))
 
