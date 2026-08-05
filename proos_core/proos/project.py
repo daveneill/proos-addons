@@ -855,6 +855,7 @@ def _cluster_from_record(client, area, rec):
         audio=[dev(e) for e in aud_es],
         display_is_source=display_is_source,
         display_input=display_input,
+        avswitch=((rec.get("avswitch") or {}).get("entity")),
     )
 
 

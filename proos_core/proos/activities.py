@@ -388,6 +388,8 @@ def build_watch_activities(cluster, reachability: dict | None = None,
     reachability = reachability or {}
     out: list[Activity] = []
     for src in cluster.sources:
+        if getattr(cluster, "avswitch", None) and src.entity == cluster.avswitch:
+            continue   # the room's AV switch is not a watchable source (brand-agnostic)
         label = cluster.label_for(src)
         others = [s.entity for s in cluster.sources if s.entity != src.entity]
         slug = src.entity.split(".", 1)[-1]

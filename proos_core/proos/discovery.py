@@ -227,6 +227,12 @@ class AVCluster:
     # is the TV's own committed input for that activity (e.g. 'TV' for the broadcast tuner).
     display_is_source: bool = False
     display_input: str | None = None
+    # The committed AV SWITCH entity (an AVR/matrix, ANY brand). It routes and
+    # amplifies sources but is NOT itself a watchable source, so
+    # build_watch_activities skips it — no phantom 'watch_<avr>' activity that can
+    # never commission (the "commit didn't fully apply" cause). It still powers
+    # off with the room and remains a valid audio endpoint.
+    avswitch: str | None = None
 
     def label_for(self, dev: Device) -> str:
         """A clean activity label, e.g. 'Family Room Shield TV' -> 'Shield TV'.
