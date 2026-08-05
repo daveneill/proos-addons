@@ -3159,16 +3159,6 @@ class Handler(BaseHTTPRequestHandler):
                     # list across instead of re-learning each one by hand.
                     "boxes": _atv_boxes(),
                     "live": live})
-            if parts == ["apps", "samsung_applist"]:
-                # The app_list Core tells the installer to paste is SERVED,
-                # not hunted for (Dave, 2 Aug: "where the hell do I get
-                # that"). One Copy button on the alarm; this is its source.
-                try:
-                    from proos import prepare as _pp
-                    return self._send(200, {"app_list": json.dumps(
-                        _pp.SAMSUNG_APP_LIST, ensure_ascii=False, indent=2)})
-                except Exception as e:                           # noqa: BLE001
-                    return self._send(200, {"app_list": "", "error": str(e)})
             if parts == ["apps", "identity"]:
                 # Canonical app identity (spec 1 Aug): one app = one display
                 # name + one tile on every surface. Flat alias->{name,slug}
