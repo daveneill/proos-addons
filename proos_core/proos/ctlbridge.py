@@ -757,6 +757,21 @@ class ActivityPublisher:
         except Exception as e:                                   # noqa: BLE001
             print("  [ctlbridge] publish %s failed: %s" % (eid, e), flush=True)
 
+    @staticmethod
+    def _ghost_sensors(snapall, valid):
+        """`sensor.proos_activity_*` eids whose slug is NOT a live non-site
+        area. `valid` is the set of current area slugs (committed rooms plus
+        non-site registry areas). These are ghosts — a deleted room, or the
+        site area that is not a room — that Core POSTed and never removed."""
+        out = []
+        for eid in list(snapall or {}):
+            e = str(eid)
+            if not e.startswith("sensor.proos_activity_"):
+                continue
+            if e[len("sensor.proos_activity_"):] not in valid:
+                out.append(e)
+        return out
+
     # -- room activity verdicts ---------------------------------------------
     def _mem(self, area_slug: str) -> dict:
         m = self._roommem.setdefault(area_slug, {})
@@ -1230,6 +1245,36 @@ class ActivityPublisher:
                                         _envm.get(_aid) or [], snapall)
         except Exception as e:                                   # noqa: BLE001
             print("  [ctlbridge] monitored sweep failed: %s" % e, flush=True)
+
+        # GHOST SWEEP (Stage 6, 5 Aug): Core POSTs bare activity sensor states
+        # and never removed them, so a deleted room — or the site area, which is
+        # not a room (its monitored publish is skipped above) — left
+        # sensor.proos_activity_<slug> in HA forever, still visible to Assist and
+        # any control overlay (stale_activity_sensors, registered-not-built).
+        # Delete any activity sensor whose slug is not a current non-site area.
+        # Only ever prune with a REAL registry in hand: a live room always
+        # carries its immutable area_id there, so a transient failure this sweep
+        # can never delete a real room's sensor.
+        try:
+            _areas = self.client.area_registry() or []
+            if _areas:
+                _valid = set(_seen_areas)
+                for _a in _areas:
+                    _aid = _a.get("area_id")
+                    if _aid and not _is_site_area(_a):
+                        _valid.add(_aid)
+                for _eid in self._ghost_sensors(snapall, _valid):
+                    try:
+                        self.client._req("DELETE", "/api/states/%s" % _eid)
+                        self._last.pop(_eid, None)
+                        self._lastattrs.pop(_eid, None)
+                        print("  [ctlbridge] removed ghost sensor %s"
+                              % _eid, flush=True)
+                    except Exception as _e:                      # noqa: BLE001
+                        print("  [ctlbridge] ghost removal %s failed: %s"
+                              % (_eid, _e), flush=True)
+        except Exception as e:                                   # noqa: BLE001
+            print("  [ctlbridge] ghost sweep failed: %s" % e, flush=True)
 
     @staticmethod
     def _norm(x) -> str:
