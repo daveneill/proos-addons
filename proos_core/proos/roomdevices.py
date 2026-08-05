@@ -23,6 +23,8 @@ from __future__ import annotations
 import json
 import os
 
+from .membership import area_of
+
 _STORE = os.path.join(os.environ.get("PROOS_DATA_DIR", "/data"), "room_devices.json")
 
 # Controllable, non-AV domains a room scene / assistant would touch. media_player
@@ -134,6 +136,7 @@ def _entities_in_area(client, area_id: str) -> list:
     page needs to tell same-named devices apart."""
     try:
         devs = {d.get("id"): d for d in (client.device_registry() or [])}
+        dev_areas = {i: (d or {}).get("area_id") for i, d in devs.items()}
         ents = client.entity_registry() or []
     except Exception:
         return []
@@ -150,8 +153,7 @@ def _entities_in_area(client, area_id: str) -> list:
         if e.get("entity_category") in ("config", "diagnostic"):
             continue
         dev = devs.get(e.get("device_id")) or {}
-        dev_area = dev.get("area_id")
-        ea = e.get("area_id") or dev_area
+        ea = area_of(e, dev_areas)
         if ea != area_id:
             continue
         dev_name = dev.get("name_by_user") or dev.get("name") or ""

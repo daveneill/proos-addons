@@ -40,6 +40,7 @@ from . import sync
 from . import discovery
 from .discovery import discover_av
 from .ha_ws import ws_command
+from .membership import area_of
 
 DEFAULT_PATH = os.environ.get("PROOS_PROJECT_PATH", "/data/proos_project.json")
 SCHEMA_VERSION = 1
@@ -1032,9 +1033,7 @@ def heal_records(client, project_dict=None) -> dict:
             out["checked"] += 1
             if committed_record(stored, aid):
                 continue                       # the record is fine
-            mine = [e for e in reg
-                    if (e.get("area_id") or dev_area.get(e.get("device_id")))
-                    == aid]
+            mine = [e for e in reg if area_of(e, dev_area) == aid]
             if not any(LABEL_AV in (e.get("labels") or []) for e in mine):
                 continue                       # never commissioned — normal
             srcl = {}

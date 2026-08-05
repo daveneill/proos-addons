@@ -35,6 +35,7 @@ import re
 import socket
 import threading
 import time
+from .membership import area_of
 
 from proos import sentence as _sent
 
@@ -1452,7 +1453,7 @@ class ActivityPublisher:
                 if eid.split(".")[0] not in ("light", "climate", "weather",
                                              "media_player"):
                     continue
-                aid = e.get("area_id") or devs.get(e.get("device_id"))
+                aid = area_of(e, devs)
                 if aid:
                     m.setdefault(aid, []).append(eid)
                 elif eid.startswith("weather."):

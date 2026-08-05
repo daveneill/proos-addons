@@ -29,6 +29,7 @@ import threading
 import time
 import urllib.request
 import urllib.error
+from .membership import area_of
 
 _CFG_PATH = os.path.join(os.environ.get("PROOS_DATA_DIR", "/data"), "assist.json")
 _LOCK = threading.Lock()
@@ -1244,7 +1245,7 @@ class ToolRunner:
                 continue
             if e.get("disabled_by") or e.get("hidden_by"):
                 continue
-            ea = e.get("area_id") or dev_area.get(e.get("device_id"))
+            ea = area_of(e, dev_area)
             if ea == area_id:
                 out.append(eid)
         return sorted(set(out))
@@ -1344,7 +1345,7 @@ class ToolRunner:
             eid = e.get("entity_id") or ""
             if not eid.startswith("media_player.") or e.get("platform") != "music_assistant":
                 continue
-            ea = e.get("area_id") or dev_area.get(e.get("device_id"))
+            ea = area_of(e, dev_area)
             if ea == area_id:
                 cands.append(eid)
         if not cands:
@@ -1519,7 +1520,7 @@ class ToolRunner:
                                     for d in (self.client.device_registry() or [])}
                         for e2 in (self.client.entity_registry() or []):
                             if e2.get("entity_id") in members:
-                                a2 = e2.get("area_id") or dev_area.get(e2.get("device_id"))
+                                a2 = area_of(e2, dev_area)
                                 if a2:
                                     areas[a2] = areas.get(a2, 0) + 1
                     except Exception:
