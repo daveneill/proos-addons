@@ -6,8 +6,9 @@ must read exactly what the homeowner reads") only holds if ONE thing
 speaks. So Core computes the words once per sweep and publishes them on
 the verdict sensor:
 
-  sentence   — the AREA line. Content playing -> the info (station/app —
-               title — artist, package strings filtered). Otherwise the
+  sentence   — the AREA line. Content playing -> a natural phrase ("Wild
+               Horses by Gino Vannelli on Triple M 80s"; watching folds in
+               the source: "Ted Lasso on Apple TV"). Otherwise the
                state sentence ("TV is on", "Watching Apple TV").
                Off -> "Off" (surfaces decide whether off speaks).
   home_word  — the HOME line's room clause, content-free ("Music",
@@ -53,18 +54,51 @@ def _state(snap, eid):
     return (snap.get(eid) or {}).get("state") or ""
 
 
-def playing_info(devs, snap):
-    """station/app — title — artist from any committed playing device,
-    sources first (video), then the rest (music lives on speakers).
+def _phrase(station, title, artist):
+    """A natural content phrase from whichever parts are real (Dave, 7 Aug:
+    richer than the old ' — ' chain):
+      'Wild Horses by Gino Vannelli on Triple M 80s' · 'Stranger Things on
+      Netflix' · 'Wild Horses by Gino Vannelli' · 'Wild Horses' · 'Triple M 80s'."""
+    if title and artist and station:
+        return "%s by %s on %s" % (title, artist, station)
+    if title and artist:
+        return "%s by %s" % (title, artist)
+    if title and station:
+        return "%s on %s" % (title, station)
+    if title:
+        return title
+    if station:
+        return station
+    if artist:
+        return artist
+    return None
 
-    CLEARS WITH THE SAME RULES AS THE MEDIA PAGE (Dave, 3 Aug: summaries
-    held stale tracks the media page had already cleared):
-    * paused never claims a summary — a speaker paused for hours holds
-      stale metadata (Bedroom: "Deep of You" long after the music ended)
-    * the TV-relay phantom: an audio device on its TV input reports
-      "playing" forever (HEOS/Sonos SPDIF relay) — it only speaks when a
-      display in the room is actually lit (ported from the dashboard's
-      #40 phantom rule)."""
+
+def _watch_source(label):
+    """The source name out of an activity label, for the content combine —
+    'Watch Apple TV' -> 'Apple TV', 'Watching TV' -> 'TV'. A label that is NOT
+    an activity name ('On') returns None, so a manually-lit room never gets a
+    bogus 'on On' tail."""
+    import re as _re
+    m = _re.match(r"^Watch(?:ing)?\s+(.+)$", str(label or "").strip(), _re.I)
+    return m.group(1) if m else None
+
+
+def playing_info(devs, snap, source_fallback=None):
+    """A natural content phrase from any committed playing device, sources
+    first (video), then the rest (music lives on speakers). Every playing
+    device speaks, joined ' · '; identical info collapses.
+
+    source_fallback (Dave, 7 Aug — reverses the 3 Aug 'never concatenate'):
+    when a committed SOURCE reports a title but no station/app, name the
+    activity's source, so 'Ted Lasso' becomes 'Ted Lasso on Apple TV'. Only the
+    source, only when it would otherwise be a bare title — a real app/station
+    (Netflix) always wins over the fallback.
+
+    CLEARS WITH THE SAME RULES AS THE MEDIA PAGE: paused never claims; the
+    TV-relay phantom (an audio device on its TV input reporting 'playing'
+    forever) only speaks when a display in the room is lit; input echoes and
+    machine junk never render."""
     display_lit = any(
         (d or {}).get("role") == "display"
         and str((d or {}).get("state")) in ("on", "playing", "paused")
@@ -77,37 +111,42 @@ def playing_info(devs, snap):
         if role != "source" and str(_attr(snap, eid, "source")) == "TV" \
                 and not display_lit:
             return None
-        bits = [_ok(_attr(snap, eid, "media_channel"))
-                or _ok(_attr(snap, eid, "app_name")),
-                _ok(_attr(snap, eid, "media_title")),
-                _ok(_attr(snap, eid, "media_artist"))]
-        # INPUT ECHO is not content (Dave, 3 Aug: Bedroom read just "TV" —
-        # the Sonos relaying TV audio titles itself "TV"/"TV Audio", a
-        # Samsung titles its feed "HDMI 2"). Metadata that equals or
-        # extends the device's OWN source name is the input echoing back,
-        # on any brand. Real info through a relay (a station name on an
-        # AVR) differs from the input name, so it still speaks.
+        station = _ok(_attr(snap, eid, "media_channel")) \
+            or _ok(_attr(snap, eid, "app_name"))
+        title = _ok(_attr(snap, eid, "media_title"))
+        artist = _ok(_attr(snap, eid, "media_artist"))
+        # INPUT ECHO is not content (Dave, 3 Aug: a Sonos relaying TV audio
+        # titles itself "TV"/"TV Audio"; a Samsung says "HDMI 2"). A part equal
+        # to / extending the device's OWN source name is the input echoing back,
+        # on any brand. Real info through a relay (a station name) still speaks.
         src = str(_attr(snap, eid, "source") or "").strip().lower()
         if src:
-            bits = [b for b in bits
-                    if not (b and (b.lower() == src
-                                   or b.lower().startswith(src + " ")))]
-        # duplicates collapse ("Triple M 80s — Triple M 80s" reads once)
-        seen, out = set(), []
-        for b in bits:
-            if not b or b.lower() in seen:
-                continue
-            seen.add(b.lower())
-            out.append(b)
-        return " — ".join(out) if out else None
+            def _echo(b):
+                return bool(b) and (b.lower() == src
+                                    or b.lower().startswith(src + " "))
+            if _echo(station):
+                station = None
+            if _echo(title):
+                title = None
+            if _echo(artist):
+                artist = None
+        # duplicates collapse (radio titles itself its station once)
+        if title and station and title.lower() == station.lower():
+            title = None
+        if artist and station and artist.lower() == station.lower():
+            artist = None
+        if artist and title and artist.lower() == title.lower():
+            artist = None
+        # activity+content combine: a bare-title source names the activity's
+        # source ('Ted Lasso on Apple TV'); a real app/station always wins.
+        if role == "source" and title and not station and source_fallback:
+            station = source_fallback
+        return _phrase(station, title, artist)
 
     ordered = ([e for e, d in (devs or {}).items()
                 if (d or {}).get("role") == "source"]
                + [e for e, d in (devs or {}).items()
                   if (d or {}).get("role") != "source"])
-    # EVERY playing device speaks (Dave, 3 Aug: Office had the station
-    # player AND a HomePod playing — only the first showed). Identical
-    # info collapses (grouped speakers playing the same thing read once).
     infos = []
     for e in ordered:
         info = read(e)
@@ -277,12 +316,16 @@ def area_sentence(stv, label, provisional, devs, snap, room_name,
             return info
         ns = _names_sentence(_lit_names(devs, snap, room_name))
         return ns or "Off"
-    # ONE RULE, across the board (Dave, 3 Aug, final wording): the INFO
-    # alone when a device reports content; otherwise the commanded
-    # activity word ("Watching Apple TV" — commanded and power-confirmed,
-    # so it's KNOWN even when the source reports nothing); otherwise the
-    # monitored device facts. NEVER both concatenated.
-    info = playing_info(devs, snap)
+    # The content phrase when a device reports what's playing — and when
+    # WATCHING, the activity's source is folded in so a bare title reads
+    # 'Ted Lasso on Apple TV' (Dave, 7 Aug: richer; reverses the 3 Aug
+    # 'never concatenate'). A real app/station (Netflix) still wins. Otherwise
+    # the commanded activity word ("Watching Apple TV" — known even when the
+    # source reports nothing); otherwise the monitored device facts.
+    src_label = None
+    if stv.startswith("watch_"):
+        src_label = _self_label(None, media_app, content) or _watch_source(label)
+    info = playing_info(devs, snap, source_fallback=src_label)
     if info:
         return info
     return _state_sentence(stv, label, devs, snap, room_name, home=False,
