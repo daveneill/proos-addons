@@ -165,12 +165,14 @@ def _state_sentence(stv, label, devs, snap, room_name, home,
     # the homeowner, not 'On in Family Room'"). Full spec:
     # ProOS_Summary_Language_Spec.md.
     if stv in ("playing", "paused", "idle"):
-        # Only actual playback says "playing" — a paused/idle room (both Office
-        # speakers paused, 6 Aug) must NOT claim "Music is playing". The home line
-        # stays the content-free room clause ("Music").
-        if home:
-            return "Music"
-        return "Music is playing" if stv == "playing" else "Music paused"
+        # Only actual PLAYBACK speaks. A paused/idle music room says NOTHING — the
+        # media card holds it until the pause-clear timer expires, but the status
+        # line goes quiet (Dave, 6 Aug: the Office read "Music is playing" while
+        # both speakers were paused; "if it's paused it shouldn't say anything ...
+        # until the clear timer expires").
+        if stv != "playing":
+            return None
+        return "Music" if home else "Music is playing"
     if stv.startswith("watch_"):
         # A built-in app or the tuner names ITSELF ("Watching 7plus").
         self_lbl = _self_label(None, media_app, content)
@@ -241,7 +243,9 @@ def home_clause(stv, label, provisional, devs, snap, room_name,
         names = _lit_names(devs, snap, room_name)
         return _names_clause(names) if names else None
     if stv in ("playing", "paused", "idle"):
-        return "Music in %s" % place
+        # paused/idle is silent on the home line too — the media card holds it,
+        # the words don't (Dave, 6 Aug). Only active playback names the room.
+        return ("Music in %s" % place) if stv == "playing" else None
     if stv.startswith("watch_"):
         _s = _state_sentence(stv, label, devs, snap, room_name, home=True,
                              media_app=media_app, content=content)
