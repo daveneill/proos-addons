@@ -2448,6 +2448,39 @@ _FAST_MUTE = re.compile(r"^(mute|unmute|silence)( it| that)?$", re.I)
 _FAST_PAUSE = re.compile(r"^(pause|stop|resume|play|continue)( it| that| music)?$", re.I)
 
 
+def _room_vol_targets(runner, area_id):
+    """The media_player entities Assist should drive for a VOLUME command in this
+    room — ENDPOINT-DRIVEN (Endpoint Model Spec v2, 6 Aug). The room is watching
+    (a watch_* verdict) -> its VIDEO-VOLUME endpoints; music is playing -> its
+    AUDIO-VOLUME endpoints; otherwise the room's committed audio-volume (its music
+    volume). Returns (entities, context). ([], None) means the room has NO volume
+    endpoint committed — Assist says so rather than spraying every player in the
+    area (the old device_control default), which moved the wrong device."""
+    try:
+        rec = (runner.project.load().get("areas") or {}).get(area_id) or {}
+    except Exception:
+        rec = {}
+    vv = [e for e in (rec.get("video_volume") or []) if isinstance(e, str) and e]
+    av = [e for e in (rec.get("audio_volume") or []) if isinstance(e, str) and e]
+    if not vv and not av:
+        return [], None
+    verdict_eid = "sensor.proos_activity_%s" % area_id
+    snap = {}
+    try:
+        snap = runner.client.snapshot(list(dict.fromkeys([verdict_eid] + av))) or {}
+    except Exception:
+        pass
+    watching = str((snap.get(verdict_eid) or {}).get("state") or "").startswith("watch_")
+    playing_audio = [e for e in av if str((snap.get(e) or {}).get("state")) == "playing"]
+    if watching and vv:
+        return vv, "video"
+    if playing_audio:
+        return playing_audio, "audio"
+    if av:
+        return av, "audio"
+    return vv, "video"
+
+
 def _fast_intent(runner, text: str, where: dict):
     """Handle a common command locally. Returns a spoken reply, or None.
 
@@ -2477,16 +2510,29 @@ def _fast_intent(runner, text: str, where: dict):
         return ("Everything off in the %s." % room) if not (r or {}).get("error") else None
     if _FAST_MUTE.match(t):
         want = not t.lower().startswith("un")
-        r = runner.run("device_control", {"area_id": area, "domain": "media_player",
-                                          "service": "volume_mute",
-                                          "data": {"is_volume_muted": want}})
-        return ("Muted." if want else "Unmuted.") if not (r or {}).get("error") else None
+        tgts, _ctx = _room_vol_targets(runner, area)
+        if not tgts:
+            return "There's no volume control set up in the %s." % room
+        for e in tgts:
+            try:
+                runner.client.call_service("media_player", "volume_mute", e,
+                                           {"is_volume_muted": want})
+            except Exception:
+                pass
+        return "Muted." if want else "Unmuted."
     m = _FAST_VOL.match(t)
     if m:
         up = bool(re.search(r"up|louder", t, re.I))
-        r = runner.run("device_control", {"area_id": area, "domain": "media_player",
-                                          "service": "volume_up" if up else "volume_down"})
-        return ("Turned it %s." % ("up" if up else "down")) if not (r or {}).get("error") else None
+        tgts, _ctx = _room_vol_targets(runner, area)
+        if not tgts:
+            return "There's no volume control set up in the %s." % room
+        svc = "volume_up" if up else "volume_down"
+        for e in tgts:
+            try:
+                runner.client.call_service("media_player", svc, e, None)
+            except Exception:
+                pass
+        return "Turned it %s." % ("up" if up else "down")
     m = _FAST_PAUSE.match(t)
     if m:
         word = m.group(1).lower()
