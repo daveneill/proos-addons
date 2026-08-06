@@ -87,7 +87,9 @@ def load_config() -> dict:
 
 def save_config(body: dict) -> dict:
     cfg = load_config()
-    for k in ("provider", "model"):
+    # fast_model (A5, optional): a cheaper model for short single-clause commands.
+    # Blank = off, everything runs on the main model — the safe default.
+    for k in ("provider", "model", "fast_model"):
         if k in body:
             cfg[k] = (body.get(k) or "").strip()
     # api_key: absent = keep existing; empty string = clear.
@@ -267,6 +269,44 @@ TOOLS = [
      "input_schema": {"type": "object", "properties": {
          "entity_ids": {"type": "array", "items": {"type": "string"}}},
          "required": ["entity_ids"]}},
+    {"name": "room_status",
+     "description": "The room's live AV situation RIGHT NOW — read this BEFORE you "
+                    "answer any question about what's playing or how loud it is, and "
+                    "before any volume/mute command, so you CONFIRM instead of assume. "
+                    "Returns the room's activity verdict, whether the context is video "
+                    "(watching) or audio (music playing), the ACTIVE volume endpoint — "
+                    "the speaker actually playing, or the TV-audio owner when watching — "
+                    "and each endpoint's REAL volume_level (0-1) and muted flag. This is "
+                    "how you know, not guess: never tell anyone a room is 'already muted', "
+                    "or say you 'turned it up', without having read this first. Empty "
+                    "endpoints = the room has no volume endpoint committed; say so plainly. "
+                    "Accepts an area_id or a room name.",
+     "input_schema": {"type": "object", "properties": {
+         "area_id": {"type": "string"}}, "required": ["area_id"]}},
+    {"name": "room_volume",
+     "description": "Change the volume of a ROOM — you name the room, the endpoint model "
+                    "picks the target: the speaker actually playing (music), or the TV-audio "
+                    "owner when watching. This is the RIGHT tool for 'turn it up', 'louder in "
+                    "the office', 'mute', 'set the volume to 40%' — it follows what's playing, "
+                    "so it never moves the wrong device. action: up | down | mute | unmute | "
+                    "set. For set, give level (0-1, or a percentage like 40). mute/unmute SET "
+                    "the state deterministically — read room_status first if you need to REPORT "
+                    "the mute state, but to mute you just mute. If the room has no volume "
+                    "endpoint you get a message saying so — relay it, don't spray devices.",
+     "input_schema": {"type": "object", "properties": {
+         "area_id": {"type": "string"},
+         "action": {"type": "string", "description": "up | down | mute | unmute | set"},
+         "level": {"type": "number", "description": "for set: 0-1 or a percentage (40)"}},
+         "required": ["area_id", "action"]}},
+    {"name": "room_media",
+     "description": "Transport control for the ROOM's active player — pause / play / next / "
+                    "previous the speaker (or TV-audio owner) that's currently playing, resolved "
+                    "from the room's verdict. Use for 'pause the music in here', 'skip this "
+                    "track', 'resume'. Best for music; for AV power and sources use room_activity.",
+     "input_schema": {"type": "object", "properties": {
+         "area_id": {"type": "string"},
+         "action": {"type": "string", "description": "play | pause | next | previous | stop"}},
+         "required": ["area_id", "action"]}},
     {"name": "app_launch",
      "description": "Open a streaming app (Netflix, Disney+, YouTube…) in a room. A room can have "
                     "several devices that run apps — the smart TV, an Apple TV, a Shield. Call with "
@@ -1145,6 +1185,117 @@ class ToolRunner:
             sv = snap.get(e)
             out[e] = _slim_state(sv if isinstance(sv, dict) else getattr(sv, "__dict__", {}) or {})
         return {"states": out}
+
+    def t_room_status(self, args):
+        """The room's live AV truth for a status question or a volume command —
+        the CONFIRM tool (Assist Redesign A1, 6 Aug). It resolves the room's
+        ACTIVE volume endpoint the same way control does (_room_vol_targets:
+        the verdict's playing speaker, or the TV-audio owner when watching) and
+        reads that endpoint's REAL volume + mute — so the agent answers from
+        what IS, never from a stale assumption ('already muted' on the wrong
+        speaker, Dave 6 Aug). Empty endpoints means no volume endpoint is
+        committed; the agent says so rather than pretending."""
+        area = self._resolve_area_id(args.get("area_id") or args.get("room"))
+        if not area:
+            return {"error": "area_id (or room name) required"}
+        verdict_eid = "sensor.proos_activity_%s" % area
+        tgts, ctx = _room_vol_targets(self, area)
+        ids = list(tgts) + [verdict_eid]
+        snap = self.client.snapshot(ids) or {}
+        v = snap.get(verdict_eid) or {}
+        vatt = v.get("attributes") or {}
+        endpoints = []
+        for e in tgts:
+            st = snap.get(e) or {}
+            a = st.get("attributes") or {}
+            endpoints.append({
+                "entity_id": e,
+                "name": a.get("friendly_name"),
+                "state": st.get("state"),
+                # the REAL numbers — 0-1 volume, the actual mute flag
+                "volume_level": a.get("volume_level"),
+                "muted": a.get("is_volume_muted"),
+                "media_title": a.get("media_title"),
+                "source": a.get("source")})
+        return {
+            "area_id": area,
+            "activity": v.get("state"),
+            "activity_sentence": vatt.get("sentence"),
+            "context": ctx,                       # 'video' | 'audio' | None
+            "active_endpoint": tgts[0] if tgts else None,
+            "endpoints": endpoints,
+            "note": ("no volume endpoint is committed in this room — tell the user "
+                     "there's nothing to control here" if not tgts else
+                     "these are the room's ACTIVE volume endpoint(s); volume_level is "
+                     "0-1 and muted is the real mute state — answer from these, and "
+                     "act on active_endpoint, never assume")}
+
+    def t_room_volume(self, args):
+        """Volume for a ROOM, endpoint-resolved (Assist Redesign A2, 6 Aug). The
+        agent names a room; _room_vol_targets picks the target that FOLLOWS what's
+        playing (music -> the playing speaker; watching -> the TV-audio owner), so
+        'turn it up' can't move the wrong device. mute/unmute SET the flag — never
+        a stale 'already muted'. No endpoint -> a plain message, and nothing fires."""
+        area = self._resolve_area_id(args.get("area_id") or args.get("room"))
+        if not area:
+            return {"error": "area_id (or room name) required"}
+        action = str(args.get("action") or "").strip().lower()
+        if action not in ("up", "down", "mute", "unmute", "set"):
+            return {"error": "action must be up | down | mute | unmute | set"}
+        tgts, ctx = _room_vol_targets(self, area)
+        if not tgts:
+            return {"message": "There's no volume control set up in this room."}
+        done = []
+        for e in tgts:
+            try:
+                if action == "up":
+                    self.client.call_service("media_player", "volume_up", e, None)
+                elif action == "down":
+                    self.client.call_service("media_player", "volume_down", e, None)
+                elif action in ("mute", "unmute"):
+                    self.client.call_service("media_player", "volume_mute", e,
+                                             {"is_volume_muted": action == "mute"})
+                elif action == "set":
+                    lv = args.get("level")
+                    if lv is None:
+                        return {"error": "set needs a level (0-1 or a percentage)"}
+                    lv = float(lv)
+                    if lv > 1:                      # accept a 0-100 percentage
+                        lv = lv / 100.0
+                    lv = max(0.0, min(1.0, lv))
+                    self.client.call_service("media_player", "volume_set", e,
+                                             {"volume_level": lv})
+                done.append(e)
+            except Exception:                       # noqa: BLE001
+                pass
+        self.actions.append({"tool": "room_volume", "area_id": area,
+                             "action": action, "targets": done, "context": ctx})
+        return {"ok": True, "action": action, "targets": done, "context": ctx}
+
+    def t_room_media(self, args):
+        """Transport (play/pause/next/previous/stop) for the room's ACTIVE player,
+        resolved from the verdict the same way volume is (A2). Best for music."""
+        area = self._resolve_area_id(args.get("area_id") or args.get("room"))
+        if not area:
+            return {"error": "area_id (or room name) required"}
+        svc = {"play": "media_play", "pause": "media_pause", "stop": "media_stop",
+               "next": "media_next_track", "previous": "media_previous_track",
+               "prev": "media_previous_track"}.get(str(args.get("action") or "").strip().lower())
+        if not svc:
+            return {"error": "action must be play | pause | next | previous | stop"}
+        tgts, ctx = _room_vol_targets(self, area)
+        if not tgts:
+            return {"message": "There's nothing playing to control in this room."}
+        done = []
+        for e in tgts:
+            try:
+                self.client.call_service("media_player", svc, e, None)
+                done.append(e)
+            except Exception:                       # noqa: BLE001
+                pass
+        self.actions.append({"tool": "room_media", "area_id": area,
+                             "service": svc, "targets": done})
+        return {"ok": True, "service": svc, "targets": done}
 
     # Devices whose state REPORTS slowly. A TV or AVR obeys the command within
     # a second, but its integration may only confirm on the next poll — up to
@@ -2212,15 +2363,28 @@ def _where_prompt(where: dict) -> str:
         % (name, where.get("area_id"), name))
 
 
-def _system_prompt(user: dict, home_name: str, where: dict | None = None) -> str:
+def _system_context(user: dict, where: dict | None = None) -> str:
+    """The DYNAMIC half of the prompt (A5): who, role, memory, where. Kept small
+    and SEPARATE from the doctrine so the big doctrine can be prompt-cached across
+    every turn — this little block is the only part that changes per user/turn."""
     who = (user or {}).get("name") or "the user"
     tier = _tier(user)
     facts = (_mem_load().get((user or {}).get("id") or "anon") or {}).get("facts") or []
-    mem = ("\nWhat you remember about %s: %s." % (who, "; ".join(facts))) if facts else ""
-    mem += _where_prompt(where or {})
+    ctx = "\n\nYou are speaking with %s (role: %s)." % (who, tier)
+    if facts:
+        ctx += " What you remember about %s: %s." % (who, "; ".join(facts))
+    ctx += _where_prompt(where or {})
+    return ctx
+
+
+def _system_doctrine(user: dict, home_name: str) -> str:
+    """The STATIC half of the prompt (A5): identical for every turn at a given
+    tier + home, so it prompt-caches. No per-user name/memory/where in here — the
+    only thing that varies is the tier's homeowner clause at the end (a homeowner
+    and an installer get different, but each internally-stable, doctrine)."""
     return (
-        "You are Pro Assist, the assistant for '%s'. You are talking with %s "
-        "(role: %s). You are a GENUINE assistant — knowledgeable about everything, the way any "
+        "You are Pro Assist, the assistant for '%s'. You are a GENUINE assistant — "
+        "knowledgeable about everything, the way any "
         "good AI assistant is — whose home turf is this house: you can see it, control it, and "
         "watch over it.\n"
         "HOW TO ANSWER: match the register of the request. A control command gets one short "
@@ -2230,7 +2394,7 @@ def _system_prompt(user: dict, home_name: str, where: dict | None = None) -> str
         "the home. Weave the home in when it genuinely helps: asked for a dinner recipe, offer to "
         "set dinner lighting and some music while they cook; asked about the day, mention weather "
         "and anything in the home needing attention. SUGGEST, don't just obey — one natural "
-        "suggestion where it fits, never a sales pitch, and drop it if declined.%s\n"
+        "suggestion where it fits, never a sales pitch, and drop it if declined.\n"
         "REPORTING A FAULT — VERIFY, DON'T RELAY (Dave, 4 Aug, unhappy: Assist told him a Marantz was offline while it sat there working, then said 'great!' when he said otherwise, then hedged). An incident or a watcher item is a REPORT, not the truth. Before you tell anyone a device is offline or faulty, READ ITS LIVE STATE (get_states / verify) and say what you found: a device that answers is NOT offline — say the report is stale and that its second signal disagrees. If the person tells you it is actually fine, that is EVIDENCE: check immediately and give a definite answer — never agree politely ('great to hear!'), never hedge ('it may have resolved'), never repeat the stale line. A power-aware device that is simply OFF is not a fault at all — off is off. And when the live state contradicts the report, SAY SO plainly and flag the report as wrong; a false alarm the homeowner can see is worse than no alarm.\n"
         "DIAGNOSIS DISCIPLINE (non-negotiable — this is what earns an "
         "installer's trust): when a room's reported state surprises someone, "
@@ -2249,6 +2413,23 @@ def _system_prompt(user: dict, home_name: str, where: dict | None = None) -> str
         "the system usually has the issue AND its fix already named; your "
         "job is then to relay it plainly and offer to help with the steps, "
         "not to re-diagnose from scratch.\n"
+        "LOOK BEFORE YOU SPEAK (this is the whole product — confirm, don't assume). You are "
+        "NEVER allowed to assume a device's state; you have tools to KNOW it. For anything about "
+        "what's playing or how loud a room is, AND before any volume or mute command, call "
+        "room_status for that room and answer or act from what it returns — it names the ACTIVE "
+        "endpoint (the speaker actually playing, or the TV-audio owner when watching) and its "
+        "REAL volume and mute. Change volume with room_volume and pause/skip with room_media: you "
+        "name the ROOM and they drive whatever is actually playing, so they never move the wrong "
+        "device. Never fire a raw mute or volume at a guessed entity, and never say 'already "
+        "muted', 'it's playing' or 'I turned it up' unless room_status just showed it to be so.\n"
+        "WHO YOU'RE TALKING TO decides what you can do, and the tools you're given already match "
+        "their role — so a capability they don't have simply isn't there; never announce 'access "
+        "denied' or discuss a power they lack. Everyone may LOOK (the status of anything) and "
+        "control the committed home — lights, volume, activities, scenes, music — and lock a "
+        "door. Only an installer, tech or owner may UNLOCK a door, create or change automations, "
+        "or commission rooms and set endpoints; only a tech or owner may change Core settings, "
+        "integrations or the network. For a homeowner, help fully within their tier and, for "
+        "anything beyond it, flag_for_pro warmly rather than refuse — never leave them stuck.\n"
         "Rules that are enforced and must shape your behaviour:\n"
         "1. Ground yourself with rooms_overview before acting on rooms or media; entity/area ids "
         "are identity, names are display-only.\n"
@@ -2334,7 +2515,15 @@ def _system_prompt(user: dict, home_name: str, where: dict | None = None) -> str
            "and playlists, run checks and — with their ok — recoveries; you cannot commission "
            "devices or rooms. When something is beyond a remote fix, say you'll pass it to their "
            "installer and flag_for_pro.")
-    ) % (home_name or "this home", who, tier, mem)
+    ) % (home_name or "this home",)
+
+
+def _system_prompt(user: dict, home_name: str, where: dict | None = None) -> str:
+    """The full system string (used by OpenAI and by benches): the static
+    doctrine first, then the small dynamic context. Static-first means OpenAI's
+    automatic prefix caching catches the doctrine too, and the Claude adapter can
+    cache-mark exactly the doctrine block (see _claude_system)."""
+    return _system_doctrine(user, home_name) + _system_context(user, where)
 
 
 # ── provider adapters ────────────────────────────────────────────────────────
@@ -2370,10 +2559,53 @@ def _http_json(url, payload, headers):
     raise last
 
 
-def _chat_claude(cfg, system, history, runner):
-    model = cfg.get("model") or DEFAULT_MODELS["claude"]
-    tools = [{"name": t["name"], "description": t["description"],
-              "input_schema": t["input_schema"]} for t in _active_tools(runner)]
+def _last_user_text(history):
+    for m in reversed(history or []):
+        if m.get("role") == "user" and isinstance(m.get("content"), str):
+            return m["content"]
+    return ""
+
+
+def _route_model(main_model, fast_model, text):
+    """Which model handles THIS turn (A5). Default — no fast_model — is the main
+    model for everything, so nothing changes out of the box. If the installer
+    configured a fast_model, a SHORT single-clause command ('lights off', 'mute
+    the office') routes to it for speed + cost; any question, compound request or
+    rich language stays on the strong model, so the reasoning Assist is known for
+    is never dumbed down."""
+    if not fast_model:
+        return main_model
+    t = " ".join((text or "").strip().lower().split())
+    if (len(t) <= 40 and "?" not in t
+            and not re.search(r"\b(and|then|why|how|what|explain|because|should|could)\b|,", t)):
+        return fast_model
+    return main_model
+
+
+def _claude_tools(runner):
+    """Tool schemas for Claude with the LAST one cache-marked, so the whole tool
+    block — large and fully static — is prompt-cached across turns (A5)."""
+    ts = [{"name": t["name"], "description": t["description"],
+           "input_schema": t["input_schema"]} for t in _active_tools(runner)]
+    if ts:
+        ts[-1] = {**ts[-1], "cache_control": {"type": "ephemeral"}}
+    return ts
+
+
+def _claude_system(doctrine, context):
+    """System as two blocks: the static doctrine (cache-marked) then the small
+    dynamic context (not cached). The breakpoint on the doctrine also covers the
+    tools before it, so the entire static prefix is a single cached read (A5)."""
+    return [{"type": "text", "text": doctrine, "cache_control": {"type": "ephemeral"}},
+            {"type": "text", "text": context}]
+
+
+def _chat_claude(cfg, doctrine, context, history, runner):
+    model = _route_model(cfg.get("model") or DEFAULT_MODELS["claude"],
+                         (cfg.get("fast_model") or "").strip(),
+                         _last_user_text(history))
+    tools = _claude_tools(runner)
+    system = _claude_system(doctrine, context)
     messages = list(history)
     for _ in range(_MAX_TOOL_ROUNDS):
         resp = _http_json("https://api.anthropic.com/v1/messages",
@@ -2397,7 +2629,9 @@ def _chat_claude(cfg, system, history, runner):
 
 
 def _chat_openai(cfg, system, history, runner):
-    model = cfg.get("model") or DEFAULT_MODELS["openai"]
+    model = _route_model(cfg.get("model") or DEFAULT_MODELS["openai"],
+                         (cfg.get("fast_model") or "").strip(),
+                         _last_user_text(history))
     tools = [{"type": "function",
               "function": {"name": t["name"], "description": t["description"],
                            "parameters": t["input_schema"]}} for t in _active_tools(runner)]
@@ -2426,31 +2660,14 @@ def _chat_openai(cfg, system, history, runner):
 
 # ── entry point ──────────────────────────────────────────────────────────────
 
-# ── fast path ────────────────────────────────────────────────────────────────
-# The everyday commands are a closed set, and sending them to a cloud model to
-# be re-derived every time is why the assistant feels slow. "Lights off" should
-# be instant and should still work when the internet is down; only genuinely
-# open-ended language needs the model. So: match confidently or fall through —
-# a wrong guess is far worse than a round-trip, and anything ambiguous goes to
-# the model untouched.
-_FAST_OFF = re.compile(r"^(turn |switch |put )?(the )?lights?( in here| here)? (off|out)$|"
-                       r"^lights? (off|out)$|^(kill|all) lights$|"
-                       r"^(turn|switch|put) (off|out) (the )?lights?( in here| here)?$", re.I)
-_FAST_ON = re.compile(r"^(turn |switch |put )?(the )?lights?( in here| here)? on$|^lights? on$|"
-                      r"^(turn|switch|put) on (the )?lights?( in here| here)?$", re.I)
-_FAST_DIM = re.compile(r"^(set |put |dim |turn )?(the )?lights?( in here| here)?"
-                       r"( to| at| down to| up to)? (\d{1,3})\s*%?$", re.I)
-_FAST_ROOM_OFF = re.compile(r"^(turn |switch )?(everything|it all|all of it) off"
-                            r"( in here| here)?$|^(room|everything) off$", re.I)
-# optional room tail so a NAMED room ("mute the office", "turn up the study") is
-# handled by the deterministic fast-path too — not the model, which assumed a
-# stale device was "already muted" (Dave, 6 Aug: "confirm, don't assume").
-_ROOM_TAIL = r"(?: (?:it|that|the [\w' -]+|in (?:the )?[\w' -]+))?"
-_FAST_VOL = re.compile(r"^(?:turn (?:it |the volume )?)?(?:up|down)" + _ROOM_TAIL + r"$|"
-                       r"^volume (?:up|down)" + _ROOM_TAIL + r"$|"
-                       r"^(?:louder|quieter)" + _ROOM_TAIL + r"$", re.I)
-_FAST_MUTE = re.compile(r"^(?:mute|unmute|silence)" + _ROOM_TAIL + r"$", re.I)
-_FAST_PAUSE = re.compile(r"^(pause|stop|resume|play|continue)( it| that| music)?$", re.I)
+# ── the fast path is retired (Assist Redesign A3, 6 Aug) ──────────────────────
+# There used to be a wall of regexes here that answered "lights off", "mute the
+# office" etc. BEFORE the model, for speed. Every new phrasing needed another
+# regex, forever — the "write a scenario for every case" trap Dave asked us to
+# stop feeding. It's gone. One brain now: every request reasons over the tools,
+# and the tools (room_status to LOOK, room_volume/room_media/area_control to
+# ACT) make "confirm, don't assume" real. _room_vol_targets and _area_from_text
+# stayed — they're the endpoint resolver those tools are built on.
 
 
 def _room_vol_targets(runner, area_id):
@@ -2517,80 +2734,6 @@ def _area_from_text(runner, text):
     return best if best else (None, None)
 
 
-def _fast_intent(runner, text: str, where: dict):
-    """Handle a common command locally. Returns a spoken reply, or None.
-
-    None means "not confident" — the request goes to the model exactly as if
-    this function didn't exist."""
-    area = (where or {}).get("area_id")
-    # A compound request ("mute the office AND turn on the lights") is the model's
-    # job — the fast-path only owns single, unambiguous commands.
-    if re.search(r"\b(and|then)\b|,", " " + (text or "").lower() + " "):
-        return None
-    if not area:
-        return None                      # no room context -> nothing is unambiguous
-    t = " ".join((text or "").strip().rstrip("."). split())
-    room = (where or {}).get("area_name") or "here"
-
-    def light(**svc):
-        r = runner.run("area_control", {"area_id": area, "domain": "light", **svc})
-        return None if (r or {}).get("error") else r
-
-    if _FAST_OFF.match(t):
-        return "Lights off." if light(service="turn_off") else None
-    if _FAST_ON.match(t):
-        return "Lights on." if light(service="turn_on") else None
-    m = _FAST_DIM.match(t)
-    if m:
-        pct = max(1, min(100, int(m.group(5))))
-        ok = light(service="turn_on", data={"brightness_pct": pct})
-        return ("Lights to %d%%." % pct) if ok else None
-    if _FAST_ROOM_OFF.match(t):
-        r = runner.run("room_activity", {"area_id": area, "activity": "off"})
-        return ("Everything off in the %s." % room) if not (r or {}).get("error") else None
-    if _FAST_MUTE.match(t):
-        want = not t.lower().startswith("un")
-        _ra, _rn = _area_from_text(runner, t)   # "mute the office" -> the Office
-        _area, _room = (_ra or area), (_rn or room)
-        tgts, _ctx = _room_vol_targets(runner, _area)
-        if not tgts:
-            return "There's no volume control set up in the %s." % _room
-        # DETERMINISTIC — actually SET the mute on the active endpoint(s). It never
-        # reads a stale state and declares "already muted" (Dave, 6 Aug): mute means
-        # mute, every time, on the speaker that's actually playing.
-        for e in tgts:
-            try:
-                runner.client.call_service("media_player", "volume_mute", e,
-                                           {"is_volume_muted": want})
-            except Exception:
-                pass
-        return ("Muted the %s." if want else "Unmuted the %s.") % _room
-    m = _FAST_VOL.match(t)
-    if m:
-        up = bool(re.search(r"up|louder", t, re.I))
-        _ra, _rn = _area_from_text(runner, t)
-        _area, _room = (_ra or area), (_rn or room)
-        tgts, _ctx = _room_vol_targets(runner, _area)
-        if not tgts:
-            return "There's no volume control set up in the %s." % _room
-        svc = "volume_up" if up else "volume_down"
-        for e in tgts:
-            try:
-                runner.client.call_service("media_player", svc, e, None)
-            except Exception:
-                pass
-        return "Turned the %s %s." % (_room, "up" if up else "down")
-    m = _FAST_PAUSE.match(t)
-    if m:
-        word = m.group(1).lower()
-        svc = "media_pause" if word in ("pause", "stop") else "media_play"
-        r = runner.run("device_control", {"area_id": area, "domain": "media_player",
-                                          "service": svc})
-        return ("Paused." if svc == "media_pause" else "Playing.") \
-            if not (r or {}).get("error") else None
-    return None
-
-
 def chat(client, ws_call, project_mod, user: dict, text: str,
          session: str = "default", home_name: str = "", ma=None,
          where: dict | None = None, awareness=None) -> dict:
@@ -2600,16 +2743,10 @@ def chat(client, ws_call, project_mod, user: dict, text: str,
     runner = ToolRunner(client, ws_call, project_mod, user, ma=ma,
                         awareness=awareness)
 
-    # Everyday commands answer locally: instant, and they keep working with the
-    # internet down. Deliberately BEFORE the config check — a home shouldn't
-    # stop taking "lights off" because nobody set an API key.
-    try:
-        quick = _fast_intent(runner, text, where or {})
-    except Exception:                                   # never let it break chat
-        quick = None
-    if quick:
-        return {"reply": quick, "actions": runner.actions, "provider": "local"}
-
+    # No fast-path any more (A3, 6 Aug): one brain handles everything by reasoning
+    # over the tools. Every command is a model round-trip — the cost Dave accepted
+    # to stop patching a scenario per phrase. A5 (prompt caching + model routing)
+    # is what keeps that fast and cheap.
     cfg = load_config()
     if not (cfg.get("provider") and cfg.get("api_key")):
         return {"error": "Pro Assist AI is not configured — set provider + API key in Pro › Tech Tools"}
@@ -2617,10 +2754,13 @@ def chat(client, ws_call, project_mod, user: dict, text: str,
     with _LOCK:
         history = _safe_trim(list(_SESSIONS.get(key) or []), _MAX_TURNS)
     history.append({"role": "user", "content": text})
-    system = _system_prompt(user, home_name, where)
+    system = _system_prompt(user, home_name, where)   # OpenAI path + benches
     try:
         if cfg["provider"] == "claude":
-            reply, full = _chat_claude(cfg, system, history, runner)
+            # Claude gets the doctrine + context SPLIT so the doctrine (and the
+            # tool block before it) prompt-caches across turns (A5).
+            reply, full = _chat_claude(cfg, _system_doctrine(user, home_name),
+                                       _system_context(user, where), history, runner)
         else:
             reply, full = _chat_openai(cfg, system, history, runner)
     except Exception as e:  # noqa: BLE001
