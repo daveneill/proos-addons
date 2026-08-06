@@ -320,6 +320,21 @@ TOOLS = [
                     "gate. Accepts an area_id or a room name.",
      "input_schema": {"type": "object", "properties": {
          "area_id": {"type": "string"}}, "required": ["area_id"]}},
+    {"name": "room_read",
+     "description": "STACK the evidence about a room that changed on its own — call this when a "
+                    "room comes on and no ProOS activity fired (a native remote, a CEC wake), or "
+                    "when someone asks 'what's going on in here'. It gathers three things for you "
+                    "to reason over: the LIVE state (and whether it was started externally), any "
+                    "recent external-start events, and what the room is USUALLY doing at THIS time "
+                    "(its habit). When the external change lines up with the habit — the TV just "
+                    "came on and it's their usual Apple TV hour — you may say what it looks like "
+                    "and offer the setup as a CONFIRM question ('looks like your usual Apple TV — "
+                    "want the room set the way you like it?'). The habit is what makes the guess "
+                    "good, never what makes it certain: never state it as fact, never act without "
+                    "the yes, and if the evidence is thin just report the plain device fact. "
+                    "Read-only. Accepts an area_id or room name.",
+     "input_schema": {"type": "object", "properties": {
+         "area_id": {"type": "string"}}, "required": ["area_id"]}},
     {"name": "app_launch",
      "description": "Open a streaming app (Netflix, Disney+, YouTube…) in a room. A room can have "
                     "several devices that run apps — the smart TV, an Apple TV, a Shield. Call with "
@@ -1267,6 +1282,52 @@ class ToolRunner:
         s = usage.summary(events)
         s["area_id"] = area
         return s
+
+    def t_room_read(self, args):
+        """Habit-weighted diagnosis (Pro-Assistant H4). Gathers the evidence for a
+        room that changed on its own — live state + whether it was started
+        externally, recent external-start events, and what the room is USUALLY
+        doing at this time — and hands it to the model to reason over and CONFIRM.
+        Core gathers deterministically; the judgement is the model's. Read-only:
+        it never touches the verdict and never acts."""
+        from . import journal, usage
+        area = self._resolve_area_id(args.get("area_id") or args.get("room"))
+        if not area:
+            return {"error": "area_id (or room name) required"}
+        now = time.time()
+        verdict_eid = "sensor.proos_activity_%s" % area
+        try:
+            snap = self.client.snapshot([verdict_eid]) or {}
+        except Exception:                                        # noqa: BLE001
+            snap = {}
+        v = snap.get(verdict_eid) or {}
+        vatt = v.get("attributes") or {}
+        try:
+            events = journal.read(area, limit=1000)
+        except Exception:                                        # noqa: BLE001
+            events = []
+        # external-start events in the last ~15 minutes — "did this just happen"
+        recent_external = [
+            {"to": (e.get("data") or {}).get("to"), "ts": e.get("ts"),
+             "note": (e.get("data") or {}).get("note")}
+            for e in events
+            if e.get("type") == "external_control"
+            and (now - float(e.get("ts") or 0)) <= 900]
+        return {
+            "area_id": area,
+            "live": {"activity": v.get("state"),
+                     "external": vatt.get("external"),
+                     "source": vatt.get("source"),
+                     "sentence": vatt.get("sentence")},
+            "recent_external": recent_external,
+            "expected_now": usage.expectation(events, now),
+            "note": "stacked evidence to reason over — the live state, whether the "
+                    "room was just started externally, and what it's USUALLY doing "
+                    "at this time. If the external change matches the habit, offer "
+                    "the personalised setup as a CONFIRM question; the habit is a "
+                    "hint, never proof, and the yes is the gate — never act on this "
+                    "alone.",
+        }
 
     def t_room_volume(self, args):
         """Volume for a ROOM, endpoint-resolved (Assist Redesign A2, 6 Aug). The
@@ -2502,6 +2563,16 @@ def _system_doctrine(user: dict, home_name: str) -> str:
         "it on, what's on screen, is there sound); an installer or tech can confirm the TECHNICAL "
         "(paired, right input); reason over the machine evidence for everything else and only "
         "reach for the human on the point that is truly ambiguous.\n"
+        "READING A ROOM THAT CHANGED ON ITS OWN — STACK THE EVIDENCE (where habit earns its "
+        "keep). When a room comes on and no ProOS activity fired (a native remote, a source "
+        "waking the display through CEC), or someone asks 'what's going on in here', call "
+        "room_read: it stacks the LIVE state, whether the room was just started externally, and "
+        "what the room is USUALLY doing at THIS time (its habit). When the external change lines "
+        "up with the habit — the TV just came on and it's their usual Apple TV hour — you may say "
+        "what it LOOKS LIKE and offer the setup as a CONFIRM question ('looks like your usual "
+        "Apple TV — want the room set the way you like it?'). The habit is what makes the guess "
+        "good, never what makes it certain: never state a habit as fact, never act on it without "
+        "the yes, and when the evidence is thin just report the plain device fact.\n"
         "Rules that are enforced and must shape your behaviour:\n"
         "1. Ground yourself with rooms_overview before acting on rooms or media; entity/area ids "
         "are identity, names are display-only.\n"

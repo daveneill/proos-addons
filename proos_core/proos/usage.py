@@ -99,6 +99,32 @@ def patterns(events, min_days: int = 3) -> list:
     return out
 
 
+def expectation(events, at_ts, min_days: int = 3):
+    """The habit that matches a GIVEN moment (H4): of the room's habits, the one
+    whose time-of-day AND day-type (weekday/weekend) fit `at_ts`, strongest first.
+    Returns that pattern dict or None. PURE — this is 'what the room is usually
+    doing right now', a hint for Assist to stack and CONFIRM, never a claim about
+    what IS happening (that's room_status) and never a licence to act."""
+    try:
+        dt = datetime.fromtimestamp(float(at_ts))
+    except Exception:                   # noqa: BLE001
+        return None
+    now_pod = _part_of_day(dt.hour)
+    now_weekend = dt.weekday() >= 5
+    best = None
+    for p in patterns(events, min_days):
+        if not p["habit"] or p["part_of_day"] != now_pod:
+            continue
+        dt_ok = (p["day_type"] == "any day"
+                 or (p["day_type"] == "weekdays" and not now_weekend)
+                 or (p["day_type"] == "weekends" and now_weekend))
+        if not dt_ok:
+            continue
+        if best is None or p["count"] > best["count"]:
+            best = p
+    return best
+
+
 def summary(events, min_days: int = 3) -> dict:
     """A room's usage at a glance: every pattern, the subset that are habits, and
     how many days of history it was drawn from — with the standing caveat that
