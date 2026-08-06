@@ -87,50 +87,30 @@ def route_matches(a, disp_src) -> bool:
 
 
 def effective_state(eid, snapall):
-    """A device's state, corrected by an independent POWER witness.
+    """A media_player's honest state — the SESSION speaks for itself.
 
-    THE FAILURE (Dave, 4 Aug; registered and mis-closed twice before):
-    "Apple TV is currently on and it's not showing." Both earlier passes
-    concluded the panel was right because the entity said off. The entity
-    was lying, and the same integration was publishing the proof.
+    CORRECTED DOCTRINE (Dave, 7 Aug — the 4 Aug 'remote = power' rule was wrong
+    from the start, and most brand media players present the same way, so this is
+    brand-agnostic). A device's paired `remote.` entity (an androidtv_remote, a
+    device_tracker, a cast link…) is a CONNECTIVITY witness, not power: it stays
+    "on" whenever Home Assistant can still REACH the device — standby included —
+    so it CANNOT tell 'genuinely on with a wedged session' apart from 'off but
+    reachable'. Reading it as power invented a false 'on' (Family Room Apple TV,
+    7 Aug: remote on, player off, device genuinely OFF).
 
-    An `apple_tv` (and `androidtv_remote`) device exposes TWO entities of
-    one object id: `media_player.X` -- the SESSION -- and `remote.X` -- the
-    POWER. Read off the box, 4 Aug: 15:29:16 remote on + player idle;
-    15:29:49 the player alone fell to off; an hour later the remote was
-    still on. Earlier the same day, honestly, both went off together at
-    12:04:27; and on 2 Aug both went off within 22 seconds. Three days of
-    history show the remote following real power -- dark overnight, lit in
-    the morning -- and surviving the pyatv wedge that kills the session.
+    So the media_player session IS the state. The rare case where a session lies
+    'off' while the device is truly playing is caught by the room's TRAFFIC
+    witness (real streaming bandwidth) — the reliable signal — never the remote.
+    The remote is surfaced as connectivity only.
 
-    So they are different capabilities, exactly as the register already
-    requires device truth to be labelled: "panel = hard power; Shield =
-    session + traffic witness... say 'on · idle (session)', not fake
-    power."
-
-    THE RULE: a device whose SESSION is dark while its POWER witness says
-    ON is ON, and its content is UNKNOWN -- never invented. The correction
-    is ONE-WAY (it can never darken a device that reports itself awake),
-    fails open when there is no witness, and marks what it touched so a
-    surface can say "on" without claiming to know what is on screen.
-
-    Pure. Returns (state, wedged).
+    Pure. Returns (state, False); a device is never 'wedged on' by a connectivity
+    signal any more (the flag is kept so callers are untouched).
     """
     snap = snapall or {}
     if not isinstance(eid, str) or "." not in eid:
         return (None if eid is None else
                 ((snap.get(eid) or {}).get("state")), False)
-    raw = (snap.get(eid) or {}).get("state")
-    if not eid.startswith("media_player."):
-        return raw, False
-    # the session speaks for itself whenever it has anything to say
-    if raw not in ("off", "unavailable", "unknown", None, ""):
-        return raw, False
-    wit = (snap.get("remote." + eid.split(".", 1)[1]) or {}).get("state")
-    if wit == "on":
-        return "on", True
-    return raw, False
-
+    return (snap.get(eid) or {}).get("state"), False
 
 def room_devices(rec, snapall):
     """The room's committed device map — ONE builder, one schema (audit
