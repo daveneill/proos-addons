@@ -307,6 +307,19 @@ TOOLS = [
          "area_id": {"type": "string"},
          "action": {"type": "string", "description": "play | pause | next | previous | stop"}},
          "required": ["area_id", "action"]}},
+    {"name": "usage_history",
+     "description": "The room's learned USAGE patterns — what it's typically used for, at what "
+                    "time of day, on weekdays vs weekends, and how often it's started externally "
+                    "(a native remote) — derived from the home's OWN recorded history. This is "
+                    "SOFT evidence: use it to reason ('they usually watch Apple TV on weekday "
+                    "evenings'), to personalise a suggestion, and to make a CONFIRM question "
+                    "smarter — e.g. a TV just came on externally and it's their usual Apple TV "
+                    "hour, so ask 'looks like your Apple TV — want the room set up?'. It is NEVER "
+                    "proof of what the room is doing right now (call room_status for that) and "
+                    "NEVER a reason to act on its own — a habit is a hint, the person's yes is the "
+                    "gate. Accepts an area_id or a room name.",
+     "input_schema": {"type": "object", "properties": {
+         "area_id": {"type": "string"}}, "required": ["area_id"]}},
     {"name": "app_launch",
      "description": "Open a streaming app (Netflix, Disney+, YouTube…) in a room. A room can have "
                     "several devices that run apps — the smart TV, an Apple TV, a Shield. Call with "
@@ -1229,6 +1242,24 @@ class ToolRunner:
                      "these are the room's ACTIVE volume endpoint(s); volume_level is "
                      "0-1 and muted is the real mute state — answer from these, and "
                      "act on active_endpoint, never assume")}
+
+    def t_usage_history(self, args):
+        """The room's learned usage patterns from its journal (Pro-Assistant H2).
+        Reads the history Core already records and returns habits as SOFT evidence
+        — for reasoning, personalisation and a smarter confirm question. Never the
+        live state (that's room_status), never a licence to act (the yes is the
+        gate). Read-only: it never touches the verdict."""
+        from . import journal, usage
+        area = self._resolve_area_id(args.get("area_id") or args.get("room"))
+        if not area:
+            return {"error": "area_id (or room name) required"}
+        try:
+            events = journal.read(area, limit=1000)
+        except Exception:                                        # noqa: BLE001
+            events = []
+        s = usage.summary(events)
+        s["area_id"] = area
+        return s
 
     def t_room_volume(self, args):
         """Volume for a ROOM, endpoint-resolved (Assist Redesign A2, 6 Aug). The
