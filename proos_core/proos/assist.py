@@ -380,15 +380,22 @@ TOOLS = [
          "track_uris": {"type": "array", "items": {"type": "string"}}},
          "required": ["name"]}},
     {"name": "memory_get",
-     "description": "Recall the pinned facts you've saved about this user (preferences, routines). "
-                    "Call at the start of a conversation when personalisation would help.",
+     "description": "Recall what you know about this person — `facts` they TOLD you and `learned` "
+                    "preferences you picked up from how they use the home (soft). Call at the start "
+                    "of a conversation when personalisation would help.",
      "input_schema": {"type": "object", "properties": {}, "required": []}},
     {"name": "memory_set",
-     "description": "Pin a durable fact about this user for future conversations (e.g. 'likes jazz "
-                    "at dinner', 'prefers the kitchen HomePod'). Keep facts short and factual.",
+     "description": "Remember something about this person for future conversations. Default is a "
+                    "TOLD fact they stated ('likes jazz at dinner', 'kids' bedtime is 8pm'). Set "
+                    "learned=true for a LEARNED preference you INFERRED from how they use the home "
+                    "('prefers the kitchen HomePod', 'watches Apple TV most weekday evenings') — "
+                    "it's kept separately and treated as soft. This is how your memory GROWS: pin "
+                    "durable, meaningful patterns as you notice them, never one-offs. Keep it short. "
+                    "forget=true removes a matching item from both. Per person.",
      "input_schema": {"type": "object", "properties": {
          "fact": {"type": "string"},
-         "forget": {"type": "boolean", "description": "true to remove a previously-pinned fact matching `fact`"}},
+         "learned": {"type": "boolean", "description": "true = a preference you inferred (soft), not one they stated"},
+         "forget": {"type": "boolean", "description": "true to remove a previously-pinned item matching `fact`"}},
          "required": ["fact"]}},
     {"name": "scenes_list",
      "description": "List existing ProOS-created scenes: name, entity_id, which room each lives "
@@ -2350,27 +2357,41 @@ class ToolRunner:
     # -- memory (phase 2) ---------------------------------------------------
     def t_memory_get(self, args):
         uid = self.user.get("id") or "anon"
-        facts = (_mem_load().get(uid) or {}).get("facts") or []
-        return {"facts": facts}
+        rec = _mem_load().get(uid) or {}
+        return {"facts": rec.get("facts") or [],
+                "learned": rec.get("learned") or []}
 
     def t_memory_set(self, args):
+        """Pin something to remember about this person. Default is a TOLD fact
+        (they stated it). learned=true pins a LEARNED preference — something you
+        inferred from how they use the home; it's kept separately and marked soft
+        (H3, 7 Aug). forget removes a matching item from BOTH streams. Per person."""
         fact = (args.get("fact") or "").strip()
         if not fact:
             return {"error": "fact required"}
         uid = self.user.get("id") or "anon"
         store = _mem_load()
-        rec = store.setdefault(uid, {"facts": []})
+        rec = store.setdefault(uid, {"facts": [], "learned": []})
         facts = rec.setdefault("facts", [])
+        learned = rec.setdefault("learned", [])
         if args.get("forget"):
             low = fact.lower()
             rec["facts"] = [f for f in facts if low not in f.lower()]
+            rec["learned"] = [l for l in learned
+                              if low not in (l.get("text", "").lower())]
+        elif args.get("learned"):
+            # a learned preference — soft, timestamped, distinct from told facts
+            if all(fact != l.get("text") for l in learned):
+                learned.append({"text": fact, "ts": round(time.time(), 1)})
+                rec["learned"] = learned[-_MEM_MAX:]
         else:
             if fact not in facts:
                 facts.append(fact)
                 rec["facts"] = facts[-_MEM_MAX:]
         _mem_save(store)
-        self._audit("memory_set", forget=bool(args.get("forget")))
-        return {"ok": True, "facts": rec["facts"]}
+        self._audit("memory_set", forget=bool(args.get("forget")),
+                    learned=bool(args.get("learned")))
+        return {"ok": True, "facts": rec["facts"], "learned": rec["learned"]}
 
 
 # ── system prompt ────────────────────────────────────────────────────────────
@@ -2400,10 +2421,19 @@ def _system_context(user: dict, where: dict | None = None) -> str:
     every turn — this little block is the only part that changes per user/turn."""
     who = (user or {}).get("name") or "the user"
     tier = _tier(user)
-    facts = (_mem_load().get((user or {}).get("id") or "anon") or {}).get("facts") or []
+    rec = _mem_load().get((user or {}).get("id") or "anon") or {}
+    facts = rec.get("facts") or []
+    learned = [l.get("text") for l in (rec.get("learned") or []) if l.get("text")]
     ctx = "\n\nYou are speaking with %s (role: %s)." % (who, tier)
     if facts:
-        ctx += " What you remember about %s: %s." % (who, "; ".join(facts))
+        ctx += " What you remember about %s (they told you): %s." % (who, "; ".join(facts))
+    if learned:
+        # LEARNED preferences are soft — picked up from how they use the home, not
+        # stated. Present them as such so the model treats them as a hint to
+        # personalise or to ask a smarter question, never as fact (H3 doctrine).
+        ctx += (" What you've learned about %s from how they use the home (soft — a "
+                "hint to personalise or confirm, never a certainty): %s."
+                % (who, "; ".join(learned)))
     ctx += _where_prompt(where or {})
     return ctx
 
@@ -2483,8 +2513,14 @@ def _system_doctrine(user: dict, home_name: str) -> str:
         "3. MUSIC: music_search to find something, music_play to play it in a room (by area_id), "
         "music_playlist_create to build a personalised playlist (search for tracks, then create "
         "with their uris). Music only works in rooms with a committed speaker.\n"
-        "4. MEMORY: use memory_get when personalisation helps, and memory_set to remember a "
-        "durable preference the user shares. Don't pester — save only meaningful, lasting facts.\n"
+        "4. MEMORY — remember, and LEARN. Call memory_get when personalisation would help; it "
+        "returns facts they TOLD you and preferences you've LEARNED. Use memory_set to remember a "
+        "fact they state, and memory_set with learned=true to pin a preference you INFER from how "
+        "they use the home (from usage_history, or from what you just saw) — 'prefers the kitchen "
+        "HomePod', 'watches Apple TV most weekday evenings'. That is how you grow into their "
+        "assistant. Save only durable, meaningful patterns, never one-offs, and don't pester. "
+        "Learned preferences are SOFT — a hint to personalise or to ask a smarter question, never "
+        "a certainty and never a reason to act without a yes.\n"
         "5. SCENES are MOMENTS: states for lights/climate/covers, plus optional companions — "
         "music AND a room activity. 'A scene that turns the TV on / starts Apple TV' is a normal "
         "request: attach activity_script (the room's watch script from rooms_overview) and it "
