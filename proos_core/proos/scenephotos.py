@@ -26,6 +26,16 @@ _STORE = os.path.join(os.environ.get("PROOS_DATA_DIR", "/data"), "scene_photos.j
 _OPENAI_IMG_URL = "https://api.openai.com/v1/images/generations"
 _GEN_TIMEOUT = 90
 
+# Image model, best-first (both use v1/images/generations and return b64_json).
+# gpt-image-2 is OpenAI's current DEFAULT image model — state of the art, flexible
+# sizes (confirmed on the model page, 6 Aug 2026). gpt-image-1 is kept as an
+# interim fallback (it DEPRECATES 23 Oct 2026, so it buys time, not permanence).
+# dall-e-3 was RETIRED 12 May 2026 and is removed — a dead model is not a fallback.
+# Landscape (1536x1024) suits the scene/room cards; if a model is unavailable to
+# the account (model-not-found) generate() advances to the next, otherwise it
+# surfaces the real error and the caller uses a curated image.
+_MODEL_ATTEMPTS = [("gpt-image-2", "1536x1024"), ("gpt-image-1", "1536x1024")]
+
 # Curated premium catalog (keyless fallback + the "styles" picker). Every image
 # is a polished, on-theme photo — so even without AI generation a scene looks
 # good. label = what the picker shows; keywords drive auto-matching.
@@ -124,15 +134,12 @@ def _one_image(model: str, prompt: str, size: str, api_key: str):
 def generate(prompt: str, api_key: str):
     """Generate a scene image via OpenAI, landscape. Returns (png_bytes, None)
     on success or (None, error_string) so the caller can log exactly why it fell
-    back — no silent failures. Uses gpt-image-1 (OpenAI's current image model;
-    dall-e-3 has been retired for many orgs → 400 'model does not exist'). If
-    the account somehow lacks gpt-image-1 but still has dall-e-3, we fall back to
-    it rather than failing outright."""
+    back — no silent failures. Uses gpt-image-2 (OpenAI's current default image
+    model), falling back to the ageing gpt-image-1 only if the account can't
+    reach gpt-image-2. See _MODEL_ATTEMPTS for the model timeline."""
     if not api_key:
         return None, "no image key"
-    # (model, size) attempts, best-first. gpt-image-1 landscape = 1536x1024;
-    # dall-e-3 landscape = 1792x1024.
-    attempts = [("gpt-image-1", "1536x1024"), ("dall-e-3", "1792x1024")]
+    attempts = _MODEL_ATTEMPTS
     last_err = "no image in response"
     for model, size in attempts:
         try:
