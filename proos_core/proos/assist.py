@@ -2442,9 +2442,14 @@ _FAST_DIM = re.compile(r"^(set |put |dim |turn )?(the )?lights?( in here| here)?
                        r"( to| at| down to| up to)? (\d{1,3})\s*%?$", re.I)
 _FAST_ROOM_OFF = re.compile(r"^(turn |switch )?(everything|it all|all of it) off"
                             r"( in here| here)?$|^(room|everything) off$", re.I)
-_FAST_VOL = re.compile(r"^(turn (it |the volume )?)?(up|down)$|^volume (up|down)$|"
-                       r"^(louder|quieter)$", re.I)
-_FAST_MUTE = re.compile(r"^(mute|unmute|silence)( it| that)?$", re.I)
+# optional room tail so a NAMED room ("mute the office", "turn up the study") is
+# handled by the deterministic fast-path too — not the model, which assumed a
+# stale device was "already muted" (Dave, 6 Aug: "confirm, don't assume").
+_ROOM_TAIL = r"(?: (?:it|that|the [\w' -]+|in (?:the )?[\w' -]+))?"
+_FAST_VOL = re.compile(r"^(?:turn (?:it |the volume )?)?(?:up|down)" + _ROOM_TAIL + r"$|"
+                       r"^volume (?:up|down)" + _ROOM_TAIL + r"$|"
+                       r"^(?:louder|quieter)" + _ROOM_TAIL + r"$", re.I)
+_FAST_MUTE = re.compile(r"^(?:mute|unmute|silence)" + _ROOM_TAIL + r"$", re.I)
 _FAST_PAUSE = re.compile(r"^(pause|stop|resume|play|continue)( it| that| music)?$", re.I)
 
 
@@ -2493,12 +2498,35 @@ def _room_vol_targets(runner, area_id):
     return [], None
 
 
+def _area_from_text(runner, text):
+    """A room NAMED in the text ('mute the office') -> (area_id, area_name). The
+    longest registry-name match wins ("Bec's Office" over "Office"). (None, None)
+    when no room is named — the caller keeps the current-room scope."""
+    try:
+        areas = runner.client.area_registry() or []
+    except Exception:
+        areas = []
+    tl = " " + " ".join(str(text or "").lower().split()) + " "
+    best = None
+    for a in areas:
+        nm = str(a.get("name") or "").strip()
+        aid = a.get("area_id")
+        if nm and aid and (" " + nm.lower() + " ") in tl:
+            if best is None or len(nm) > len(best[1]):
+                best = (aid, nm)
+    return best if best else (None, None)
+
+
 def _fast_intent(runner, text: str, where: dict):
     """Handle a common command locally. Returns a spoken reply, or None.
 
     None means "not confident" — the request goes to the model exactly as if
     this function didn't exist."""
     area = (where or {}).get("area_id")
+    # A compound request ("mute the office AND turn on the lights") is the model's
+    # job — the fast-path only owns single, unambiguous commands.
+    if re.search(r"\b(and|then)\b|,", " " + (text or "").lower() + " "):
+        return None
     if not area:
         return None                      # no room context -> nothing is unambiguous
     t = " ".join((text or "").strip().rstrip("."). split())
@@ -2522,29 +2550,36 @@ def _fast_intent(runner, text: str, where: dict):
         return ("Everything off in the %s." % room) if not (r or {}).get("error") else None
     if _FAST_MUTE.match(t):
         want = not t.lower().startswith("un")
-        tgts, _ctx = _room_vol_targets(runner, area)
+        _ra, _rn = _area_from_text(runner, t)   # "mute the office" -> the Office
+        _area, _room = (_ra or area), (_rn or room)
+        tgts, _ctx = _room_vol_targets(runner, _area)
         if not tgts:
-            return "There's no volume control set up in the %s." % room
+            return "There's no volume control set up in the %s." % _room
+        # DETERMINISTIC — actually SET the mute on the active endpoint(s). It never
+        # reads a stale state and declares "already muted" (Dave, 6 Aug): mute means
+        # mute, every time, on the speaker that's actually playing.
         for e in tgts:
             try:
                 runner.client.call_service("media_player", "volume_mute", e,
                                            {"is_volume_muted": want})
             except Exception:
                 pass
-        return "Muted." if want else "Unmuted."
+        return ("Muted the %s." if want else "Unmuted the %s.") % _room
     m = _FAST_VOL.match(t)
     if m:
         up = bool(re.search(r"up|louder", t, re.I))
-        tgts, _ctx = _room_vol_targets(runner, area)
+        _ra, _rn = _area_from_text(runner, t)
+        _area, _room = (_ra or area), (_rn or room)
+        tgts, _ctx = _room_vol_targets(runner, _area)
         if not tgts:
-            return "There's no volume control set up in the %s." % room
+            return "There's no volume control set up in the %s." % _room
         svc = "volume_up" if up else "volume_down"
         for e in tgts:
             try:
                 runner.client.call_service("media_player", svc, e, None)
             except Exception:
                 pass
-        return "Turned it %s." % ("up" if up else "down")
+        return "Turned the %s %s." % (_room, "up" if up else "down")
     m = _FAST_PAUSE.match(t)
     if m:
         word = m.group(1).lower()
