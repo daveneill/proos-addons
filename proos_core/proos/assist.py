@@ -2449,36 +2449,48 @@ _FAST_PAUSE = re.compile(r"^(pause|stop|resume|play|continue)( it| that| music)?
 
 
 def _room_vol_targets(runner, area_id):
-    """The media_player entities Assist should drive for a VOLUME command in this
-    room — ENDPOINT-DRIVEN (Endpoint Model Spec v2, 6 Aug). The room is watching
-    (a watch_* verdict) -> its VIDEO-VOLUME endpoints; music is playing -> its
-    AUDIO-VOLUME endpoints; otherwise the room's committed audio-volume (its music
-    volume). Returns (entities, context). ([], None) means the room has NO volume
-    endpoint committed — Assist says so rather than spraying every player in the
-    area (the old device_control default), which moved the wrong device."""
+    """The media_player entity Assist should drive for a VOLUME command in this
+    room — ENDPOINT-DRIVEN (Endpoint Model Spec v2, 6 Aug).
+
+    The room's verdict already resolves the ACTIVE audio device in `audio_entity`:
+    musicstat.decide_music picks the speaker that is PLAYING (or its group
+    coordinator), or the room's primary speaker when idle, and the watch verdict
+    names the TV-audio device the same way. That is exactly the volume target — it
+    can't drift and it follows whatever the homeowner just started (the Office
+    Sonos/HomePod case: 'turn it up' moved the HomePod while it played, then the
+    Sonos once that was the one playing). Use it directly.
+
+    Falls back to the committed video/audio-volume endpoints only when the verdict
+    names no audio device. ([], None) means the room has NO volume endpoint at all
+    — Assist says so rather than spraying every player in the area (the old
+    device_control default, which moved the wrong device). Returns (entities, ctx)."""
+    verdict_eid = "sensor.proos_activity_%s" % area_id
+    snap = {}
+    try:
+        snap = runner.client.snapshot([verdict_eid]) or {}
+    except Exception:
+        pass
+    v = snap.get(verdict_eid) or {}
+    vatt = v.get("attributes") or {}
+    watching = (str(v.get("state") or "").startswith("watch_")
+                or str(vatt.get("activity_key") or "").startswith("watch_"))
+    ae = vatt.get("audio_entity")
+    if isinstance(ae, str) and ae:
+        return [ae], ("video" if watching else "audio")
+    # Fallback: the committed endpoints from the record.
     try:
         rec = (runner.project.load().get("areas") or {}).get(area_id) or {}
     except Exception:
         rec = {}
     vv = [e for e in (rec.get("video_volume") or []) if isinstance(e, str) and e]
     av = [e for e in (rec.get("audio_volume") or []) if isinstance(e, str) and e]
-    if not vv and not av:
-        return [], None
-    verdict_eid = "sensor.proos_activity_%s" % area_id
-    snap = {}
-    try:
-        snap = runner.client.snapshot(list(dict.fromkeys([verdict_eid] + av))) or {}
-    except Exception:
-        pass
-    watching = str((snap.get(verdict_eid) or {}).get("state") or "").startswith("watch_")
-    playing_audio = [e for e in av if str((snap.get(e) or {}).get("state")) == "playing"]
     if watching and vv:
         return vv, "video"
-    if playing_audio:
-        return playing_audio, "audio"
     if av:
         return av, "audio"
-    return vv, "video"
+    if vv:
+        return vv, "video"
+    return [], None
 
 
 def _fast_intent(runner, text: str, where: dict):
