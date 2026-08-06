@@ -410,7 +410,8 @@ TOOLS = [
      "input_schema": {"type": "object", "properties": {
          "fact": {"type": "string"},
          "learned": {"type": "boolean", "description": "true = a preference you inferred (soft), not one they stated"},
-         "forget": {"type": "boolean", "description": "true to remove a previously-pinned item matching `fact`"}},
+         "decline": {"type": "boolean", "description": "true = a suggestion they waved off; record it so you never re-offer (a no sticks)"},
+         "forget": {"type": "boolean", "description": "true to remove a previously-pinned item matching `fact` from all streams"}},
          "required": ["fact"]}},
     {"name": "scenes_list",
      "description": "List existing ProOS-created scenes: name, entity_id, which room each lives "
@@ -2420,26 +2421,36 @@ class ToolRunner:
         uid = self.user.get("id") or "anon"
         rec = _mem_load().get(uid) or {}
         return {"facts": rec.get("facts") or [],
-                "learned": rec.get("learned") or []}
+                "learned": rec.get("learned") or [],
+                "declines": rec.get("declines") or []}
 
     def t_memory_set(self, args):
         """Pin something to remember about this person. Default is a TOLD fact
-        (they stated it). learned=true pins a LEARNED preference — something you
-        inferred from how they use the home; it's kept separately and marked soft
-        (H3, 7 Aug). forget removes a matching item from BOTH streams. Per person."""
+        (they stated it). learned=true pins a LEARNED preference you inferred from
+        how they use the home (soft, H3). decline=true records a suggestion they
+        waved off, so you never re-offer it — a no sticks (H5). forget removes a
+        matching item from ALL streams. Per person."""
         fact = (args.get("fact") or "").strip()
         if not fact:
             return {"error": "fact required"}
         uid = self.user.get("id") or "anon"
         store = _mem_load()
-        rec = store.setdefault(uid, {"facts": [], "learned": []})
+        rec = store.setdefault(uid, {"facts": [], "learned": [], "declines": []})
         facts = rec.setdefault("facts", [])
         learned = rec.setdefault("learned", [])
+        declines = rec.setdefault("declines", [])
         if args.get("forget"):
             low = fact.lower()
             rec["facts"] = [f for f in facts if low not in f.lower()]
             rec["learned"] = [l for l in learned
                               if low not in (l.get("text", "").lower())]
+            rec["declines"] = [d for d in declines
+                               if low not in (d.get("text", "").lower())]
+        elif args.get("decline"):
+            # a suggestion they declined — remember so you don't nag (a no sticks)
+            if all(fact != d.get("text") for d in declines):
+                declines.append({"text": fact, "ts": round(time.time(), 1)})
+                rec["declines"] = declines[-_MEM_MAX:]
         elif args.get("learned"):
             # a learned preference — soft, timestamped, distinct from told facts
             if all(fact != l.get("text") for l in learned):
@@ -2451,8 +2462,10 @@ class ToolRunner:
                 rec["facts"] = facts[-_MEM_MAX:]
         _mem_save(store)
         self._audit("memory_set", forget=bool(args.get("forget")),
-                    learned=bool(args.get("learned")))
-        return {"ok": True, "facts": rec["facts"], "learned": rec["learned"]}
+                    learned=bool(args.get("learned")),
+                    decline=bool(args.get("decline")))
+        return {"ok": True, "facts": rec["facts"],
+                "learned": rec["learned"], "declines": rec["declines"]}
 
 
 # ── system prompt ────────────────────────────────────────────────────────────
@@ -2485,6 +2498,7 @@ def _system_context(user: dict, where: dict | None = None) -> str:
     rec = _mem_load().get((user or {}).get("id") or "anon") or {}
     facts = rec.get("facts") or []
     learned = [l.get("text") for l in (rec.get("learned") or []) if l.get("text")]
+    declines = [d.get("text") for d in (rec.get("declines") or []) if d.get("text")]
     ctx = "\n\nYou are speaking with %s (role: %s)." % (who, tier)
     if facts:
         ctx += " What you remember about %s (they told you): %s." % (who, "; ".join(facts))
@@ -2495,6 +2509,10 @@ def _system_context(user: dict, where: dict | None = None) -> str:
         ctx += (" What you've learned about %s from how they use the home (soft — a "
                 "hint to personalise or confirm, never a certainty): %s."
                 % (who, "; ".join(learned)))
+    if declines:
+        # things they've waved off — a no sticks; never re-offer these (H5).
+        ctx += (" Suggestions %s has DECLINED — do NOT re-offer these: %s."
+                % (who, "; ".join(declines)))
     ctx += _where_prompt(where or {})
     return ctx
 
@@ -2573,6 +2591,17 @@ def _system_doctrine(user: dict, home_name: str) -> str:
         "Apple TV — want the room set the way you like it?'). The habit is what makes the guess "
         "good, never what makes it certain: never state a habit as fact, never act on it without "
         "the yes, and when the evidence is thin just report the plain device fact.\n"
+        "BEING PROACTIVE — THE 'HOW DID IT KNOW' MOMENTS, WITH RESTRAINT. Use what you know "
+        "(usage_history, room_read, and their learned preferences from memory_get) to offer the "
+        "RIGHT thing at the RIGHT moment — 'it's about the time you usually watch Apple TV, want "
+        "the Family Room set up?'. Keep it to ONE suggestion where it genuinely fits — never a "
+        "list, never a sales pitch — and it is always OPT-IN: you offer, they choose, and you "
+        "NEVER act without the yes. A decline STICKS: before you suggest, check what they've "
+        "declined and never RE-OFFER it; and when someone waves a suggestion off, record it with "
+        "memory_set decline=true so you don't ask again. Personalise from their preferences — the "
+        "kitchen HomePod for one person, the lounge for another — and when a request is ambiguous "
+        "('play something') ROUTE it to what they LIKE rather than asking. Read the room: don't "
+        "interrupt, don't nag, drop any thread they wave off.\n"
         "Rules that are enforced and must shape your behaviour:\n"
         "1. Ground yourself with rooms_overview before acting on rooms or media; entity/area ids "
         "are identity, names are display-only.\n"
