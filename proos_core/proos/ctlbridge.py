@@ -132,6 +132,25 @@ def promote_external_inference(cs_state, external, inf_state, verified, evidence
     return None
 
 
+def hold_promoted(mem, promoted_state, promoted_label, disp_on):
+    """Anti-flap HOLD for the promoted activity (Dave, 7 Aug: it flapped
+    "Watching Apple TV" <-> "The TV is on" as the traffic witness dipped and
+    recovered). Once an activity is CONFIRMED it STAYS until the display goes off
+    or a DIFFERENT activity is confirmed -- a brief witness blip never drops it
+    back. mem['ext'] latches {state,label}. The INFO (a real title) still shows
+    and clears on its own through the sentence's info path (Sonos-style); only
+    the confirmed ACTIVITY is held here. Returns (state,label) to publish, or
+    (None,None) to release to the honest device fact. Mutates only mem."""
+    if promoted_state:
+        mem["ext"] = {"state": promoted_state, "label": promoted_label}
+        return promoted_state, promoted_label
+    held = mem.get("ext")
+    if disp_on and held:
+        return held.get("state"), held.get("label")   # hold through the blip
+    mem.pop("ext", None)                                # display off / never confirmed
+    return None, None
+
+
 def room_devices(rec, snapall):
     """The room's committed device map — ONE builder, one schema (audit
     2 Aug: A1 display-as-source role overwrite, A2 speakers[] dropped,
@@ -1071,23 +1090,35 @@ class ActivityPublisher:
                 # below (publish + journal): reuse d["state"] as the carrier.
                 _inf_state = d["state"]          # inference verdict, for diags
                 d["state"] = cs["state"]
-                # EVIDENCE-GATED PROMOTION (Dave, 7 Aug): an externally-started
-                # room NAMES its activity when the inference is verified AND a
-                # traffic witness corroborates real playback — "Watching Apple
-                # TV" instead of a bare "The TV is on" the box actually knew.
-                _promoted = promote_external_inference(
-                    cs["state"], cs.get("external"), _inf_state,
-                    d.get("verified"), d.get("evidence"))
-                if _promoted and active is not None:
-                    _plbl = (getattr(active, "label", None)
-                             or _promoted.replace("watch_", "Watch ")
+                # EVIDENCE-GATED PROMOTION + ANTI-FLAP HOLD (Dave, 7 Aug): an
+                # externally-started room NAMES its activity when the inference
+                # is verified AND a traffic witness corroborates real playback,
+                # and HOLDS it through witness blips until the display goes off
+                # or a DIFFERENT activity is confirmed — no flapping back to
+                # "The TV is on". A real title still shows/clears via the
+                # sentence's own info path (Sonos-style).
+                _mem_r = self._mem(area_slug)
+                if cs["state"] == "on" and cs.get("external"):
+                    _prom = promote_external_inference(
+                        cs["state"], cs.get("external"), _inf_state,
+                        d.get("verified"), d.get("evidence"))
+                    _plbl = None
+                    if _prom and active is not None:
+                        _plbl = (getattr(active, "label", None)
+                                 or _prom.replace("watch_", "Watch ")
                                           .replace("_", " ").title())
-                    d["state"] = _promoted
-                    cs["state"] = _promoted
-                    cs["label"] = _plbl
-                    attrs["activity_key"] = _promoted
-                    attrs["label"] = _plbl
-                    attrs["verified"] = True     # witness-corroborated evidence
+                    elif _prom and active is None:
+                        _prom = None        # no label source -> don't promote
+                    _hs, _hl = hold_promoted(_mem_r, _prom, _plbl, _disp_on)
+                    if _hs:
+                        d["state"] = _hs
+                        cs["state"] = _hs
+                        cs["label"] = _hl or cs["label"]
+                        attrs["activity_key"] = _hs
+                        attrs["label"] = _hl or attrs["label"]
+                        attrs["verified"] = True   # witness-corroborated evidence
+                else:
+                    _mem_r.pop("ext", None)     # commanded / off -> drop the latch
                 if (active is not None
                         and getattr(active, "source_eid", None)
                         and active.key == cs["commanded_key"]):
