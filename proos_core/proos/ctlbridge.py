@@ -112,6 +112,26 @@ def effective_state(eid, snapall):
                 ((snap.get(eid) or {}).get("state")), False)
     return (snap.get(eid) or {}).get("state"), False
 
+
+def promote_external_inference(cs_state, external, inf_state, verified, evidence):
+    """Evidence-gated promotion (Dave, 7 Aug): an EXTERNALLY-started room that
+    reads a bare 'on' may NAME its inferred activity ('watch_apple_tv' ->
+    "Watching Apple TV") -- but ONLY when decide's inference is VERIFIED and a
+    TRAFFIC witness corroborates real playback. That is evidence, not a guess:
+    the 2 Aug reset stands for UN-backed inference (which never reaches the
+    homeowner); this narrow gate is the witness doctrine raising the ceiling.
+
+    Live proof (Bedroom, 7 Aug): state on/external, inference watch_apple_tv
+    verified, evidence traffic @10.65, yet the line read "The TV is on" -- the
+    box knew and threw it away. No witness / unverified / commanded / off ->
+    None (stay the honest device fact). Pure; returns the activity key or None."""
+    if (cs_state == "on" and external
+            and isinstance(inf_state, str) and inf_state.startswith("watch_")
+            and verified and evidence == "traffic"):
+        return inf_state
+    return None
+
+
 def room_devices(rec, snapall):
     """The room's committed device map — ONE builder, one schema (audit
     2 Aug: A1 display-as-source role overwrite, A2 speakers[] dropped,
@@ -1051,6 +1071,23 @@ class ActivityPublisher:
                 # below (publish + journal): reuse d["state"] as the carrier.
                 _inf_state = d["state"]          # inference verdict, for diags
                 d["state"] = cs["state"]
+                # EVIDENCE-GATED PROMOTION (Dave, 7 Aug): an externally-started
+                # room NAMES its activity when the inference is verified AND a
+                # traffic witness corroborates real playback — "Watching Apple
+                # TV" instead of a bare "The TV is on" the box actually knew.
+                _promoted = promote_external_inference(
+                    cs["state"], cs.get("external"), _inf_state,
+                    d.get("verified"), d.get("evidence"))
+                if _promoted and active is not None:
+                    _plbl = (getattr(active, "label", None)
+                             or _promoted.replace("watch_", "Watch ")
+                                          .replace("_", " ").title())
+                    d["state"] = _promoted
+                    cs["state"] = _promoted
+                    cs["label"] = _plbl
+                    attrs["activity_key"] = _promoted
+                    attrs["label"] = _plbl
+                    attrs["verified"] = True     # witness-corroborated evidence
                 if (active is not None
                         and getattr(active, "source_eid", None)
                         and active.key == cs["commanded_key"]):
