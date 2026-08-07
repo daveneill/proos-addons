@@ -420,6 +420,31 @@ def _scan(snapall, project_mod, get_controller, witnesses):
                         "subject": se,
                         "actions": [{"kind": "reload", "entity": se,
                                      "label": "Reload integration"}]})
+                    # Auto-heal (7 Aug): a frozen session is the SUSTAINED twin
+                    # of link_unstable — the entity is stuck dead while its
+                    # witness proves real playback (the Bedroom Apple TV case,
+                    # where a single wedge never reaches the flap threshold).
+                    # Reload the integration when auto_heal is on, sharing
+                    # sessmon's per-entity reload cooldown so the two detectors
+                    # can never storm one device between them.
+                    if (AUTO_HEAL and CLIENT is not None and _sessmon is not None
+                            and _sessmon.heal_due(_sess, se, now)):
+                        try:
+                            CLIENT._req(
+                                "POST",
+                                "/api/services/homeassistant/"
+                                "reload_config_entry",
+                                {"entity_id": se})
+                            journal.emit(slug, "auto_heal", {
+                                "action": "reload_integration",
+                                "entity": se, "reason": "frozen_session",
+                                "rate": round(rate, 2)})
+                            print("  [healthmon] auto-heal: reloaded frozen "
+                                  "session for %s (%.2f MB/s)"
+                                  % (se, rate), flush=True)
+                        except Exception as _e:              # noqa: BLE001
+                            print("  [healthmon] auto-heal frozen reload "
+                                  "failed for %s: %s" % (se, _e), flush=True)
 
         # 5 · witness coverage gap (info) — provider present, source unbound
         if witnesses is not None and len(witnesses) > 0:
