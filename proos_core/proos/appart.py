@@ -98,6 +98,24 @@ def _canon_index() -> dict:
             for a in aliases:
                 idx[a] = (canon, name, rank)
                 idx[slug(a)] = (canon, name, rank)
+        # Locally-added apps rank AFTER every curated one, so the deliberate
+        # arrangement of the shipped sheet never shifts when a site adds an app.
+        base = len(CANONICAL_APPS)
+        for n, (canon, rec) in enumerate(sorted(brands().items())):
+            nm = rec.get("name") or canon
+            rank = base + n
+            idx[canon] = (canon, nm, rank)
+            idx[slug(nm)] = (canon, nm, rank)
+            for a in list(rec.get("aliases") or []) + list(rec.get("packages") or []):
+                a = str(a).strip().lower()
+                if a:
+                    idx[a] = (canon, nm, rank)
+                    idx[slug(a)] = (canon, nm, rank)
+        # Apps retired on this system stop resolving entirely — every alias and
+        # device id that pointed at them goes with them.
+        gone = removed_brands()
+        if gone:
+            idx = {a: v for a, v in idx.items() if v[0] not in gone}
         _CANON_INDEX = idx
     return _CANON_INDEX
 
@@ -125,14 +143,201 @@ def _aliases() -> dict:
         if not isinstance(d, dict):
             return {}
         # Keys beginning with _ are section headings / notes, not aliases.
-        return {k: v for k, v in d.items()
-                if isinstance(v, str) and not k.startswith("_")}
+        out = {k: v for k, v in d.items()
+               if isinstance(v, str) and not k.startswith("_")}
     except Exception:
-        return {}
+        out = {}
+    for s, rec in brands().items():
+        for a in (rec.get("aliases") or []):
+            a = slug(a)
+            if a:
+                out[a] = s
+    return out
 
 
 _HIDDEN = os.path.join(os.environ.get("PROOS_DATA_DIR", "/data"), "appart_hidden.json")
 _ORIGIN = os.path.join(os.environ.get("PROOS_DATA_DIR", "/data"), "appart_origin.json")
+
+# ── LOCAL BRAND STORE (8 Aug 2026) ───────────────────────────────────────────
+# Everything ProOS KNOWS about an app — display name, sort rank, brand domain
+# (what artwork is fetched by) and package id — ships inside the read-only
+# add-on image. So an app ProOS had never heard of could not be named, matched
+# or auto-fetched without Protech shipping a Core release. That is a
+# commissioning limitation, not a product decision.
+#
+# This store lets an installer teach the box on site. It OVERLAYS the bundled
+# tables exactly the way _HIDDEN / _ORIGIN already do — the shipped files are
+# never written, so an update can neither lose a local brand nor resurrect a
+# removed one. Absent or corrupt behaves precisely like today (fail-open).
+#
+#   {"stan": {"name": "Stan", "domain": "stan.com.au",
+#             "aliases": ["stan_au"], "packages": ["com.stan.and"],
+#             "added": 1786078466}}
+#
+# "packages" is BRAND-AGNOSTIC despite the Android-flavoured name (it matches
+# the shipped packages.json). It is simply "whatever id the device reports for
+# this app", and the curated table already mixes them freely:
+#     Android / Fire   com.netflix.ninja        (reverse-DNS)
+#     Apple TV / tvOS  com.netflix.Netflix      (reverse-DNS)
+#     Samsung Tizen    3201907018807            (numeric)
+#     LG webOS         netflix                  (plain id)
+#     Roku             12                       (numeric)
+# ctlbridge calls canonical(app, appid) with the platform's own id, and the
+# index stores every id raw AND slugged, so no platform is special-cased.
+_BRANDS = os.path.join(os.environ.get("PROOS_DATA_DIR", "/data"), "appart_brands.json")
+
+
+def brands() -> dict:
+    """Locally-added apps: slug -> record. Fail-open: anything unreadable or
+    the wrong shape reads as 'none', so the box behaves as it always did."""
+    try:
+        with open(_BRANDS, encoding="utf-8") as fh:
+            d = json.load(fh)
+        if not isinstance(d, dict):
+            return {}
+        return {k: v for k, v in d.items()
+                if isinstance(v, dict) and not k.startswith("_")}
+    except Exception:
+        return {}
+
+
+def _set_brands(d: dict) -> bool:
+    """Atomic write (tmp + replace), like _set_hidden — a half-written store
+    must never be possible."""
+    try:
+        os.makedirs(os.path.dirname(_BRANDS), exist_ok=True)
+        tmp = _BRANDS + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(d, fh, indent=1, sort_keys=True)
+        os.replace(tmp, _BRANDS)
+        return True
+    except Exception:
+        try:
+            os.remove(_BRANDS + ".tmp")
+        except OSError:
+            pass
+        return False
+
+
+def add_brand(name: str, domain: str, packages=None, aliases=None,
+              ids=None) -> dict:
+    """Teach this box an app.
+
+    The domain is REQUIRED and always comes from a human choice — the Brandfetch
+    picker or typed by hand. It is never inferred from the name: a wrong domain
+    fetches another company's logo, which is worse than no tile (domains()).
+
+    packages/ids are the DEVICE app ids, any platform — reverse-DNS (Android,
+    Fire, tvOS), numeric (Tizen, Roku) or a plain id (webOS). `ids` is accepted
+    as a brand-neutral synonym for `packages`; both land in the same bag.
+    """
+    nm = (name or "").strip()
+    dom = (domain or "").strip().lower()
+    dom = re.sub(r"^https?://", "", dom).strip("/")
+    if not nm:
+        return {"error": "what is the app called?"}
+    if not dom:
+        return {"error": "a brand domain is required — it's how the artwork is found"}
+    s = slug(nm)
+    if not s:
+        return {"error": "that name has no usable slug"}
+    d = brands()
+    prev = d.get(s) or {}
+    d[s] = {
+        "name": nm,
+        "domain": dom,
+        "aliases": sorted({slug(a) for a in (aliases or []) if slug(a)}),
+        "packages": sorted({str(p).strip().lower()
+                            for p in (list(packages or []) + list(ids or []))
+                            if str(p).strip()}),
+        "added": prev.get("added") or int(__import__("time").time()),
+    }
+    if not _set_brands(d):
+        return {"error": "could not write the brand store"}
+    global _CANON_INDEX
+    _CANON_INDEX = None                      # identity must rebuild
+    return {"ok": True, "slug": s, "name": nm, "domain": dom,
+            "action": "updated" if prev else "added"}
+
+
+# Apps retired on THIS system. A shipped app can't be deleted — it lives in the
+# read-only add-on image and returns with every update — so it is suppressed
+# here instead, exactly as _HIDDEN does for shipped artwork. Local record, so an
+# update can neither resurrect a retired app nor lose a locally-added one.
+_REMOVED = os.path.join(os.environ.get("PROOS_DATA_DIR", "/data"),
+                        "appart_removed.json")
+
+
+def removed_brands() -> set:
+    """Slugs retired on this system. Fail-open: unreadable == nothing retired,
+    so a damaged file can never silently hide a customer's apps."""
+    try:
+        with open(_REMOVED, encoding="utf-8") as fh:
+            d = json.load(fh)
+        return set(d) if isinstance(d, list) else set()
+    except Exception:
+        return set()
+
+
+def _set_removed(slugs) -> bool:
+    try:
+        os.makedirs(os.path.dirname(_REMOVED), exist_ok=True)
+        tmp = _REMOVED + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(sorted(slugs), fh, indent=1)
+        os.replace(tmp, _REMOVED)
+        return True
+    except Exception:
+        return False
+
+
+def remove_brand(name_or_slug: str) -> dict:
+    """Retire an app on this system — the two honest cases.
+
+    Locally added  -> deleted outright.
+    Shipped        -> suppressed here (the image is read-only and an update
+                      would bring it back), so it stops being offered.
+    Either way it is reversible, and the bundled tables are never written.
+    """
+    s = slug(name_or_slug)
+    if not s:
+        return {"error": "which app?"}
+    global _CANON_INDEX
+    d = brands()
+    if s in d:
+        d.pop(s, None)
+        if not _set_brands(d):
+            return {"error": "could not write the brand store"}
+        _CANON_INDEX = None
+        return {"ok": True, "slug": s, "action": "removed",
+                "note": "removed — it was added on this system"}
+    if s in CANONICAL_APPS or s in domains():
+        r = removed_brands()
+        if s in r:
+            return {"error": "that app is already removed here"}
+        r.add(s)
+        if not _set_removed(r):
+            return {"error": "could not write the removed list"}
+        _CANON_INDEX = None
+        return {"ok": True, "slug": s, "action": "suppressed",
+                "note": "removed on this system — restore it any time"}
+    return {"error": "no such app"}
+
+
+def restore_brand(name_or_slug: str) -> dict:
+    """Put back an app that was suppressed on this system."""
+    s = slug(name_or_slug)
+    r = removed_brands()
+    if s not in r:
+        return {"error": "that app isn't removed here"}
+    r.discard(s)
+    if not _set_removed(r):
+        return {"error": "could not write the removed list"}
+    global _CANON_INDEX
+    _CANON_INDEX = None
+    return {"ok": True, "slug": s, "action": "restored"}
+
+
 
 
 def _origins() -> dict:
@@ -207,10 +412,18 @@ def packages() -> dict:
     try:
         with open(os.path.join(_BUNDLED, "packages.json"), encoding="utf-8") as fh:
             d = json.load(fh)
-        return {k: v for k, v in d.items()
-                if isinstance(v, str) and not k.startswith("_")}
+        out = {k: v for k, v in d.items()
+               if isinstance(v, str) and not k.startswith("_")}
     except Exception:
-        return {}
+        out = {}
+    # Locally-added apps contribute their package ids too — the device's own
+    # immutable identity, which beats whatever an installer typed as the name.
+    for s, rec in brands().items():
+        for p in (rec.get("packages") or []):
+            p = str(p).strip().lower()
+            if p:
+                out[p] = s
+    return out
 
 
 def tile_path(name_or_slug: str, package: str = ""):
@@ -410,14 +623,24 @@ _FETCH_TIMEOUT = 20
 
 def domains() -> dict:
     """Curated slug -> brand domain map. Deliberately not guessed: a wrong
-    domain fetches another company's logo, which is worse than no tile."""
+    domain fetches another company's logo, which is worse than no tile.
+
+    Locally-added brands (Toolbox / room page) overlay the curated map for
+    their own slug; every other curated entry survives untouched."""
     try:
         with open(os.path.join(_BUNDLED, "domains.json"), encoding="utf-8") as fh:
             d = json.load(fh)
-        return {k: v for k, v in d.items()
-                if isinstance(v, str) and not k.startswith("_")}
+        out = {k: v for k, v in d.items()
+               if isinstance(v, str) and not k.startswith("_")}
     except Exception:
-        return {}
+        out = {}
+    for s, rec in brands().items():
+        dom = (rec.get("domain") or "").strip()
+        if dom:
+            out[s] = dom
+    for s in removed_brands():
+        out.pop(s, None)
+    return out
 
 
 def brand_domain(slug_or_name: str) -> str:
