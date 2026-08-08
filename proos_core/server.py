@@ -3188,7 +3188,30 @@ class Handler(BaseHTTPRequestHandler):
                 # Plus every brand in the catalogue with no tile yet — filling
                 # those in advance means a newly-installed app is never bare.
                 out["catalogue_gaps"] = _appart.catalogue_gaps()
+                # What this box was taught / what it retired. The manager needs
+                # both to offer "Added here" as a filter and to show a retired
+                # app as restorable rather than simply vanishing.
+                out["brands"] = _appart.brands()
+                out["removed"] = sorted(_appart.removed_brands())
+                out["brandfetch"] = (_opt("brandfetch_client_id", "") or "").strip()
                 return self._send(200, out)
+            if parts == ["apps", "brands"]:
+                # What this box knows locally + the Brandfetch client id, for
+                # the brand picker. Both surfaces use this: Toolbox AND the
+                # room page (an installer meets unknown apps mid-commission).
+                #
+                # The client id is PUBLIC BY DESIGN — Brandfetch require the
+                # search call to be made from the user's browser with the id in
+                # the query string — so handing it to an authenticated surface
+                # is the intended pattern, not a credential leak. Search is
+                # never proxied through Core: their guidelines require it live
+                # from the browser, uncached.
+                if not _appart:
+                    return self._send(200, {"brands": {}, "removed": []})
+                return self._send(200, {
+                    "brands": _appart.brands(),
+                    "removed": sorted(_appart.removed_brands()),
+                    "brandfetch": (_opt("brandfetch_client_id", "") or "").strip()})
             if parts == ["scenes", "photos"]:
                 # The dashboard reads the per-scene photo/name overrides + the
                 # curated style catalog + whether AI generation is available.
@@ -3303,6 +3326,7 @@ class Handler(BaseHTTPRequestHandler):
         "watchers/rediscover", "music/admin-token", "music/admin-user",
         "music/install", "music/enabled", "music/connect", "music/setup",
         "project/heal",          # rebuilds a room record — commissioning work
+        "apps/brands/",          # teaching/retiring an app — commissioning work
     )
     # Homeowner actions that sit UNDER an installer prefix but are reads in
     # disguise — a POST only because they carry a body, not a config write.
@@ -4540,6 +4564,59 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(503, {"error": "artwork unavailable"})
                 b = self._body() or {}
                 res = _appart.restore_tile(b.get("slug") or b.get("name") or "")
+                return self._send(400 if res.get("error") else 200, res)
+            # ── App catalogue on the box (8 Aug 2026) ─────────────────────
+            # Everything ProOS knows about an app (name, sort rank, brand
+            # domain, device ids) shipped inside the read-only image, so an app
+            # ProOS had never heard of needed a Core release before it could be
+            # named, matched or auto-fetched. These teach the box on site.
+            #
+            # TIERS ARE DELIBERATE (Dave, 8 Aug): ADD is reachable by an
+            # INSTALLER — they meet unknown apps on the room page mid-commission
+            # and must not have to leave the job. REMOVE/RESTORE stay tech/owner
+            # (Toolbox) — retiring an app is curation, and an installer mid-job
+            # must not remove a brand other rooms rely on. Enforced HERE, not in
+            # the UI: the endpoint is the truth.
+            if parts == ["apps", "brands", "add"]:
+                if not _appart:
+                    return self._send(503, {"error": "artwork unavailable"})
+                b = self._body() or {}
+                res = _appart.add_brand(
+                    b.get("name") or "", b.get("domain") or "",
+                    packages=b.get("packages") or [],
+                    aliases=b.get("aliases") or [],
+                    ids=b.get("ids") or [])
+                if not res.get("error") and _journal_mod:
+                    _journal_mod.emit("site", "app_brand", {
+                        "action": "added", "slug": res.get("slug"),
+                        "domain": res.get("domain"),
+                        "by": (self._user or {}).get("name")})
+                return self._send(400 if res.get("error") else 200, res)
+            if parts == ["apps", "brands", "remove"]:
+                u = self._user
+                if not (u and (u.get("is_owner") or (users and users.is_tech(u.get("id"))))):
+                    return self._send(403, {"error": "tech access required"})
+                if not _appart:
+                    return self._send(503, {"error": "artwork unavailable"})
+                b = self._body() or {}
+                res = _appart.remove_brand(b.get("slug") or b.get("name") or "")
+                if not res.get("error") and _journal_mod:
+                    _journal_mod.emit("site", "app_brand", {
+                        "action": res.get("action"), "slug": res.get("slug"),
+                        "by": (self._user or {}).get("name")})
+                return self._send(400 if res.get("error") else 200, res)
+            if parts == ["apps", "brands", "restore"]:
+                u = self._user
+                if not (u and (u.get("is_owner") or (users and users.is_tech(u.get("id"))))):
+                    return self._send(403, {"error": "tech access required"})
+                if not _appart:
+                    return self._send(503, {"error": "artwork unavailable"})
+                b = self._body() or {}
+                res = _appart.restore_brand(b.get("slug") or b.get("name") or "")
+                if not res.get("error") and _journal_mod:
+                    _journal_mod.emit("site", "app_brand", {
+                        "action": "restored", "slug": res.get("slug"),
+                        "by": (self._user or {}).get("name")})
                 return self._send(400 if res.get("error") else 200, res)
             if parts == ["apps", "art", "delete"]:
                 u = self._user
