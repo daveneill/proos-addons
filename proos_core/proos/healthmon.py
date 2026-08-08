@@ -53,6 +53,9 @@ except Exception:                                                # noqa: BLE001
 STATE_PATH = "/data/health_state.json"
 UNAVAIL_SECS = 30 * 60
 FROZEN_SECS = 10 * 60
+INFRA_SECS = 2 * 60      # sustained window before naming dead network gear
+_INFRA_TTL = 10 * 60     # registry re-harvest interval for the gear list
+_CO_DROP_SECS = 5 * 60   # clients that vanished within this window of the gear
 
 # ── preparation posture (2 Aug 2026) ────────────────────────────────────────
 # The Family Room Frame's unpaired IP control sat visible in Pro's Prepare
@@ -164,6 +167,124 @@ def dismiss(iid):
     return inc
 
 
+# ── 6 · infrastructure down: the network gear ITSELF (Dave, 9 Aug 2026) ─────
+# THE SECOND SWITCH TEST: Dave pulled the Bedroom switch again. Every client
+# witness worked (TV, Shield, Apple TV trackers all went not_home) — but the
+# Apple TV hopped to WiFi, so the room was never "ALL devices gone" and
+# room_offline correctly stayed quiet. Meanwhile HA held the DIRECT evidence
+# the whole time: device_tracker.bedroom_tv — the UniFi entry for the
+# "Bedroom - TV" switch itself — read not_home, and the product never looked.
+# Dave: "we have integration with Unifi network... my unifi shows the switch
+# is dead including all ports but all I can see in Pro is shield offline."
+# RULE: infrastructure is a first-class witness. Gear down is ITS OWN finding,
+# named as the switch/AP it is, listing the clients it took with it.
+#
+# GEAR DETECTION (evidence, no name tokens): a router-sourced device_tracker
+# whose attributes carry NO client fingerprint (clients have oui/host_name;
+# gear does not) AND whose HA device also owns an update.* entity (the
+# network integration publishes firmware updates for its own gear, never for
+# clients). Verified live 9 Aug against all 9 UniFi switches/APs/gateway and
+# dozens of clients. Integration-agnostic: any network integration that
+# models its gear this way is picked up, none is named.
+_infra_cache = {"ts": 0.0, "gear": {}}
+
+
+def _infra_gear(snapall, now):
+    """{tracker_eid: gear display name} — cached; fail-open to last known."""
+    if _infra_cache["gear"] and now - _infra_cache["ts"] < _INFRA_TTL:
+        return _infra_cache["gear"]
+    try:
+        from . import netmap as _nm
+        _entries, devices, entities = _nm.load_registries(client=CLIENT)
+        dev_name = {d.get("id"): (d.get("name_by_user") or d.get("name"))
+                    for d in devices}
+        has_update = {e.get("device_id") for e in entities
+                      if str(e.get("entity_id", "")).startswith("update.")
+                      and e.get("device_id")}
+        gear = {}
+        for e in entities:
+            eid = str(e.get("entity_id", ""))
+            did = e.get("device_id")
+            if (not eid.startswith("device_tracker.") or e.get("disabled_by")
+                    or did not in has_update):
+                continue
+            attrs = ((snapall.get(eid) or {}).get("attributes") or {})
+            if attrs.get("source_type") != "router":
+                continue
+            if "oui" in attrs or "host_name" in attrs:
+                continue                      # client fingerprint: not gear
+            gear[eid] = dev_name.get(did) or eid
+        _infra_cache["ts"] = now
+        _infra_cache["gear"] = gear
+    except Exception:                                            # noqa: BLE001
+        pass                                  # keep last known (fail open)
+    return _infra_cache["gear"]
+
+
+def _ts(rec):
+    """Epoch seconds from a snapshot record's last_changed; None if unknown."""
+    try:
+        from datetime import datetime
+        return datetime.fromisoformat(
+            str(rec.get("last_changed", "")).replace("Z", "+00:00")).timestamp()
+    except Exception:                                            # noqa: BLE001
+        return None
+
+
+def _co_dropped(snapall, gear_eid):
+    """Names of network CLIENTS that vanished within _CO_DROP_SECS of the gear
+    going down — the evidence that ties the room's dead devices to the switch."""
+    t0 = _ts(snapall.get(gear_eid) or {})
+    if t0 is None:
+        return []
+    names = []
+    for eid, rec in snapall.items():
+        if not eid.startswith("device_tracker.") or eid == gear_eid:
+            continue
+        attrs = (rec or {}).get("attributes") or {}
+        if attrs.get("source_type") != "router":
+            continue
+        if "oui" not in attrs and "host_name" not in attrs:
+            continue                          # other gear handles itself
+        if (rec or {}).get("state") != "not_home":
+            continue
+        t1 = _ts(rec)
+        if t1 is not None and abs(t1 - t0) <= _CO_DROP_SECS:
+            names.append(attrs.get("name") or attrs.get("friendly_name") or eid)
+    return sorted(names)
+
+
+def _infra_check(now, snapall, seen):
+    for eid, name in (_infra_gear(snapall, now) or {}).items():
+        if (snapall.get(eid) or {}).get("state") != "not_home":
+            continue
+        cid = _iid("infra_down", "network", eid)
+        seen.add(cid)
+        first = _first_bad.setdefault(cid, now)
+        if now - first < INFRA_SECS:
+            continue                          # a reboot/firmware blip clears
+        took = _co_dropped(snapall, eid)
+        t0 = _ts(snapall.get(eid) or {})
+        mins = int((now - t0) / 60) if t0 else int((now - first) / 60)
+        took_txt = ""
+        if took:
+            shown = ", ".join(took[:6]) + (" …" if len(took) > 6 else "")
+            took_txt = (" It took %d device%s off the network with it: %s."
+                        % (len(took), "s" if len(took) != 1 else "", shown))
+        _ensure(cid, {
+            "kind": "infra_down", "room": "Network", "slug": "network",
+            "severity": "critical",
+            "title": "Network gear offline — %s" % name,
+            "cause": ("%s — the network switch/access point itself, not a "
+                      "device on it — has been off the network for %d "
+                      "minutes.%s Everything wired through it has no network "
+                      "path. Check its power, PoE port or uplink cable. A "
+                      "deliberate reboot or firmware update clears itself in "
+                      "a few minutes." % (name, mins, took_txt)),
+            "subject": eid,
+            "actions": []})
+
+
 # ── scan ────────────────────────────────────────────────────────────────────
 def scan(snapall, project_mod, get_controller, witnesses=None):
     """One pass over every committed room. Mutates the incident set; journals
@@ -178,6 +299,9 @@ def _scan(snapall, project_mod, get_controller, witnesses):
     now = time.time()
     seen = set()       # condition-ids observed bad THIS pass
     _uni_clients = None   # certified UniFi Network clients, fetched at most once
+
+    # 6 · infrastructure first: a dead switch/AP explains everything below it.
+    _infra_check(now, snapall, seen)
 
     proj = project_mod.load() or {}
     for key, rec in (proj.get("areas") or {}).items():
