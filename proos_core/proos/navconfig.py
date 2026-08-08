@@ -62,6 +62,14 @@ def _clean(cfg: dict) -> dict:
         if isinstance(areas, dict):
             out["areas"] = {str(k): [str(x) for x in v]
                             for k, v in areas.items() if isinstance(v, list)}
+        if isinstance(cfg.get("offered"), list):
+            # What the Pro nav editor COULD offer at save time (Dave, 9 Aug
+            # 2026: new Bedroom lights + the Home alarm never appeared — the
+            # saved layout predated them and gated them off forever). A page
+            # absent from this list was never a CHOICE, so the dashboard
+            # defaults it to visible when its capability later appears.
+            # "A choice nobody makes leaves the room broken forever."
+            out["offered"] = [str(x) for x in cfg["offered"]]
     return out
 
 
