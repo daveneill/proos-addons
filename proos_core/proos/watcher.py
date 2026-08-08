@@ -71,6 +71,16 @@ UNAVAILABLE = {"unavailable", "unknown", "none", "", None}
 _REACH_UP = {"on", "home"}
 _REACH_DOWN = {"off", "not_home", "unavailable", "unknown"}
 
+# CLASS FACT (Dave, 9 Aug 2026 — brand-agnostic, known from the INTEGRATION at
+# the moment a device is added, never from a brand string): panels legitimately
+# LEAVE the network when powered down — WoL/MAC is what wakes them, so their
+# radios sleep in standby. Off + witness-gone is RESTING for a display. Every
+# other AV class (streamers, audio, lighting, climate) stays connected when
+# "off", so witness-gone remains a fault for them. The kind here is derived
+# from the integration's device class when the watch is built — a new brand of
+# TV gets this behaviour with no code change, exactly like CEC auto-wake.
+OFFNET_WHEN_OFF = ("display",)
+
 OK = "ok"
 PENDING = "pending"   # unhealthy but within debounce -> amber pill
 FAULT = "fault"       # unhealthy past debounce        -> red pill
@@ -247,7 +257,13 @@ class Watcher:
                 _cam_up = (w.get("kind") == "camera") and state_healthy
                 if spec and not _cam_up:
                     live_reachable = self._reach_cached(w, spec, states, now)
-                healthy = state_healthy and not (live_reachable is False)
+                # Panels may leave the network when powered down (class fact
+                # above) — off + witness-gone is resting for THEM only. The
+                # witness still rules a panel that is unavailable or believed-on.
+                _offnet_ok = (w.get("kind") in OFFNET_WHEN_OFF
+                              and state in ("off", "standby"))
+                healthy = state_healthy and not (live_reachable is False
+                                                 and not _offnet_ok)
                 if healthy:
                     if rt.status == FAULT:
                         rt.last_event = "resolved"

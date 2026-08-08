@@ -148,6 +148,16 @@ def check_room(ctrl) -> RoomHealth:
                     suggested_action=SUGGESTED.get(d.integration, "Check the device's power and network."),
                     auto_recoverable=False,
                 ))
+            elif (cluster.display is not None
+                  and d.entity == cluster.display.entity
+                  and st in ("off", "standby")):
+                # CLASS FACT (Dave, 9 Aug — brand-agnostic, known from the
+                # integration the moment the device is added): PANELS leave the
+                # network when powered down — WoL/MAC is what wakes them. A
+                # display that is off + witness-gone ALONE is resting, never a
+                # fault. It still counted into `lost` above, so a whole room
+                # going dark (the switch test) escalates WITH the panel in it.
+                pass
             else:
                 # Claims off/standby AND gone from the network: presumed dead.
                 # Confirmed by the independent witness, never guessed from state.
