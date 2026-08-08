@@ -530,6 +530,16 @@ TOOLS = [
                     "flapping before promising it's fine.",
      "input_schema": {"type": "object", "properties": {
          "limit": {"type": "integer", "description": "events to return (default 30)"}}}},
+    {"name": "device_liveness",
+     "description": "RAW EVIDENCE per watched device: integration state, whether its "
+                    "independent network witness can see it right now, and the current "
+                    "verdict. This is how 'everything is normal' gets EARNED — call it "
+                    "before making any all-clear claim, and whenever a device's power "
+                    "state matters. A device reporting 'off' whose witness says GONE is "
+                    "dead, unplugged or cut off — never 'normal'.",
+     "input_schema": {"type": "object", "properties": {
+         "area_id": {"type": "string",
+                     "description": "optional — limit to one room"}}}},
     {"name": "device_recover",
      "description": "Run the configured self-heal for one faulted device — integration "
                     "reload, or the installer-assigned smart-plug/PoE power-cycle when "
@@ -606,7 +616,8 @@ _TOOL_GATES = {
     "automation_create":  {"pro": True},
     "automation_trigger": {"pro": True},
     "automation_delete":  {"pro": True},
-    # device_recover and recovery_history are offered to EVERYONE: a homeowner
+    # device_recover, recovery_history and device_liveness are offered to
+    # EVERYONE: a homeowner
     # runs recovery through in-chat consent (the tool requires confirmed=true
     # for them), and the history is how "what happened overnight" gets an
     # honest answer. The homeowner-facing wording is the prompt's job.
@@ -2187,6 +2198,30 @@ class ToolRunner:
     # guessing: if the awareness layer isn't running, the tool says so, because
     # "I can't see the home right now" is a truthful answer and "everything
     # looks fine" without evidence is not.
+    def t_device_liveness(self, args):
+        """Raw per-device evidence (W4): integration state + witness answer +
+        verdict. The tool that lets Assist EARN an all-clear instead of
+        inferring one from silence."""
+        fn = self.awareness.get("watchers")
+        if not fn:
+            return {"error": "the awareness layer isn't running — liveness is not visible right now"}
+        rep = fn() or {}
+        items = rep.get("items") or []
+        aid = (args.get("area_id") or "").strip()
+        if aid:
+            _n = lambda x: re.sub(r"[^a-z0-9]+", "_", str(x or "").lower()).strip("_")
+            items = [i for i in items if _n(i.get("area")) == _n(aid)]
+        devs = [{"name": i.get("name"), "area": i.get("area"),
+                 "state": i.get("state"),
+                 "witness": ("present" if i.get("reachable") is True
+                             else "gone" if i.get("reachable") is False
+                             else "none-bound" if not i.get("has_signal")
+                             else "unknown"),
+                 "verdict": i.get("verdict")} for i in items]
+        return {"devices": devs, "count": len(devs),
+                "note": "witness=gone while state=off means dead/unplugged/cut off, "
+                        "not switched off — a switched-off device stays on the network."}
+
     def t_home_status(self, args):
         fn = self.awareness.get("watchers")
         if not fn:
@@ -2195,7 +2230,20 @@ class ToolRunner:
         items = rep.get("items") or []
         faults = [i for i in items if i.get("status") == "fault"]
         amber = [i for i in items if i.get("status") == "amber"]
+        # W4 — "normal" is EARNED: say what was independently confirmed, what
+        # has no witness, and what the witness contradicts. Never bare normal.
+        conf = sum(1 for i in items if i.get("reachable") is True)
+        gone = sum(1 for i in items if i.get("reachable") is False)
+        nowit = sum(1 for i in items if not i.get("has_signal"))
         out = {"overall": rep.get("status"), "summary": rep.get("summary"),
+               "witness_coverage": {
+                   "watched": len(items),
+                   "confirmed_on_network": conf,
+                   "not_answering": gone,
+                   "no_witness_bound": nowit,
+                   "statement": ("%d watched · %d independently confirmed on the "
+                                 "network · %d not answering · %d with no witness"
+                                 % (len(items), conf, gone, nowit))},
                "watched": len(items),
                "faults": [{"name": i.get("name"), "area": i.get("area"),
                            "kind": i.get("kind"), "verdict": i.get("verdict"),
@@ -2554,6 +2602,14 @@ def _system_doctrine(user: dict, home_name: str) -> str:
         "the system usually has the issue AND its fix already named; your "
         "job is then to relay it plainly and offer to help with the steps, "
         "not to re-diagnose from scratch.\n"
+        "SILENCE MUST BE EARNED (Dave, 9 Aug — the switch test). 'Everything is normal' is a "
+        "CLAIM, and you may only make it from evidence: home_status's witness_coverage tells you "
+        "how many devices were independently CONFIRMED on the network, how many are NOT "
+        "answering, and how many have no witness at all. Say it that way — '31 watched, 28 "
+        "confirmed on the network, 3 have no independent witness' — never a bare 'all normal'. "
+        "No fault raised is NOT the same as no fault existing. When a device's power state "
+        "matters, call device_liveness: a device reporting off whose witness says GONE is dead, "
+        "unplugged or cut off — a switched-off device stays on the network.\n"
         "LOOK BEFORE YOU SPEAK (this is the whole product — confirm, don't assume). You are "
         "NEVER allowed to assume a device's state; you have tools to KNOW it. For anything about "
         "what's playing or how loud a room is, AND before any volume or mute command, call "

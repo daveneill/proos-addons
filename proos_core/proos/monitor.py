@@ -64,7 +64,7 @@ def _fmt_age(mins: float | None) -> str:
 
 @dataclass
 class Issue:
-    kind: str                       # 'device_fault' | 'drift'
+    kind: str    # 'device_fault' | 'unreachable' | 'presumed_dead' | 'room_offline'
     headline: str
     detail: str
     entity: str | None = None
@@ -115,16 +115,29 @@ def check_room(ctrl) -> RoomHealth:
             ))
 
     # --- independent reachability: catch what HA's passive availability misses ---
+    # THE SWITCH-TEST RULE (Dave, 8 Aug 2026 — device_offline_bench): the
+    # witness is consulted WHATEVER the integration claims the power state is.
+    # Dave pulled the switch feeding the Bedroom's TV, Shield and Apple TV; the
+    # integrations settled to "off" within seconds, the old gate below only ran
+    # for BELIEVES_PRESENT states, and the product said All Systems Normal while
+    # holding the contradicting evidence. "off" is not evidence of health —
+    # off + witness-PRESENT is a normal off room; off + witness-GONE is a device
+    # that stopped answering, and the product says so. No witness bound = say
+    # nothing (fail open, tenet 10). The UniFi tracker's own consider_home
+    # window is the debounce; we do not second-guess it here.
     reach_map = getattr(ctrl, "reachability", {}) or {}
+    witnessed, lost = [], []
     for d in devices:
         spec = reach_map.get(d.entity)
         if not spec:
             continue
+        witnessed.append(d)
         reachable = resolve_reachability(spec, ctrl.client)
         if reachable is False:
+            lost.append(d)
             st = snap.get(d.entity, {}).get("state", "unavailable")
             if st in BELIEVES_PRESENT:
-                # The money shot: HA still believes it's online, but it isn't.
+                # HA still believes it's online, but it isn't.
                 issues.append(Issue(
                     kind="unreachable",
                     headline=f"{d.name} is not responding on the network",
@@ -135,6 +148,35 @@ def check_room(ctrl) -> RoomHealth:
                     suggested_action=SUGGESTED.get(d.integration, "Check the device's power and network."),
                     auto_recoverable=False,
                 ))
+            else:
+                # Claims off/standby AND gone from the network: presumed dead.
+                # Confirmed by the independent witness, never guessed from state.
+                issues.append(Issue(
+                    kind="presumed_dead",
+                    headline=f"{d.name} is not answering on the network",
+                    detail=(f"{d.name} reports '{st}', but it has also dropped off "
+                            f"the network — its independent witness cannot see it. "
+                            f"A switched-off device normally stays on the network; "
+                            f"this looks like power, a cable or the network path."),
+                    entity=d.entity,
+                    suggested_action=SUGGESTED.get(d.integration, "Check the device's power and network."),
+                    auto_recoverable=False,
+                ))
+
+    # --- whole-room escalation: a switch, not a string of coincidences ---
+    # Every witnessed device in the room gone at once is infrastructure. Say it
+    # ONCE, as the finding it is, instead of burying it in per-device faults.
+    if len(witnessed) >= 2 and len(lost) == len(witnessed):
+        issues.insert(0, Issue(
+            kind="room_offline",
+            headline=f"All of {getattr(ctrl, 'area', 'this room')}'s devices are off the network",
+            detail=(f"All {len(lost)} witnessed devices in the room stopped answering "
+                    f"the network together. That pattern is a network switch, access "
+                    f"point or cable feeding the room — not {len(lost)} devices "
+                    f"failing at once."),
+            suggested_action="Check the network switch/PoE port or access point that feeds this room.",
+            auto_recoverable=False,
+        ))
 
     # (The pre-reset "state drift" branch lived here: it compared the room
     # to an ASSERTED activity and offered to restore it — control-era
@@ -152,10 +194,15 @@ def check_room(ctrl) -> RoomHealth:
     # say nothing.)
     asserted = None
 
-    fault = any(i.kind in ("device_fault", "unreachable") for i in issues)
+    _FAULT_KINDS = ("device_fault", "unreachable", "presumed_dead", "room_offline")
+    fault = any(i.kind in _FAULT_KINDS for i in issues)
     if fault:
-        nfault = sum(i.kind in ("device_fault", "unreachable") for i in issues)
-        status, summary = "fault", f"{nfault} device(s) need attention"
+        if any(i.kind == "room_offline" for i in issues):
+            status = "fault"
+            summary = "Room off the network — check its switch or access point"
+        else:
+            nfault = sum(i.kind in _FAULT_KINDS for i in issues)
+            status, summary = "fault", f"{nfault} device(s) need attention"
     else:
         n = len(devices)
         status, summary = "ok", f"All {n} device(s) healthy" + (

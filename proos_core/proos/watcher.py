@@ -220,14 +220,20 @@ class Watcher:
                 state_healthy = self._is_healthy(w, state)
                 pa = bool(w.get("power_aware"))
                 spec = self._reach_spec(w)
-                # Verify Don't Assume: for an always-on device with a liveness
-                # signal, a device that doesn't answer the network is NOT healthy
-                # even if HA still reports it up -- integration state lags or goes
-                # stale (an Apple TV remote reads 'on' for minutes after it dies;
-                # a Samsung reads 'off' when unreachable). The independent probe is
-                # ground truth. Power-aware devices are exempt: 'off + unreachable'
-                # is a normal resting state (someone switched the TV off), so we
-                # don't second-guess their state with the probe here.
+                # Verify Don't Assume: a device with a liveness signal that
+                # doesn't answer the network is NOT healthy, whatever HA reports —
+                # integration state lags, goes stale, or settles to 'off' within
+                # seconds of a real outage. The independent probe is ground truth.
+                #
+                # THE SWITCH TEST (Dave, 8 Aug 2026 — watcher_liveness_bench):
+                # power-aware devices USED to be exempt here ("off + unreachable
+                # is a normal resting state"), so when the switch feeding the
+                # Bedroom died and everything settled to 'off', the second signal
+                # was bound but never consulted and Health said All Systems
+                # Normal. The exemption is retired: a switched-off device
+                # normally STAYS on the network, so off + witness-GONE is a
+                # fault, off + witness-PRESENT is a normal off room, and no
+                # witness / witness-unknown fails open exactly as before.
                 live_reachable = None
                 # Don't let the liveness probe DOWNGRADE a camera that HA already
                 # reports as up. A UniFi/Protect camera's state comes from the NVR
@@ -239,7 +245,7 @@ class Watcher:
                 # runs below when a camera IS unavailable (reachable -> integration
                 # wedged, unreachable -> genuinely offline).
                 _cam_up = (w.get("kind") == "camera") and state_healthy
-                if spec and not pa and not _cam_up:
+                if spec and not _cam_up:
                     live_reachable = self._reach_cached(w, spec, states, now)
                 healthy = state_healthy and not (live_reachable is False)
                 if healthy:
@@ -253,7 +259,10 @@ class Watcher:
                     rt.unhealthy_since = None
                     rt.status = OK
                     rt.verdict = None
-                    rt.reachable = None
+                    # Keep the witness answer even when healthy (W4): "normal"
+                    # must be EARNED, so the surfaces report what was actually
+                    # confirmed on the network, not just that nothing faulted.
+                    rt.reachable = live_reachable
                     if rt.recovery in (None, "recovered"):
                         rt.recovery_n = 0    # clear episode once genuinely healthy
                 else:
@@ -266,9 +275,11 @@ class Watcher:
                     if reachable is None and spec and (pa or debounced):
                         reachable = self._reach_cached(w, spec, states, now)
                     rt.reachable = reachable
-                    if pa and reachable is not True:
-                        # Off (unreachable) or can't confirm it's on the network:
-                        # a resting state for a TV/AVR, NOT a fault.
+                    if pa and reachable is None:
+                        # No witness, or the witness can't say: a resting state
+                        # for a TV/AVR — fail open, never invent a fault. (A
+                        # witness that positively says GONE falls through to the
+                        # debounced offline fault below — the switch test.)
                         if rt.status == FAULT:
                             rt.last_event = "resolved"
                             rt.last_change = now
@@ -391,7 +402,7 @@ class Watcher:
                     "verdict": rt.verdict if is_fault else (
                         "standby" if rt.status == STANDBY
                         else PENDING if rt.status == PENDING else OK),
-                    "reachable": rt.reachable if is_fault else None,
+                    "reachable": rt.reachable,
                     "recovery": (None if (rt.recovery == "recovered" and rt.last_change
                                           and (now - rt.last_change) > RECOVERED_TTL)
                                  else rt.recovery),
@@ -503,8 +514,9 @@ def _mk_watch(name, entity, kind, fault_after, platform, power_aware=False):
               f"{_INTEG_NAME.get(platform, 'panel')} integration — the panel itself is fine.")
     elif power_aware:
         # Off is normal for these; the only fault we raise is a wedged integration.
-        g = (f"{name} appears to be off or asleep." if kind == "media"
-             else f"{name} appears to be off.")
+        g = (f"{name} reports off but has also dropped off the network — a "
+             f"switched-off device normally stays connected. Check its power, "
+             f"cable, and the switch or access point feeding it.")
         gw = (f"{name} is on the network, but its connection was lost. "
               f"Restart the {integ} integration -- the device itself is fine.")
     elif kind == "camera":
