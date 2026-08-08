@@ -99,6 +99,14 @@ def set_devices(area_id: str, updates: list) -> dict:
             # room-off/room-on never touches it — equipment plugs that must
             # stay powered unless it's a deliberate recovery.
             rec["power_exclude"] = bool(u.get("power_exclude"))
+        if "awareness_exclude" in u:
+            # Third axis (Dave, 9 Aug): the device stays in the room, stays
+            # controllable, but the AWARENESS layer neither watches nor counts
+            # it — for gear the class rules can't decide: a lamp that lives on
+            # a wall switch, seasonal equipment, a guest-room plug. Honesty
+            # rule: an excluded device LEAVES the watched/two-signal counts and
+            # is reported as "excluded by installer" — never silently absent.
+            rec["awareness_exclude"] = bool(u.get("awareness_exclude"))
         if "role" in u:
             r = (u.get("role") or "").strip()
             rec["role"] = r if r else None
@@ -116,6 +124,20 @@ def set_devices(area_id: str, updates: list) -> dict:
         d.pop(area_id, None)
     _write(d)
     return {"ok": True, "area_id": area_id, "overlay": area}
+
+
+def awareness_excluded() -> set:
+    """Entity ids the installer excluded from awareness, across all areas.
+    Fail-open: unreadable store == nothing excluded (never silently widen)."""
+    out = set()
+    try:
+        for area in (load() or {}).values():
+            for eid, rec in (area or {}).items():
+                if isinstance(rec, dict) and rec.get("awareness_exclude"):
+                    out.add(eid)
+    except Exception:
+        return set()
+    return out
 
 
 def clear() -> None:
@@ -208,6 +230,7 @@ def discover(client, area_id: str) -> dict:
             "role": ov.get("role"),
             "excluded": bool(ov.get("excluded")),
             "power_exclude": bool(ov.get("power_exclude")),
+            "awareness_exclude": bool(ov.get("awareness_exclude")),
             "state": (st or {}).get("state"),
             "offline": (st or {}).get("state") == "unavailable",
             "caps": _caps_for(domain, attrs),

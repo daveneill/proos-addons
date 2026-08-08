@@ -39,6 +39,7 @@ from datetime import datetime, timezone
 
 from .reachability import tcp_reachable
 from . import discovery
+from . import roomdevices as _roomdev
 
 # ---------------------------------------------------------------------------
 # Watch-dict schema (reference only). The live watch list is derived ENTIRELY
@@ -220,10 +221,24 @@ class Watcher:
             return state in hw
         return state == hw
 
+    def _awareness_excluded(self, now):
+        """Installer exclusions (Room Devices toggle), cached 10s so the tick
+        loop doesn't re-read the store every pass. Fail-open."""
+        c = getattr(self, "_excl_cache", None)
+        if c and (now - c[0]) < 10:
+            return c[1]
+        try:
+            excl = _roomdev.awareness_excluded()
+        except Exception:
+            excl = set()
+        self._excl_cache = (now, excl)
+        return excl
+
     def tick(self):
         """One evaluation pass over every watched item. One HA round trip
         (watched entities + any sensor-type liveness entities, batched)."""
         now = self.now()
+        _excl = self._awareness_excluded(now)
         ents = [w["entity"] for w in self.watches]
         ents += [e for e in self._sensor_entities() if e not in ents]
         try:
@@ -234,6 +249,11 @@ class Watcher:
         with self._lock:
             for w in self.watches:
                 ent = w["entity"]
+                if ent in _excl:
+                    # Excluded by the installer: not evaluated, not counted.
+                    # It reappears in report() under excluded_items — visible,
+                    # never silently absent.
+                    continue
                 rt = self._rt[ent]
                 state = (states.get(ent) or {}).get("state")
                 rt.state = state
@@ -416,10 +436,17 @@ class Watcher:
         """Read-only payload for GET /watchers."""
         RECOVERED_TTL = 1800   # 'recovered' reverts to plain nominal after 30 min
         now = self.now()
+        _excl = self._awareness_excluded(now)
         with self._lock:
             items, overall = [], OK
+            excluded_items = []
             first_fault = first_pending = first_verdict = None
             for w in self.watches:
+                if w["entity"] in _excl:
+                    excluded_items.append({"name": w["name"],
+                                           "area": w.get("area"),
+                                           "entity": w["entity"]})
+                    continue
                 rt = self._rt[w["entity"]]
                 is_fault = rt.status == FAULT
                 items.append({
@@ -458,7 +485,9 @@ class Watcher:
                 summary = f"{first_pending} -- checking..."
             else:
                 summary = "All Systems Normal"
-            return {"status": overall, "summary": summary, "items": items}
+            return {"status": overall, "summary": summary, "items": items,
+                    "excluded_items": excluded_items,
+                    "excluded": len(excluded_items)}
 
     def run_forever(self, interval=5):
         def loop():

@@ -2208,8 +2208,8 @@ class ToolRunner:
         rep = fn() or {}
         items = rep.get("items") or []
         aid = (args.get("area_id") or "").strip()
+        _n = lambda x: re.sub(r"[^a-z0-9]+", "_", str(x or "").lower()).strip("_")
         if aid:
-            _n = lambda x: re.sub(r"[^a-z0-9]+", "_", str(x or "").lower()).strip("_")
             items = [i for i in items if _n(i.get("area")) == _n(aid)]
         devs = [{"name": i.get("name"), "area": i.get("area"),
                  "state": i.get("state"),
@@ -2218,9 +2218,18 @@ class ToolRunner:
                              else "none-bound" if not i.get("has_signal")
                              else "unknown"),
                  "verdict": i.get("verdict")} for i in items]
+        # Installer exclusions stay VISIBLE (never silently absent): the
+        # Room Devices toggle removes a device from the counts, not from view.
+        for x in (rep.get("excluded_items") or []):
+            if aid and _n(x.get("area")) != _n(aid):
+                continue
+            devs.append({"name": x.get("name"), "area": x.get("area"),
+                         "state": None, "witness": "excluded-by-installer",
+                         "verdict": "excluded"})
         return {"devices": devs, "count": len(devs),
                 "note": "witness=gone while state=off means dead/unplugged/cut off, "
-                        "not switched off — a switched-off device stays on the network."}
+                        "not switched off — a switched-off device stays on the network. "
+                        "excluded-by-installer devices are not watched or counted."}
 
     def t_home_status(self, args):
         fn = self.awareness.get("watchers")
@@ -2241,6 +2250,7 @@ class ToolRunner:
                    "confirmed_on_network": conf,
                    "not_answering": gone,
                    "no_witness_bound": nowit,
+                   "excluded_by_installer": int(rep.get("excluded") or 0),
                    "statement": ("%d watched · %d independently confirmed on the "
                                  "network · %d not answering · %d with no witness"
                                  % (len(items), conf, gone, nowit))},
