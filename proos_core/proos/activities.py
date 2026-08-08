@@ -45,15 +45,23 @@ WATCHING_STATES = {"playing", "paused", "on"}
 
 
 def _art_on(snap: Snapshot, display_eid: str, art_switch: str | None = None) -> bool:
-    """True if a Frame TV is resting in Art Mode. Reads the dedicated art switch
-    when known (device-based, survives entity-id suffixes), else the media_player's
-    frame_art_mode attribute. Best-effort: unknown -> False (falls back to power)."""
+    """True if a Frame TV is resting in Art Mode. Any POSITIVE art signal wins:
+    the dedicated art switch (device-based, survives entity-id suffixes), the
+    art_mode_status / frame_art_mode attributes, or the panel's own media_title.
+
+    media_title added 9 Aug 2026 (Dave: the Family Room read "the TV is on"
+    while showing artwork). VERIFIED LIVE that morning: the resting Frame
+    reported state 'on', art_mode_status 'off' (MISREPORTING) and the art
+    switch 'off' — media_title == "Art Mode" was the only honest signal. The
+    same triple 1.0.350 verified for the app-enumeration check; the verdict's
+    detector never got it. Integration testimony, brand-agnostic; best-effort:
+    unknown -> False (falls back to power)."""
     if art_switch and _st(snap, art_switch) == "on":
         return True
     a = (snap.get(display_eid) or {}).get("attributes") or {}
-    # VERIFIED on the live Frame: modern samsungtv exposes `art_mode_status`
-    # ('on'/'off'); `frame_art_mode` kept for other/older builds.
     if str(a.get("art_mode_status", "")).lower() in ("on", "true"):
+        return True
+    if str(a.get("media_title", "")).strip().lower() == "art mode":
         return True
     return bool(a.get("frame_art_mode"))
 
