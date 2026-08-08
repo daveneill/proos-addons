@@ -81,6 +81,16 @@ _REACH_DOWN = {"off", "not_home", "unavailable", "unknown"}
 # TV gets this behaviour with no code change, exactly like CEC auto-wake.
 OFFNET_WHEN_OFF = ("display",)
 
+# CLASS FACT (Dave, 9 Aug 2026): LIGHTING lives on physical switches — a smart
+# bulb switched off at the wall or on the lamp itself loses ALL power, so its
+# radio dies: unavailable + witness-gone, the exact shape of a dead device —
+# and it happens every day, on purpose. The evidence cannot tell wall-switch
+# from failure, so the honest calm answer is "no power" (standby), never a red
+# fault. Nothing is hidden: the pill and device_liveness still show the state.
+# A bulb that is wedged (unavailable but witness PRESENT) or contradicted
+# (believed-on but witness GONE) still faults. Brand-agnostic, by class.
+NO_POWER_IS_NORMAL = ("lighting",)
+
 OK = "ok"
 PENDING = "pending"   # unhealthy but within debounce -> amber pill
 FAULT = "fault"       # unhealthy past debounce        -> red pill
@@ -291,11 +301,15 @@ class Watcher:
                     if reachable is None and spec and (pa or debounced):
                         reachable = self._reach_cached(w, spec, states, now)
                     rt.reachable = reachable
-                    if pa and reachable is None:
-                        # No witness, or the witness can't say: a resting state
-                        # for a TV/AVR — fail open, never invent a fault. (A
-                        # witness that positively says GONE falls through to the
-                        # debounced offline fault below — the switch test.)
+                    _wall_switched = (reachable is False and not state_healthy
+                                      and w.get("kind") in NO_POWER_IS_NORMAL)
+                    if pa and (reachable is None or _wall_switched):
+                        # No witness / witness can't say: a resting state — fail
+                        # open, never invent a fault. (A witness that positively
+                        # says GONE falls through to the debounced offline fault
+                        # below — the switch test.) EXCEPT lighting with no
+                        # power at all (class fact above): the wall switch is a
+                        # daily, deliberate act — calm standby, not an alarm.
                         if rt.status == FAULT:
                             rt.last_event = "resolved"
                             rt.last_change = now
