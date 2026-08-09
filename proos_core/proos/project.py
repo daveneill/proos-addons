@@ -1174,6 +1174,37 @@ def activities_status(client, project, area) -> dict:
                     "source_eid": v.get("proos_source"),
                     "edited": bool(stored) and stored != cur,
                     "exists": True})
+    # RECORD ORDER IS THE ORDER (Dave, 9 Aug 2026: "activity icons I can move
+    # around but dashboard not changing even after recommits"). The loop above
+    # enumerates scripts ALPHABETICALLY (sorted eids — deterministic reads),
+    # which silently overrode the installer's dragged Devices & AV order: Pro
+    # showed the new order (it reads the record), every dashboard kept the
+    # alphabetical one (it reads THIS list). The record's own activity order —
+    # sources as dragged, watch_tv at the display's slot (1.0.388), tv_off
+    # last — now orders the served list; unknown/custom keys keep a stable
+    # alphabetical tail. Fail open: no cluster = the old alphabetical list.
+    # JOIN BY IDENTITY, NEVER BY NAME (caught in review before ship): the
+    # generator names stored scripts from the device LABEL (watch_apple_tv)
+    # while build keys use the entity id (watch_bedroom_bedroom_apple_tv) —
+    # a key join silently matches NOTHING and leaves the list alphabetical.
+    # source_eid is the identity the generator's own dedup uses; the
+    # sourceless pair (watch_tv, tv_off) match by their literal keys, which
+    # ARE stable on both sides.
+    try:
+        from . import activities as _actmod
+        _acts = _actmod.build_watch_activities(cluster)
+        _by_src = {a.source_eid: i for i, a in enumerate(_acts)
+                   if getattr(a, "source_eid", None)}
+        _by_key = {a.key: i for i, a in enumerate(_acts)}
+        if _by_src or _by_key:
+            def _pos(a):
+                se = a.get("source_eid")
+                if se and se in _by_src:
+                    return _by_src[se]
+                return _by_key.get(a.get("key"), 10**9)
+            out.sort(key=lambda a: (_pos(a), a.get("key") or ""))
+    except Exception:
+        pass
     return {"activities": out}
 
 
