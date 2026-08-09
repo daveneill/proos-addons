@@ -98,6 +98,33 @@ class MaCommissioner:
                     pass
         raise MaUnavailable(f"Could not reach the Music ingress channel: {last}")
 
+    def ensure_pairing_admin(self, ingress_user: tuple) -> dict:
+        # THE PAIRING USER MUST BE ADMIN (Dave, 9 Aug 2026). The white-label
+        # MA server (2.9.5, new auth model) mints the Home-Assistant discovery
+        # token with role "user"; the HA integration play handler makes an
+        # admin call (auth.list_users) on EVERY play-content request, so the
+        # MA server refused every play from anyone through HA — 4 days,
+        # silently (see register 23c). Dave: "we don't use HA... why is this
+        # not standard, will this happen on every installation?" IT WOULD —
+        # so the guarantee lives HERE, in the product: on boot and on demand,
+        # Core verifies the pairing user's role over its ingress-admin
+        # channel and promotes it. No UI, no installer step, self-repairs
+        # after any token re-mint or Music update. Command names confirmed
+        # from music_assistant_client source (auth.py): list = "auth/users",
+        # update = "auth/user/update" (role: "admin"/"user", admin only).
+        users = self._admin_command(ingress_user, "auth/users") or []
+        row = next((u for u in users
+                    if (u.get("username") or "") == "homeassistant_system"), None)
+        if not row:
+            return {"ok": True, "state": "no_pairing_user"}
+        if str(row.get("role") or "").lower() == "admin":
+            return {"ok": True, "state": "already_admin"}
+        uid = row.get("user_id") or row.get("id")
+        self._admin_command(ingress_user, "auth/user/update",
+                            user_id=uid, role="admin")
+        return {"ok": True, "state": "promoted", "user_id": uid,
+                "was": row.get("role")}
+
     def remove_provider(self, instance_id: str, ingress_user: tuple) -> dict:
         """Remove ONE provider instance entirely — credentials and library sync
         go with it. config/providers/remove is admin-required, so it rides the
