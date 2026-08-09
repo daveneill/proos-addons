@@ -670,6 +670,27 @@ def _sv(method, path, payload=None, timeout=120):
     return d.get("data", {})
 
 
+def _music_filters(path):
+    """Query string -> engine args for the Music Mirror reads. Scalars ride to
+    the engine as it expects: limit/offset as ints, favorite as a bool, the rest
+    as strings — one value per key. The command name is fixed by the route, so
+    passing the caller's filters straight through cannot change WHICH command
+    runs (Stage 1: mirror the engine, guard the surface)."""
+    out = {}
+    for k, v in parse_qs(urlparse(path).query).items():
+        val = v[0] if v else ""
+        if k in ("limit", "offset"):
+            try:
+                out[k] = int(val)
+            except (TypeError, ValueError):
+                continue
+        elif k in ("favorite", "favourite", "in_library"):
+            out[k] = val.lower() in ("1", "true", "yes")
+        else:
+            out[k] = val
+    return out
+
+
 def _music_log_tail(lines=400):
     """Recent ProOS Music add-on log text, or '' off-Supervisor. The logs
     endpoint returns PLAIN TEXT, not the JSON envelope _sv() expects, so it
@@ -3069,6 +3090,60 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, {"folders": _ma.recommendations()})
                 except Exception as e:                           # noqa: BLE001
                     return self._send(502, {"folders": [], "error": str(e)})
+            # ── Stage 1 Music Mirror: Core is the only music API ──────────────
+            # (Audit 2026-08-09.) Each route hands the engine its own command and
+            # renders what it returns — no hand-rolled shelves, no Home Assistant
+            # in the music path. Every one FAILS SOFT with the engine's own
+            # reason (502), never an empty page that looks fine and does nothing —
+            # that silent swallow cost a day (register 35).
+            if len(parts) == 3 and parts[:2] == ["music", "library"]:
+                # A library page from the engine: GET /music/library/<type>?
+                # limit&offset&order_by&search&favorite&provider — args ride
+                # through unchanged. type is allowlisted inside _ma.library_items.
+                try:
+                    return self._send(200, {"items": _ma.library_items(
+                        unquote(parts[2]), **_music_filters(self.path))})
+                except Exception as e:                           # noqa: BLE001
+                    return self._send(502, {"items": [], "error": str(e)})
+            if len(parts) == 3 and parts[:2] == ["music", "count"]:
+                # How many items on a library page: GET /music/count/<type>.
+                try:
+                    return self._send(200, {"count": _ma.library_count(
+                        unquote(parts[2]), **_music_filters(self.path))})
+                except Exception as e:                           # noqa: BLE001
+                    return self._send(502, {"count": None, "error": str(e)})
+            if parts == ["music", "item"]:
+                # One item's full record: GET /music/item?media_type&item_id&provider.
+                try:
+                    return self._send(200, {"item": _ma.item(
+                        **_music_filters(self.path))})
+                except Exception as e:                           # noqa: BLE001
+                    return self._send(502, {"item": None, "error": str(e)})
+            if parts == ["music", "item-by-uri"]:
+                # One item resolved from its uri: GET /music/item-by-uri?uri=...
+                try:
+                    return self._send(200, {"item": _ma.item_by_uri(
+                        **_music_filters(self.path))})
+                except Exception as e:                           # noqa: BLE001
+                    return self._send(502, {"item": None, "error": str(e)})
+            if parts == ["music", "recently-played"]:
+                try:
+                    return self._send(200, {"items": _ma.recently_played(
+                        **_music_filters(self.path))})
+                except Exception as e:                           # noqa: BLE001
+                    return self._send(502, {"items": [], "error": str(e)})
+            if parts == ["music", "recently-added"]:
+                try:
+                    return self._send(200, {"items": _ma.recently_added(
+                        **_music_filters(self.path))})
+                except Exception as e:                           # noqa: BLE001
+                    return self._send(502, {"items": [], "error": str(e)})
+            if parts == ["music", "in-progress"]:
+                try:
+                    return self._send(200, {"items": _ma.in_progress(
+                        **_music_filters(self.path))})
+                except Exception as e:                           # noqa: BLE001
+                    return self._send(502, {"items": [], "error": str(e)})
             if parts == ["music", "pairing", "ensure"]:
                 # On-demand run of the pairing-admin guarantee (register 25).
                 try:
@@ -4071,6 +4146,49 @@ class Handler(BaseHTTPRequestHandler):
                 if not item:
                     return self._send(400, {"error": "item required"})
                 return self._send(200, _ma.favorite_add(item))
+            if parts == ["music", "favorite", "remove"]:
+                # Remove an item (by uri) from favourites: {item: uri}
+                b = self._body()
+                item = b.get("item")
+                if not item:
+                    return self._send(400, {"error": "item required"})
+                try:
+                    return self._send(200, _ma.favorite_remove(item))
+                except Exception as e:                           # noqa: BLE001
+                    return self._send(502, {"error": str(e)})
+            # ── Stage 1 Music Mirror: PLAY and TRANSPORT through Core ──────────
+            # (Audit 2026-08-09.) These REPLACE the Home Assistant service calls
+            # the dashboard used to make. The old media_player.play_media path
+            # raised "No playable items found" and ProOS hid it behind "answering
+            # slowly" — a day lost (register 35). Here a failure answers 502 WITH
+            # the engine's own reason, so the tap can be told exactly why.
+            if parts == ["music", "play"]:
+                # Play content on a player's queue: {queue_id, media, option?, …}.
+                # media is a uri or a list of uris; extra keys ride through.
+                b = self._body()
+                qid = b.get("queue_id"); media = b.get("media")
+                if not qid or media is None:
+                    return self._send(400, {"error": "queue_id and media required"})
+                opts = {k: v for k, v in b.items()
+                        if k not in ("queue_id", "media")}
+                try:
+                    return self._send(200, _ma.queue_play_media(qid, media, **opts))
+                except Exception as e:                           # noqa: BLE001
+                    return self._send(502, {"error": str(e)})
+            if len(parts) == 3 and parts[:2] == ["music", "cmd"]:
+                # Transport/volume: POST /music/cmd/<cmd> {player_id, …}. cmd is
+                # allowlisted inside _ma.player_command; extra keys (volume_level,
+                # position, powered, muted …) ride through unchanged.
+                b = self._body()
+                pid = b.get("player_id")
+                if not pid:
+                    return self._send(400, {"error": "player_id required"})
+                args = {k: v for k, v in b.items() if k != "player_id"}
+                try:
+                    return self._send(200, _ma.player_command(
+                        unquote(parts[2]), pid, **args))
+                except Exception as e:                           # noqa: BLE001
+                    return self._send(502, {"error": str(e)})
             if parts == ["music", "playlists", "add"]:
                 # Append an item to a playlist: {playlist: playlist_id, item: uri}
                 b = self._body()
