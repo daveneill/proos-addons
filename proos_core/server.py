@@ -670,6 +670,33 @@ def _sv(method, path, payload=None, timeout=120):
     return d.get("data", {})
 
 
+def _music_log_tail(lines=400):
+    """Recent ProOS Music add-on log text, or '' off-Supervisor. The logs
+    endpoint returns PLAIN TEXT, not the JSON envelope _sv() expects, so it
+    gets its own tiny fetch. Read-only, ~once a minute, and never raises:
+    healthmon treats a blind check as 'say nothing', never as a fault."""
+    if not os.environ.get("SUPERVISOR_TOKEN"):
+        return ""
+    try:
+        req = urllib.request.Request(
+            SUPERVISOR + "/addons/%s/logs" % MA_ADDON_SLUG, method="GET")
+        req.add_header("Authorization",
+                       "Bearer " + os.environ.get("SUPERVISOR_TOKEN", ""))
+        with urllib.request.urlopen(req, timeout=15) as r:
+            raw = r.read().decode("utf-8", "replace")
+        tail = raw.splitlines()[-int(lines):]
+        return "\n".join(tail)
+    except Exception:                                            # noqa: BLE001
+        return ""
+
+
+def _music_restart():
+    """Restart the ProOS Music add-on — the repair for a wedged engine
+    (healthmon check #8). Raises on failure so the caller reports honestly."""
+    _sv("POST", "/addons/%s/restart" % MA_ADDON_SLUG, timeout=300)
+    return True
+
+
 def _addon_state(slug):
     """Supervisor add-on state ('started'/'stopped'/...), or 'unknown' off add-on."""
     if not os.environ.get("SUPERVISOR_TOKEN"):
@@ -5404,6 +5431,14 @@ def main():
                     _healthmon_mod.AUTO_HEAL = bool(_opt("auto_heal", False))
                     _healthmon_mod.CLIENT = _client
                     _healthmon_mod.NET_CLIENT = _unifinet   # optional UniFi VLAN evidence
+                except Exception:                                # noqa: BLE001
+                    pass
+                # WEDGED MUSIC ENGINE (check #8, 9 Aug): the evidence is the
+                # engine's own add-on log, the repair is a restart. Injected
+                # here so healthmon needs no Supervisor of its own.
+                try:
+                    _healthmon_mod.MUSIC_LOG = _music_log_tail
+                    _healthmon_mod.MUSIC_RESTART = _music_restart
                 except Exception:                                # noqa: BLE001
                     pass
                 _ctlbridge.healthcheck = lambda snap: _healthmon_mod.scan(
