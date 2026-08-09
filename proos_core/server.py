@@ -3160,6 +3160,18 @@ class Handler(BaseHTTPRequestHandler):
                         _q, media_types=(_types or None), limit=_lim)})
                 except Exception as e:                           # noqa: BLE001
                     return self._send(502, {"results": {}, "error": str(e)})
+            if len(parts) == 3 and parts[:2] == ["music", "genres"]:
+                # Stage 6: read one genre command (music/genres/<cmd>). Reads only
+                # here — library_items, count, media_counts, exclusions, scanner
+                # status. Curator WRITES are the POST route below. Fails soft.
+                _cmd = unquote(parts[2])
+                if _cmd not in _ma.GENRE_READS:
+                    return self._send(404, {"error": "unknown genre read: %s" % _cmd})
+                try:
+                    return self._send(200, {"result": _ma.genre(
+                        _cmd, **_music_filters(self.path))})
+                except Exception as e:                           # noqa: BLE001
+                    return self._send(502, {"result": None, "error": str(e)})
             if parts == ["music", "pairing", "ensure"]:
                 # On-demand run of the pairing-admin guarantee (register 25).
                 try:
@@ -4205,6 +4217,23 @@ class Handler(BaseHTTPRequestHandler):
                         unquote(parts[2]), pid, **args))
                 except Exception as e:                           # noqa: BLE001
                     return self._send(502, {"error": str(e)})
+            if len(parts) == 3 and parts[:2] == ["music", "genres"]:
+                # Stage 6: a genre CURATOR action (music/genres/<cmd>) — merge,
+                # aliases, media mappings, exclusions, restore defaults, scanner.
+                # These reshape the engine's genre taxonomy, so they are
+                # INSTALLER-ONLY; the homeowner dashboard only reads genres.
+                _cmd = unquote(parts[2])
+                if _cmd not in _ma.GENRE_WRITES:
+                    return self._send(404, {"error": "unknown genre action: %s" % _cmd})
+                u = getattr(self, "_user", None)
+                if not (users and u and (u.get("is_admin") or u.get("is_owner")
+                                         or users.is_tech(u.get("id")))):
+                    return self._send(403, {"error": "installer access required"})
+                b = self._body()
+                try:
+                    return self._send(200, {"result": _ma.genre(_cmd, **(b or {}))})
+                except Exception as e:                           # noqa: BLE001
+                    return self._send(502, {"result": None, "error": str(e)})
             if parts == ["music", "playlists", "add"]:
                 # Append an item to a playlist: {playlist: playlist_id, item: uri}
                 b = self._body()
