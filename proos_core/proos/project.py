@@ -848,6 +848,18 @@ def _cluster_from_record(client, area, rec):
     # drives that activity.
     display_is_source = bool(display_e and display_e in src_list)
     display_input = (rec.get("inputs") or {}).get(display_e) if display_is_source else None
+    # The display's slot among the WATCHABLE sources (avswitch and the display
+    # itself generate no watch activity, so they don't count): this is where
+    # watch_tv lands in the activity order (Dave, 9 Aug — Devices & AV drag
+    # IS the activity order, displays included).
+    display_pos = None
+    if display_is_source:
+        try:
+            _aw = ((rec.get("avswitch") or {}).get("entity"))
+            _before = src_list[:src_list.index(display_e)]
+            display_pos = len([e for e in _before if e != _aw and e != display_e])
+        except (ValueError, AttributeError):
+            display_pos = None
     names = _friendly_names(client, ([display_e] if display_e else []) + src_es + aud_es)
     meta = rec.get("meta") or {}
     def dev(e):
@@ -870,6 +882,7 @@ def _cluster_from_record(client, area, rec):
         audio=[dev(e) for e in aud_es],
         display_is_source=display_is_source,
         display_input=display_input,
+        display_pos=display_pos,
         avswitch=((rec.get("avswitch") or {}).get("entity")),
     )
 

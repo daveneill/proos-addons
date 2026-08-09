@@ -228,6 +228,13 @@ class AVCluster:
     # is the TV's own committed input for that activity (e.g. 'TV' for the broadcast tuner).
     display_is_source: bool = False
     display_input: str | None = None
+    # WHERE THE TV ACTIVITY SITS (Dave, 9 Aug 2026): when the display is
+    # committed "Also a source", its slot among the record's sources — set by
+    # dragging Devices & AV in Pro — is where build_watch_activities places
+    # the 'watch_tv' activity in the served list (dashboards order the nav/
+    # tile activity buttons by that list). None = no slot: appended last,
+    # the pre-9-Aug behaviour, so legacy records are byte-identical.
+    display_pos: int | None = None
     # The committed AV SWITCH entity (an AVR/matrix, ANY brand). It routes and
     # amplifies sources but is NOT itself a watchable source, so
     # build_watch_activities skips it — no phantom 'watch_<avr>' activity that can

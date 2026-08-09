@@ -424,7 +424,16 @@ def build_watch_activities(cluster, reachability: dict | None = None,
         off_state=off_state, art_switch=art_switch,
     )
     tv_act.route = {"select_entity": cluster.display.entity, "select_source": "TV"}
-    out.append(tv_act)
+    # WHERE THE TV ACTIVITY SITS (Dave, 9 Aug 2026): the display's committed
+    # source-slot (cluster.display_pos — dragged in Pro's Devices & AV)
+    # places watch_tv among the source activities; dashboards sort every
+    # navbar/tile activity button by this list. No slot -> appended last,
+    # exactly the old behaviour.
+    _dp = getattr(cluster, "display_pos", None)
+    if _dp is None:
+        out.append(tv_act)
+    else:
+        out.insert(max(0, min(int(_dp), len(out))), tv_act)
     # TV Off: every room with a display gets it. Turns the display off AND
     # sleeps the sources (all via media_player.turn_off). Fully verified (TV
     # power is readback-confirmable), so NOT provisional.
