@@ -352,8 +352,14 @@ class MaCommissioner:
     # per question, with a guard.
 
     # The seven library pages the engine offers (its own Library tabs).
+    # NOTE the plural "radios": every engine media controller is plural, and
+    # `music/radio/library_items` is rejected by the engine itself ("Invalid
+    # command: music/radio/") — measured live 10 Aug 2026. Getting this one
+    # name wrong is why the Radio page was empty while the engine's own Radio
+    # page listed stations. (The engine's SEARCH result key is the singular
+    # "radio" — the two are not the same word; do not "tidy" them to match.)
     LIBRARY_MEDIA_TYPES = ("artists", "albums", "tracks", "playlists",
-                           "radio", "podcasts", "audiobooks")
+                           "radios", "podcasts", "audiobooks")
 
     def _check_media_type(self, media_type: str) -> None:
         if media_type not in self.LIBRARY_MEDIA_TYPES:
