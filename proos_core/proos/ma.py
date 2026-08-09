@@ -435,6 +435,32 @@ class MaCommissioner:
         with self._client() as c:
             return c.command(f"players/cmd/{cmd}", player_id=player_id, **args)
 
+    # ── Stage 6 Music Mirror: Genres — the whole subsystem ────────────────────
+    # (Audit 2026-08-09.) ProOS has never touched genres; the engine has a full
+    # genre controller — a browsable library plus curator admin (merge, aliases,
+    # media mappings, exclusions). All of it mirrors one-for-one: hand the engine
+    # its own music/genres/<cmd>, args passed through unchanged, raise on failure.
+    # The command is ALLOWLISTED (reads vs writes) so the passthrough can never
+    # reach an arbitrary engine command; the WRITES are curator actions and the
+    # route gates them to the installer.
+    GENRE_READS = ("library_items", "count", "media_counts",
+                   "genres_for_media_item", "genre_exclusions_for_media_item",
+                   "global_exclusions", "scanner_status", "radio_mode_base_tracks")
+    GENRE_WRITES = ("add", "merge", "add_alias", "remove_alias", "promote_alias",
+                    "add_media_mapping", "remove_media_mapping", "restore_defaults",
+                    "scan_mappings", "exclude_genre_from_media_item",
+                    "remove_genre_exclusion", "remove_global_exclusion")
+
+    def genre(self, cmd: str, **args):
+        """Mirror one engine genre command (music/genres/<cmd>). cmd is
+        allowlisted (reads + writes); args ride to the engine unchanged. Returns
+        the engine's payload untouched; raises on failure so the route reports
+        the reason."""
+        if cmd not in self.GENRE_READS and cmd not in self.GENRE_WRITES:
+            raise MaUnavailable(f"Unknown genre command: {cmd!r}")
+        with self._client() as c:
+            return c.command(f"music/genres/{cmd}", **args)
+
     # ── Play queue (the editable "up next" list) ──────────────────────────────
     # MA's active queue for a player shares the player's id (queue_id == player_id),
     # so ProOS passes the MA player_id straight through as the queue_id. These are the
