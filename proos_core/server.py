@@ -3059,6 +3059,16 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, {"players": _ma.players()})
             if parts == ["music", "playlists"]:
                 return self._send(200, {"playlists": _ma.playlists()})
+            if parts == ["music", "recommendations"]:
+                # The engine's OWN Discover feed (9 Aug). The dashboard used to
+                # hand-roll this from library queries — different content to the
+                # engine, and rows that stop playing when a service is re-linked.
+                # Fail SOFT with the reason: a Discover page that can't load must
+                # say so, never render tiles that do nothing when tapped.
+                try:
+                    return self._send(200, {"folders": _ma.recommendations()})
+                except Exception as e:                           # noqa: BLE001
+                    return self._send(502, {"folders": [], "error": str(e)})
             if parts == ["music", "pairing", "ensure"]:
                 # On-demand run of the pairing-admin guarantee (register 25).
                 try:
