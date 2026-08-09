@@ -285,6 +285,72 @@ def _infra_check(now, snapall, seen):
             "actions": []})
 
 
+# ── 7 · COMMAND-TIME failures: integrations that refuse, not just die ───────
+# (Dave, 9 Aug 2026, after the 4-day invisible "Admin access required" that
+# killed every music play: "needs to monitor all our integrations — if they
+# stop working, identify and fix themselves.") State-watching (checks 1-6)
+# sees integrations that DIE; this channel sees integrations that REFUSE —
+# a command fails at call time while every entity looks healthy. Dashboards
+# report failures (POST /journal/note, type command_failed); each becomes an
+# OPEN incident immediately, honest about its class:
+#   AUTH-class (admin/permission/unauthorized in the error): a reload can
+#   NEVER fix it — the incident says exactly that and points at the account/
+#   token, and auto-heal is FORBIDDEN (healing what cannot heal is noise).
+#   Other classes: with auto_heal on, ONE cooled-down integration reload
+#   (the same safe tier + shared sessmon cooldown as every other heal).
+# Incidents live CMD_TTL beyond the last failure, then age out via the sweep.
+CMD_TTL = 30 * 60
+_cmd_open = {}     # cid -> last-failure ts (keeps the sweep from clearing)
+
+
+def _auth_class(err):
+    e = str(err or "").lower()
+    return any(k in e for k in ("admin", "permission", "unauthorized",
+                                "auth", "forbidden", "401", "403"))
+
+
+def note_command_failure(entity, domain, service, error, room="site"):
+    # Called by the server when a dashboard reports a failed command.
+    now = time.time()
+    cid = _iid("command_failed", room, "%s|%s.%s" % (entity, domain, service))
+    _cmd_open[cid] = now
+    auth = _auth_class(error)
+    n = sum(1 for t in _cmd_open.values() if now - t < CMD_TTL)
+    cause = ("%s refused '%s.%s': %s. " % (entity, domain, service,
+             str(error)[:180]))
+    if auth:
+        cause += ("This is an ACCESS failure — reloading cannot fix it. The "
+                  "integration's account/token lacks the right permission; "
+                  "fix the credential (for ProOS Music: the server's "
+                  "homeassistant_system user must be Admin), then retry.")
+    else:
+        cause += ("The device looked healthy and refused anyway — an "
+                  "integration fault, not a network one.")
+    _ensure(cid, {
+        "kind": "command_failed", "room": room, "slug": room,
+        "severity": "critical" if (auth or n >= 3) else "warning",
+        "title": "%s — a command was refused" % room,
+        "cause": cause, "subject": entity,
+        "actions": ([] if auth else [{"kind": "reload", "entity": entity,
+                                      "label": "Reload integration"}])})
+    # identify AND fix themselves — but only the classes a reload can fix,
+    # under the same guardrails as every other heal (auto_heal + cooldown).
+    if (not auth and AUTO_HEAL and CLIENT is not None and _sessmon is not None
+            and _sessmon.heal_due(_sess, entity, now)):
+        try:
+            CLIENT._req("POST",
+                        "/api/services/homeassistant/reload_config_entry",
+                        {"entity_id": entity})
+            journal.emit(room, "auto_heal", {
+                "action": "reload_integration", "entity": entity,
+                "reason": "command_failed"})
+            print("  [healthmon] auto-heal: reloaded %s after refused command"
+                  % entity, flush=True)
+        except Exception as _e:                                  # noqa: BLE001
+            print("  [healthmon] command-fail heal failed for %s: %s"
+                  % (entity, _e), flush=True)
+
+
 # ── scan ────────────────────────────────────────────────────────────────────
 def scan(snapall, project_mod, get_controller, witnesses=None):
     """One pass over every committed room. Mutates the incident set; journals
@@ -302,6 +368,13 @@ def _scan(snapall, project_mod, get_controller, witnesses):
 
     # 6 · infrastructure first: a dead switch/AP explains everything below it.
     _infra_check(now, snapall, seen)
+
+    # 7 · command-time failures stay open CMD_TTL past the last refusal
+    for _cid, _ts in list(_cmd_open.items()):
+        if now - _ts < CMD_TTL:
+            seen.add(_cid)
+        else:
+            _cmd_open.pop(_cid, None)
 
     proj = project_mod.load() or {}
     for key, rec in (proj.get("areas") or {}).items():
