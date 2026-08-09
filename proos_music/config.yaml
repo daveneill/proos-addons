@@ -1,5 +1,5 @@
 name: ProOS Music
-version: "2.9.11"
+version: "2.9.5-proos.1"
 slug: proos_music
 description: >-
   OPTIONAL cross-brand speaker grouping (Music Assistant). Adds the ability to
@@ -12,7 +12,6 @@ url: https://github.com/daveneill/proos-addons/tree/main/proos_music
 arch:
   - amd64
   - aarch64
-image: ghcr.io/music-assistant/server
 homeassistant_api: true
 discovery:
   - music_assistant
