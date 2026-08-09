@@ -23,6 +23,7 @@ reference home:
   5. missing_witness      — a certified network-evidence provider exists but
      a committed source has no witness binding (coverage gap, info-level).
 """
+import datetime as _dt
 import hashlib
 import json
 import os
@@ -351,6 +352,107 @@ def note_command_failure(entity, domain, service, error, room="site"):
                   % (entity, _e), flush=True)
 
 
+# ── 8 · the music engine WEDGES (Dave, 9 Aug 2026) ──────────────────────────
+# "I just had it start after nearly 5 mins… pause doesn't even work." A
+# playback task hung on a dead Apple Music stream and never released the
+# Office Sonos's player lock. The engine's own guard gives up after 30s and
+# proceeds anyway — so nothing crashed, nothing errored, and EVERY command
+# (play, pause, stop) simply cost 30 seconds. Seven in a row before a hand
+# restart cleared it. ProOS never noticed: the speaker was reachable, the
+# add-on was "started", every witness said healthy.
+#
+# This is the frozen-session class (Claims Matrix row 4) turned on our own
+# music engine: provably alive, provably not working. The evidence is the
+# engine's own warning in the add-on log; the repair is a restart.
+#
+# Both hooks are injected by the server at boot (same idiom as CLIENT /
+# prepare_entry_fn) so this module keeps its no-extra-traffic contract and
+# stays importable — and testable — with no Supervisor at all.
+MUSIC_LOG = None         # -> str: recent ProOS Music add-on log text
+MUSIC_RESTART = None     # -> restarts the ProOS Music add-on
+WEDGE_WINDOW = 15 * 60   # how recent a stuck-command warning must be to count
+_WEDGE_RE = re.compile(r"acquiring playback lock", re.I)
+_LOGTS_RE = re.compile(r"(\d{4})-(\d\d)-(\d\d)[ T](\d\d):(\d\d):(\d\d)")
+
+
+def _logstamp(line):
+    """The datetime on a log line, or None. Uses `datetime`, never the `time`
+    module: log stamps are the BOX's local clock and time.time() is epoch UTC
+    — comparing the two would be a timezone bug waiting for a DST change."""
+    m = _LOGTS_RE.search(line or "")
+    if not m:
+        return None
+    try:
+        return _dt.datetime(*(int(g) for g in m.groups()))
+    except Exception:                                            # noqa: BLE001
+        return None
+
+
+def _wedge_age(text):
+    """Seconds between the engine's LAST stuck-command warning and the newest
+    line in the same log — both on the same clock, so no timezone maths. None
+    when there is no warning (or nothing parsable) — which is not a fault."""
+    newest = last_warn = None
+    for line in str(text or "").splitlines():
+        ts = _logstamp(line)
+        if ts is None:
+            continue
+        if newest is None or ts > newest:
+            newest = ts
+        if _WEDGE_RE.search(line) and (last_warn is None or ts > last_warn):
+            last_warn = ts
+    if last_warn is None or newest is None:
+        return None
+    return (newest - last_warn).total_seconds()
+
+
+def music_wedge_check(now, seen, _first_ts=None):
+    """Open/keep/clear the wedged-engine incident. `_first_ts` overrides the
+    parsed evidence age (the bench pins staleness without faking clocks)."""
+    cid = _iid("music_wedged", "site", "proos_music")
+    if MUSIC_LOG is None:
+        return
+    try:
+        text = MUSIC_LOG()
+    except Exception:                                            # noqa: BLE001
+        return                       # blind is not broken — say nothing
+    try:
+        age = _wedge_age(text)
+    except Exception:                                            # noqa: BLE001
+        return
+    if _first_ts is not None:
+        age = (now - _first_ts) if age is not None else None
+    if age is None or age >= WEDGE_WINDOW:
+        return                       # nothing live: the sweep clears it
+    seen.add(cid)
+    _ensure(cid, {
+        "kind": "music_wedged", "room": "site", "slug": "site",
+        "severity": "warning",
+        "title": "Music is not responding",
+        "cause": "ProOS Music has stopped responding to commands. A track "
+                 "that failed mid-stream left the speaker's playback stuck, "
+                 "so every play, pause and stop is taking about 30 seconds "
+                 "before anything happens. The speakers are fine and the "
+                 "network is fine — the music service needs restarting.",
+        "subject": "proos_music",
+        "actions": [{"kind": "restart_music",
+                     "label": "Restart ProOS Music"}]})
+    # Identify AND fix themselves — under Dave's existing guardrail. With
+    # auto_heal OFF the card and its button are the whole answer: named
+    # immediately, repaired in one tap, never restarted behind his back.
+    if (AUTO_HEAL and MUSIC_RESTART is not None and _sessmon is not None
+            and _sessmon.heal_due(_sess, "proos_music", now)):
+        try:
+            MUSIC_RESTART()
+            journal.emit("site", "auto_heal", {
+                "action": "restart_music", "entity": "proos_music",
+                "reason": "music_wedged"})
+            print("  [healthmon] auto-heal: restarted ProOS Music (wedged)",
+                  flush=True)
+        except Exception as _e:                                  # noqa: BLE001
+            print("  [healthmon] music restart failed: %s" % _e, flush=True)
+
+
 # ── scan ────────────────────────────────────────────────────────────────────
 def scan(snapall, project_mod, get_controller, witnesses=None):
     """One pass over every committed room. Mutates the incident set; journals
@@ -368,6 +470,12 @@ def _scan(snapall, project_mod, get_controller, witnesses):
 
     # 6 · infrastructure first: a dead switch/AP explains everything below it.
     _infra_check(now, snapall, seen)
+
+    # 8 · a wedged music engine: alive, "started", and answering nothing
+    try:
+        music_wedge_check(now, seen)
+    except Exception as _e:                                      # noqa: BLE001
+        print("  [healthmon] music wedge check failed: %s" % _e, flush=True)
 
     # 7 · command-time failures stay open CMD_TTL past the last refusal
     for _cid, _ts in list(_cmd_open.items()):
@@ -745,6 +853,23 @@ def resolve_action(client, iid, action_kind=None):
             break
     if not act:
         return {"error": "no such action"}
+    if act["kind"] == "restart_music":
+        # The wedged-engine repair (check #8). NOT definitive: the restart is
+        # asked for, but "back to normal" is only true when the stuck-command
+        # warnings stop — so the card stays until a scan sees that, exactly
+        # like the reload path. Never claim recovery we haven't observed.
+        if MUSIC_RESTART is None:
+            return {"error": "ProOS Music is not managed on this box"}
+        try:
+            MUSIC_RESTART()
+        except Exception as e:                                   # noqa: BLE001
+            return {"error": "restart failed: %s" % e}
+        journal.emit(inc.get("slug", "site"), "repair",
+                     {"incident": iid, "action": "restart_music",
+                      "entity": "proos_music"})
+        return {"ok": True, "did": "restart_music", "cleared": False,
+                "note": "ProOS Music is restarting — it takes about a minute "
+                        "to come back."}
     if act["kind"] == "witness":
         # One-tap bind (Stage 9b): commit the suggested traffic sensors for this
         # source — the installer's tap IS the commit (doctrine: name-tokens only
