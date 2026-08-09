@@ -3401,6 +3401,19 @@ class Handler(BaseHTTPRequestHandler):
                 if _u and (_u.get("name") or _u.get("id")):
                     _d["by"] = _u.get("name") or _u.get("id")
                 _journal_mod.emit(room, etype, _d)
+                # COMMAND-TIME integration monitoring (Dave, 9 Aug): a
+                # dashboard-reported refused command becomes a healthmon
+                # incident at once — integrations that REFUSE are watched,
+                # not just integrations that die. See healthmon check #7.
+                if etype == "command_failed" and _healthmon_mod is not None:
+                    try:
+                        _healthmon_mod.note_command_failure(
+                            str(_d.get("entity") or ""),
+                            str(_d.get("domain") or ""),
+                            str(_d.get("service") or ""),
+                            _d.get("error"), room=room)
+                    except Exception:                            # noqa: BLE001
+                        pass
                 return self._send(200, {"ok": True})
             if parts == ["net", "witnesses"]:
                 # Installer commits one source's traffic witness binding:
