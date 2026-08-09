@@ -3144,6 +3144,22 @@ class Handler(BaseHTTPRequestHandler):
                         **_music_filters(self.path))})
                 except Exception as e:                           # noqa: BLE001
                     return self._send(502, {"items": [], "error": str(e)})
+            if parts == ["music", "search"]:
+                # Cross-provider search, the engine's own music/search. GET
+                # /music/search?q=...&limit=...&types=artist,album,track,...
+                # (types omitted = all). Fails soft with the engine's reason.
+                _qs = parse_qs(urlparse(self.path).query)
+                _q = (_qs.get("q") or [""])[0]
+                try:
+                    _lim = int((_qs.get("limit") or ["8"])[0])
+                except (TypeError, ValueError):
+                    _lim = 8
+                _types = [t for t in (_qs.get("types") or [""])[0].split(",") if t]
+                try:
+                    return self._send(200, {"results": _ma.search(
+                        _q, media_types=(_types or None), limit=_lim)})
+                except Exception as e:                           # noqa: BLE001
+                    return self._send(502, {"results": {}, "error": str(e)})
             if parts == ["music", "pairing", "ensure"]:
                 # On-demand run of the pairing-admin guarantee (register 25).
                 try:
