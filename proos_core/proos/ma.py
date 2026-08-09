@@ -310,6 +310,24 @@ class MaCommissioner:
         with self._client() as c:
             return c.command("config/players") or []
 
+    def recommendations(self) -> list:
+        """THE ENGINE'S OWN DISCOVER (Dave, 9 Aug 2026).
+
+        ProOS built its Discover page by hand out of library queries. Two faults
+        fell out of that, and Dave hit both: the content never matched what the
+        music engine actually recommends (Stations For You, Discovery Station,
+        Random Albums, New Albums …), and the tiles carried `library://` rows —
+        which stop being playable the moment a service is re-linked and the old
+        rows lose their provider mapping ("No playable items found", nothing
+        happens on tap, 9 Aug).
+
+        This is the engine's real recommendations feed — the same call its own
+        Discover renders — returning folders of PROVIDER-native items that play.
+        One mechanism, not a home-made approximation of one.
+        """
+        with self._client() as c:
+            return c.command("music/recommendations") or []
+
     def browse(self, path: str | None = None) -> list:
         """Browse the MA tree by service/provider. path=None → the root folders
         (Library + each provider: Spotify, Apple Music, RadioBrowser …); a folder's
