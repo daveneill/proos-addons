@@ -335,6 +335,106 @@ class MaCommissioner:
         with self._client() as c:
             return c.command("music/browse", path=path) or []
 
+    # ── Stage 1 Music Mirror: Core is the only music API ──────────────────────
+    # (Audit 2026-08-09, built 10 Aug 2026.) ProOS re-implemented the engine by
+    # hand and played through Home Assistant's media_player.play_media — which
+    # raised "No playable items found" before the engine was ever asked, then
+    # ProOS swallowed it into "answering slowly". That cost a full day.
+    #
+    # These are the fix expressed as a rule: every method hands the engine ITS
+    # OWN command (the same one its UI uses), passes arguments through UNCHANGED,
+    # returns the payload untouched, and RAISES on failure so the route reports
+    # the engine's own reason. ProOS renders the engine's answer; it never
+    # invents or reshapes one.
+    #
+    # Media types and player commands are ALLOWLISTED so this passthrough can
+    # never become a path to arbitrary or admin engine commands — one mechanism
+    # per question, with a guard.
+
+    # The seven library pages the engine offers (its own Library tabs).
+    LIBRARY_MEDIA_TYPES = ("artists", "albums", "tracks", "playlists",
+                           "radio", "podcasts", "audiobooks")
+
+    def _check_media_type(self, media_type: str) -> None:
+        if media_type not in self.LIBRARY_MEDIA_TYPES:
+            raise MaUnavailable(f"Unknown music library type: {media_type!r}")
+
+    def library_items(self, media_type: str, **filters) -> list:
+        """One library page (music/<type>/library_items). filters (limit, offset,
+        order_by, search, favorite, provider …) ride to the engine unchanged."""
+        self._check_media_type(media_type)
+        with self._client() as c:
+            return c.command(f"music/{media_type}/library_items", **filters) or []
+
+    def library_count(self, media_type: str, **filters):
+        """How many items in a library page (music/<type>/count). Returns the
+        engine's number as-is (0 is a real answer, never coerced away)."""
+        self._check_media_type(media_type)
+        with self._client() as c:
+            return c.command(f"music/{media_type}/count", **filters)
+
+    def item(self, **args) -> dict:
+        """A single item's full record (music/item). Args (media_type, item_id,
+        provider …) are passed through exactly as the caller sends them, so the
+        mirror never has to guess the engine's argument names."""
+        with self._client() as c:
+            return c.command("music/item", **args) or {}
+
+    def item_by_uri(self, **args) -> dict:
+        """A single item resolved from its uri (music/item_by_uri)."""
+        with self._client() as c:
+            return c.command("music/item_by_uri", **args) or {}
+
+    def recently_played(self, **args) -> list:
+        """The engine's Recently Played feed (music/recently_played_items)."""
+        with self._client() as c:
+            return c.command("music/recently_played_items", **args) or []
+
+    def recently_added(self, **args) -> list:
+        """The engine's Recently Added feed (music/recently_added_tracks)."""
+        with self._client() as c:
+            return c.command("music/recently_added_tracks", **args) or []
+
+    def in_progress(self, **args) -> list:
+        """In-progress items — resume points for podcasts/audiobooks
+        (music/in_progress_items)."""
+        with self._client() as c:
+            return c.command("music/in_progress_items", **args) or []
+
+    def favorite_remove(self, uri: str) -> dict:
+        """Remove an item from favourites by its uri (music/favorites/remove_item).
+        The partner of favorite_add (register: favourites add/remove)."""
+        with self._client() as c:
+            return c.command("music/favorites/remove_item", item=uri)
+
+    def queue_play_media(self, queue_id: str, media, **opts) -> dict:
+        """PLAY content on a player's queue (player_queues/play_media) — the
+        engine's own play call. THIS REPLACES the Home Assistant
+        media_player.play_media path that raised 'No playable items found' and
+        got swallowed (register 35). A failure raises with the engine's reason so
+        the route surfaces it verbatim — the whole point of Stage 2. `media` is a
+        uri or a list of uris; `opts` (option: play/replace/next/add, radio_mode
+        …) ride to the engine unchanged."""
+        with self._client() as c:
+            return c.command("player_queues/play_media",
+                             queue_id=queue_id, media=media, **opts)
+
+    # Transport/volume the dashboard drives (players/cmd/*). Deliberately the
+    # play/pause/seek/volume/power set only — grouping, config and admin
+    # commands are NOT here, so the passthrough cannot reach them.
+    PLAYER_COMMANDS = ("play", "pause", "play_pause", "stop", "resume", "next",
+                       "previous", "seek", "volume_set", "volume_up",
+                       "volume_down", "volume_mute", "power")
+
+    def player_command(self, cmd: str, player_id: str, **args) -> dict:
+        """Run one transport/volume command against a player (players/cmd/<cmd>).
+        cmd is allowlisted; player_id and any command args (volume_level,
+        position, powered, muted …) ride to the engine unchanged."""
+        if cmd not in self.PLAYER_COMMANDS:
+            raise MaUnavailable(f"Unknown player command: {cmd!r}")
+        with self._client() as c:
+            return c.command(f"players/cmd/{cmd}", player_id=player_id, **args)
+
     # ── Play queue (the editable "up next" list) ──────────────────────────────
     # MA's active queue for a player shares the player's id (queue_id == player_id),
     # so ProOS passes the MA player_id straight through as the queue_id. These are the
