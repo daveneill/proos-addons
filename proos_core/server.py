@@ -3032,6 +3032,13 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, {"players": _ma.players()})
             if parts == ["music", "playlists"]:
                 return self._send(200, {"playlists": _ma.playlists()})
+            if parts == ["music", "pairing", "ensure"]:
+                # On-demand run of the pairing-admin guarantee (register 25).
+                try:
+                    out = _ma.ensure_pairing_admin(_ma_ingress_identity())
+                    return self._send(200, out)
+                except Exception as e:                           # noqa: BLE001
+                    return self._send(502, {"error": str(e)})
             if len(parts) == 3 and parts[:2] == ["music", "queue"]:
                 # Full editable play queue for a player (queue_id == MA player_id).
                 qid = unquote(parts[2])
@@ -5285,6 +5292,34 @@ def main():
         _unifi_layer = None
         print(f"  unifi layer skipped: {_e}", flush=True)
     _ma = MaCommissioner(_ma_conn, get_ingress_user=_ma_ingress_identity)
+
+    # THE PAIRING USER MUST BE ADMIN (register 23c/25): runs whenever the
+    # Music discovery record exists — independent of the music_assistant
+    # option, because reality is the record (Dave's own box runs MA with the
+    # option off). Deferred + retried so a slow Music boot never blocks Core.
+    def _music_pairing_boot():
+        import time as _t
+        for _n in range(8):
+            _t.sleep(45 if _n else 20)
+            try:
+                if not (_ma_conn() or (None,))[0]:
+                    continue
+                r = _ma.ensure_pairing_admin(_ma_ingress_identity())
+                if r.get("state") == "promoted":
+                    print("  music · pairing user promoted to admin "
+                          "(was %s)" % r.get("was"), flush=True)
+                    if _journal_mod is not None:
+                        _journal_mod.emit("site", "auto_heal", {
+                            "action": "music_pairing_promoted",
+                            "user": "homeassistant_system"})
+                elif r.get("state") == "already_admin":
+                    print("  music · pairing user already admin", flush=True)
+                return
+            except Exception as _e:                              # noqa: BLE001
+                print("  music · pairing-admin check retry: %s" % _e,
+                      flush=True)
+    threading.Thread(target=_music_pairing_boot, daemon=True).start()
+
     ma_enabled = bool(cfg.get("music_assistant", False))
 
     if ma_enabled:
