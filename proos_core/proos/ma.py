@@ -501,6 +501,16 @@ class MaCommissioner:
         return self._admin_command(ingress_user, "auth/user/update",
                                    user_id=user_id, role=role)
 
+    def sync(self, ingress_user: tuple, **args) -> dict:
+        """Ask the engine to re-read the home's music services (music/sync).
+
+        The installer's answer to "I added a service / renamed a playlist and
+        ProOS hasn't noticed". It rides the ingress-admin channel because it
+        changes the library, and every other engine write on this box is
+        admin-only (measured 10 Aug: genre writes, user updates). Arguments —
+        `media_types`, `providers` — ride through untouched if given."""
+        return self._admin_command(ingress_user, "music/sync", **args)
+
     def server_info(self) -> dict:
         """What the engine says about itself — version, schema, and the id the
         box knows it by. Feeds the About panel; no admin needed."""
