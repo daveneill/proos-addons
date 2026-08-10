@@ -4231,7 +4231,11 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(403, {"error": "installer access required"})
                 b = self._body()
                 try:
-                    return self._send(200, {"result": _ma.genre(_cmd, **(b or {}))})
+                    # Genre writes are admin-only in the engine, so they ride the
+                    # ingress-admin channel with the installer's identity — the
+                    # anonymous API refuses them outright (measured 10 Aug).
+                    return self._send(200, {"result": _ma.genre(
+                        _cmd, ingress_user=_ma_ingress_identity(), **(b or {}))})
                 except Exception as e:                           # noqa: BLE001
                     return self._send(502, {"result": None, "error": str(e)})
             if parts == ["music", "playlists", "add"]:
