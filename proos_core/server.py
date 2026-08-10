@@ -29,7 +29,7 @@ import queue
 import datetime
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import unquote, urlparse, parse_qs
+from urllib.parse import unquote, urlparse, parse_qs, quote
 
 from proos.live_ha import RestHAClient
 from proos.controller import RoomController
@@ -3201,6 +3201,32 @@ class Handler(BaseHTTPRequestHandler):
                         _cmd, **_music_filters(self.path))})
                 except Exception as e:                           # noqa: BLE001
                     return self._send(502, {"result": None, "error": str(e)})
+            if parts == ["music", "art"]:
+                # THE ENGINE'S OWN ARTWORK, served through Core. Genre tiles
+                # (and any builtin image) come back as a RELATIVE path plus a
+                # provider — "genres/dance.svg", provider "builtin" — which only
+                # the engine's image proxy can resolve. The dashboard must never
+                # need the engine's host or port (and could not reach :8095 over
+                # remote access anyway), so Core fetches and returns the bytes.
+                _qs = parse_qs(urlparse(self.path).query)
+                _p = (_qs.get("path") or [""])[0]
+                _prov = (_qs.get("provider") or ["builtin"])[0]
+                _size = (_qs.get("size") or ["0"])[0]
+                if not _p:
+                    return self._send(400, {"error": "path required"})
+                conn = _load_ma_conn()
+                if not conn or not conn[0]:
+                    return self._send(503, {"error": "Music not connected"})
+                url = ("http://%s:%s/imageproxy?path=%s&provider=%s&size=%s"
+                       % (conn[0], conn[1], quote(_p, safe=""),
+                          quote(_prov, safe=""), quote(str(_size), safe="")))
+                try:
+                    with urllib.request.urlopen(url, timeout=15) as r:
+                        blob = r.read()
+                        ctype = r.headers.get("Content-Type") or "image/png"
+                    return self._send_bytes(200, ctype, blob)
+                except Exception as e:                           # noqa: BLE001
+                    return self._send(502, {"error": str(e)})
             if parts == ["music", "genre-picks"]:
                 # The genres this home offers (None = never curated → show all).
                 return self._send(200, {"genres": _load_genre_picks()})
