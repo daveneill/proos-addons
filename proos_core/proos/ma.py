@@ -501,6 +501,44 @@ class MaCommissioner:
         return self._admin_command(ingress_user, "auth/user/update",
                                    user_id=user_id, role=role)
 
+    # ── What is INSIDE an item (Stage 5, done properly) ──────────────────────
+    # A URI IS NOT A BROWSE PATH. Measured 10 Aug: browsing `library://album/2`
+    # or `library://playlist/34` returns only the ".." row — so drilling into an
+    # album, artist or playlist showed "Nothing here" (Dave). Browse walks the
+    # PROVIDER TREE; an item's contents come from the engine's own per-type
+    # commands, which are what its app calls. Allowlisted by media type so this
+    # cannot become a path to arbitrary commands.
+    ITEM_CHILDREN = {
+        "album":     (("albums/album_tracks", "tracks"),),
+        "artist":    (("artists/artist_albums", "albums"),
+                      ("artists/artist_tracks", "tracks")),
+        "playlist":  (("playlists/playlist_tracks", "tracks"),),
+        "podcast":   (("podcasts/podcast_episodes", "episodes"),),
+    }
+
+    def item_children(self, media_type: str, item_id: str,
+                      provider: str = "library", **extra) -> dict:
+        """The contents of one item, grouped — an album's tracks, an artist's
+        albums AND tracks, a playlist's tracks, a podcast's episodes. Args follow
+        the pattern the engine proved for radio_mode_base_tracks: `item_id` plus
+        `provider_instance_id_or_domain`. A section that fails comes back empty
+        with its reason rather than sinking the whole page."""
+        plan = self.ITEM_CHILDREN.get(str(media_type or "").lower())
+        if not plan:
+            raise MaUnavailable(f"Nothing to open for a {media_type!r}")
+        out, errors = {}, {}
+        with self._client() as c:
+            for cmd, key in plan:
+                try:
+                    out[key] = c.command(
+                        f"music/{cmd}", item_id=item_id,
+                        provider_instance_id_or_domain=provider, **extra) or []
+                except Exception as e:                           # noqa: BLE001
+                    out[key], errors[key] = [], str(e)
+        if errors:
+            out["errors"] = errors
+        return out
+
     def sync(self, ingress_user: tuple, **args) -> dict:
         """Ask the engine to re-read the home's music services (music/sync).
 
