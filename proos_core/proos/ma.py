@@ -481,6 +481,32 @@ class MaCommissioner:
         with self._client() as c:
             return c.command(f"music/genres/{cmd}", **args)
 
+    # ── Engine accounts (the last settings area Pro was missing) ─────────────
+    # Command names are NOT guessed: `auth/users` and `auth/user/update` are the
+    # same pair the pairing-admin guarantee has used since 1.0.391 (register 26),
+    # proven on the box. Both are admin-only, so they ride the ingress-admin
+    # channel with the installer's identity — the anonymous API refuses them,
+    # exactly as every genre write did.
+    USER_ROLES = ("admin", "user")
+
+    def users(self, ingress_user: tuple) -> list:
+        """Every login the music engine holds, with its role."""
+        return self._admin_command(ingress_user, "auth/users") or []
+
+    def user_set_role(self, ingress_user: tuple, user_id: str, role: str) -> dict:
+        """Promote or demote one engine login. Role is allowlisted — the engine
+        knows only these two, and a typo would silently create nothing."""
+        if role not in self.USER_ROLES:
+            raise MaUnavailable(f"Unknown role: {role!r}")
+        return self._admin_command(ingress_user, "auth/user/update",
+                                   user_id=user_id, role=role)
+
+    def server_info(self) -> dict:
+        """What the engine says about itself — version, schema, and the id the
+        box knows it by. Feeds the About panel; no admin needed."""
+        with self._client() as c:
+            return dict(c.server_info or {})
+
     def genre_content(self, name: str, limit: int = 300) -> dict:
         """The music that belongs to a genre, grouped from the engine's OWN data.
 
