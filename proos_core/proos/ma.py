@@ -500,12 +500,30 @@ class MaCommissioner:
         intends. Nothing here is invented: every name and every item comes from
         the engine.
         """
-        wanted = {str(name).strip().lower()}
-        for g in (self.genre("library_items", limit=500) or []):
-            if str(g.get("name") or "").strip().lower() == str(name).strip().lower():
-                for a in (g.get("genre_aliases") or []):
-                    wanted.add(str(a).strip().lower())
-                break
+        # AN AMBIGUOUS TAG CANNOT DECIDE A GENRE. The engine's alias table is
+        # SHARED: measured on the box, "electronic" is listed under six genres
+        # (ambient, classical, dance, electronic, hip hop …) and "latin" under
+        # six more. Matching on every alias therefore filed a dance track under
+        # Classical — caught before this shipped. So a tag counts only if it is
+        # the genre's OWN name, or an alias that belongs to exactly ONE genre.
+        target = str(name).strip().lower()
+        claims: dict = {}
+        genres = self.genre("library_items", limit=500) or []
+        for g in genres:
+            own = str(g.get("name") or "").strip().lower()
+            for tag in {own} | {str(a).strip().lower()
+                                for a in (g.get("genre_aliases") or [])}:
+                if tag:
+                    claims.setdefault(tag, set()).add(own)
+        wanted = {target}
+        for g in genres:
+            if str(g.get("name") or "").strip().lower() != target:
+                continue
+            for a in (g.get("genre_aliases") or []):
+                tag = str(a).strip().lower()
+                if tag and len(claims.get(tag, ())) == 1:
+                    wanted.add(tag)
+            break
 
         def _hit(item):
             meta = item.get("metadata") or {}
