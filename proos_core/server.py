@@ -3201,6 +3201,21 @@ class Handler(BaseHTTPRequestHandler):
                         _cmd, **_music_filters(self.path))})
                 except Exception as e:                           # noqa: BLE001
                     return self._send(502, {"result": None, "error": str(e)})
+            if parts == ["music", "item-children"]:
+                # What is INSIDE an album / artist / playlist / podcast. Browse
+                # walks the provider tree and cannot open a library item, so this
+                # asks the engine's own per-type commands (see ma.item_children).
+                _qs = parse_qs(urlparse(self.path).query)
+                _mt = (_qs.get("media_type") or [""])[0]
+                _id = (_qs.get("item_id") or [""])[0]
+                _pv = (_qs.get("provider") or ["library"])[0]
+                if not _mt or not _id:
+                    return self._send(400, {"error": "media_type and item_id required"})
+                try:
+                    return self._send(200, _ma.item_children(_mt, _id, _pv))
+                except Exception as e:                           # noqa: BLE001
+                    return self._send(502, {"tracks": [], "albums": [],
+                                            "error": str(e)})
             if parts == ["music", "users"]:
                 # Engine logins and their roles. INSTALLER-ONLY: these accounts
                 # can reconfigure the music engine, so a resident never sees the
