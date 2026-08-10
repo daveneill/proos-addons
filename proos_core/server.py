@@ -4235,6 +4235,19 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(400, {"error": "player_ids must be a list"})
                 saved = _save_speakers(ids)
                 return self._send(200, {"ok": True, "player_ids": saved, "count": len(saved)})
+            if parts == ["music", "sync"]:
+                # Re-read the home's music services. Installer-only: it reshapes
+                # the library every resident sees.
+                u = getattr(self, "_user", None)
+                if not (users and u and (u.get("is_admin") or u.get("is_owner")
+                                         or users.is_tech(u.get("id")))):
+                    return self._send(403, {"error": "installer access required"})
+                b = self._body()
+                try:
+                    return self._send(200, {"result": _ma.sync(
+                        _ma_ingress_identity(), **(b or {}))})
+                except Exception as e:                           # noqa: BLE001
+                    return self._send(502, {"result": None, "error": str(e)})
             if len(parts) == 3 and parts[:2] == ["music", "users"]:
                 # Change one engine login's role: POST /music/users/<id> {role}.
                 # Installer-only, and the role is allowlisted in ma.user_set_role.
