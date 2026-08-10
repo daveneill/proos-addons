@@ -887,6 +887,35 @@ def _save_speakers(ids):
     return out
 
 
+# The genres this home actually shows — the SAME mechanism as room speakers
+# (Dave, 10 Aug: "we will probably just have some default genres"). The engine
+# ships 59 genres with hundreds of alternate spellings behind them, which reads
+# like a phone book on a resident's screen. The installer ticks the handful this
+# household uses; nothing is deleted from the engine, this only decides what is
+# OFFERED. None = never curated, so every genre shows (a fresh box is honest,
+# not empty).
+_MA_GENRES_FILE = "/data/music_genres.json"
+
+
+def _load_genre_picks():
+    try:
+        with open(_MA_GENRES_FILE) as f:
+            d = json.load(f)
+        g = d.get("genres")
+        if isinstance(g, list):
+            return [str(x) for x in g]
+    except Exception:                                            # noqa: BLE001
+        pass
+    return None
+
+
+def _save_genre_picks(names):
+    out = sorted({str(x) for x in (names or [])})
+    with open(_MA_GENRES_FILE, "w") as f:
+        json.dump({"genres": out}, f)
+    return out
+
+
 _MA_ADDON_SLUG = "b333b432_proos_music"
 _MA_API_PORT = 8095  # MA public API: /ws (WebSocket) + REST
 # HA's config dir mounts at /homeassistant on current Supervisor map schemas and
@@ -3172,6 +3201,26 @@ class Handler(BaseHTTPRequestHandler):
                         _cmd, **_music_filters(self.path))})
                 except Exception as e:                           # noqa: BLE001
                     return self._send(502, {"result": None, "error": str(e)})
+            if parts == ["music", "genre-picks"]:
+                # The genres this home offers (None = never curated → show all).
+                return self._send(200, {"genres": _load_genre_picks()})
+            if parts == ["music", "genre-content"]:
+                # What is actually IN a genre, grouped from the engine's own
+                # per-item genre words — the engine files nothing against its
+                # genre taxonomy on 2.9.5 (see ma.genre_content).
+                _qs = parse_qs(urlparse(self.path).query)
+                _g = (_qs.get("genre") or [""])[0]
+                if not _g:
+                    return self._send(400, {"error": "genre required"})
+                try:
+                    _lim = int((_qs.get("limit") or ["300"])[0])
+                except (TypeError, ValueError):
+                    _lim = 300
+                try:
+                    return self._send(200, _ma.genre_content(_g, limit=_lim))
+                except Exception as e:                           # noqa: BLE001
+                    return self._send(502, {"tracks": [], "albums": [],
+                                            "artists": [], "error": str(e)})
             if parts == ["music", "pairing", "ensure"]:
                 # On-demand run of the pairing-admin guarantee (register 25).
                 try:
@@ -4141,6 +4190,20 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(400, {"error": "player_ids must be a list"})
                 saved = _save_speakers(ids)
                 return self._send(200, {"ok": True, "player_ids": saved, "count": len(saved)})
+            if parts == ["music", "genre-picks"]:
+                # Replace the shown-genre list. Installer-only: it decides what
+                # every resident in the home sees.
+                u = getattr(self, "_user", None)
+                if not (users and u and (u.get("is_admin") or u.get("is_owner")
+                                         or users.is_tech(u.get("id")))):
+                    return self._send(403, {"error": "installer access required"})
+                b = self._body()
+                g = b.get("genres")
+                if not isinstance(g, list):
+                    return self._send(400, {"error": "genres must be a list"})
+                saved = _save_genre_picks(g)
+                return self._send(200, {"ok": True, "genres": saved,
+                                        "count": len(saved)})
             if len(parts) == 4 and parts[:2] == ["music", "players"] and parts[3] == "enabled":
                 b = self._body()
                 return self._send(200, _ma.set_player_enabled(
