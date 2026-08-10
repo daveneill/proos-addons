@@ -457,12 +457,26 @@ class MaCommissioner:
                     "scan_mappings", "exclude_genre_from_media_item",
                     "remove_genre_exclusion", "remove_global_exclusion")
 
-    def genre(self, cmd: str, **args):
+    def genre(self, cmd: str, ingress_user: tuple | None = None, **args):
         """Mirror one engine genre command (music/genres/<cmd>). cmd is
-        allowlisted (reads + writes); args ride to the engine unchanged. Returns
-        the engine's payload untouched; raises on failure so the route reports
-        the reason."""
-        if cmd not in self.GENRE_READS and cmd not in self.GENRE_WRITES:
+        allowlisted; args ride to the engine unchanged; the payload comes back
+        untouched and failures raise so the route reports the reason.
+
+        THE WRITES ARE ADMIN-ONLY, and that is not optional. Measured live on
+        10 Aug 2026: EVERY genre write — merge, add_alias, promote_alias,
+        add_media_mapping, restore_defaults and scan_mappings among them —
+        answers `22 Admin access required` on the anonymous API connection, the
+        same wall config/providers/remove hit (register 23c). Reads are fine
+        there; writes MUST ride the ingress-admin channel carrying the
+        installer's identity. Shipping them on the anonymous client (1.0.396)
+        meant the Genres page's own "Run scan" button could never work — the
+        engine refused it every time."""
+        if cmd in self.GENRE_WRITES:
+            if not ingress_user:
+                raise MaUnavailable(
+                    "Genre changes need an installer identity (admin channel)")
+            return self._admin_command(ingress_user, f"music/genres/{cmd}", **args)
+        if cmd not in self.GENRE_READS:
             raise MaUnavailable(f"Unknown genre command: {cmd!r}")
         with self._client() as c:
             return c.command(f"music/genres/{cmd}", **args)
