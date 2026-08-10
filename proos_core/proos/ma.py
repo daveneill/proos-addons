@@ -481,6 +481,48 @@ class MaCommissioner:
         with self._client() as c:
             return c.command(f"music/genres/{cmd}", **args)
 
+    def genre_content(self, name: str, limit: int = 300) -> dict:
+        """The music that belongs to a genre, grouped from the engine's OWN data.
+
+        Why this exists (measured on Dave's box, 10 Aug 2026): the engine holds
+        the genre TAXONOMY — 59 genres, and 155 alternate names behind "rock"
+        alone — but files no media against it. `scan_mappings` completes with
+        `last_scan_mapped: 0`, every genre reports `provider_mappings: []`, and
+        the engine's own `media_counts` crashes on the empty structure. Its
+        library filter ignores a genre argument outright.
+
+        But every track and album already carries its OWN genre words in its
+        metadata (measured: 9 of 60 tracks, 25 of 40 albums — Dance, House, Pop,
+        Electronic). So the honest way to answer "what is in this genre" is to
+        read what the engine already says about each item and group by it — the
+        genre's own name plus every alternate name the engine folds into it, so
+        "Rock" collects Classic Rock and Indie Rock exactly as the engine
+        intends. Nothing here is invented: every name and every item comes from
+        the engine.
+        """
+        wanted = {str(name).strip().lower()}
+        for g in (self.genre("library_items", limit=500) or []):
+            if str(g.get("name") or "").strip().lower() == str(name).strip().lower():
+                for a in (g.get("genre_aliases") or []):
+                    wanted.add(str(a).strip().lower())
+                break
+
+        def _hit(item):
+            meta = item.get("metadata") or {}
+            for tag in (meta.get("genres") or []):
+                if str(tag).strip().lower() in wanted:
+                    return True
+            return False
+
+        out = {}
+        for media_type in ("tracks", "albums", "artists"):
+            try:
+                rows = self.library_items(media_type, limit=int(limit)) or []
+            except Exception:                                    # noqa: BLE001
+                rows = []
+            out[media_type] = [r for r in rows if _hit(r)]
+        return out
+
     # ── Play queue (the editable "up next" list) ──────────────────────────────
     # MA's active queue for a player shares the player's id (queue_id == player_id),
     # so ProOS passes the MA player_id straight through as the queue_id. These are the
