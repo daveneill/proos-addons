@@ -3201,6 +3201,25 @@ class Handler(BaseHTTPRequestHandler):
                         _cmd, **_music_filters(self.path))})
                 except Exception as e:                           # noqa: BLE001
                     return self._send(502, {"result": None, "error": str(e)})
+            if parts == ["music", "users"]:
+                # Engine logins and their roles. INSTALLER-ONLY: these accounts
+                # can reconfigure the music engine, so a resident never sees the
+                # list, let alone changes it.
+                u = getattr(self, "_user", None)
+                if not (users and u and (u.get("is_admin") or u.get("is_owner")
+                                         or users.is_tech(u.get("id")))):
+                    return self._send(403, {"error": "installer access required"})
+                try:
+                    return self._send(200, {"users": _ma.users(
+                        _ma_ingress_identity())})
+                except Exception as e:                           # noqa: BLE001
+                    return self._send(502, {"users": [], "error": str(e)})
+            if parts == ["music", "about"]:
+                # What the engine says about itself, for the About panel.
+                try:
+                    return self._send(200, _ma.server_info())
+                except Exception as e:                           # noqa: BLE001
+                    return self._send(502, {"error": str(e)})
             if parts == ["music", "art"]:
                 # THE ENGINE'S OWN ARTWORK, served through Core. Genre tiles
                 # (and any builtin image) come back as a RELATIVE path plus a
@@ -4216,6 +4235,20 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(400, {"error": "player_ids must be a list"})
                 saved = _save_speakers(ids)
                 return self._send(200, {"ok": True, "player_ids": saved, "count": len(saved)})
+            if len(parts) == 3 and parts[:2] == ["music", "users"]:
+                # Change one engine login's role: POST /music/users/<id> {role}.
+                # Installer-only, and the role is allowlisted in ma.user_set_role.
+                u = getattr(self, "_user", None)
+                if not (users and u and (u.get("is_admin") or u.get("is_owner")
+                                         or users.is_tech(u.get("id")))):
+                    return self._send(403, {"error": "installer access required"})
+                b = self._body()
+                try:
+                    return self._send(200, {"result": _ma.user_set_role(
+                        _ma_ingress_identity(), unquote(parts[2]),
+                        str(b.get("role") or ""))})
+                except Exception as e:                           # noqa: BLE001
+                    return self._send(502, {"result": None, "error": str(e)})
             if parts == ["music", "genre-picks"]:
                 # Replace the shown-genre list. Installer-only: it decides what
                 # every resident in the home sees.
