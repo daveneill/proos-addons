@@ -1095,12 +1095,52 @@ class ToolRunner:
             return {"error": "domain '%s' not allowed for area control" % domain}
         if action not in allowed:
             return {"error": "action '%s' not allowed for %s" % (action, domain)}
+        # COUNT WHAT IS ACTUALLY THERE BEFORE CLAIMING TO HAVE TOUCHED IT.
+        # Home Assistant answers 200 for a service call that matches ZERO
+        # entities — a successful no-op. This tool used to relay that as
+        # {"ok": True}, so Assist told Dave "the lights in the office are now
+        # turned off" in a room that has no lights (12 Aug, register 105).
+        # The tool was telling the truth about the HTTP call and a lie about
+        # the house. Nothing to act on is not a success; it is an answer.
+        #
+        # `roomdevices.available()` is the SAME source `area_entities` reads —
+        # one mechanism for "what is in this room", per the product's own law.
+        area_name = aid
+        try:
+            for a in (self.client.area_registry() or []):
+                if a.get("area_id") == aid:
+                    area_name = a.get("name") or aid
+                    break
+        except Exception:                                        # noqa: BLE001
+            pass
+        targets = None
+        try:
+            from . import roomdevices
+            avail = roomdevices.available(self.client, aid)
+            if avail is not None:
+                targets = [d for d in avail if d.get("domain") == domain]
+        except Exception:                                        # noqa: BLE001
+            targets = None                                       # unknown, not zero
+        if targets is not None and not targets:
+            # Say the true thing, and say it in the words a person would use.
+            return {"ok": False, "affected": 0, "area_id": aid,
+                    "area_name": area_name, "domain": domain,
+                    "error": "there are no %ss in the %s, so there was nothing "
+                             "to %s — tell them that rather than reporting it done"
+                             % (domain, area_name, action.replace("_", " "))}
         payload = {"area_id": aid}
         payload.update({k: v for k, v in data.items() if k not in ("entity_id", "area_id")})
         self.client._req("POST", "/api/services/%s/%s" % (domain, action), payload)
+        n = len(targets) if targets is not None else None
         self.actions.append({"tool": "area_control", "target": aid,
-                             "action": "%s.%s" % (domain, action)})
-        return {"ok": True, "called": "%s.%s" % (domain, action), "area_id": aid}
+                             "action": "%s.%s" % (domain, action),
+                             "affected": n})
+        out = {"ok": True, "called": "%s.%s" % (domain, action), "area_id": aid,
+               "area_name": area_name}
+        if n is not None:
+            out["affected"] = n
+            out["targets"] = [d.get("name") or d.get("entity_id") for d in targets]
+        return out
 
     # ── room_off / room_on: deterministic whole-room power (spec, 1 Aug) ────
     # "Room off means room off everything" (Dave) — one tool, same result
