@@ -2599,13 +2599,33 @@ def _where_prompt(where: dict) -> str:
         return ""
     name = where.get("area_name") or where.get("area_id")
     aid = where.get("area_id")
+    # WHAT IS IN THE ROOM, said out loud, so the model confirms against the
+    # truth instead of assuming. An empty list is a FACT ("no controllable
+    # devices"); an absent key means the lookup failed and nothing is claimed.
+    inv = ""
+    if "contents" in where:
+        items = where.get("contents") or []
+        if items:
+            by = {}
+            for d in items:
+                by.setdefault(d.get("domain") or "other", []).append(
+                    d.get("name") or "?")
+            parts = ["%s: %s" % (dom, ", ".join(ns[:6])
+                                 + (" +%d more" % (len(ns) - 6) if len(ns) > 6 else ""))
+                     for dom, ns in sorted(by.items())]
+            inv = ("IN THIS ROOM (the complete list — a device type not listed "
+                   "is NOT in this room, say so rather than acting): "
+                   + "; ".join(parts) + ".\n")
+        else:
+            inv = ("THIS ROOM HAS NO CONTROLLABLE DEVICES assigned yet — "
+                   "nothing here can be switched, so say that.\n")
     if where.get("confidence") == "certain":
         return (
             "\nWHERE THEY ARE: %s (area_id '%s'). Anything said without naming a room means "
             "THIS room — 'the lights', 'in here', 'turn it off', 'play something'. Act on %s "
             "without asking which room. Only ask when they name no room AND the request "
             "genuinely cannot apply here. If they name a different room, use that one.\n"
-            % (name, aid, name))
+            % (name, aid, name)) + inv
     return (
         "\nWHERE THEY MIGHT BE: %s (area_id '%s') — this is a GUESS, not something "
         "they told us. Treat a bare request as PROBABLY about %s, but CONFIRM before "
@@ -2613,7 +2633,7 @@ def _where_prompt(where: dict) -> str:
         "both the confirmation and the go-ahead, so one question is enough — do not "
         "ask twice. Reading and diagnosing need no confirmation; only acting does. "
         "If they name a different room, use that one.\n"
-        % (name, aid, name, name))
+        % (name, aid, name, name)) + inv
 
 
 def _system_context(user: dict, where: dict | None = None) -> str:
@@ -3056,6 +3076,28 @@ def chat(client, ws_call, project_mod, user: dict, text: str,
         return {"error": "empty message"}
     runner = ToolRunner(client, ws_call, project_mod, user, ma=ma,
                         awareness=awareness)
+
+    # THE ROOM'S CONTENTS TRAVEL WITH THE ROOM (Dave, 12 Aug, register 106).
+    # "We should not have to build every scenario — that's the reason for using
+    # Claude or ChatGPT: it is supposed to KNOW, by confirming not assuming."
+    # The Office bug was not a missing rule, it was a missing FACT: the model
+    # was told where the person was but not what was there, so "turn the lights
+    # off" looked perfectly sensible in a room with no lights. Given the
+    # contents, the model handles lights, blinds, heating — anything — by
+    # reasoning, with no scenario code. One mechanism: the same
+    # roomdevices.available() list that area_entities and area_control read.
+    if where and where.get("area_id"):
+        try:
+            from . import roomdevices
+            avail = roomdevices.available(client, where["area_id"])
+            if avail is not None:
+                where = dict(where)
+                where["contents"] = [
+                    {"domain": d.get("domain"),
+                     "name": d.get("name") or d.get("entity_id")}
+                    for d in avail]
+        except Exception:                                        # noqa: BLE001
+            pass                       # unknown stays unknown — never invented
 
     # No fast-path any more (A3, 6 Aug): one brain handles everything by reasoning
     # over the tools. Every command is a model round-trip — the cost Dave accepted
