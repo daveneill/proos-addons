@@ -3252,6 +3252,222 @@ def chat(client, ws_call, project_mod, user: dict, text: str,
             "provider": cfg["provider"]}
 
 
+# ── THE PROOF RUN (register 111) ───────────────────────────────────────────
+# Dave, 12 Aug, on the tool audit's scoreboard: "I couldn't even tell you
+# where you got this from — that's how much this needs to be confirmed."
+# He believes what he can test. So the read tools prove themselves ON THE BOX:
+# every one runs live and shows its answer beside something the installer can
+# check with their own eyes. Read-only is CODE here, not a promise — the
+# guard refuses every write and a recorded attempt fails the whole run.
+
+class _ReadOnlyClient:
+    """Wraps the real client for a proof run. GET passes through; everything
+    else is refused AND recorded. HA's one read-via-POST idiom (response
+    services, '?return_response') is refused too — the forecast is the only
+    thing lost — but is recorded separately so a pure read doesn't count as
+    an attempted write."""
+
+    def __init__(self, real):
+        self._real = real
+        self.write_attempts = []
+        self.refused_reads = []
+
+    def _req(self, method, path, payload=None):
+        if (method or "GET").upper() != "GET":
+            if "return_response" in (path or ""):
+                self.refused_reads.append("%s %s" % (method, path))
+            else:
+                self.write_attempts.append("%s %s" % (method, path))
+            raise RuntimeError("proof run is read-only: refused %s %s"
+                               % (method, path))
+        return self._real._req(method, path, payload)
+
+    def call_service(self, *a, **k):
+        self.write_attempts.append("call_service %s.%s" % (a[0] if a else "?",
+                                                           a[1] if len(a) > 1 else "?"))
+        raise RuntimeError("proof run is read-only: refused a service call")
+
+    def __getattr__(self, name):
+        return getattr(self._real, name)
+
+
+def _proof_summary(tool, out):
+    """The tool's answer in the installer's words — what they can eyeball."""
+    if not isinstance(out, dict):
+        return str(out)[:200]
+    if out.get("error"):
+        return "says: %s" % out["error"]
+    try:
+        if tool == "rooms_overview":
+            rs = out.get("rooms") or []
+            return "%d room(s): %s" % (len(rs), ", ".join(
+                (r.get("name") or "?") + ("" if r.get("committed") else " (uncommitted)")
+                for r in rs[:8]) or "none")
+        if tool == "home_status":
+            wc = (out.get("witness_coverage") or {}).get("statement") or ""
+            return "%s — %s" % (out.get("overall") or "?", wc)
+        if tool == "health_incidents":
+            inc = out.get("incidents") or []
+            return ("%d open incident(s)" % len(inc)) + (
+                ": " + "; ".join(i.get("title") or "?" for i in inc[:3]) if inc else "")
+        if tool == "device_liveness":
+            ds = out.get("devices") or []
+            conf = sum(1 for d in ds if d.get("witness") == "present")
+            gone = sum(1 for d in ds if d.get("witness") == "gone")
+            return ("%d device(s) watched — %d independently confirmed on the "
+                    "network, %d not answering" % (len(ds), conf, gone))
+        if tool == "recovery_history":
+            ev = out.get("events") or []
+            return "%d recent event(s)%s" % (len(ev),
+                " — latest: %s %s" % (ev[0].get("entity"), ev[0].get("event")) if ev else "")
+        if tool == "security_status":
+            ps = out.get("panels") or []
+            zs = out.get("open_zones") or []
+            return "%d panel(s) (%s); open right now: %s" % (
+                len(ps), ", ".join(sorted({p.get("state") or "?" for p in ps})) or "none",
+                ", ".join(z.get("name") or "?" for z in zs[:6]) or "nothing")
+        if tool == "locks_status":
+            ls = out.get("locks") or []
+            if not ls:
+                return "no locks in this home"
+            return "%d lock(s): %s" % (len(ls), ", ".join(
+                "%s %s" % (d.get("attributes", {}).get("friendly_name")
+                           or d.get("entity_id"), d.get("state")) for d in ls[:6]))
+        if tool == "cameras_status":
+            cs = out.get("cameras") or []
+            mo = out.get("active_detections") or []
+            return "%d camera(s) (%s); live detections: %s" % (
+                len(cs), ", ".join(sorted({c.get("state") or "?" for c in cs})) or "none",
+                ", ".join(m.get("name") or "?" for m in mo[:6]) or "none")
+        if tool == "weather":
+            return "%s, %s°" % (out.get("condition") or "?", out.get("temperature"))
+        if tool == "scenes_list":
+            sc = out.get("scenes") or []
+            return "%d Assist-made scene(s)%s" % (len(sc), ": " + ", ".join(
+                s.get("name") or "?" for s in sc[:6]) if sc else "")
+        if tool == "memory_get":
+            return "%d told fact(s), %d learned, %d declined" % (
+                len(out.get("facts") or []), len(out.get("learned") or []),
+                len(out.get("declines") or []))
+        if tool == "room_status":
+            eps = out.get("endpoints") or []
+            return "activity: %s; %d volume endpoint(s)" % (
+                out.get("activity") or "off", len(eps))
+        if tool == "room_health":
+            return "status: %s%s" % (out.get("status") or out.get("state") or "?",
+                                     "; %d device fault(s)" % len(out["device_faults"])
+                                     if out.get("device_faults") else "")
+        if tool == "usage_history":
+            return "journal summarised (%s)" % (", ".join(sorted(out.keys())[:5]))
+        if tool == "room_read":
+            return "live evidence gathered (%s)" % (", ".join(sorted(out.keys())[:5]))
+        if tool == "area_entities":
+            es = out.get("entities") or []
+            return "%d real device(s) listed" % len(es)
+        if tool == "get_states":
+            sts = out.get("states") or {}
+            return "; ".join("%s = %s" % (e.split(".")[-1], (s or {}).get("state"))
+                             for e, s in list(sts.items())[:4]) or "no states"
+        if tool == "verify":
+            return ("agrees — all checks pass" if out.get("all_pass")
+                    else "checks did not pass")
+        if tool == "device_powerlog":
+            ev = out.get("events") or out.get("log") or []
+            return "%d power event(s) in the window" % len(ev)
+    except Exception:                                            # noqa: BLE001
+        pass
+    return "answered (%s)" % (", ".join(sorted(out.keys())[:8]))
+
+
+def proof_run(client, project_mod, user, ma=None, awareness=None) -> dict:
+    """Every READ tool, run live, each answer beside what the installer can
+    verify by looking. Installer-gated; read-only BY CONSTRUCTION."""
+    if not _is_pro(user):
+        return {"error": "installer access required — the proof run is a Pro instrument"}
+    guard = _ReadOnlyClient(client)
+    runner = ToolRunner(guard, None, project_mod, user, ma=ma,
+                        awareness=awareness)
+    results = []
+
+    def run(tool, args=None, check=""):
+        t0 = time.time()
+        try:
+            out = getattr(runner, "t_" + tool)(dict(args or {}))
+        except Exception as e:                                   # noqa: BLE001
+            results.append({"tool": tool, "ok": False,
+                            "ms": int((time.time() - t0) * 1000),
+                            "summary": "crashed: %s" % e, "check": check})
+            return None
+        results.append({"tool": tool, "ok": True,
+                        "ms": int((time.time() - t0) * 1000),
+                        "summary": _proof_summary(tool, out), "check": check})
+        return out
+
+    run("rooms_overview", check="the rooms you commissioned, by name")
+    run("home_status", check="the Health page header")
+    run("health_incidents", check="the incidents open on Health")
+    run("device_liveness", check="the device counts on Health")
+    run("recovery_history", {"limit": 10}, check="recoveries you know happened")
+    run("security_status", check="your panels, and any door or window standing open")
+    run("locks_status", check="your locks (or that you have none)")
+    run("cameras_status", check="your cameras, and whatever is moving right now")
+    run("weather", check="the sky outside")
+    run("scenes_list", check="the scenes Assist has made")
+    run("memory_get", check="what it remembers about you")
+
+    rooms = []
+    try:
+        for key, rec in ((project_mod.load() or {}).get("areas") or {}).items():
+            if rec and rec.get("committed"):
+                rooms.append(rec.get("area_id") or key)
+    except Exception:                                            # noqa: BLE001
+        pass
+    for i, aid in enumerate(rooms[:3]):
+        run("room_status", {"area_id": aid},
+            check="what the %s is doing right now" % aid)
+        run("room_health", {"area_id": aid}, check="its verdicts on Health")
+        if i == 0:
+            run("usage_history", {"area_id": aid}, check="its learned habits")
+            run("room_read", {"area_id": aid}, check="its live evidence bundle")
+            run("area_entities", {"area_id": aid}, check="its real device list")
+            verdict_eid = "sensor.proos_activity_%s" % aid
+            gs = run("get_states", {"entity_ids": [verdict_eid]},
+                     check="the room's verdict sensor")
+            st = None
+            try:
+                st = (((gs or {}).get("states") or {}).get(verdict_eid) or {}).get("state")
+            except Exception:                                    # noqa: BLE001
+                pass
+            if st is not None:
+                v = run("verify",
+                        {"checks": [{"entity_id": verdict_eid, "expect_state": st}]},
+                        check="verify and get_states agree — two tools, one truth")
+                if v is not None and not v.get("all_pass"):
+                    results[-1]["ok"] = False
+                    results[-1]["summary"] = ("verify DISAGREED with get_states "
+                                              "on the same entity — defect")
+    if not rooms:
+        # No committed rooms yet: the room tools still answer honestly.
+        for tool in ("room_status", "room_health", "usage_history",
+                     "room_read", "area_entities"):
+            run(tool, {"area_id": "none"},
+                check="no committed rooms — an honest refusal is the pass")
+        run("get_states", {"entity_ids": ["sensor.proos_home_summary"]},
+            check="the home summary sensor")
+        run("verify", {"checks": []}, check="an empty check set")
+
+    ok = all(r["ok"] for r in results) and not guard.write_attempts
+    return {"ok": ok, "ran": len(results),
+            "passed": sum(1 for r in results if r["ok"]),
+            "write_attempts": list(guard.write_attempts),
+            "skipped_reads": list(guard.refused_reads),
+            "read_only": "enforced in code — every write refused and recorded",
+            "results": results,
+            "note": ("each row's answer should match what you can see with "
+                     "your own eyes; a row that doesn't is a defect — report "
+                     "the row, not a feeling")}
+
+
 def test_provider() -> dict:
     """One tiny round-trip to prove the key + model work. Tech-gated route."""
     cfg = load_config()
