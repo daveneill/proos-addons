@@ -114,6 +114,27 @@ def rooms():
     return sorted(seen)
 
 
+def clear():
+    """Factory-reset hook (register 115). The journal is the OLD home's diary
+    — room names, media titles, every verdict — and a fresh commission must
+    not inherit it. Dave, 12 Aug: "a factory reset should be clearing all
+    this detail." It survived every reset until now because it is a DIRECTORY
+    of .jsonl files, invisible to the /data *.json wipe. Wipes the files AND
+    the in-memory rings; the live bus stays up so open Pro clients simply see
+    an empty log, not a dropped connection."""
+    with _lock:
+        _rings.clear()
+    try:
+        for fn in os.listdir(JOURNAL_DIR):
+            if fn.endswith(".jsonl"):
+                try:
+                    os.remove(os.path.join(JOURNAL_DIR, fn))
+                except OSError:
+                    pass
+    except OSError:
+        pass
+
+
 def merged(limit=300):
     """THE MASTER LOG (register 112). Every room's recent events — including
     'service', the assistant's audit trail — as ONE stream, newest first.
