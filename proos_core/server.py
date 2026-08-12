@@ -5133,10 +5133,18 @@ class Handler(BaseHTTPRequestHandler):
                 # WHERE the person is asking from. A request without a room is
                 # only answerable by interrogation; with one, "the lights"
                 # means the lights in front of them.
+                # CONFIDENCE TRAVELS WITH THE ROOM. A microphone knows its room
+                # by definition; an app does not. The caller says which it is,
+                # and anything that is not explicitly "certain" is treated as a
+                # guess — so a hurried caller gets the safe form, not the
+                # permissive one. (Register 103.)
                 where = {}
                 aid = (b.get("area_id") or b.get("area") or "").strip()
                 if aid:
                     where["area_id"] = aid
+                    where["confidence"] = ("certain"
+                                           if b.get("area_confidence") == "certain"
+                                           else "probable")
                     try:
                         for a in (_client.area_registry() or []):
                             if a.get("area_id") == aid:
