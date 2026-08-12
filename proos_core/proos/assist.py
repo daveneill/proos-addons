@@ -2568,6 +2568,77 @@ class ToolRunner:
 
 # ── system prompt ────────────────────────────────────────────────────────────
 
+def _room_contents(client, project_mod, aid):
+    """EVERYTHING in the room, from BOTH halves of the commissioning.
+
+    Register 108 — the Bedroom bug, hours after the Office fix. Assist said
+    "the Bedroom doesn't have a Netflix-capable device" in a room whose record
+    holds a TV, an Apple TV and a Shield. The inventory I shipped that morning
+    read only `roomdevices.available()`, which EXCLUDES media_player by design
+    ("AV power/routing is the committed activity's job") — and I declared that
+    partial list COMPLETE. The model then reasoned correctly from a false fact.
+
+    The room genuinely has two halves, owned by two stores:
+      - AV, with roles, in the project record (display/sources/audio/…)
+      - everything else in roomdevices (lights, blinds, climate, fans, locks)
+    A "complete" inventory must merge both. Returns None when NEITHER half can
+    be read — unknown is not zero, and nothing false is claimed."""
+    out, seen, have = [], set(), False
+    try:
+        areas = (project_mod.load() or {}).get("areas") or {}
+        rec = next((r for r in areas.values()
+                    if (r or {}).get("area_id") == aid), None)
+        if rec is not None:
+            have = True
+            av = []
+            if rec.get("display"):
+                av.append((rec["display"], "display"))
+            for e in (rec.get("sources") or []):
+                av.append((e, "source"))
+            for e in (rec.get("tvaudio") or []):
+                av.append((e, "tv audio"))
+            for e in (rec.get("speakers") or []):
+                av.append((e, "speaker"))
+            for e in (rec.get("audio") or []):
+                av.append((e, "audio"))
+            if rec.get("avswitch"):
+                av.append((rec["avswitch"], "switcher"))
+            ids = [e for e, _ in av if e not in seen]
+            names = {}
+            try:
+                snap = client.snapshot(ids) or {}
+                for e in ids:
+                    names[e] = ((snap.get(e) or {}).get("attributes") or {})                         .get("friendly_name")
+            except Exception:                                    # noqa: BLE001
+                pass
+            for e, role in av:
+                if e in seen:
+                    continue
+                seen.add(e)
+                out.append({"domain": e.split(".", 1)[0] if "." in e else "media_player",
+                            "name": names.get(e)
+                            or e.split(".")[-1].replace("_", " ").title(),
+                            "role": role})
+    except Exception:                                            # noqa: BLE001
+        pass
+    try:
+        from . import roomdevices
+        avail = roomdevices.available(client, aid)
+        if avail is not None:
+            have = True
+            for d in avail:
+                e = d.get("entity_id")
+                if e and e in seen:
+                    continue
+                if e:
+                    seen.add(e)
+                out.append({"domain": d.get("domain"),
+                            "name": d.get("name") or e})
+    except Exception:                                            # noqa: BLE001
+        pass
+    return out if have else None
+
+
 def _where_prompt(where: dict) -> str:
     """Tell the model WHERE the person is standing, AND HOW SURE WE ARE.
 
@@ -2608,14 +2679,26 @@ def _where_prompt(where: dict) -> str:
         if items:
             by = {}
             for d in items:
-                by.setdefault(d.get("domain") or "other", []).append(
-                    d.get("name") or "?")
+                nm = d.get("name") or "?"
+                if d.get("role"):
+                    nm += " (%s)" % d["role"]
+                by.setdefault(d.get("domain") or "other", []).append(nm)
             parts = ["%s: %s" % (dom, ", ".join(ns[:6])
                                  + (" +%d more" % (len(ns) - 6) if len(ns) > 6 else ""))
                      for dom, ns in sorted(by.items())]
-            inv = ("IN THIS ROOM (the complete list — a device type not listed "
-                   "is NOT in this room, say so rather than acting): "
-                   + "; ".join(parts) + ".\n")
+            # A HINT TO VERIFY, NEVER GOSPEL (register 108). The first
+            # version said "the complete list — a device type not listed is
+            # NOT in this room, say so rather than acting" — and that line
+            # instructed the model to skip its own verification. It obeyed,
+            # and told Dave the Bedroom had no Netflix device while the record
+            # held an Apple TV and a Shield. Injected context must inform the
+            # model's reasoning, not forbid it: confirm-don't-assume applies
+            # to Assist's own inputs too.
+            inv = ("IN THIS ROOM (what the commissioning knows): "
+                   + "; ".join(parts) + ". If they ask for something NOT in "
+                   "this list, do not assume either way — VERIFY with "
+                   "rooms_overview or area_entities first, then say what you "
+                   "actually found.\n")
         else:
             inv = ("THIS ROOM HAS NO CONTROLLABLE DEVICES assigned yet — "
                    "nothing here can be switched, so say that.\n")
@@ -3088,14 +3171,10 @@ def chat(client, ws_call, project_mod, user: dict, text: str,
     # roomdevices.available() list that area_entities and area_control read.
     if where and where.get("area_id"):
         try:
-            from . import roomdevices
-            avail = roomdevices.available(client, where["area_id"])
-            if avail is not None:
+            contents = _room_contents(client, project_mod, where["area_id"])
+            if contents is not None:
                 where = dict(where)
-                where["contents"] = [
-                    {"domain": d.get("domain"),
-                     "name": d.get("name") or d.get("entity_id")}
-                    for d in avail]
+                where["contents"] = contents
         except Exception:                                        # noqa: BLE001
             pass                       # unknown stays unknown — never invented
 
