@@ -3366,6 +3366,25 @@ class Handler(BaseHTTPRequestHandler):
             if parts == ["assist", "status"]:
                 # any signed-in user may ask whether the AI assistant is on
                 return self._send(200, _assist.status() if _assist else {"enabled": False})
+            if parts == ["assist", "proof"]:
+                # THE PROOF RUN (register 111). Dave: "I believe what I can
+                # test." Every READ tool runs live, read-only BY CONSTRUCTION
+                # (the guard refuses and records any write), and each answer
+                # sits beside what the installer can check with their own
+                # eyes. Installer/owner/tech only — it is a Pro instrument.
+                if not _assist:
+                    return self._send(503, {"error": "assist module not loaded"})
+                u = getattr(self, "_user", None)
+                if not (u and (u.get("is_admin") or u.get("is_owner")
+                               or (users and users.is_tech(u.get("id"))))):
+                    return self._send(403, {"error": "installer access required"})
+                uinfo = {"id": u.get("id"), "name": u.get("name"),
+                         "is_admin": bool(u.get("is_admin")),
+                         "is_owner": bool(u.get("is_owner")),
+                         "tech": bool(users and users.is_tech(u.get("id")))}
+                return self._send(200, _assist.proof_run(
+                    _client, project, uinfo, ma=_ma,
+                    awareness=_assist_awareness()))
             if len(parts) == 4 and parts[0] == "apps" and parts[1] == "art" and parts[2] == "tile":
                 # THE tile pack: curated graphics shipped with the product plus
                 # Tech Tools uploads, matched by slug/alias.
