@@ -5120,8 +5120,17 @@ class Handler(BaseHTTPRequestHandler):
                 if not u:
                     return self._send(401, {"error": "sign in required"})
                 b = self._body() or {}
+                # THE WHOLE LADDER TRAVELS (register 106). This dict used to
+                # drop is_owner, so _tier() could never return "owner" through
+                # chat — the audit's D2. An owner was silently an installer,
+                # and any future owner-only capability would have failed
+                # without a symptom. Dave's tiers (developer > tech >
+                # installer > homeowner) only mean anything if the identity
+                # arrives intact; the filtering happens in _TOOL_GATES, never
+                # by losing who is asking.
                 uinfo = {"id": u.get("id"), "name": u.get("name"),
                          "is_admin": bool(u.get("is_admin")),
+                         "is_owner": bool(u.get("is_owner")),
                          "tech": bool(users and users.is_tech(u.get("id")))}
                 global _ASSIST_HOME_NAME
                 try:
