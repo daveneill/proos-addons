@@ -2529,22 +2529,51 @@ class ToolRunner:
 # ── system prompt ────────────────────────────────────────────────────────────
 
 def _where_prompt(where: dict) -> str:
-    """Tell the model WHERE the person is standing.
+    """Tell the model WHERE the person is standing, AND HOW SURE WE ARE.
 
     Without this every bare request is a guessing game: "turn the lights off"
     has no answer, so the assistant either interrogates the user or picks a
     room at random. A person speaking in their kitchen means the kitchen, and
     an assistant that has to ask is the thing that makes it feel like software
-    rather than a house that understands you."""
+    rather than a house that understands you.
+
+    BUT CONFIDENCE IS PART OF THE FACT. This prompt was written for a
+    MICROPHONE, where the room is certain by definition — a satellite in the
+    bedroom is in the bedroom. An APP is not: a phone can be anywhere. Sending
+    a guessed room in the permissive form would turn a guess into a confident
+    action in the wrong room, which is the one failure a house assistant may
+    never have.
+
+    So callers must say how sure they are, and only "certain" earns the right
+    to act unasked:
+
+      certain   the room whose page is open, or a panel pinned at install
+      probable  presence, a stale sticky choice, anything inferred
+      (absent)  say nothing; Assist asks, and the answer is the consent
+
+    THE DEFAULT IS THE CAUTIOUS ONE. A caller that forgets to say gets
+    "probable", because the mistake a hurried caller makes must be the safe
+    one. (Dave, 12 Aug: "if it can't confirm then it asks — which then confirms
+    and provides consent.")"""
     if not where or not where.get("area_id"):
         return ""
     name = where.get("area_name") or where.get("area_id")
+    aid = where.get("area_id")
+    if where.get("confidence") == "certain":
+        return (
+            "\nWHERE THEY ARE: %s (area_id '%s'). Anything said without naming a room means "
+            "THIS room — 'the lights', 'in here', 'turn it off', 'play something'. Act on %s "
+            "without asking which room. Only ask when they name no room AND the request "
+            "genuinely cannot apply here. If they name a different room, use that one.\n"
+            % (name, aid, name))
     return (
-        "\nWHERE THEY ARE: %s (area_id '%s'). Anything said without naming a room means "
-        "THIS room — 'the lights', 'in here', 'turn it off', 'play something'. Act on %s "
-        "without asking which room. Only ask when they name no room AND the request "
-        "genuinely cannot apply here. If they name a different room, use that one.\n"
-        % (name, where.get("area_id"), name))
+        "\nWHERE THEY MIGHT BE: %s (area_id '%s') — this is a GUESS, not something "
+        "they told us. Treat a bare request as PROBABLY about %s, but CONFIRM before "
+        "acting: name the room in your question, e.g. 'in the %s?'. Their answer is "
+        "both the confirmation and the go-ahead, so one question is enough — do not "
+        "ask twice. Reading and diagnosing need no confirmation; only acting does. "
+        "If they name a different room, use that one.\n"
+        % (name, aid, name, name))
 
 
 def _system_context(user: dict, where: dict | None = None) -> str:
