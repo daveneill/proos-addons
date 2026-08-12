@@ -1713,6 +1713,26 @@ def factory_reset(clear_proos_data=False, keep_auth=False):
             out["wiped"].append("watcher_audit")
     except Exception as e:  # noqa: BLE001
         out["errors"].append("watcher_audit: %s" % e)
+    # The event journal is the OLD home's diary — room names, media titles,
+    # every verdict. It survived every reset until today (register 115, Dave:
+    # "a factory reset should be clearing all this detail"): a DIRECTORY of
+    # .jsonl files, invisible to the /data *.json wipe. The Master Log made
+    # the residue visible — dead rooms from months ago in the selector.
+    try:
+        if _journal_mod is not None:
+            _journal_mod.clear()
+            out["wiped"].append("journal")
+    except Exception as e:  # noqa: BLE001
+        out["errors"].append("journal: %s" % e)
+    # Open Assist→Pro flags name the old home's devices; same residue class.
+    try:
+        _fp = os.path.join(os.environ.get("PROOS_DATA_DIR", "/data"),
+                           "assist_flags.json")
+        if os.path.exists(_fp):
+            os.remove(_fp)
+            out["wiped"].append("assist_flags")
+    except Exception as e:  # noqa: BLE001
+        out["errors"].append("assist_flags: %s" % e)
     try:
         _sv("POST", "/core/stop", timeout=120)
     except Exception as e:  # noqa: BLE001
