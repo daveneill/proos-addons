@@ -114,6 +114,23 @@ def rooms():
     return sorted(seen)
 
 
+def merged(limit=300):
+    """THE MASTER LOG (register 112). Every room's recent events — including
+    'service', the assistant's audit trail — as ONE stream, newest first.
+
+    Dave, 12 Aug: the per-room Evidence Timeline "makes sense to me…
+    build a filtered master log that shows everything." This is the one
+    mechanism behind that surface: the same journals the room pages read,
+    merged and sorted. Filtering is presentation — it happens on the glass,
+    never here, so every surface filters the same truth."""
+    limit = max(1, min(int(limit or 300), 1000))
+    evs = []
+    for rm in rooms():
+        evs.extend(read(rm, limit=min(limit, 300)))
+    evs.sort(key=lambda e: e.get("ts") or 0, reverse=True)
+    return evs[:limit]
+
+
 # ── live bus (SSE fan-out + multi-device presence) ─────────────────────────
 def subscribe():
     q = queue.Queue(maxsize=500)
