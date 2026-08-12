@@ -2615,6 +2615,21 @@ class Handler(BaseHTTPRequestHandler):
                 if _journal_mod is None:
                     return self._send(503, {"error": "journal unavailable"})
                 return self._send(200, {"rooms": _journal_mod.rooms()})
+            if parts == ["journal", "master"]:
+                # THE MASTER LOG (register 112): every room's journal plus the
+                # service journal (Assist's audit trail), one stream, newest
+                # first. The route serves the truth once; filtering is the
+                # glass's job so every surface filters the same stream.
+                if _journal_mod is None:
+                    return self._send(503, {"error": "journal unavailable"})
+                q = parse_qs(urlparse(self.path).query)
+                try:
+                    lim = int((q.get("limit") or ["300"])[0])
+                except ValueError:
+                    lim = 300
+                return self._send(200, {"events": _journal_mod.merged(lim),
+                                        "rooms": _journal_mod.rooms(),
+                                        "ts": time.time()})
             if parts == ["commission", "options"]:
                 # Zero-free-text commissioning: serve each room's pickers from
                 # the devices' OWN reported facts (display source_list, AVR
