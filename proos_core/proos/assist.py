@@ -342,7 +342,12 @@ TOOLS = [
                     "one does, you get {needs_choice, options:[{entity_id,name}]} — ASK the user "
                     "which device, then call again with `device` set to their chosen entity_id. If "
                     "the app isn't anywhere you get the available list — say so, don't guess. Make "
-                    "sure the display is ON first (run the room's watch activity). Verify after.",
+                    "sure the display is ON first (run the room's watch activity). Judge the OUTCOME "
+                    "by the room's verdict sensor (rooms_overview: verdict_sensor), NEVER by the "
+                    "device's raw state: many streamers cannot see which app is on screen, so their "
+                    "state can sit at 'idle' while Netflix plays — raw 'idle' is not evidence of "
+                    "failure. If the verdict and a raw state disagree, ask the user what is ON THE "
+                    "SCREEN — their answer settles it.",
      "input_schema": {"type": "object", "properties": {
          "area_id": {"type": "string"},
          "app": {"type": "string", "description": "app name, e.g. 'Netflix'"},
@@ -360,7 +365,12 @@ TOOLS = [
     {"name": "verify",
      "description": "AFTER acting, verify reality: each check compares an entity's live state to "
                     "what you expect. Report failures honestly to the user — never claim success "
-                    "on a command echo.",
+                    "on a command echo. But a failed check is ONE WITNESS, not a verdict: a "
+                    "media_player's driver may be UNABLE to see what you asked about (app playback "
+                    "especially — some sit at 'idle' while the screen plays). Before reporting an "
+                    "AV failure, read the room's verdict sensor; if it says the activity is "
+                    "running, believe it — or ask the user what they SEE, which outranks every "
+                    "sensor.",
      "input_schema": {"type": "object", "properties": {
          "checks": {"type": "array", "items": {"type": "object", "properties": {
              "entity_id": {"type": "string"},
@@ -1059,6 +1069,19 @@ class ToolRunner:
         res = appctl.launch(self.client, self.project, aid, app, device=(args.get("device") or "").strip() or None)
         if res.get("ok"):
             self._audit("app_launch", app=res.get("launched"), device=res.get("device"), area=aid)
+            # The Bedroom bug (12 Aug, register 109): the launch WORKED, the
+            # verdict sensor said 'watching Apple TV' — and Assist reported a
+            # failure because the streamer's driver sat at 'idle' (it cannot
+            # see app playback). The result must carry the fact the model
+            # needs at the moment it needs it: which witness to believe.
+            res["verify_by"] = "sensor.proos_activity_%s" % aid
+            res["note"] = ("launched. Judge the outcome by the room's verdict sensor "
+                           "(verify_by above) — this device's raw state may sit at 'idle' "
+                           "or 'off' while the app plays, because many streamer drivers "
+                           "cannot see what is on screen. Raw state here is NOT evidence "
+                           "of failure. If the verdict says the room is watching this "
+                           "device, it worked; if you still doubt, ask the user what is "
+                           "on the screen — their answer settles it.")
         return res
 
     def t_device_control(self, args):
@@ -1509,7 +1532,15 @@ class ToolRunner:
                       if not r["pass"] and (r["entity_id"] or "").split(".")[0] in self._SLOW_DOMAINS]
         if slow_fails:
             out["note"] = ("these devices still hadn't confirmed after %ds of waiting — "
-                           "genuinely investigate before reporting a failure" % self._VERIFY_WAIT)
+                           "genuinely investigate before reporting a failure. A raw state "
+                           "is ONE witness, and for media players it may be a witness that "
+                           "CANNOT SEE the answer: some streamer drivers sit at 'idle' while "
+                           "an app plays. Investigate means: read the room's verdict sensor "
+                           "(sensor.proos_activity_<area_id>, listed in rooms_overview) — if "
+                           "it shows the activity running, the room is working and this state "
+                           "is the driver's blindness, not a failure — and when witnesses "
+                           "disagree, ask the user what they SEE on the screen; their answer "
+                           "outranks every sensor." % self._VERIFY_WAIT)
         return out
 
     # -- music (phase 2) ----------------------------------------------------
@@ -2898,7 +2929,13 @@ def _system_doctrine(user: dict, home_name: str) -> str:
         "failed, say so plainly and offer the fix. verify already WAITS for slow-reporting AV "
         "gear (TVs, AVRs, streamers take up to ~15s to confirm) and treats off/standby as the "
         "same thing — so trust its verdict, don't re-check early yourself, and NEVER tell the "
-        "user something is 'still on' unless verify failed after its wait.\n"
+        "user something is 'still on' unless verify failed after its wait. A FAILURE must be "
+        "as earned as a success: a device's raw state is ONE witness, not the machine — some "
+        "streamer drivers cannot see which app is on screen and sit at 'idle' while it plays. "
+        "The room's verdict sensor is the committed answer to 'what is this room doing'; when "
+        "a raw state disagrees with it, the verdict wins. And the user's own eyes outrank "
+        "both: before announcing a failure they can refute by looking up, ask what they SEE — "
+        "the same confirm-don't-assume you owe their requests, you owe your own claims.\n"
         "7. CONFIRM, don't assume. Ambiguity → ask ONE short question. When the user names a "
         "scene, find it with scenes_list (it shows each scene's room and contents) — if it isn't "
         "where you expected, say what you found and confirm before touching it; never guess a "
