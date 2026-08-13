@@ -111,10 +111,21 @@ def playing_info(devs, snap, source_fallback=None):
         if role != "source" and str(_attr(snap, eid, "source")) == "TV" \
                 and not display_lit:
             return None
-        station = _ok(_attr(snap, eid, "media_channel")) \
-            or _ok(_attr(snap, eid, "app_name"))
         title = _ok(_attr(snap, eid, "media_title"))
         artist = _ok(_attr(snap, eid, "media_artist"))
+        # A real channel is content; the APP NAME is only sometimes.
+        # Dave, 14 Aug (register 137): "HomePods seem to say AirMusic — this is
+        # not required, needs to just be like Sonos: just the media info." A
+        # speaker fed by AirPlay reports app_name 'AirMusic' — the name of the
+        # phone app doing the SENDING. That is plumbing, and a Sonos never says
+        # it. By ROLE, not by brand: on a video SOURCE the app IS the service
+        # worth naming ("Stranger Things on Netflix"); on a speaker it is just
+        # the sender, so it speaks only when it is all we have.
+        station = _ok(_attr(snap, eid, "media_channel"))
+        if not station:
+            app = _ok(_attr(snap, eid, "app_name"))
+            if app and (role == "source" or not title):
+                station = app
         # INPUT ECHO is not content (Dave, 3 Aug: a Sonos relaying TV audio
         # titles itself "TV"/"TV Audio"; a Samsung says "HDMI 2"). A part equal
         # to / extending the device's OWN source name is the input echoing back,
