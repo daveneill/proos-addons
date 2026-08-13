@@ -146,6 +146,46 @@ def save_genres(names):
 
 
 # ── the unlink ─────────────────────────────────────────────────────────────
+def provision_steps(installed):
+    """The work to bring ProOS Music up, decided by what the box ALREADY HAS.
+
+    Dave, 14 Aug 2026: "Stuck on this page trying to start — tried multiple
+    times." The old provisioner ran one fixed sequence ending in start, and
+    always tried to INSTALL first. On his box the add-on was already installed
+    and merely stopped, so the install failed, the exception escaped, and the
+    START WAS NEVER REACHED — every retry took the same doomed path while the
+    Supervisor started that same add-on first time when asked directly
+    (register 136).
+
+    Two rules, both testable by calling this:
+      * an installed box does no store work and no install — boot, then start
+      * START IS ALWAYS LAST AND ALWAYS REQUIRED; every other step is
+        best-effort and may not abort the run. Starting must never be the
+        casualty of a step that did not matter.
+
+    Pure: returns the plan, executes nothing.
+    """
+    steps = []
+    if not installed:
+        steps.append({"step": "repo", "method": "POST",
+                      "paths": ["/store/repositories"], "timeout": 120,
+                      "required": False})
+        steps.append({"step": "reload", "method": "POST",
+                      "paths": ["/store/reload"], "timeout": 180,
+                      "required": False})
+        steps.append({"step": "install", "method": "POST",
+                      "paths": ["/store/addons/{slug}/install",
+                                "/addons/{slug}/install"],
+                      "timeout": 1800, "required": False})
+    steps.append({"step": "boot", "method": "POST",
+                  "paths": ["/addons/{slug}/options"], "timeout": 60,
+                  "required": False})
+    steps.append({"step": "start", "method": "POST",
+                  "paths": ["/addons/{slug}/start"], "timeout": 180,
+                  "required": True})
+    return steps
+
+
 def present():
     """Which of ProOS's MA stores exist right now."""
     return [n for n in STORES if os.path.exists(_path(n))]
