@@ -5612,29 +5612,36 @@ def _ma_provision():
     ProHost watches /integrations (installed→running) for progress. Best-effort:
     each step is logged, and an already-present repo/add-on is not an error.
     """
-    try:
-        try:
-            _sv("POST", "/store/repositories", {"repository": MA_ADDON_REPO}, timeout=120)
-        except Exception:
-            pass  # already registered
-        try:
-            _sv("POST", "/store/reload", None, timeout=180)
-        except Exception:
-            pass
-        # Install: newer Supervisors expose /store/addons/{slug}/install; older
-        # ones /addons/{slug}/install. Try the store path, fall back.
-        try:
-            _sv("POST", f"/store/addons/{_MA_ADDON_SLUG}/install", None, timeout=1800)
-        except Exception:
-            _sv("POST", f"/addons/{_MA_ADDON_SLUG}/install", None, timeout=1800)
-        try:
-            _sv("POST", f"/addons/{_MA_ADDON_SLUG}/options", {"boot": "auto"}, timeout=60)
-        except Exception:
-            pass
-        _sv("POST", f"/addons/{_MA_ADDON_SLUG}/start", None, timeout=180)
-        print("  MA · install complete (started)", flush=True)
-    except Exception as e:
-        print(f"  MA · install failed: {e}", flush=True)
+    # THE WORK IS DECIDED BY WHAT THE BOX ALREADY HAS (register 136). This ran
+    # one fixed sequence and always tried to INSTALL first; on a box where the
+    # add-on was already installed and merely STOPPED, the install failed, the
+    # exception escaped, and the START WAS NEVER REACHED — Pro sat on
+    # "Starting…" forever and no retry could ever work, while the Supervisor
+    # started that same add-on first time when asked directly. Starting is now
+    # the one REQUIRED step, and it is always last: it can never be the
+    # casualty of a step that did not matter.
+    installed = _addon_state(_MA_ADDON_SLUG) != "unknown"
+    bodies = {"repo": {"repository": MA_ADDON_REPO},
+              "boot": {"boot": "auto"}}
+    for st in mastore.provision_steps(installed):
+        body = bodies.get(st["step"])
+        last = None
+        done = False
+        for p in st["paths"]:
+            try:
+                _sv(st["method"], p.format(slug=_MA_ADDON_SLUG), body,
+                    timeout=st["timeout"])
+                done = True
+                break
+            except Exception as e:                               # noqa: BLE001
+                last = e
+        if not done:
+            if st["required"]:
+                print("  MA · %s failed: %s" % (st["step"], last), flush=True)
+                return
+            print("  MA · %s skipped (%s)" % (st["step"], last), flush=True)
+    print("  MA · %s complete (started)"
+          % ("start" if installed else "install"), flush=True)
 
 
 def _integrations_report():
