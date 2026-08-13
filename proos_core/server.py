@@ -36,6 +36,7 @@ from proos.controller import RoomController
 from proos.monitor import Monitor, check_room
 from proos import commands as _commands
 from proos import unifinet as _unifinet_mod
+from proos import mastore          # ProOS's own state ABOUT Music Assistant
 from proos.watcher import Watcher, discover_watches
 from proos.music import MusicLayer
 from proos.ma import MaCommissioner, MaUnavailable
@@ -711,6 +712,43 @@ def _music_log_tail(lines=400):
         return ""
 
 
+def _music_provider_health(provs):
+    """Attach each music service's PLAYBACK health to its own row.
+
+    Dave, 13 Aug 2026 (register 127): "even if I go into Music services there
+    is no errors". Music Assistant reports no `last_error` for a service whose
+    Web-API half still answers, so a revoked STREAMING credential (Spotify
+    librespot INVALID_CREDENTIALS) left the row looking perfectly healthy.
+    The evidence is the engine's own log, read through the SAME detector the
+    Health card uses — healthmon.provider_stream_faults — so the row and the
+    card cannot hold two opinions about one service. Additive and fail-open:
+    no healthmon, no log or no fault leaves every row exactly as MA sent it."""
+    try:
+        faults = _healthmon_mod.provider_stream_faults(_music_log_tail())
+    except Exception:                                            # noqa: BLE001
+        return provs
+    if not faults:
+        return provs
+
+    def _norm(s):
+        return re.sub(r"[^a-z0-9]", "", str(s or "").lower())
+
+    by_key = {_norm(k): (k, v) for k, v in faults.items()}
+    for p in provs or []:
+        if not isinstance(p, dict):
+            continue
+        hit = by_key.get(_norm(p.get("name"))) or by_key.get(
+            _norm(p.get("domain")))
+        if not hit:
+            continue
+        prov, f = hit
+        w = _healthmon_mod.provider_fault_words(prov, f.get("at"))
+        p["health"] = {"state": "stream_refused", "headline": w["headline"],
+                       "note": w["note"], "fix_here": w["fix_here"],
+                       "at": f.get("at"), "evidence": f.get("line")}
+    return provs
+
+
 def _music_restart():
     """Restart the ProOS Music add-on — the repair for a wedged engine
     (healthmon check #8). Raises on failure so the caller reports honestly."""
@@ -728,7 +766,11 @@ def _addon_state(slug):
         return "unknown"
 
 
-_MA_CONN_FILE = "/data/ma_conn.json"
+# The four stores ProOS keeps ABOUT MA now have ONE definition, in
+# proos/mastore.py — which also owns forget(), the unlink that did not exist
+# until register 134 (Dave: "when we add or remove it, is it really removing
+# everything?" — it was not).
+_MA_CONN_FILE = mastore.path("ma_conn.json")
 
 
 def _load_ma_conn():
@@ -760,7 +802,7 @@ def _save_ma_conn(host, port, token):
 # long-lived token from MA's User Management once; Core then authenticates as
 # that admin for all MA commands. Stored apart from the read conn so it can be
 # rotated/cleared independently.
-_MA_ADMIN_FILE = "/data/ma_admin.json"
+_MA_ADMIN_FILE = mastore.path("ma_admin.json")
 
 
 def _ma_ingress_identity():
@@ -864,7 +906,7 @@ def _save_ma_admin_user(uid, username, display_name):
 # ProOS curates which MA players are real room speakers (vs the TVs/Macs MA
 # auto-discovers). The homeowner dashboard shows only these. Held in ProOS, not
 # MA — no admin write to MA needed.
-_MA_SPEAKERS_FILE = "/data/music_speakers.json"
+_MA_SPEAKERS_FILE = mastore.path("music_speakers.json")
 
 
 def _load_speakers():
@@ -894,7 +936,7 @@ def _save_speakers(ids):
 # household uses; nothing is deleted from the engine, this only decides what is
 # OFFERED. None = never curated, so every genre shows (a fresh box is honest,
 # not empty).
-_MA_GENRES_FILE = "/data/music_genres.json"
+_MA_GENRES_FILE = mastore.path("music_genres.json")
 
 
 def _load_genre_picks():
@@ -3139,7 +3181,11 @@ class Handler(BaseHTTPRequestHandler):
                                         "entries": j.get("entries"),
                                         "error": j.get("error")})
             if parts == ["music", "providers"]:
-                return self._send(200, {"providers": _ma.providers()})
+                # Each row carries its own playback health (register 127):
+                # MA's `last_error` cannot see a revoked STREAMING credential
+                # while the Web-API half still answers.
+                return self._send(200, {"providers": _music_provider_health(
+                    _ma.providers())})
             if parts == ["music", "players"]:
                 return self._send(200, {"players": _ma.players()})
             if parts == ["music", "playlists"]:
@@ -3341,7 +3387,22 @@ class Handler(BaseHTTPRequestHandler):
                 })
             if parts == ["music", "speakers"]:
                 # The curated room-speaker allowlist (None = not curated yet).
-                return self._send(200, {"player_ids": _load_speakers()})
+                # VALIDATED against the live engine (register 134): ids minted
+                # by a PREVIOUS MA instance are dropped and the repair is
+                # persisted, so a stale list can never silently filter the
+                # wrong speakers after a remove/re-add. Unknown is not zero —
+                # if the engine cannot be asked, the list is returned untouched.
+                try:
+                    live = [p.get("player_id") for p in (_ma.players() or [])
+                            if p.get("player_id")]
+                except Exception:                                # noqa: BLE001
+                    live = None                                  # engine down
+                kept, dropped = mastore.validate_speakers(live)
+                if dropped:
+                    print("  MA · dropped %d curated speaker(s) the engine no "
+                          "longer knows: %s" % (len(dropped), ", ".join(dropped)),
+                          flush=True)
+                return self._send(200, {"player_ids": kept, "dropped": dropped})
             if parts == ["backups"]:
                 u = getattr(self, "_user", None)
                 if not (users and u and (u.get("is_admin") or u.get("is_owner")
@@ -4614,7 +4675,21 @@ class Handler(BaseHTTPRequestHandler):
                         _cfg["music_assistant"] = enabled
                 except Exception as e:
                     return self._send(502, {"error": f"could not persist: {e}"})
-                return self._send(200, {"ok": True, "music_assistant": enabled})
+                # TURNING IT OFF FORGETS IT (register 134). Until now nothing
+                # in ProOS cleared its own MA state — the connection, the admin
+                # identity, the curated speaker allowlist and the genre picks
+                # all survived removal and only died at a factory reset. The
+                # allowlist was the trap: player_ids from the OLD instance,
+                # silently filtering the wrong set on the NEXT install. A thing
+                # installers add and remove must add and remove cleanly.
+                cleared = []
+                if not enabled:
+                    cleared = mastore.forget()
+                    if cleared:
+                        print("  MA · unlinked, forgot: %s" % ", ".join(cleared),
+                              flush=True)
+                return self._send(200, {"ok": True, "music_assistant": enabled,
+                                        "forgot": cleared})
             if parts == ["music", "install"]:
                 # Fresh-box provision: register the MA add-on store repo (idempotent),
                 # install the image, set boot=auto, start it. Long-running, so it runs
