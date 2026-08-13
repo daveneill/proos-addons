@@ -860,8 +860,19 @@ def _is_pro(user: dict) -> bool:
 def _slim_state(snap_val) -> dict:
     st = (snap_val or {})
     a = st.get("attributes") or {}
-    return {"state": st.get("state"),
-            "attributes": {k: a.get(k) for k in _ATTR_KEYS if a.get(k) is not None}}
+    out = {"state": st.get("state"),
+           "attributes": {k: a.get(k) for k in _ATTR_KEYS if a.get(k) is not None}}
+    # FRIENDLY WORDS BY CONSTRUCTION (Dave, 13 Aug: "friendly names across the
+    # board, not entities — when Assist is communicating it is also using
+    # friendly words and can't leak by mistake"). Every state payload flows
+    # through here — get_states, rooms_overview members, verify's actuals,
+    # the area_entities fallback — so promoting the NAME to a first-class
+    # field beside the state puts the speakable word in the model's hand at
+    # every surface at once, one mechanism. Never invented: a device with no
+    # friendly_name simply carries none.
+    if a.get("friendly_name"):
+        out["name"] = a.get("friendly_name")
+    return out
 
 
 class ToolRunner:
@@ -1502,6 +1513,10 @@ class ToolRunner:
                     ok = False
                     why.append("%s is %s, expected %s" % (k, got, v))
             results.append({"entity_id": e, "pass": ok,
+                            # The NAME rides beside the id (Dave, 13 Aug): a
+                            # verify sentence must name the device the way the
+                            # home does, never read its entity_id to the user.
+                            "name": cur.get("name"),
                             "actual": cur, "why": "; ".join(why) or "as expected"})
         return results
 
@@ -2962,10 +2977,20 @@ def _system_doctrine(user: dict, home_name: str) -> str:
         "means whatever you just acted on.\n"
         "12. WEATHER (when the home has a provider): answer weather questions from the weather "
         "tool, and let it inform advice — rain coming and covers open, a hot afternoon before "
-        "anyone's home, a cold snap tonight. Mention it when it matters; don't be a forecast bore."
+        "anyone's home, a cold snap tonight. Mention it when it matters; don't be a forecast bore.\n"
+        # Rule 13 moved UP from the homeowner-only suffix (Summary Review,
+        # 13 Aug — Dave: "friendly names across the board, not entities — when
+        # Assist is communicating it is also using friendly words and can't
+        # leak by mistake"). Installers never had this rule (register 119);
+        # it governs SPEECH at every tier. Ids stay legal inside tool calls.
+        "13. SPEAK THE HOME'S WORDS — every tier, installers included. In anything you SAY, "
+        "name rooms, devices and activities the way the home does: the friendly names your "
+        "tools return beside their ids — never an entity id, activity key, area slug or "
+        "integration term. Ids are identity: they stay in tool calls, where they are required, "
+        "and never in speech. If a payload hands you only an id, look up its name (get_states "
+        "carries it) or describe the device plainly instead."
         + ("" if _is_pro(user) else "\nYou are talking with a HOMEOWNER: plain, everyday language "
-           "for everything about the home — name devices the way the home does, never "
-           "integrations, entity ids or platform terms. You may control the home, manage music "
+           "for everything about the home. You may control the home, manage music "
            "and playlists, run checks and — with their ok — recoveries; you cannot commission "
            "devices or rooms. When something is beyond a remote fix, say you'll pass it to their "
            "installer and flag_for_pro.")
