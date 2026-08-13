@@ -310,12 +310,189 @@ def _auth_class(err):
                                 "auth", "forbidden", "401", "403"))
 
 
+# ── the PROVIDER-AUTH class (register 125 → 126, 13 Aug 2026) ───────────────
+# Spotify's streaming credential died server-side: the engine's Web-API half
+# still logged in (browse, search and the queue all worked) while librespot
+# refused EVERY track with INVALID_CREDENTIALS — so play surfaced as the
+# engine's "No playable item found to start playback", and this channel
+# blamed the PLAYER ("an integration fault, not a network one") and offered
+# a reload that cannot resurrect a revoked credential. The class is
+# INFORMATION, not a Spotify scenario: any provider whose streaming half
+# loses auth shows the same split, and the provider is NAMED from the
+# engine's own log line, never hardcoded. Both halves of evidence are
+# required — the command's "no playable item" refusal (the queue FILLED,
+# so browsing works; nothing would stream) AND a recent provider-tagged
+# auth refusal in the engine's log (read via the same MUSIC_LOG hook as
+# check #8; blind is not evidence, so no log means no classification).
+# Branded provider tags are Capitalised ([music_assistant.Spotify]); the
+# engine's own modules are lowercase python paths ([music_assistant.
+# player_queues]) — the tag itself tells the layers apart.
+_NOPLAY_RE = re.compile(r"no playable item", re.I)
+_PROV_TAG_RE = re.compile(r"\[music_assistant\.([A-Z][A-Za-z0-9 _-]*)\]")
+_ANY_TAG_RE = re.compile(r"\[music_assistant\.([A-Za-z0-9 _-]+)\]")
+_AUTH_MARK_RE = re.compile(
+    r"invalid[_ ]credentials|unauthori[sz]ed|not authori[sz]ed|"
+    r"token expired|login failed|credential", re.I)
+# The engine's LATEST word about a service wins: a sign-in it logs AFTER the
+# refusal means the credential was replaced, so the fault is over. Live shape
+# (13 Aug): "[music_assistant.spotify] Successfully logged in to Spotify as
+# Dave" — note the LOWERCASE tag on the success and the Capitalised tag on the
+# stream refusal, both about the same service. Tags are therefore matched
+# case-insensitively, while a service is only ever NAMED from a Capitalised
+# tag (so `[music_assistant.player_queues]` can never become a service).
+_AUTH_OK_RE = re.compile(
+    r"successfully logged in|login successful|successfully authenticated|"
+    r"token refreshed", re.I)
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+PROVAUTH_WINDOW = 15 * 60    # evidence must be current, like WEDGE_WINDOW
+
+
+def _at_words(ts, newest):
+    """The refusal's own clock time in words — "11:05 today", or "11:05 on
+    12 Aug" when it is not from the log's latest day. Read from the LOG's
+    stamps, never from time.time(): the same rule as _wedge_age."""
+    if ts is None:
+        return None
+    if newest is not None and ts.date() == newest.date():
+        return "%02d:%02d today" % (ts.hour, ts.minute)
+    return "%02d:%02d on %d %s" % (ts.hour, ts.minute, ts.day,
+                                   ts.strftime("%b"))
+
+
+def provider_stream_faults(text):
+    """Every music service the ENGINE'S OWN LOG says is refusing to STREAM:
+    {"Spotify": {"ts", "line", "at", "behind"}}. THE one detector — the
+    command-time classifier below, the standing Health card (check #9) and
+    the Music Services row all read this, so the product cannot hold two
+    opinions about one service (register 127).
+
+    Evidence, and nothing else: the service is NAMED from the log's own
+    branded tag (never hardcoded — Tidal, Qobuz or anything else that loses
+    its streaming half is read the same way), the time is the log's own
+    stamp, and a service whose newest word from the engine is a successful
+    sign-in is not reported at all. Blind is not evidence: no text, no
+    claim."""
+    newest = None
+    hits, oks = {}, {}
+    for raw in str(text or "").splitlines():
+        line = _ANSI_RE.sub("", raw).strip()
+        ts = _logstamp(line)
+        if ts is not None and (newest is None or ts > newest):
+            newest = ts
+        m = _ANY_TAG_RE.search(line)
+        if not m:
+            continue
+        key = m.group(1).strip().lower()
+        if _AUTH_OK_RE.search(line):
+            # A sign-in with no readable stamp cannot be proved to be the
+            # LATER word, so it never clears a timestamped refusal.
+            if ts is not None and (key not in oks or ts >= oks[key]):
+                oks[key] = ts
+            continue
+        if not _AUTH_MARK_RE.search(line):
+            continue
+        brand = _PROV_TAG_RE.search(line)
+        if not brand:
+            continue          # the engine's own lowercase modules: plumbing
+        cur = hits.get(key)
+        if cur is None or cur["ts"] is None or ts is None or ts >= cur["ts"]:
+            # The evidence is quoted on the card, so a cut line SAYS it was
+            # cut — the reason lives at the end of a librespot line and a
+            # silent truncation would drop it (bench A1).
+            hits[key] = {"name": brand.group(1).strip(), "ts": ts,
+                         "line": (line if len(line) <= 300
+                                  else line[:300] + " …")}
+    out = {}
+    for key, h in hits.items():
+        ok = oks.get(key)
+        if ok is not None and h["ts"] is not None and ok > h["ts"]:
+            continue          # the engine's latest word is a good sign-in
+        behind = (None if (h["ts"] is None or newest is None)
+                  else (newest - h["ts"]).total_seconds())
+        out[h["name"]] = {"ts": h["ts"], "line": h["line"], "behind": behind,
+                          "at": _at_words(h["ts"], newest)}
+    return out
+
+
+def provider_fault_words(prov, at=None):
+    """The ONE set of words for a service whose streaming half is refused —
+    spoken by the Health card and by the Music Services row alike, so the two
+    surfaces cannot say different things about one fault.
+
+    `fix` is for a reader somewhere else (the Health card names the whole
+    path); `fix_here` is for a reader already standing on the row, where
+    Configure and Remove are the two buttons in front of them. Both are
+    honest about what Configure can and cannot do: it renders the MUSIC
+    ENGINE'S OWN setup form, so a sign-in step exists only where the service
+    offers one — and MA masks a stored secret on read, so a save that is
+    refused leaves remove-and-add as the fix that always works."""
+    when = (" — last at %s" % at) if at else ""
+    return {
+        "headline": "Can browse but not play — the streaming sign-in "
+                    "was revoked",
+        # the headline as a full sentence, for a surface that does not carry
+        # the service's name beside it (a Health card, not a row)
+        "lead": "%s can browse but not play — its streaming sign-in was "
+                "revoked by the service." % prov,
+        "note": "%s's library, search and queues still answer, so nothing "
+                "else looks wrong; the engine was refused on every track it "
+                "tried to stream%s." % (prov, when),
+        "detail": "This is not the speaker and not the network. Only a fresh "
+                  "sign-in restores playback — restarting the music engine "
+                  "or reloading the player cannot, because the credential "
+                  "was revoked at the service's end.",
+        "fix": "Systems → ProOS Music → Music Services → %s → Configure, "
+               "then sign in again and Save. Configure opens the music "
+               "engine's own setup form, so the sign-in step is there only "
+               "where the service offers one — if it is missing, or the save "
+               "is refused, Remove %s and add it back: that wipes the dead "
+               "credential and signs in fresh." % (prov, prov),
+        "fix_here": "Tap Configure and sign in again, then Save. Configure "
+                    "opens the music engine's own setup form, so the sign-in "
+                    "step is there only where the service offers one — if it "
+                    "is missing, or the save is refused, Remove %s and add "
+                    "it back: that wipes the dead credential and signs in "
+                    "fresh." % prov,
+    }
+
+
+def _provider_auth(error):
+    """The provider whose streaming auth is refusing THIS command, or None.
+    Both halves of evidence are still required — the engine's own "no
+    playable item" refusal (which is itself the tell that browsing works:
+    the queue filled, nothing would stream) AND a CURRENT provider-tagged
+    auth refusal in its log. The evidence comes from the one detector above;
+    what belongs here is only the command-time gate and the staleness window.
+    Timestamps compare log-to-log (the box's own clock), never
+    log-to-time.time() — the same rule as _wedge_age."""
+    if not _NOPLAY_RE.search(str(error or "")):
+        return None
+    if MUSIC_LOG is None:
+        return None
+    try:
+        faults = provider_stream_faults(MUSIC_LOG())
+    except Exception:                                            # noqa: BLE001
+        return None
+    best = None
+    for name, f in faults.items():
+        if (best is None or f["ts"] is None
+                or (best[1]["ts"] is not None and f["ts"] >= best[1]["ts"])):
+            best = (name, f)
+    if best is None:
+        return None
+    behind = best[1]["behind"]
+    if behind is not None and behind >= PROVAUTH_WINDOW:
+        return None                    # stale: not THIS failure's evidence
+    return best[0]
+
+
 def note_command_failure(entity, domain, service, error, room="site"):
     # Called by the server when a dashboard reports a failed command.
     now = time.time()
     cid = _iid("command_failed", room, "%s|%s.%s" % (entity, domain, service))
     _cmd_open[cid] = now
     auth = _auth_class(error)
+    prov = None if auth else _provider_auth(error)
     n = sum(1 for t in _cmd_open.values() if now - t < CMD_TTL)
     cause = ("%s refused '%s.%s': %s. " % (entity, domain, service,
              str(error)[:180]))
@@ -324,19 +501,38 @@ def note_command_failure(entity, domain, service, error, room="site"):
                   "integration's account/token lacks the right permission; "
                   "fix the credential (for ProOS Music: the server's "
                   "homeassistant_system user must be Admin), then retry.")
+    elif prov:
+        # The wrong layer got named once (register 125): this is NOT the
+        # player's fault, and a reload cannot address it — so none is
+        # offered for this class (behaviour change, residual in the
+        # register: the honest fix is the provider's sign-in). The words
+        # are the SHARED ones (register 127) so this card and the Music
+        # Services row cannot describe one fault two ways.
+        _w = provider_fault_words(prov)
+        cause += ("That is not the player and not the network: %s The queue "
+                  "filled (browsing and search still work) and %s refused to "
+                  "stream every item, which is what 'No playable item' "
+                  "means. %s Fix: %s"
+                  % (_w["lead"], prov, _w["detail"], _w["fix"]))
     else:
         cause += ("The device looked healthy and refused anyway — an "
                   "integration fault, not a network one.")
     _ensure(cid, {
-        "kind": "command_failed", "room": room, "slug": room,
-        "severity": "critical" if (auth or n >= 3) else "warning",
-        "title": "%s — a command was refused" % room,
+        "kind": "provider_auth" if prov else "command_failed",
+        "room": room, "slug": room,
+        "severity": "critical" if (auth or prov or n >= 3) else "warning",
+        "title": ("%s — %s can browse but not play" % (room, prov)) if prov
+                 else "%s — a command was refused" % room,
         "cause": cause, "subject": entity,
-        "actions": ([] if auth else [{"kind": "reload", "entity": entity,
-                                      "label": "Reload integration"}])})
+        "actions": ([] if (auth or prov)
+                    else [{"kind": "reload", "entity": entity,
+                           "label": "Reload integration"}])})
     # identify AND fix themselves — but only the classes a reload can fix,
     # under the same guardrails as every other heal (auto_heal + cooldown).
-    if (not auth and AUTO_HEAL and CLIENT is not None and _sessmon is not None
+    # provider_auth never heals: a reload cannot resurrect a revoked
+    # credential (healing what cannot heal is noise — same law as auth).
+    if (not auth and not prov and AUTO_HEAL and CLIENT is not None
+            and _sessmon is not None
             and _sessmon.heal_due(_sess, entity, now)):
         try:
             CLIENT._req("POST",
@@ -406,16 +602,19 @@ def _wedge_age(text):
     return (newest - last_warn).total_seconds()
 
 
-def music_wedge_check(now, seen, _first_ts=None):
+def music_wedge_check(now, seen, _first_ts=None, text=None):
     """Open/keep/clear the wedged-engine incident. `_first_ts` overrides the
-    parsed evidence age (the bench pins staleness without faking clocks)."""
+    parsed evidence age (the bench pins staleness without faking clocks).
+    `text` lets the sweep hand over the log it has ALREADY read, so checks #8
+    and #9 share one fetch instead of pulling the add-on log twice a minute."""
     cid = _iid("music_wedged", "site", "proos_music")
-    if MUSIC_LOG is None:
-        return
-    try:
-        text = MUSIC_LOG()
-    except Exception:                                            # noqa: BLE001
-        return                       # blind is not broken — say nothing
+    if text is None:
+        if MUSIC_LOG is None:
+            return
+        try:
+            text = MUSIC_LOG()
+        except Exception:                                        # noqa: BLE001
+            return                   # blind is not broken — say nothing
     try:
         age = _wedge_age(text)
     except Exception:                                            # noqa: BLE001
@@ -453,6 +652,59 @@ def music_wedge_check(now, seen, _first_ts=None):
             print("  [healthmon] music restart failed: %s" % _e, flush=True)
 
 
+# ── 9 · a music service that can browse but not PLAY (Dave, 13 Aug 2026) ────
+# "Just says reload sent and still nothing even if I go into Music services
+# there is no errors !!!!" Register 125 recorded this residual and it was
+# flagged-not-built: a revoked STREAMING credential leaves the Web-API half
+# answering, so MA reports no `last_error`, Pro's Music Services row looked
+# perfectly healthy, and the only surface that could ever name the fault was
+# a Health card someone had to press PLAY to earn.
+#
+# The evidence was there the whole time — the engine's own log — and the
+# sweep already reads it once a minute for check #8. So this costs no extra
+# traffic at all: the same text, read through the same detector, opens the
+# card without anybody trying to play anything.
+#
+# ONE ANSWER PER SERVICE. When a play command has already opened a
+# provider_auth card naming this service, THAT card is the answer — it knows
+# the room the installer just used. This check then stands down (and by
+# leaving its own id out of `seen`, lets the sweep clear a standing card the
+# command has superseded). Two answers to one question is the defect this
+# codebase names as the cause of most of its bugs.
+def provider_stream_check(now, seen, text):
+    """Open/keep the standing 'can browse but not play' card per service,
+    straight from the engine's log. `text` is the log the sweep already
+    read — None means blind, and blind says nothing."""
+    if text is None:
+        return
+    try:
+        faults = provider_stream_faults(text)
+    except Exception:                                            # noqa: BLE001
+        return
+    if not faults:
+        return
+    others = [i for i in incidents() if i.get("kind") == "provider_auth"]
+    for prov, f in faults.items():
+        cid = _iid("provider_auth", "site", prov)
+        if any(i.get("id") != cid and prov in str(i.get("title") or "")
+               for i in others):
+            continue             # the command's own card already says it
+        w = provider_fault_words(prov, f.get("at"))
+        seen.add(cid)
+        _ensure(cid, {
+            "kind": "provider_auth", "room": "site", "slug": "site",
+            "severity": "critical",
+            "title": "%s can browse but not play" % prov,
+            "cause": "%s %s %s Fix: %s The music engine's own words: \"%s\"."
+                     % (w["lead"], w["note"], w["detail"], w["fix"],
+                        f.get("line") or ""),
+            "subject": prov,
+            # No repair button: the fix is a sign-in only the installer
+            # holds, and healing what cannot heal is noise (the same law
+            # as the AUTH class, register 126).
+            "actions": []})
+
+
 # ── scan ────────────────────────────────────────────────────────────────────
 def scan(snapall, project_mod, get_controller, witnesses=None):
     """One pass over every committed room. Mutates the incident set; journals
@@ -471,11 +723,27 @@ def _scan(snapall, project_mod, get_controller, witnesses):
     # 6 · infrastructure first: a dead switch/AP explains everything below it.
     _infra_check(now, snapall, seen)
 
+    # The engine's log, read ONCE for checks #8 and #9 (no extra traffic).
+    _mlog = None
+    if MUSIC_LOG is not None:
+        try:
+            _mlog = MUSIC_LOG()
+        except Exception:                                        # noqa: BLE001
+            _mlog = None             # blind is not broken — say nothing
+
     # 8 · a wedged music engine: alive, "started", and answering nothing
     try:
-        music_wedge_check(now, seen)
+        music_wedge_check(now, seen, text=_mlog)
     except Exception as _e:                                      # noqa: BLE001
         print("  [healthmon] music wedge check failed: %s" % _e, flush=True)
+
+    # 9 · a music service whose STREAMING half is refused — visible without
+    #     waiting for someone to press play (register 127)
+    try:
+        provider_stream_check(now, seen, _mlog)
+    except Exception as _e:                                      # noqa: BLE001
+        print("  [healthmon] provider stream check failed: %s" % _e,
+              flush=True)
 
     # 7 · command-time failures stay open CMD_TTL past the last refusal
     for _cid, _ts in list(_cmd_open.items()):
@@ -565,7 +833,7 @@ def _scan(snapall, project_mod, get_controller, witnesses):
         # 1 · committed entity unavailable / missing
         for eid in committed_eids:
             st = (snapall.get(eid) or {}).get("state")
-            bad = st in (None, "unavailable", "unknown")
+            bad = _dead_state(st)   # shared with verify_after_reload
             cid = _iid("committed_unavailable", slug, eid)
             if bad:
                 seen.add(cid)
@@ -698,7 +966,7 @@ def _scan(snapall, project_mod, get_controller, witnesses):
         # 4 · frozen integration session: network says alive, entity says dead
         for se in src_eids:
             st = (snapall.get(se) or {}).get("state")
-            if st not in ("unavailable", "unknown", "off", None):
+            if not _frozen_state(st):   # shared with verify_after_reload
                 continue
             w = (witnesses or {}).get(se)
             if not w:
@@ -821,10 +1089,12 @@ def _sweep_clears(seen):
 
 
 def _clear(iid):
-    """Clear one RESOLVED incident immediately — a definitive fix already
-    removed its condition, so there's no reason to wait for the next scan.
-    (Uncertain fixes like a reload do NOT call this: recovery isn't guaranteed,
-    so their card stays until a scan confirms the device is actually back.)"""
+    """Clear one RESOLVED incident immediately — its condition has been
+    OBSERVED gone (a definitive fix like a witness bind, or a reload whose
+    outcome verify_after_reload confirmed against the incident's own clear
+    predicate), so there's no reason to wait for the next scan. An
+    unverified fix never calls this: a card clears on observation or not
+    at all (register 126 — confirm, don't assume)."""
     with _lock:
         _load()
         inc = _open.pop(iid, None)
@@ -837,6 +1107,101 @@ def _clear(iid):
                       "title": inc.get("title")})
         journal.broadcast("incidents", {"count": len(_open)})
     return inc
+
+
+# ── verify after repair (Dave, 13 Aug 2026, register 126) ───────────────────
+# "Watch it clear" was an unconfirmed claim: Fix Now sent a reload and the
+# glass promised a recovery nobody had observed — the exact opposite of
+# confirm-don't-assume. The doctrine is diagnose → consent → fix → VERIFY →
+# report, and it binds Pro's buttons exactly as it binds Assist. After the
+# reload, the fix path re-reads the incident's OWN clear condition — the SAME
+# predicate the sweep clears by (shared below, one mechanism) — with the
+# patience t_verify (assist.py) gives slow-reporting domains: an integration
+# may only confirm on its next poll, up to ~15s, re-checked every 2s.
+VERIFY_WAIT = 15
+VERIFY_STEP = 2
+
+
+def _dead_state(st):
+    """committed_unavailable's bad predicate — shared by the sweep and the
+    post-reload verifier, so 'Cleared' means exactly what the sweep means."""
+    return st in (None, "unavailable", "unknown")
+
+
+def _frozen_state(st):
+    """frozen_session's bad predicate — shared the same way. 'off' is still
+    dead here: the witness proved the device alive while the entity slept."""
+    return st in (None, "unavailable", "unknown", "off")
+
+
+def _live_state(client, eid):
+    """One entity's live state, or None when it cannot be read — a missing
+    entity and an unreachable HA answer the same: nothing confirmable."""
+    try:
+        return ((client._req("GET", "/api/states/%s" % eid) or {})
+                .get("state"))
+    except Exception:                                            # noqa: BLE001
+        return None
+
+
+def verify_after_reload(client, inc):
+    """{cleared, note}: what the reload ACTUALLY achieved, checked against
+    the incident's own clear condition. Clears the card only on observation;
+    never claims, never says 'watch it clear'."""
+    kind = inc.get("kind")
+    eid = inc.get("subject")
+    if kind == "command_failed":
+        # This class clears by TIME (CMD_TTL without another refusal) — no
+        # state read can confirm a refusal is gone. The honest next step:
+        return {"cleared": False, "note": (
+            "Didn't clear — a reload can't be confirmed from here: the only "
+            "proof is the command itself. Try the command again; this card "
+            "clears after %d minutes without another refusal."
+            % (CMD_TTL // 60))}
+    if kind == "link_unstable":
+        # Its clear condition is sessmon's drop window — the SAME memory the
+        # sweep reads. A reload cannot rewind history; usually only time can.
+        if _sessmon is not None and not _sessmon.unstable(_sess, eid,
+                                                          time.time()):
+            _clear(inc.get("id"))
+            return {"cleared": True, "note": (
+                "Cleared — the link's drop count is back under the "
+                "threshold, the same test the monitor clears by.")}
+        return {"cleared": False, "note": (
+            "Didn't clear — the reload was sent, but a stable link is only "
+            "proven by time: this clears once the link holds for the rest "
+            "of its %d-minute window."
+            % ((_sessmon.WINDOW_S // 60) if _sessmon is not None else 30))}
+    pred = {"committed_unavailable": _dead_state,
+            "frozen_session": _frozen_state}.get(kind)
+    if pred is None:
+        return {"cleared": False, "note": (
+            "Reload sent. This card has no live state to confirm against "
+            "from here — it clears when the next scan finds the condition "
+            "gone.")}
+    deadline = time.time() + VERIFY_WAIT
+    st = _live_state(client, eid)
+    while pred(st) and time.time() < deadline:
+        time.sleep(VERIFY_STEP)
+        st = _live_state(client, eid)
+    if not pred(st):
+        _clear(inc.get("id"))
+        return {"cleared": True, "note": (
+            "Cleared — the device is reporting again (its state read back "
+            "healthy after the reload, the same test the monitor clears "
+            "by)." if kind == "committed_unavailable" else
+            "Cleared — the integration session is alive again (its state "
+            "read back after the reload, the same test the monitor clears "
+            "by).")}
+    return {"cleared": False, "note": (
+        "Didn't clear — the device is still not reporting %d seconds after "
+        "the reload. Reloading didn't bring it back: check its power and "
+        "network path, or re-commit the room if it was re-added with a new "
+        "id." % VERIFY_WAIT if kind == "committed_unavailable" else
+        "Didn't clear — the session still reads dead %d seconds after the "
+        "reload while the network witness says the device is alive. Check "
+        "the integration's connection to it, or power-cycle the device."
+        % VERIFY_WAIT)}
 
 
 def resolve_action(client, iid, action_kind=None):
@@ -949,9 +1314,15 @@ def resolve_action(client, iid, action_kind=None):
     try:
         client._req("POST", "/api/services/homeassistant/reload_config_entry",
                     {"entity_id": act["entity"]})
-        journal.emit(inc.get("slug", "site"), "repair",
-                     {"incident": iid, "action": "reload",
-                      "entity": act["entity"]})
-        return {"ok": True, "did": "reload", "entity": act["entity"]}
     except Exception as e:
         return {"error": "reload failed: %s" % e}
+    # VERIFY, then report (register 126): the reload is only the attempt —
+    # the answer is the incident's own clear condition, re-read. The repair
+    # journal event records the verdict, not just the try.
+    v = verify_after_reload(client, inc)
+    journal.emit(inc.get("slug", "site"), "repair",
+                 {"incident": iid, "action": "reload",
+                  "entity": act["entity"],
+                  "verified": bool(v.get("cleared"))})
+    return {"ok": True, "did": "reload", "entity": act["entity"],
+            "cleared": bool(v.get("cleared")), "note": v.get("note")}
