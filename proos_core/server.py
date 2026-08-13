@@ -1868,8 +1868,27 @@ def factory_reset(clear_proos_data=False, keep_auth=False):
     #   health_state.json   — health/incident state for devices now gone
     # All three are rebuilt by commissioning or by observation, so clearing
     # them costs nothing and makes the unticked reset a true fresh home.
+    # EVERY PER-SITE STORE, NOT A FAVOURED FEW (register 143). Dave, 14 Aug,
+    # before a rebuild: "make sure non-required items are getting wiped."
+    # Fourteen stores survived an UNTICKED reset — including provisioned.json
+    # and installer_state.json (a fresh box believing it was already
+    # provisioned), tech_users.json (ProOS tech users pointing at HA accounts
+    # the wipe had just deleted) and shortcuts/room_order (stale ids from the
+    # old build). Each is site work, rebuilt by commissioning or observation,
+    # so clearing costs nothing. The nuclear "clear ProOS data" tick was never
+    # the answer either: it globs every /data/*.json, destroying the fleet
+    # catalog and the recovery pointer with them.
     for _fname in ("net_witnesses.json", "music_speakers.json",
-                   "health_state.json"):
+                   "health_state.json",
+                   # the fourteen that used to survive
+                   "music_genres.json", "consent.json", "shortcuts.json",
+                   "room_order.json", "channels.json", "atv_apps.json",
+                   "display_apps.json", "assist_scene_music.json",
+                   "appart_brands.json", "appart_hidden.json",
+                   "appart_origin.json", "appart_removed.json",
+                   "proactive.json", "unifi_curation.json",
+                   "tech_users.json", "installer_state.json",
+                   "provisioned.json", "terminal_audit.log"):
         _p = os.path.join(_pdata, _fname)
         try:
             if os.path.exists(_p):
