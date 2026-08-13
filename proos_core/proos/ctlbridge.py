@@ -151,6 +151,42 @@ def hold_promoted(mem, promoted_state, promoted_label, disp_on):
     return None, None
 
 
+def confirm_due(mem, state, verified, transitioned):
+    """ONE journal event when confirmation ARRIVES (Dave, 13 Aug 2026, on
+    Pro's Health page: the Master Log's verdict row said "off → Watch Apple
+    TV · unconfirmed" while the live room row directly above it said
+    "confirmed". Both were TRUE — the verdict event is written AT TRANSITION
+    TIME, before the witness has testified; the display power / traffic
+    witness confirms seconds later; and nothing ever journaled that arrival,
+    so history understated forever while the live sensor moved on. This
+    closes register 120's question too: confirmation DOES arrive for watch —
+    later than the transition — and until now the journal could not say so.)
+
+    Called every sweep, right after the verdict-journal block. mem['unconf']
+    remembers the one state whose transition went into history unverified.
+    Returns True exactly ONCE per transition — the first sweep the SAME
+    state reads verified — and never for a verdict already verified when it
+    was journaled (nothing to correct), never again on the 2-second
+    republishes (the flag is spent), and never for a state the room has
+    already left. Pure; mutates only mem."""
+    if transitioned:
+        # a fresh verdict was just journaled: remember it only if it went
+        # into history unverified — that is the record a later confirmation
+        # must complete. A verified transition leaves nothing pending.
+        if verified:
+            mem.pop("unconf", None)
+        else:
+            mem["unconf"] = state
+        return False
+    if mem.get("unconf") != state:
+        mem.pop("unconf", None)     # the room moved on; nothing to confirm
+        return False
+    if verified:
+        mem.pop("unconf", None)     # spent: once per transition, ever
+        return True
+    return False
+
+
 def room_devices(rec, snapall):
     """The room's committed device map — ONE builder, one schema (audit
     2 Aug: A1 display-as-source role overwrite, A2 speakers[] dropped,
@@ -1239,6 +1275,29 @@ class ActivityPublisher:
                             "devices": _lit,
                             "provisional": _prov, "label": cs["label"],
                             "inference": _inf_state})
+                except Exception:                            # noqa: BLE001
+                    pass
+                # CONFIRMATION ARRIVES AS ITS OWN EVENT (register 124; Dave,
+                # 13 Aug: history said "unconfirmed" forever while the live
+                # row said "confirmed" — both true, one screen). The verdict
+                # above is written at transition time, before confirmation
+                # has been earned; when it arrives, ONE follow-up event
+                # records it — confirm_due guards once-per-transition, and
+                # never fires for verdicts verified at transition. Same
+                # append-only journal, same never-raises rule.
+                try:
+                    if (_jrnl is not None
+                            and confirm_due(_mem_r, d["state"],
+                                            bool(attrs.get("verified")),
+                                            _prev != d["state"])):
+                        _jrnl.emit(area_slug, "confirmed", {
+                            "activity": d["state"], "label": cs["label"],
+                            # what earned it: the display's power readback
+                            # (cmdstate), else the promoted witness evidence
+                            "witness": ("power" if cs["confirmed"]
+                                        else (d.get("evidence")
+                                              or "witness")),
+                            "evidence": d.get("evidence")})
                 except Exception:                            # noqa: BLE001
                     pass
                 # Causation, pre-computed (2 Aug): an off room coming up on
