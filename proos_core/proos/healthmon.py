@@ -752,6 +752,17 @@ def _scan(snapall, project_mod, get_controller, witnesses):
         else:
             _cmd_open.pop(_cid, None)
 
+    # A WITNESS THAT CANNOT TESTIFY IS NOT A WITNESS (register 146). Judge the
+    # bindings against the live snapshot ONCE, here, so every check below asks
+    # "who can actually testify" rather than "who is listed". Sourcehood is
+    # judged after the loop, when every committed source is known.
+    _wreal, _all_src = dict(witnesses or {}), set()
+    try:
+        from . import netevidence as _netev
+        _wreal = _netev.classify(witnesses or {}, snapall.keys())["real"]
+    except Exception:                                            # noqa: BLE001
+        pass                         # blind is not broken: keep the raw map
+
     proj = project_mod.load() or {}
     for key, rec in (proj.get("areas") or {}).items():
         if not (rec and rec.get("committed")):
@@ -825,6 +836,7 @@ def _scan(snapall, project_mod, get_controller, witnesses):
             se = getattr(a, "source_eid", None)
             if se:
                 src_eids.append(se)
+                _all_src.add(se)
                 if se not in committed_eids:
                     committed_eids.append(se)
             if getattr(a, "provisional", False):
@@ -968,7 +980,7 @@ def _scan(snapall, project_mod, get_controller, witnesses):
             st = (snapall.get(se) or {}).get("state")
             if not _frozen_state(st):   # shared with verify_after_reload
                 continue
-            w = (witnesses or {}).get(se)
+            w = _wreal.get(se)
             if not w:
                 continue
             rate = 0.0
@@ -1019,10 +1031,13 @@ def _scan(snapall, project_mod, get_controller, witnesses):
                             print("  [healthmon] auto-heal frozen reload "
                                   "failed for %s: %s" % (se, _e), flush=True)
 
-        # 5 · witness coverage gap (info) — provider present, source unbound
-        if witnesses is not None and len(witnesses) > 0:
+        # 5 · witness coverage gap (info) — a REAL witness exists somewhere in
+        #     the home, and this source is not one of them. Keyed on the
+        #     bindings that can testify (register 146): when nothing can, the
+        #     home has one honest fault, not one nag per source.
+        if len(_wreal) > 0:
             for se in src_eids:
-                if se in witnesses:
+                if se in _wreal:
                     continue
                 cid = _iid("missing_witness", slug, se)
                 seen.add(cid)
@@ -1038,7 +1053,77 @@ def _scan(snapall, project_mod, get_controller, witnesses):
                                  "label": "Bind witness"}]},
                     quiet=True)
 
+    # 10 · bindings that cannot testify — the SILENT half (register 146)
+    _witness_integrity(seen, snapall, witnesses or {}, _all_src)
+
     _sweep_clears(seen)
+
+
+def _friendly(snapall, eid):
+    """A device's own name, never its entity id. Rule 13 (register 123): every
+    surface speaks the home's words — and an entity id on this card is exactly
+    what made the 14 Aug incident unreadable."""
+    nm = (((snapall.get(eid) or {}).get("attributes") or {})
+          .get("friendly_name") or "").strip()
+    return nm or "a device that is no longer in Home Assistant"
+
+
+def _name_list(names):
+    names = sorted(set(names))
+    if len(names) == 1:
+        return names[0]
+    if len(names) == 2:
+        return "%s and %s" % (names[0], names[1])
+    return "%s and %s" % (", ".join(names[:-1]), names[-1])
+
+
+def _witness_integrity(seen, snapall, witnesses, src_eids):
+    """One card for every traffic-witness binding that cannot testify.
+
+    Dave, 14 Aug 2026, reading three "no network witness" cards after a factory
+    reset: "I thought we sorted this with the shield showing separate google
+    cast." The three cards were honest. The fault was the three rooms that said
+    NOTHING — bound to sensors that had ceased to exist, and counted as covered
+    the whole time. A failure must be as earned as a success (doctrine 6), and
+    a PASS must be earned just as hard.
+    """
+    if not witnesses:
+        return
+    try:
+        from . import netevidence as _netev
+        broken = _netev.classify(witnesses, snapall.keys(), src_eids)["broken"]
+    except Exception:                                            # noqa: BLE001
+        return                       # cannot judge: accuse nothing
+    if not broken:
+        return
+    gone = [_friendly(snapall, s) for s, r in broken.items()
+            if "sensors_missing" in r["reasons"] or "no_sensors" in r["reasons"]]
+    wrong = [_friendly(snapall, s) for s, r in broken.items()
+             if "not_a_source" in r["reasons"]]
+    parts = []
+    if gone:
+        parts.append("%s: bound to network traffic sensors that are no longer "
+                     "in Home Assistant." % _name_list(gone))
+    if wrong:
+        parts.append("%s: bound to a device that is not a source in any "
+                     "committed room, so it can never testify."
+                     % _name_list(wrong))
+    cid = _iid("witness_broken", "site", "witness")
+    seen.add(cid)
+    _ensure(cid, {
+        "kind": "witness_broken", "room": "site", "slug": "site",
+        "severity": "warning",
+        "title": "Traffic witnesses are not working",
+        "cause": " ".join(parts) + " Until these are rebound, ProOS has only "
+                 "each integration's own word for what those devices are "
+                 "doing — so they are no longer counted as confirmed two "
+                 "ways. Turn the network integration's bandwidth sensors back "
+                 "on, then rebind under Systems › Network.",
+        "subject": "witness",
+        # No repair button: the sensors live in another integration's options,
+        # and ProOS does not reach into someone else's settings. Naming the
+        # fault precisely IS the repair path (the AUTH law, register 126).
+        "actions": []})
 
 
 def _ensure(cid, inc, quiet=False):
