@@ -122,6 +122,55 @@ def save_witness(source: str, sensors: list | None, min_rate: float | None) -> d
 
 
 # ---------------------------------------------------------------------------
+# Binding integrity — a witness that cannot testify is not a witness
+# ---------------------------------------------------------------------------
+def classify(witnesses: dict, known_ids=None, source_eids=None) -> dict:
+    """Split a witness map into the bindings that can ACTUALLY testify and the
+    ones that cannot, with the reason recorded.
+
+    Register 146 (Dave, 14 Aug 2026). His box carried six bindings and not one
+    could testify: three named `sensor.*_data_rate_*` entities that no longer
+    exist (the network integration's bandwidth sensors were switched off), and
+    three named the Google Cast twin of a Shield rather than the Android TV
+    entity the room actually commits. Three rooms said "no witness" honestly;
+    the other three were counted as COVERED and said nothing — a surface
+    claiming a power it does not have, in its silent form.
+
+    A binding is real only when
+      * at least one of its sensors exists (one of two surviving still measures
+        traffic — the rate is a sum), and
+      * its key is a source ProOS actually watches, when that list is known.
+
+    BLIND IS NOT BROKEN: with no snapshot (`known_ids` empty) nothing is
+    accused, and with no source list (`source_eids` None) sourcehood is not
+    judged. ProOS does not manufacture a failure out of its own ignorance.
+    """
+    real, broken = {}, {}
+    known = set(known_ids or ())
+    srcs = None if source_eids is None else set(source_eids)
+    for src, rec in (witnesses or {}).items():
+        if not rec:
+            continue                       # tombstone: already not a binding
+        sensors = [s for s in (rec.get("sensors") or []) if s]
+        missing = [s for s in sensors if s not in known] if known else []
+        reasons = []
+        if not sensors:
+            reasons.append("no_sensors")
+        elif known and len(missing) == len(sensors):
+            reasons.append("sensors_missing")
+        if srcs is not None and src not in srcs:
+            reasons.append("not_a_source")
+        out = {"sensors": sensors, "min": float(rec.get("min", 0.25)),
+               "missing": missing}
+        if reasons:
+            out["reasons"] = reasons
+            broken[src] = out
+        else:
+            real[src] = out
+    return {"real": real, "broken": broken}
+
+
+# ---------------------------------------------------------------------------
 # Evidence-based readiness inspection
 # ---------------------------------------------------------------------------
 def _committed_sources(project_mod) -> list:
@@ -193,9 +242,16 @@ def inspect(client, project_mod, option_raw: str = "") -> dict:
     witnesses = load_witnesses(option_raw)
     unifi_sensors = providers.get("unifi", {}).get("traffic_sensors", [])
     sources = _committed_sources(project_mod)
+    # Register 146: judge every binding against what is actually in HA before
+    # reporting coverage. A binding whose sensors are gone is not coverage, and
+    # Pro is told it is BROKEN — not that it was never made, which would send
+    # the installer to bind a witness he already bound.
+    _cl = classify(witnesses, ids, [s["entity"] for s in sources])
+    live = _cl["real"]
     for src in sources:
-        w = witnesses.get(src["entity"])
+        w = live.get(src["entity"])
         src["witness"] = w or None
+        src["broken"] = _cl["broken"].get(src["entity"]) or None
         src["suggested"] = (suggest_sensors(src["entity"], unifi_sensors)
                             if (not w and unifi_sensors) else [])
 
@@ -204,6 +260,7 @@ def inspect(client, project_mod, option_raw: str = "") -> dict:
     return {
         "providers": providers,
         "sources": sources,
+        "broken": _cl["broken"],
         "coverage": {"covered": covered, "total": len(sources)},
         "degraded": (not any_traffic),
         "degraded_note": ("No network evidence provider detected — verdicts rest "
