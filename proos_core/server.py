@@ -578,6 +578,45 @@ def _assist_awareness():
             "recover": _recover, "flag": _flag_add}
 
 
+def ensure_witness_evidence(reason=""):
+    """Turn the certified network provider's traffic sensors back on, then bind
+    every uncovered source — ProOS repairing its own evidence (register 147).
+
+    Dave, 14 Aug 2026: "I said the UniFi is supposed to be auto enabled for
+    Allow bandwidth sensors." A factory reset drops that option (prepare.py has
+    said so in writing since 4 Aug), which zeroes every traffic sensor, which
+    unbinds every witness. This runs where that damage happens — boot, factory
+    reset, and post-commission refresh — so the installer never meets the
+    consequence at all. Never raises; a failure is journalled and the honest
+    Health card stays up.
+    """
+    if _netev_mod is None or _client is None:
+        return {"ok": False, "did": "unavailable"}
+    out = {}
+    try:
+        from proos import prepare as _prep_mod
+        out = _netev_mod.ensure_traffic_sensors(_client, _prep_mod) or {}
+        if out.get("did") == "enabled":
+            print("  [witness] enabled %s traffic sensors (%s)"
+                  % (out.get("provider"), reason or "startup"), flush=True)
+            time.sleep(3)          # let the reloaded entry publish its sensors
+        b = _netev_mod.autobind(
+            _client, project, str(_opt("traffic_witnesses", "") or ""))
+        out["bound"] = b.get("bound") or {}
+        out["uncovered"] = b.get("uncovered") or []
+        if out["bound"] and _journal_mod is not None:
+            _journal_mod.emit("site", "self_heal",
+                              {"action": "witness_autobind",
+                               "count": len(out["bound"]),
+                               "reason": reason or "startup"})
+            print("  [witness] bound %d source(s) automatically"
+                  % len(out["bound"]), flush=True)
+    except Exception as e:                                       # noqa: BLE001
+        print("  [witness] self-heal failed: %s" % e, flush=True)
+        out = {"ok": False, "did": "error", "why": str(e)}
+    return out
+
+
 def apply_auto_reachability():
     """Derive a device-IP reachability map from HA's own registries and merge it
     UNDER the installer's manual `reachability` config (manual always wins), then
@@ -1966,6 +2005,9 @@ def factory_reset(clear_proos_data=False, keep_auth=False):
             # set_watches even when empty so the old list is always cleared.
             try:
                 apply_auto_reachability()
+                # A reset drops the provider's bandwidth-sensor option; turn it
+                # back on and rebind before the installer ever sees a card.
+                ensure_witness_evidence("factory_reset")
                 w = discover_watches(client=_client) or []
                 if _watcher is not None:
                     _watcher.set_watches(w, allow_empty=True)  # force-clear old watches
@@ -4263,6 +4305,7 @@ class Handler(BaseHTTPRequestHandler):
                 # under manual config. Call after commissioning a new device so
                 # its second signal appears without a Core restart.
                 res = apply_auto_reachability()
+                res["witness"] = ensure_witness_evidence("commission")
                 # ...and re-discover the watch list, so a newly-added always-on
                 # device is actually watched too (state of existing watches kept).
                 try:
@@ -5715,6 +5758,7 @@ def main():
     print(f"ProOS Core API  home={_client.home_id}  ha={cfg['base_url']}")
     print(f"  HA says: {_client.ping()}")
     apply_auto_reachability()      # auto device-IP signals, merged under manual config
+    ensure_witness_evidence("boot")   # register 147: turn our own evidence back on
     port = int(cfg.get("port", 8770))
     area = cfg.get("area", "Family Room")
     get_controller(area)
