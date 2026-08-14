@@ -161,8 +161,19 @@ class RestHAClient:
     # flows is WebSocket-only (the REST flow index is POST-only); confirming a
     # flow step is REST again ({} confirms a confirm-only step).
     def config_entries(self, domain: str | None = None) -> list:
-        """Configured integrations (config entries), optionally filtered by domain."""
-        out = self._req("GET", "/api/config/config_entries/entry") or []
+        """Configured integrations (config entries), optionally filtered by domain.
+
+        WEBSOCKET, not REST (register 148). The REST index
+        `/api/config/config_entries/entry` no longer answers a Supervisor-token
+        caller, so this returned an EMPTY LIST rather than an error — and every
+        caller read "no such integration is configured". That is how register
+        147's self-heal reported "no certified provider" on a box whose UniFi
+        entry was sitting right there, loaded. Registry reads already use the
+        WebSocket for exactly this reason; this one had been left behind.
+        """
+        from .ha_ws import ws_command
+        out = ws_command(self.base_url, self._token, "config_entries/get",
+                         timeout=self._timeout) or []
         if domain:
             out = [e for e in out if e.get("domain") == domain]
         return out
