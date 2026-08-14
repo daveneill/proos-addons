@@ -614,6 +614,14 @@ def ensure_witness_evidence(reason=""):
     except Exception as e:                                       # noqa: BLE001
         print("  [witness] self-heal failed: %s" % e, flush=True)
         out = {"ok": False, "did": "error", "why": str(e)}
+    # NEVER SILENT (register 148). The first cut printed only on success, so a
+    # self-heal that found no provider — the exact thing that happened on Dave's
+    # box — said nothing at all, and the log gave no way to tell "nothing to do"
+    # from "could not". A repair that reports nothing is the fault class this
+    # product exists to kill.
+    print("  [witness] self-heal (%s): %s%s"
+          % (reason or "startup", out.get("did") or "?",
+             (" — " + out["why"]) if out.get("why") else ""), flush=True)
     return out
 
 
