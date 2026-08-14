@@ -2336,6 +2336,16 @@ def _watch_rediscover_loop():
     import time as _t
     while True:
         _t.sleep(_WATCH_REDISCOVER_SEC)
+        # Register 149 — Dave: "this needs to be auto enabled WHEN the UniFi
+        # Network Integration is ADDED." Boot is not when that happens. The
+        # provider can appear at any moment, so the check rides the loop that
+        # already watches for new devices: add the integration at 3pm and its
+        # traffic sensors are on within minutes, with no restart and no tap.
+        # ensure_traffic_sensors is a no-op ("already_on") once they exist.
+        try:
+            ensure_witness_evidence("integration_added")
+        except Exception:                                        # noqa: BLE001
+            pass
         try:
             apply_auto_reachability()
             w = discover_watches(client=_client)   # raises on hard failure -> caught below, list kept
