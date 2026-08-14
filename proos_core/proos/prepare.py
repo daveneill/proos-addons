@@ -303,18 +303,29 @@ def audit_room(record, snap, entry) -> dict:
 # recommended ones merged over the top, overriding ONLY fields the form actually
 # renders, so nothing the installer set is disturbed and no field is invented.
 def _schema_defaults(form) -> dict:
-    """{field: current value} for every field in a flow form, recursing into
-    `expandable` groups. HA renders the form from the live entry, so the schema
-    defaults ARE the entry's current values."""
-    out = {}
+    """{field: current value} for a flow form, KEEPING sections nested.
 
-    def walk(fields):
+    Register 149. This used to HOIST the fields of an `expandable` / `section`
+    group up to the top level. HA validates each submitted step against that
+    step's own schema, so a hoisted field is an EXTRA KEY and the whole write is
+    rejected:
+
+        HTTP 400 extra keys not allowed @ data['client_source'],
+                 data['track_wired_clients'], data['ssid_filter'] …
+
+    which is exactly why register 147's self-heal could never turn UniFi's
+    bandwidth sensors on — it found the integration, built a payload HA would
+    always refuse, and reported apply_failed forever. Sections stay in their box.
+    """
+    def walk(fields) -> dict:
+        out = {}
         for f in (fields or []):
-            if f.get("type") == "expandable" and isinstance(f.get("schema"), list):
-                walk(f["schema"])
-                continue
             n = f.get("name")
             if not n:
+                continue
+            if (f.get("type") in ("expandable", "section")
+                    and isinstance(f.get("schema"), list)):
+                out[n] = walk(f["schema"])
                 continue
             if "default" in f:
                 out[n] = f["default"]
@@ -322,8 +333,25 @@ def _schema_defaults(form) -> dict:
                 sv = (f.get("description") or {}).get("suggested_value")
                 if sv is not None:
                     out[n] = sv
-    walk(form.get("data_schema"))
-    return out
+        return out
+    return walk(form.get("data_schema"))
+
+
+def _merge_want(payload: dict, want: dict) -> list:
+    """Override the wanted fields wherever the form renders them — top level or
+    inside a section — and report which ones were actually found. Nothing is
+    ever invented: a field the form does not render is left alone and named."""
+    found = []
+
+    def walk(node):
+        for k, v in list(node.items()):
+            if isinstance(v, dict):
+                walk(v)
+            elif k in (want or {}):
+                node[k] = want[k]
+                found.append(k)
+    walk(payload)
+    return found
 
 
 def apply_recommended(client, entry_id, want) -> dict:
@@ -341,11 +369,15 @@ def apply_recommended(client, entry_id, want) -> dict:
     try:
         if start.get("step_id") != "init":
             raise RuntimeError("unexpected first step %r" % start.get("step_id"))
-        cur = _schema_defaults(start)
-        payload = dict(cur)
-        for k, v in (want or {}).items():
-            if k in cur:                         # override ONLY rendered fields
-                payload[k] = v
+        payload = _schema_defaults(start)
+        found = _merge_want(payload, want)       # override ONLY rendered fields
+        # Skipping a field the form does not render is the old, deliberate
+        # contract (register 82) — it is how this writer can never invent a
+        # setting. But when NOTHING asked for is renderable the write is a
+        # no-op wearing a success, so that case is said out loud.
+        if want and not found:
+            raise RuntimeError("this form offers none of: %s"
+                               % ", ".join(sorted(want)))
         done = client._req("POST", url, payload) or {}
         if done.get("type") != "create_entry":
             raise RuntimeError("HA did not save (type=%r errors=%r)"
