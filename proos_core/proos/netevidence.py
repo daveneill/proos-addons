@@ -191,7 +191,18 @@ def autobind(client, project_mod, option_raw: str = "") -> dict:
         return {"ok": False, "why": str(e), "bound": {}, "uncovered": []}
     rates = rate_sensor_ids(ids)
     sources = [s["entity"] for s in _committed_sources(project_mod)]
-    real = classify(load_witnesses(option_raw), ids, sources)["real"]
+    cl = classify(load_witnesses(option_raw), ids, sources)
+    real = cl["real"]
+    # CLEAN UP OUR OWN CONFIG (register 150). A binding whose key is not a
+    # source in any committed room can never testify — on Dave's box these were
+    # the Google Cast twins of three Shields, left in the bootstrap option. A
+    # card that names them every minute forever is nagging about something ProOS
+    # can fix: tombstone them (which kills the option entry too) and say so.
+    cleared = []
+    for src, rec in (cl["broken"] or {}).items():
+        if "not_a_source" in (rec.get("reasons") or []):
+            save_witness(src, None, None)
+            cleared.append(src)
     bound, uncovered = {}, []
     for src in sources:
         if src in real:
@@ -202,7 +213,8 @@ def autobind(client, project_mod, option_raw: str = "") -> dict:
             continue
         save_witness(src, picks, None)
         bound[src] = picks
-    return {"ok": True, "bound": bound, "uncovered": uncovered}
+    return {"ok": True, "bound": bound, "uncovered": uncovered,
+            "cleared": cleared}
 
 
 # ---------------------------------------------------------------------------
