@@ -1054,7 +1054,24 @@ def _scan(snapall, project_mod, get_controller, witnesses):
                     quiet=True)
 
     # 10 · bindings that cannot testify — the SILENT half (register 146)
-    _witness_integrity(seen, snapall, witnesses or {}, _all_src)
+    #
+    # ONE DEFINITION OF "SOURCE" (register 150). This used to judge a binding
+    # against the ACTIVITY set — the source_eids the controller happens to be
+    # running. That set is a runtime derivative: the controller CLEARS
+    # activities (an AVR-routed room clears its per-source ones), so a device
+    # the installer commissioned as a source could be missing from it. Meanwhile
+    # netevidence binds from the RECORD. Two lists, one question, disagreeing —
+    # so ProOS bound seven witnesses and then accused itself of binding them
+    # wrongly. The record is the commission (entities labelled proos_source);
+    # the record wins, and both sides now read it from the same function.
+    _src_truth = _all_src
+    try:
+        from . import netevidence as _netev2
+        _src_truth = {s["entity"] for s in
+                      _netev2._committed_sources(project_mod)} or _all_src
+    except Exception:                                            # noqa: BLE001
+        pass                       # unreadable record: fall back, accuse less
+    _witness_integrity(seen, snapall, witnesses or {}, _src_truth)
 
     _sweep_clears(seen)
 
