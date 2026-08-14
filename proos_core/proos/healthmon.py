@@ -1065,7 +1065,7 @@ def _friendly(snapall, eid):
     what made the 14 Aug incident unreadable."""
     nm = (((snapall.get(eid) or {}).get("attributes") or {})
           .get("friendly_name") or "").strip()
-    return nm or "a device that is no longer in Home Assistant"
+    return nm or "a device ProOS can no longer see"
 
 
 def _name_list(names):
@@ -1102,8 +1102,8 @@ def _witness_integrity(seen, snapall, witnesses, src_eids):
              if "not_a_source" in r["reasons"]]
     parts = []
     if gone:
-        parts.append("%s: bound to network traffic sensors that are no longer "
-                     "in Home Assistant." % _name_list(gone))
+        parts.append("%s: the network traffic sensors they were bound to no "
+                     "longer exist." % _name_list(gone))
     if wrong:
         parts.append("%s: bound to a device that is not a source in any "
                      "committed room, so it can never testify."
@@ -1114,11 +1114,14 @@ def _witness_integrity(seen, snapall, witnesses, src_eids):
         "kind": "witness_broken", "room": "site", "slug": "site",
         "severity": "warning",
         "title": "Traffic witnesses are not working",
-        "cause": " ".join(parts) + " Until these are rebound, ProOS has only "
+        # No instruction to a control that does not exist (register 147): the
+        # card states the fault and stops. ProOS turns the provider's traffic
+        # sensors on ITSELF at commissioning; if this card is showing, that
+        # self-repair could not run, and saying "go and do it" would send the
+        # installer to a page with no such control.
+        "cause": " ".join(parts) + " Until they can testify, ProOS has only "
                  "each integration's own word for what those devices are "
-                 "doing — so they are no longer counted as confirmed two "
-                 "ways. Turn the network integration's bandwidth sensors back "
-                 "on, then rebind under Systems › Network.",
+                 "doing — so they are no longer counted as confirmed two ways.",
         "subject": "witness",
         # No repair button: the sensors live in another integration's options,
         # and ProOS does not reach into someone else's settings. Naming the
