@@ -122,6 +122,90 @@ def save_witness(source: str, sensors: list | None, min_rate: float | None) -> d
 
 
 # ---------------------------------------------------------------------------
+# Self-heal — ProOS turns its own evidence back on (register 147)
+# ---------------------------------------------------------------------------
+# Dave, 14 Aug 2026: "I said the UniFi is supposed to be auto enabled for Allow
+# bandwidth sensors." The certification table below has always known the option
+# is REQUIRED, prepare.apply_recommended has been able to write it since 5 Aug
+# (it was the option that writer was first proven on), and prepare.py's own
+# docstring lists it as one of the three settings a factory reset drops. Three
+# parts of the product knew, and none of them acted — the installer got a card
+# telling him to go and do it by hand instead.
+def ensure_traffic_sensors(client, prepare_mod) -> dict:
+    """Enable the certified provider's traffic sensors if they are missing.
+
+    OBSERVATION FIRST: if the rate sensors already exist, nothing is touched — a
+    working home is never "repaired". With no certified provider configured,
+    ProOS does nothing and says so rather than inventing a failure.
+    """
+    try:
+        states = client._req("GET", "/api/states") or []
+        ids = [s.get("entity_id", "") for s in states]
+    except Exception as e:                                       # noqa: BLE001
+        return {"ok": False, "did": "unreadable", "why": str(e)}
+    if rate_sensor_ids(ids):
+        return {"ok": True, "did": "already_on"}
+    for dom, facts in PROVIDERS.items():
+        if facts.get("planned") or not facts.get("traffic_sensor_pattern"):
+            continue
+        want = {o["option"]: True for o in facts.get("required_options", [])
+                if o.get("why") == "traffic witnesses"}
+        if not want:
+            continue
+        try:
+            entries = client.config_entries(dom) or []
+        except Exception:                                        # noqa: BLE001
+            entries = []
+        for entry in entries:
+            eid = entry.get("entry_id")
+            if not eid:
+                continue
+            try:
+                prepare_mod.apply_recommended(client, eid, want)
+            except Exception as e:                               # noqa: BLE001
+                # Reported, never swallowed: the honest card stays up.
+                return {"ok": False, "did": "apply_failed", "why": str(e),
+                        "provider": dom}
+            try:
+                client.reload_integration(eid)
+            except Exception:                                    # noqa: BLE001
+                pass
+            return {"ok": True, "did": "enabled", "provider": dom,
+                    "options": sorted(want)}
+    return {"ok": False, "did": "no_provider"}
+
+
+def autobind(client, project_mod, option_raw: str = "") -> dict:
+    """Bind every committed source that has no working witness, automatically.
+
+    DOCTRINE AMENDMENT, stated (register 147): name-token matching may be
+    APPLIED at commissioning, not merely suggested, because the binding is
+    displayed and removable in Systems › Network. The runtime verdict still
+    never name-matches — this is the commissioning boundary, where a human
+    would otherwise be tapping the same suggestion six times.
+    """
+    try:
+        states = client._req("GET", "/api/states") or []
+        ids = [s.get("entity_id", "") for s in states]
+    except Exception as e:                                       # noqa: BLE001
+        return {"ok": False, "why": str(e), "bound": {}, "uncovered": []}
+    rates = rate_sensor_ids(ids)
+    sources = [s["entity"] for s in _committed_sources(project_mod)]
+    real = classify(load_witnesses(option_raw), ids, sources)["real"]
+    bound, uncovered = {}, []
+    for src in sources:
+        if src in real:
+            continue
+        picks = suggest_sensors(src, rates)
+        if not picks:
+            uncovered.append(src)          # never invent a witness
+            continue
+        save_witness(src, picks, None)
+        bound[src] = picks
+    return {"ok": True, "bound": bound, "uncovered": uncovered}
+
+
+# ---------------------------------------------------------------------------
 # Binding integrity — a witness that cannot testify is not a witness
 # ---------------------------------------------------------------------------
 def classify(witnesses: dict, known_ids=None, source_eids=None) -> dict:
