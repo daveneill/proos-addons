@@ -1325,6 +1325,24 @@ def scan(snapall, project_mod, get_controller, witnesses=None):
 
 
 SELF_UPDATE_FN = None    # set by server: () -> this add-on's own update.* entity id, or None
+RUNNING_VERSION = None   # set by server: the version in Core's own config.yaml — what is running
+
+
+def _vt(v):
+    try:
+        return tuple(int(x) for x in str(v).split("."))
+    except Exception:                                            # noqa: BLE001
+        return None
+
+
+def running_is_latest(latest, running=None):
+    """5 Oct 2026, register 681: Dave's box, 14:20-14:32. Core 1.0.826 was running and
+    Health still said "1.0.826 is available, this box runs 1.0.825" for twelve minutes,
+    because the platform's update record had not caught up with the install. Core's own
+    running version is a first-hand reading; when it is already the latest, nothing is
+    waiting. Unreadable either side -> False, and the platform's record stands."""
+    r, l = _vt(running if running is not None else RUNNING_VERSION), _vt(latest)
+    return bool(r and l and r >= l)
 
 
 def find_self_update(devices, entities, slug):
@@ -1355,6 +1373,8 @@ def _update_check(snapall, seen):
         return
     a = row.get("attributes") or {}
     inst, latest = a.get("installed_version"), a.get("latest_version")
+    if running_is_latest(latest):
+        return                     # Core itself runs the latest; the platform's record is behind
     cid = _iid("update_pending", "site", eid)
     seen.add(cid)
     busy = bool(a.get("in_progress"))

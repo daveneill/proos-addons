@@ -3614,7 +3614,8 @@ class _SweepReaders:
         if not eid:
             return None
         row = _client._req("GET", "/api/states/%s" % eid) or {}
-        return dict(row.get("attributes") or {}, last_changed=row.get("last_changed"))
+        return dict(row.get("attributes") or {}, last_changed=row.get("last_changed"),
+                    running=CORE_VERSION)
 
     def phones(self):
         svcs = _client._req("GET", "/api/services") or []
@@ -9016,6 +9017,7 @@ def main():
                     except Exception:                            # noqa: BLE001
                         return None
                 _healthmon_mod.SELF_UPDATE_FN = _self_update_eid
+                _healthmon_mod.RUNNING_VERSION = CORE_VERSION     # register 681
                 _ctlbridge.healthcheck = lambda snap: _healthmon_mod.scan(
                     snap, project, get_controller,
                     (_netev_mod.load_witnesses() if _netev_mod else {}))

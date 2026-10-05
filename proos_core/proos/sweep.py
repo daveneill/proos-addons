@@ -92,9 +92,15 @@ def check_proos(r, now):
             out.append(_item("1b", "ProOS version", UNKNOWN, "the box's update entity for ProOS was not found"))
         else:
             inst, latest = u.get("installed_version"), u.get("latest_version")
-            ok = inst and latest and inst == latest
+            run = u.get("running")
+            try:                                             # register 681: Core's own reading first
+                from proos.healthmon import running_is_latest as _ril
+                run_ok = bool(run) and _ril(latest, run)
+            except Exception:                                # noqa: BLE001
+                run_ok = False
+            ok = run_ok or (inst and latest and inst == latest)
             out.append(_item("1b", "ProOS version", CONFIRMED if ok else PROBLEM,
-                             ("on the latest ProOS (%s)" % inst) if ok
+                             ("on the latest ProOS (%s)" % (run if run_ok else inst)) if ok
                              else ("ProOS %s is available, the box runs %s — already on Health" % (latest, inst)),
                              u.get("last_changed"), ref="update_pending"))
     except Exception as e:                                       # noqa: BLE001
