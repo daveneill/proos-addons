@@ -4454,7 +4454,7 @@ const TOK = CONFIG.ha.token;
 // for home-class faults) would have gone out with no token and 401'd the day
 // PROOS_REQUIRE_AUTH is armed. A latent break, found while wiring the homeowner
 // card. The skip is now EXACT: only the ping itself is public.
-(function(){ const _rf=window.fetch.bind(window); window.fetch=function(u,o){ try{ if(typeof u==='string' && (u.indexOf(':8770')>=0 || u.indexOf(':3000')>=0 || (typeof _proosSelfBase==='function' && _proosSelfBase() && u.indexOf(_proosSelfBase()+'/')===0) || (typeof _proosDoorBase==='string' && _proosDoorBase && u.indexOf(_proosDoorBase+'/')===0)) && !/\/health(\?|$)/.test(u.split('#')[0])){ o=o||{}; o.headers=Object.assign({'Authorization':'Bearer '+((typeof _proToken==='function'&&_proToken())||localStorage.getItem('ha_token')||'')}, o.headers||{}); } }catch(e){} return _rf(u,o); }; })();
+(function(){ const _rf=window.fetch.bind(window); window.fetch=function(u,o){ try{ if(typeof u==='string' && (u.indexOf(':8770')>=0 || u.indexOf(':3000')>=0 || (typeof _proosSelfBase==='function' && _proosSelfBase() && u.indexOf(_proosSelfBase()+'/')===0) || (typeof _proosDoorBase==='string' && _proosDoorBase && u.indexOf(_proosDoorBase+'/')===0)) && !(/\/health(\?|$)/.test(u.split('#')[0]) && !/\/sysadmin\/health(\?|$)/.test(u.split('#')[0]))){ o=o||{}; o.headers=Object.assign({'Authorization':'Bearer '+((typeof _proToken==='function'&&_proToken())||localStorage.getItem('ha_token')||'')}, o.headers||{}); } }catch(e){} return _rf(u,o); }; })();
 // NOTE: /health is deliberately excluded above. It is public (no auth needed), and adding
 // the Authorization header turns it into a CORS-preflighted request. Safari blocks that
 // cross-origin preflight to port 8770 far more readily than Chrome — which made the
@@ -4468,7 +4468,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026100608';
+const PROOS_BUILD='2026100609';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -4508,8 +4508,10 @@ const PROOS_BUILD='2026100608';
 // A LATER CHECK NEVER RELOADS BY ITSELF: the homeowner may be mid-tap, and a
 // page that vanishes under a finger is worse than one that is a build behind.
 // Load time may reload; every check after that raises the banner and waits.
+// 697: the check asks "has it changed?" (cache:'no-cache' on the page's own address) — the platform
+// answers 304 with no body unless it has. It was a fresh 1.3 MB download every 90 s.
 function _dashBuildCheck(auto){ try{
-  window.fetch(location.pathname+'?ck='+Date.now()+'_'+Math.random(),{cache:'no-store'}).then(function(r){return r.text();}).then(function(t){
+  window.fetch(location.pathname,{cache:'no-cache'}).then(function(r){return r.text();}).then(function(t){
     var m=t.match(/const PROOS_BUILD=['"]([^'"]+)['"]/); var disk=m&&m[1];
     if(disk && disk!==PROOS_BUILD){
       if(!auto){ _dashUpdBanner(disk); return; }
@@ -6118,13 +6120,16 @@ function _loadHandOff(){
   document.documentElement.classList.add('proos-first-paint');
   const finish=()=>{ _tellApp('load:done'); load.style.transition='opacity .35s ease'; load.style.opacity='0';
     setTimeout(()=>{ load.style.display='none'; load.style.opacity=''; load.style.transition=''; document.documentElement.classList.remove('proos-first-paint'); _handoff=false; },380); };
-  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+  // 697: never waits on a frame being drawn — a page that is not on screen (a background tab) draws
+  // no frames, and the loading screen sat there for good. Home's photo, or 1.5 s, whichever is first.
+  let done=false; const go=()=>{ if(done) return; done=true; finish(); };
+  setTimeout(go,1500);
+  setTimeout(()=>{
     let el=null; try{ el=document.getElementById('room-bg-'+bgActive); }catch(e){}
     const m=el&&String(el.style.backgroundImage||'').match(/url\(["']?(.*?)["']?\)/);
-    if(!m){ finish(); return; }
-    const img=new Image(); let done=false; const go=()=>{ if(done) return; done=true; finish(); };
-    img.onload=go; img.onerror=go; setTimeout(go,1500); img.src=m[1];
-  }));
+    if(!m){ go(); return; }
+    const img=new Image(); img.onload=go; img.onerror=go; img.src=m[1];
+  },32);
 }
 function _gateArmWayOut(){ if(!_gateStuckTimer) _gateStuckTimer=setTimeout(_gateWayOut,_GATE_STUCK_MS); }
 function _gateWayOut(){
@@ -6204,7 +6209,10 @@ async function connect(){
       try{ localStorage.setItem('ha_url', HA); }catch(e){}   // the address that just worked — a fact, not a typed one
       try{ const wu=await snd({type:'auth/current_user'}); _haUser=(wu&&wu.result)||null; }catch(e){}
       if(!_haLocationName){ const zh=states['zone.home']; if(zh&&zh.attributes&&zh.attributes.friendly_name) _haLocationName=zh.attributes.friendly_name; }
-      snd({type:'subscribe_events',event_type:'state_changed'});
+      // 697: every update to start with (nothing is missed while the home is discovered), then
+      // _subscribeStates() narrows it to what this dashboard draws once the registry is read.
+      _entSubId=null; _allSubId=null; _entSubKey='';
+      { const q={type:'subscribe_events',event_type:'state_changed'}; snd(q).catch(()=>{}); _allSubId=q.id; }
       // THE WAITING SCREEN SAYS WHAT IS TRUE (plan G1, Dave 3 Oct: "have all these pages designed
       // to look and say correct info"). The platform announces its own restart on this socket
       // before it goes quiet; that announcement is the only basis for "restarting".
@@ -6239,7 +6247,10 @@ async function connect(){
       }
       onReady();
     }else if(m.type==='event'&&m.event?.event_type==='homeassistant_stop'){ _pcRestartAt=Date.now(); _pcTitle();
+    }else if(m.type==='event'&&_entSubId&&m.id===_entSubId&&m.event){
+      _onEntitiesEvent(m.event);      // 697: the platform's own per-device feed
     }else if(m.type==='event'&&m.event?.event_type==='state_changed'){
+      if(_entSubId&&m.id!==_entSubId&&_wantedSet&&!_wantedSet.has(m.event.data.entity_id)) return;   // 697: the old feed, during the hand-over
       const d=m.event.data; states[d.entity_id]=d.new_state;
       onStateChange(d.entity_id);
     }else if(m.type==='event'&&['entity_registry_updated','device_registry_updated','area_registry_updated','label_registry_updated'].includes(m.event?.event_type)){
@@ -6544,6 +6555,7 @@ async function fetchEntityRegistry() {
       });
       _maArtTwin={};   // REGISTER 478: the twin pairing is cached; a new registry means re-resolve
       console.log('[ProOS] Registry loaded — entities mapped to areas:', Object.keys(entityAreaMap).length);
+      try{ _subscribeStates(); }catch(e){}   // 697: a new registry may change what this dashboard draws
       // Curated room-speaker allowlist (which MA players are real speakers).
       // Used to pick the room's audio player; falls back gracefully if unreachable.
       try {
@@ -6557,6 +6569,54 @@ async function fetchEntityRegistry() {
   }
 }
 let entityAreaMap = {}; // entity_id -> area_id (populated by fetchEntityRegistry)
+// ── 697 · ONLY THE UPDATES THIS DASHBOARD DRAWS (Dave, 7 Oct 2026: "maybe we look at the performance
+// first"). Measured on his box: 15.6 updates a second reached every open dashboard — EVERY ONE from a
+// device in no room (UniFi's per-device "data rate" readings), ~45 MB an hour each device parsed for
+// nothing it shows. The platform's own subscribe_entities (the feed its own screens use) sends only the
+// devices asked for, with each change as a small difference. Asked for: every device in a room or a
+// system area, every device of a kind the dashboard can show wherever it is (lights, players, people,
+// cameras, weather, the sun…), and ProOS's own sensors. Left out: a reading-type device (sensor, binary
+// sensor, tracker, button, number, select, update, text, image) that is in NO area. Manual set-ups, or a
+// registry that cannot be read, keep the full feed — never less than before.
+const _NOISE_DOMAINS=new Set(['sensor','binary_sensor','device_tracker','update','button','number','select','text','image']);
+let _entSubId=null, _allSubId=null, _entSubKey='', _wantedSet=null;
+function _wantedEntities(){
+  return Object.keys(states).filter(e=>{ const d=e.slice(0,e.indexOf('.'));
+    return !_NOISE_DOMAINS.has(d) || !!entityAreaMap[e] || e.indexOf('sensor.proos_')===0; });
+}
+function _isoS(t){ return new Date(t*1000).toISOString(); }
+function _onEntitiesEvent(ev){
+  if(ev.a) Object.keys(ev.a).forEach(eid=>{ const c=ev.a[eid], prev=states[eid];
+    const n={entity_id:eid, state:c.s, attributes:c.a||{}, context:(typeof c.c==='string')?{id:c.c,parent_id:null,user_id:null}:(c.c||{}),
+      last_changed:_isoS(c.lc), last_updated:c.lu?_isoS(c.lu):_isoS(c.lc)};
+    states[eid]=n;
+    if(!prev||prev.state!==n.state||Math.abs(Date.parse(prev.last_updated)-Date.parse(n.last_updated))>1) onStateChange(eid); });   // the first answer repeats what get_states said: only a real change repaints
+  if(ev.c) Object.keys(ev.c).forEach(eid=>{ const cur=states[eid]; if(!cur) return;
+    const n=Object.assign({},cur), p=ev.c[eid]['+'], m=ev.c[eid]['-'];
+    if(p){ if(p.s!==undefined) n.state=p.s;
+      if(p.c) n.context=(typeof p.c==='string')?Object.assign({},cur.context,{id:p.c}):Object.assign({},cur.context,p.c);
+      if(p.lc){ n.last_changed=n.last_updated=_isoS(p.lc); } else if(p.lu){ n.last_updated=_isoS(p.lu); }
+      if(p.a) n.attributes=Object.assign({},cur.attributes,p.a); }
+    if(m&&m.a){ n.attributes=Object.assign({},n.attributes); m.a.forEach(k=>{ delete n.attributes[k]; }); }
+    states[eid]=n; onStateChange(eid); });
+  if(ev.r) ev.r.forEach(eid=>{ delete states[eid]; onStateChange(eid); });
+}
+function _subscribeStates(){
+  if(!ws||ws.readyState!==1) return;
+  const want=_wantedEntities();
+  if(CONFIG.manual||!Object.keys(entityAreaMap).length||!want.length) return;   // keep the full feed
+  const key=want.slice().sort().join(',');
+  if(key===_entSubKey) return;
+  _entSubKey=key; _wantedSet=new Set(want);
+  const q={type:'subscribe_entities',entity_ids:want};
+  const oldEnt=_entSubId, oldAll=_allSubId;
+  snd(q).then(r=>{
+    if(!r||r.success===false){ _entSubKey=''; return; }          // the platform said no: the full feed stays
+    _entSubId=q.id;
+    if(oldEnt) snd({type:'unsubscribe_events',subscription:oldEnt}).catch(()=>{});
+    if(oldAll){ snd({type:'unsubscribe_events',subscription:oldAll}).catch(()=>{}); _allSubId=null; }
+  }).catch(()=>{ _entSubKey=''; });
+}
 let _systemAreas = new Set(); // area_ids labelled dashboard_system — never become rooms, never drive a refresh
 let areaNameById = {}; // area_id -> HA area registry name (populated by autoDiscover; preserves apostrophes the slug loses)
 let entityPlatformMap = {}; // entity_id -> integration platform (e.g. 'sonos', 'heos')
@@ -9667,11 +9727,12 @@ async function _loadProtectEventsPC(hours, cap){
 }
 // 696: the event's picture, small, from Core (fetched from the platform once, shrunk once, kept).
 // One request per picture per page session; the browser keeps it for a week after that.
+// 696c: ?v=2 — never a fuzzy copy a device kept from 1.0.838–840.
 const _peThumbCache=new Map();
 async function _peThumb(e){
   if(!e||!e.event_id||e.hasThumb===false) return '';
   if(_peThumbCache.has(e.event_id)) return _peThumbCache.get(e.event_id);
-  const p=(async()=>{ try{ const r=await fetch(proosCoreBase()+'/protect/thumb/'+e.event_id+'?v=2'); /* 696c: v=2 — never a fuzzy copy this device kept from 1.0.838–840 */ if(!r.ok) return ''; return URL.createObjectURL(await r.blob()); }catch(x){ return ''; } })();
+  const p=(async()=>{ try{ const r=await fetch(proosCoreBase()+'/protect/thumb/'+e.event_id+'?v=2'); if(!r.ok) return ''; return URL.createObjectURL(await r.blob()); }catch(x){ return ''; } })();
   _peThumbCache.set(e.event_id,p);
   const u=await p; if(!u) _peThumbCache.delete(e.event_id);
   return u;

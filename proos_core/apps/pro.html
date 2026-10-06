@@ -2471,7 +2471,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026100607';
+const PROOS_BUILD='2026100609';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -2485,8 +2485,10 @@ const PROOS_BUILD='2026100607';
 // the page out from under a half-typed room would be worse than being stale.
 // Load time may reload (nothing is in progress then); every check after that
 // raises the banner and waits to be tapped.
+// 697: the check asks "has it changed?" (cache:'no-cache' on the page's own address) — the platform
+// answers 304 with no body unless it has. It was a fresh 1.3 MB download every 90 s.
 function _proBuildCheck(auto){ try{
-  window.fetch(location.pathname+'?ck='+Date.now()+'_'+Math.random(),{cache:'no-store'}).then(function(r){return r.text();}).then(function(t){
+  window.fetch(location.pathname,{cache:'no-cache'}).then(function(r){return r.text();}).then(function(t){
     var m=t.match(/const PROOS_BUILD=['"]([^'"]+)['"]/); var disk=m&&m[1];
     if(disk && disk!==PROOS_BUILD){
       if(!auto){ _proUpdBanner(disk); return; }
@@ -2621,7 +2623,7 @@ function _localUrl(){
   return _originUrl() || localStorage.getItem('ha_url') || '';
 }
 function _token(){ return localStorage.getItem('proos_pro_token') || ''; }
-(function(){ const _rf=window.fetch.bind(window); window.fetch=function(u,o){ try{ if(typeof u==='string' && (u.indexOf(':8770')>=0 || u.indexOf(':3000')>=0 || (typeof _proosSelfBase==='function' && _proosSelfBase() && u.indexOf(_proosSelfBase()+'/')===0) || (typeof _proosDoorBase==='string' && _proosDoorBase && u.indexOf(_proosDoorBase+'/')===0)) && !/\/health(\?|$)/.test(u.split('#')[0])){ o=o||{}; o.headers=Object.assign({'Authorization':'Bearer '+(localStorage.getItem('proos_pro_token')||'')}, o.headers||{}); } }catch(e){} return _rf(u,o); }; })();
+(function(){ const _rf=window.fetch.bind(window); window.fetch=function(u,o){ try{ if(typeof u==='string' && (u.indexOf(':8770')>=0 || u.indexOf(':3000')>=0 || (typeof _proosSelfBase==='function' && _proosSelfBase() && u.indexOf(_proosSelfBase()+'/')===0) || (typeof _proosDoorBase==='string' && _proosDoorBase && u.indexOf(_proosDoorBase+'/')===0)) && !(/\/health(\?|$)/.test(u.split('#')[0]) && !/\/sysadmin\/health(\?|$)/.test(u.split('#')[0]))){ o=o||{}; o.headers=Object.assign({'Authorization':'Bearer '+(localStorage.getItem('proos_pro_token')||'')}, o.headers||{}); } }catch(e){} return _rf(u,o); }; })();
 
 let HA = _localUrl() || (homeCandidates()[0]||'');   // the address in use; pickEndpoint() moves it
 let ws = null, mid = 1, cbs = {};
@@ -4225,7 +4227,6 @@ function _unifiNetCard(){
     // the read-only fact row Pro already uses everywhere else — label left,
     // value right — so no new CSS is invented for one card.
     s1+='<div class="row"><div class="rl">Controller</div><div class="rr">'+esc(s.host||'—')+'</div></div>';
-    s1+='<div class="row"><div class="rl">Local user</div><div class="rr">'+esc(s.username||'—')+'</div></div>';
     s1+='<div class="row"><div class="rl">Read from</div><div class="rr">'+esc(from||'—')+'</div></div>';
     s1+='<div class="field-hint" style="margin:8px 0 12px">To change the controller’s address or login, reconfigure the integration — ProOS follows it.</div>';
     if(s.entry_id) s1+='<button class="btn-primary" onclick="fixEntrySetup(\''+esc(s.entry_id)+'\',\''+(s.source==='unifiprotect'?'unifiprotect':'unifi')+'\',\'Reconfigure\')">Reconfigure the integration</button>';
@@ -5987,40 +5988,10 @@ function renderFlowForm(step){
   document.getElementById('flow-body').innerHTML = titleHtml + errs + hint + hiddenHtml + (fields || (advFlds.length?'':'<div class="wiz-hint">Confirm to add this device to the home.</div>')) + advHtml;
   document.getElementById('flow-actions').innerHTML = `<button class="btn-primary" onclick="submitFlow()">${anyVisible?'Submit':'Confirm'}</button><button class="rp-cancel" onclick="closeFlow()">Cancel</button>`;
 }
-// ── A-11 · ProOS KEEPS WHAT THE INSTALLER JUST GAVE IT (Dave, 16 Aug 2026) ──
-// Dave: "I've never been in HA, everything is done through Core" — and then
-// ProOS asked him for his UniFi sign-in a second time.
-//
-// He was right and the code proves it. `submitFlow()` collects the fields on a
-// ProOS screen and posts them straight into the platform's setup flow. **ProOS
-// kept no copy.** So the controller login it needs for switch ports and PoE was
-// typed into ProOS, passed through ProOS, and thrown away by ProOS — which then
-// reported "no sign-in to the controller" as though it had never been given one.
-//
-// A few certified integrations need a DIRECT login of their own, because the
-// platform deliberately redacts what it stores (it will not tell anyone which
-// switch port a client is on). For those, and ONLY those, the credential is
-// captured at the moment it is entered and saved to ProOS's own private store
-// on this box. Nothing leaves the LAN, and nothing is captured silently — the
-// installer is told it was saved.
-const FLOW_CRED_CAPTURE = {
-  // handler -> the Core endpoint that owns that credential
-  unifi:        '/unifi/net/config',
-  unifiprotect: '/unifi/net/config'   // one local UniFi user serves both
-};
-function flowCaptureCreds(handler, data, res){
-  try{
-    const url = FLOW_CRED_CAPTURE[handler];
-    // Only on SUCCESS. A bounced form has nothing worth keeping, and storing a
-    // credential the platform just rejected would be worse than storing none.
-    if(!url || !res || res.type!=='create_entry') return;
-    const host=data.host||data.ip_address||'', user=data.username||'', pw=data.password||'';
-    if(!(host&&user&&pw)) return;      // not a login-shaped flow; keep nothing
-    fetch(proCoreUrl()+url,{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({host,username:user,password:pw,verify_ssl:!!data.verify_ssl})})
-      .then(r=>{ if(r.ok){ toast('Controller sign-in saved to ProOS — you won’t be asked again'); _unifiNetStatus=null; } });
-  }catch(e){}
-}
+// REGISTER 695 (Dave, 6 Oct 2026, "yes"): A-11's credential capture is gone. It
+// copied the UniFi login typed into a setup form and posted it to Core — but
+// Core no longer signs in to the controller (691) and never reads a login (695),
+// so the copy went to a retired address. The login lives in the integration only.
 function submitFlow(){
   const data={};
   let jsonErr=null;
@@ -6043,7 +6014,6 @@ function submitFlow(){
   document.getElementById('flow-body').innerHTML=`<div class="wiz-hint">Working…${hint?' '+esc(hint):''}</div>`;
   document.getElementById('flow-actions').innerHTML=`<button class="rp-cancel" onclick="closeFlow()">Cancel</button>`;
   haRest('POST',flowPath(), data, 120000)
-    .then(res=>{ flowCaptureCreds(_flow&&_flow.handler, data, res); return res; })
     .then(renderFlowStep)
     .catch(e=>{
       if(e&&e.name==='AbortError'){ flowMessage('Still waiting on the device. If it showed a pairing prompt, accept it, then tap Add again.'); return; }
@@ -12372,7 +12342,6 @@ async function renderUnifi(){
     // The house's own fact row (register 465) — the same three invented class
     // names the UniFi Network card carried, found by the bench that pinned it.
     s1+=`<div class="row"><div class="rl">Console</div><div class="rr">${esc(String(priv.host||'—'))}</div></div>`;
-    s1+=`<div class="row"><div class="rl">Local user</div><div class="rr">${priv.username?esc(String(priv.username)):'none — add one in the integration for events, thumbnails &amp; clips'}</div></div>`;
     s1+=`<div class="row"><div class="rl">Read from</div><div class="rr">the UniFi Protect integration</div></div>`;
     s1+=`<div class="field-hint" style="margin:8px 0 12px">To change the console’s address or login, reconfigure the integration — ProOS follows it.</div>`;
     if(priv.entry_id) s1+=`<button class="btn-primary" onclick="fixEntrySetup('${esc(String(priv.entry_id))}','unifiprotect','Reconfigure')">Reconfigure the integration</button>`;
@@ -12386,7 +12355,7 @@ async function renderUnifi(){
     // threw its answer away ("Saved — not reachable yet"); the platform had moved on
     // to an API-key step ProOS never showed. Setup is now THE PLATFORM'S OWN FLOW,
     // drawn in Pro's flow sheet — its fields, its steps, its errors, as it asks them.
-    // The local login is still kept for events and clips on success (FLOW_CRED_CAPTURE).
+    // 695: ProOS keeps no copy of the login — events and clips are the platform's own media.
     s1+=`<div class="wiz-hint" style="margin-bottom:12px">Nothing is set up yet. Setup asks for the console’s address, its API key and a local UniFi user, and says exactly what it needs if anything is wrong.</div>`;
     s1+=`<button class="btn-primary" onclick="unifiProtectSetup()">Set Up UniFi Protect</button>`;
   }
