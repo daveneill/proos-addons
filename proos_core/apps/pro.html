@@ -153,6 +153,30 @@ select option,select optgroup{background:#1a1c20;color:#fff}
 .gate-link{display:block;width:100%;background:none;border:none;color:var(--t3);font-size:12px;font-family:inherit;cursor:pointer;margin-top:16px;text-align:center;padding:6px}
 .gate-link:hover{color:var(--t2)}
 .landing-foot{font-size:10px;color:rgba(255,255,255,0.15);margin-top:30px;letter-spacing:0.04em}
+/* 686 — THE STANDARD SIGN-IN AND LOADING SCREEN (Dave, 6 Oct: "A", centred, the
+   home's background photo darkened once this device has one, otherwise black —
+   the same on the app, the dashboard and Pro). */
+#landing,#proos-reboot,#dash-status{background:#000 var(--proos-std-img,none) center/cover no-repeat!important}
+#landing .bg{display:none}
+html.proos-has-bg #landing::before,html.proos-has-bg #proos-reboot::before,html.proos-has-bg #dash-status::before{content:'';position:absolute;inset:0;background:rgba(0,0,0,.80);pointer-events:none}
+#landing .landing-content{text-align:center;max-width:400px;padding:48px 32px}
+#landing .brand-row{justify-content:center;margin-bottom:22px}
+#landing .brand-pill,#landing .landing-eyebrow,#landing .landing-foot,#landing .gate-link.std-hide{display:none}
+#landing .brand-logo{height:56px;width:56px}
+#landing.std-loading .brand-logo{height:64px;width:64px;animation:stdBreathe 3.2s ease-in-out infinite}
+#landing .landing-heading{font-size:26px;font-weight:300;letter-spacing:0;line-height:1.25;margin-bottom:8px}
+#landing.std-loading .landing-heading{font-size:22px}
+#landing .landing-sub{font-size:13px;color:rgba(255,255,255,.5);line-height:1.5;margin-bottom:30px}
+#landing.std-loading .landing-sub{margin-bottom:0}
+#landing .field{text-align:left}
+#landing .field input{border-radius:12px}
+#landing .btn-primary{background:#2139f0;border-radius:12px}
+.std-dots{display:flex;gap:7px;justify-content:center;margin-top:22px}
+.std-dots i{width:7px;height:7px;border-radius:50%;background:#3b52ff;animation:stdDot 1.4s infinite}
+.std-dots i:nth-child(2){animation-delay:.2s}
+.std-dots i:nth-child(3){animation-delay:.4s}
+@keyframes stdBreathe{0%,100%{transform:scale(.96);opacity:.82}50%{transform:scale(1.04);opacity:1}}
+@keyframes stdDot{0%,80%,100%{opacity:.25}40%{opacity:1}}
 
 /* ── APP SHELL ── */
 #app{position:fixed;inset:0;display:none;flex-direction:column;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
@@ -828,16 +852,16 @@ select option,select optgroup{background:#1a1c20;color:#fff}
 @media (max-width:700px){.aw-hero .awh-stats{display:none}}
 #proos-reboot{position:fixed;inset:0;background:#0b0b0d;display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:100000;opacity:0;transition:opacity .45s ease}
 #proos-reboot.on{opacity:1}
-#proos-reboot .pcr-logo{width:64px;height:64px;animation:pcrBreathe 2.4s ease-in-out infinite}
+#proos-reboot .pcr-logo{width:64px;height:64px;animation:stdBreathe 3.2s ease-in-out infinite;position:relative}
 #proos-reboot .pcr-logo img{width:100%;height:100%;object-fit:contain;opacity:.92}
 #proos-reboot .pcr-mark{font-size:30px;font-weight:700;letter-spacing:-0.5px;color:var(--accent,#2139F0);animation:pcrBreathe 2.4s ease-in-out infinite}
-#proos-reboot .pcr-title{font-size:18px;font-weight:300;color:var(--t1,rgba(255,255,255,.85))}
-#proos-reboot .pcr-sub{font-size:12px;font-weight:300;letter-spacing:0.05em;color:var(--t3,rgba(255,255,255,.4))}
-#proos-reboot .pcr-dots{display:flex;gap:7px;margin-top:6px}
-#proos-reboot .pcr-dots i{width:6px;height:6px;border-radius:50%;background:var(--accent,#2139F0);opacity:.6;animation:pcrDot 1.2s ease-in-out infinite}
+#proos-reboot .pcr-title{font-size:22px;font-weight:300;color:#fff;margin-top:8px;position:relative}
+#proos-reboot .pcr-sub{font-size:13px;font-weight:300;color:rgba(255,255,255,.5);position:relative;text-align:center;max-width:320px;line-height:1.5}
+#proos-reboot .pcr-dots{display:flex;gap:7px;margin-top:8px;position:relative}
+#proos-reboot .pcr-dots i{width:7px;height:7px;border-radius:50%;background:#3b52ff;animation:stdDot 1.4s infinite}
 #proos-reboot .pcr-dots i:nth-child(2){animation-delay:.2s}
 #proos-reboot .pcr-dots i:nth-child(3){animation-delay:.4s}
-#proos-reboot .pcr-out{margin-top:22px;background:none;border:0.5px solid rgba(255,255,255,0.18);border-radius:10px;padding:9px 16px;font-size:12px;font-family:inherit;color:var(--t2,rgba(255,255,255,.6));cursor:pointer}
+#proos-reboot .pcr-out{position:relative;border-radius:22px!important;margin-top:22px;background:none;border:0.5px solid rgba(255,255,255,0.18);border-radius:10px;padding:9px 16px;font-size:12px;font-family:inherit;color:var(--t2,rgba(255,255,255,.6));cursor:pointer}
 @keyframes pcrBreathe{0%,100%{transform:scale(1);opacity:.9}50%{transform:scale(1.06);opacity:1}}
 @keyframes pcrDot{0%,100%{opacity:.25;transform:translateY(0)}50%{opacity:1;transform:translateY(-4px)}}
 
@@ -1409,7 +1433,7 @@ body.aws-open .v2tabs{display:none!important}
 /* PROOS'S OWN GROUND (register 379) — see the dashboard's note. Pro's landing
    and app grounds fetched a stock photograph to look finished; on a site with
    no internet they showed nothing at all. */
-:root{--proos-ground:linear-gradient(135deg,#0a0a12,#1a1a2e)}
+:root{--proos-ground:#000}   /* 686: Pro's ground is black (Dave, 6 Oct: "black as standard") */
 :root{--proos-sat:env(safe-area-inset-top,0px)}
 #landing,#app,#room-picker,#icon-picker,#flow-sheet,#addint-sheet,#svc-sheet,#device-sheet,#guide,#scene-edit,
 #cfg-edit,#item-edit,#pick,#choice,#entinfo,#room-edit,#scene-art,#reset-confirm,#factory-confirm,#bk-create,#danger-confirm,#bk-auto-edit,
@@ -1446,6 +1470,7 @@ body.aws-open .v2tabs{display:none!important}
 <body>
 
 <!-- LANDING / CONNECT -->
+<script>/* 686 */try{var _sb=localStorage.getItem('proos_std_bg');if(_sb){document.documentElement.style.setProperty('--proos-std-img',"url('"+_sb+"')");document.documentElement.classList.add('proos-has-bg');}}catch(e){}</script>
 <div id="landing">
   <div class="bg"></div>
   <div class="landing-content">
@@ -2039,9 +2064,9 @@ body.aws-open .v2tabs{display:none!important}
    The tab bar becomes the dashboard's floor: no fill, no line, icons on a
    blurred scrim (528's material, the dock scrim's numbers). Nothing else
    moves: same cards, rows, chips, type, order. */
-:root{ --pg-wash:.74; --pg-fill:.05; --pg-blur:18px; }
-#pro-glass{position:fixed;inset:-24px;z-index:0;pointer-events:none;background:linear-gradient(135deg,#0a0a12,#1a1a2e) center/cover no-repeat;filter:blur(14px) saturate(.9)}
-#pro-glass::after{content:'';position:absolute;inset:0;background:rgba(9,10,13,var(--pg-wash))}
+:root{ --pg-wash:.84; --pg-fill:.05; --pg-blur:18px; }   /* 686: darker (Dave, 6 Oct: "too light needs to be darker") */
+#pro-glass{position:fixed;inset:-24px;z-index:0;pointer-events:none;background:#000 center/cover no-repeat;filter:blur(14px) saturate(.9)}
+#pro-glass::after{content:'';position:absolute;inset:0;background:rgba(0,0,0,var(--pg-wash))}
 #app{z-index:1}   /* NOT position:relative — #app is position:fixed (line 158, the
    shell pinned to the screen; the scroll area gets its height from it). 1.0.744
    wrote position:relative here: same weight, later in the file, it un-pinned
@@ -2297,17 +2322,18 @@ body.aws-open .v2tabs{display:none!important}
     </div>
   </div>
 </div>
-<div id="pwchange-overlay" style="position:fixed;inset:0;z-index:970;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.85)">
-  <div class="rp-sheet" style="max-width:420px">
-    <div class="rp-head"><div class="rp-title">Set your password</div></div>
+<div id="pwchange-overlay" style="position:fixed;inset:0;z-index:970;display:none;align-items:center;justify-content:center;background:linear-gradient(rgba(0,0,0,.80),rgba(0,0,0,.80)),var(--proos-std-img,none) center/cover no-repeat #000">
+  <div class="rp-sheet" style="max-width:400px;background:none;border:0;-webkit-backdrop-filter:none;backdrop-filter:none;transform:none">
+    <img id="pwc-logo" alt="ProOS" style="width:56px;height:56px;display:block;margin:0 auto 18px"/>
+    <div class="rp-head" style="justify-content:center;text-align:center"><div class="rp-title" style="font-size:26px;font-weight:300">Set Your Password</div></div>
     <div class="rp-list">
-      <div class="reset-wiped">This box shipped with a default installer password. Choose a new one to continue — this is required before you can commission.</div>
+      <div class="reset-wiped" style="text-align:center;background:none;border:0;color:rgba(255,255,255,.5)">This box came with a starter password. Choose your own to continue.</div>
       <div class="field"><div class="field-label">New Password</div><input id="pwc-new" type="password" autocomplete="new-password" onkeydown="if(event.key===&quot;Enter&quot;)document.getElementById('pwc-new2').focus()"/></div>
       <div class="field"><div class="field-label">Confirm Password</div><input id="pwc-new2" type="password" autocomplete="new-password" onkeydown="if(event.key===&quot;Enter&quot;)doChangePassword()"/></div>
       <div id="pwc-error" style="color:#e0564b;font-size:12px"></div>
     </div>
     <div id="pwc-actions">
-      <button class="reset-go" id="pwc-go" style="background:#46e3a0" onclick="doChangePassword()">Set Password &amp; Continue</button>
+      <button class="reset-go" id="pwc-go" style="background:#2139f0;color:#fff;border-radius:12px" onclick="doChangePassword()">Set Password &amp; Continue</button>
     </div>
   </div>
 </div>
@@ -2429,7 +2455,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026100503';
+const PROOS_BUILD='2026100602';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -2704,6 +2730,7 @@ function _pcRestarting(){ return _pcRestartAt && (Date.now()-_pcRestartAt) < 600
 function _pcTitle(){ try{ const t=document.getElementById('pcr-title'); if(t) t.textContent=_pcRestarting()?'Your Home Is Restarting':'Reconnecting to Your Home';
   const s=document.getElementById('pcr-sub'); if(s&&_pcRestarting()) s.textContent='It said so before it went quiet \u2014 this usually takes a minute or two. Your rooms keep working.'; }catch(e){} }
 const _PCR_LOGO='data:image/png;base64,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';
+try{ const _pl=document.getElementById('pwc-logo'); if(_pl) _pl.src=_PCR_LOGO; }catch(e){}   // 686
 function _pcInitOverlay(){
   if(document.getElementById('proos-reboot')) return;
   const o=document.createElement('div'); o.id='proos-reboot';
@@ -6131,6 +6158,27 @@ function _roomMediaOn(a,off){
   if(a&&('home_fact' in a)) return false;
   return !off;
 }
+// 686 — THE STANDARD SCREEN'S BACKGROUND, KEPT ON THIS DEVICE (same as the dashboard's):
+// the home's photo, small, in localStorage proos_std_bg; read before first paint by both
+// pages' sign-in and loading screens; cleared when the home has no photo.
+function _stdApplyBg(d){ try{ const r=document.documentElement;
+  if(d){ r.style.setProperty('--proos-std-img',"url('"+d+"')"); r.classList.add('proos-has-bg'); }
+  else { r.style.removeProperty('--proos-std-img'); r.classList.remove('proos-has-bg'); } }catch(e){} }
+function _stdTellApp(d){ try{ if(window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.proos) window.webkit.messageHandlers.proos.postMessage('homebg:'+(d||'')); }catch(e){} }
+function _stdKeepBg(src){
+  try{
+    if(!src){ if(localStorage.getItem('proos_std_bg')){ localStorage.removeItem('proos_std_bg'); localStorage.removeItem('proos_std_bg_src'); _stdApplyBg(null); _stdTellApp(''); } return; }
+    if(localStorage.getItem('proos_std_bg_src')===src && localStorage.getItem('proos_std_bg')) return;
+    const img=new Image(); img.crossOrigin='anonymous';
+    img.onload=function(){ try{
+      const w=Math.min(1280,img.naturalWidth||1280), h=Math.round((img.naturalHeight||720)*w/(img.naturalWidth||1280));
+      const c=document.createElement('canvas'); c.width=w; c.height=h; c.getContext('2d').drawImage(img,0,0,w,h);
+      const d=c.toDataURL('image/jpeg',0.72);
+      localStorage.setItem('proos_std_bg',d); localStorage.setItem('proos_std_bg_src',src); _stdApplyBg(d); _stdTellApp(d);
+    }catch(e){} };
+    img.src=src;
+  }catch(e){}
+}
 // THE GLASS WEARS THE HOME'S OWN PHOTO (register 575): the site area's picture
 // — the one the dashboard's Home wears — full size, under the wash. Called
 // once the areas are read. No picture: the ground the stylesheet already
@@ -6140,10 +6188,12 @@ function _proGlass(){
     let g=document.getElementById('pro-glass');
     if(!g){ g=document.createElement('div'); g.id='pro-glass'; document.body.insertBefore(g, document.body.firstChild); }
     const a=(_areas||[]).find(x=>_systemAreas.has(x.area_id)&&x.picture);
+    if(!a) _stdKeepBg('');   // 686: no photo → this device's sign-in screens go back to black
     if(!a){ g.style.backgroundImage=''; return; }
     const p=a.picture;
     const url=/^https?:\/\//i.test(p)?p:(location.origin+imgSize(p,'original'));
     g.style.backgroundImage="url('"+url.replace(/'/g,'%27')+"')";
+    _stdKeepBg(url);         // 686: and this device's sign-in screens wear it
   }catch(e){}
 }
 let _reBgFile=null, _reBgRemove=false, _reBgUrl=null;   // _reBgUrl: chosen style / generated art
@@ -9042,12 +9092,15 @@ function _dashFail(msg){
 function _dashStatusOpen(ver){
   let ov=document.getElementById('dash-status'); if(ov) ov.remove();
   ov=document.createElement('div'); ov.id='dash-status';
-  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:99999';
-  ov.innerHTML='<div style="background:#14151a;border:1px solid #2a2c34;border-radius:16px;padding:20px;min-width:300px;max-width:90vw;color:#fff;font-family:inherit">'
-    +'<div style="font-size:15px;font-weight:600;margin-bottom:4px">Updating dashboards…</div>'
-    +'<div id="dash-status-sub" style="font-size:12px;color:#9aa8b8;margin-bottom:14px">Pushing update v'+ver+'</div>'
+  // 686: the standard loading look — breathing logo, title, one line, blue dots.
+  ov.style.cssText='position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:99999';
+  ov.innerHTML='<div style="position:relative;width:340px;max-width:90vw;color:#fff;font-family:inherit;text-align:center">'
+    +'<img src="'+_PCR_LOGO+'" alt="ProOS" style="width:64px;height:64px;animation:stdBreathe 3.2s ease-in-out infinite"/>'
+    +'<div style="font-size:22px;font-weight:300;margin-top:22px">Updating Dashboards</div>'
+    +'<div id="dash-status-sub" style="font-size:13px;color:rgba(255,255,255,.5);margin-top:10px">Sending update v'+ver+'</div>'
+    +'<div class="std-dots" style="margin-bottom:22px"><i></i><i></i><i></i></div>'
     +'<div id="dash-status-list" style="display:flex;flex-direction:column;gap:9px"></div>'
-    +'<button id="dash-status-x" style="margin-top:18px;width:100%;padding:10px;border-radius:10px;background:#2a2c34;border:none;color:#fff;cursor:pointer;font-family:inherit">Close</button>'
+    +'<button id="dash-status-x" style="margin-top:26px;height:44px;padding:0 22px;border-radius:22px;background:transparent;border:1px solid rgba(255,255,255,.18);color:rgba(255,255,255,.8);cursor:pointer;font-family:inherit">Close</button>'
     +'</div>';
   document.body.appendChild(ov);
   let t=null;
@@ -9829,8 +9882,8 @@ function _origin(){
   return '';
 }
 function _gateWhere(){
-  let h=''; try{ h=new URL(_origin()).host; }catch(e){}
-  return h?('<div class="field-hint" style="margin:-4px 0 12px">This home, at '+esc(h)+'</div>'):'';
+  // 686: the standard screen shows no address (Dave, 6 Oct — direction A).
+  return '';
 }
 function gval(id){ const e=document.getElementById(id); return e?(e.value||'').trim():''; }
 function gateErr(msg){ const e=document.getElementById('gate-error')||document.getElementById('landing-error'); if(e) e.textContent=msg||''; }
@@ -9849,18 +9902,21 @@ async function obState(){
 
 function renderGate(view, err){
   const g=document.getElementById('gate'); if(!g) return;
+  // 686: detect and provisioning are the standard loading look; the rest centred.
+  try{ document.getElementById('landing').classList.toggle('std-loading', view==='detect'||view==='provisioning'); }catch(e){}
+  const _dots='<div class="std-dots"><i></i><i></i><i></i></div>';
   if(view==='detect'){
-    setHTML(g, '<div class="landing-eyebrow">Installer console</div><div class="landing-heading">ProOS.</div><div class="landing-sub">Checking this home…</div>');
+    setHTML(g, '<div class="landing-heading">Opening Pro</div><div class="landing-sub">Checking this home</div>'+_dots);
     return;
   }
   if(view==='provisioning'){
-    setHTML(g, '<div class="landing-eyebrow">New box</div><div class="landing-heading">Setting up<br/>this box…</div><div class="landing-sub">ProOS is provisioning this box for first use. This takes a minute — the installer login will appear automatically.</div>');
+    setHTML(g, '<div class="landing-heading">Setting Up This Box</div><div class="landing-sub">This takes a minute. The installer login appears by itself.</div>'+_dots);
     return;
   }
   if(view==='create'){
     setHTML(g, '<div class="landing-eyebrow">New installation</div>'
-      +'<div class="landing-heading">Set up<br/>this home.</div>'
-      +"<div class=\"landing-sub\">This home is new. Create the owner account to begin — keep the username and password safe, they can't be recovered.</div>"
+      +'<div class="landing-heading">Set Up This Home</div>'
+      +"<div class=\"landing-sub\">Create the owner account. Keep these safe; they can't be recovered.</div>"
       +_gateWhere()
       +'<div class="field"><div class="field-label">Your Name</div><input id="ob-name" type="text" placeholder="e.g. Smith Residence" autocomplete="off"/></div>'
       +'<div class="field"><div class="field-label">Username</div><input id="ob-user" type="text" oninput="_lc(this)" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"/></div>'
@@ -9868,26 +9924,26 @@ function renderGate(view, err){
       +'<div class="field"><div class="field-label">Confirm Password</div><input id="ob-pass2" type="password" autocomplete="new-password" onkeydown="if(event.key===\'Enter\')createOwner()"/></div>'
       +'<button class="btn-primary" id="gate-go" onclick="createOwner()">Create Account</button>'
       +'<div id="gate-error">'+(err?esc(err):'')+'</div>'
-      +'<button class="gate-link" onclick="renderGate(\'manual\')">Connect with an Access Token Instead</button>');
+      +'<button class="gate-link std-hide" onclick="renderGate(\'manual\')">Connect with an Access Token Instead</button>');
     setTimeout(()=>{ const i=document.getElementById('ob-name'); if(i) i.focus(); },60);
     return;
   }
   if(view==='login'){
     setHTML(g, '<div class="landing-eyebrow">Installer console</div>'
-      +'<div class="landing-heading">Log in.</div>'
-      +"<div class=\"landing-sub\">Sign in to commission and manage this home. A new box ships with a default installer login — you'll set your own password on first sign-in.</div>"
+      +'<div class="landing-heading">Installer Sign In</div>'
+      +"<div class=\"landing-sub\">A new box ships with a default installer login. You'll set your own password on first sign-in.</div>"
       +_gateWhere()
       +'<div class="field"><div class="field-label">Username</div><input id="lg-user" type="text" oninput="_lc(this)" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false"/></div>'
       +'<div class="field"><div class="field-label">Password</div><input id="lg-pass" type="password" autocomplete="current-password" onkeydown="if(event.key===\'Enter\')loginUserPass()"/></div>'
-      +'<button class="btn-primary" id="gate-go" onclick="loginUserPass()">Log In</button>'
+      +'<button class="btn-primary" id="gate-go" onclick="loginUserPass()">Sign In</button>'
       +'<div id="gate-error">'+(err?esc(err):'')+'</div>'
-      +'<button class="gate-link" onclick="renderGate(\'manual\')">Use an Access Token Instead</button>');
+      +'<button class="gate-link std-hide" onclick="renderGate(\'manual\')">Use an Access Token Instead</button>');
     setTimeout(()=>{ const i=document.getElementById('lg-user'); if(i) i.focus(); },60);
     return;
   }
   // manual (token) — original path, preserved as a fallback for remote/odd setups
   setHTML(g, '<div class="landing-eyebrow">Installer console</div>'
-    +'<div class="landing-heading">Connect a<br/>home.</div>'
+    +'<div class="landing-heading">Connect a Home</div>'
     +'<div class="landing-sub">Connect to a ProOS host with an access token.</div>'
     +_gateWhere()
     +'<div class="field"><div class="field-label">Access Token</div><input id="in-token" type="password" placeholder="Access token" autocomplete="off"/><div class="field-hint">Created on the host under your profile → security.</div></div>'
@@ -9963,7 +10019,7 @@ async function createOwner(){
   if(!name||!user||!pass){ gateErr('Fill in your name, username and password.'); return; }
   if(pass.length<6){ gateErr('Use a password of at least 6 characters.'); return; }
   if(pass!==pass2){ gateErr("The passwords don't match."); return; }
-  gateErr(''); gateBusy(true,'Create account');
+  gateErr(''); gateBusy(true,'Create Account');
   try{
     const lang=(navigator.language||'en').split('-')[0];
     const r=await fetch(_origin()+'/api/onboarding/users',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({client_id:_origin(), name, username:user, password:pass, language:lang})});
@@ -9972,7 +10028,7 @@ async function createOwner(){
     const j=await r.json();
     if(!j||!j.auth_code) throw new Error('No authorization returned');
     await finishAuth(j.auth_code, true);
-  }catch(e){ gateBusy(false,'Create account'); gateErr((e&&e.message)||'Could not set up this home.'); }
+  }catch(e){ gateBusy(false,'Create Account'); gateErr((e&&e.message)||'Could not set up this home.'); }
 }
 
 // Installer sign-in goes THROUGH ProCore — not Home Assistant directly. ProCore
@@ -9982,18 +10038,18 @@ async function createOwner(){
 async function loginUserPass(){
   const user=gval('lg-user'), pass=gval('lg-pass');
   if(!user||!pass){ gateErr('Enter your username and password.'); return; }
-  gateErr(''); gateBusy(true,'Log in');
+  gateErr(''); gateBusy(true,'Sign In');
   await _proosDoorReady;                                   // sign-in goes through the door too (register 352)
   try{
     const r=await fetch(proCoreUrl()+'/auth/login',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username:user, password:pass})});
     let d={}; try{ d=await r.json(); }catch(e){}
-    if(r.status===403){ gateBusy(false,'Log in'); gateErr(d.error||'This account only has Dashboard access — installer sign-in needs an installer account.'); return; }
-    if(r.status===401){ gateBusy(false,'Log in'); gateErr(d.error||'Wrong username or password.'); return; }
-    if(!r.ok || !d.token){ gateBusy(false,'Log in'); gateErr(d.error||'Couldn\'t reach ProOS Core to sign in.'); return; }
+    if(r.status===403){ gateBusy(false,'Sign In'); gateErr(d.error||'This account only has Dashboard access — installer sign-in needs an installer account.'); return; }
+    if(r.status===401){ gateBusy(false,'Sign In'); gateErr(d.error||'Wrong username or password.'); return; }
+    if(!r.ok || !d.token){ gateBusy(false,'Sign In'); gateErr(d.error||'Couldn\'t reach ProOS Core to sign in.'); return; }
     _sessionPw=pass;
     localStorage.setItem('proos_pro_token', d.token);
     connect();
-  }catch(e){ gateBusy(false,'Log in'); gateErr('Couldn\'t reach ProOS Core to sign in.'); }
+  }catch(e){ gateBusy(false,'Sign In'); gateErr('Couldn\'t reach ProOS Core to sign in.'); }
 }
 
 // ── Reset this home: restores the proos-baseline via the Core add-on (:8770) ──
