@@ -4959,8 +4959,9 @@ class Handler(BaseHTTPRequestHandler):
                         cap = int((qs.get("cap") or ["60"])[0])
                     except ValueError:
                         return self._send(400, {"error": "hours and cap are numbers"})
+                    names = [n for n in ",".join(qs.get("cams") or []).split(",") if n.strip()]
                     try:
-                        out = _pm.events(hrs, cap)
+                        out = _pm.events(hrs, cap, cams=names)
                     except Exception as e:                       # noqa: BLE001
                         return self._send(502, {"error": "the platform's camera media did not answer: %s" % str(e)[:160]})
                     _pm.keep_ready(hrs)
