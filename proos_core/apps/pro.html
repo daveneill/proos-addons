@@ -2455,7 +2455,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026100602';
+const PROOS_BUILD='2026100603';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -12343,12 +12343,14 @@ async function renderUnifi(){
       s1+=`<button class="btn-primary" onclick="unifiConnect()">${priv.has_key?'Update key':'Save key'}</button>`;
     }
   } else {
-    s1+=`<div class="wiz-hint" style="margin-bottom:10px">Nothing is set up yet. What you enter here goes into the UniFi Protect integration’s own setup — it becomes the integration’s record, not a ProOS copy.</div>`;
-    s1+=`<div class="field"><div class="field-label">Console IP</div><input id="unifi-host" type="text" value="" placeholder="e.g. 192.168.1.1"/><div class="field-hint">The UniFi console (UDM/UNVR) LAN address that runs Protect.</div></div>`;
-    s1+=`<div class="field"><div class="field-label">API Key</div><input id="unifi-key" type="password" placeholder="${priv.has_key?'Saved — leave blank to keep':'Protect → Control Plane → Integrations'}"/><div class="field-hint">Cameras, live, PTZ, talk, arm — and provisions the integration.</div></div>`;
-    s1+=`<div class="field"><div class="field-label">Local Protect User</div><input id="unifi-user" type="text" value="" placeholder="local username" autocomplete="off"/><div class="field-hint">A <b>local</b> UniFi user — required for event history, thumbnails &amp; clips.</div></div>`;
-    s1+=`<div class="field"><div class="field-label">Password</div><input id="unifi-pass" type="password" placeholder="local user password" autocomplete="new-password"/></div>`;
-    s1+=`<button class="btn-primary" onclick="unifiConnect()">Set up the integration</button>`;
+    // REGISTER 687 (Dave, 6 Oct 2026: "why something that is already in the platform
+    // fails on Pro"). ProOS's own four-field form fed the platform's flow blind and
+    // threw its answer away ("Saved — not reachable yet"); the platform had moved on
+    // to an API-key step ProOS never showed. Setup is now THE PLATFORM'S OWN FLOW,
+    // drawn in Pro's flow sheet — its fields, its steps, its errors, as it asks them.
+    // The local login is still kept for events and clips on success (FLOW_CRED_CAPTURE).
+    s1+=`<div class="wiz-hint" style="margin-bottom:12px">Nothing is set up yet. Setup asks for the console’s address, its API key and a local UniFi user, and says exactly what it needs if anything is wrong.</div>`;
+    s1+=`<button class="btn-primary" onclick="_beginFlow('unifiprotect')">Set Up UniFi Protect</button>`;
   }
   html+=step(1,'The console', connected?'ok':'', connected?'Connected':(priv.entry?'Set up — not answering':'Not set up'), s1);
 
