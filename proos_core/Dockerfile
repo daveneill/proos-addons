@@ -23,6 +23,12 @@ RUN curl -fsSL -o /usr/bin/ha \
     && chmod +x /usr/bin/ha \
     && [ -s /usr/bin/ha ]
 
+# REGISTER 696: libjpeg-turbo's own djpeg/cjpeg shrink each camera event picture
+# (3200x1800, 661 KB from the platform) to a quarter once, so the Cameras page
+# loads small pictures. Its own line, and never fatal: without it Core serves the
+# platform's picture as it came (slower, never wrong).
+RUN apk add --no-cache libjpeg-turbo-utils || echo "libjpeg-turbo-utils unavailable — camera pictures stay full size"
+
 COPY proos /app/proos
 # Product app tile artwork — ships with the release (see appart/README.md).
 COPY appart /app/appart

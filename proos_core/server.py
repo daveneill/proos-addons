@@ -945,6 +945,15 @@ def _ws_call(msg_type, **fields):
     return ws_command(_cfg["base_url"], _cfg["token"], msg_type, **fields)
 
 
+def _platform_get_bytes(path):
+    """(content type, bytes) of one of the platform's own HTTP views, e.g. its signed
+    Protect thumbnail proxy, fetched with Core's own platform connection (register 696)."""
+    req = urllib.request.Request(_cfg["base_url"] + path, method="GET")
+    req.add_header("Authorization", "Bearer " + _cfg["token"])
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        return resp.headers.get("Content-Type") or "image/jpeg", resp.read()
+
+
 def _reload_entry(entry_id):
     """Reload a config entry via HA's REST endpoint -- the proven path (the same
     one the app's Reload button uses). The WS 'config_entries/reload' command is
@@ -4463,12 +4472,12 @@ class Handler(BaseHTTPRequestHandler):
         finally:
             up.close()
 
-    def _send_bytes(self, code: int, ctype: str, data: bytes):
+    def _send_bytes(self, code: int, ctype: str, data: bytes, cache: str = "no-store"):
         self.send_response(code)
         self.send_header("Content-Type", ctype or "application/octet-stream")
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Content-Length", str(len(data)))
-        self.send_header("Cache-Control", "no-store")
+        self.send_header("Cache-Control", cache)
         self.end_headers()
         self.wfile.write(data)
 
@@ -4937,6 +4946,34 @@ class Handler(BaseHTTPRequestHandler):
                 if getattr(self, "_user", None) is None:
                     return self._send(403, {"error": "authentication required"})
                 return self._unifi(parts, "GET")
+            # REGISTER 696: camera events and pictures, from the platform's own Protect
+            # media, read by Core once and kept — the page asks once, gets small pictures.
+            if parts[:1] == ["protect"] and len(parts) in (2, 3):
+                if getattr(self, "_user", None) is None:
+                    return self._send(403, {"error": "authentication required"})
+                from proos import protectmedia as _pm
+                if parts[1] == "events" and len(parts) == 2:
+                    qs = parse_qs(urlparse(self.path).query)
+                    try:
+                        hrs = int((qs.get("hours") or ["24"])[0])
+                        cap = int((qs.get("cap") or ["60"])[0])
+                    except ValueError:
+                        return self._send(400, {"error": "hours and cap are numbers"})
+                    try:
+                        out = _pm.events(hrs, cap)
+                    except Exception as e:                       # noqa: BLE001
+                        return self._send(502, {"error": "the platform's camera media did not answer: %s" % str(e)[:160]})
+                    _pm.keep_ready(hrs)
+                    return self._send(200, out)
+                if parts[1] == "thumb" and len(parts) == 3:
+                    try:
+                        data, _kept = _pm.thumb(parts[2])
+                    except ValueError:
+                        return self._send(404, {"error": "not an event"})
+                    except Exception as e:                       # noqa: BLE001
+                        return self._send(502, {"error": "the platform's picture did not come: %s" % str(e)[:160]})
+                    return self._send_bytes(200, "image/jpeg", data, cache="private, max-age=604800, immutable")
+                return self._send(404, {"error": "unknown camera route"})
             if parts == ["health"]:
                 # awareness rides along (3 Aug): the posture is a per-site
                 # option — surfaces must show it, never assume it.
@@ -8586,6 +8623,15 @@ def main():
         print("  HA event stream: starting (state_changed → live cache)")
     except Exception as _hs_e:                                   # noqa: BLE001
         print(f"  HA event stream failed to start — polling stands: {_hs_e}")
+    # REGISTER 696: camera events and their pictures, read from the platform's own
+    # Protect media by Core, shrunk and remembered (proos/protectmedia.py).
+    try:
+        from proos import protectmedia as _pm
+        _pm.configure(_ws_call, _platform_get_bytes)
+        print("  camera events: Core reads the platform's Protect media (shrink tool %s)"
+              % ("present" if _pm.shrink_available() else "MISSING — full-size pictures"), flush=True)
+    except Exception as _pm_e:                                   # noqa: BLE001
+        print(f"  camera events: not started — {_pm_e}", flush=True)
     apply_auto_reachability()      # auto device-IP signals, merged under manual config
     ensure_witness_evidence("boot")   # register 147: turn our own evidence back on
     port = int(cfg.get("port", 8770))
