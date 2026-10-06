@@ -943,7 +943,8 @@ body[data-home-state="noticing"] .home-state-go,body[data-home-state="attention"
 .pe-vwrap{width:100%;max-width:680px;position:relative}
 .pe-vmeta{color:rgba(255,255,255,.7);font-size:13px;margin-top:10px;text-align:center}
 .pe-vbox{border-radius:12px;overflow:hidden;background:#000;line-height:0;-webkit-mask-image:-webkit-radial-gradient(white,black)}
-.pe-filters{display:flex;gap:7px;padding:4px 2px 16px;overflow-x:auto;-webkit-overflow-scrolling:touch;flex:0 0 auto;align-items:center;position:sticky;top:0;z-index:5;background:rgba(8,8,11,.94);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+/* 693 (Dave, 6 Oct 2026): no panel behind the filters — they sit on the home's own background. */
+.pe-filters{display:flex;gap:7px;padding:4px 2px 14px;overflow-x:auto;-webkit-overflow-scrolling:touch;flex:0 0 auto;align-items:center}
 .pe-chip{flex:0 0 auto;background:rgba(255,255,255,.07);border:.5px solid rgba(255,255,255,.1);color:rgba(255,255,255,.75);font-size:12px;padding:5px 12px;border-radius:20px;cursor:pointer;white-space:nowrap}
 .pe-chip.on{background:#2139F0;border-color:#2139F0;color:#fff}
 .pe-search{margin:0 18px 10px;flex:0 0 auto;background:rgba(255,255,255,.06);border:.5px solid rgba(255,255,255,.1);color:#fff;font-size:13px;padding:9px 12px;border-radius:10px;outline:none}
@@ -963,23 +964,26 @@ body[data-home-state="noticing"] .home-state-go,body[data-home-state="attention"
 .pa-cam-ov{position:absolute;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;background:linear-gradient(transparent,rgba(0,0,0,.7))}
 .pa-cam-motion{color:rgba(255,255,255,.82);font-size:12px;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.7)}
 .pa-counters{display:flex;gap:22px;padding:2px 2px 12px;overflow-x:auto;flex:0 0 auto;-webkit-overflow-scrolling:touch}
-.pa-live-head{position:sticky;top:0;z-index:5;background:rgba(8,8,11,.94);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
-.pa-strip{display:flex;gap:8px;overflow-x:auto;padding:0 2px 14px;flex:0 0 auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+/* 693: no panel behind the counters and detections — the solid black was left from before the glass refresh. */
+.pa-live-head{margin-bottom:10px}
+.pa-strip{display:flex;gap:10px;overflow-x:auto;padding:0 2px 14px;flex:0 0 auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 .pa-strip::-webkit-scrollbar{display:none}
-.pa-strip-cell{flex:0 0 auto;width:112px;cursor:pointer}
-.pa-strip-thumb{width:112px;height:64px;border-radius:8px;background:#15151c center/cover no-repeat}
-.pa-strip-meta{display:flex;align-items:center;gap:5px;margin-top:5px;padding:0 1px}
-.pa-strip-ico{display:inline-flex;color:rgba(255,255,255,.55)}
-.pa-strip-ico svg{width:13px;height:13px}
-.pa-strip-time{font-size:11px;color:rgba(255,255,255,.5)}
+/* 693: square, like the Protect app — the whole picture, never a cropped strip; the kind sits inside the corner. */
+.pa-strip-cell{flex:0 0 auto;width:148px;cursor:pointer}
+.pa-strip-thumb{position:relative;width:148px;height:148px;border-radius:12px;background:#15151c center/cover no-repeat}
+@media (max-width:767px){ .pa-strip-cell{width:116px} .pa-strip-thumb{width:116px;height:116px} }
+.pa-strip-meta{display:flex;align-items:center;justify-content:center;gap:5px;margin-top:8px;padding:0 1px}
+.pa-strip-ico{position:absolute;left:8px;bottom:8px;width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;background:rgba(0,0,0,.45);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.pa-strip-ico svg{width:15px;height:15px}
+.pa-strip-time{font-size:12px;color:rgba(255,255,255,.7)}
 .pa-count{display:flex;align-items:center;gap:7px;white-space:nowrap;font-size:14px}
 .pa-count-ico{width:15px;height:15px;color:rgba(255,255,255,.5);display:inline-flex}
 .pa-count-ico svg{width:15px;height:15px}
 .pa-count-lbl{color:rgba(255,255,255,.6)}
 .pa-count-n{color:#fff;font-weight:600}
 .pa-grid{display:grid;gap:10px}
-.pa-eg{display:grid;gap:3px;grid-template-columns:repeat(auto-fill,minmax(148px,1fr))}
-.pa-eg-cell{position:relative;aspect-ratio:4/3;background:#15151b center/cover no-repeat;cursor:pointer;overflow:hidden}
+.pa-eg{display:grid;gap:8px;grid-template-columns:repeat(auto-fill,minmax(148px,1fr))}
+.pa-eg-cell{position:relative;aspect-ratio:4/3;background:#15151b center/cover no-repeat;cursor:pointer;overflow:hidden;border-radius:12px}
 .pa-eg-top{position:absolute;top:0;left:0;right:0;padding:7px 8px 12px;background:linear-gradient(rgba(0,0,0,.62),transparent)}
 .pa-eg-cam{color:#fff;font-size:12px;font-weight:600;text-shadow:0 1px 2px rgba(0,0,0,.85);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pa-eg-time{color:rgba(255,255,255,.82);font-size:10px;margin-top:1px;text-shadow:0 1px 2px rgba(0,0,0,.85)}
@@ -4455,7 +4459,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026100604';
+const PROOS_BUILD='2026100605';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -12814,7 +12818,7 @@ async function _paUpdateDetections(){
   const strip=document.getElementById('pa-strip');
   if(strip && sig!==window._paStripSig){
     window._paStripSig=sig;
-    strip.innerHTML=smart.map((e,i)=>{ const gi=events.indexOf(e); const nm=(e.camId&&_pcCamMap&&_pcCamMap[e.camId])||e.cam||''; return `<div class="pa-strip-cell" onclick="playProtectClip(${gi})"><div class="pa-strip-thumb pa-load" id="pa-strip-th${i}"></div><div class="pa-strip-meta"><span class="pa-strip-ico">${_paTypeIcon(e.kind)}</span><span class="pa-strip-time">${_hEsc(_agoStr(e.when))}</span></div></div>`; }).join('');
+    strip.innerHTML=smart.map((e,i)=>{ const gi=events.indexOf(e); const nm=(e.camId&&_pcCamMap&&_pcCamMap[e.camId])||e.cam||''; return `<div class="pa-strip-cell" onclick="playProtectClip(${gi})"><div class="pa-strip-thumb pa-load" id="pa-strip-th${i}"><span class="pa-strip-ico">${_paTypeIcon(e.kind)}</span></div><div class="pa-strip-meta"><span class="pa-strip-time">${_hEsc(_agoStr(e.when))}</span></div></div>`; }).join('');
     smart.forEach(async (e,i)=>{ const cell=document.getElementById('pa-strip-th'+i); if(!cell||cell.dataset.done) return; cell.dataset.done='1'; if(e.event_id&&e.hasThumb!==false){ const url=await _peThumb(e); const el=document.getElementById('pa-strip-th'+i); if(url&&el){ el.style.backgroundImage=`url('${url}')`; el.classList.remove('pa-load'); } else if(el){ el.classList.remove('pa-load'); } } else { cell.classList.remove('pa-load'); } });
   }
 }
