@@ -602,6 +602,21 @@ html.proos-has-bg #landing::before,html.proos-has-bg #proos-reboot::before,html.
 #danger-error{font-size:12px;color:var(--warn);min-height:16px;margin-top:6px}
 .danger-go{width:100%;background:var(--warn);border:none;color:#fff;border-radius:12px;padding:13px;font-size:14px;font-weight:500;font-family:inherit;cursor:pointer;margin-top:4px}
 .danger-go:disabled{opacity:0.4;cursor:not-allowed}
+/* 694 — THE POP-UP STANDARD (Dave, 6 Oct 2026: "A"): every Pro confirm box is the centred
+   look of the sign-in screens — title, one sentence, the action full width (blue; red only
+   when something is removed or wiped), Cancel full width under it. */
+#danger-confirm,#reset-confirm,#factory-confirm{background:rgba(0,0,0,0.62)!important}
+#danger-confirm .rp-sheet,#reset-confirm .rp-sheet,#factory-confirm .rp-sheet{max-width:380px;padding:28px 26px 22px;border-radius:22px;background:rgba(28,29,36,0.9);border:1px solid rgba(255,255,255,0.10);text-align:center}
+#danger-confirm .rp-head,#reset-confirm .rp-head,#factory-confirm .rp-head{justify-content:center;border:0;padding:0;margin:0 0 10px}
+#danger-confirm .rp-title,#reset-confirm .rp-title,#factory-confirm .rp-title{font-size:22px;font-weight:300;letter-spacing:0}
+#danger-confirm .rp-list,#reset-confirm .rp-list,#factory-confirm .rp-list{padding:0;overflow:visible}
+#danger-msg,#danger-confirm .reset-wiped,#reset-confirm .reset-wiped,#factory-confirm .reset-wiped{font-size:13px;color:rgba(255,255,255,0.55);line-height:1.5;margin-bottom:20px;text-align:center}
+#danger-confirm .field,#reset-confirm .field,#factory-confirm .field{text-align:left}
+#danger-confirm .field input,#reset-confirm .field input,#factory-confirm .field input{border-radius:12px}
+.danger-go,#reset-confirm .reset-go,#factory-confirm .reset-go{background:#2139f0;border-radius:12px;padding:14px;font-size:15px;margin-top:6px}
+.danger-go.is-danger,#reset-confirm .reset-go,#factory-confirm .reset-go{background:#d64a3f}
+#reset-confirm .reset-go:disabled,#factory-confirm .reset-go:disabled{opacity:0.4;cursor:not-allowed}
+#danger-confirm .rp-cancel,#reset-confirm .rp-cancel,#factory-confirm .rp-cancel{width:100%;margin-top:10px;background:transparent;border:1px solid rgba(255,255,255,0.16);color:rgba(255,255,255,0.8);font-size:15px}
 #room-edit.open .rp-sheet,#scene-art.open .rp-sheet{transform:scale(1)}
 #re-actions{display:flex;flex-direction:column;gap:8px;margin-top:14px}
 #re-actions .btn-primary,#re-actions .rp-cancel,#re-actions .btn-danger{margin-top:0;width:100%}
@@ -2296,7 +2311,7 @@ body.aws-open .v2tabs{display:none!important}
 </div>
 <div id="reset-confirm" onclick="if(event.target===this)closeResetConfirm()">
   <div class="rp-sheet">
-    <div class="rp-head"><div class="rp-title">Reset this home?</div></div>
+    <div class="rp-head"><div class="rp-title">Reset This Home?</div></div>
     <div class="rp-list">
       <div class="reset-wiped"><b>Wiped:</b> rooms, devices, integrations, automations, scenes and dashboards — back to a clean ProOS install. <b>Kept:</b> the operating system and ProOS add-ons. A recovery backup is saved automatically before anything changes.</div>
       <div class="field"><div class="field-label" id="reset-label">Type the Home Name to Confirm</div><input id="reset-name" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" oninput="onResetNameInput()"/></div>
@@ -2310,7 +2325,7 @@ body.aws-open .v2tabs{display:none!important}
 </div>
 <div id="factory-confirm" onclick="if(event.target===this)closeFactoryConfirm()">
   <div class="rp-sheet">
-    <div class="rp-head"><div class="rp-title">Factory reset this box?</div></div>
+    <div class="rp-head"><div class="rp-title">Factory Reset This Box?</div></div>
     <div class="rp-list">
       <div class="reset-wiped"><b>Wiped:</b> the owner account, onboarding and everything the home holds — rooms, devices, integrations and dashboards config. The box comes back as a <b>brand-new install</b> and the next installer starts from “Set up this home”. <b>Kept:</b> the OS, ProOS add-ons and the dashboard files. A recovery backup is saved before anything changes.</div>
       <label style="display:flex;align-items:center;gap:10px;margin:12px 2px;font-size:13px;color:var(--t2);cursor:pointer"><input type="checkbox" id="factory-clear-data" style="width:16px;height:16px;flex:none"/>Also clear ProOS credentials (UniFi, Music, etc.) for a truly clean box</label>
@@ -2456,7 +2471,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026100606';
+const PROOS_BUILD='2026100607';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -3312,7 +3327,7 @@ function _awActSetType(t,el){ _awActType=t; if(el&&el.parentNode){ el.parentNode
 // Clear the recorded awareness/recovery history on this box (installer action). Wipes
 // the audit log Core reads for this feed; new events start accumulating again from now.
 async function _awClearActivity(){
-  if(!confirm('Clear all awareness activity history on this box? This removes the recorded events and can’t be undone.')) return;
+  if(!await proAsk('Clear all awareness activity history on this box? This removes the recorded events and can’t be undone.')) return;
   try{
     const r=await fetch(proCoreUrl()+'/watchers/audit/clear',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
     if(!r.ok){ toast(r.status===403?'Tech access required':'Couldn’t clear history'); return; }
@@ -4224,7 +4239,7 @@ function _unifiNetCard(){
   return head+stepHtml;
 }
 async function netRemove(){
-  if(!confirm('Remove UniFi Network?\n\nThis uninstalls the certified integration — its device presence signals and PoE port map. It can be re-added any time.')) return;
+  if(!await proAsk('Remove UniFi Network?\n\nThis uninstalls the certified integration — its device presence signals and PoE port map. It can be re-added any time.')) return;
   toast('Removing…');
   try{
     const r=await fetch(proCoreUrl()+'/integrations/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain:'unifi'})});
@@ -9388,7 +9403,7 @@ async function actTest(){
 }
 async function actReset(){
   if(!_actCur) return;
-  if(_actCur.edited && !confirm('Reset “'+_actShort(_actCur)+'”? This replaces your edited version with a freshly generated activity from the room’s current configuration. Your edits will be lost.')) return;
+  if(_actCur.edited && !await proAsk('Reset “'+_actShort(_actCur)+'”? This replaces your edited version with a freshly generated activity from the room’s current configuration. Your edits will be lost.')) return;
   try{
     const r=await fetch(proCoreUrl()+'/project/activities/regenerate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({area:_roomHubArea,object_id:_actCur.object_id})});   // by area id (reg 441)
     const j=r.ok?await r.json():null;
@@ -11197,7 +11212,7 @@ async function notifyKeySave(){
   }catch(e){ if(out) out.textContent=_coreFailWords('',e); }
 }
 async function notifyKeyClear(){
-  if(!confirm('Remove the Apple push key from this box? No alert can reach a ProOS phone until one is loaded again.')) return;
+  if(!await proAsk('Remove the Apple push key from this box? No alert can reach a ProOS phone until one is loaded again.')) return;
   try{ const r=await fetch(proCoreUrl()+'/push/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clear:true})});
     if(!r.ok){ toast('Core refused'); return; } toast('Key removed'); techViewNotify(document.getElementById('tech-view')); }
   catch(e){ toast(_coreFailWords('',e)); }
@@ -11658,7 +11673,7 @@ async function tilesUpload(){
 async function tileDelete(slug){
   // Core decides what "remove" means for this tile: an upload is deleted, a
   // shipped tile is hidden on this system. Both are reversible.
-  if(!confirm('Stop showing the "'+slug+'" tile?\n\nUploaded artwork is deleted. Artwork that ships with ProOS is hidden on this system and can be restored.')) return;
+  if(!await proAsk('Stop showing the "'+slug+'" tile?\n\nUploaded artwork is deleted. Artwork that ships with ProOS is hidden on this system and can be restored.')) return;
   try{
     const r=await fetch(proCoreUrl()+'/apps/art/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({slug})});
     const d=await r.json().catch(()=>({}));
@@ -11671,7 +11686,7 @@ async function tilesClear(what){
   const msg = what==='fetched'
     ? 'Remove every tile that was fetched automatically?\n\nYour own uploads are kept. Fetched artwork can be pulled again in one click.'
     : 'Remove ALL app artwork on this system?\n\nEverything drops back to wordmarks until you fetch or upload again.';
-  if(!confirm(msg)) return;
+  if(!await proAsk(msg)) return;
   try{
     const r=await fetch(proCoreUrl()+'/apps/art/clear',{method:'POST',
       headers:{'Content-Type':'application/json'},body:JSON.stringify({what})});
@@ -11713,7 +11728,7 @@ async function techViewHealth(view){
   setHTML(view,html);
 }
 async function techAddonAction(slug,action){
-  if((action==='rebuild'||action==='stop')&&!confirm(action.charAt(0).toUpperCase()+action.slice(1)+' this add-on?')) return;
+  if((action==='rebuild'||action==='stop')&&!await proAsk(action.charAt(0).toUpperCase()+action.slice(1)+' this add-on?')) return;
   toast(action.charAt(0).toUpperCase()+action.slice(1)+'ing…');
   try{
     const r=await fetch(proCoreUrl()+'/sysadmin/addon/'+encodeURIComponent(slug)+'/'+action,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
@@ -12470,7 +12485,7 @@ async function unifiSaveCuration(){
 // native HA. Each maps to an HA entity on the camera's device (matched by
 // domain + id suffix); a control missing on a given camera is simply skipped.
 async function unifiRemove(){
-  if(!confirm('Remove UniFi Protect?\n\nThis uninstalls the certified integration — cameras, live view, events and clips — and clears the saved connection. The homeowner loses all camera access until it is re-added.')) return;
+  if(!await proAsk('Remove UniFi Protect?\n\nThis uninstalls the certified integration — cameras, live view, events and clips — and clears the saved connection. The homeowner loses all camera access until it is re-added.')) return;
   toast('Removing…');
   let done=false;
   // Primary path: Core removes the native entry with its Supervisor rights, so an
@@ -14186,24 +14201,48 @@ async function doBackupCreate(){
 }
 // generic destructive confirm — restore needs a typed match; delete just confirms
 let _dangerCb=null, _dangerNeed='';
-function dangerConfirm(title, msgHtml, needText, cb){
+// 694: the action reads as its own verb (the title's first word: Remove, Update, Restart…)
+// and is red only when it removes or wipes something; everything else is blue.
+const _DANGER_VERBS=/^(Remove|Revoke|Delete|Merge|Reset|Factory|Clear|Stop|Forget|Disconnect|Wipe)\b/i;
+let _dangerAsk=null;
+function dangerConfirm(title, msgHtml, needText, cb, opts){
+  opts=opts||{};
   _dangerCb=cb; _dangerNeed=(needText||'').trim();
   document.getElementById('danger-title').textContent=title;
   document.getElementById('danger-msg').innerHTML=msgHtml;
   const fld=document.getElementById('danger-field'), inp=document.getElementById('danger-input'), lbl=document.getElementById('danger-label'), go=document.getElementById('danger-go'), er=document.getElementById('danger-error');
-  if(er) er.textContent=''; go.textContent='Confirm';
+  const _verb=(String(title||'').match(/^[A-Za-z]+/)||[''])[0];
+  const _isDanger=(opts.danger!=null)?!!opts.danger:(_DANGER_VERBS.test(String(title||''))||!!_dangerNeed);
+  go.classList.toggle('is-danger', _isDanger);
+  go.dataset.label=opts.go||(_verb&&_verb.length>2?_verb.charAt(0).toUpperCase()+_verb.slice(1):'Confirm');
+  if(er) er.textContent=''; go.textContent=go.dataset.label;
   if(_dangerNeed){ fld.style.display=''; inp.value=''; lbl.textContent='Type "'+_dangerNeed+'" to confirm'; inp.placeholder=_dangerNeed; go.disabled=true; }
   else { fld.style.display='none'; go.disabled=false; }
   document.getElementById('danger-confirm').classList.add('open');
   if(_dangerNeed) setTimeout(()=>{ inp.focus(); },120);
 }
-function closeDanger(){ document.getElementById('danger-confirm').classList.remove('open'); }
+function closeDanger(){ document.getElementById('danger-confirm').classList.remove('open');
+  if(_dangerAsk){ const r=_dangerAsk; _dangerAsk=null; r(false); } }
+// 694: Pro never uses the browser's own white confirm box (unbranded, and inside the iPad and
+// iPhone app it may not appear at all, so the button seemed to do nothing). Same words in,
+// true/false out, drawn as the pop-up standard. "Title?\n\nSentence" or "Title? Sentence".
+function proAsk(text, opts){
+  const t=String(text||''); let title=t, body='';
+  const i=t.indexOf('\n\n');
+  if(i>0){ title=t.slice(0,i); body=t.slice(i+2); }
+  else { const q=t.indexOf('?'); if(q>0&&q<t.length-1){ title=t.slice(0,q+1); body=t.slice(q+1).trim(); } }
+  return new Promise(res=>{
+    if(_dangerAsk){ const r=_dangerAsk; _dangerAsk=null; r(false); }
+    dangerConfirm(title, body?esc(body).replace(/\n/g,'<br>'):'', '', ()=>{ const r=_dangerAsk; _dangerAsk=null; if(r) r(true); }, opts);
+    _dangerAsk=res;
+  });
+}
 function onDangerInput(){ const v=(document.getElementById('danger-input').value||'').trim().toLowerCase(); document.getElementById('danger-go').disabled = v!==_dangerNeed.toLowerCase(); }
 async function dangerGo(){
   const go=document.getElementById('danger-go'), er=document.getElementById('danger-error');
   if(go){ go.disabled=true; go.textContent='Working…'; } if(er) er.textContent='';
   try{ if(_dangerCb) await _dangerCb(); closeDanger(); }
-  catch(e){ if(go){ go.disabled=false; go.textContent='Confirm'; } if(er) er.textContent=(e&&e.message)||'Something went wrong.'; }
+  catch(e){ if(go){ go.disabled=false; go.textContent=go.dataset.label||'Confirm'; } if(er) er.textContent=(e&&e.message)||'Something went wrong.'; }
 }
 
 // ── navigation ──
