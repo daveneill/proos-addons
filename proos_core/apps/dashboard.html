@@ -4459,7 +4459,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026100606';
+const PROOS_BUILD='2026100607';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -9610,8 +9610,13 @@ async function _protectRoot(){
 // The events and pictures are still the platform's; Core only reads, shrinks and remembers.
 async function _loadProtectEventsPC(hours, cap){
   hours=hours||24; cap=cap||60;
+  // 696a: Core is told which cameras are on the dashboard (room-assigned), so it chooses them
+  // BEFORE keeping the newest — a camera in no room can no longer push every detection out.
+  const ask=async names=>{ const q=names&&names.length?('&cams='+encodeURIComponent(names.join(','))):'';
+    const r=await fetch(proosCoreBase()+'/protect/events?hours='+hours+'&cap='+cap+q); const j=await r.json(); if(!r.ok) throw new Error((j&&j.error)||('HTTP '+r.status)); return j; };
+  const names=(CONFIG.cameras||[]).map(c=>c&&c.name).filter(Boolean);
   let d=null;
-  try{ const r=await fetch(proosCoreBase()+'/protect/events?hours='+hours+'&cap='+cap); d=await r.json(); if(!r.ok) throw new Error((d&&d.error)||('HTTP '+r.status)); }
+  try{ d=await ask(names); if(d&&d.nvr&&names.length&&!(d.events||[]).length&&!d.cameras) d=await ask(null); }
   catch(e){ window._peLoadErr=String((e&&e.message)||e); return null; }
   if(!d||!d.nvr){ window._peLoadErr=(d&&d.error)||'UniFi Protect is not set up'; return null; }
   window._peLoadErr=''; window._peNvr=d.nvr; _protectNvr=d.nvr;
