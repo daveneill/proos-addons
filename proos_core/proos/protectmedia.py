@@ -52,7 +52,11 @@ THUMB_KEEP = 3000         # shrunk pictures kept on disk, oldest dropped first
 WORKERS = 6               # platform reads in flight at once
 SCALE = "1/4"             # 3200x1800 → 800x450: sharp on a retina 148-pt tile
 
-_EVENT_ID = re.compile(r"^[0-9a-f]{24}$")
+# An event's id is one of TWO shapes on Dave's box (read 7 Oct 2026, register 696b): older events
+# (a third-party camera's motion, audio) carry 24 hex characters; every Object Detection, Ring
+# and the newer cameras' Motion carry a UUID. 1.0.838/839 accepted only the first and dropped
+# all 130 of yesterday's detections and rings. Both shapes, and nothing else, ever reach a path.
+_EVENT_ID = re.compile(r"^(?:[0-9a-f]{24}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$")
 _TITLE = re.compile(r"^(\d\d)/(\d\d)/(\d\d) (\d\d):(\d\d):(\d\d) ((?:\d+[hms]\s?)+)\s*(.*)$")
 _KINDS = (("person", "Person"), ("face", "Face"), ("vehicle", "Vehicle"),
           ("animal", "Animal"), ("package", "Package"), ("license plate", "License Plate"))
