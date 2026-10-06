@@ -50,7 +50,11 @@ ROOT_TTL = 300.0          # s — the camera list (cameras are added rarely)
 DAY_CACHE_MAX = 600       # finished (camera, day) lists kept in memory
 THUMB_KEEP = 3000         # shrunk pictures kept on disk, oldest dropped first
 WORKERS = 6               # platform reads in flight at once
-SCALE = "1/4"             # 3200x1800 → 800x450: sharp on a retina 148-pt tile
+LONG_SIDE = 800           # px — a picture is shrunk only while its long side stays at least this
+SHRINK_ABOVE = 1200       # px — pictures with a long side up to this are served untouched
+# 696c (Dave, 7 Oct 2026: "the strip pics … seem fuzzy"): UniFi's own cameras already send
+# 360x360 detection pictures; 1.0.838 quartered EVERY picture, so those became 90x90. Only a
+# picture that is genuinely large (the HIKVISION's 3200x1800) is shrunk, and never below 800.
 
 # An event's id is one of TWO shapes on Dave's box (read 7 Oct 2026, register 696b): older events
 # (a third-party camera's motion, audio) carry 24 hex characters; every Object Detection, Ring
@@ -284,21 +288,62 @@ def _safe_list(nvr, cam, day, today):
 
 # ── pictures: fetched once, shrunk once, kept ──────────────────────────────
 def _thumb_dir():
-    p = os.path.join(_data_dir, "protect_thumbs")
+    # 696c: a new folder — 1.0.838–840 kept 90x90 copies of UniFi's 360x360 pictures in
+    # "protect_thumbs"; that folder is dropped once, so no fuzzy copy is ever served again.
+    old = os.path.join(_data_dir, "protect_thumbs")
+    if os.path.isdir(old):
+        shutil.rmtree(old, ignore_errors=True)
+    p = os.path.join(_data_dir, "protect_pictures")
     os.makedirs(p, exist_ok=True)
     return p
 
 
+def jpeg_size(jpeg: bytes):
+    """(width, height) from a JPEG's frame header, or None."""
+    i, n = 2, len(jpeg or b"")
+    if n < 4 or jpeg[:2] != b"\xff\xd8":
+        return None
+    while i + 9 < n:
+        if jpeg[i] != 0xFF:
+            i += 1
+            continue
+        m = jpeg[i + 1]
+        if m in (0xD8, 0x01) or 0xD0 <= m <= 0xD7 or m == 0xFF:
+            i += 1 if m == 0xFF else 2
+            continue
+        seg = int.from_bytes(jpeg[i + 2:i + 4], "big")
+        if 0xC0 <= m <= 0xCF and m not in (0xC4, 0xC8, 0xCC):
+            return int.from_bytes(jpeg[i + 7:i + 9], "big"), int.from_bytes(jpeg[i + 5:i + 7], "big")
+        i += 2 + seg
+    return None
+
+
+def scale_for(size):
+    """The libjpeg-turbo scale for a picture of this size, or None to leave it alone:
+    the most it can be shrunk (½, ¼ or ⅛) while its long side stays at least LONG_SIDE."""
+    if not size:
+        return None
+    long_side = max(size)
+    if long_side <= SHRINK_ABOVE:
+        return None
+    for d in (8, 4, 2):
+        if long_side / d >= LONG_SIDE:
+            return "1/%d" % d
+    return None
+
+
 def shrink(jpeg: bytes) -> bytes:
-    """The picture at a quarter of its size, by libjpeg-turbo's DCT scaling.
-    Returns the original when the tool is missing or the picture will not decode."""
+    """A large picture made smaller by libjpeg-turbo's DCT scaling (see scale_for); a picture
+    that is already small comes back untouched. Returns the original when the tool is missing
+    or the picture will not decode."""
     dj, cj = shutil.which("djpeg"), shutil.which("cjpeg")
-    if not (dj and cj and jpeg):
+    scale = scale_for(jpeg_size(jpeg))
+    if not (dj and cj and jpeg and scale):
         return jpeg
     try:
-        ppm = subprocess.run([dj, "-scale", SCALE, "-fast"], input=jpeg,
+        ppm = subprocess.run([dj, "-scale", scale], input=jpeg,
                              capture_output=True, timeout=10, check=True).stdout
-        small = subprocess.run([cj, "-quality", "78", "-optimize", "-progressive"], input=ppm,
+        small = subprocess.run([cj, "-quality", "82", "-optimize", "-progressive"], input=ppm,
                                capture_output=True, timeout=10, check=True).stdout
         return small if small and len(small) < len(jpeg) else jpeg
     except Exception:  # noqa: BLE001
