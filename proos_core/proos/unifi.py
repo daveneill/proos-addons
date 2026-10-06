@@ -126,9 +126,13 @@ class ProtectClient:
                 out["reachable"] = False
                 out["error"] = e.message
             # private-API (event search / thumbnails / clips) needs the login session
-            # 691: ProOS no longer logs in — say so without trying.
-            out["private_ok"] = False
-            out["private_error"] = "not available yet — moving to the platform's own camera media"
+            # 691/692: ProOS no longer logs in. Event history, thumbnails and clips come from
+            # the platform's own UniFi Protect media — ready whenever its integration is set up.
+            _has_entry = bool(_pe.entry(_DOMAIN))   # (not `e`: the except above unbinds it)
+            out["private_ok"] = _has_entry
+            out["events_source"] = "platform"
+            if not _has_entry:
+                out["private_error"] = "set up the UniFi Protect integration"
             if False and user and pw:
                 try:
                     self._ensure_session()
