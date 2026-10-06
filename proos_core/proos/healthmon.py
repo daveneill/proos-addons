@@ -346,6 +346,12 @@ def dismiss(iid):
 # registry-merged NAS as infrastructure and invisible gear as furniture.
 # Carries no claim: PLUMBING.
 GEAR_FN = None
+# REGISTER 688 (Dave, 6 Oct 2026: "majority of homes may never have network
+# integration added so why ... should it say there is an incident"). () -> True
+# when this home HAS a network controller integration set up (the platform's
+# own entry). Without one there is nothing to be blind TO: the gear question is
+# consciously uncovered (register 181), never an incident.
+GEAR_CONFIGURED_FN = None
 
 # Gear currently OFF the network, by display name — the live answer, rewritten
 # every scan. The watcher reads this (A-8, Dave's switch test 16 Aug): while a
@@ -538,9 +544,21 @@ def _infra_check(now, snapall, seen):
             gear = fn()
         except Exception:                                        # noqa: BLE001
             gear = None
-    if not fn:
-        # no controller to ask: consciously uncovered (register 181) — no claim either way
+    _cfgd = globals().get("GEAR_CONFIGURED_FN")
+    _has_controller = True
+    if _cfgd:
+        try:
+            _has_controller = bool(_cfgd())
+        except Exception:                                        # noqa: BLE001
+            _has_controller = True    # can't tell → keep the honest blind card
+    if not fn or not _has_controller:
+        # no controller to ask: consciously uncovered (register 181) — no claim either
+        # way, and no "can't see" card (register 688): a home without a network
+        # integration is not blind, it simply has nothing to ask.
         _gear_down = []
+        _blind = _iid("network_blind", "network", "controller")
+        if _blind in _open:
+            _clear(_blind)
         return
     if not gear:
         # A CONTROLLER THAT CANNOT BE READ IS BLIND, NOT "NO GEAR DOWN" (Dave's ruling,
