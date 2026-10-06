@@ -208,14 +208,23 @@ def _list_for(nvr, cam, day, today):
     return evs
 
 
-def events(hours=24, cap=60, now_ms=None):
-    """{nvr, events:[…newest first], read, kept} — every camera's events over the
-    last `hours`, from the platform's own media. Finished days come from memory."""
+def events(hours=24, cap=60, now_ms=None, cams=None):
+    """{nvr, events:[…newest first], read, kept} — the cameras' events over the last
+    `hours`, from the platform's own media. Finished days come from memory.
+
+    `cams`: the names of the cameras the caller shows (the dashboard's room-assigned
+    cameras). They are chosen BEFORE the newest `cap` are kept — register 696a, found
+    on Dave's box the evening 1.0.838 went in: a camera in no room logged 358 motion
+    events in a day, filled the newest 500, and every person and vehicle on the Front
+    Door fell off the end before the page could drop that camera."""
     hours = max(1, min(int(hours or 24), 24 * 31))
     cap = max(1, min(int(cap or 60), 5000))
     end = int(now_ms if now_ms is not None else time.time() * 1000)
     cutoff = end - hours * 3600 * 1000
+    want = {str(n).strip().lower() for n in (cams or []) if str(n).strip()}
     nvr, cams = root()
+    if want:
+        cams = [c for c in cams if (c.get("name") or "").strip().lower() in want]
     if not nvr:
         return {"nvr": "", "events": [], "error": "UniFi Protect is not set up"}
     zone = _zone()
@@ -235,7 +244,7 @@ def events(hours=24, cap=60, now_ms=None):
             out.append(e)
     out.sort(key=lambda e: e["start"], reverse=True)
     return {"nvr": nvr, "events": out[:cap], "read": cold, "kept": len(jobs) - cold,
-            "time_zone": _tz["name"]}
+            "time_zone": _tz["name"], "cameras": len(cams), "chosen": bool(want)}
 
 
 def keep_ready(hours=72):
