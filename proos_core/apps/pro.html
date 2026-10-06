@@ -2456,7 +2456,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026100604';
+const PROOS_BUILD='2026100606';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -3267,6 +3267,9 @@ function _awLiveRow(it){
 // answer would have been.
 function _awPhysBanner(d){
   const p = d && d.physical; if(!p || p.available) return '';
+  // 691: port readings are not provided at all now (the platform does not report them and
+  // ProOS no longer signs in to the controller) — nothing to act on, so no strip.
+  if(p.not_provided) return '';
   return '<div class="aw-physbar">Physical port readings unavailable — '
     + esc(p.why || 'the network controller is not answering') + '</div>';
 }
@@ -5798,8 +5801,27 @@ async function skipFlow(flowId){
   try{ await loadDiscoveredFlows(); }catch(e){}
   renderDiscoveredFlows();
 }
+// REGISTER 690 (Dave, 6 Oct 2026: UniFi Protect said "Couldn't reach the TV"). A setup's
+// errors are shown in THE INTEGRATION'S OWN WORDS — the platform's translations for that
+// integration (frontend/get_translations, category config), the same text its own page
+// shows. FLOW_ERRORS is Samsung's guided copy and now applies to the Samsung driver only.
+const _flowTr={};
+async function _flowLoadTr(handler){
+  if(!handler||_flowTr[handler]) return _flowTr[handler]||{};
+  try{ const r=await snd({type:'frontend/get_translations', language:'en', category:'config', integration:[handler]});
+       _flowTr[handler]=(r&&r.result&&r.result.resources)||{}; }catch(e){ _flowTr[handler]={}; }
+  return _flowTr[handler];
+}
+function _flowPlatformWords(kind, code){   // kind: 'error' | 'abort'
+  const h=_flow&&_flow.handler; const tr=h&&_flowTr[h]; if(!tr||!code) return '';
+  return tr['component.'+h+'.config.'+kind+'.'+code]||'';
+}
+function _flowIsSamsung(){ return /samsung/i.test((_flow&&_flow.handler)||''); }
 function renderFlowStep(step){
   if(!step||!step.type){ flowMessage('Unexpected response from setup.'); return; }
+  // 690: have the integration's own words ready before anything is drawn from this step.
+  const _h=_flow&&_flow.handler;
+  if(_h && !_flowTr[_h] && (step.type==='form'||step.type==='abort')){ _flowLoadTr(_h).then(()=>renderFlowStep(step)); return; }
   if(step.type==='create_entry'){
     // Samsung TV: the add gives control via the on-TV "Allow" prompt; discrete input
     // needs the IP Control pair too — so chain straight into it as one process.
@@ -5810,7 +5832,7 @@ function renderFlowStep(step){
     }
     finishFlow(); return;
   }
-  if(step.type==='abort'){ if(/_successful$/.test(step.reason||'')){ finishFlow(); return; } flowMessage(abortText(step.reason)); return; }
+  if(step.type==='abort'){ if(/_successful$/.test(step.reason||'')){ finishFlow(); return; } flowMessage(_flowPlatformWords('abort', step.reason)||abortText(step.reason)); return; }
   if(step.type==='form'){ renderFlowForm(step); return; }
   if(step.type==='menu'){ renderFlowMenu(step); return; }
   if(step.type==='show_progress'||step.type==='progress'){ renderFlowProgress(step); return; }
@@ -5899,7 +5921,7 @@ function renderFlowForm(step){
   const recipe = flowRecipeFor(step);
   const titleHtml = flowStepTitleHtml(recipe);
   const rawErr=step.errors&&(step.errors.base||Object.values(step.errors)[0]);
-  const firstErr=rawErr?(FLOW_ERRORS[rawErr]||String(rawErr).replace(/_/g,' ')):'';
+  const firstErr=rawErr?(_flowPlatformWords('error', rawErr)||(_flowIsSamsung()&&FLOW_ERRORS[rawErr])||String(rawErr).replace(/_/g,' ')):'';
   const errs=firstErr?`<div class="wiz-hint" style="color:var(--warn)">${esc(firstErr)}</div>`:'';
   // Guided intro: per-step copy wins, then the options-flow intro, then a generic hint.
   const introTxt = (recipe && (recipe._isStep ? recipe.intro : recipe.optionsIntro)) || FLOW_HINTS[_flow&&_flow.handler] || '';
@@ -12351,7 +12373,7 @@ async function renderUnifi(){
     // drawn in Pro's flow sheet — its fields, its steps, its errors, as it asks them.
     // The local login is still kept for events and clips on success (FLOW_CRED_CAPTURE).
     s1+=`<div class="wiz-hint" style="margin-bottom:12px">Nothing is set up yet. Setup asks for the console’s address, its API key and a local UniFi user, and says exactly what it needs if anything is wrong.</div>`;
-    s1+=`<button class="btn-primary" onclick="_beginFlow('unifiprotect')">Set Up UniFi Protect</button>`;
+    s1+=`<button class="btn-primary" onclick="unifiProtectSetup()">Set Up UniFi Protect</button>`;
   }
   html+=step(1,'The console', connected?'ok':'', connected?'Connected':(priv.entry?'Set up — not answering':'Not set up'), s1);
 
@@ -12470,6 +12492,15 @@ async function unifiRemove(){
   openBay('library');
 }
 
+// REGISTER 690: exactly what the platform's own integrations page does — when the platform
+// has DISCOVERED the console, setup finishes that discovered flow (it already knows the
+// address); otherwise it starts the platform's own setup.
+async function unifiProtectSetup(){
+  try{ await loadDiscoveredFlows(); }catch(e){}
+  const f=(_flows||[]).find(x=>x&&x.handler==='unifiprotect'&&!(x.context&&(x.context.source==='reauth'||x.context.source==='reconfigure')));
+  if(f){ try{ await closeAddIntegration(); }catch(e){} return addFlow(f.flow_id); }
+  return _beginFlow('unifiprotect');
+}
 async function unifiConnect(){
   // Register 439: with no entry, host/user/password go straight into the
   // platform's own setup flow through Core; with an entry, only ProOS's own
