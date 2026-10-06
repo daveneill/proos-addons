@@ -126,7 +126,10 @@ class ProtectClient:
                 out["reachable"] = False
                 out["error"] = e.message
             # private-API (event search / thumbnails / clips) needs the login session
-            if user and pw:
+            # 691: ProOS no longer logs in — say so without trying.
+            out["private_ok"] = False
+            out["private_error"] = "not available yet — moving to the platform's own camera media"
+            if False and user and pw:
                 try:
                     self._ensure_session()
                     out["private_ok"] = True
@@ -153,6 +156,10 @@ class ProtectClient:
 
     # ---- private API session (UniFi OS local login) ----
     def _session_login(self):
+        # REGISTER 691: ProOS does not sign in to the Protect console with a local user
+        # (the private API for event search, thumbnails and clips). Only the platform's
+        # integration signs in. Those three come back on the platform's own Protect media.
+        raise ProtectError(409, "event history, thumbnails and clips are not available yet — ProOS no longer signs in to the console; they are being moved to the platform's own camera media")
         key, host, verify, user, pw = self._conf()
         if not (host and user and pw):
             raise ProtectError(409, "private API needs a local username/password")

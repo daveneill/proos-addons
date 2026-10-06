@@ -76,6 +76,11 @@ class UniFiNetClient:
         return bool(host and u and pw)
 
     def _login(self):
+        # REGISTER 691 (Dave, 6 Oct 2026: "Just do what the platform does"): ProOS does
+        # not sign in to the UniFi controller. Its own logins — retried on every call
+        # with no pause — could exhaust the console's login limit and lock everyone
+        # out. Only the platform's integration signs in.
+        raise NetError(409, "ProOS does not sign in to the controller; the platform's integration does")
         host, verify, user, pw = self._conf()
         if not (host and user and pw):
             raise NetError(409, "needs host + a LOCAL username/password")
