@@ -1134,32 +1134,19 @@ def _reload_integration(entity, action, rec=None):
         entity, _rb.words(rb, "device back")), flush=True)
     return bool(rb.get("confirmed"))
 def _one_answer(rep):
-    """ONE HEALTH ANSWER (Dave's ruling, 5 Oct 2026): the open alarms list is the truth.
-    The header may say "All Systems Normal" only when there are NO open alarms — and a
-    check that has stopped reporting is itself an alarm (vitals → core_blind card), so
-    "every check fresh" rides the same list. The watcher's words stay underneath as the
-    detail; they can no longer contradict the alarm count on the same screen."""
+    """REGISTER 689 (Dave, 6 Oct 2026): "can the incident cards for everything … it even
+    says 1 Open Alarm then you go to it and it says all is okay". The header is the
+    WATCHER'S OWN answer — each watched device's state, read from the platform — and
+    ProOS's incident list no longer overrides it with an alarm count. (This replaces the
+    5 Oct "one Health answer" fold, register 680.) Incidents are still written to the
+    Master Log as they happen; `open_alarms` stays in the payload for any reader that
+    asks, and is shown nowhere."""
     rep = dict(rep or {})
-    hero = dict(rep.get("hero") or {})
     try:
         incs = _healthmon_mod.incidents() if _healthmon_mod is not None else None
     except Exception:                                            # noqa: BLE001
         incs = None
-    if incs is None:
-        hero.update({"headline": "Health Can't Be Read Right Now", "tone": "attention",
-                     "sub": "the alarm list did not answer, so nothing is claimed"})
-        rep["open_alarms"] = None
-    else:
-        n = len(incs)
-        rep["open_alarms"] = n
-        if n:
-            was = hero.get("headline")
-            hero["headline"] = "%d Open Alarm%s" % (n, "" if n == 1 else "s")
-            hero["tone"] = "attention"
-            if was and was != "All Systems Normal":
-                hero["sub"] = was + ((" · " + hero["sub"]) if hero.get("sub") else "")
-    if hero:
-        rep["hero"] = hero
+    rep["open_alarms"] = None if incs is None else len(incs)
     return rep
 
 
@@ -8996,6 +8983,10 @@ def main():
                 # check claims nothing — consciously uncovered, never guessed.
                 try:
                     _healthmon_mod.GEAR_FN = _controller_gear
+                    # 688: is there a network controller integration at all? Read
+                    # from the platform's own entries on every scan (unifinet._conf).
+                    _healthmon_mod.GEAR_CONFIGURED_FN = (
+                        lambda: _unifinet is not None and _unifinet.configured())
                 except Exception:                                # noqa: BLE001
                     pass
                 # THE BOX'S OWN UPDATE, FROM THE PLATFORM'S OWN UPDATE ENTITY
