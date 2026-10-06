@@ -1041,6 +1041,19 @@ body[data-home-state="noticing"] .home-state-go,body[data-home-state="attention"
 .pa-fs-back{position:absolute;top:14px;left:14px;z-index:3;background:rgba(0,0,0,.45);border:none;color:#fff;width:40px;height:40px;border-radius:50%;font-size:26px;line-height:1;cursor:pointer;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
 .pa-fs-name{position:absolute;top:22px;left:66px;z-index:3;color:#fff;font-size:16px;font-weight:600;text-shadow:0 1px 4px rgba(0,0,0,.9)}
 .pa-fs-ctrls{position:absolute;bottom:22px;left:0;right:0;display:flex;justify-content:center;gap:10px;z-index:3}
+/* 700: Listen and Hold to Talk */
+.pa-fs-listen.on{background:rgba(33,57,240,.85);border-color:transparent}
+.pa-fs-talk{touch-action:none;-webkit-user-select:none;user-select:none}
+.pa-fs-talk.talking{background:#d64a3f;border-color:transparent;box-shadow:0 0 0 6px rgba(214,74,63,.25)}
+/* 699: the doorbell's message sheet */
+.pa-dbmsg{position:absolute;inset:0;z-index:30;display:flex;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.45)}
+.pa-dbmsg-card{width:min(520px,100%);background:rgba(16,16,20,.96);border-radius:20px 20px 0 0;padding:20px 18px calc(18px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:12px}
+.pa-dbmsg-t{font-size:18px;font-weight:300;color:#fff}
+.pa-dbmsg-cur{font-size:13px;color:rgba(255,255,255,.55)}
+.pa-dbmsg-opts{display:flex;flex-wrap:wrap;gap:8px}
+.pa-dbmsg-own{display:flex;gap:8px}
+.pa-dbmsg-own input{flex:1;min-width:0;height:42px;border-radius:12px;border:.5px solid rgba(255,255,255,.16);background:rgba(255,255,255,.06);color:#fff;font-size:15px;padding:0 12px}
+.pa-dbmsg-x{background:none;border:0;color:rgba(255,255,255,.55);font-size:14px;padding:6px;cursor:pointer}
 .pa-fs-btn{background:rgba(0,0,0,.5);border:.5px solid rgba(255,255,255,.18);color:#fff;font-size:13px;font-weight:600;padding:10px 20px;border-radius:22px;cursor:pointer;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);display:flex;align-items:center;gap:7px}
 .pa-fs-livebtn{background:rgba(33,57,240,.92);border-color:transparent}
 .pa-fs-livedot{width:7px;height:7px;border-radius:50%;background:#fff}
@@ -1872,6 +1885,12 @@ body[data-home-state="noticing"] .home-state-go,body[data-home-state="attention"
 .pin-key.del{font-size:14px;color:rgba(255,255,255,0.5)}
 .pin-cancel{font-size:13px;color:rgba(255,255,255,0.50);background:none;border:none;cursor:pointer;padding:4px 12px}
 .pin-cancel:hover{color:rgba(255,255,255,0.6)}
+/* 698: the alarm's step — a keypad only when the panel needs a code; the action is always its own button */
+#pin-overlay.no-code .pin-dots,#pin-overlay.no-code .pin-pad{display:none}
+.pin-go{width:100%;height:48px;border-radius:12px;border:0;background:#2139f0;color:#fff;font-size:15px;font-weight:500;cursor:pointer}
+.pin-go:disabled{opacity:.5}
+.pin-msg{font-size:13px;color:#e8a04b;text-align:center}
+.sec-alarm-card .sec-alarm-by{font-size:12px;color:rgba(255,255,255,0.50);margin-top:2px}
 
 
 /* ── PLAYER POPUP ── */
@@ -3596,12 +3615,8 @@ try{var _sb=localStorage.getItem('proos_std_bg');if(_sb){document.documentElemen
       <div class="pin-panel">
         <div class="pin-title" id="pin-title">Arm System</div>
         <div class="pin-mode" id="pin-mode-label">AWAY</div>
-        <div class="pin-dots">
-          <div class="pin-dot" id="pd0"></div>
-          <div class="pin-dot" id="pd1"></div>
-          <div class="pin-dot" id="pd2"></div>
-          <div class="pin-dot" id="pd3"></div>
-        </div>
+        <div class="pin-dots"><div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div></div>
+        <div class="pin-msg" id="pin-msg" style="display:none"></div>
         <div class="pin-pad">
           <button class="pin-key" onclick="pinKey('1')">1</button>
           <button class="pin-key" onclick="pinKey('2')">2</button>
@@ -3614,8 +3629,9 @@ try{var _sb=localStorage.getItem('proos_std_bg');if(_sb){document.documentElemen
           <button class="pin-key" onclick="pinKey('9')">9</button>
           <button class="pin-key del" onclick="pinDel()">⌫</button>
           <button class="pin-key" onclick="pinKey('0')">0</button>
-          <button class="pin-cancel" onclick="closePinOverlay()">Cancel</button>
         </div>
+        <button class="pin-go" id="pin-go" onclick="submitPin()">OK</button>
+        <button class="pin-cancel" onclick="closePinOverlay()">Cancel</button>
       </div>
     </div>
 
@@ -4101,7 +4117,14 @@ async function autoDiscover(haUrl, token) {
       name: _camDisplayName(s.entity_id, s.attributes.friendly_name)
     }));
 
-  const alarm = allStates.find(s => !hiddenEntities.has(s.entity_id) && domain(s.entity_id)==='alarm_control_panel' && !!entityAreaMap[s.entity_id]);
+  // 698 · EVERY ALARM PANEL, WHATEVER ITS BRAND (Dave, 7 Oct 2026: "how Unifi Alarm manager is used and how
+  // it can be built into Dashboard as an alarm but also still support any other alarm integration brand").
+  // An alarm panel is the whole home's, so it is never required to sit in a room: UniFi's Alarm Manager has
+  // no area on his box and so the dashboard showed NO alarm at all. Every alarm_control_panel the platform
+  // has (and the installer has not hidden) is listed; one in a room comes first.
+  const alarms = allStates.filter(s => !hiddenEntities.has(s.entity_id) && domain(s.entity_id)==='alarm_control_panel')
+    .sort((x,y)=>(entityAreaMap[y.entity_id]?1:0)-(entityAreaMap[x.entity_id]?1:0));
+  const alarm = alarms[0];
   const weather = allStates.find(s => domain(s.entity_id)==='weather');
 
   // ── SECURITY SENSORS ──
@@ -4141,7 +4164,7 @@ async function autoDiscover(haUrl, token) {
     irrigationCtl,
     cameras,
     scenes,
-    security: { alarm: alarm?.entity_id||null, sensors: secSensors },
+    security: { alarm: alarm?.entity_id||null, alarms: alarms.map(x=>x.entity_id), sensors: secSensors },
     weather: weather?.entity_id||'weather.forecast_home',
     climate: rooms.find(r=>r.climate)?.climate||null,
   };
@@ -4468,7 +4491,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026100609';
+const PROOS_BUILD='2026100612';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -6884,7 +6907,7 @@ function onStateChange(eid){
   const sysEntity = _systemAreas.size && _systemAreas.has(entityAreaMap[eid]);
   // Whole-home navbar pages gather their devices across the ENTIRE home (including
   // excluded "system" areas), so they stay live even for a device parked in Services.
-  if(curPage==='security'){const sc=document.getElementById('sec-alarm-card');sc?updateSecurity():renderSecurity();}
+  if(curPage==='security'){const sc=document.querySelector('#security-content [data-alarm],#security-content [data-sec-entity]');sc?updateSecurity():renderSecurity();}
   // Build 7: no blackout — real updates repaint these pages even mid-command;
   // the pending label inside the renderers says what was asked, the reading
   // says what is true, and early confirmation clears the wait.
@@ -10321,8 +10344,11 @@ function renderWidgetContent(w){
       // Hold-to-confirm arm/disarm ON the tile (step 2). The hold is the intent
       // gate; completing it opens the panel's own PIN overlay — the alarm's
       // credential is never bypassed (we HAVE control, we are not IN control).
-      const _hSvc=armed||trig?'alarm_disarm':'alarm_arm_away';
-      const _hLbl=armed||trig?'Disarm':'Away';
+      // 698: the tile arms in the panel's OWN first mode (UniFi's Alarm Manager has only Away; a panel
+      // with only Home is armed Home), never a mode the panel does not have.
+      const _hMode=_alarmModes(CONFIG.security.alarm)[0]||ALARM_MODES[0];
+      const _hSvc=armed||trig?'alarm_disarm':_hMode.service;
+      const _hLbl=armed||trig?'Disarm':_hMode.label;
       const _hIco=armed||trig
         ?'<svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>'
         :'<svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
@@ -12369,11 +12395,33 @@ async function triggerScene(entity, idx){
 }
 
 // ── SECURITY ──
+// 698 · THE ALARM, BRAND-AGNOSTIC. Everything here comes from the panel itself, as the platform describes it
+// for ANY brand: which arming modes it supports (supported_features), whether it needs a code and of what
+// kind (code_format, code_arm_required), its state, and who changed it (changed_by). Nothing is assumed:
+// UniFi's Alarm Manager supports Away only and needs no code; another brand may offer Home, Night and
+// Vacation behind a six-digit code — the same page draws both truthfully.
 const ALARM_MODES = [
-  { mode:'away',  service:'alarm_arm_away',  label:'Away',  icon:'<svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>' },
-  { mode:'home',  service:'alarm_arm_home',  label:'Home',  icon:'<svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>' },
-  { mode:'night', service:'alarm_arm_night', label:'Night', icon:'<svg viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>' },
+  { mode:'away',     bit:2,  service:'alarm_arm_away',     label:'Away',     icon:'<svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>' },
+  { mode:'home',     bit:1,  service:'alarm_arm_home',     label:'Home',     icon:'<svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>' },
+  { mode:'night',    bit:4,  service:'alarm_arm_night',    label:'Night',    icon:'<svg viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>' },
+  { mode:'vacation', bit:32, service:'alarm_arm_vacation', label:'Vacation', icon:'<svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>' },
+  { mode:'custom_bypass', bit:16, service:'alarm_arm_custom_bypass', label:'Custom', icon:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>' },
 ];
+const ALARM_WORDS = { disarmed:'Disarmed', armed_away:'Armed Away', armed_home:'Armed Home', armed_night:'Armed Night',
+  armed_vacation:'Armed Vacation', armed_custom_bypass:'Armed Custom', arming:'Arming…', disarming:'Disarming…',
+  pending:'Entry Delay', triggered:'Alarm Triggered' };
+function _alarmPanels(){ const a=(CONFIG.security&&CONFIG.security.alarms)||[]; return a.length?a:((CONFIG.security&&CONFIG.security.alarm)?[CONFIG.security.alarm]:[]); }
+function _alarmModes(eid){ const f=Number(att(eid,'supported_features'))||0; return ALARM_MODES.filter(m=>f&m.bit); }
+function _alarmDead(v){ return !v||v==='unavailable'||v==='unknown'; }
+function _alarmWord(eid){ const v=st(eid); if(_alarmDead(v)) return 'No Signal'; return ALARM_WORDS[v]||cap(String(v).replace(/_/g,' ')); }
+// A code is asked for only when the panel says it needs one: always to disarm when it has a code format,
+// to arm only when code_arm_required is not false.
+function _alarmNeedsCode(eid, service){
+  const f=att(eid,'code_format'); if(!f) return false;
+  if(service==='alarm_disarm') return true;
+  return att(eid,'code_arm_required')!==false;
+}
+function _alarmName(eid){ return att(eid,'friendly_name')||String(eid).split('.')[1].replace(/_/g,' '); }
 
 // ── ACCESS PAGE ── Garage doors, gates, locks
 // THIS HOUSE IS NOT EVERY HOUSE (19 Aug 2026, register 233). These two
@@ -12496,33 +12544,28 @@ function togAccess(entity,tile){
   renderAccessPage();
 }
 
+function _secPanelHTML(eid){
+  const v=st(eid), dead=_alarmDead(v), armed=!dead&&String(v).indexOf('armed')===0, trig=v==='triggered';
+  const busy=v==='arming'||v==='disarming'||v==='pending';
+  const modes=_alarmModes(eid), by=att(eid,'changed_by');
+  const e=_hEsc(eid);
+  const modeBtns=(armed||trig||busy)?'':modes.map(m=>`<button class="sec-mode-btn" onclick="openPinOverlay('${m.service}','${m.label}','${e}')">${m.icon}<span>${m.label}</span></button>`).join('');
+  const disarmBtn=(armed||trig||busy)?`<button class="sec-mode-btn disarm" onclick="openPinOverlay('alarm_disarm','Disarm','${e}')"><svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg><span>Disarm</span></button>`:'';
+  return `<div class="sec-card sec-alarm-card${armed||trig?' alert':''}" style="grid-column:1/-1" data-alarm="${e}">`
+    +`<div class="sec-alarm-top"><div class="sec-alarm-ic"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>`
+    +`<div class="sec-alarm-info"><div class="sec-alarm-label">${_hEsc(_alarmName(eid))}</div><div class="sec-alarm-status">${_hEsc(_alarmWord(eid))}</div>`
+    +(by&&!dead?`<div class="sec-alarm-by">by ${_hEsc(by)}</div>`:'')+`</div></div>`
+    +(dead?'':`<div class="sec-alarm-modes">${modeBtns}${disarmBtn}</div>`)
+    +`</div>`;
+}
 function renderSecurity(){
-  // Full render — only on initial page load
+  // Full render — on page load
   const c=document.getElementById('security-content');if(!c)return;
   // Force single column on mobile via inline style
   if(window.innerWidth<=768){c.style.gridTemplateColumns='1fr';c.style.padding='0 8px 16px';}
   else{c.style.gridTemplateColumns='';c.style.padding='';}
-  const alarm=st(CONFIG.security.alarm)||'disarmed';
-  const armed=alarm!=='disarmed';
-  const statusLabel={disarmed:'System Disarmed',armed_away:'Armed Away',armed_home:'Armed Home',armed_night:'Armed Night',armed_vacation:'Armed Vacation',pending:'Entry Delay',arming:'Arming…',triggered:'⚠ Alarm Triggered'}[alarm]||cap(alarm.replace(/_/g,' '));
-  let h=`<div class="sec-card sec-alarm-card${armed?' alert':''}" style="grid-column:1/-1" id="sec-alarm-card">
-    <div class="sec-alarm-top">
-      <div class="sec-alarm-ic"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
-      <div class="sec-alarm-info">
-        <div class="sec-alarm-label">Security System</div>
-        <div class="sec-alarm-status" id="sec-alarm-status">${statusLabel}</div>
-      </div>
-    </div>
-    <div class="sec-alarm-modes" id="sec-alarm-modes">
-      ${ALARM_MODES.map(m=>`<button class="sec-mode-btn${alarm==='armed_'+m.mode?' active':''}" onclick="openPinOverlay('${m.service}','${m.label}')">
-        ${m.icon}<span>${m.label}</span>
-      </button>`).join('')}
-      ${armed?`<button class="sec-mode-btn disarm" onclick="openPinOverlay('alarm_disarm','Disarm')">
-        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
-        <span>Disarm</span>
-      </button>`:''}
-    </div>
-  </div>`;
+  // 698: one card per alarm panel the platform has, whatever its brand
+  let h=_alarmPanels().map(_secPanelHTML).join('');
   CONFIG.security.sensors.forEach((s,i)=>{
     const sv=st(s.entity);
     const open=sv==='Violated'||sv==='open'||sv==='on';
@@ -12537,40 +12580,17 @@ function renderSecurity(){
       ${isCover?`<div class="sec-btns"><button class="sec-btn" onclick="svc('cover','open_cover',{entity_id:'${s.entity}'})">${chevupSVG}</button><button class="sec-btn" onclick="svc('cover','close_cover',{entity_id:'${s.entity}'})">${chevdownSVG}</button></div>`:''}
     </div>`;
   });
+  if(!h) h='<div class="sec-card" style="grid-column:1/-1"><div class="sec-name">No alarm or security sensors in this home yet</div></div>';
   c.innerHTML=h;
 }
 
 function updateSecurity(){
-  // In-place update — no DOM rebuild, no hover flash
-  const alarm=st(CONFIG.security.alarm)||'disarmed';
-  const armed=alarm!=='disarmed';
-  const statusLabel={disarmed:'System Disarmed',armed_away:'Armed Away',armed_home:'Armed Home',armed_night:'Armed Night',armed_vacation:'Armed Vacation',pending:'Entry Delay',arming:'Arming…',triggered:'⚠ Alarm Triggered'}[alarm]||cap(alarm.replace(/_/g,' '));
-
-  // Update alarm card state
-  const alarmCard=document.getElementById('sec-alarm-card');
-  if(alarmCard){
-    alarmCard.className=`sec-card sec-alarm-card${armed?' alert':''}`;
-    const statusEl=document.getElementById('sec-alarm-status');
-    if(statusEl) statusEl.textContent=statusLabel;
-    // Update active button
-    const modesEl=document.getElementById('sec-alarm-modes');
-    if(modesEl){
-      modesEl.querySelectorAll('.sec-mode-btn:not(.disarm)').forEach((btn,i)=>{
-        btn.classList.toggle('active', alarm==='armed_'+ALARM_MODES[i]?.mode);
-      });
-      // Add/remove disarm button
-      let disarmBtn=modesEl.querySelector('.sec-mode-btn.disarm');
-      if(armed&&!disarmBtn){
-        disarmBtn=document.createElement('button');
-        disarmBtn.className='sec-mode-btn disarm';
-        disarmBtn.onclick=()=>openPinOverlay('alarm_disarm','Disarm');
-        disarmBtn.innerHTML=`<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg><span>Disarm</span>`;
-        modesEl.appendChild(disarmBtn);
-      } else if(!armed&&disarmBtn){
-        disarmBtn.remove();
-      }
-    }
-  }
+  // 698: a panel's buttons follow what it supports and its state, so a panel card is redrawn whole
+  // (one small card); sensor cards still update in place — no hover flash.
+  document.querySelectorAll('[data-alarm]').forEach(card=>{
+    const t=document.createElement('div'); t.innerHTML=_secPanelHTML(card.dataset.alarm);
+    const n=t.firstElementChild; if(n && n.outerHTML!==card.outerHTML) card.replaceWith(n);
+  });
   // Update sensor cards in-place
   document.querySelectorAll('[data-sec-entity]').forEach(card=>{
     const entity=card.dataset.secEntity;
@@ -12585,45 +12605,56 @@ function updateSecurity(){
   });
 }
 
-// ── PIN OVERLAY ──
-let pinTarget=null, pinCode='';
-
-function openPinOverlay(service, modeLabel){
-  pinTarget=service;
-  pinCode='';
-  document.getElementById('pin-title').textContent=service==='alarm_disarm'?'Disarm System':'Arm System';
-  document.getElementById('pin-mode-label').textContent=modeLabel.toUpperCase();
+// ── THE ALARM'S OWN STEP (698) ──
+// One sheet for every arm and disarm, on any brand of panel. When the panel needs a code it shows a keypad
+// sized to the code (no auto-submit at four digits — six-digit codes exist) and an OK; when it needs none it
+// shows the one action as a button. The platform's answer is read: a refused code says so on the sheet and
+// the sheet stays open. The credential is never bypassed and never kept.
+let pinTarget=null, pinCode='', pinEntity=null, pinNeedsCode=false;
+function openPinOverlay(service, modeLabel, eid){
+  pinEntity=eid||(CONFIG.security&&CONFIG.security.alarm); if(!pinEntity) return;
+  pinTarget=service; pinCode='';
+  pinNeedsCode=_alarmNeedsCode(pinEntity, service);
+  document.getElementById('pin-title').textContent=(service==='alarm_disarm'?'Disarm ':'Arm ')+_alarmName(pinEntity);
+  document.getElementById('pin-mode-label').textContent=String(modeLabel).toUpperCase();
+  const ov=document.getElementById('pin-overlay');
+  ov.classList.toggle('no-code', !pinNeedsCode);
+  const go=document.getElementById('pin-go'); if(go){ go.textContent=pinNeedsCode?'OK':(service==='alarm_disarm'?'Disarm':('Arm '+modeLabel)); go.disabled=false; }
+  _pinMsg('');
   updatePinDots();
-  document.getElementById('pin-overlay').classList.add('open');
+  ov.classList.add('open');
 }
 function closePinOverlay(){
   document.getElementById('pin-overlay').classList.remove('open');
-  pinCode='';
-  pinTarget=null;
+  pinCode=''; pinTarget=null; pinEntity=null;
 }
+function _pinMsg(t){ const m=document.getElementById('pin-msg'); if(m){ m.textContent=t||''; m.style.display=t?'':'none'; } }
 function updatePinDots(error=false){
-  for(let i=0;i<4;i++){
-    const d=document.getElementById('pd'+i);
-    if(!d)continue;
-    d.className='pin-dot'+(error?' error':pinCode.length>i?' filled':'');
-  }
+  const wrap=document.querySelector('#pin-overlay .pin-dots'); if(!wrap) return;
+  const n=Math.max(4,pinCode.length);
+  let h=''; for(let i=0;i<n;i++) h+='<div class="pin-dot'+(error?' error':(pinCode.length>i?' filled':''))+'"></div>';
+  wrap.innerHTML=h;
 }
 function pinKey(k){
-  if(pinCode.length>=6)return;
-  pinCode+=k;
-  updatePinDots();
-  // Auto-submit at 4+ digits after brief pause
-  if(pinCode.length>=4) setTimeout(submitPin,300);
+  if(pinCode.length>=12) return;
+  pinCode+=k; _pinMsg(''); updatePinDots();
 }
-function pinDel(){
-  pinCode=pinCode.slice(0,-1);
-  updatePinDots();
-}
-function submitPin(){
-  if(!pinTarget||!pinCode)return;
-  const data={entity_id:CONFIG.security.alarm,code:pinCode};
-  svc('alarm_control_panel',pinTarget,data);
-  closePinOverlay();
+function pinDel(){ pinCode=pinCode.slice(0,-1); updatePinDots(); }
+async function submitPin(){
+  if(!pinTarget||!pinEntity) return;
+  if(pinNeedsCode && !pinCode){ _pinMsg('Enter the code'); return; }
+  const data={entity_id:pinEntity}; if(pinNeedsCode) data.code=pinCode;
+  const go=document.getElementById('pin-go'); if(go) go.disabled=true;
+  try{
+    const r=await snd({type:'call_service',domain:'alarm_control_panel',service:pinTarget,service_data:data});
+    if(r&&r.success===false){
+      const why=(r.error&&r.error.message)||'The alarm refused it';
+      pinCode=''; updatePinDots(true); _pinMsg(/code/i.test(why)?'That code wasn\'t accepted':why);
+      return;
+    }
+    closePinOverlay();
+  }catch(e){ _pinMsg('The alarm didn\'t answer — try again'); }
+  finally{ if(go) go.disabled=false; }
 }
 
 // ── IRRIGATION ──
@@ -12990,7 +13021,9 @@ function openProtectCamera(i){
       +`<div class="pa-fs-name">${_hEsc(cam.name)}</div>`
       +'<div class="pa-fs-imgwrap"><video id="pa-det-vid" autoplay muted playsinline style="display:none"></video><img id="pa-det-img" style="display:none"/></div>'
       +'<div class="pa-fs-ctrls">'
-        +(_paCamCanTalk(pcCam)?`<button class="pa-fs-btn" onclick="_paTalkback('${_hEsc(cam.name)}')">Talk</button>`:'')
+        +`<button class="pa-fs-btn pa-fs-listen" id="pa-listen" onclick="_paListen(this)"><span>Sound Off</span></button>`
+        +(_paCamCanTalk(pcCam)?`<button class="pa-fs-btn pa-fs-talk" id="pa-talk" onpointerdown="_paTalkStart(event,'${_hEsc(cam.name)}',this)" onpointerup="_paTalkEnd()" onpointercancel="_paTalkEnd()" onpointerleave="_paTalkEnd()" oncontextmenu="return false"><span>Hold to Talk</span></button>`:'')
+        +(_paDoorbellEnts(cam.entity)?`<button class="pa-fs-btn" onclick="_paDoorbellSheet('${_hEsc(cam.entity)}')">Message</button>`:'')
         +'<button class="pa-fs-btn pa-fs-livebtn" onclick="_paGoLive()"><span class="pa-fs-livedot"></span>LIVE</button>'
       +'</div>'
     +'</div>'
@@ -13062,6 +13095,34 @@ async function _paStartLive(cam){
   }
 }
 function _paGoLive(){ const sc=document.getElementById('pa-sc'); if(sc) sc.scrollTop=0; _paScrubGoLive(); const im=document.getElementById('pa-det-img'); if(im){ im.style.transform=''; im._pzScale=1; } const v=document.getElementById('pa-det-vid'); if(v){ v.style.transform=''; v._pzScale=1; } }
+// 699 · THE DOORBELL'S MESSAGE, FROM THE PLATFORM (Dave, 7 Oct 2026: "build everything" — the platform first).
+// A doorbell with a screen publishes its message as the platform's own select (its preset messages) and text
+// (anything typed), on the doorbell's device. Found by device, never by a name ProOS invented; set through the
+// platform's own services. A camera with neither shows no button.
+function _paDoorbellEnts(camEntity){
+  const dev=entityDeviceMap[camEntity]; if(!dev) return null;
+  const on=Object.keys(states).filter(e=>entityDeviceMap[e]===dev && /doorbell/.test(e));
+  const sel=on.find(e=>e.indexOf('select.')===0), txt=on.find(e=>e.indexOf('text.')===0);
+  return (sel||txt)?{sel:sel||null, txt:txt||null}:null;
+}
+function _paDoorbellSheet(camEntity){
+  const d=_paDoorbellEnts(camEntity); if(!d) return;
+  const host=document.getElementById('pa-detail'); if(!host) return;
+  let sh=document.getElementById('pa-dbmsg'); if(sh) sh.remove();
+  sh=document.createElement('div'); sh.id='pa-dbmsg'; sh.className='pa-dbmsg';
+  const cur=(d.sel&&st(d.sel))||(d.txt&&st(d.txt))||'';
+  const opts=(d.sel&&att(d.sel,'options'))||[];
+  sh.innerHTML='<div class="pa-dbmsg-card"><div class="pa-dbmsg-t">Doorbell Message</div>'
+    +'<div class="pa-dbmsg-cur">Showing: '+_hEsc(cur||'—')+'</div>'
+    +(opts.length?'<div class="pa-dbmsg-opts">'+opts.map((o,i)=>'<button class="pe-chip'+(o===cur?' on':'')+'" data-i="'+i+'">'+_hEsc(o)+'</button>').join('')+'</div>':'')
+    +(d.txt?'<div class="pa-dbmsg-own"><input id="pa-dbmsg-in" maxlength="'+(Number(att(d.txt,'max'))||30)+'" placeholder="Write your own"/><button class="pa-fs-btn" id="pa-dbmsg-go">Show</button></div>':'')
+    +'<button class="pa-dbmsg-x">Close</button></div>';
+  host.appendChild(sh);
+  sh.querySelectorAll('.pa-dbmsg-opts .pe-chip').forEach(b=>b.onclick=()=>{ svc('select','select_option',{entity_id:d.sel, option:opts[+b.dataset.i]}); sh.remove(); });
+  const go=sh.querySelector('#pa-dbmsg-go'); if(go) go.onclick=()=>{ const v=(sh.querySelector('#pa-dbmsg-in').value||'').trim(); if(!v) return; svc('text','set_value',{entity_id:d.txt, value:v}); sh.remove(); };
+  sh.querySelector('.pa-dbmsg-x').onclick=()=>sh.remove();
+  sh.onclick=e=>{ if(e.target===sh) sh.remove(); };
+}
 function closeProtectCamera(){ const ov=document.getElementById('pa-detail'); if(ov) ov.style.display='none'; document.body.style.overflow=''; if(window._paScrub) window._paScrub.playing=false; if(_paDetailRTC){ try{ _paDetailRTC.cleanup(); }catch(e){} _paDetailRTC=null; } const v=document.getElementById('pa-det-vid'); if(v){ try{ v.pause(); v.onended=null; v.onerror=null; v.ontimeupdate=null; v.srcObject=null; v.removeAttribute('src'); v.load(); }catch(e){} } const rec=document.getElementById('pa-fs-rec'); if(rec) rec.remove(); if(_paDetailTimer){ clearInterval(_paDetailTimer); _paDetailTimer=null; } if(_paPipTimer){ clearInterval(_paPipTimer); _paPipTimer=null; } _paResumeGridVideos(); }
 function _paDetailSwipe(ov){
   if(!ov || ov._swipe) return; ov._swipe=true;
@@ -13137,11 +13198,69 @@ function _paOpenAndPlay(camIndex, camId, whenMs){
   openProtectCamera(camIndex);
   if(camId && whenMs){ window._paScrub={camId, playing:false}; setTimeout(()=>{ try{ _paScrubPlayFrom(whenMs-2000); }catch(e){} },450); }
 }
-async function _paTalkback(name){
-  const pcCam=_pcCamForName(name); if(!pcCam) return;
-  try{ const r=await fetch(proosCoreBase()+'/unifi/protect/cameras/'+pcCam.id+'/talkback',{method:'POST'});
-    if(r.ok) showToast('Talkback session started on '+name); else showToast('Talkback unavailable'); }
-  catch(e){ showToast('Talkback unavailable'); }
+// 700 · TWO-WAY AUDIO (Dave, 7 Oct 2026: "we need to support the talk back and two-way audio" … "2. B").
+// LISTEN: the platform's live view already carries the camera's microphone; it played muted. The button
+// turns the sound on and off (a tap is the gesture a phone needs before it will play sound).
+// TALK: hold the button and speak. The microphone is read here, turned into 16-bit mono PCM at the camera's
+// own rate, and sent a slice at a time to Core, which opens the camera's talk session through Ubiquiti's
+// OFFICIAL API and streams it there (proos/protecttalk.py). Let go and it stops. Nothing is recorded.
+function _paListen(btn){
+  const v=document.getElementById('pa-det-vid'); if(!v) return;
+  v.muted=!v.muted; if(!v.muted){ try{ v.play(); }catch(e){} }
+  btn.classList.toggle('on', !v.muted); btn.querySelector('span').textContent=v.muted?'Sound Off':'Sound On';
+}
+let _paTalk=null;
+function _paResample(f32, from, to){
+  const ratio=from/to, n=Math.floor(f32.length/ratio), out=new Int16Array(n);
+  for(let i=0;i<n;i++){ const x=i*ratio, k=Math.floor(x), a=f32[k]||0, b=f32[k+1]!==undefined?f32[k+1]:a, v=a+(b-a)*(x-k);
+    out[i]=Math.max(-32768, Math.min(32767, Math.round(v*32767))); }
+  return out;
+}
+async function _paTalkPump(t){
+  if(t.sending||!t.sid) return; t.sending=true;
+  while(t.q.length){
+    const parts=t.q.splice(0); let n=0; parts.forEach(p=>n+=p.length);
+    const out=new Int16Array(n); let o=0; parts.forEach(p=>{ out.set(p,o); o+=p.length; });
+    try{ const r=await fetch(proosCoreBase()+'/protect/talk/'+t.sid+'/audio',{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:out.buffer});
+      if(!r.ok){ t.failed=true; break; } }catch(e){ t.failed=true; break; }
+  }
+  t.sending=false;
+  if(t.released) _paTalkFinish(t);
+}
+async function _paTalkStart(ev, camName, btn){
+  if(ev&&ev.preventDefault) ev.preventDefault();
+  if(_paTalk) return;
+  const pcCam=_pcCamForName(camName); if(!pcCam) return;
+  const t=_paTalk={btn, q:[], sid:null, rate:24000, released:false, sending:false};
+  btn.classList.add('talking'); btn.querySelector('span').textContent='Talking…';
+  try{ if(btn.setPointerCapture&&ev&&ev.pointerId!=null) btn.setPointerCapture(ev.pointerId); }catch(e){}
+  try{ t.stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}}); }
+  catch(e){ showToast('Talk needs the microphone — allow it for ProOS'); t.released=true; _paTalkFinish(t); return; }
+  let r=null, d=null;
+  try{ r=await fetch(proosCoreBase()+'/protect/talk/'+pcCam.id+'/start',{method:'POST'}); d=await r.json(); }catch(e){}
+  if(!r||!r.ok||!d||!d.session){ showToast((d&&d.error)||'The camera did not answer'); t.released=true; _paTalkFinish(t); return; }
+  t.sid=d.session; t.rate=d.rate||24000;
+  if(t.released){ _paTalkFinish(t); return; }
+  const AC=window.AudioContext||window.webkitAudioContext; t.ctx=new AC();
+  t.src=t.ctx.createMediaStreamSource(t.stream); t.node=t.ctx.createScriptProcessor(2048,1,1);
+  t.node.onaudioprocess=e=>{ if(t.released) return; t.q.push(_paResample(e.inputBuffer.getChannelData(0), t.ctx.sampleRate, t.rate)); _paTalkPump(t); };
+  t.src.connect(t.node); t.node.connect(t.ctx.destination);
+}
+function _paTalkEnd(){
+  const t=_paTalk; if(!t||t.released) return;
+  t.released=true;
+  /* before the camera has answered there is no session to stop yet: _paTalkStart finishes it the moment one arrives */
+  if(!t.sid) return;
+  if(!t.sending) _paTalkFinish(t);
+}
+function _paTalkFinish(t){
+  if(t.finished) return; t.finished=true;
+  try{ if(t.node){ t.node.onaudioprocess=null; t.node.disconnect(); } if(t.src) t.src.disconnect(); if(t.ctx) t.ctx.close(); }catch(e){}
+  try{ if(t.stream) t.stream.getTracks().forEach(x=>x.stop()); }catch(e){}
+  if(t.sid) fetch(proosCoreBase()+'/protect/talk/'+t.sid+'/stop',{method:'POST'}).catch(()=>{});
+  if(t.failed) showToast('The camera stopped listening');
+  if(t.btn){ t.btn.classList.remove('talking'); const sp=t.btn.querySelector('span'); if(sp) sp.textContent='Hold to Talk'; }
+  if(_paTalk===t) _paTalk=null;
 }
 
 async function fetchCamWS(entity){
