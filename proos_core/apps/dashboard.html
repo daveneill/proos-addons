@@ -969,9 +969,11 @@ body[data-home-state="noticing"] .home-state-go,body[data-home-state="attention"
 .pa-strip{display:flex;gap:10px;overflow-x:auto;padding:0 2px 14px;flex:0 0 auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 .pa-strip::-webkit-scrollbar{display:none}
 /* 693: square, like the Protect app — the whole picture, never a cropped strip; the kind sits inside the corner. */
-.pa-strip-cell{flex:0 0 auto;width:148px;cursor:pointer}
-.pa-strip-thumb{position:relative;width:148px;height:148px;border-radius:12px;background:#15151c center/cover no-repeat}
-@media (max-width:767px){ .pa-strip-cell{width:116px} .pa-strip-thumb{width:116px;height:116px} }
+/* 696c (Dave, 7 Oct 2026: "can be smaller — they are nearly as big as the camera pics"): 104 on a
+   tablet, 84 on a phone (were 148 / 116); still square, the kind still in the corner. */
+.pa-strip-cell{flex:0 0 auto;width:104px;cursor:pointer}
+.pa-strip-thumb{position:relative;width:104px;height:104px;border-radius:12px;background:#15151c center/cover no-repeat}
+@media (max-width:767px){ .pa-strip-cell{width:84px} .pa-strip-thumb{width:84px;height:84px;border-radius:10px} .pa-strip-ico{left:6px;bottom:6px;width:24px;height:24px;border-radius:7px} .pa-strip-ico svg{width:13px;height:13px} }
 .pa-strip-meta{display:flex;align-items:center;justify-content:center;gap:5px;margin-top:8px;padding:0 1px}
 .pa-strip-ico{position:absolute;left:8px;bottom:8px;width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;background:rgba(0,0,0,.45);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
 .pa-strip-ico svg{width:15px;height:15px}
@@ -2186,6 +2188,13 @@ body.proos-listening #assist-send{display:none}
    home's own background, darkened, once this device has seen it; black before. */
 #loading,#setup,#proos-reboot,#proos-dashupd{background:#000 var(--proos-std-img,none) center/cover no-repeat!important}
 html.proos-has-bg #loading::before,html.proos-has-bg #setup::before,html.proos-has-bg #proos-reboot::before,html.proos-has-bg #proos-dashupd::before{content:'';position:absolute;inset:0;background:rgba(0,0,0,.80);pointer-events:none}
+/* 696c (Dave, 7 Oct 2026: "every time I open the app the waiting screen seems to shift … the whole
+   page shifts"). The loading screen wears THE HOME SCREEN'S OWN SHADE — the same graded black as
+   #room-bg::after over the same photo, framed the same (cover, centre) — so when Home appears behind
+   it nothing in the background moves or changes brightness; only the mark fades and Home's words come. */
+html.proos-has-bg #loading::before{background:linear-gradient(to bottom,rgba(0,0,0,0.70) 0%,rgba(0,0,0,0.40) 22%,rgba(0,0,0,0.30) 38%,rgba(0,0,0,0.60) 55%,rgba(0,0,0,0.78) 70%,rgba(0,0,0,0.85) 100%)}
+/* …and on the first paint behind it, the photo and the hour's grade arrive at once, not fading in. */
+html.proos-first-paint .room-bg-layer,html.proos-first-paint #tod-dark,html.proos-first-paint #tod-grade,html.proos-first-paint #tod-light{transition:none!important}
 #loading>*,#proos-reboot>*,#proos-dashupd>*{position:relative;z-index:1}
 #setup .setup-bg{display:none}
 #loading .load-logo{display:none}
@@ -4459,7 +4468,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026100607';
+const PROOS_BUILD='2026100608';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -6091,6 +6100,32 @@ function _gateSay(text){
     _gateArmWayOut();
   }catch(e){}
 }
+// 696c: THE HAND-OFF FROM LOADING TO HOME (Dave, 7 Oct 2026: "the whole page shifts"). In the app, the
+// app's own loading screen stays up until this page says "load:done" — after Home's photo has decoded
+// and the hour's grade is on it — and shows the words this page would ("Connecting…", "Discovering
+// devices…"), passed as "load:<words>". So there is ONE loading screen from launch to Home: no black
+// frame, no second logo a few points lower. In a browser the page's own loading screen fades the same way.
+let _handoff=false;
+function _tellApp(word){ try{ if(window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.proos) window.webkit.messageHandlers.proos.postMessage(word); }catch(e){} }
+(function(){ try{ const el=document.getElementById('load-name'); if(!el||!window.MutationObserver) return;
+  const say=()=>{ if(!_handoff) _tellApp('load:'+(el.textContent||'')); };
+  new MutationObserver(say).observe(el,{childList:true,characterData:true,subtree:true}); say(); }catch(e){} })();
+function _loadHandOff(){
+  const load=document.getElementById('loading');
+  if(_handoff) return;
+  if(!load||load.style.display==='none'){ _tellApp('load:done'); return; }
+  _handoff=true;
+  document.documentElement.classList.add('proos-first-paint');
+  const finish=()=>{ _tellApp('load:done'); load.style.transition='opacity .35s ease'; load.style.opacity='0';
+    setTimeout(()=>{ load.style.display='none'; load.style.opacity=''; load.style.transition=''; document.documentElement.classList.remove('proos-first-paint'); _handoff=false; },380); };
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    let el=null; try{ el=document.getElementById('room-bg-'+bgActive); }catch(e){}
+    const m=el&&String(el.style.backgroundImage||'').match(/url\(["']?(.*?)["']?\)/);
+    if(!m){ finish(); return; }
+    const img=new Image(); let done=false; const go=()=>{ if(done) return; done=true; finish(); };
+    img.onload=go; img.onerror=go; setTimeout(go,1500); img.src=m[1];
+  }));
+}
 function _gateArmWayOut(){ if(!_gateStuckTimer) _gateStuckTimer=setTimeout(_gateWayOut,_GATE_STUCK_MS); }
 function _gateWayOut(){
   try{
@@ -6119,6 +6154,7 @@ async function connect(){
     if(_sig){ _signinBoot(_sig); return; }
     document.getElementById('loading').style.display='none';
     document.getElementById('setup').style.display='flex';
+    _tellApp('load:done');   // 696c: the app shows the sign-in, not its loading screen
     _setupLocalUI();
     return;
   }
@@ -6605,8 +6641,8 @@ function onReady(){
       screen.orientation.lock('portrait').catch(()=>{});
     }
   }
-  document.getElementById('loading').style.display='none';
   document.getElementById('app').style.display='grid';
+  _loadHandOff();      // 696c: one still background from loading to Home (was an instant display:none)
   _pcStartMonitor();   // watch for backend restarts once we've connected the first time
   const cn=document.getElementById('client-name');if(cn)cn.textContent=CONFIG.client.name;
   const ln=document.getElementById('load-name');if(ln)ln.textContent=CONFIG.client.name;
@@ -9635,7 +9671,7 @@ const _peThumbCache=new Map();
 async function _peThumb(e){
   if(!e||!e.event_id||e.hasThumb===false) return '';
   if(_peThumbCache.has(e.event_id)) return _peThumbCache.get(e.event_id);
-  const p=(async()=>{ try{ const r=await fetch(proosCoreBase()+'/protect/thumb/'+e.event_id); if(!r.ok) return ''; return URL.createObjectURL(await r.blob()); }catch(x){ return ''; } })();
+  const p=(async()=>{ try{ const r=await fetch(proosCoreBase()+'/protect/thumb/'+e.event_id+'?v=2'); /* 696c: v=2 — never a fuzzy copy this device kept from 1.0.838–840 */ if(!r.ok) return ''; return URL.createObjectURL(await r.blob()); }catch(x){ return ''; } })();
   _peThumbCache.set(e.event_id,p);
   const u=await p; if(!u) _peThumbCache.delete(e.event_id);
   return u;
@@ -17906,6 +17942,7 @@ async function submitAssist() {
 if(!CONFIG.ha.token || CONFIG.ha.token === 'YOUR_TOKEN_HERE'){
   document.getElementById('loading').style.display='none';
   const s=document.getElementById('setup');s.style.display='flex';s.style.alignItems='center';s.style.justifyContent='center';
+  _tellApp('load:done');   // 696c
   _setupLocalUI();
 } else {
   connect();
