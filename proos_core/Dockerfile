@@ -29,6 +29,12 @@ RUN curl -fsSL -o /usr/bin/ha \
 # platform's picture as it came (slower, never wrong).
 RUN apk add --no-cache libjpeg-turbo-utils || echo "libjpeg-turbo-utils unavailable — camera pictures stay full size"
 
+# REGISTER 700: ffmpeg turns the phone's voice into the camera's own codec (opus
+# for the G6 Pro Entry) and sends it to the talk address the camera gives through
+# Ubiquiti's official API. Its own line, and never fatal: without it the Talk
+# button says talk is not available on this box.
+RUN apk add --no-cache ffmpeg || echo "ffmpeg unavailable — talk is off"
+
 COPY proos /app/proos
 # Product app tile artwork — ships with the release (see appart/README.md).
 COPY appart /app/appart

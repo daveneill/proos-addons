@@ -6157,7 +6157,9 @@ class Handler(BaseHTTPRequestHandler):
     # already see the live feed and the event thumbnails), so it is HOUSEHOLD,
     # not commissioning. Exact-path allowlist: it exempts only these, every
     # other unifi/ write (config, setup, arm-profiles, poe…) stays installer.
-    _POST_HOUSEHOLD = ("unifi/protect/video/export",)
+    # 699/700: the clip export this exempted is gone (official API only); household talk lives under
+    # protect/talk, outside the installer prefixes. The floor still consults this list.
+    _POST_HOUSEHOLD = ()
 
     def do_POST(self):
         if not self._auth():
@@ -6189,6 +6191,35 @@ class Handler(BaseHTTPRequestHandler):
             # Core writes it onto the user's HA person over its owner connection
             # (person edits are admin-only, homeowners aren't). Empty/omitted
             # picture clears it. No image bytes pass through Core.
+            # REGISTER 700: TWO-WAY TALK through Ubiquiti's official talkback session
+            # (proos/protecttalk.py). Any signed-in member of the household may talk
+            # through a camera the installer allowed Talk on (the curation's own word).
+            if parts[:2] == ["protect", "talk"] and len(parts) == 4:
+                from proos import protecttalk as _pt
+                from proos import unifi as _u
+                try:
+                    if parts[3] == "start":
+                        _cl = _u._get_client(_creds)
+                        _cv = _u.curation_view(_cl)
+                        _cam = next((c for c in (_cv.get("cameras") or []) if str(c.get("id")) == parts[2]), None)
+                        if not _cam:
+                            return self._send(404, {"error": "that camera is not on this home's Protect"})
+                        if not _cam.get("talkback"):
+                            return self._send(403, {"error": "Talk is not turned on for this camera"})
+                        return self._send(200, _pt.start(_cl, parts[2]))
+                    if parts[3] == "audio":
+                        _pcm, _err = self._raw_body(limit=256 * 1024)
+                        if _err and _pcm == b"" and "no recording" not in _err:
+                            return self._send(413, {"error": _err})
+                        _pt.audio(parts[2], _pcm)
+                        return self._send(200, {"ok": True})
+                    if parts[3] == "stop":
+                        return self._send(200, {"ok": True, "stopped": _pt.stop(parts[2])})
+                except _pt.TalkError as e:
+                    return self._send(e.status, {"error": e.message})
+                except _u.ProtectError as e:
+                    return self._send(e.status, {"error": "the camera did not open a talk session: %s" % e.message})
+                return self._send(404, {"error": "unknown talk route"})
             if parts == ["savant", "map"]:
                 # Pro's picker (register 635): {"zone", "area"?, "value"?, "target"?}
                 body = self._body() or {}
