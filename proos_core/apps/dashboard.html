@@ -4459,7 +4459,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026100605';
+const PROOS_BUILD='2026100606';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -9593,26 +9593,6 @@ function _paEventExposed(e){ const nm=e&&(e.cam||(e.camId&&_pcCamMap&&_pcCamMap[
 // read per camera; thumbnails and clips through the platform's own signed Protect proxy.
 // ProOS no longer signs in to the console for them (register 691). Read on Dave's box
 // 6 Oct: 94 detections in 24 h, thumbnails image/jpeg 200, clips video/mp4 200.
-const _PE_KINDS=[['person','Person'],['face','Face'],['vehicle','Vehicle'],['animal','Animal'],['package','Package'],['license plate','License Plate']];
-function _peKindFromTitle(rest){
-  // "Motion Event" · "Ring Event" · "Object Detection - Face, Person" · "Audio Detection - Smoke"
-  const r=String(rest||'').trim(); const low=r.toLowerCase();
-  if(/^ring/.test(low)) return 'Doorbell';
-  if(/^motion/.test(low)) return 'Motion';
-  if(/^audio/.test(low)) return 'Audio';
-  const det=(r.split(' - ')[1]||'').toLowerCase();
-  for(const [k,v] of _PE_KINDS) if(det.indexOf(k)>=0) return v;
-  if(/\b(car|suv|truck|van|sedan|ute|bus|motorcycle|bike)\b/.test(det)) return 'Vehicle';
-  return det?det.replace(/\b\w/g,c=>c.toUpperCase()).split(',')[0]:'Event';
-}
-function _peParseTitle(t){
-  // "10/06/26 15:02:22 10s Object Detection - Vehicle" — the platform's own label (local time)
-  const m=String(t||'').match(/^(\d\d)\/(\d\d)\/(\d\d) (\d\d):(\d\d):(\d\d) ((?:\d+[hms]\s?)+)\s*(.*)$/);
-  if(!m) return null;
-  const at=new Date(2000+(+m[3]), (+m[1])-1, +m[2], +m[4], +m[5], +m[6]).getTime();
-  let dur=0; String(m[7]).replace(/(\d+)([hms])/g,(x,n,u)=>{ dur+=(+n)*(u==='h'?3600:u==='m'?60:1); return x; });
-  return {at, dur:dur*1000, rest:m[8]};
-}
 async function _protectRoot(){
   const r=await _pTimeout(snd({type:'media_source/browse_media',media_content_id:'media-source://unifiprotect'}),6000,null);
   const res=r&&r.result; if(!res) return null;
@@ -9622,38 +9602,51 @@ async function _protectRoot(){
     .map(c=>({id:String(c.media_content_id).split(':browse:')[1], name:c.title||'', eid:(String(c.thumbnail||'').match(/camera_proxy\/([^?]+)/)||[])[1]||''}));
   return {nvr, cams};
 }
+// REGISTER 696 (Dave, 6 Oct 2026: "this is a premium app"; "prefer the performance to be in the
+// core"). Measured on his box before the change: the page read the platform once per camera per
+// day — 24 reads, 3.1 s, on every open — and every tile was the camera's full 3200x1800, 661 KB
+// picture, all fetched at once. Core now reads the platform's own Protect media for the page,
+// keeps finished days, and serves each picture shrunk once and kept (proos/protectmedia.py).
+// The events and pictures are still the platform's; Core only reads, shrinks and remembers.
 async function _loadProtectEventsPC(hours, cap){
   hours=hours||24; cap=cap||60;
-  const end=Date.now(), cutoff=end-hours*3600*1000;
-  let root; try{ root=await _protectRoot(); }catch(e){ root=null; }
-  if(!root||!root.nvr){ window._peLoadErr='UniFi Protect is not set up'; return null; }
-  window._peLoadErr='';
+  let d=null;
+  try{ const r=await fetch(proosCoreBase()+'/protect/events?hours='+hours+'&cap='+cap); d=await r.json(); if(!r.ok) throw new Error((d&&d.error)||('HTTP '+r.status)); }
+  catch(e){ window._peLoadErr=String((e&&e.message)||e); return null; }
+  if(!d||!d.nvr){ window._peLoadErr=(d&&d.error)||'UniFi Protect is not set up'; return null; }
+  window._peLoadErr=''; window._peNvr=d.nvr; _protectNvr=d.nvr;
   try{ await _pcWarmCams(); }catch(e){}
-  _pcCamMap=_pcCamMap||{}; root.cams.forEach(c=>{ if(c.id&&!_pcCamMap[c.id]) _pcCamMap[c.id]=c.name; });
-  // ONE DAY AT A TIME (read on Dave's box 6 Oct): the platform's "Last 3 days" view returned
-  // a window that stopped more than a day ago, while its per-day views are exact. So each
-  // calendar day from the cutoff to today is read, per camera, and the cutoff applied here.
-  const dayIds=[]; for(let t=new Date(cutoff); ; t=new Date(t.getFullYear(), t.getMonth(), t.getDate()+1)){
-    const d=new Date(t.getFullYear(), t.getMonth(), t.getDate()); if(d.getTime()>end) break;
-    dayIds.push('range:'+d.getFullYear()+':'+(d.getMonth()+1)+':'+d.getDate()); if(dayIds.length>31) break; }
-  const jobs=[]; root.cams.forEach(c=>dayIds.forEach(di=>jobs.push({c, di})));
-  const lists=await Promise.all(jobs.map(j=>_pTimeout(snd({type:'media_source/browse_media',
-    media_content_id:'media-source://unifiprotect/'+root.nvr+':browse:'+j.c.id+':all:'+j.di}),9000,null)));
-  const mapped=[], seen=new Set();
-  jobs.forEach((j,i)=>{ const c=j.c; const kids=(lists[i]&&lists[i].result&&lists[i].result.children)||[];
-    kids.forEach(k=>{ const p=_peParseTitle(k.title); const id=(String(k.media_content_id||'').split(':event:')[1]||'');
-      if(!p||!id||p.at<cutoff||seen.has(id)) return; seen.add(id);
-      mapped.push({ source:'ha', event_id:id, mcid:k.media_content_id, thumb:String(k.thumbnail||'').split('?')[0],
-        when:new Date(p.at).toISOString(), start:p.at, end:p.at+p.dur, camId:c.id, cam:c.name, eid:c.eid,
-        kind:_peKindFromTitle(p.rest), hasThumb:!!k.thumbnail }); }); });
+  // source 'ha' = played through the platform's own Protect video proxy (playProtectClip)
+  const mapped=(d.events||[]).map(e=>Object.assign({}, e, {source:'ha'}));
+  _pcCamMap=_pcCamMap||{}; mapped.forEach(e=>{ if(e.camId&&!_pcCamMap[e.camId]) _pcCamMap[e.camId]=e.cam; });
   try{ await _pcWarmCuration(); }catch(e){}
   let out=mapped.filter(_paEventExposed);
   if(!out.length && mapped.length) out=mapped;
-  out.sort((a,b)=> new Date(b.when)-new Date(a.when));
   return out.slice(0,cap);
 }
-// 692: a thumbnail through the platform's own signed Protect proxy.
-async function _peThumb(e){ try{ return (e&&e.thumb)?await _signPath(e.thumb):''; }catch(x){ return ''; } }
+// 696: the event's picture, small, from Core (fetched from the platform once, shrunk once, kept).
+// One request per picture per page session; the browser keeps it for a week after that.
+const _peThumbCache=new Map();
+async function _peThumb(e){
+  if(!e||!e.event_id||e.hasThumb===false) return '';
+  if(_peThumbCache.has(e.event_id)) return _peThumbCache.get(e.event_id);
+  const p=(async()=>{ try{ const r=await fetch(proosCoreBase()+'/protect/thumb/'+e.event_id); if(!r.ok) return ''; return URL.createObjectURL(await r.blob()); }catch(x){ return ''; } })();
+  _peThumbCache.set(e.event_id,p);
+  const u=await p; if(!u) _peThumbCache.delete(e.event_id);
+  return u;
+}
+// 696: pictures load as their tile comes into view, a few at a time — never 500 at once.
+let _peQ=[], _peBusy=0, _peIO=null; const _PE_MAX=6;
+function _pePump(){ while(_peBusy<_PE_MAX && _peQ.length){ const job=_peQ.shift(); _peBusy++; Promise.resolve().then(job).catch(()=>{}).then(()=>{ _peBusy--; _pePump(); }); } }
+function _peLazy(el, e, done){
+  if(!el) return;
+  if(!(e&&e.event_id&&e.hasThumb!==false)){ done(''); return; }
+  el._peJob=async()=>{ done(await _peThumb(e)); };
+  if(!('IntersectionObserver' in window)){ const j=el._peJob; el._peJob=null; _peQ.push(j); _pePump(); return; }
+  if(!_peIO) _peIO=new IntersectionObserver(ents=>ents.forEach(en=>{ if(!en.isIntersecting) return; _peIO.unobserve(en.target); const j=en.target._peJob; en.target._peJob=null; if(j){ _peQ.push(j); _pePump(); } }),{rootMargin:'400px'});
+  _peIO.observe(el);
+}
+function _peShow(id, url, shown){ const el=document.getElementById(id); if(!el) return; if(url){ el.style.backgroundImage=`url('${url}')`; if(shown) el.classList.add('pa-shown'); } el.classList.remove('pa-load'); }
 // 692: any stretch of a camera's recording through the platform's own Protect proxy.
 async function _peVideoUrl(camId, fromMs, toMs){
   let nvr=window._peNvr||_protectNvr; if(!nvr){ try{ const r=await _protectRoot(); nvr=r&&r.nvr; }catch(e){} }
@@ -9686,13 +9679,7 @@ function _peRender(){
     +`<div class="pe-thumb pa-load" id="pe-th${gi}"></div>`
     +`<div class="pe-meta"><div class="pe-kind">${_hEsc(e.kind)}</div><div class="pe-cam">${_hEsc(e.cam)}</div></div>`
     +`<div class="pe-time">${_hEsc(_agoStr(e.when))}</div></div>`; }).join('');
-  const nvr=window._peNvr;
-  evs.forEach(async e=>{ const gi=all.indexOf(e); const th=document.getElementById('pe-th'+gi); if(!th||th.dataset.done) return; th.dataset.done='1'; let url='';
-    if(e.thumb) url=await _peThumb(e);
-    else if(nvr&&e.event_id) url=await _signPath(`/api/unifiprotect/thumbnail/${nvr}/${e.event_id}`);
-    if(!url&&e.eid){ const camE=_eventCam(e.eid); const pic=camE&&att(camE,'entity_picture'); url=pic?(pic.slice(0,4)==='http'?pic:HA+pic):''; }
-    const el=document.getElementById('pe-th'+gi); if(url&&el){ el.style.backgroundImage=`url('${url}')`; el.classList.remove('pa-load'); el.classList.add('pa-shown'); } else if(el){ el.classList.remove('pa-load'); }
-  });
+  evs.forEach(e=>{ const gi=all.indexOf(e); const th=document.getElementById('pe-th'+gi); if(!th||th.dataset.done) return; th.dataset.done='1'; _peLazy(th, e, url=>_peShow('pe-th'+gi, url, true)); });
 }
 async function playProtectClip(i){
   const e=(window._peEvents||[])[i]; if(!e) return;
@@ -12819,7 +12806,7 @@ async function _paUpdateDetections(){
   if(strip && sig!==window._paStripSig){
     window._paStripSig=sig;
     strip.innerHTML=smart.map((e,i)=>{ const gi=events.indexOf(e); const nm=(e.camId&&_pcCamMap&&_pcCamMap[e.camId])||e.cam||''; return `<div class="pa-strip-cell" onclick="playProtectClip(${gi})"><div class="pa-strip-thumb pa-load" id="pa-strip-th${i}"><span class="pa-strip-ico">${_paTypeIcon(e.kind)}</span></div><div class="pa-strip-meta"><span class="pa-strip-time">${_hEsc(_agoStr(e.when))}</span></div></div>`; }).join('');
-    smart.forEach(async (e,i)=>{ const cell=document.getElementById('pa-strip-th'+i); if(!cell||cell.dataset.done) return; cell.dataset.done='1'; if(e.event_id&&e.hasThumb!==false){ const url=await _peThumb(e); const el=document.getElementById('pa-strip-th'+i); if(url&&el){ el.style.backgroundImage=`url('${url}')`; el.classList.remove('pa-load'); } else if(el){ el.classList.remove('pa-load'); } } else { cell.classList.remove('pa-load'); } });
+    smart.forEach((e,i)=>{ const cell=document.getElementById('pa-strip-th'+i); if(!cell||cell.dataset.done) return; cell.dataset.done='1'; _peLazy(cell, e, url=>_peShow('pa-strip-th'+i, url)); });
   }
 }
 
@@ -12884,7 +12871,7 @@ function _paEvRender(){
   grid.innerHTML=evs.map(e=>{ const gi=all.indexOf(e); return `<div class="pa-eg-cell pa-load" id="paeg${gi}" onclick="playProtectClip(${gi})">`
     +`<div class="pa-eg-top"><div class="pa-eg-cam">${_hEsc(e.cam)}</div><div class="pa-eg-time">${_hEsc(_agoStr(e.when))}</div></div>`
     +`<div class="pa-eg-bot"><span class="pa-eg-ico">${_paTypeIcon(e.kind)}</span></div></div>`; }).join('');
-  evs.forEach(async e=>{ const gi=all.indexOf(e); const cell=document.getElementById('paeg'+gi); if(!cell||cell.dataset.done) return; cell.dataset.done='1'; if(e.event_id&&e.hasThumb!==false){ const url=await _peThumb(e); const el=document.getElementById('paeg'+gi); if(url&&el){ el.style.backgroundImage=`url('${url}')`; el.classList.remove('pa-load'); el.classList.add('pa-shown'); } else if(el){ el.classList.remove('pa-load'); } } else { cell.classList.remove('pa-load'); } });
+  evs.forEach(e=>{ const gi=all.indexOf(e); const cell=document.getElementById('paeg'+gi); if(!cell||cell.dataset.done) return; cell.dataset.done='1'; _peLazy(cell, e, url=>_peShow('paeg'+gi, url, true)); });
 }
 
 // ── Per-camera detail: live + talkback (if speaker) + that camera's recent events ──
@@ -13008,7 +12995,7 @@ async function _paCamEvents(pcCam){
   window._paCamEv=mine;
   if(!mine.length){ box.innerHTML='<div class="pe-empty">No events on this camera</div>'; return; }
   box.innerHTML='<div class="pa-tl">'+mine.map((e,i)=>`<div class="pa-tl-item" onclick="_paPlayEvent(${i})"><span class="pa-tl-dot"></span><div class="pa-tl-thumb pa-load" id="pa-dth${i}"></div><div class="pa-tl-meta"><div class="pa-tl-kind">${_hEsc(e.kind)}</div><div class="pa-tl-time">${_hEsc(_agoStr(e.when))}</div></div></div>`).join('')+'</div>';
-  mine.forEach(async (e,i)=>{ const cell=document.getElementById('pa-dth'+i); if(!cell) return; if(e.event_id&&e.hasThumb!==false){ const url=await _peThumb(e); const el=document.getElementById('pa-dth'+i); if(url&&el){ el.style.backgroundImage=`url('${url}')`; el.classList.remove('pa-load'); } else if(el) el.classList.remove('pa-load'); } else cell.classList.remove('pa-load'); });
+  mine.forEach((e,i)=>{ const cell=document.getElementById('pa-dth'+i); if(!cell) return; _peLazy(cell, e, url=>_peShow('pa-dth'+i, url)); });
 }
 function _fmtClock(t){ const d=new Date(t); let h=d.getHours(), m=d.getMinutes(); const ap=h>=12?'PM':'AM'; h=h%12||12; return h+':'+(m<10?'0':'')+m+' '+ap; }
 function _fmtDay(t){ const d=new Date(t), n=new Date(); const key=x=>x.getFullYear()+'-'+x.getMonth()+'-'+x.getDate(); if(key(d)===key(n))return 'Today'; if(key(d)===key(new Date(n-86400000)))return 'Yesterday'; return d.toLocaleDateString(undefined,{weekday:'short',day:'numeric'}); }
