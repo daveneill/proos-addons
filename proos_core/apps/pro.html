@@ -1122,8 +1122,8 @@ html.proos-has-bg #landing::before,html.proos-has-bg #proos-reboot::before,html.
 /* no floating mic on the Assist section itself — it would sit on the input */
 body.on-assist .assist-fab{display:none!important}
 /* ---- Health (the new home) ---- */
-.hlt-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:2px 0 16px}
-@media (max-width:767px){ .hlt-stats{grid-template-columns:repeat(2,1fr)} }
+.hlt-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:2px 0 16px}
+@media (max-width:767px){ .hlt-stats{grid-template-columns:repeat(3,1fr)} }
 .hlt-stat{background:var(--card,rgba(255,255,255,0.05));border:0.5px solid var(--line);border-radius:14px;padding:13px 15px}
 .hlt-stat .n{font-size:22px;font-weight:600;letter-spacing:-0.5px}
 .hlt-stat .n.good{color:#46e3a0}.hlt-stat .n.warn{color:#e6c34d}.hlt-stat .n.crit{color:#e17055}
@@ -1514,9 +1514,10 @@ body.aws-open .v2tabs{display:none!important}
            grid deleted 29 Jul 2026 (locked design) — every tile's function
            lives in Home / Systems / Toolbox, one tap from the rail. -->
       <div class="hlt-stats" id="hlt-stats"></div>
-      <div id="hlt-sweep"></div>
-      <div class="section-label" id="hlt-inc-label" style="display:none">Incidents</div>
-      <div id="hlt-incidents"></div>
+      <!-- REGISTER 689 (Dave, 6 Oct 2026): "can the incident cards for everything …
+           everything will still be logged in the master log" and "get rid of the full
+           sweep tile". The Full Sweep tile and the Incidents list are gone from Health;
+           what happens is in the Master Log below. -->
       <div class="section-label">Rooms</div>
       <div id="hlt-rooms"><div class="empty"><div class="et">Reading room verdicts…</div></div></div>
       <div class="rh-card" style="margin-top:14px"><div class="rh-hd ml-hd"><span class="rh-hd-t">Master Log</span>
@@ -2455,7 +2456,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026100603';
+const PROOS_BUILD='2026100604';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -15777,8 +15778,9 @@ function v2Render(){
   tabs.innerHTML=_secs.map(([k,l])=>'<div class="v2t'+(k===_v2sec?' on':'')+'" onclick="v2go(\''+k+'\')">'+V2ICONS[k]+'<span>'+l+'</span><span class="v2badge" id="v2bt-'+k+'"></span></div>').join('');
 }
 function v2Badge(n){
+  // 689: no alarm badge on the Health icon — the incident count is not shown anywhere.
   ['v2b-health','v2bt-health'].forEach(id=>{ const el=document.getElementById(id); if(!el) return;
-    el.textContent=n>99?'99+':String(n); el.classList.toggle('show',n>0); });
+    el.textContent=''; el.classList.remove('show'); });
 }
 function v2AfterShow(panel){
   _v2panel=panel;
@@ -16005,7 +16007,6 @@ async function renderHealth(){
   // Master Log: fetch when empty; event-driven repaints don't refetch (the
   // SSE hook + the visibility/watchdog resyncs of register 116 own currency).
   if(!_mlEvents.length) masterLog();
-  renderSweepCard();                       // the Full Sweep's headline (register 664)
   let inc=[]; let rooms=[]; let allst=[];
   // a failed read is not zero alarms (5 Oct 2026): incOk=false shows '?', never a green 0
   let incOk=false;
@@ -16053,11 +16054,11 @@ async function renderHealth(){
   const litRooms=rooms.filter(r=>_isLit(r)&&String(r.state).toLowerCase()==='on').length;
   v2Badge(crit+warn);
   stats.innerHTML=
-    '<div class="hlt-stat"><div class="n '+(!incOk?'warn':(inc.length? (crit?'crit':'warn'):'good'))+'">'+(!incOk?'?':(inc.length?inc.length:'0'))+'</div><div class="l">Open Alarms</div></div>'
-   +'<div class="hlt-stat"><div class="n">'+rooms.length+'</div><div class="l">Rooms</div></div>'
+    '<div class="hlt-stat"><div class="n">'+rooms.length+'</div><div class="l">Rooms</div></div>'
    +'<div class="hlt-stat"><div class="n good">'+live+'</div><div class="l">Rooms active</div></div>'
    +(litRooms&&!manual?'<div class="hlt-stat"><div class="n">'+litRooms+'</div><div class="l">Lights On</div></div>':'<div class="hlt-stat"><div class="n'+(manual?' warn':'')+'">'+manual+'</div><div class="l">Manual On</div></div>');
-  const lab=document.getElementById('hlt-inc-label'); if(lab) lab.style.display=inc.length?'':'none';
+  // 689: incident cards are not drawn (the elements are gone; this is a no-op kept so
+  // the card code below stays readable until it is deleted outright).
   const ih=document.getElementById('hlt-incidents');
   if(ih) ih.innerHTML=inc.map(i=>{
     const fix=(i.actions||[]).find(a=>a.kind==='reload');
