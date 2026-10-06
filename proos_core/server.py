@@ -2095,32 +2095,41 @@ def _activity_record(eid):
 
 
 def _controller_gear():
-    """The controller's OWN device list — {mac: {name, model, type, online}} —
-    riding the same 60 s cache as the port readings (Stage 3 build 4). None
-    when no controller can be asked: the caller (healthmon's infra check)
-    then claims nothing, which is the ruling — the tracker fingerprint that
-    used to guess here is deleted."""
-    if _unifinet is None:
-        return None
-    import time as _t
-    now = _t.time()
-    if now - _port_cache["ts"] > _PORT_TTL:
-        try:
-            if not _unifinet.configured():
-                return None
-            _port_cache.update({"ts": now,
-                                "devices": _unifinet.devices() or [],
-                                "clients": _unifinet.clients() or []})
-        except Exception:                                        # noqa: BLE001
-            return None
-    devs = _port_cache["devices"]
-    if not devs:
-        return None
+    """REGISTER 691 (Dave, 6 Oct 2026: "Just do what the platform does why rebuild it").
+    The network gear — each switch and access point and whether it is online — read from
+    the PLATFORM'S OWN UniFi Network integration: its device trackers for the controller's
+    devices (unique id = the device's MAC; home = online, not_home = offline, anything
+    else = unknown). ProOS no longer signs in to the controller itself. None when the
+    home has no network integration or it lists no gear: the caller claims nothing."""
     try:
-        from proos import unifinet as _un
-        return _un.gear_list(devs) or None
+        reg = _client.entity_registry() or []
+        st = {x.get("entity_id"): x for x in (_all_states(_client) or [])}
     except Exception:                                            # noqa: BLE001
         return None
+    gear = {}
+    for e in reg:
+        eid = e.get("entity_id") or ""
+        uid = str(e.get("unique_id") or "")
+        if e.get("platform") != "unifi" or not eid.startswith("device_tracker."):
+            continue
+        if uid.startswith("default-") or uid.count(":") != 5:
+            continue                       # a client of the network, not its gear
+        s_ = st.get(eid) or {}
+        state = s_.get("state")
+        online = True if state == "home" else (False if state == "not_home" else None)
+        name = (s_.get("attributes") or {}).get("friendly_name") or e.get("name") \
+            or e.get("original_name") or uid
+        gear[uid.lower()] = {"name": name, "type": "", "online": online, "entity": eid}
+    return gear or None
+
+
+def _network_integration_present():
+    """691: does this home have a UniFi Network integration at all? The platform's own
+    entries, read every call."""
+    try:
+        return any(x.get("domain") == "unifi" for x in (_client.config_entries() or []))
+    except Exception:                                            # noqa: BLE001
+        return True    # can't tell → the gear check keeps its honest blind card
 
 
 def _device_port_reading(entity):
@@ -2130,6 +2139,9 @@ def _device_port_reading(entity):
     REMEMBERED switch and port are read instead. Both answers come from the
     controller's current port table — the memory only supplies which port to
     look at."""
+    # 691: the platform does not report which switch port a device is plugged into, and
+    # ProOS no longer signs in to the controller to find out. Consciously uncovered.
+    return None
     if _unifinet is None or _cfg is None:
         return None
     spec = (_cfg.get("reachability") or {}).get(entity) or {}
@@ -2185,6 +2197,10 @@ def _physical_status():
     """Can the physical toolbox answer, and if not, WHY — in one sentence an
     installer can act on. Every branch names a next step; none of them require
     reading a log."""
+    # 691: switch-port readings came from ProOS's own controller sign-in, which is gone
+    # (the platform does not report ports per device). Nothing to fix, so no sentence:
+    # surfaces show nothing rather than an instruction that cannot be followed.
+    return {"available": False, "why": "", "not_provided": True}
     if _unifinet is None:
         return {"available": False,
                 "why": "the network controller module is not loaded"}
@@ -3645,11 +3661,11 @@ class _SweepReaders:
         return [i for i in (_healthmon_mod.incidents() if _healthmon_mod else []) if i.get("kind") != "sweep"]
 
     def gear(self):
-        if _unifinet is None or not _unifinet.configured():
+        if not _network_integration_present():
             return None
         g = _controller_gear()
         if g is None:
-            raise RuntimeError("the controller is configured but did not list its gear")
+            raise RuntimeError("the network integration is set up but lists no gear")
         return g
 
     def activities(self, room):
@@ -5090,11 +5106,8 @@ class Handler(BaseHTTPRequestHandler):
                 # behave exactly as they did before.
                 out = {"available": False, "gear": []}
                 try:
-                    if _unifinet is not None and _unifinet.configured():
-                        from proos import unifinet as _un
-                        devs = (_port_cache.get("devices")
-                                or _unifinet.devices() or [])
-                        g = _un.gear_list(devs)
+                    g = _controller_gear() or {}          # 691: the platform's gear
+                    if g:
                         out = {"available": bool(g),
                                "gear": [{"mac": m, "name": v["name"],
                                          "type": v["type"]}
@@ -5103,11 +5116,20 @@ class Handler(BaseHTTPRequestHandler):
                     out["why"] = str(e)[:160]
                 return self._send(200, out)
             if parts == ["unifi", "net", "status"]:
-                return self._send(200, _unifinet.status())
+                # 691: the platform's integration is the status; ProOS signs in nowhere.
+                _g = _controller_gear() or {}
+                return self._send(200, {"configured": _network_integration_present(),
+                                        "source": "platform", "signs_in": False,
+                                        "gear": len(_g),
+                                        "online": sum(1 for v in _g.values() if v.get("online"))})
             if parts == ["unifi", "poe", "detect"]:
                 ent = (parse_qs(urlparse(self.path).query).get("entity", [""])[0]).strip()
                 if not ent:
                     return self._send(400, {"error": "entity required"})
+                # 691: needs the controller's client table (which port a device is on);
+                # the platform does not report it and ProOS no longer signs in.
+                return self._send(200, {"entity": ent, "switch": None,
+                                        "error": "the platform does not report which port a device is on"})
                 try:
                     sw = _unifinet_mod.suggest_poe_switch(_unifinet, _client, ent)
                     return self._send(200, {"entity": ent, "switch": sw})
@@ -8926,7 +8948,9 @@ def main():
                 try:
                     _healthmon_mod.AUTO_HEAL = bool(_opt("auto_heal", False))
                     _healthmon_mod.CLIENT = _client
-                    _healthmon_mod.NET_CLIENT = _unifinet   # optional UniFi VLAN evidence
+                    # 691: no ProOS sign-in to the controller — the client table it read
+                    # is not used; topology is consciously uncovered.
+                    _healthmon_mod.NET_CLIENT = None
                 except Exception:                                # noqa: BLE001
                     pass
                 # WEDGED MUSIC ENGINE (check #8, 9 Aug): the evidence is the
@@ -8985,8 +9009,7 @@ def main():
                     _healthmon_mod.GEAR_FN = _controller_gear
                     # 688: is there a network controller integration at all? Read
                     # from the platform's own entries on every scan (unifinet._conf).
-                    _healthmon_mod.GEAR_CONFIGURED_FN = (
-                        lambda: _unifinet is not None and _unifinet.configured())
+                    _healthmon_mod.GEAR_CONFIGURED_FN = _network_integration_present   # 691
                 except Exception:                                # noqa: BLE001
                     pass
                 # THE BOX'S OWN UPDATE, FROM THE PLATFORM'S OWN UPDATE ENTITY
