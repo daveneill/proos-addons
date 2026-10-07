@@ -1279,6 +1279,14 @@ html.proos-has-bg #landing::before,html.proos-has-bg #proos-reboot::before,html.
 .v2back svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .v2back:active{background:rgba(255,255,255,0.12)}
 #app.v2 .panel .back{display:none!important}
+/* PHONE (register 717, seen on the box at 390 px): the Back ran under the device chips — the left cluster may
+   shrink below its contents, so on a phone it keeps its own width and the chips beside it scroll, and the
+   Back is the arrow alone, the same 34 px round target. */
+@media (max-width:767px){
+  #app.v2 .topbar .left{flex:0 0 auto!important}
+  .v2back{width:34px;padding:0;justify-content:center;margin-left:2px}
+  .v2back span{display:none}
+}
 .v2presence{display:flex;gap:6px;align-items:center;margin-right:10px}
 .v2dev{display:inline-flex;align-items:center;gap:5px;border-radius:20px;padding:3px 10px;font-size:11px;
   background:rgba(76,175,130,0.13);color:#46e3a0;border:1px solid rgba(76,175,130,0.35);white-space:nowrap}
@@ -2662,7 +2670,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026100817';
+const PROOS_BUILD='2026100818';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
