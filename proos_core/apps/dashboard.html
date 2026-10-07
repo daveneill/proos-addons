@@ -1041,10 +1041,11 @@ body[data-home-state="noticing"] .home-state-go,body[data-home-state="attention"
 .pa-fs-back{position:absolute;top:14px;left:14px;z-index:3;background:rgba(0,0,0,.45);border:none;color:#fff;width:40px;height:40px;border-radius:50%;font-size:26px;line-height:1;cursor:pointer;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
 .pa-fs-name{position:absolute;top:22px;left:66px;z-index:3;color:#fff;font-size:16px;font-weight:600;text-shadow:0 1px 4px rgba(0,0,0,.9)}
 .pa-fs-ctrls{position:absolute;bottom:22px;left:0;right:0;display:flex;justify-content:center;gap:10px;z-index:3}
-/* 700: Listen and Hold to Talk */
+/* 700/702: Listen, and Talk (tap on, tap off) */
 .pa-fs-listen.on{background:rgba(33,57,240,.85);border-color:transparent}
-.pa-fs-talk{touch-action:none;-webkit-user-select:none;user-select:none}
-.pa-fs-talk.talking{background:#d64a3f;border-color:transparent;box-shadow:0 0 0 6px rgba(214,74,63,.25)}
+.pa-fs-talk{-webkit-user-select:none;user-select:none}
+.pa-fs-talk.talking{background:rgba(214,74,63,.55);border-color:transparent}
+.pa-fs-talk.talking.live{background:#d64a3f;box-shadow:0 0 0 6px rgba(214,74,63,.25)}
 /* 699: the doorbell's message sheet */
 .pa-dbmsg{position:absolute;inset:0;z-index:30;display:flex;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.45)}
 .pa-dbmsg-card{width:min(520px,100%);background:rgba(16,16,20,.96);border-radius:20px 20px 0 0;padding:20px 18px calc(18px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:12px}
@@ -1754,6 +1755,16 @@ body[data-home-state="noticing"] .home-state-go,body[data-home-state="attention"
 .sec-alarm-card .sec-alarm-label{font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.50);margin-bottom:4px}
 .sec-alarm-card .sec-alarm-status{font-size:20px;font-weight:200;letter-spacing:-0.5px}
 .sec-alarm-modes{display:flex;gap:8px}
+/* 703: an area's zones */
+.sec-zones{border-top:.5px solid rgba(255,255,255,.10);padding-top:12px;display:flex;flex-direction:column;gap:8px}
+.sec-zones-head{display:flex;justify-content:space-between;align-items:center;background:none;border:0;padding:0;color:rgba(255,255,255,.75);font-size:13px;cursor:pointer;text-align:left}
+.sec-zones-more{color:rgba(255,255,255,.50);font-size:12px}
+.sec-zone-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px}
+.sec-zone{display:flex;justify-content:space-between;gap:8px;padding:8px 10px;border-radius:10px;background:rgba(255,255,255,.04);font-size:13px}
+.sec-zone-n{color:rgba(255,255,255,.85);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sec-zone-w{color:rgba(255,255,255,.50);flex-shrink:0}
+.sec-zone.open .sec-zone-w{color:#e0a43a}
+.sec-zone.alarm{background:rgba(214,74,63,.18)}.sec-zone.alarm .sec-zone-w{color:#ff7a6e}
 .sec-mode-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px 6px;background:rgba(255,255,255,0.05);border:0.5px solid rgba(255,255,255,0.1);border-radius:10px;color:rgba(255,255,255,0.5);cursor:pointer;font-size:10px;letter-spacing:0.04em;transition:background .15s,color .15s,border-color .15s}
 .sec-mode-btn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
 .sec-mode-btn:hover{background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.9)}
@@ -4122,26 +4133,19 @@ async function autoDiscover(haUrl, token) {
   // An alarm panel is the whole home's, so it is never required to sit in a room: UniFi's Alarm Manager has
   // no area on his box and so the dashboard showed NO alarm at all. Every alarm_control_panel the platform
   // has (and the installer has not hidden) is listed; one in a room comes first.
-  const alarms = allStates.filter(s => !hiddenEntities.has(s.entity_id) && domain(s.entity_id)==='alarm_control_panel')
+  const alarms = allStates.filter(s => !hiddenEntities.has(s.entity_id) && domain(s.entity_id)==='alarm_control_panel' && _alarmShown(s.entity_id))
     .sort((x,y)=>(entityAreaMap[y.entity_id]?1:0)-(entityAreaMap[x.entity_id]?1:0));
   const alarm = alarms[0];
   const weather = allStates.find(s => domain(s.entity_id)==='weather');
 
   // ── SECURITY SENSORS ──
-  // Same logic — label takes full control once created
-  const securityLabelled = (labelledEntities[LABEL_SECURITY]||[]).filter(e => !hiddenEntities.has(e));
-  const secSensors = definedLabels.has(LABEL_SECURITY)
-    ? securityLabelled
-        .map(eid => { const s=allStates.find(x=>x.entity_id===eid); return s?{name:s.attributes.friendly_name||eid.split('.')[1].replace(/_/g,' '), entity:eid, type:domain(eid)}:null; })
-        .filter(Boolean)
-    : allStates
-        .filter(s => { if(hiddenEntities.has(s.entity_id)||!entityAreaMap[s.entity_id]) return false;
-          const d=domain(s.entity_id), c=s.attributes.device_class;
-          // Typed by HA device_class only — never by entity_id text.
-          if(d==='binary_sensor'||d==='sensor') return ['door','window','garage_door','opening','motion','tamper'].includes(c);
-          if(d==='cover') return ['garage','door','gate','window','shutter'].includes(c);
-          return false; })
-        .map(s => ({name: s.attributes.friendly_name||s.entity_id.split('.')[1].replace(/_/g,' '), entity: s.entity_id, type: domain(s.entity_id)}));
+  // 704 · THE `dashboard_security` LABEL IS RETIRED (Dave, 7 Oct 2026: labels are not for the installer side; the
+  // alarm design agreed the same day). It made the list: once the label EXISTED, only labelled sensors were drawn —
+  // on Dave's box it existed on 0 devices, so the list was empty and nobody could see why. Now the list is the
+  // home's own door, window, garage and motion sensors in rooms, by the platform's device class, minus what is
+  // drawn elsewhere: anything on a camera or a light (their motion is detection, shown on Cameras) and any device
+  // carrying an alarm zone (shown under its area's card, 703). The installer's Hidden switch still removes one.
+  const secSensors = _securitySensors(allStates, alarms.map(a=>a.entity_id));
 
   // ── SCENES ──
   // Use dashboard_scene label if defined, otherwise fall back to manual CONFIG.scenes.
@@ -4491,7 +4495,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026100613';
+const PROOS_BUILD='2026100617';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -6487,10 +6491,9 @@ setInterval(async ()=>{
 }, 30000);
 
 // ── ENTITY REGISTRY ──
-// Label convention: dashboard_irrigation, dashboard_security, dashboard_scene
+// Label convention: dashboard_irrigation, dashboard_scene (dashboard_security retired — register 704)
 const LABEL_IRRIGATION = 'dashboard_irrigation';
 const LABEL_IRRIGATION_CTL = 'dashboard_irrigation_control';   // register 609 — set in Pro → Irrigation
-const LABEL_SECURITY   = 'dashboard_security';
 const LABEL_SCENE      = 'dashboard_scene';
 const LABEL_SYSTEM     = 'dashboard_system';   // an AREA with this label is infrastructure-only (UniFi, security, etc.): excluded from rooms AND from the refresh loop
 // proos_tv_combined / proos_tv_separate area labels retired 6 Aug — TV-audio mode
@@ -6603,9 +6606,12 @@ let entityAreaMap = {}; // entity_id -> area_id (populated by fetchEntityRegistr
 // registry that cannot be read, keep the full feed — never less than before.
 const _NOISE_DOMAINS=new Set(['sensor','binary_sensor','device_tracker','update','button','number','select','text','image']);
 let _entSubId=null, _allSubId=null, _entSubKey='', _wantedSet=null;
+// 703: an alarm's zones are sensors with no room of their own; they stay on the live feed.
+let _zoneIds=new Set();
 function _wantedEntities(){
+  try{ _zoneIds=new Set([].concat(...Object.keys(states).filter(e=>e.startsWith('alarm_control_panel.')).map(_alarmZones))); }catch(e){}
   return Object.keys(states).filter(e=>{ const d=e.slice(0,e.indexOf('.'));
-    return !_NOISE_DOMAINS.has(d) || !!entityAreaMap[e] || e.indexOf('sensor.proos_')===0; });
+    return !_NOISE_DOMAINS.has(d) || !!entityAreaMap[e] || e.indexOf('sensor.proos_')===0 || _zoneIds.has(e); });
 }
 function _isoS(t){ return new Date(t*1000).toISOString(); }
 function _onEntitiesEvent(ev){
@@ -6904,6 +6910,7 @@ function onStateChange(eid){
     if(v && v!=='unknown' && v!=='unavailable') dashCommand(v);
     return;
   }
+  if(eid.indexOf('event.')===0 && att(eid,'device_class')==='doorbell') _doorbellRang(eid);
   const sysEntity = _systemAreas.size && _systemAreas.has(entityAreaMap[eid]);
   // Whole-home navbar pages gather their devices across the ENTIRE home (including
   // excluded "system" areas), so they stay live even for a device parked in Services.
@@ -12410,7 +12417,7 @@ const ALARM_MODES = [
 const ALARM_WORDS = { disarmed:'Disarmed', armed_away:'Armed Away', armed_home:'Armed Home', armed_night:'Armed Night',
   armed_vacation:'Armed Vacation', armed_custom_bypass:'Armed Custom', arming:'Arming…', disarming:'Disarming…',
   pending:'Entry Delay', triggered:'Alarm Triggered' };
-function _alarmPanels(){ const a=(CONFIG.security&&CONFIG.security.alarms)||[]; return a.length?a:((CONFIG.security&&CONFIG.security.alarm)?[CONFIG.security.alarm]:[]); }
+function _alarmPanels(){ const a=(CONFIG.security&&CONFIG.security.alarms)||[]; return (a.length?a:((CONFIG.security&&CONFIG.security.alarm)?[CONFIG.security.alarm]:[])).filter(_alarmShown); }
 function _alarmModes(eid){ const f=Number(att(eid,'supported_features'))||0; return ALARM_MODES.filter(m=>f&m.bit); }
 function _alarmDead(v){ return !v||v==='unavailable'||v==='unknown'; }
 function _alarmWord(eid){ const v=st(eid); if(_alarmDead(v)) return 'No Signal'; return ALARM_WORDS[v]||cap(String(v).replace(/_/g,' ')); }
@@ -12422,6 +12429,91 @@ function _alarmNeedsCode(eid, service){
   return att(eid,'code_arm_required')!==false;
 }
 function _alarmName(eid){ return att(eid,'friendly_name')||String(eid).split('.')[1].replace(/_/g,' '); }
+// 704: the Security page's sensor list (see discovery). Door, window, garage and motion sensors in rooms, by device
+// class; never on a camera or a light; never on a device that carries one of these panels' zones; never Hidden.
+function _securitySensors(allStates, panels){
+  const zoneDevs=new Set([].concat(...panels.map(_alarmZones)).map(z=>entityDeviceMap[z]||z));
+  const camLightDevs=new Set(Object.keys(entityDeviceMap).filter(e=>e.startsWith('camera.')||e.startsWith('light.')).map(e=>entityDeviceMap[e]));
+  return allStates
+    .filter(s => { if(hiddenEntities.has(s.entity_id)||!entityAreaMap[s.entity_id]) return false;
+      const dev=entityDeviceMap[s.entity_id];
+      if(dev && (camLightDevs.has(dev) || zoneDevs.has(dev))) return false;
+      if(zoneDevs.has(s.entity_id)) return false;
+      const d=s.entity_id.split('.')[0], c=(s.attributes||{}).device_class;
+      // Typed by HA device_class only — never by entity_id text.
+      if(d==='binary_sensor'||d==='sensor') return ['door','window','garage_door','opening','motion','tamper'].includes(c);
+      if(d==='cover') return ['garage','door','gate','window','shutter'].includes(c);
+      return false; })
+    .map(s => ({name: (s.attributes||{}).friendly_name||s.entity_id.split('.')[1].replace(/_/g,' '), entity: s.entity_id, type: s.entity_id.split('.')[0]}));
+}
+
+// 703 · AREAS AND THEIR ZONES (Dave, 7 Oct 2026: "a traditional alarm … usually has areas"; the design agreed the
+// same day: one card per area, its zones underneath; "1 and 3" — an area with no zones is not drawn for the
+// homeowner, and the installer's own Shown / Hidden switch in Pro decides for any area).
+// Zones come only from what the alarm's INTEGRATION publishes, two ways:
+//  · LINKED — the integration names each zone's area by number and reports the zone's status (the Ness/Elk M1: a
+//    zone's `area` is the panel's `index`, with its `logical_status`; read on Dave's box: Main House 15 zones,
+//    Granny Flat 5, Garage 6, Areas 4–8 none). The keypad also carries an `area` but no zone status — it is not a
+//    zone (the preview on the box counted it as a 16th until this was right). When an integration links zones
+//    this way, a panel with none linked has no zones.
+//  · ONE PANEL — an integration with a single panel and no links (UniFi Protect's Alarm Manager): its own door,
+//    window, motion and leak sensors on devices that are neither cameras nor lights (the SuperLink and Sense
+//    sensors — not the floodlights' motion, which the preview on the box first picked up).
+// Anything else: no zones are claimed for the panel.
+const _ZONE_CLASSES=new Set(['door','window','opening','garage_door','motion','occupancy','moisture']);
+function _alarmLinksZones(platform){
+  return Object.keys(states).some(e=>entityPlatformMap[e]===platform && _isLinkedZone(e));
+}
+function _isLinkedZone(e){
+  const a=(states[e]||{}).attributes||{};
+  return (e.startsWith('sensor.')||e.startsWith('binary_sensor.')) && typeof a.area==='number' && a.logical_status!=null;
+}
+function _alarmZones(eid){
+  const p=entityPlatformMap[eid]; if(!p) return [];
+  const mine=Object.keys(states).filter(e=>e!==eid && entityPlatformMap[e]===p && !hiddenEntities.has(e));
+  if(_alarmLinksZones(p)){
+    const idx=att(eid,'index'); if(typeof idx!=='number') return [];
+    return mine.filter(e=>_isLinkedZone(e) && states[e].attributes.area===idx);
+  }
+  const panels=mine.filter(e=>e.startsWith('alarm_control_panel.'));
+  if(panels.length) return [];
+  const notSensorDevs=new Set(Object.keys(entityDeviceMap).filter(e=>e.startsWith('camera.')||e.startsWith('light.')).map(e=>entityDeviceMap[e]));
+  return mine.filter(e=>e.startsWith('binary_sensor.') && _ZONE_CLASSES.has(att(e,'device_class'))
+    && !(entityDeviceMap[e] && notSensorDevs.has(entityDeviceMap[e])));
+}
+// Shown to the homeowner unless the integration links zones to areas and this area has none.
+function _alarmShown(eid){
+  const p=entityPlatformMap[eid];
+  return !(p && _alarmLinksZones(p) && !_alarmZones(eid).length);
+}
+// A zone in words, from what it reports: a panel zone's own status word; a sensor by its kind.
+function _zoneInfo(z){
+  const v=st(z), a=(states[z]&&states[z].attributes)||{}, name=entityNames[z]||a.friendly_name||z.split('.')[1].replace(/_/g,' ');
+  if(_alarmDead(v)) return {name, word:'No Signal', rank:2, cls:'dead'};
+  if(a.triggered_alarm===true) return {name, word:'Caused Alarm', rank:0, cls:'alarm'};
+  if(z.startsWith('binary_sensor.')){
+    const c=a.device_class, on=v==='on';
+    const w=c==='motion'||c==='occupancy'?(on?'Motion':'Clear'):c==='moisture'?(on?'Wet':'Dry'):(on?'Open':'Closed');
+    return {name, word:w, rank:on?1:3, cls:on?'open':''};
+  }
+  const lv=String(a.logical_status||v||'').toLowerCase();
+  const normal=lv==='normal';
+  return {name, word:cap(String(v).replace(/_/g,' ')), rank:normal?3:1, cls:normal?'':'open'};
+}
+function _zonesHTML(eid){
+  const zs=_alarmZones(eid).map(z=>Object.assign({id:z},_zoneInfo(z)))
+    .sort((x,y)=>x.rank-y.rank||String(x.name).localeCompare(String(y.name)));
+  if(!zs.length) return '';
+  const notNormal=zs.filter(z=>z.rank<3), open=_secZonesOpen.has(eid);
+  const row=z=>`<div class="sec-zone ${z.cls}"><span class="sec-zone-n">${_hEsc(z.name)}</span><span class="sec-zone-w">${_hEsc(z.word)}</span></div>`;
+  const shown=open?zs:notNormal;
+  return `<div class="sec-zones"><button class="sec-zones-head" onclick="_secZonesToggle('${_hEsc(eid)}')">`
+    +`<span>${notNormal.length?notNormal.length+' of '+zs.length+' Zones Need Attention':'All '+zs.length+' Zones Normal'}</span>`
+    +`<span class="sec-zones-more">${open?'Hide':'All Zones'}</span></button>`
+    +(shown.length?`<div class="sec-zone-list">${shown.map(row).join('')}</div>`:'')+`</div>`;
+}
+const _secZonesOpen=new Set();
+function _secZonesToggle(eid){ _secZonesOpen.has(eid)?_secZonesOpen.delete(eid):_secZonesOpen.add(eid); updateSecurity(); }
 
 // ── ACCESS PAGE ── Garage doors, gates, locks
 // THIS HOUSE IS NOT EVERY HOUSE (19 Aug 2026, register 233). These two
@@ -12556,6 +12648,7 @@ function _secPanelHTML(eid){
     +`<div class="sec-alarm-info"><div class="sec-alarm-label">${_hEsc(_alarmName(eid))}</div><div class="sec-alarm-status">${_hEsc(_alarmWord(eid))}</div>`
     +(by&&!dead?`<div class="sec-alarm-by">by ${_hEsc(by)}</div>`:'')+`</div></div>`
     +(dead?'':`<div class="sec-alarm-modes">${modeBtns}${disarmBtn}</div>`)
+    +_zonesHTML(eid)
     +`</div>`;
 }
 function renderSecurity(){
@@ -13022,7 +13115,7 @@ function openProtectCamera(i){
       +'<div class="pa-fs-imgwrap"><video id="pa-det-vid" autoplay muted playsinline style="display:none"></video><img id="pa-det-img" style="display:none"/></div>'
       +'<div class="pa-fs-ctrls">'
         +`<button class="pa-fs-btn pa-fs-listen" id="pa-listen" onclick="_paListen(this)"><span>Sound Off</span></button>`
-        +(_paCamCanTalk(pcCam)?`<button class="pa-fs-btn pa-fs-talk" id="pa-talk" onpointerdown="_paTalkStart(event,'${_hEsc(cam.name)}',this)" onpointerup="_paTalkEnd()" onpointercancel="_paTalkEnd()" onpointerleave="_paTalkEnd()" oncontextmenu="return false"><span>Hold to Talk</span></button>`:'')
+        +(_paCamCanTalk(pcCam)?`<button class="pa-fs-btn pa-fs-talk" id="pa-talk" onclick="_paTalkToggle('${_hEsc(cam.name)}',this)"><span>Talk</span></button>`:'')
         +(_paDoorbellEnts(cam.entity)?`<button class="pa-fs-btn" onclick="_paDoorbellSheet('${_hEsc(cam.entity)}')">Message</button>`:'')
         +'<button class="pa-fs-btn pa-fs-livebtn" onclick="_paGoLive()"><span class="pa-fs-livedot"></span>LIVE</button>'
       +'</div>'
@@ -13211,11 +13304,58 @@ function _paOpenAndPlay(camIndex, camId, whenMs){
 // _paTalkFailed. Sound On tells the app too ("listen:on"/"listen:off"), so the device's audio is set up for
 // playing the camera, as the platform app's own camera player does. In a browser on plain http, Talk says it
 // needs a secure link — the same words Assist uses — instead of blaming the microphone.
+// 702 (Dave, 7 Oct 2026: "would prefer it to start muted and press to toggle not hold to talk thats not natural"):
+// Talk is a TAP ON / TAP OFF button. It starts muted. Tapping it turns the camera's sound on too (you want to
+// hear the answer) and opens the microphone; the button says "Connecting…" until the camera has actually taken
+// the first slice of voice, then "Talking". Tap again to mute. Measured on the box the same day: the voice
+// reaches the door about 0.8 s after it is sent, so a quick hold could send nothing at all — the race the old
+// hold button lost. Leaving the camera, or the page going to the background, mutes it.
+function _paTalkToggle(camName, btn){
+  if(_paTalk){ if(_paTalk.btn===btn && !_paTalk.released) _paTalkEnd(); return; }
+  _paSoundOn();
+  _paTalkStart(null, camName, btn);
+}
+function _paSoundOn(){
+  const v=document.getElementById('pa-det-vid'), b=document.getElementById('pa-listen');
+  if(v && v.muted && b) _paListen(b);
+}
 function _paListen(btn){
   const v=document.getElementById('pa-det-vid'); if(!v) return;
-  v.muted=!v.muted; if(!v.muted){ try{ v.play(); }catch(e){} }
+  const show=()=>{ btn.classList.toggle('on', !v.muted); btn.querySelector('span').textContent=v.muted?'Sound Off':'Sound On'; };
+  v.muted=!v.muted;
+  if(!v.muted){
+    // 705: a browser may refuse sound nobody tapped for (a ring opening the camera on its own). Then the video
+    // goes back to playing muted and the button says Sound Off — never "Sound On" over silence.
+    try{ const p=v.play(); if(p&&p.catch) p.catch(()=>{ v.muted=true; try{ const q=v.play(); if(q&&q.catch) q.catch(()=>{}); }catch(e){}
+      if(_proosApp()) _proosAppPost('listen:off'); show(); }); }catch(e){}
+  }
   if(_proosApp()) _proosAppPost(v.muted?'listen:off':'listen:on');
-  btn.classList.toggle('on', !v.muted); btn.querySelector('span').textContent=v.muted?'Sound Off':'Sound On';
+  show();
+}
+// 705 · THE DOORBELL RINGS THE DASHBOARD (Dave, 7 Oct 2026: "if doorbell rings this needs to be part off the
+// integration" … "yes as iPad might just have our app not unifi protect or access"). The platform's own ring — an
+// event entity of device class doorbell, event type "ring" (read on his box: event.front_door_doorbell, on the
+// G6 Pro Entry's device) — opens that doorbell's camera live on every open ProOS screen, with the sound on and Talk
+// muted until tapped. A ring is "now" for _RING_NOW_MS — the doorbell widget's own "Ringing now" window — so a page
+// that reconnects never replays an old ring. Each ring opens the camera once; the sound comes on when the live
+// picture starts (it is waited for up to 10 s).
+const _RING_NOW_MS=60000;
+const _ringSeen={};
+function _doorbellRang(eid){
+  const v=st(eid), t=Date.parse(v);
+  if(!t || Date.now()-t>_RING_NOW_MS) return;
+  const kind=att(eid,'event_type'); if(kind && kind!=='ring') return;
+  if(_ringSeen[eid]===v) return; _ringSeen[eid]=v;
+  const ce=_eventCam(eid); if(!ce) return;
+  const i=(CONFIG.cameras||[]).findIndex(c=>c.entity===ce); if(i<0) return;
+  const ov=document.getElementById('pa-detail');
+  const already=ov && ov.style.display!=='none' && window._paCurCam===i;
+  if(!already) openProtectCamera(i);
+  let tries=0;
+  const soundWhenLive=()=>{ const vid=document.getElementById('pa-det-vid');
+    if(vid && vid.style.display!=='none'){ _paSoundOn(); return; }
+    if(++tries<40) setTimeout(soundWhenLive, 250); };
+  soundWhenLive();
 }
 let _paTalk=null;
 function _paResample(f32, from, to){
@@ -13230,7 +13370,9 @@ async function _paTalkPump(t){
     const parts=t.q.splice(0); let n=0; parts.forEach(p=>n+=p.length);
     const out=new Int16Array(n); let o=0; parts.forEach(p=>{ out.set(p,o); o+=p.length; });
     try{ const r=await fetch(proosCoreBase()+'/protect/talk/'+t.sid+'/audio',{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:out.buffer});
-      if(!r.ok){ t.failed=true; break; } }catch(e){ t.failed=true; break; }
+      if(!r.ok){ t.failed=true; break; }
+      if(!t.live){ t.live=true; if(t.btn&&!t.released){ const sp=t.btn.querySelector('span'); if(sp) sp.textContent='Talking'; t.btn.classList.add('live'); } }
+    }catch(e){ t.failed=true; break; }
   }
   t.sending=false;
   if(t.released) _paTalkFinish(t);
@@ -13240,8 +13382,7 @@ async function _paTalkStart(ev, camName, btn){
   if(_paTalk) return;
   const pcCam=_pcCamForName(camName); if(!pcCam) return;
   const t=_paTalk={btn, q:[], sid:null, rate:24000, released:false, sending:false};
-  btn.classList.add('talking'); btn.querySelector('span').textContent='Talking…';
-  try{ if(btn.setPointerCapture&&ev&&ev.pointerId!=null) btn.setPointerCapture(ev.pointerId); }catch(e){}
+  btn.classList.add('talking'); btn.querySelector('span').textContent='Connecting…';
   t.app=_proosApp();
   if(!t.app){
     if(!window.isSecureContext){ showToast('Talk needs a secure link to your home'); t.released=true; _paTalkFinish(t); return; }
@@ -13276,10 +13417,12 @@ function _paTalkFinish(t){
   if(t.app) _proosAppPost('talk:stop');
   if(t.sid) fetch(proosCoreBase()+'/protect/talk/'+t.sid+'/stop',{method:'POST'}).catch(()=>{});
   if(t.failed) showToast('The camera stopped listening');
-  if(t.btn){ t.btn.classList.remove('talking'); const sp=t.btn.querySelector('span'); if(sp) sp.textContent='Hold to Talk'; }
+  if(t.btn){ t.btn.classList.remove('talking'); t.btn.classList.remove('live'); const sp=t.btn.querySelector('span'); if(sp) sp.textContent='Talk'; }
   if(_paTalk===t) _paTalk=null;
 }
-// The app's microphone, while Talk is held (701): 16-bit mono PCM at the camera's rate, base64, a slice at a time.
+// The page going to the background mutes Talk (702): a microphone is never left open on a screen nobody sees.
+document.addEventListener('visibilitychange',()=>{ if(document.hidden && _paTalk) _paTalkEnd(); });
+// The app's microphone, while Talk is on (701): 16-bit mono PCM at the camera's rate, base64, a slice at a time.
 window._paTalkPcm=function(b64){
   const t=_paTalk; if(!t||!t.app||t.released||!t.sid||!b64) return;
   try{ const bin=atob(b64), n=bin.length>>1, out=new Int16Array(n);
