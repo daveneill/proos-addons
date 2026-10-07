@@ -28,6 +28,12 @@ camera's address and codec, how many slices and bytes arrived, the longest gap b
 (stopped / went quiet / encoder gone), the encoder's exit code and its last words. ffmpeg's error output was
 thrown away before, so a session that failed said nothing at all. log() serves the record (GET
 /protect/talk/log); it holds no audio and no names of people.
+
+REGISTER 707 — HOW LOUD IT WAS. Dave, 14:22 the same day, on the 846 app: "Still no audio on push to talk at front
+door". The record proved the voice ARRIVED on time (e.g. 3.9 s open, 167 KB = 3.5 s at 24 kHz) and the encoder sent
+it without complaint — the same path a test tone took to the door that morning. What it could not say is whether
+what arrived was sound. Each session now carries the loudest sample (peak, of 32767), the overall level (rms), and
+how many slices were silent (peak under SILENT_PEAK). Numbers only — never the audio.
 """
 from __future__ import annotations
 
@@ -36,7 +42,9 @@ import secrets
 import shutil
 import subprocess
 import threading
+import sys
 import time
+from array import array
 from collections import deque
 
 IDLE = 4.0              # s without audio before a session is closed (plumbing)
@@ -46,6 +54,7 @@ _CODECS = {"opus": ["-c:a", "libopus", "-b:a", "48k", "-application", "voip", "-
 _URL = re.compile(r"^rtp://[0-9A-Za-z.\-\[\]:]+:\d{2,5}$")
 
 LOG_KEEP = 20           # sessions kept in the record (plumbing)
+SILENT_PEAK = 64        # a slice whose loudest sample is under this (of 32767, about -54 dBFS) counts as silent (plumbing: a reading's label, never acted on)
 _log: deque = deque(maxlen=LOG_KEEP)
 _lock = threading.Lock()
 _sessions: dict = {}     # id -> {"proc", "cam", "rate", "last"}
@@ -94,7 +103,8 @@ def start(client, camera_id: str, popen=subprocess.Popen) -> dict:
     now = time.time()
     rec = {"session": sid, "camera": camera_id, "address": url, "codec": codec, "rate": int(rate),
            "opened": now, "slices": 0, "bytes": 0, "longest_gap_s": 0.0, "first_audio_s": None,
-           "ended": None, "how": None, "encoder_exit": None, "encoder_said": ""}
+           "ended": None, "how": None, "encoder_exit": None, "encoder_said": "",
+           "peak": 0, "rms": 0.0, "silent_slices": 0, "_sumsq": 0.0, "_n": 0}
     _watch_stderr(proc, rec)
     with _lock:
         _sessions[sid] = {"proc": proc, "cam": camera_id, "rate": int(rate), "last": now, "rec": rec}
@@ -117,6 +127,7 @@ def audio(sid: str, pcm: bytes) -> None:
                 rec["first_audio_s"] = round(now - rec["opened"], 3)
             rec["slices"] += 1
             rec["bytes"] += len(pcm)
+            _measure(rec, pcm)
         s["last"] = now
         proc = s["proc"]
     if not pcm:
@@ -166,10 +177,30 @@ def _watch_stderr(proc, rec) -> None:
     threading.Thread(target=run, name="protect-talk-err", daemon=True).start()
 
 
+def _measure(rec: dict, pcm: bytes) -> None:
+    """Loudness of one slice of 16-bit little-endian mono PCM, folded into the session's record."""
+    try:
+        a = array("h")
+        a.frombytes(pcm[: len(pcm) - (len(pcm) % 2)])
+        if sys.byteorder != "little":
+            a.byteswap()
+        if not a:
+            return
+        pk = max(max(a), -min(a))
+        rec["peak"] = max(rec["peak"], min(pk, 32767))
+        rec["_sumsq"] += float(sum(x * x for x in a))
+        rec["_n"] += len(a)
+        rec["rms"] = round((rec["_sumsq"] / rec["_n"]) ** 0.5, 1)
+        if pk < SILENT_PEAK:
+            rec["silent_slices"] += 1
+    except Exception:  # noqa: BLE001 — a reading, never in the way of the voice
+        pass
+
+
 def log() -> list:
     """The record of the last sessions, newest first. No audio, ever."""
     with _lock:
-        out = [dict(r) for r in reversed(_log)]
+        out = [{k: v for k, v in r.items() if not k.startswith("_")} for r in reversed(_log)]
     for r in out:
         r["open_s"] = round((r["ended"] or time.time()) - r["opened"], 1)
     return out
