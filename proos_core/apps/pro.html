@@ -734,6 +734,75 @@ html.proos-has-bg #landing::before,html.proos-has-bg #proos-reboot::before,html.
 .dfacts{display:block;padding:12px 16px}
 .dfact{display:flex;align-items:baseline;justify-content:space-between;gap:14px;padding:3px 0}
 .dfact .rl{text-align:right;word-break:break-word}
+/* ── THE STANDARD INTEGRATION PAGE (register 710) ────────────────────────────
+   The approved mock (Main.dc.html): a head card, search + chips, the list
+   grouped by room with Model / Room / Now columns, the selected device beside
+   it. Under 1440px (the house's own Mac line) the side pane goes and a row opens the device page; under
+   700px the columns fold into the row's own sub-line. */
+.ip-headcard{display:flex;align-items:center;gap:16px;padding:16px 18px;margin:0 0 14px;border-radius:16px;background:var(--card);border:0.5px solid var(--line-soft)}
+.ip-logo{width:54px;height:54px;border-radius:13px;background:rgba(255,255,255,0.06);border:0.5px solid var(--line-soft);display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.ip-logo .intg-logo,.ip-logo .intg-mono{width:36px;height:36px;margin:0}
+.ip-logo .intg-logo img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain}
+.ip-hbody{flex:1;min-width:0}
+.ip-title{font-size:22px;font-weight:300;letter-spacing:-0.3px;margin:2px 0 3px}
+.ip-acts{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.ip-btn{height:36px;padding:0 14px;border-radius:10px;border:0.5px solid var(--line);background:rgba(255,255,255,0.06);color:var(--t1);font:inherit;font-size:13px;cursor:pointer;white-space:nowrap}
+.ip-btn.p{background:var(--accent);border-color:transparent}
+.ip-pill{font-size:11.5px;padding:3px 9px;border-radius:10px;background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.75);white-space:nowrap;display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.ip-pill.ok{background:rgba(76,175,130,0.14);color:#7fd6ad}
+.ip-pill.warn{background:rgba(224,164,58,0.16);color:#f1c27a}
+.ip-pill.amber{color:#f1c27a}
+.ip-state{font-size:12px;padding:5px 11px}
+.ip-tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 14px}
+.ip-search{flex:0 1 360px;min-width:220px;display:flex;align-items:center;gap:8px;height:38px;padding:0 12px;border-radius:12px;background:rgba(255,255,255,0.06);border:0.5px solid var(--line)}
+.ip-search svg{width:16px;height:16px;stroke:var(--t2);fill:none;stroke-width:1.8;flex:0 0 auto}
+.ip-search input{flex:1;min-width:0;background:none;border:0;color:var(--t1);font:inherit;font-size:13.5px;outline:none}
+.ip-chips{flex:1;display:flex;gap:8px;flex-wrap:wrap;align-items:center;min-width:0}
+.ip-gap{flex:1}
+.ip-chip{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;border-radius:15px;background:rgba(255,255,255,0.06);border:0.5px solid var(--line-soft);color:rgba(255,255,255,0.75);font:inherit;font-size:12.5px;cursor:pointer;white-space:nowrap}
+.ip-chip b{font-weight:500;color:var(--t2)}
+.ip-chip.on{background:var(--accent-soft);border-color:var(--accent-line);color:var(--t1)}
+.ip-chip.warn{background:rgba(224,164,58,0.14);border-color:rgba(224,164,58,0.45);color:#f1c27a}
+.ip-chip.warn b{color:#f1c27a}
+.ip-body{display:flex;gap:14px;align-items:flex-start}
+.ip-list{flex:1;min-width:0;padding:6px 8px;border-radius:16px;background:var(--card);border:0.5px solid var(--line-soft)}
+.ip-side{flex:0 0 400px;position:sticky;top:12px;padding:16px;border-radius:16px;background:var(--card);border:0.5px solid var(--line-soft);display:flex;flex-direction:column;gap:10px}
+.ip-side:empty{display:none}
+.ip-row{display:grid;grid-template-columns:34px minmax(0,1.6fr) minmax(0,1fr) minmax(0,1fr) 140px;align-items:center;gap:12px;padding:10px 14px;border-radius:12px;font-size:13.5px}
+.ip-row.tappable{cursor:pointer}
+.ip-row.sel{background:var(--accent-soft);outline:0.5px solid var(--accent-line)}
+.ip-head{color:var(--t2);font-size:11px;letter-spacing:0.08em;text-transform:uppercase;padding-top:12px}
+.ip-now{justify-self:end;min-width:0;max-width:100%}
+.ip-ic{width:34px;height:34px;border-radius:10px;background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center}
+.ip-ic svg{width:18px;height:18px;stroke:rgba(255,255,255,0.7);fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.ip-nm{display:flex;flex-direction:column;min-width:0}
+.ip-nm .rl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ip-row .rsub{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ip-narrow{display:none}
+.ip-add{color:var(--accent);cursor:pointer}
+.ip-grp{font-size:10.5px;letter-spacing:0.12em;text-transform:uppercase;color:var(--t2);padding:14px 14px 6px}
+.ip-side-h{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.ip-side-nm{font-size:18px;font-weight:300}
+.ip-link,.ip-more{background:none;border:0;color:#9fb0ff;font:inherit;font-size:13px;cursor:pointer;padding:0;white-space:nowrap;text-align:left}
+.ip-cam{position:relative;aspect-ratio:16/9;border-radius:12px;overflow:hidden;background:linear-gradient(160deg,#2a2f38,#11141a);display:flex;align-items:center;justify-content:center}
+.ip-cam img{width:100%;height:100%;object-fit:cover;display:block}
+.ip-lbl{font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:var(--t2);margin-top:4px}
+.ip-kv{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--line-soft);font-size:13px;min-height:36px}
+.ip-kv>span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ip-kn{cursor:pointer}
+.ip-kv .ectl{flex:0 1 auto}
+@media (max-width:1439px){ .ip-side{display:none} .ip-row.sel{background:none;outline:0} }
+@media (max-width:700px){
+  .ip-headcard{flex-wrap:wrap;gap:12px}
+  .ip-acts{width:100%;justify-content:flex-start}
+  .ip-search{flex:1 1 100%}
+  .ip-chips{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .ip-gap{display:none}
+  .ip-row{grid-template-columns:34px minmax(0,1fr) auto;padding:10px 8px}
+  .ip-head,.ip-wide{display:none}
+  .ip-narrow{display:block}
+  .ip-now{max-width:42vw}
+}
 .act{background:var(--card);border:0.5px solid var(--line-soft);border-radius:12px;padding:2px 0 6px}
 .act-day{font-size:10px;letter-spacing:0.05em;color:var(--t3);padding:9px 14px 5px}
 .act-r{display:grid;grid-template-columns:12px 1fr auto;gap:0 8px;padding:6px 14px;align-items:baseline}
@@ -2471,7 +2540,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026100609';
+const PROOS_BUILD='2026100711';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -4122,7 +4191,7 @@ function renderConfigured(){
   }
   if(unifiActive()){
     const nc=(_unifiStatus&&_unifiStatus.native&&_unifiStatus.native.cameras)||0;
-    tiles = `<div class="itile" onclick="openUnifi()"><div class="itile-ico">${intgLogo('unifiprotect')}</div><div class="itile-foot"><div class="itile-body"><div class="itile-nm">UniFi Protect<span class="cert-pill">CERTIFIED</span></div><div class="itile-sub">${nc} camera${nc===1?'':'s'} · certified</div></div><div class="itile-act"><span class="itile-chev">&rsaquo;</span></div></div></div>` + tiles;
+    tiles = `<div class="itile" onclick="openIntegration('unifiprotect')"><div class="itile-ico">${intgLogo('unifiprotect')}</div><div class="itile-foot"><div class="itile-body"><div class="itile-nm">UniFi Protect<span class="cert-pill">CERTIFIED</span></div><div class="itile-sub">${nc} camera${nc===1?'':'s'} · certified</div></div><div class="itile-act"><span class="itile-chev">&rsaquo;</span></div></div></div>` + tiles;
   }
   lc.innerHTML = (doms.length||maActive()||ahPublished()||unifiActive())
     ? `<div class="itile-grid">`+tiles+`</div>`
@@ -4168,7 +4237,14 @@ function renderLibrary(){
   try{ loadConfigEntries().then(()=>{ if(panelActive('library')){ renderConfigured(); renderCertified(); } }).catch(()=>{}); }catch(e){}
 }
 
-async function openIntegration(dom){ if(dom==='unifi') return openUniNet();   // UniFi Network has its own dedicated panel (like Protect)
+async function openIntegration(dom){
+  // THE STANDARD PAGE FOR EVERY INTEGRATION (register 710). UniFi Network and
+  // UniFi Protect open it too once they are set up; their own commissioning
+  // panels stay whole, one tap away under "ProOS Setup". Until they are set
+  // up, the tile still goes straight to that setup.
+  const _has=_liveEntries().some(e=>e.domain===dom);
+  if(dom==='unifi' && !_has) return openUniNet();
+  if(dom==='unifiprotect' && !_has) return openUnifi();
   renderIntegration(dom); show('integration'); try{ await loadConfigEntries(); }catch(e){} if(_curIntegration===dom) renderIntegration(dom); }
 // ── UniFi Network — dedicated panel (config card + device list), part of the UniFi suite ──
 async function openUniNet(){
@@ -4354,8 +4430,231 @@ function renderIntegration(dom){
   _curIntegration=dom;
   const t=document.getElementById('intg-title'); if(t) t.textContent=integrationName(dom)||'Integration';
   const host=document.getElementById('intg-devices'); if(!host) return;
-  setHTML(host, intgMirrorHTML(dom));
+  setHTML(host, intgPageHTML(dom));
 }
+// ── THE STANDARD INTEGRATION PAGE (register 710, Dave 7 Oct 2026) ──────────
+// Dave, on the mockups: "Thats so much better .. as long as we have all the
+// info and its matches the mocks the go for it for all integrations/device
+// pages". And before that: "some integrations have hundreds of devices etc
+// and these need to be filtered better".
+// WHAT IT IS. One page for every integration: the integration's own head
+// (logo, what it is, how many, whether it is connected, what it lets you do),
+// a search across every device AND entity, type chips counted off the box,
+// Needs Attention, the list grouped by room, and — on a wide screen — the
+// selected device beside the list with its live controls. On a phone a row
+// opens the device page, as it always did.
+// NOTHING IS LOST. Everything the old page carried still comes from the same
+// one mirror (intgMirrorHTML, register 415): the fault banner, entries with no
+// device, entities with no device. The device rows carry the same model,
+// entity count and attention badge, and still open openDeviceManage.
+// ALL OF IT IS THE BOX'S. The chips are the domains each device's entities
+// already have; nothing is typed in, guessed or stored by ProOS.
+let _ip={dom:null,q:'',kind:'all',group:'room',sel:null};
+const _IP_KINDS=[
+  ['doorbell','Doorbells'],['camera','Cameras'],['alarm_control_panel','Alarm'],['lock','Locks'],
+  ['climate','Climate'],['media_player','Media'],['light','Lights'],['cover','Covers'],['fan','Fans'],
+  ['vacuum','Vacuums'],['switch','Switches'],['sensor','Sensors'],['other','Other']];
+const _IP_ICO={
+  doorbell:'<rect x="6" y="3" width="12" height="18" rx="3"/><circle cx="12" cy="10" r="3"/><path d="M10 17h4"/>',
+  camera:'<rect x="3" y="7" width="13" height="10" rx="2"/><path d="M16 11l5-3v8l-5-3"/>',
+  alarm_control_panel:'<path d="M12 3l8 3v6c0 5-4 8-8 9-4-1-8-4-8-9V6z"/>',
+  lock:'<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+  climate:'<path d="M12 3v11"/><circle cx="12" cy="17" r="3.5"/><path d="M15 7h3M15 10h2"/>',
+  media_player:'<rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8"/>',
+  light:'<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.8.7 1 1.5 1 2.5h6c0-1 .2-1.8 1-2.5A6 6 0 0 0 12 3z"/>',
+  cover:'<rect x="4" y="4" width="16" height="16" rx="1"/><path d="M4 9h16M4 14h16"/>',
+  fan:'<circle cx="12" cy="12" r="1.5"/><path d="M12 10.5C12 6 14 4 16 5s1 5-2.5 6.5M13.5 12.5c4 1.5 5 4 3.5 5.5s-4.5-.5-5.5-4.5M10.5 12.5c-3.5 2.5-6 2-6.5 0s2.5-3.5 6.5-1.5"/>',
+  vacuum:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2"/>',
+  switch:'<rect x="3" y="8" width="18" height="8" rx="4"/><circle cx="16" cy="12" r="2"/>',
+  sensor:'<rect x="5" y="5" width="14" height="14" rx="3"/><circle cx="12" cy="12" r="2"/>',
+  other:'<circle cx="6" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="18" cy="12" r="1"/>'};
+function _ipIco(k){ return `<span class="ip-ic"><svg viewBox="0 0 24 24" aria-hidden="true">${_IP_ICO[k]||_IP_ICO.other}</svg></span>`; }
+function _ipCap(s){ return String(s==null?'':s).replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase()); }
+function _ipEnts(d){ return (_ents||[]).filter(e=>e.device_id===d.id && !e.disabled_by); }
+// What a device IS, from the domains its own entities have. The first match in
+// _IP_KINDS wins, so a doorbell camera is a doorbell and a camera with a light
+// is still a camera. Read on the box: Protect's USL Entry carries a config
+// switch, and was first counted under Switches.
+function _ipKind(d, ents){
+  ents=ents||_ipEnts(d);
+  // Settings and diagnostics do not say what a thing IS: a UniFi door sensor
+  // carries a config switch for its status light and is still a sensor.
+  const main=ents.filter(e=>!e.entity_category); const doms=new Set((main.length?main:ents).map(e=>DOM(e)));
+  if(doms.has('camera') && ents.some(e=>DOM(e)==='event' && attrOf(e.entity_id,'device_class')==='doorbell')) return 'doorbell';
+  for(const [k] of _IP_KINDS){ if(k==='doorbell'||k==='other') continue;
+    if(k==='sensor'){ if(doms.has('sensor')||doms.has('binary_sensor')) return 'sensor'; continue; }
+    if(doms.has(k)) return k; }
+  return 'other';
+}
+function _ipDead(eid){ const s=String(stState(eid)); return s==='unavailable'||s==='unknown'; }
+function _ipBin(eid){
+  const c=attrOf(eid,'device_class')||'', on=stState(eid)==='on';
+  if(['door','window','opening','garage_door'].includes(c)) return on?'Open':'Closed';
+  if(['motion','occupancy','presence'].includes(c)) return on?'Motion':'Clear';
+  if(c==='moisture') return on?'Wet':'Dry';
+  if(['smoke','gas','carbon_monoxide','safety','sound','tamper','problem'].includes(c)) return on?'Detected':'Clear';
+  if(c==='connectivity') return on?'Connected':'Disconnected';
+  if(c==='lock') return on?'Unlocked':'Locked';
+  if(c==='battery') return on?'Low':'Normal';
+  return on?'On':'Off';
+}
+// The one entity that says what the device is doing now.
+function _ipPrimary(d, kind, ents){
+  const by=(dom)=>ents.filter(e=>DOM(e)===dom && !e.entity_category);
+  const want=kind==='doorbell'?'camera':kind;
+  if(want==='sensor'){
+    const b=by('binary_sensor'); const pref=b.find(e=>['door','window','opening','garage_door','motion','occupancy','presence','moisture','smoke'].includes(attrOf(e.entity_id,'device_class')));
+    if(pref) return pref; if(b.length) return b[0];
+    const s=by('sensor').filter(e=>attrOf(e.entity_id,'device_class')!=='battery'); return s[0]||by('sensor')[0]||null;
+  }
+  return by(want)[0]||ents.find(e=>DOM(e)===want)||null;
+}
+function _ipWord(eid){
+  if(!eid) return '';
+  const dom=DOM(eid), st=String(stState(eid)), unit=attrOf(eid,'unit_of_measurement');
+  if(st==='unavailable') return 'No Signal';
+  if(st==='unknown') return '';
+  if(dom==='camera') return 'Live';
+  if(dom==='binary_sensor') return _ipBin(eid);
+  if(dom==='sensor'){ const n=Number(st); return (isFinite(n)&&st!==''?String(Math.round(n*10)/10):_ipCap(st))+(unit?((unit==='%'||unit.charAt(0)==='°'?'':' ')+unit):''); }
+  if(dom==='climate'){ const t=attrOf(eid,'current_temperature'); return t!=null?(t+'°'):_ipCap(st); }
+  return _ipCap(st);
+}
+// One record per device: everything the row, the chips, the search and the
+// side pane need, read once.
+function _ipRows(dom){
+  return (_devices||[]).filter(d=>_devIntg[d.id]===dom).map(d=>{
+    const ents=_ipEnts(d), kind=_ipKind(d,ents), prim=_ipPrimary(d,kind,ents);
+    const all=(_ents||[]).filter(e=>e.device_id===d.id).length;
+    const att=_deviceAttention(d);
+    const allDead=ents.length>0 && ents.every(e=>_ipDead(e.entity_id) || !stOf(e.entity_id));
+    const bat=ents.find(e=>DOM(e)==='sensor' && attrOf(e.entity_id,'device_class')==='battery' && !_ipDead(e.entity_id));
+    let now=prim?_ipWord(prim.entity_id):'', cls='';
+    if(att){ now=att.label; cls='warn'; }
+    else if(allDead){ now='No Signal'; cls='warn'; }
+    else if(now==='No Signal') cls='warn';
+    else if(['Live','On','Playing','Connected','Home','Armed Away','Armed Home','Armed Night'].includes(now)) cls='ok';
+    else if(['Open','Unlocked','Motion','Wet','Detected','Triggered'].includes(now)) cls='amber';
+    if(bat && !att && !allDead){ const b=Math.round(Number(stState(bat.entity_id))); if(isFinite(b)) now=(now?now+' · ':'')+b+'%'; }
+    return {d, ents, kind, prim, all, att, need:!!(att||allDead), now, cls,
+      name:devName(d), model:d.model?String(d.model):'', room:deviceRoomName(d)};
+  });
+}
+function _ipMatch(r, q){
+  if(!q) return true;
+  const hay=[r.name,r.model,r.room,r.d.manufacturer||''].join(' ').toLowerCase();
+  if(hay.indexOf(q)>=0) return true;
+  return r.ents.some(e=>(entName(e.entity_id)+' '+e.entity_id).toLowerCase().indexOf(q)>=0);
+}
+function _ipHit(r, q){   // which entity matched, when the device itself did not
+  if(!q) return '';
+  if([r.name,r.model,r.room,r.d.manufacturer||''].join(' ').toLowerCase().indexOf(q)>=0) return '';
+  const e=r.ents.find(e=>(entName(e.entity_id)+' '+e.entity_id).toLowerCase().indexOf(q)>=0);
+  return e?entName(e.entity_id):'';
+}
+function _ipKindLabel(k){ const f=_IP_KINDS.find(x=>x[0]===k); return f?f[1]:'Other'; }
+function _ipChipsHTML(rows){
+  const q=_ip.q.trim().toLowerCase(); const seen=rows.filter(r=>_ipMatch(r,q));
+  const ct={}; seen.forEach(r=>{ ct[r.kind]=(ct[r.kind]||0)+1; });
+  const need=seen.filter(r=>r.need).length;
+  const chip=(k,label,n,extra)=>`<button type="button" class="ip-chip${_ip.kind===k?' on':''}${extra||''}" onclick="ipKind('${k}')">${esc(label)} <b>${n}</b></button>`;
+  return chip('all','All',seen.length)
+    + _IP_KINDS.filter(([k])=>ct[k]).map(([k,l])=>chip(k,l,ct[k])).join('')
+    + '<span class="ip-gap"></span>'
+    + (need||_ip.kind==='need'?chip('need','Needs Attention',need,need?' warn':''):'')
+    + `<button type="button" class="ip-chip" onclick="ipGroup()">Group: ${_ip.group==='room'?'Room':'Type'} ▾</button>`;
+}
+function _ipListHTML(rows){
+  const q=_ip.q.trim().toLowerCase();
+  const list=rows.filter(r=>_ipMatch(r,q) && (_ip.kind==='all' || (_ip.kind==='need'?r.need:r.kind===_ip.kind)));
+  if(!rows.length) return '<div class="empty"><div class="et">No devices</div><div class="es">This integration has no devices of its own — what it gives you is listed above.</div></div>';
+  if(!list.length) return '<div class="empty"><div class="et">Nothing matches</div><div class="es">Try another word, or tap All.</div></div>';
+  const key=r=>_ip.group==='room'?(r.room||'No Room'):_ipKindLabel(r.kind);
+  const groups={}; list.forEach(r=>{ (groups[key(r)]=groups[key(r)]||[]).push(r); });
+  const names=Object.keys(groups).sort((a,b)=>(a==='No Room')-(b==='No Room')||a.localeCompare(b));
+  if(!_ip.sel || !list.some(r=>r.d.id===_ip.sel)) _ip.sel=(groups[names[0]]||[])[0]?groups[names[0]].slice().sort((a,b)=>a.name.localeCompare(b.name))[0].d.id:null;
+  return '<div class="ip-row ip-head"><span></span><span>Device</span><span>Model</span><span>Room</span><span class="ip-now">Now</span></div>'
+    + names.map(g=>`<div class="ip-grp">${esc(g)} · ${groups[g].length}</div>`
+      + groups[g].sort((a,b)=>a.name.localeCompare(b.name)).map(r=>{
+          const badge=r.att?` <span class="dev-att ${r.att.cls}">${esc(r.att.label)}</span>`:'';
+          const hit=_ipHit(r,q);
+          const sub=[r.model, r.all?(r.all+' entit'+(r.all===1?'y':'ies')):''].filter(Boolean).join(' · ');
+          const room=r.room?esc(r.room)
+            :`<span class="ip-add" onclick="event.stopPropagation();openRoomPicker('device','${r.d.id}')">Add to room ›</span>`;
+          return `<div class="ip-row tappable${r.d.id===_ip.sel?' sel':''}" onclick="ipTap('${r.d.id}')">`
+            + _ipIco(r.kind)
+            + `<span class="ip-nm"><span class="rl">${esc(r.name)}${badge}</span>`
+            + `<span class="rsub ip-narrow">${esc(sub)}${r.room?' · '+esc(r.room):''}</span>`
+            + (hit?`<span class="rsub">Has “${esc(hit)}”</span>`:'')+`</span>`
+            + `<span class="rsub ip-wide">${esc(sub)}</span><span class="rsub ip-wide">${room}</span>`
+            + `<span class="ip-now">${r.now?`<span class="ip-pill ${r.cls}">${esc(r.now)}</span>`:''}</span></div>`;
+        }).join('')).join('');
+}
+function _ipSideHTML(rows){
+  const r=rows.find(x=>x.d.id===_ip.sel); if(!r) return '';
+  const d=r.d;
+  const sub=[r.model, r.room||'No Room', d.sw_version?('firmware '+d.sw_version):''].filter(Boolean).join(' · ');
+  const cam=r.ents.find(e=>DOM(e)==='camera'); let pic='';
+  if(cam){ const p=attrOf(cam.entity_id,'entity_picture'); const dead=!p||_ipDead(cam.entity_id);
+    pic=`<div class="ip-cam">`+(dead?`<span class="dcam-off">No signal</span>`
+      :`<img src="${esc(_localUrl()+p)}" alt="" loading="lazy" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><span class="dcam-off" hidden>No signal</span>`)+`</div>`; }
+  const ctl=r.ents.filter(e=>TEST_DOMAINS.has(DOM(e)) && !e.entity_category && DOM(e)!=='media_player');
+  const rd=r.ents.filter(e=>(DOM(e)==='sensor'||DOM(e)==='binary_sensor'||DOM(e)==='event') && e.entity_category!=='diagnostic');
+  const show=(list,n)=>list.slice(0,n);
+  const crow=e=>`<div class="ip-kv"><span class="ip-kn" onclick="openEntityInfo('${esc(e.entity_id)}')">${esc(_entLabel(e,d))}</span><span class="ectl">${ctlFor(e.entity_id)}</span></div>`;
+  const rrow=e=>{ const w=DOM(e)==='event'?_ipAgo(stState(e.entity_id)):_ipWord(e.entity_id);
+    return `<div class="ip-kv tappable" onclick="openEntityInfo('${esc(e.entity_id)}')"><span>${esc(_entLabel(e,d))}</span><span class="rsub">${esc(w||'—')}</span></div>`; };
+  const more=(r.all-show(ctl,6).length-show(rd,8).length);
+  return `<div class="ip-side-h"><div><div class="ip-side-nm">${esc(r.name)}</div><div class="rsub">${esc(sub)}</div></div>`
+    + `<button type="button" class="ip-link" onclick="openDeviceManage('${d.id}')">Open Device ›</button></div>`
+    + (r.att?`<div class="rh-warn"><span>⚠ <b>${esc(r.att.label)}.</b> ${esc(r.att.hint)}</span></div>`:'')
+    + pic
+    + (ctl.length?`<div class="ip-lbl">Controls</div>`+show(ctl,6).map(crow).join(''):'')
+    + (rd.length?`<div class="ip-lbl">Readings</div>`+show(rd,8).map(rrow).join(''):'')
+    + (more>0?`<button type="button" class="ip-more" onclick="openDeviceManage('${d.id}')">${more} more on the device page ›</button>`:'');
+}
+function _ipAgo(iso){ const t=Date.parse(iso); if(!isFinite(t)) return ''; const s=Math.max(0,(Date.now()-t)/1000);
+  return s<90?'Just now':s<3600?Math.round(s/60)+' min ago':s<86400?Math.round(s/3600)+' h ago':Math.round(s/86400)+' days ago'; }
+function _ipHeadHTML(dom, rows){
+  const entries=_liveEntries().filter(e=>e.domain===dom);
+  const faulted=entries.filter(e=>!e.disabled_by && ((typeof _reauthEntryIds!=='undefined'&&_reauthEntryIds.has(e.entry_id)) || ['setup_error','setup_retry','not_loaded','migration_error'].includes(String(e.state||''))));
+  const st=!entries.length?['Not Set Up','']:faulted.length?['Needs Setup','warn']:entries.every(e=>e.disabled_by)?['Disabled','']:['Connected','ok'];
+  const makers={}; rows.forEach(r=>{ const m=r.d.manufacturer; if(m) makers[m]=(makers[m]||0)+1; });
+  const maker=Object.keys(makers).sort((a,b)=>makers[b]-makers[a])[0]||'';
+  const nE=(_ents||[]).filter(e=>e.platform===dom).length;
+  const sub=[maker, rows.length+' device'+(rows.length===1?'':'s'), nE+' entit'+(nE===1?'y':'ies'), intgBuild(dom)].filter(Boolean).join(' · ');
+  const setup=dom==='unifiprotect'?'openUnifi()':(dom==='unifi'?'openUniNet()':'');
+  const canAdd=intgCanAdd(dom);
+  const acts=(setup?`<button type="button" class="ip-btn" onclick="${setup}">ProOS Setup</button>`:'')
+    + (entries.length===1?`<button type="button" class="ip-btn" onclick="openEntryManage('${esc(entries[0].entry_id)}')">Options</button>`:'')
+    + (faulted.length?`<button type="button" class="ip-btn" onclick="fixEntrySetup('${esc(faulted[0].entry_id)}','${esc(dom)}','Reconnect')">Reconnect</button>`:'')
+    + (canAdd===false?'':`<button type="button" class="ip-btn p" onclick="addIntegration('${esc(dom)}')">${esc(intgAddLabel(dom).replace(/^\+ /,''))}</button>`);
+  return `<div class="ip-headcard"><div class="ip-logo">${intgLogo(dom)}</div>`
+    + `<div class="ip-hbody"><div class="rsub">Systems › Integrations</div><div class="ip-title">${esc(integrationName(dom)||'Integration')}</div><div class="rsub">${esc(sub)}</div></div>`
+    + `<span class="ip-pill ${st[1]} ip-state">${st[0]}</span><div class="ip-acts">${acts}</div></div>`;
+}
+function intgPageHTML(dom){
+  if(_ip.dom!==dom) _ip={dom, q:'', kind:'all', group:'room', sel:null};
+  const rows=_ipRows(dom);
+  const nE=rows.reduce((n,r)=>n+r.all,0);
+  const extras=intgMirrorHTML(dom,{noDevices:true,noAdd:true});
+  return _ipHeadHTML(dom, rows) + extras
+    + (rows.length?`<div class="ip-tools"><label class="ip-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4-4"/></svg>`
+      + `<input id="ip-q" type="search" value="${esc(_ip.q)}" placeholder="Search ${rows.length} device${rows.length===1?'':'s'} and ${nE} entit${nE===1?'y':'ies'}" aria-label="Search" oninput="ipSearch(this.value)" autocomplete="off"></label>`
+      + `<div id="ip-chips" class="ip-chips">${_ipChipsHTML(rows)}</div></div>`
+      + `<div class="ip-body"><section id="ip-list" class="ip-list">${_ipListHTML(rows)}</section><aside id="ip-side" class="ip-side">${_ipSideHTML(rows)}</aside></div>`:'');
+}
+function _ipPaint(){
+  const dom=_ip.dom; if(!dom) return; const rows=_ipRows(dom);
+  setHTML(document.getElementById('ip-chips'), _ipChipsHTML(rows));
+  setHTML(document.getElementById('ip-list'), _ipListHTML(rows));
+  setHTML(document.getElementById('ip-side'), _ipSideHTML(rows));
+}
+function ipSearch(v){ _ip.q=String(v||''); _ipPaint(); }
+function ipKind(k){ _ip.kind=k; _ipPaint(); }
+function ipGroup(){ _ip.group=_ip.group==='room'?'type':'room'; _ipPaint(); }
+// A wide screen shows the device beside the list; a phone opens its page.
+function ipTap(id){ if(window.innerWidth<1440){ openDeviceManage(id); return; } _ip.sel=id; _ipPaint(); }
 // ── THE CERTIFIED PANELS MIRROR TOO (register 416) ─────────────────────────
 // Dave: "we have missed all our certified integrations like UniFi Protect as
 // its details need to be incorporated into our current settings same as ProOS
@@ -4699,13 +4998,16 @@ function openEntityInfo(eid){
   const skip={friendly_name:1,icon:1,entity_picture:1,supported_features:1,device_class:0};
   const attrs=Object.keys(A).filter(k=>!skip[k]&&A[k]!==null&&A[k]!==''&&typeof A[k]!=='object').slice(0,12);
   let h=`<div class="ei-state">${esc(String(val))}${unit?(' '+esc(unit)):''}</div>`;
-  if(TEST_DOMAINS.has(dom)) h+=`<div class="ei-ctl">${ctlFor(eid)}</div>`;
+  // 709: a disabled entity has no reading — the sheet says why it is off and turns it on in one tap.
+  if(e.disabled_by) h=`<div class="ei-state">${esc(e.disabled_by==='integration'?'Off by the integration':(e.disabled_by==='user'?'Turned off here':'Disabled'))}</div>`
+    +`<div class="rp-room" onclick="enableEntity('${esc(eid)}')"><span>Turn On</span><span class="rr-v">&rsaquo;</span></div>`;
+  if(TEST_DOMAINS.has(dom) && !e.disabled_by) h+=`<div class="ei-ctl">${ctlFor(eid)}</div>`;
   if(attrs.length) h+=`<div class="act-day">Details</div>`
     +attrs.map(k=>`<div class="ei-attr"><b>${esc(k.replace(/_/g,' '))}</b><span>${esc(String(A[k]))}</span></div>`).join('');
   h+=`<div class="act-day">Recent</div><div id="ei-hist"><div class="ei-attr">Reading…</div></div>`;
   h+=`<div class="act-day">Settings</div>`
     +`<div class="rp-room" onclick="closeEntityInfo();renderEntityManage('${esc(eid)}')">`
-    +`<span>Name, icon, visibility, labels</span><span class="rr-v">&rsaquo;</span></div>`;
+    +`<span>${_showsAsTarget(e)?'Name, Shows As, Visible, On or Off':'Name, Icon, Visible, On or Off'}</span><span class="rr-v">&rsaquo;</span></div>`;
   document.getElementById('ei-body').innerHTML=h;
   document.getElementById('entinfo').classList.add('open');
   _entInfoHistory(eid);
@@ -4950,7 +5252,13 @@ function renderDeviceManage(deviceId){
   // entity, named by the same rule, each opening its own page. A disabled
   // entity has no state to show, so the right-hand side says what it is
   // instead of showing an empty pill pretending to be a reading.
+  // 709 (Dave, 7 Oct 2026: "you have done nothing with integration/ device settings pages still so cant change anything"):
+  // what the integration switched off can be turned on from here, all at once — the Ness M1 ships its 26 zone on/off
+  // sensors off, and turning them on one by one was 26 trips three screens deep.
+  const _offByInt=G.disabled.filter(e=>e.disabled_by==='integration');
   if(G.disabled.length) rows+=card(ghead('Disabled',G.disabled.length)
+    +(_offByInt.length>1?`<div class="row tappable" onclick="enableOffByIntegration('${esc(deviceId)}')"><div class="erow-l"><div class="rl">Turn On All ${_offByInt.length}</div>`
+      +`<div class="rsub">The ones the integration left off</div></div><div class="rr">&rsaquo;</div></div>`:'')
     +G.disabled.slice().sort((a,b)=>_entLabel(a,d).localeCompare(_entLabel(b,d))).map(e=>
       `<div class="row dimrow" onclick="openEntityInfo('${esc(e.entity_id)}')">`
       +`<div class="erow-l"><div class="rl">${esc(_entLabel(e,d))}</div>`
@@ -5168,7 +5476,19 @@ function renderEntityManage(entityId){
     showAs=`<div class="wiz-hint">Shown as <b>${dom}</b> — reclassified from <code>${esc(src)}</code> so the dashboard treats it as a ${dom}.</div>`;
   }
   let dcField='';
-  if(DEVICE_CLASSES[dom]){ const cur=e.device_class||''; const orig=e.original_device_class?(' — '+e.original_device_class.replace(/_/g,' ')):''; const opts='<option value="">Default'+orig+'</option>'+DEVICE_CLASSES[dom].map(c=>`<option value="${c}"${cur===c?' selected':''}>${c.replace(/_/g,' ')}</option>`).join(''); dcField=`<div class="field"><div class="field-label">Show as (Type)</div><select id="ent-dc" class="fsel">${opts}</select></div>`; }
+  const _sa=_showsAsTarget(e);
+  if(_sa){
+    // 709 · SHOWS AS (Dave: "change to if they are a motion sensor or a door or smoke etc"; "A" — the platform's own Show as).
+    // The platform's own setting (the entity registry's device_class), in plain words, the kinds an alarm zone can be first.
+    // A Ness zone's status sensor has no Show as of its own: it is set on its on/off twin (same identity).
+    const tw=_sa===entityId?e:_ents.find(x=>x.entity_id===_sa); const cur=(tw&&tw.device_class)||'';
+    const orig=tw&&tw.original_device_class?(' — '+_showsAsWord(tw.original_device_class)):'';
+    const ord=SHOWS_AS_FIRST.concat(DEVICE_CLASSES.binary_sensor.filter(c=>!SHOWS_AS_FIRST.includes(c)));
+    const opts='<option value="">As the Integration Says'+orig+'</option>'+ord.map(c=>`<option value="${c}"${cur===c?' selected':''}>${_showsAsWord(c)}</option>`).join('');
+    dcField=(tw&&tw.disabled_by)
+      ?`<div class="field"><div class="field-label">Shows As</div><div class="wiz-hint">Set on this zone's on/off sensor, which is off.</div><button class="rp-cancel" onclick="enableEntity('${esc(tw.entity_id)}',true)">Turn On Its On/Off Sensor</button></div>`
+      :`<div class="field"><div class="field-label">Shows As</div><select id="ent-showsas" class="fsel" data-target="${esc(_sa)}">${opts}</select></div>`;
+  } else if(DEVICE_CLASSES[dom]){ const cur=e.device_class||''; const orig=e.original_device_class?(' — '+e.original_device_class.replace(/_/g,' ')):''; const opts='<option value="">Default'+orig+'</option>'+DEVICE_CLASSES[dom].map(c=>`<option value="${c}"${cur===c?' selected':''}>${c.replace(/_/g,' ')}</option>`).join(''); dcField=`<div class="field"><div class="field-label">Show as (Type)</div><select id="ent-dc" class="fsel">${opts}</select></div>`; }
   let precField='';
   if(dom==='sensor'){ const p=(e.options&&e.options.sensor&&e.options.sensor.display_precision); precField=`<div class="field"><div class="field-label">Decimal Places (Optional)</div><input id="ent-prec" type="number" min="0" max="6" value="${p!=null?esc(String(p)):''}"/></div>`; }
   const seg=(label,leftLabel,leftOn,leftFn,rightLabel,rightFn)=>`<div class="field"><div class="field-label">${label}</div><div class="seg"><button class="${leftOn?'on':''}" onclick="${leftFn}">${leftLabel}</button><button class="${!leftOn?'on':''}" onclick="${rightFn}">${rightLabel}</button></div></div>`;
@@ -5194,6 +5514,31 @@ function renderEntityManage(entityId){
 }
 async function setEntHidden(hide){ const id=_devSheet&&_devSheet.entId; if(!id) return; try{ await snd({type:'config/entity_registry/update', entity_id:id, hidden_by: hide?'user':null}); toast(hide?'Hidden':'Now visible'); await loadSite(); renderEntityManage(id); rerenderConfig(); }catch(e){ toast("Couldn't update"); } }
 async function setEntDisabled(dis){ const id=_devSheet&&_devSheet.entId; if(!id) return; try{ await snd({type:'config/entity_registry/update', entity_id:id, disabled_by: dis?'user':null}); toast(dis?'Disabled':'Enabled'); await loadSite(); renderEntityManage(id); rerenderConfig(); }catch(e){ toast("Couldn't update"); } }
+// 709 · turning on what the integration left off, and Shows As.
+const SHOWS_AS_FIRST=['door','window','garage_door','opening','motion','occupancy','presence','smoke','carbon_monoxide','gas','heat','moisture','sound','vibration','tamper','safety'];
+function _showsAsWord(c){ const w={moisture:'Water Leak',sound:'Glass Break (Sound)',safety:'Panic / Safety',carbon_monoxide:'Carbon Monoxide',garage_door:'Garage Door'}[c];
+  return w||String(c).replace(/_/g,' ').replace(/\b\w/g,m=>m.toUpperCase()); }
+// Which entity carries this one's Shows As: itself for an on/off sensor; for a status sensor, its on/off twin under the SAME
+// identity from the same integration (the Ness: sensor.* and binary_sensor.* both elkm1_zone_NNN). Otherwise none.
+function _showsAsTarget(e){
+  if(!e||!e.entity_id) return null;
+  if(DOM(e)==='binary_sensor') return e.entity_id;
+  if(DOM(e)!=='sensor'||!e.unique_id) return null;
+  const tw=(_ents||[]).find(x=>x.entity_id!==e.entity_id && DOM(x)==='binary_sensor' && x.unique_id===e.unique_id && x.platform===e.platform);
+  return tw?tw.entity_id:null;
+}
+async function enableEntity(eid, stayOnPage){
+  try{ await snd({type:'config/entity_registry/update', entity_id:eid, disabled_by:null}); toast('Turned on — the integration brings it in within about 30 seconds');
+    await loadSite(); closeEntityInfo(); if(stayOnPage && _devSheet && _devSheet.entId) renderEntityManage(_devSheet.entId); else if(_devSheet && _devSheet.id) renderDeviceManage(_devSheet.id); rerenderConfig(); }
+  catch(err){ toast("Couldn't turn it on"); }
+}
+async function enableOffByIntegration(deviceId){
+  const off=(_ents||[]).filter(x=>x.device_id===deviceId && x.disabled_by==='integration');
+  let ok=0;
+  for(const x of off){ try{ await snd({type:'config/entity_registry/update', entity_id:x.entity_id, disabled_by:null}); ok++; }catch(err){} }
+  toast(ok===off.length?('Turned on '+ok+' — the integration brings them in within about 30 seconds'):('Turned on '+ok+' of '+off.length));
+  await loadSite(); renderDeviceManage(deviceId); rerenderConfig();
+}
 async function exposeEnt(on){ const id=_devSheet&&_devSheet.entId; if(!id) return; try{ await snd({type:'homeassistant/expose_entity', assistants:['conversation'], entity_ids:[id], should_expose:!!on}); toast(on?'Exposed to voice':'Hidden from voice'); await loadSite(); renderEntityManage(id); }catch(e){ toast("Couldn't change exposure"); } }
 async function saveEntSettings(){
   const id=_devSheet&&_devSheet.entId; if(!id) return; const e=_ents.find(x=>x.entity_id===id); if(!e) return;
@@ -5201,6 +5546,9 @@ async function saveEntSettings(){
   const name=(gv('ent-name')||'').trim(); const icon=(gv('ent-icon')||'').trim();
   const msg={type:'config/entity_registry/update', entity_id:id, icon:icon||null};
   if(document.getElementById('ent-dc')){ const dc=(gv('ent-dc')||'').trim(); msg.device_class=dc||null; }
+  const sa=document.getElementById('ent-showsas'); let saMsg=null;
+  if(sa){ const t=sa.getAttribute('data-target'), v=(sa.value||'').trim();
+    if(t===id) msg.device_class=v||null; else saMsg={type:'config/entity_registry/update', entity_id:t, device_class:v||null}; }
   if(document.getElementById('ent-prec')){ const pv=gv('ent-prec'); msg.options_domain='sensor'; msg.options={display_precision:(pv===''||pv==null)?null:Number(pv)}; }
   // (No entity-id rename here, ever — see the Entity ID ruling above.)
   document.getElementById('dev-actions').innerHTML='<div class="wiz-hint">Saving…</div>';
@@ -5213,7 +5561,7 @@ async function saveEntSettings(){
       const r=await _coreFetch(proCoreUrl()+'/rename',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({entity_id:id, name})}, 12000);
       if(!r.ok){ const j=await r.json().catch(()=>({})); toast(j&&j.error?j.error:"Couldn't rename"); renderEntityManage(id); return; }
     }
-    await snd(msg); toast('Saved'); await loadSite(); renderEntityManage(id); rerenderConfig(); _pushDashReload(); }
+    await snd(msg); if(saMsg) await snd(saMsg); toast('Saved'); await loadSite(); renderEntityManage(id); rerenderConfig(); _pushDashReload(); }
   catch(err){ toast("Couldn't save"); renderEntityManage(id); }
 }
 // ── device command tester: fire real commands at a device's entities, with LIVE state (HA device-page style, inside ProOS) ──
