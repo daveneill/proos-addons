@@ -737,7 +737,9 @@ html.proos-has-bg #landing::before,html.proos-has-bg #proos-reboot::before,html.
 /* ── THE STANDARD INTEGRATION PAGE (register 710) ────────────────────────────
    The approved mock (Main.dc.html): a head card, search + chips, the list
    grouped by room with Model / Room / Now columns, the selected device beside
-   it. Under 1440px (the house's own Mac line) the side pane goes and a row opens the device page; under
+   it. The house's column rule decides the split (Dave, 7 Oct: "ipad is the main device … mobile 1 column,
+   ipad 3 x columns and mac 4 columns so ipad can still be width of 2 for first column the 1 for side panel"):
+   Mac — list 3 parts, side 1; iPad — list 2, side 1; phone — no side pane, a row opens the device page; under
    700px the columns fold into the row's own sub-line. */
 .ip-headcard{display:flex;align-items:center;gap:16px;padding:16px 18px;margin:0 0 14px;border-radius:16px;background:var(--card);border:0.5px solid var(--line-soft)}
 .ip-logo{width:54px;height:54px;border-radius:13px;background:rgba(255,255,255,0.06);border:0.5px solid var(--line-soft);display:flex;align-items:center;justify-content:center;flex:0 0 auto}
@@ -764,9 +766,9 @@ html.proos-has-bg #landing::before,html.proos-has-bg #proos-reboot::before,html.
 .ip-chip.on{background:var(--accent-soft);border-color:var(--accent-line);color:var(--t1)}
 .ip-chip.warn{background:rgba(224,164,58,0.14);border-color:rgba(224,164,58,0.45);color:#f1c27a}
 .ip-chip.warn b{color:#f1c27a}
-.ip-body{display:flex;gap:14px;align-items:flex-start}
-.ip-list{flex:1;min-width:0;padding:6px 8px;border-radius:16px;background:var(--card);border:0.5px solid var(--line-soft)}
-.ip-side{flex:0 0 400px;position:sticky;top:12px;padding:16px;border-radius:16px;background:var(--card);border:0.5px solid var(--line-soft);display:flex;flex-direction:column;gap:10px}
+.ip-body{display:flex;gap:14px;align-items:stretch}
+.ip-list{flex:3 1 0;min-width:0;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:6px 8px;border-radius:16px;background:var(--card);border:0.5px solid var(--line-soft)}
+.ip-side{flex:1 1 0;min-width:0;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:16px;border-radius:16px;background:var(--card);border:0.5px solid var(--line-soft);display:flex;flex-direction:column;gap:10px}
 .ip-side:empty{display:none}
 .ip-row{display:grid;grid-template-columns:34px minmax(0,1.6fr) minmax(0,1fr) minmax(0,1fr) 140px;align-items:center;gap:12px;padding:10px 14px;border-radius:12px;font-size:13.5px}
 .ip-row.tappable{cursor:pointer}
@@ -791,8 +793,11 @@ html.proos-has-bg #landing::before,html.proos-has-bg #proos-reboot::before,html.
 .ip-kv>span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ip-kn{cursor:pointer}
 .ip-kv .ectl{flex:0 1 auto}
-@media (max-width:1439px){ .ip-side{display:none} .ip-row.sel{background:none;outline:0} }
+@media (max-width:1439px){ .ip-list{flex-grow:2} .ip-row{grid-template-columns:34px minmax(0,1.6fr) minmax(0,1fr) minmax(0,0.8fr) 110px;gap:10px;padding:10px} }
 @media (max-width:700px){
+  .ip-side{display:none}
+  .ip-body{height:auto!important}
+  .ip-list{overflow:visible}
   .ip-headcard{flex-wrap:wrap;gap:12px}
   .ip-acts{width:100%;justify-content:flex-start}
   .ip-search{flex:1 1 100%}
@@ -802,6 +807,94 @@ html.proos-has-bg #landing::before,html.proos-has-bg #proos-reboot::before,html.
   .ip-head,.ip-wide{display:none}
   .ip-narrow{display:block}
   .ip-now{max-width:42vw}
+}
+/* ── THE STANDARD DEVICE PAGE (register 713) ────────────────────────────────
+   The approved mock (Device.dc.html). Three columns of ONE height (Dave: "all
+   columns need to be same height as looks stupid when all different"), each
+   scrolling inside itself; the house's columns decide the split — Mac 1 : 2 : 1
+   (four parts), iPad three equal, phone one column that scrolls as a page. */
+.dp-head{margin:0 0 14px}
+.dp-head>.dcard{margin:0}
+.dp-head .bld-sec-h{display:none}
+.dp-head .dinfo{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:14px 18px}
+.dp-head .dinfo .dinfo-h{flex:0 1 auto;min-width:200px}
+.dp-head .dinfo .dfacts{display:flex;flex-wrap:wrap;gap:6px 26px;border-top:0;padding:0;flex:1 1 auto;justify-content:center}
+.dp-head .dinfo .dfact{flex-direction:column;align-items:flex-start;gap:2px;padding:0}
+.dp-head .dinfo .dfact .rl{text-align:left}
+.dp-head{position:relative}
+.dp-acts{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;margin-left:auto}
+.dp-head .dcard{display:flex;align-items:center;flex-wrap:wrap;gap:12px;background:var(--card);border:0.5px solid var(--line-soft);border-radius:16px}
+.dp-head .dcard>.itile{flex:1 1 auto;background:none;border:0}
+.dp-head .dcard>.dp-acts{padding:0 18px 0 0}
+.dp-banner{display:flex;align-items:center;gap:12px;padding:10px 14px;margin:0 0 14px;border-radius:12px;background:rgba(33,57,240,0.10);border:0.5px solid rgba(33,57,240,0.35);font-size:13px}
+.dp-banner>span{flex:1}
+.dp-banner b{font-weight:500}
+.dp-cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr) minmax(0,1fr);gap:14px;align-items:stretch}
+.dp-col{min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:12px;border-radius:16px;background:var(--card);border:0.5px solid var(--line-soft)}
+.dp-col>.dcard{display:block;margin:0 0 14px}
+.dp-col>.dcard:last-child{margin-bottom:0}
+.dp-cols.dp-n2{grid-template-columns:minmax(0,2fr) minmax(0,1fr)}
+.dp-cols.dp-one{grid-template-columns:minmax(0,1fr)}
+.dp-cols.dp-one>.dp-col:not(:has(.dcard:not(.dp-hide))){display:none}
+.dp-hide,.dp-miss{display:none!important}
+.dfold>.bld-sec-h{cursor:pointer}
+.dfold>.bld-sec-h::after{content:"\203a";margin-left:6px;color:var(--t3);display:inline-block;transition:transform .2s}
+.dfold.open>.bld-sec-h::after{transform:rotate(90deg)}
+.dfold:not(.open)>:not(.bld-sec-h){display:none}
+.dp-searching .dfold>:not(.bld-sec-h),.dp-one .dfold>:not(.bld-sec-h){display:revert}
+.dp-searching .dfold>.row:not(.dp-miss),.dp-one .dfold>.row{display:flex}
+.dp-sub{margin-top:14px}
+.dp-zgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:8px}
+.dp-zone{gap:10px}
+.dp-zi{width:28px;height:28px;border-radius:8px;background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.dp-zi svg{width:16px;height:16px;stroke:rgba(255,255,255,0.6);fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.dp-zi.a{background:rgba(224,164,58,0.16)}
+.dp-zi.a svg{stroke:#e0a43a}
+.dp-zn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dp-zw{font-size:12px;color:var(--t2);white-space:nowrap}
+.dp-zw.a{color:#e0a43a}
+.dp-hint{margin:8px 2px 0}
+.dp-flash{outline:1px solid var(--accent-line);border-radius:12px}
+@media (max-width:1439px){ .dp-cols{grid-template-columns:repeat(3,minmax(0,1fr))} .dp-cols.dp-n2{grid-template-columns:repeat(2,minmax(0,1fr))} .dp-zgrid{grid-template-columns:minmax(0,1fr)} }
+@media (max-width:700px){
+  .dp-cols,.dp-cols.dp-n2{grid-template-columns:minmax(0,1fr);height:auto!important}
+  .dp-col{overflow:visible}
+  .dp-acts{margin-left:0;justify-content:flex-start}
+  .dp-banner{flex-direction:column;align-items:stretch}
+}
+/* ── THE STANDARD SENSOR PAGE (register 714) — Sensor.dc.html ───────────────
+   Left: what it is now and today's history; right: every setting. One height
+   (Dave: "all columns need to be same height"). Mac left : 520px, iPad half and
+   half, phone stacked — head, settings, then history. */
+.sp-cols{display:grid;grid-template-columns:minmax(0,1fr) 520px;grid-template-rows:auto minmax(0,1fr);grid-template-areas:"a form" "hist form";gap:14px}
+.sp-a{grid-area:a;display:flex;flex-direction:column;gap:12px}
+.sp-form{grid-area:form;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:20px;border-radius:16px;background:var(--card);border:0.5px solid var(--line-soft)}
+.sp-hist{grid-area:hist;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:18px;border-radius:16px;background:var(--card);border:0.5px solid var(--line-soft)}
+.sp-headcard{display:flex;align-items:center;gap:20px;padding:22px;border-radius:16px;background:var(--card);border:0.5px solid var(--line-soft)}
+.sp-ic{width:84px;height:84px;border-radius:22px;background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.sp-ic svg{width:44px;height:44px;stroke:rgba(255,255,255,0.8);fill:none;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
+.sp-hbody{flex:1;min-width:0}
+.sp-nm{font-size:28px;font-weight:300;letter-spacing:-0.4px}
+.sp-word{font-size:15px;color:rgba(255,255,255,0.75);margin:4px 0 6px}
+.sp-ctl{padding:12px 16px;border-radius:16px;background:var(--card);border:0.5px solid var(--line-soft);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.sp-gap{margin-top:18px}
+.sp-note{margin:0}
+.sp-kinds{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-bottom:8px}
+.sp-k{display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 4px;border-radius:12px;border:0.5px solid var(--line);background:rgba(255,255,255,0.04);color:rgba(255,255,255,0.75);font:inherit;font-size:11.5px;cursor:pointer;min-height:58px}
+.sp-k svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.sp-k.on{background:var(--accent-soft);border-color:var(--accent-line);color:var(--t1)}
+.sp-k.dflt{border-color:var(--accent-line);color:var(--t1)}
+.sp-adv{margin-top:18px}
+.sp-save{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}
+.sp-save button{margin:0}
+@media (max-width:1439px){ .sp-cols{grid-template-columns:minmax(0,1fr) minmax(0,1fr)} }
+@media (max-width:700px){
+  .sp-cols{grid-template-columns:minmax(0,1fr);grid-template-rows:auto;grid-template-areas:"a" "form" "hist";height:auto!important}
+  .sp-form,.sp-hist{overflow:visible}
+  .sp-headcard{padding:16px;gap:14px}
+  .sp-ic{width:56px;height:56px;border-radius:16px}
+  .sp-ic svg{width:30px;height:30px}
+  .sp-nm{font-size:20px}
 }
 .act{background:var(--card);border:0.5px solid var(--line-soft);border-radius:12px;padding:2px 0 6px}
 .act-day{font-size:10px;letter-spacing:0.05em;color:var(--t3);padding:9px 14px 5px}
@@ -1166,6 +1259,16 @@ html.proos-has-bg #landing::before,html.proos-has-bg #proos-reboot::before,html.
 .v2crumb b{color:var(--t1);font-weight:300;font-size:19px;letter-spacing:-0.2px}
 @media (max-width:700px){ .v2crumb b{font-size:17px} }
 .v2crumb .sep{opacity:0.45;margin:0 5px}
+/* ONE BACK FOR ALL OF PRO (register 712, Dave 7 Oct 2026: "we need to have a back or previous
+   button on every page but uniform look so we can use it across Pro"). It lives in the top bar,
+   is drawn once, and the per-page back buttons inside panels are hidden so there is only ever one. */
+.v2back{display:inline-flex;align-items:center;gap:4px;height:34px;padding:0 12px 0 8px;margin-left:6px;border-radius:17px;
+  background:rgba(255,255,255,0.06);border:0.5px solid var(--line);color:var(--t1);font:inherit;font-size:13px;cursor:pointer;
+  flex:0 0 auto;-webkit-tap-highlight-color:transparent}
+.v2back[hidden]{display:none}
+.v2back svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.v2back:active{background:rgba(255,255,255,0.12)}
+#app.v2 .panel .back{display:none!important}
 .v2presence{display:flex;gap:6px;align-items:center;margin-right:10px}
 .v2dev{display:inline-flex;align-items:center;gap:5px;border-radius:20px;padding:3px 10px;font-size:11px;
   background:rgba(76,175,130,0.13);color:#46e3a0;border:1px solid rgba(76,175,130,0.35);white-space:nowrap}
@@ -1572,7 +1675,7 @@ body.aws-open .v2tabs{display:none!important}
   <!-- V2: bottom tab bar (phone) — populated by v2Render() -->
   <div class="v2tabs" id="v2tabs"></div>
   <div class="topbar">
-    <div class="left"><img class="brand-logo-sm" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAYAAADDPmHLAAABCGlDQ1BJQ0MgUHJvZmlsZQAAeJxjYGA8wQAELAYMDLl5JUVB7k4KEZFRCuwPGBiBEAwSk4sLGHADoKpv1yBqL+viUYcLcKakFicD6Q9ArFIEtBxopAiQLZIOYWuA2EkQtg2IXV5SUAJkB4DYRSFBzkB2CpCtkY7ETkJiJxcUgdT3ANk2uTmlyQh3M/Ck5oUGA2kOIJZhKGYIYnBncAL5H6IkfxEDg8VXBgbmCQixpJkMDNtbGRgkbiHEVBYwMPC3MDBsO48QQ4RJQWJRIliIBYiZ0tIYGD4tZ2DgjWRgEL7AwMAVDQsIHG5TALvNnSEfCNMZchhSgSKeDHkMyQx6QJYRgwGDIYMZAKbWPz9HbOBQAAAOdElEQVR42u1de2xUV3r/fefOePBj4pgQHuEVyY4Jztp5QIusbJCNlCqK2XSjxV5ptS2ioZFWidSqXWnZhNRD2M3KyaZKGpVuCIqIGkTkSRFLaNXIgXGATRAMsmPXPGoHMH7EMTH2eGyPd+ae8/UP37udsiLF836cn3RlZA/3zj3f73zf7/vOC9DQ0NDQ0NCYL5hZ6FbIUzQ3N2vj53vP/+CDDxo/+eSTJdbvSLdMHqC1tdUAgLa2ttqhoaGxjo6OOzUB8qfnEzOLlpYW9/Xr169NTU1NPfvss0WaAPlDAAcA9Pf3e5mZg8Hg0L59+9zZTAAtZOZhfCIyz58//7NVq1ZtUUoxETmz/b00AW4z7hOR+emnn24qLy//JYCIECInXL5Dm/e2FL968803V1RXVx8sKCgwpJQwDAOaAHkg+gAQEalr164dLCsrW6yUkkSUM55Th4Bvh0FEsq+v7/WVK1d+V0ppCiGMXHpBTYBbwOfzOYjI9Pv9TeXl5X8HwBRC5JzHzNgXstMqj8eTcrFVV1cn6uvrzSNHjty/du3adwBIpZQhhO4vyQK1trYazOxg5oxo6MbGxpLR0dFuZmYppeQoSCkVM/PU1NRovHWAdNcPHGnu5QKAICKzqalJRv+tubnZ4XK5ShcsWFCayu9UWFhohEIh+eSTT/7i7rvv/o5SKqmun4iYmam9vd2oq6uTRMQ5TwB7MIWIFAAFwNne3r5+9erVtQUFBRtcLle52+1eaJpmaTgcLgXAAFLaU+68804DgEp23G9paXETURCAaWuPdBAhZXGdmf+gotva2h7u6+v7p2AweCESiXCGQd3qD4kIAT6fzwEAwWDwFzdu3Dh99erVv3777bcXRbWVkWvG/8MLnTp1qnZkZMQ7PT1t3tTgESmlacVcaTV0ui5OJgHscQVm/rV930Ag8FV/f//uPXv2LLY9ZU7MO7CN39zcvLS/v3/fzMxMdANHmFkqpThbkEgCSClfZWZTShmy7z81NTV49uzZ5+3P2kPQWanubeO3t7d/78aNG9fsBpRSmtlk9CR6gFejOoKyfjIz8+Dg4NHdu3evTGZIEEnu+YKIZEdHx4u1tbVHysrKViqlTCIiIYRBpIfQb+4wABxKKQZgLl++vOGZZ545e/To0Q1EJG3dkC1u3wEAly5d+pVFaPPmfDpbkUQPcPNzIszMk5OTk6dOnaqPFo8Z7QH8fr+TiMze3t7dlZWVOwBEAAihS2nzM44QDimlcrvd7gcffPA/zpw58yf19fVmIsOBIwk93yCiSGdn508qKip2WsZ3pDqPzxUYhiEAyJKSkgX333//kQMHDjwqhLhshVeVUR6AmYUQQh4/fnxdZWXlGwCUUkobPwE8kFJKt9u9dOPGjd61a9cWRGmGjAoBtGXLFqOqqmp/YWFhgVKKc2XmTAZ4AgNAZMWKFY8cOHBgJxGpRCxMcSSw9xtEJHt6en66ZMmS7yBHh0/TDAcAWVFRseOjjz76VwB98YYCkSDjEwD12muvLV6xYsXPMVff14IvCWmiUgolJSXOBx54YJc1XhCXh02UkQwi4oaGhm133HHHwkQQQCnFSimJuUGSjLyY2UxDZiAA8OLFi5sOHTpUSUQynnJxogggq6qqCu65556/BMBKqXjuywCkEIKs6VeOTLuEEE4ADma+e3p6OtUahwDI4uJio6qqajsAeDyemNs77hhtTZmWJ0+e/FO3212FuSFUEWuvt0SjEQwGvw4Gg2dKSkq6iouLw5YQyoghUntWMDPP3LhxYxaYG9dP1fOVUoKIsGjRoj8H8HMA0iJG6tvHrmiNjIz8w8217FiqazMzM9M9PT0v7tmzpyyXg/ntVAJvOU49N4aiwuGwbGtre9juiOnKAhQAOByOeouFsbhEFkJgfHx8prOz8882bdr0OzuzyPQaAhGZaXgmAEin0+lYvnx5LYCOxsZGSjkBmJmISG3evLnIMIw1cRQnlJSSurq6tm3atOl3zFwAIEJEUgv/b0dJSUl1Ot2YAIBjx46tDgaDkf9vJs0tYDIzDw8Pn4zq9TmPeEKAFTJNZuavvvqqLZ52S0gWMDMzs6SoqEjY4SAG1Y/R0dHD9koc3a9vKx0EAJSVlRXE02ZxEcDr9RIA9Pb2LrPz0xi+jACAoqIiv6WkWZv3tjIBAoCBgYFyAC4hhIyFCAnxAA6Hw4xybbHktbjvvvuC2qwxC8L0VgJtNsaDSCRiaHOmIZRkyhdxOp3a9eczATQ0ATQ0ATQ0AeIUxVGrjJN2+Xw+R67sFJpLM3aIiPjmVcbJRKImZmoCJMD4c/ZgnD59ur6wsLBiaGhomVU1TXhlcfXq1VeHh4dPEtEVazyENQHSBNvAzz33XMnzzz//27Vr124CgJqamqQ+t7y8fKanp+enRPQvra2tRio9jybA/4VBRObFixd/tmbNmk2YW4eQ9PGEwsLCooqKij1tbW2nH3/88Y5sDQe5QAAGgHvvvfdRzK1DECnayStSUFDg3LBhwzoAHZagzjoC5EwW4HK57OVnKdUdbrfbzOZ2y6U0kNL0TNIE0NAE0NAE0NAE0NAE0NAE0NAE0NAE0NAE0NAE0NAE0NAE0NAE0NAE0NAE0NAE0NAE0NAE0NAE0NAESChSujhDKWVvhsGaABmA2dlZF+aOeE0Z4YgIgUCgQBMgvSAAsHYZMzA3Nz/Z+wRHhBDOcDiMzs7Os7ZT0ARIDyQz0969e3/d29t70t7HN8mXMxQKhS9fvvy3dXV1Hdm8SDTrVwZFbZkeaGlp2djV1fV4dXX1ciTpuFkpJSYmJuD3+08/8cQTF7N9hXCurA5mZiYhBNfU1LSl8KF6eXiGeYJU7i+sst34OUWAKCLo/YXztA6goQmgoQmgoQmQTUjENrtpJ4AQQm/zGnvbxbXBRLwbVCWEAKZp6gMiYygjEBFGR0cXxXMTKWVcR/PGRYDGxkYGgEceeeQa5k6uEtm8ZVqqCcDMiEQi9pEvNE/PwQCwZMmSAQBh66g+TikBPB6P/Sbj09PTgD7t43YtLwDg4MGDK8vKyh60yDCvja3sUc9wODyB/z02LuUvQgDw1FNPucfHx0fs42zmeWaQfcbQeuueRq4bn5mdADA8PPxu9LlJ80SEmfnKlSv7rPvGFIbjit1ExFY9PBiJRHoBLEGaJkhYZMx08tjlY+X3+19etmzZNqWUJCIj1pM/QqFQZzxfKBHiTQBQkUikHcCj6SKApT0yfsu21tbWNRs2bNi5atWqH1uEmLfxmRlEZITDYQQCgRM2udJCAK/XywDQ29t7fOnSpTtTuVEfADQ3N4tdu3apM2fOrLnrrrt+NDg4uNSOsZkAwzBQVlY26nK5ihcuXPiAy+X6bnFx8QLMzWOIqeczswIgQqHQxR07dpxP937FxMy0devWBWNjY33MrKSUMlUawOfzOQDgyy+//BFnD8w4/78d/1viif+JqgMwAOO9996bDQQC7wAgIUQ6hkl/b4UA+2cmXtJurzjbW8zOzoavXr36jpWNxdzeCSngeDwexcy0f//+9xYuXPhiaWlpcdRJ4CnzRNb7ZIMYjF1Fzm2GbAwPD/97fX19nxVGZDo9AHbt2qUAiG3bto1cuXLlH+fqFEKPyych2RFCYGZmJtLV1dXMzOT1euNW8AkjJzOLd99991fffPPNBQAOlcI52nkCE4AxMDDw6tNPP90NQMR7TkHCCEBE7PV66a233vr9xYsX/yoUCikhBCuldGk4Ma5fAnCOjo52vPTSSy9bYjnuDpbQdKmpqUn6fD7HY489dvqLL754AYAhhDBjOE5W44/jvpicnAwcO3bsLz788MMw5gaTMrNh7bTk3Llze620Jfwtx8onKg3ckqAUK6NgHxMfCAQiXV1dtbG0Uco8QFQ4kMxsrFu37tm+vr7fAHBaoUBrgvn1fFMIYUxNTUW6u7u31NTUfO7z+RyJnPiarHF8JiJljRP85Pz588MVFRUvW0VCEzk4GznBhmchhBRCOKampq6cOHFie0NDw3FmdhBRQsvdySyZsjVYZFRVVe3+7LPPfjg+Pn7dMj5bRRGNPy7ymFb9xDEyMtJ2+PDhjQ0NDcetnp+dx9PYmmDv3r0rBgYG3g+Hw3PBXylbH8g81gDK+s4R+xcTExPfXLhw4W/sd2xtbc3+wla0YT///PO6oaGhT0KhULQwXJdCAij7Ukpxsq/o51lktw0eif5SExMTk5cuXfrn/fv3L7fagpJ9RG3KYrElDAlz08baAbT39PQ8XFpauq20tPR7UspUsVxFh74UpVJ0i39jdnY2HA6Hz0xOTh76+OOPD23fvr3f7giW2OOcIEBUY8vW1lajsbFREVEHgI7NmzfvaGpqIuszScsU7Hw6EAhACBFRSjkp1pkY84MUQnBRUdHE5OTkLICBYDD437OzsyfHxsZO1NbW9t7kKVWqlrilRY3b5Utr3F4Q0czRo0ejhVBSKmlCCOPatWv/+f777/99cXFxZHx83BkMBl3JfFen04nS0tJpl8ultm7dOvrQQw9FBgcHQzeFRwJgeDwelZdrG60GiKkn3o4GsOcnfP3115dfeeWVuzLgfQUz28fcp3XySkbk40mOw8oaQQt2dHQ8/cILL4z5fD5He3t7yotSHo+Hkx3m8g7f5gEsBR5RSvG5c+d+EP15jQzyAEl0tREicvb19f1y3bp1/+b3+53r16+PaLPnAQEs0eccHBw8XFlZuTMZZdRcgMhh4xtjY2P/9cYbb/zYElpJz6k1ATLE/kIImp6enuzo6PjB66+/Pu31ekmvWcwfEThrmib7/f7va9GXZwSQUipm5u7ubg8A+P1+p26hPBGB1uQJunz58qHq6mqPFn15pgFcLtfCsbGxvh07dmzVoi+PPMD169cZALq7uwdmZ2d/6PV6p6A3qshf2HsWaOSh4bXxNTQ0NDQ0NDQ0NG4D/wOGq0hC5g01jgAAAABJRU5ErkJggg==" alt="ProOS"/><span class="brand-pill">PRO</span><div class="who-avw"><button class="who-av" id="who-av" onclick="toggleWhoMenu(event)" aria-label="Account">·</button><div class="who-menu" id="who-menu" onclick="if(event.target===this)this.classList.remove('open')"></div></div><div class="hdr-home" id="hdr-home"><span class="hdr-title" id="hero-name">—</span></div><span class="hdr-title" id="tb-page" style="display:none"></span><span class="v2crumb" id="v2crumb"></span></div>
+    <div class="left"><img class="brand-logo-sm" src="data:image/png;base64,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" alt="ProOS"/><span class="brand-pill">PRO</span><div class="who-avw"><button class="who-av" id="who-av" onclick="toggleWhoMenu(event)" aria-label="Account">·</button><div class="who-menu" id="who-menu" onclick="if(event.target===this)this.classList.remove('open')"></div></div><div class="hdr-home" id="hdr-home"><span class="hdr-title" id="hero-name">—</span></div><span class="hdr-title" id="tb-page" style="display:none"></span><button type="button" class="v2back" id="v2back" onclick="v2Back()" aria-label="Back" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg><span>Back</span></button><span class="v2crumb" id="v2crumb"></span></div>
     <div class="right">
       <div class="v2presence" id="v2presence"></div>
       <div class="hero-summary hdr-sum" id="hero-summary"></div>
@@ -2540,7 +2643,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026100711';
+const PROOS_BUILD='2026100715';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -4242,6 +4345,10 @@ async function openIntegration(dom){
   // UniFi Protect open it too once they are set up; their own commissioning
   // panels stay whole, one tap away under "ProOS Setup". Until they are set
   // up, the tile still goes straight to that setup.
+  // Read on the box: opened before the entries had loaded, Protect's tile went
+  // to its setup panel although Protect is set up. Absence of an answer is not
+  // a No — load the entries first when there are none yet.
+  if(!_liveEntries().length){ try{ await loadConfigEntries(); }catch(e){} }
   const _has=_liveEntries().some(e=>e.domain===dom);
   if(dom==='unifi' && !_has) return openUniNet();
   if(dom==='unifiprotect' && !_has) return openUnifi();
@@ -4430,7 +4537,7 @@ function renderIntegration(dom){
   _curIntegration=dom;
   const t=document.getElementById('intg-title'); if(t) t.textContent=integrationName(dom)||'Integration';
   const host=document.getElementById('intg-devices'); if(!host) return;
-  setHTML(host, intgPageHTML(dom));
+  setHTML(host, intgPageHTML(dom)); _ipLayout();
 }
 // ── THE STANDARD INTEGRATION PAGE (register 710, Dave 7 Oct 2026) ──────────
 // Dave, on the mockups: "Thats so much better .. as long as we have all the
@@ -4650,11 +4757,21 @@ function _ipPaint(){
   setHTML(document.getElementById('ip-list'), _ipListHTML(rows));
   setHTML(document.getElementById('ip-side'), _ipSideHTML(rows));
 }
+// The list and the side panel are one height, to the bottom of the screen,
+// each scrolling inside itself (Dave, 7 Oct: "all columns need to be same
+// height"). A phone has no side panel and scrolls as a page.
+function _ipLayout(){
+  const el=document.querySelector('#intg-devices .ip-body'); if(!el) return;
+  if(window.innerWidth<=700){ el.style.height=''; return; }
+  const sc=document.querySelector('.scroll'); const top=el.getBoundingClientRect().top+(sc?sc.scrollTop:0);
+  el.style.height=Math.max(420, Math.round(window.innerHeight-top-24))+'px';
+}
+window.addEventListener('resize', function(){ try{ if(panelActive('integration')) _ipLayout(); }catch(e){} });
 function ipSearch(v){ _ip.q=String(v||''); _ipPaint(); }
 function ipKind(k){ _ip.kind=k; _ipPaint(); }
 function ipGroup(){ _ip.group=_ip.group==='room'?'type':'room'; _ipPaint(); }
-// A wide screen shows the device beside the list; a phone opens its page.
-function ipTap(id){ if(window.innerWidth<1440){ openDeviceManage(id); return; } _ip.sel=id; _ipPaint(); }
+// iPad and Mac show the device beside the list; a phone opens its page.
+function ipTap(id){ if(window.innerWidth<=700){ openDeviceManage(id); return; } _ip.sel=id; _ipPaint(); }
 // ── THE CERTIFIED PANELS MIRROR TOO (register 416) ─────────────────────────
 // Dave: "we have missed all our certified integrations like UniFi Protect as
 // its details need to be incorporated into our current settings same as ProOS
@@ -5103,7 +5220,20 @@ function renderDeviceManage(deviceId){
   // elsewhere in Pro are a plain uppercase label with no box (see PROOS
   // CERTIFIED / CONFIGURED on the Integrations page), and a list row is .row
   // with .rl and .rsub. Those are what this page uses now.
-  const card=(inner)=>`<div class="dcard">${inner}</div>`;
+  // ── THE STANDARD DEVICE PAGE (register 713, Dave 7 Oct 2026) ─────────────
+  // The approved mock (Device.dc.html): a head card, a search and type chips,
+  // the integration's "turn on" banner, then THREE COLUMNS OF ONE HEIGHT
+  // (Dave: "all columns need to be same height as looks stupid when all
+  // different") — what it is and what it controls on the left, its zones or
+  // sensors in the wide middle, settings, history and management on the right.
+  // Every card below is the one this page already drew, in the order it
+  // already drew them; each now says WHICH COLUMN it belongs in (_dpAt) and
+  // lands there. Nothing is dropped and no section is renamed.
+  const _dpCols={top:'',h:'',l:'',m:'',r:''}; let _dpAt='r';
+  const card=(inner,k,n)=>{
+    const fold=(n>8 && _dpAt!=='m' && !_dpOpen.has(k||''));
+    _dpCols[_dpAt]+=`<div class="dcard${n>8&&_dpAt!=='m'?' dfold':''}${fold?'':' open'}" data-k="${esc(k||'')}">${inner}</div>`;
+    return ''; };
   const ghead=(n,ct)=>`<div class="bld-sec-h">${esc(n)}`
     +(ct!=null?`<span class="dg-ct">${ct}</span>`:'')+`</div>`;
   // ONE ROW SHAPE for every entity: what it is called, what domain it is, its
@@ -5127,12 +5257,13 @@ function renderDeviceManage(deviceId){
               :`<span class="epill${dead?'':' live'}" id="trd_${safe}">${esc(String(val))}${unit?(' '+esc(unit)):''}</span>`)
       +`</div></div>`;
   };
-  const grp=(n,list)=>!list.length?'':card(ghead(n,list.length)+list.map(erow).join(''));
+  const grp=(n,list)=>!list.length?'':card(ghead(n,list.length)+list.map(erow).join(''),n,list.length);
 
   let rows='';
   // Attention banner — the same signal as the tile badge, for ANY integration whose config
   // entry is disabled/errored (needs reconnect, re-pair, or a setting addressed).
   const _att=_deviceAttention(d);
+  _dpAt='top';
   if(_att) rows+=card(`<div class="rh-warn"><span>⚠ <b>${esc(_att.label)}.</b> ${esc(_att.hint)}</span></div>`);
 
   // ── what the device IS ───────────────────────────────────────────────────
@@ -5175,8 +5306,11 @@ function renderDeviceManage(deviceId){
   // says what shares hardware with this one, and that IS actionable.
   const infoRows=idRows.filter(r=>r[0]!=='Make'&&r[0]!=='Model')
     .concat([['MAC',macs[0]]].filter(r=>r[1]));
+  _dpAt='h';
   rows+=card(ghead('Device info')
-    +`<div class="itile dinfo">${_infoHead}${infoRows.length?factRows(infoRows):''}</div>`);
+    +`<div class="itile dinfo">${_infoHead}${infoRows.length?factRows(infoRows):''}</div>`
+    +_dpHeadActs(d, _att),'info');
+  _dpAt='l';
 
   // ── CAMERAS (register 411) ───────────────────────────────────────────────
   // Dave, opening the Integrations programme: "anything given in Configuration
@@ -5207,13 +5341,14 @@ function renderDeviceManage(deviceId){
               +`<span class="dcam-off" hidden>No signal</span>`)
       +`</div><div class="dcam-cap"><div class="rl">${esc(_entLabel(e,d))}</div>`
       +`<div class="rr">${esc(live?String(st):(dead?'':String(st)))} &rsaquo;</div></div></div>`;
-  }).join(''));
+  }).join(''),'Cameras');
 
   // ── LINKED DEVICES (register 405) ────────────────────────────────────────
   // The same physical box, seen by another integration. Each row says which
   // one manages it and opens that device's page — so the twin is reachable
   // rather than merely disclosed.
   const _linked=_linkedDevices(d);
+  _dpAt='r';
   if(_linked.length) rows+=card(ghead('Linked devices',_linked.length)
     +`<div class="wiz-hint">These devices share hardware with this device and are managed by other integrations.</div>`
     +_linked.map(x=>{
@@ -5239,10 +5374,22 @@ function renderDeviceManage(deviceId){
   // Diagnostic, not Diagnostics — so an installer reading the two side by side
   // is reading one vocabulary. The grouping RULE is unchanged (entity_category
   // and domain, never integration); only the words are.
-  rows+=grp('Controls',G.controls);
-  rows+=grp('Configuration',G.settings);
+  // ALARM PANELS (register 713): an alarm integration's areas and zones are
+  // the device, so they get the page's left column and its wide middle. The
+  // zone rule is the dashboard's own (register 703): a sensor with a numeric
+  // area and a logical status. Whatever it does not take stays a Sensor.
+  const _Z=_dpAlarm(deviceId);
+  _dpAt='l'; if(_Z.areas.length) rows+=card(_dpAreasHTML(_Z,d),'Alarm Areas');
+  _dpAt='m'; if(_Z.zones.length) rows+=card(_dpZonesHTML(_Z,d),'Zones');
+  const _sens=G.sensors.filter(e=>!_Z.taken.has(e.entity_id));
+  // Nothing for the wide middle (no zones, no sensors — a speaker, a TV): its
+  // controls take it, so the page never shows an empty column.
+  _dpAt=(_Z.zones.length||_sens.length)?'l':'m'; rows+=grp('Controls',G.controls);
+  _dpAt='r'; rows+=grp('Configuration',G.settings);
   rows+=grp('Diagnostic',G.diagnostics);
-  rows+=grp('Sensors',G.sensors);
+  _dpAt=_Z.zones.length?'r':'m';
+  rows+=grp('Sensors',_sens);
+  _dpAt='r';
   // ── DISABLED (register 409) ──────────────────────────────────────────────
   // This was one dim row reading "+5 disabled entities" that opened the FIRST
   // one and gave no way to reach the other four. It counted honestly and then
@@ -5256,6 +5403,7 @@ function renderDeviceManage(deviceId){
   // what the integration switched off can be turned on from here, all at once — the Ness M1 ships its 26 zone on/off
   // sensors off, and turning them on one by one was 26 trips three screens deep.
   const _offByInt=G.disabled.filter(e=>e.disabled_by==='integration');
+  if(_offByInt.length>1) _dpCols.top+=`<div class="dp-banner"><span>${_offByInt.length} ${_offByInt.length===1?'entity was':'entities were'} left off by the integration. Turn them on to use them${_Z.zones.length?' and set each zone\u2019s <b>Shows As</b>':''}.</span><button type="button" class="ip-btn p" onclick="enableOffByIntegration('${esc(deviceId)}')">Turn On All ${_offByInt.length}</button></div>`;
   if(G.disabled.length) rows+=card(ghead('Disabled',G.disabled.length)
     +(_offByInt.length>1?`<div class="row tappable" onclick="enableOffByIntegration('${esc(deviceId)}')"><div class="erow-l"><div class="rl">Turn On All ${_offByInt.length}</div>`
       +`<div class="rsub">The ones the integration left off</div></div><div class="rr">&rsaquo;</div></div>`:'')
@@ -5263,7 +5411,7 @@ function renderDeviceManage(deviceId){
       `<div class="row dimrow" onclick="openEntityInfo('${esc(e.entity_id)}')">`
       +`<div class="erow-l"><div class="rl">${esc(_entLabel(e,d))}</div>`
       +`<div class="rsub">${esc(DOM(e))}</div></div>`
-      +`<div class="rr">${esc(e.disabled_by==='integration'?'Off by the integration':(e.disabled_by==='user'?'Turned off here':'Disabled'))} &rsaquo;</div></div>`).join(''));
+      +`<div class="rr">${esc(e.disabled_by==='integration'?'Off by the integration':(e.disabled_by==='user'?'Turned off here':'Disabled'))} &rsaquo;</div></div>`).join(''),'Off',G.disabled.length);
 
   // ── the admin ────────────────────────────────────────────────────────────
   rows+=card(ghead('Placement')
@@ -5330,7 +5478,8 @@ function renderDeviceManage(deviceId){
   rows+=card(`<div class="bld-sec-h">Activity<span class="dg-ct act-live"><i></i>live</span></div>`
     +`<div class="act" id="dev-act"><div class="act-day">Reading…</div></div>`);
 
-  setHTML(document.getElementById('dev-body'), `<div class="dgrid">${rows}</div>`);
+  setHTML(document.getElementById('dev-body'), rows+_dpPageHTML(_dpCols, G, _Z, deviceId));
+  _dpLayout();
   // No Done: the panel head carries Back, the same as every other page. A Done
   // button is the last thing that still read as a dialog.
   setHTML(document.getElementById('dev-actions'), '');
@@ -5338,6 +5487,153 @@ function renderDeviceManage(deviceId){
   _devActivity(deviceId);    // …and the same push writes the feed below
   _devRelated(deviceId);     // …and the box says what uses this device
 }
+// ── THE STANDARD DEVICE PAGE — its parts (register 713) ────────────────────
+// Folds the installer opened stay open across the page's own redraws.
+const _dpOpen=new Set();
+let _dpChip='all', _dpQ='';
+// The head card's actions: whether it is connected, Rename, its Room, and a
+// way to the Management card — the same doors the page's own cards hold.
+function _dpHeadActs(d, att){
+  const room=deviceRoomName(d);
+  const st=att?[att.label,'warn']:['Connected','ok'];
+  return `<div class="dp-acts"><span class="ip-pill ${st[1]} ip-state">${esc(st[0])}</span>`
+    +`<button type="button" class="ip-btn" onclick="openRoomFromDevice()">${room?('Room: '+esc(room)):'Add to Room'}</button>`
+    +`<button type="button" class="ip-btn" onclick="startRename()">Rename</button>`
+    +`<button type="button" class="ip-btn" onclick="dpShowManage()" aria-label="Management">•••</button></div>`;
+}
+function dpShowManage(){
+  const c=[...document.querySelectorAll('#dev-body .dcard')].find(x=>{ const h=x.querySelector('.bld-sec-h'); return h&&/^Management/.test(h.textContent); });
+  if(c){ c.scrollIntoView({behavior:'smooth',block:'center'}); c.classList.add('dp-flash'); setTimeout(()=>c.classList.remove('dp-flash'),1400); }
+}
+// An alarm integration's areas, zones and keypads, read off the entities'
+// own attributes — the rule the dashboard's Security page uses (register 703).
+function _dpAlarm(deviceId){
+  const ents=_ents.filter(e=>e.device_id===deviceId && !e.disabled_by);
+  const areas=ents.filter(e=>DOM(e)==='alarm_control_panel')
+    .sort((a,b)=>(Number(attrOf(a.entity_id,'index'))||0)-(Number(attrOf(b.entity_id,'index'))||0));
+  const isNum=v=>v!==undefined && v!==null && v!=='' && isFinite(Number(v));
+  const zones=areas.length?ents.filter(e=>DOM(e)==='sensor' && isNum(attrOf(e.entity_id,'area')) && attrOf(e.entity_id,'logical_status')!=null)
+    .sort((a,b)=>(Number(attrOf(a.entity_id,'index'))||0)-(Number(attrOf(b.entity_id,'index'))||0)||_entLabel(a).localeCompare(_entLabel(b))):[];
+  const keypads=areas.length?ents.filter(e=>DOM(e)==='sensor' && isNum(attrOf(e.entity_id,'area')) && attrOf(e.entity_id,'logical_status')==null):[];
+  const taken=new Set(zones.concat(keypads).map(e=>e.entity_id));
+  return {areas, zones, keypads, taken};
+}
+const _DP_ZICO={
+  door:'<path d="M6 21V3h12v18"/><path d="M6 3l7 2v16"/>',
+  window:'<rect x="4" y="3" width="16" height="18" rx="1"/><path d="M4 12h16"/>',
+  garage_door:'<rect x="3" y="6" width="18" height="14" rx="1"/><path d="M3 10h18M3 14h18"/>',
+  motion:'<circle cx="12" cy="12" r="2"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="9.5"/>',
+  smoke:'<circle cx="12" cy="17" r="4"/><path d="M10 10c-1-2 1-3 0-5M14 10c-1-2 1-3 0-5"/>',
+  moisture:'<path d="M12 3s5 6 5 9.5A5 5 0 0 1 7 12.5C7 9 12 3 12 3z"/>',
+  sound:'<rect x="4" y="3" width="16" height="18" rx="1"/><path d="M12 3l-2 6 4 3-3 4 2 5"/>',
+  safety:'<path d="M12 3l9 16H3z"/><path d="M12 10v4"/>',
+  zone:'<circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="8"/>'};
+const _DP_ZKIND={door:'door',opening:'door',window:'window',garage_door:'garage_door',motion:'motion',occupancy:'motion',presence:'motion',
+  smoke:'smoke',heat:'smoke',carbon_monoxide:'smoke',gas:'smoke',moisture:'moisture',sound:'sound',vibration:'sound',safety:'safety',tamper:'safety'};
+function _dpTwin(z){ const t=_showsAsTarget(z); return t?(_ents.find(x=>x.entity_id===t)||null):null; }
+function _dpZoneKind(z){
+  const tw=_dpTwin(z);
+  const c=tw?(attrOf(tw.entity_id,'device_class')||tw.device_class||tw.original_device_class):'';
+  if(c&&_DP_ZKIND[c]) return _DP_ZKIND[c];
+  const def=String(attrOf(z.entity_id,'definition')||'').toLowerCase();
+  if(/fire|smoke/.test(def)) return 'smoke';
+  if(/water/.test(def)) return 'moisture';
+  return 'zone';
+}
+function _dpZoneWord(z){
+  const tw=_dpTwin(z), ts=tw&&!tw.disabled_by?String(stState(tw.entity_id)):'';
+  if(ts==='on'||ts==='off') return {w:_ipBin(tw.entity_id), a:ts==='on'};
+  const st=String(stState(z.entity_id));
+  if(st==='unavailable') return {w:'No Signal', a:true};
+  if(st==='unknown') return {w:'', a:false};
+  return {w:_ipCap(st), a:st.toLowerCase()!=='normal'};
+}
+function _dpAreasHTML(Z, d){
+  const zc=a=>Z.zones.filter(z=>String(attrOf(z.entity_id,'area'))===String(attrOf(a.entity_id,'index'))).length;
+  const areaName=i=>{ const a=Z.areas.find(x=>String(attrOf(x.entity_id,'index'))===String(i)); return a?_entLabel(a,d):''; };
+  return `<div class="bld-sec-h">Alarm Areas<span class="dg-ct">${Z.areas.length}</span></div>`
+    + Z.areas.map(a=>{ const n=zc(a);
+        return `<div class="row tappable dp-area${n?'':' dimrow'}" onclick="openEntityInfo('${esc(a.entity_id)}')"><div class="erow-l"><div class="rl">${esc(_entLabel(a,d))}</div>`
+          +`<div class="rsub">${n?(n+' zone'+(n===1?'':'s')):'No zones'}</div></div>`
+          +`<span class="epill${_ipDead(a.entity_id)?'':' live'}" id="trd_${eidSafe(a.entity_id)}">${esc(String(stState(a.entity_id)))}</span></div>`; }).join('')
+    + (Z.keypads.length?`<div class="bld-sec-h dp-sub">Keypads<span class="dg-ct">${Z.keypads.length}</span></div>`
+      + Z.keypads.map(k=>{ const t=attrOf(k.entity_id,'temperature');
+          return `<div class="row tappable" onclick="openEntityInfo('${esc(k.entity_id)}')"><div class="erow-l"><div class="rl">${esc(_entLabel(k,d))}</div>`
+            +`<div class="rsub">${esc(areaName(attrOf(k.entity_id,'area'))||'')}</div></div>`
+            +(t!=null&&t!==''?`<span class="rsub">${esc(String(t))}°</span>`:'')+`</div>`; }).join(''):'');
+}
+function _dpZoneTile(z, d){
+  const k=_dpZoneKind(z), s=_dpZoneWord(z), idx=attrOf(z.entity_id,'index'), safe=eidSafe(z.entity_id);
+  return `<div class="row tappable dp-zone" id="tzt_${safe}" onclick="openEntityInfo('${esc(z.entity_id)}')">`
+    +`<span class="dp-zi${s.a?' a':''}"><svg viewBox="0 0 24 24" aria-hidden="true">${_DP_ZICO[k]||_DP_ZICO.zone}</svg></span>`
+    +`<span class="rl dp-zn">${idx!=null&&idx!==''?esc(String(idx))+' · ':''}${esc(_entLabel(z,d))}</span>`
+    +`<span class="dp-zw${s.a?' a':''}" id="tzn_${safe}">${esc(s.w)}</span></div>`;
+}
+function _dpZonesHTML(Z, d){
+  return `<div class="bld-sec-h">Zones · In Zone Order<span class="dg-ct">${Z.zones.length}</span></div>`
+    +`<div class="dp-zgrid">${Z.zones.map(z=>_dpZoneTile(z,d)).join('')}</div>`
+    +`<div class="wiz-hint dp-hint">Tap a zone for its page — Shows As, name, area.</div>`;
+}
+// A zone's word moves when the zone or its on/off twin changes.
+function _dpZonePatch(eid){
+  const e=_ents.find(x=>x.entity_id===eid); if(!e) return;
+  const z=DOM(e)==='sensor'?e:_ents.find(x=>x.entity_id!==eid && DOM(x)==='sensor' && x.unique_id===e.unique_id && x.platform===e.platform);
+  if(!z) return; const w=document.getElementById('tzn_'+eidSafe(z.entity_id)); if(!w) return;
+  const s=_dpZoneWord(z); w.textContent=s.w; w.classList.toggle('a',s.a);
+  const t=document.getElementById('tzt_'+eidSafe(z.entity_id)); const ic=t&&t.querySelector('.dp-zi'); if(ic) ic.classList.toggle('a',s.a);
+}
+function _dpPageHTML(cols, G, Z, deviceId){
+  const n=G.total;
+  const ct={'Cameras':_ents.filter(e=>e.device_id===deviceId&&DOM(e)==='camera'&&!e.disabled_by).length,
+    'Alarm Areas':Z.areas.length,'Zones':Z.zones.length,'Controls':G.controls.length,
+    'Sensors':G.sensors.filter(e=>!Z.taken.has(e.entity_id)).length,'Configuration':G.settings.length,'Diagnostic':G.diagnostics.length,'Off':G.disabled.length};
+  if(_dpChip!=='all' && !ct[_dpChip]) _dpChip='all';
+  const chip=(k,label,c)=>`<button type="button" class="ip-chip${_dpChip===k?' on':''}" onclick="dpChip('${k}')">${esc(label)} <b>${c}</b></button>`;
+  return `<div class="dp-head">${cols.h}</div>`
+    +`<div class="ip-tools"><label class="ip-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4-4"/></svg>`
+    +`<input id="dp-q" type="search" value="${esc(_dpQ)}" placeholder="Search this device’s ${n} entit${n===1?'y':'ies'}" aria-label="Search this device" oninput="dpSearch(this.value)" autocomplete="off"></label>`
+    +`<div class="ip-chips">${chip('all','All',n)}${Object.keys(ct).filter(k=>ct[k]).map(k=>chip(k,k,ct[k])).join('')}</div></div>`
+    + cols.top
+    // A column with nothing in it is not drawn; the others share the width.
+    +`<div class="dp-cols${_dpChip!=='all'?' dp-one':''}${[cols.l,cols.m,cols.r].filter(Boolean).length===2?' dp-n2':''}" id="dp-cols">`
+    +(cols.l?`<div class="dp-col">${cols.l}</div>`:'')+(cols.m?`<div class="dp-col dp-mid">${cols.m}</div>`:'')+(cols.r?`<div class="dp-col">${cols.r}</div>`:'')+`</div>`;
+}
+// THE COLUMNS ARE ONE HEIGHT: from where they start to the bottom of the
+// screen, each scrolling inside itself. A phone has one column, so it scrolls
+// as a page.
+function _dpLayout(){
+  const el=document.getElementById('dp-cols'); if(!el) return;
+  _dpApplyFilter();
+  if(window.innerWidth<=700){ el.style.height=''; return; }
+  const sc=document.querySelector('.scroll'); const top=el.getBoundingClientRect().top+(sc?sc.scrollTop:0);
+  el.style.height=Math.max(420, Math.round(window.innerHeight-top-24))+'px';
+}
+window.addEventListener('resize', function(){ try{ if(panelActive('device')) _dpLayout(); }catch(e){} });
+function _dpApplyFilter(){
+  const el=document.getElementById('dp-cols'); if(!el) return;
+  const q=_dpQ.trim().toLowerCase();
+  el.classList.toggle('dp-searching', !!q);
+  el.querySelectorAll('.dcard').forEach(c=>{
+    const k=c.getAttribute('data-k')||'';
+    let show=(_dpChip==='all'||k===_dpChip);
+    if(show && q){
+      let any=false;
+      c.querySelectorAll('.row').forEach(r=>{ const hit=r.textContent.toLowerCase().indexOf(q)>=0; r.classList.toggle('dp-miss',!hit); if(hit) any=true; });
+      show=any;
+    } else c.querySelectorAll('.dp-miss').forEach(r=>r.classList.remove('dp-miss'));
+    c.classList.toggle('dp-hide',!show);
+  });
+}
+function dpSearch(v){ _dpQ=String(v||''); _dpApplyFilter(); }
+function dpChip(k){ _dpChip=k; const el=document.getElementById('dp-cols'); if(el) el.classList.toggle('dp-one',k!=='all');
+  document.querySelectorAll('#dev-body .ip-chips .ip-chip').forEach(b=>b.classList.toggle('on', (b.getAttribute('onclick')||'').indexOf("'"+k+"'")>=0));
+  _dpApplyFilter(); }
+// A long card in a side column opens and closes on its heading.
+document.addEventListener('click', function(ev){
+  const h=ev.target&&ev.target.closest&&ev.target.closest('#dev-body .dfold>.bld-sec-h'); if(!h) return;
+  const c=h.parentElement; c.classList.toggle('open');
+  const k=c.getAttribute('data-k')||''; if(c.classList.contains('open')) _dpOpen.add(k); else _dpOpen.delete(k);
+});
 function startRename(){
   const d=_devices.find(x=>x.id===(_devSheet&&_devSheet.id)); if(!d) return;
   document.getElementById('dev-body').innerHTML=`<div class="field"><div class="field-label">Device Name</div><input id="dev-rename" type="text" value="${esc(devName(d))}" autocapitalize="words" autocomplete="off"/></div>`;
@@ -5467,6 +5763,13 @@ function renderEntityManage(entityId){
   const nm=e.name||e.original_name||entName(entityId); const disabled=!!e.disabled_by; const hidden=!!e.hidden_by; const dom=DOM(e);
   document.getElementById('dev-title').textContent=nm;
   document.getElementById('dev-sub').textContent=entityId+(disabled?' · disabled':(hidden?' · hidden':''));
+  // ── THE STANDARD SENSOR PAGE (register 714, the approved mock Sensor.dc.html) ──
+  // Left: what it is and what it is doing — a big icon in its Shows As kind,
+  // its word now, where it sits, its controls, today's history. Right: every
+  // setting the old page had, with Shows As as picture buttons (Dave: "change
+  // to if they are a motion sensor or a door or smoke etc with the appropiate
+  // animation icon"). The two halves are one height (Dave: "all columns need
+  // to be same height"); a phone stacks them, settings before history.
   let showAs='';
   if(dom==='switch'){
     const cur=showAsCurrent(entityId); const label=cur==='switch'?'Switch':(cur.charAt(0).toUpperCase()+cur.slice(1));
@@ -5477,28 +5780,42 @@ function renderEntityManage(entityId){
   }
   let dcField='';
   const _sa=_showsAsTarget(e);
+  const tw=_sa?(_sa===entityId?e:_ents.find(x=>x.entity_id===_sa)):null;
   if(_sa){
     // 709 · SHOWS AS (Dave: "change to if they are a motion sensor or a door or smoke etc"; "A" — the platform's own Show as).
     // The platform's own setting (the entity registry's device_class), in plain words, the kinds an alarm zone can be first.
     // A Ness zone's status sensor has no Show as of its own: it is set on its on/off twin (same identity).
-    const tw=_sa===entityId?e:_ents.find(x=>x.entity_id===_sa); const cur=(tw&&tw.device_class)||'';
+    const cur=(tw&&tw.device_class)||'';
     const orig=tw&&tw.original_device_class?(' — '+_showsAsWord(tw.original_device_class)):'';
     const ord=SHOWS_AS_FIRST.concat(DEVICE_CLASSES.binary_sensor.filter(c=>!SHOWS_AS_FIRST.includes(c)));
     const opts='<option value="">As the Integration Says'+orig+'</option>'+ord.map(c=>`<option value="${c}"${cur===c?' selected':''}>${_showsAsWord(c)}</option>`).join('');
+    // 714: the eight an alarm zone most often is, as pictures; the select keeps every other kind and the clear.
+    // When nothing is set here, the integration's own kind is lit softly — that is what it shows as now.
+    const eff=cur||(tw&&tw.original_device_class)||'';
+    const pics=_SP_KINDS.map(([c,l])=>`<button type="button" class="sp-k${cur===c?' on':(!cur&&eff===c?' dflt':'')}" data-c="${c}" onclick="spKind('${c}')"><svg viewBox="0 0 24 24" aria-hidden="true">${_DP_ZICO[_DP_ZKIND[c]||'zone']}</svg>${esc(l)}</button>`).join('');
     dcField=(tw&&tw.disabled_by)
       ?`<div class="field"><div class="field-label">Shows As</div><div class="wiz-hint">Set on this zone's on/off sensor, which is off.</div><button class="rp-cancel" onclick="enableEntity('${esc(tw.entity_id)}',true)">Turn On Its On/Off Sensor</button></div>`
-      :`<div class="field"><div class="field-label">Shows As</div><select id="ent-showsas" class="fsel" data-target="${esc(_sa)}">${opts}</select></div>`;
+      :`<div class="field"><div class="field-label">Shows As</div><div class="sp-kinds">${pics}</div>`
+        +`<select id="ent-showsas" class="fsel sp-more" data-target="${esc(_sa)}" onchange="spKindSync()" aria-label="More kinds">${opts}</select></div>`;
   } else if(DEVICE_CLASSES[dom]){ const cur=e.device_class||''; const orig=e.original_device_class?(' — '+e.original_device_class.replace(/_/g,' ')):''; const opts='<option value="">Default'+orig+'</option>'+DEVICE_CLASSES[dom].map(c=>`<option value="${c}"${cur===c?' selected':''}>${c.replace(/_/g,' ')}</option>`).join(''); dcField=`<div class="field"><div class="field-label">Show as (Type)</div><select id="ent-dc" class="fsel">${opts}</select></div>`; }
   let precField='';
   if(dom==='sensor'){ const p=(e.options&&e.options.sensor&&e.options.sensor.display_precision); precField=`<div class="field"><div class="field-label">Decimal Places (Optional)</div><input id="ent-prec" type="number" min="0" max="6" value="${p!=null?esc(String(p)):''}"/></div>`; }
   const seg=(label,leftLabel,leftOn,leftFn,rightLabel,rightFn)=>`<div class="field"><div class="field-label">${label}</div><div class="seg"><button class="${leftOn?'on':''}" onclick="${leftFn}">${leftLabel}</button><button class="${!leftOn?'on':''}" onclick="${rightFn}">${rightLabel}</button></div></div>`;
-  setHTML(document.getElementById('dev-body'),
+  const voice=!!(e.options&&e.options.conversation&&e.options.conversation.should_expose);
+  // ROOM: the entity's own room, or the device's (the platform's own rule — an entity with no room of its own is in its device's).
+  const d=_devices.find(x=>x.id===e.device_id);
+  const devRoom=d?deviceRoomName(d):'';
+  const roomField=`<div class="field"><div class="field-label">Room</div><select id="ent-area" class="fsel"><option value="">${devRoom?('Same as the device — '+esc(devRoom)):'No room'}</option>`
+    +(_areas||[]).slice().sort((a,b)=>String(a.name).localeCompare(String(b.name))).map(a=>`<option value="${esc(a.area_id)}"${e.area_id===a.area_id?' selected':''}>${esc(a.name)}</option>`).join('')+`</select></div>`;
+  const form=
      `<div class="field"><div class="field-label">Name</div><input id="ent-name" type="text" value="${esc(nm)}" autocomplete="off"/></div>`
-    +`<div class="field"><div class="field-label">Icon (Optional)</div><input id="ent-icon" type="text" value="${esc(e.icon||'')}" placeholder="mdi:lightbulb" autocapitalize="none" autocomplete="off"/></div>`
-    + dcField + precField + showAs
-    + seg('Visible','Shown',!hidden,"setEntHidden(false)",'Hidden',"setEntHidden(true)")
-    + seg('Enabled','Enabled',!disabled,"setEntDisabled(false)",'Disabled',"setEntDisabled(true)")
-    +`<div class="field"><div class="field-label">Voice Assistants</div><div class="seg"><button class="${(e.options&&e.options.conversation&&e.options.conversation.should_expose)?'on':''}" onclick="exposeEnt(true)">Exposed</button><button class="${(e.options&&e.options.conversation&&e.options.conversation.should_expose)?'':'on'}" onclick="exposeEnt(false)">Hidden</button></div></div>`
+    + dcField
+    +(_sa?'':`<div class="field"><div class="field-label">Icon (Optional)</div><input id="ent-icon" type="text" value="${esc(e.icon||'')}" placeholder="mdi:lightbulb" autocapitalize="none" autocomplete="off"/></div>`)
+    + precField + showAs + roomField
+    + seg('On the Dashboard','Shown',!hidden,"setEntHidden(false)",'Hidden',"setEntHidden(true)")
+    + seg(_sa?'This Sensor':'Enabled','On',!disabled,"setEntDisabled(false)",'Off',"setEntDisabled(true)")
+    + seg('Voice','Assist Can Use It',voice,"exposeEnt(true)",'Not for Voice',"exposeEnt(false)")
+    +`<div class="bld-sec sp-adv"><div class="bld-sec-h">Advanced</div>`
     + entLabelsField(e)
     // ENTITY ID: TECH-ONLY, READ-ONLY (Dave's ruling, 9 Aug 2026). The whole
     // record architecture keys identity off immutable ids, never names — an
@@ -5506,11 +5823,79 @@ function renderEntityManage(entityId){
     // committed_unavailable, repaired by recommit, but an avoidable limp).
     // Installers work in friendly names ONLY; Tech sees the id for
     // diagnostics; NOBODY renames an entity id from inside ProOS.
-    +((_me.tech||_me.owner)?`<div class="bld-sec"><div class="bld-sec-h">Advanced</div><div class="field"><div class="field-label">Entity ID (read-only)</div><div style="font-size:12.5px;color:var(--t2);padding:9px 2px;user-select:all;font-family:ui-monospace,monospace">${esc(entityId)}</div></div></div>`:''));
-  setHTML(document.getElementById('dev-actions'), `<button class="btn-primary" onclick="saveEntSettings()">Save</button>`
-    +(e.platform==='switch_as_x'?`<button class="rp-cancel" onclick="revertShowAsOutput('${esc(entityId)}')">Revert to Switch</button>`:'')
-    +`<button class="rp-cancel" onclick="renderDeviceManage(_devSheet.id)">Back</button>`);
-  setTimeout(()=>{ const i=document.getElementById('ent-name'); if(i) i.focus(); },50);
+    +((_me.tech||_me.owner)?`<div class="field"><div class="field-label">Entity ID (read-only)</div><div style="font-size:12.5px;color:var(--t2);padding:9px 2px;user-select:all;font-family:ui-monospace,Menlo,monospace">${esc(entityId)}</div></div>`:'')
+    +`</div>`
+    +`<div class="sp-save"><button type="button" class="rp-cancel" onclick="renderDeviceManage(_devSheet.id)">Back</button><button type="button" class="btn-primary" onclick="saveEntSettings()">Save</button></div>`
+    +(e.platform==='switch_as_x'?`<button class="rp-cancel" onclick="revertShowAsOutput('${esc(entityId)}')">Revert to Switch</button>`:'');
+  // ── the left: what it is, now ──
+  const zone=dom==='sensor'&&attrOf(entityId,'logical_status')!=null&&attrOf(entityId,'area')!=null;
+  const kind=_sa?(zone?_dpZoneKind(e):(_DP_ZKIND[(tw&&(attrOf(tw.entity_id,'device_class')||tw.device_class||tw.original_device_class))||'']||'zone')):null;
+  const icon=kind?_DP_ZICO[kind]||_DP_ZICO.zone:(_IP_ICO[dom]||_IP_ICO.sensor);
+  const word=disabled?(e.disabled_by==='integration'?'Off by the integration':'Turned off here')
+    :(zone?_dpZoneWord(e).w:(_ipWord(entityId)||String(stState(entityId))));
+  const areaName=i=>{ const a=_ents.find(x=>x.device_id===e.device_id&&DOM(x)==='alarm_control_panel'&&String(attrOf(x.entity_id,'index'))===String(i)); return a?_entLabel(a,d):''; };
+  const def=attrOf(entityId,'definition');
+  const sub=zone
+    ?[`Zone ${attrOf(entityId,'index')}`, areaName(attrOf(entityId,'area')), def?('the panel calls it '+_ipCap(String(def).toLowerCase())):''].filter(Boolean).join(' · ')
+    :[d?devName(d):'', e.area_id?(((_areas||[]).find(a=>a.area_id===e.area_id)||{}).name||''):devRoom].filter(Boolean).join(' · ');
+  const ls=zone?String(attrOf(entityId,'logical_status')):'';
+  const pill=zone?`<span class="ip-pill ${ls.toLowerCase()==='normal'?'ok':'warn'} ip-state">${esc(_ipCap(ls))}</span>`:'';
+  const ctl=(TEST_DOMAINS.has(dom)&&!disabled)?`<div class="sp-ctl">${ctlFor(entityId)}</div>`:'';
+  const A=((stOf(entityId)||{}).attributes)||{};
+  const skip={friendly_name:1,icon:1,entity_picture:1,supported_features:1};
+  const attrs=Object.keys(A).filter(k=>!skip[k]&&A[k]!==null&&A[k]!==''&&typeof A[k]!=='object').slice(0,12);
+  const left=`<div class="sp-headcard"><div class="sp-ic"><svg viewBox="0 0 24 24" aria-hidden="true">${icon}</svg></div>`
+      +`<div class="sp-hbody"><div class="sp-nm">${esc(nm)}</div><div class="sp-word">${esc(word)}</div><div class="rsub">${esc(sub)}</div></div>${pill}</div>${ctl}`;
+  const hist=`<div class="bld-sec-h">Today</div><div id="sp-hist"><div class="ip-kv"><span>Reading…</span></div></div>`
+    +(attrs.length?`<div class="bld-sec-h sp-gap">Details</div>`+attrs.map(k=>`<div class="ip-kv"><span>${esc(_ipCap(k))}</span><span class="rsub">${esc(String(A[k]))}</span></div>`).join(''):'')
+    +(_sa&&_sa!==entityId?`<div class="bld-sec-h sp-gap">This Zone Is Made of Two Parts</div><div class="wiz-hint sp-note">The panel’s status (${esc(_ipCap(ls)||'Normal')}) and its on/off sensor. They share one identity, so they are shown and set as one zone. Shows As is kept on the on/off part — the platform’s own setting.</div>`:'');
+  setHTML(document.getElementById('dev-body'),
+    `<button class="back" onclick="renderDeviceManage(_devSheet.id)">‹ ${esc(d?devName(d):'Device')}</button>`
+    +`<div class="sp-cols" id="sp-cols"><section class="sp-a">${left}</section><section class="sp-form">${form}</section><section class="sp-hist">${hist}</section></div>`);
+  setHTML(document.getElementById('dev-actions'), '');
+  _spLayout();
+  _spHistory(entityId);
+}
+// The eight kinds an alarm zone most often is, shown as pictures (register 714).
+const _SP_KINDS=[['door','Door'],['window','Window'],['garage_door','Garage Door'],['motion','Motion'],['smoke','Smoke'],['moisture','Water Leak'],['sound','Glass Break'],['safety','Panic']];
+function spKind(c){ const s=document.getElementById('ent-showsas'); if(!s) return; s.value=(s.value===c)?'':c; spKindSync(); }
+function spKindSync(){ const s=document.getElementById('ent-showsas'); if(!s) return;
+  document.querySelectorAll('#dev-body .sp-k').forEach(b=>{ b.classList.toggle('on', b.getAttribute('data-c')===s.value); if(s.value) b.classList.remove('dflt'); }); }
+function _spLayout(){
+  const el=document.getElementById('sp-cols'); if(!el) return;
+  if(window.innerWidth<=700){ el.style.height=''; return; }
+  const sc=document.querySelector('.scroll'); const top=el.getBoundingClientRect().top+(sc?sc.scrollTop:0);
+  el.style.height=Math.max(460, Math.round(window.innerHeight-top-24))+'px';
+}
+window.addEventListener('resize', function(){ try{ if(document.getElementById('sp-cols')) _spLayout(); }catch(e){} });
+// Today, from the platform's own logbook — the call the popup and the device page already make.
+async function _spHistory(eid){
+  let lb=[];
+  try{ const t=new Date(); t.setHours(0,0,0,0);
+       const r=await snd({type:'logbook/get_events', start_time:t.toISOString(), entity_ids:[eid]}, 12000); lb=(r&&r.result)||[]; }
+  catch(e){ lb=null; }
+  const box=document.getElementById('sp-hist'); if(!box) return;
+  if(lb===null){ setHTML(box,`<div class="ip-kv"><span>Can’t check</span></div>`); return; }
+  if(!lb.length){ setHTML(box,`<div class="ip-kv"><span>Nothing yet today</span></div>`); return; }
+  setHTML(box, lb.slice(-30).reverse().map(ev=>{
+    const w=ev.when; const t=new Date(typeof w==='number'?w*1000:w);
+    return `<div class="ip-kv"><span>${esc(_spWord(eid, ev.state, ev.message))}</span><span class="rsub">${esc(t.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'}))}</span></div>`;
+  }).join(''));
+}
+// A logged state in the same plain words as the page (seen on the box: the
+// Pantry Door's history read "on / off" while its header read "Closed").
+function _spWord(eid, st, msg){
+  const v=String(st==null?'':st);
+  if(DOM(eid)==='binary_sensor' && (v==='on'||v==='off')){
+    const e=_ents.find(x=>x.entity_id===eid)||{};
+    const c=attrOf(eid,'device_class')||e.device_class||e.original_device_class||'', on=(v==='on');
+    if(['door','window','opening','garage_door'].includes(c)) return on?'Opened':'Closed';
+    if(['motion','occupancy','presence'].includes(c)) return on?'Motion':'Clear';
+    if(c==='moisture') return on?'Wet':'Dry';
+    if(['smoke','gas','carbon_monoxide','safety','sound','tamper','problem'].includes(c)) return on?'Detected':'Clear';
+    return on?'On':'Off';
+  }
+  return v?_ipCap(v):String(msg||'');
 }
 async function setEntHidden(hide){ const id=_devSheet&&_devSheet.entId; if(!id) return; try{ await snd({type:'config/entity_registry/update', entity_id:id, hidden_by: hide?'user':null}); toast(hide?'Hidden':'Now visible'); await loadSite(); renderEntityManage(id); rerenderConfig(); }catch(e){ toast("Couldn't update"); } }
 async function setEntDisabled(dis){ const id=_devSheet&&_devSheet.entId; if(!id) return; try{ await snd({type:'config/entity_registry/update', entity_id:id, disabled_by: dis?'user':null}); toast(dis?'Disabled':'Enabled'); await loadSite(); renderEntityManage(id); rerenderConfig(); }catch(e){ toast("Couldn't update"); } }
@@ -5549,6 +5934,7 @@ async function saveEntSettings(){
   const sa=document.getElementById('ent-showsas'); let saMsg=null;
   if(sa){ const t=sa.getAttribute('data-target'), v=(sa.value||'').trim();
     if(t===id) msg.device_class=v||null; else saMsg={type:'config/entity_registry/update', entity_id:t, device_class:v||null}; }
+  if(document.getElementById('ent-area')){ const av=gv('ent-area'); msg.area_id=av||null; }   // 714: the entity's own room, or none (its device's)
   if(document.getElementById('ent-prec')){ const pv=gv('ent-prec'); msg.options_domain='sensor'; msg.options={display_precision:(pv===''||pv==null)?null:Number(pv)}; }
   // (No entity-id rename here, ever — see the Entity ID ruling above.)
   document.getElementById('dev-actions').innerHTML='<div class="wiz-hint">Saving…</div>';
@@ -5806,6 +6192,7 @@ function _devPatchRow(eid){
   if(badge){ badge.textContent=String(st); badge.classList.toggle('live', !dead); }
   const rd=document.getElementById('trd_'+safe);
   if(rd){ const u=attrOf(eid,'unit_of_measurement')||''; rd.textContent=String(st)+(u?(' '+u):''); rd.classList.toggle('live', !dead); }
+  try{ _dpZonePatch(eid); }catch(e){}   // a zone's word follows the zone and its on/off twin (register 713)
   // The toggle IS the state, so the push that patches the pill turns it too —
   // including when something else in the house did the turning.
   const sw=document.getElementById('tsw_'+safe);
@@ -16192,6 +16579,8 @@ function v2AfterShow(panel){
     const hs=document.getElementById('hero-summary'); if(hs) hs.style.display='none';
   };
   _hideTp(); setTimeout(_hideTp,180);
+  // (Register 712 replaced this: there is now ONE Back, in the top bar, on every
+  // page below a section's root — see v2Back. The panel's own back stays hidden.)
   // Every section is one tap away on the rail, so a back button on a
   // one-click page is noise. Keep it only where there IS a parent: the room
   // detail (inside Home) and the commissioning wizard's steps.
@@ -16215,10 +16604,19 @@ function v2AfterShow(panel){
 // A REAL back stack: back always means "the page I was just on", never a
 // surprise detour. Falls back to the section root when history runs dry.
 let _v2hist=[];
+// GOING BACK IS NOT A NEW STEP (register 712, seen on the box): the device
+// page's own way back calls show(), and show() recorded the device page as a
+// step — so Back, Back went Front Door → Protect → Front Door. While a Back is
+// running, arriving at the previous page takes it off the stack instead.
+let _v2backing=false;
 const _v2showOrig=show;
 show=function(p){
-  if(_v2panel&&_v2panel!==p){ _v2hist.push(_v2panel); if(_v2hist.length>30) _v2hist.shift(); }
+  if(_v2panel&&_v2panel!==p){
+    if(_v2backing){ if(_v2hist[_v2hist.length-1]===p) _v2hist.pop(); }
+    else { _v2hist.push(_v2panel); if(_v2hist.length>30) _v2hist.shift(); }
+  }
   _v2showOrig(p); try{ v2AfterShow(p); }catch(e){}
+  try{ v2BackSync(); }catch(e){}
 };
 const _V2ROOTS={home:'health',hub:'hub',assist2:'assist2',systems:'systems',toolbox:'toolbox'};
 goHome=function(){
@@ -16231,6 +16629,43 @@ goHome=function(){
 };
 // the room hub's own back follows the same rule
 roomHubBack=function(){ goHome(); };
+// ── ONE BACK FOR ALL OF PRO (register 712) ─────────────────────────────────
+// Dave: "somewhere we need to have a back or previous button on every page but
+// uniform look so we can use it across Pro" — then "yes build each stage".
+// WHAT IT DOES, in order, because a page can be deep in three ways:
+//  1. a step INSIDE a page (a ProOS Music section, a genre opened) — its own
+//     in-page back, which still runs, now driven from here;
+//  2. a page whose way back is its own (the device page returns to the
+//     integration or room it came from; Conversations to Users; Nav Layout to
+//     Send to dashboard) — that page's own handler;
+//  3. anything else — the real back stack above (goHome), "the page I was
+//     just on". On a section's own root (Health, Home, Assist, Systems,
+//     Toolbox) there is nothing behind it, so the button is not drawn.
+// The in-page back buttons are hidden by CSS and still exist, so each keeps
+// the behaviour its page already had; the top bar decides only which one runs.
+function _v2InPageBack(){
+  const p=document.getElementById('panel-'+_v2panel); if(!p) return null;
+  const list=[...p.querySelectorAll('.back')].filter(b=>!b.closest('.panel-head') && b.parentElement && b.parentElement.offsetParent!==null);
+  return list.length ? list[list.length-1] : null;
+}
+function _v2HeadBack(){
+  const p=document.getElementById('panel-'+_v2panel); if(!p) return null;
+  const b=p.querySelector(':scope>.panel-head>.back');
+  const on=b&&b.getAttribute('onclick')||'';
+  return (b && !/^goHome\(\)$/.test(on.trim())) ? b : null;
+}
+function v2BackSync(){
+  const btn=document.getElementById('v2back'); if(!btn) return;
+  btn.hidden = !(_v2InPageBack() || !_V2ROOTS[_v2panel]);
+}
+function v2Back(){
+  const inPage=_v2InPageBack(); if(inPage){ _v2backing=true; try{ inPage.click(); }finally{ _v2backing=false; } setTimeout(v2BackSync,0); return; }
+  const head=_v2HeadBack(); if(head){ _v2backing=true; try{ head.click(); }finally{ _v2backing=false; } setTimeout(v2BackSync,0); return; }
+  goHome(); setTimeout(v2BackSync,0);
+}
+// A step inside a page opens without a page change, so the button re-checks
+// after every tap as well as on every page change.
+document.addEventListener('click', function(){ setTimeout(v2BackSync,0); }, true);
 
 // ── live sync: SSE + presence ──────────────────────────────────────────────
 function v2DevId(){ let id=localStorage.getItem('proosDevId'); if(!id){ id='d'+Math.random().toString(36).slice(2,10); localStorage.setItem('proosDevId',id); } return id; }
