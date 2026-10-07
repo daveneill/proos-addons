@@ -1710,7 +1710,11 @@ body[data-home-state="noticing"] .home-state-go,body[data-home-state="attention"
 .med-vol-pct{font-size:9px;color:rgba(255,255,255,0.50);min-width:22px;text-align:right;flex-shrink:0;font-variant-numeric:tabular-nums}
 .med-no-vol{display:none}
 /* ── SECURITY PAGE ── */
-.security-content{flex:1;padding:0 32px 16px;overflow-y:auto;scrollbar-width:none;display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.security-content{flex:1;padding:0 32px 16px;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;min-height:0;align-content:start;scrollbar-width:none;display:grid;grid-template-columns:1fr 1fr;gap:6px}
+/* 708 (Dave, 7 Oct 2026: "on mobile … the security cards I seem to be able to press with finger and move everything around the
+   screen they are not fixed"): the Security page scrolls like the Room page does — up and down only, its bounce kept inside
+   itself, and nothing in a card can widen the page. */
+.security-content>*{min-width:0}
 .security-content::-webkit-scrollbar{display:none}
 .alarm-strip{flex-shrink:0;border-radius:11px;padding:11px 16px;display:flex;align-items:center;gap:12px;border:0.5px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);transition:background .3s,border-color .3s}
 .alarm-strip.disarmed{background:rgba(76,175,130,.07);border-color:rgba(76,175,130,.25)}
@@ -4523,7 +4527,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026100618';
+const PROOS_BUILD='2026100619';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -12572,8 +12576,13 @@ const _ZONE_ICONS={
   zone:'<svg viewBox="0 0 24 24"><circle class="zi-dot" cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="8"/></svg>'
 };
 function _zonesHTML(eid){
-  const zs=_alarmZones(eid).map(z=>Object.assign({id:z},_zoneInfo(z)))
-    .sort((x,y)=>x.rank-y.rank||String(x.name).localeCompare(String(y.name)));
+  // 708 (Dave, 7 Oct 2026: "Zones need to stay where they are as moving active to start makes them jump all over the
+  // place"): ONE fixed order — the alarm's own zone number, else the name. Activity changes a tile's colour, icon and word,
+  // never its place.
+  const zs=_alarmZones(eid).map(z=>Object.assign({id:z, no:att(z,'index')},_zoneInfo(z)))
+    .sort((x,y)=>{ const a=typeof x.no==='number', b=typeof y.no==='number';
+      if(a&&b&&x.no!==y.no) return x.no-y.no; if(a!==b) return a?-1:1;
+      return String(x.name).localeCompare(String(y.name)); });
   if(!zs.length) return '';
   const notNormal=zs.filter(z=>z.rank<3);
   const tile=z=>`<div class="sec-zone ${z.cls}" data-zone="${_hEsc(z.id)}"><span class="sec-zone-ic zi-${z.kind}${z.active?' on':''}">${_ZONE_ICONS[z.kind]||_ZONE_ICONS.zone}</span>`
