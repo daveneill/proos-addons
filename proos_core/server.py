@@ -4974,6 +4974,10 @@ class Handler(BaseHTTPRequestHandler):
                     except Exception as e:                       # noqa: BLE001
                         return self._send(502, {"error": "the platform's picture did not come: %s" % str(e)[:160]})
                     return self._send_bytes(200, "image/jpeg", data, cache="private, max-age=604800, immutable")
+                # REGISTER 702: the record of the last talk sessions (no audio; what happened).
+                if parts[1:] == ["talk", "log"]:
+                    from proos import protecttalk as _pt
+                    return self._send(200, {"sessions": _pt.log(), "encoder": _pt.available()})
                 return self._send(404, {"error": "unknown camera route"})
             if parts == ["health"]:
                 # awareness rides along (3 Aug): the posture is a per-site
