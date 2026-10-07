@@ -4491,7 +4491,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026100612';
+const PROOS_BUILD='2026100613';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -13123,7 +13123,7 @@ function _paDoorbellSheet(camEntity){
   sh.querySelector('.pa-dbmsg-x').onclick=()=>sh.remove();
   sh.onclick=e=>{ if(e.target===sh) sh.remove(); };
 }
-function closeProtectCamera(){ const ov=document.getElementById('pa-detail'); if(ov) ov.style.display='none'; document.body.style.overflow=''; if(window._paScrub) window._paScrub.playing=false; if(_paDetailRTC){ try{ _paDetailRTC.cleanup(); }catch(e){} _paDetailRTC=null; } const v=document.getElementById('pa-det-vid'); if(v){ try{ v.pause(); v.onended=null; v.onerror=null; v.ontimeupdate=null; v.srcObject=null; v.removeAttribute('src'); v.load(); }catch(e){} } const rec=document.getElementById('pa-fs-rec'); if(rec) rec.remove(); if(_paDetailTimer){ clearInterval(_paDetailTimer); _paDetailTimer=null; } if(_paPipTimer){ clearInterval(_paPipTimer); _paPipTimer=null; } _paResumeGridVideos(); }
+function closeProtectCamera(){ const ov=document.getElementById('pa-detail'); if(ov) ov.style.display='none'; document.body.style.overflow=''; if(window._paScrub) window._paScrub.playing=false; if(_paDetailRTC){ try{ _paDetailRTC.cleanup(); }catch(e){} _paDetailRTC=null; } const v=document.getElementById('pa-det-vid'); if(v){ try{ v.pause(); v.onended=null; v.onerror=null; v.ontimeupdate=null; v.srcObject=null; v.removeAttribute('src'); v.load(); }catch(e){} } const rec=document.getElementById('pa-fs-rec'); if(rec) rec.remove(); try{ if(_paTalk) _paTalkEnd(); if(_proosApp()) _proosAppPost('listen:off'); }catch(e){} if(_paDetailTimer){ clearInterval(_paDetailTimer); _paDetailTimer=null; } if(_paPipTimer){ clearInterval(_paPipTimer); _paPipTimer=null; } _paResumeGridVideos(); }
 function _paDetailSwipe(ov){
   if(!ov || ov._swipe) return; ov._swipe=true;
   let sx=0, sy=0, active=false;
@@ -13204,9 +13204,17 @@ function _paOpenAndPlay(camIndex, camId, whenMs){
 // TALK: hold the button and speak. The microphone is read here, turned into 16-bit mono PCM at the camera's
 // own rate, and sent a slice at a time to Core, which opens the camera's talk session through Ubiquiti's
 // OFFICIAL API and streams it there (proos/protecttalk.py). Let go and it stops. Nothing is recorded.
+// 701 (Dave, 7 Oct 2026: "Assist works for the mic are they not linked ??" … "I want it all done properly"):
+// INSIDE THE APP the page is on a plain-http address, where the system never gives a page the microphone. So
+// in the app the APP's microphone is used — the same one Assist uses ("talk:start {rate}" / "talk:stop"); it
+// hands back 16-bit PCM at the camera's rate through window._paTalkPcm, and its refusal through
+// _paTalkFailed. Sound On tells the app too ("listen:on"/"listen:off"), so the device's audio is set up for
+// playing the camera, as the platform app's own camera player does. In a browser on plain http, Talk says it
+// needs a secure link — the same words Assist uses — instead of blaming the microphone.
 function _paListen(btn){
   const v=document.getElementById('pa-det-vid'); if(!v) return;
   v.muted=!v.muted; if(!v.muted){ try{ v.play(); }catch(e){} }
+  if(_proosApp()) _proosAppPost(v.muted?'listen:off':'listen:on');
   btn.classList.toggle('on', !v.muted); btn.querySelector('span').textContent=v.muted?'Sound Off':'Sound On';
 }
 let _paTalk=null;
@@ -13234,13 +13242,21 @@ async function _paTalkStart(ev, camName, btn){
   const t=_paTalk={btn, q:[], sid:null, rate:24000, released:false, sending:false};
   btn.classList.add('talking'); btn.querySelector('span').textContent='Talking…';
   try{ if(btn.setPointerCapture&&ev&&ev.pointerId!=null) btn.setPointerCapture(ev.pointerId); }catch(e){}
-  try{ t.stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}}); }
-  catch(e){ showToast('Talk needs the microphone — allow it for ProOS'); t.released=true; _paTalkFinish(t); return; }
+  t.app=_proosApp();
+  if(!t.app){
+    if(!window.isSecureContext){ showToast('Talk needs a secure link to your home'); t.released=true; _paTalkFinish(t); return; }
+    try{ t.stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}}); }
+    catch(e){ showToast('Talk needs the microphone — allow it for ProOS'); t.released=true; _paTalkFinish(t); return; }
+  }
   let r=null, d=null;
   try{ r=await fetch(proosCoreBase()+'/protect/talk/'+pcCam.id+'/start',{method:'POST'}); d=await r.json(); }catch(e){}
   if(!r||!r.ok||!d||!d.session){ showToast((d&&d.error)||'The camera did not answer'); t.released=true; _paTalkFinish(t); return; }
   t.sid=d.session; t.rate=d.rate||24000;
   if(t.released){ _paTalkFinish(t); return; }
+  if(t.app){
+    if(!_proosAppPost('talk:start '+JSON.stringify({rate:t.rate}))){ showToast('The app could not start the microphone'); t.released=true; _paTalkFinish(t); }
+    return;
+  }
   const AC=window.AudioContext||window.webkitAudioContext; t.ctx=new AC();
   t.src=t.ctx.createMediaStreamSource(t.stream); t.node=t.ctx.createScriptProcessor(2048,1,1);
   t.node.onaudioprocess=e=>{ if(t.released) return; t.q.push(_paResample(e.inputBuffer.getChannelData(0), t.ctx.sampleRate, t.rate)); _paTalkPump(t); };
@@ -13257,11 +13273,24 @@ function _paTalkFinish(t){
   if(t.finished) return; t.finished=true;
   try{ if(t.node){ t.node.onaudioprocess=null; t.node.disconnect(); } if(t.src) t.src.disconnect(); if(t.ctx) t.ctx.close(); }catch(e){}
   try{ if(t.stream) t.stream.getTracks().forEach(x=>x.stop()); }catch(e){}
+  if(t.app) _proosAppPost('talk:stop');
   if(t.sid) fetch(proosCoreBase()+'/protect/talk/'+t.sid+'/stop',{method:'POST'}).catch(()=>{});
   if(t.failed) showToast('The camera stopped listening');
   if(t.btn){ t.btn.classList.remove('talking'); const sp=t.btn.querySelector('span'); if(sp) sp.textContent='Hold to Talk'; }
   if(_paTalk===t) _paTalk=null;
 }
+// The app's microphone, while Talk is held (701): 16-bit mono PCM at the camera's rate, base64, a slice at a time.
+window._paTalkPcm=function(b64){
+  const t=_paTalk; if(!t||!t.app||t.released||!t.sid||!b64) return;
+  try{ const bin=atob(b64), n=bin.length>>1, out=new Int16Array(n);
+    for(let i=0;i<n;i++){ const v=bin.charCodeAt(2*i)|(bin.charCodeAt(2*i+1)<<8); out[i]=v>32767?v-65536:v; }
+    t.q.push(out); _paTalkPump(t); }catch(e){}
+};
+// The app could not listen: its own plain sentence (permission refused, no microphone).
+window._paTalkFailed=function(reason){
+  const t=_paTalk; if(!t||!t.app) return;
+  showToast(reason||'The app could not start the microphone'); t.released=true; if(!t.sending) _paTalkFinish(t);
+};
 
 async function fetchCamWS(entity){
   // Primary: HA's own camera_proxy URL via entity_picture (token included). This keeps working
