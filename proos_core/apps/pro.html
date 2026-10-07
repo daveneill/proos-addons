@@ -824,7 +824,7 @@ html.proos-has-bg #landing::before,html.proos-has-bg #proos-reboot::before,html.
 .dp-head{position:relative}
 .dp-acts{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;margin-left:auto}
 .dp-head .dcard{display:flex;align-items:center;flex-wrap:wrap;gap:12px;background:var(--card);border:0.5px solid var(--line-soft);border-radius:16px}
-.dp-head .dcard>.itile{flex:1 1 auto;background:none;border:0}
+.dp-head .dcard>.itile{flex:1 1 auto;background:transparent!important;border:0;box-shadow:none!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important}  /* 718: Pro's glass rule forced a tile inside the head card */
 .dp-head .dcard>.dp-acts{padding:0 18px 0 0}
 .dp-banner{display:flex;align-items:center;gap:12px;padding:10px 14px;margin:0 0 14px;border-radius:12px;background:rgba(33,57,240,0.10);border:0.5px solid rgba(33,57,240,0.35);font-size:13px}
 .dp-banner>span{flex:1}
@@ -2670,7 +2670,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026100818';
+const PROOS_BUILD='2026100819';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -4648,7 +4648,14 @@ function renderIntegration(dom){
   _curIntegration=dom;
   const t=document.getElementById('intg-title'); if(t) t.textContent=integrationName(dom)||'Integration';
   const host=document.getElementById('intg-devices'); if(!host) return;
-  setHTML(host, intgPageHTML(dom)); _ipLayout();
+  _ipKeep(dom); setHTML(host, intgPageHTML(dom)); _ipLayout();
+}
+// A redraw of the same page keeps every inner column where it was scrolled; a different page starts at the top.
+function _scrollKeep(sel){ return {at:[...document.querySelectorAll(sel)].map(el=>el.scrollTop), key:_scrollKeep._k&&_scrollKeep._k[sel]}; }
+function _scrollPut(sel, keep, key){
+  _scrollKeep._k=_scrollKeep._k||{};
+  if(keep && keep.key===key) [...document.querySelectorAll(sel)].forEach((el,i)=>{ if(keep.at[i]) el.scrollTop=keep.at[i]; });
+  _scrollKeep._k[sel]=key;
 }
 // ── THE STANDARD INTEGRATION PAGE (register 710, Dave 7 Oct 2026) ──────────
 // Dave, on the mockups: "Thats so much better .. as long as we have all the
@@ -4911,7 +4918,11 @@ function _fitActive(){
   if(window.visualViewport) window.visualViewport.addEventListener('resize', go);
   try{ const ro=new ResizeObserver(go); const hook=()=>{ const sc=document.querySelector('.scroll'); if(sc) ro.observe(sc); else setTimeout(hook,500); }; hook(); }catch(e){}
 })();
-function _ipLayout(){ _fitCols(document.querySelector('#intg-devices .ip-body')); }
+const _IP_SCROLL='#intg-devices .ip-list, #intg-devices .ip-side';
+let _ipPending=null;
+function _ipKeep(dom){ _ipPending={keep:_scrollKeep(_IP_SCROLL), key:dom}; }
+function _ipLayout(){ _fitCols(document.querySelector('#intg-devices .ip-body'));
+  if(_ipPending){ _scrollPut(_IP_SCROLL, _ipPending.keep, _ipPending.key); _ipPending=null; } }
 function ipSearch(v){ _ip.q=String(v||''); _ipPaint(); }
 function ipKind(k){ _ip.kind=k; _ipPaint(); }
 function ipGroup(){ _ip.group=_ip.group==='room'?'type':'room'; _ipPaint(); }
@@ -5059,7 +5070,16 @@ function rerenderConfig(){
   // and the device page itself, which is now reachable from all of them.
   if(panelActive('unifi')){ const _ae=document.activeElement; if(!(_ae && /^unifi-/.test(_ae.id||''))) renderUnifi(); }
   if(panelActive('music')) certMirror('music-mirror','music_assistant',{label:true,name:'Devices &amp; entities'});
-  if(panelActive('device') && _devSheet && _devSheet.id) renderDeviceManage(_devSheet.id);
+  // REGISTER 718 (Dave, 8 Oct: "each time i press on show or hide it drops to the previous page"). The
+  // sensor page, Rename, the power timeline and Remove all open INSIDE the device page, and this line
+  // redrew the device page over whichever was showing — after every save, every registry change anywhere
+  // in the house, and every return to the app. It now redraws the page that is actually on screen, and
+  // leaves a step it cannot redraw (Rename, the power timeline, Remove) exactly as it is.
+  if(panelActive('device') && _devSheet && _devSheet.id){
+    const _db=document.getElementById('dev-body');
+    if(_db && _db.querySelector('#sp-cols') && _devSheet.entId) renderEntityManage(_devSheet.entId);
+    else if(_db && _db.querySelector('#dp-cols')) renderDeviceManage(_devSheet.id);
+  }
   if(panelActive('manage')){ renderReadiness(); renderManageRooms(); }
   ['rooms','activities','automations','scripts'].forEach(n=>{ if(panelActive(n)) renderSection(n); });
   // The three panels this dispatcher historically missed — the Home page's
@@ -5352,6 +5372,7 @@ function renderDeviceManage(deviceId){
   // same rule .grid-4 / .itile-grid / .sys-grid use — so the device page lines
   // up with the Integrations grid rather than inventing a shape of its own.
   const d=_devices.find(x=>x.id===deviceId); if(!d){ closeDeviceSheet(); return; }
+  _dpPending={keep:_scrollKeep('#dev-body .dp-col'), key:deviceId};   // 718: a redraw keeps each column where you had it
   _devSheet={id:deviceId, testId:deviceId};   // the page IS the bench: it polls itself
   const intg=integrationName(_devIntg[d.id])||'';
   const room = deviceRoomName(d);
@@ -5687,7 +5708,11 @@ function _dpZoneKind(z){
 }
 function _dpZoneWord(z){
   const tw=_dpTwin(z), ts=tw&&!tw.disabled_by?String(stState(tw.entity_id)):'';
-  if(ts==='on'||ts==='off') return {w:_ipBin(tw.entity_id), a:ts==='on'};
+  // The on/off part speaks only once it has a kind (Shows As, or the integration's own): "Open", "Motion".
+  // Without one it would say a bare "On / Off" — seen on the box the moment the 26 were turned on — so the
+  // panel's own word (Normal / Violated) stays until a kind is set (register 718).
+  const tc=tw?(attrOf(tw.entity_id,'device_class')||tw.device_class||tw.original_device_class||''):'';
+  if((ts==='on'||ts==='off') && _DP_ZKIND[tc]) return {w:_ipBin(tw.entity_id), a:ts==='on'};
   const st=String(stState(z.entity_id));
   if(st==='unavailable') return {w:'No Signal', a:true};
   if(st==='unknown') return {w:'', a:false};
@@ -5746,10 +5771,12 @@ function _dpPageHTML(cols, G, Z, deviceId){
 // THE COLUMNS ARE ONE HEIGHT: from where they start to the bottom of the
 // screen, each scrolling inside itself. A phone has one column, so it scrolls
 // as a page.
+let _dpPending=null;
 function _dpLayout(){
   const el=document.getElementById('dp-cols'); if(!el) return;
   _dpApplyFilter();
   _fitCols(el);
+  if(_dpPending){ _scrollPut('#dev-body .dp-col', _dpPending.keep, _dpPending.key); _dpPending=null; }
 }
 function _dpApplyFilter(){
   const el=document.getElementById('dp-cols'); if(!el) return;
@@ -5991,10 +6018,12 @@ function renderEntityManage(entityId){
   const hist=`<div class="bld-sec-h">Today</div><div id="sp-hist"><div class="ip-kv"><span>Reading…</span></div></div>`
     +(attrs.length?`<div class="bld-sec-h sp-gap">Details</div>`+attrs.map(k=>`<div class="ip-kv"><span>${esc(_ipCap(k))}</span><span class="rsub">${esc(String(A[k]))}</span></div>`).join(''):'')
     +(_sa&&_sa!==entityId?`<div class="bld-sec-h sp-gap">This Zone Is Made of Two Parts</div><div class="wiz-hint sp-note">The panel’s status (${esc(_ipCap(ls)||'Normal')}) and its on/off sensor. They share one identity, so they are shown and set as one zone. Shows As is kept on the on/off part — the platform’s own setting.</div>`:'');
+  const _keep=_scrollKeep('#dev-body .sp-cols>section');   // tapping Hidden low in the settings does not jump to the top
   setHTML(document.getElementById('dev-body'),
     `<button class="back" onclick="renderDeviceManage(_devSheet.id)">‹ ${esc(d?devName(d):'Device')}</button>`
     +`<div class="sp-cols" id="sp-cols"><section class="sp-a">${left}</section><section class="sp-form">${form}</section><section class="sp-hist">${hist}</section></div>`);
   setHTML(document.getElementById('dev-actions'), '');
+  _scrollPut('#dev-body .sp-cols>section', _keep, entityId);
   _spLayout();
   _spHistory(entityId);
 }
