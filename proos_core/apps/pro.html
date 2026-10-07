@@ -862,6 +862,16 @@ html.proos-has-bg #landing::before,html.proos-has-bg #proos-reboot::before,html.
   .dp-acts{margin-left:0;justify-content:flex-start}
   .dp-banner{flex-direction:column;align-items:stretch}
 }
+/* ── THE STANDARD INTEGRATIONS PAGE (register 715) — Integrations.dc.html ──── */
+.il-head{display:flex;align-items:flex-end;gap:16px;margin:0 0 14px}
+.il-head>div{flex:1}
+.il-hide{display:none!important}
+.il-grp.il-shut .itile-grid{display:none}
+#lib-flows.il-shut2{display:none}
+.il-gh .il-ct{color:var(--t3)}
+.il-fold{cursor:pointer}
+.il-fold::after{content:"\203a";margin-left:6px;display:inline-block;transition:transform .2s}
+.il-fold.open::after{transform:rotate(90deg)}
 /* ── THE STANDARD SENSOR PAGE (register 714) — Sensor.dc.html ───────────────
    Left: what it is now and today's history; right: every setting. One height
    (Dave: "all columns need to be same height"). Mac left : 520px, iPad half and
@@ -1763,13 +1773,22 @@ body.aws-open .v2tabs{display:none!important}
         <button class="back" onclick="goHome()">‹ Back</button>
         <div class="panel-title">Integrations</div>
       </div>
-      <div class="section-label" style="margin-top:2px">Discovered</div>
-      <div id="lib-flows"><div class="empty"><div class="et">Checking for new devices…</div></div></div>
-      <button class="btn-primary" onclick="openAddIntegration()" style="margin:14px 0 4px">+ Add Integration</button>
-      <div class="section-label">ProOS Certified</div>
-      <div id="lib-certified"></div>
-      <div class="section-label">Configured</div>
+      <!-- THE STANDARD INTEGRATIONS PAGE (register 715, Integrations.dc.html): a head with Add
+           Integration, one search across integrations, devices and entities, chips by group, then the
+           groups — Your Systems, Phones & Tablets, Platform Services (folded) — with Discovered and the
+           certified ones still to add exactly where they were. -->
+      <div class="il-head"><div><div class="rsub">Systems</div><div class="ip-title">Integrations</div></div>
+        <button type="button" class="ip-btn p" onclick="openAddIntegration()">Add Integration</button></div>
+      <div class="ip-tools"><label class="ip-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4-4"/></svg>
+        <input id="il-q" type="search" placeholder="Search integrations, devices, entities" aria-label="Search everything" oninput="ilSearch(this.value)" autocomplete="off"></label>
+        <div class="ip-chips" id="il-chips"></div></div>
       <div id="lib-configured"></div>
+      <!-- Discovered sits under what is installed (seen on the box: 46 discovered tiles pushed every installed
+           system off the screen), and folds on its heading when it is long. -->
+      <div class="section-label il-sec il-fold" id="il-disc-h" onclick="ilToggleDisc()">Discovered <span class="il-ct" id="il-disc-ct"></span></div>
+      <div id="lib-flows"><div class="empty"><div class="et">Checking for new devices…</div></div></div>
+      <div class="section-label il-sec">ProOS Certified · Ready to Add</div>
+      <div id="lib-certified"></div>
     </div>
 
     <!-- MANAGE -->
@@ -2643,7 +2662,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026100715';
+const PROOS_BUILD='2026100817';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -4283,7 +4302,7 @@ function renderConfigured(){
     const _tech=!!(_me.tech||_me.owner)&&!_previewAsInstaller;
     const _pub=isCertified(dom)?'':(_catPublished&&_catPublished.has(dom)?'Published':'Not published');
     const _pubBtn=_tech&&!isCertified(dom)?`<button class="btn-ghost itile-pub${_catPublished&&_catPublished.has(dom)?' on':''}" onclick="event.stopPropagation();tilePublishToggle('${esc(dom)}',this)">${_catPublished&&_catPublished.has(dom)?'Published':'Publish'}</button>`:'';
-    return `<div class="itile${attN?' att':''}" onclick="openIntegration('${esc(dom)}')"><div class="itile-ico">${intgLogo(dom)}</div><div class="itile-foot"><div class="itile-body"><div class="itile-nm">${esc(integrationName(dom))}${isCertified(dom)?'<span class="cert-pill">CERTIFIED</span>':''}</div><div class="itile-sub">${_what}${u?` · <span style="color:var(--accent)">${u} to add</span>`:''}${_stSub}${ctrlSub}${attSub}${_bldSub}${_tech&&_pub?` · <span class="itile-pubst${_pub==='Published'?' on':''}">${_pub} · installers ${_pub==='Published'?'see this':'don\u2019t see this'}</span>`:''}</div></div><div class="itile-act">${_pubBtn}<span class="itile-chev">&rsaquo;</span></div></div></div>`; }).join('');
+    return `<div class="itile${attN?' att':''}" data-g="${_ilGroup(dom,n)}" data-att="${(attN||_badN)?1:0}" data-hay="${esc(_ilHay(dom))}" onclick="openIntegration('${esc(dom)}')"><div class="itile-ico">${intgLogo(dom)}</div><div class="itile-foot"><div class="itile-body"><div class="itile-nm">${esc(integrationName(dom))}${isCertified(dom)?'<span class="cert-pill">CERTIFIED</span>':''}</div><div class="itile-sub">${_what}${u?` · <span style="color:var(--accent)">${u} to add</span>`:''}${_stSub}${ctrlSub}${attSub}${_bldSub}${_tech&&_pub?` · <span class="itile-pubst${_pub==='Published'?' on':''}">${_pub} · installers ${_pub==='Published'?'see this':'don\u2019t see this'}</span>`:''}</div></div><div class="itile-act">${_pubBtn}<span class="itile-chev">&rsaquo;</span></div></div></div>`; }).join('');
   if(maActive()){
     tiles = `<div class="itile" onclick="openMusic()"><div class="itile-ico">${proosLogoIcon()}</div><div class="itile-foot"><div class="itile-body"><div class="itile-nm">ProOS Music<span class="cert-pill">CERTIFIED</span></div><div class="itile-sub">Connected · room speakers</div></div><div class="itile-act"><span class="itile-chev">&rsaquo;</span></div></div></div>` + tiles;
   }
@@ -4299,7 +4318,91 @@ function renderConfigured(){
   lc.innerHTML = (doms.length||maActive()||ahPublished()||unifiActive())
     ? `<div class="itile-grid">`+tiles+`</div>`
     : '<div class="empty"><div class="et">No supported integrations yet</div><div class="es">Set-up integrations appear here.</div></div>';
+  _ilArrange(lc);
 }
+// ── THE STANDARD INTEGRATIONS PAGE (register 715) ──────────────────────────
+// Dave approved Integrations.dc.html: "go for it for all integrations/device
+// pages". The tiles are the ones this page already drew — every word, badge,
+// build and Publish button on them is unchanged; each now says which group it
+// belongs in, and the page sorts them into those groups and lets one search
+// find an integration by its own name or by any of its devices or entities.
+const _IL_PLATFORM=new Set(['hassio','bluetooth','thread','otbr','sun','met','backup','go2rtc','cloud','analytics','radio_browser','shopping_list','google_translate','mobile_app_notify']);
+const _IL_GROUPS=[['systems','Your Systems'],['phones','Phones & Tablets'],['services','Platform Services']];
+let _ilChip='all', _ilQ='', _ilOpenServices=false;
+function _ilGroup(dom, n){
+  if(dom==='mobile_app') return 'phones';
+  if(!n || _IL_PLATFORM.has(dom)) return 'services';
+  return 'systems';
+}
+function _ilHay(dom){
+  const devs=(_devices||[]).filter(d=>_devIntg[d.id]===dom);
+  const ents=(_ents||[]).filter(e=>e.platform===dom);
+  return [integrationName(dom), dom].concat(devs.map(d=>devName(d)+' '+(d.model||''))).concat(ents.map(e=>entName(e.entity_id))).join(' ').toLowerCase();
+}
+function _ilArrange(lc){
+  const grid=lc.querySelector('.itile-grid'); if(!grid) return;
+  const tiles=[...grid.children];
+  // The certified tiles drawn above the generic ones (Music, Apple Home, Protect)
+  // are systems; they carry no group of their own.
+  tiles.forEach(t=>{ if(!t.getAttribute('data-g')){ t.setAttribute('data-g','systems'); t.setAttribute('data-hay', t.textContent.toLowerCase()); t.setAttribute('data-att','0'); } });
+  // Phones & tablets are their DEVICES — each app login is a phone or tablet
+  // the installer will look for by its name — and each opens its device page.
+  // …and the Mobile App integration's own tile is not drawn beside them: it would say the same nine
+  // devices twice (seen on the box). With no app logins yet, it stays, so setup is still reachable.
+  const _phones=(_devices||[]).filter(d=>_devIntg[d.id]==='mobile_app');
+  if(_phones.length){ const i=tiles.findIndex(t=>/openIntegration\('mobile_app'\)/.test(t.getAttribute('onclick')||'')); if(i>=0) tiles.splice(i,1); }
+  _phones.sort((a,b)=>devName(a).localeCompare(devName(b))).forEach(d=>{
+    const el=document.createElement('div'); el.className='itile'; el.setAttribute('data-g','phones'); el.setAttribute('data-att','0');
+    el.setAttribute('data-hay',(devName(d)+' '+(d.model||'')+' '+(d.manufacturer||'')).toLowerCase());
+    el.setAttribute('onclick',"openDeviceManage('"+esc(d.id)+"')");
+    el.innerHTML=`<div class="itile-ico">${intgLogo('mobile_app')}</div><div class="itile-foot"><div class="itile-body"><div class="itile-nm">${esc(devName(d))}</div>`
+      +`<div class="itile-sub">${esc([d.manufacturer,d.model].filter(Boolean).join(' ')||'ProOS app')}</div></div><div class="itile-act"><span class="itile-chev">&rsaquo;</span></div></div>`;
+    tiles.push(el);
+  });
+  let html='';
+  _IL_GROUPS.forEach(([g,label])=>{
+    if(!tiles.some(t=>t.getAttribute('data-g')===g)) return;
+    html+=`<div class="il-grp" data-g="${g}"><div class="section-label il-gh${g==='services'?' il-fold':''}${g==='services'&&_ilOpenServices?' open':''}"${g==='services'?' onclick="ilToggleServices()"':''}>${esc(label)} <span class="il-ct"></span></div><div class="itile-grid"></div></div>`;
+  });
+  lc.innerHTML=html;
+  tiles.forEach(t=>{ const host=lc.querySelector('.il-grp[data-g="'+t.getAttribute('data-g')+'"] .itile-grid'); if(host) host.appendChild(t); });
+  ilApply();
+}
+function ilApply(){
+  const lc=document.getElementById('lib-configured'); if(!lc) return;
+  const q=_ilQ.trim().toLowerCase();
+  const all=[...lc.querySelectorAll('.itile')];
+  const match=t=>!q || (t.getAttribute('data-hay')||'').indexOf(q)>=0;
+  const ct={all:0,systems:0,phones:0,services:0,need:0};
+  all.forEach(t=>{ if(!match(t)) return; ct.all++; ct[t.getAttribute('data-g')]++; if(t.getAttribute('data-att')==='1') ct.need++; });
+  all.forEach(t=>{ const g=t.getAttribute('data-g');
+    const on=match(t) && (_ilChip==='all' || (_ilChip==='need'?t.getAttribute('data-att')==='1':g===_ilChip));
+    t.classList.toggle('il-hide',!on); });
+  lc.querySelectorAll('.il-grp').forEach(grp=>{
+    const g=grp.getAttribute('data-g'); const n=grp.querySelectorAll('.itile:not(.il-hide)').length;
+    grp.classList.toggle('il-hide', !n);
+    const c=grp.querySelector('.il-ct'); if(c) c.textContent='\u00b7 '+n;
+    // Platform Services stay folded unless opened, chosen, or searched for.
+    grp.classList.toggle('il-shut', g==='services' && !_ilOpenServices && _ilChip!=='services' && !q);
+  });
+  // Discovered and Ready to Add belong to "All" — a chip or a search narrows to the installed ones.
+  const narrow=(_ilChip!=='all'||!!q);
+  document.querySelectorAll('#panel-library .il-sec, #lib-flows, #lib-certified').forEach(el=>el.classList.toggle('il-hide', narrow));
+  const chips=document.getElementById('il-chips'); if(!chips) return;
+  const chip=(k,label,n,warn)=>`<button type="button" class="ip-chip${_ilChip===k?' on':''}${warn&&n?' warn':''}" onclick="ilChip('${k}')">${esc(label)} <b>${n}</b></button>`;
+  setHTML(chips, chip('all','All',ct.all)+_IL_GROUPS.filter(([g])=>ct[g]||_ilChip===g).map(([g,l])=>chip(g,l,ct[g])).join('')+chip('need','Needs Attention',ct.need,true));
+}
+let _ilOpenDisc=null;   // null = decide by length: open when 8 or fewer
+function ilToggleDisc(){ const lf=document.getElementById('lib-flows'); _ilOpenDisc=!(lf&&!lf.classList.contains('il-shut2')); ilDiscApply(); }
+function ilDiscApply(){
+  const lf=document.getElementById('lib-flows'), h=document.getElementById('il-disc-h'); if(!lf||!h) return;
+  const n=lf.querySelectorAll('.itile').length; const c=document.getElementById('il-disc-ct'); if(c) c.textContent=n?('\u00b7 '+n):'';
+  const open=_ilOpenDisc===null ? n<=8 : _ilOpenDisc;
+  lf.classList.toggle('il-shut2', !open); h.classList.toggle('open', open);
+}
+function ilSearch(v){ _ilQ=String(v||''); ilApply(); }
+function ilChip(k){ _ilChip=k; ilApply(); }
+function ilToggleServices(){ _ilOpenServices=!_ilOpenServices; const h=document.querySelector('#lib-configured .il-grp[data-g="services"] .il-gh'); if(h) h.classList.toggle('open',_ilOpenServices); ilApply(); }
 let _unifiStatus=null;
 function unifiActive(){ return !!(_unifiStatus && (_unifiStatus.status==='ok' || (_unifiStatus.native&&_unifiStatus.native.configured) || (_unifiStatus.private&&_unifiStatus.private.configured))); }
 async function loadCertifiedStatus(){ await fetchMaIntegration(); try{ _ahBridge=await ahFindBridge(); }catch(e){ _ahBridge=null; } try{ const r=await fetch(proCoreUrl()+'/unifi/status'); _unifiStatus=r.ok?await r.json():null; }catch(e){ _unifiStatus=null; } renderConfigured(); renderCertified(); }
@@ -4760,13 +4863,47 @@ function _ipPaint(){
 // The list and the side panel are one height, to the bottom of the screen,
 // each scrolling inside itself (Dave, 7 Oct: "all columns need to be same
 // height"). A phone has no side panel and scrolls as a page.
-function _ipLayout(){
-  const el=document.querySelector('#intg-devices .ip-body'); if(!el) return;
+// ── THE PAGE NEVER SCROLLS; ITS COLUMNS DO (register 716) ──────────────────
+// Dave, 8 Oct 2026, on 859: "columns need to always size per device or
+// orientation and the contents scrolls I think contents should be the only
+// scrolls not the page as its confusing with a lot of content".
+// READ ON THE BOX FIRST: the device page's scroll area was 634 px and held
+// 984 px — the columns were sized to the whole window, not to the part of the
+// screen under Pro's top bar, and a 420 px floor pushed short screens over.
+// So the columns are sized to what the page's own scroll area has left, with
+// no floor, then checked: if the page would still scroll by any amount (a
+// banner, a margin), they give that amount back. A phone has one column and
+// scrolls as a page, as before.
+function _fitCols(el, tries){
+  if(!el) return;
   if(window.innerWidth<=700){ el.style.height=''; return; }
-  const sc=document.querySelector('.scroll'); const top=el.getBoundingClientRect().top+(sc?sc.scrollTop:0);
-  el.style.height=Math.max(420, Math.round(window.innerHeight-top-24))+'px';
+  // Drawn before its page is shown (the device page is painted, THEN shown —
+  // seen on the box: the first open measured nothing and the page scrolled
+  // 968 / 634). A hidden page has no size yet, so it waits until it has one.
+  if(el.offsetParent===null){ if((tries||0)<20) setTimeout(()=>_fitCols(el,(tries||0)+1),50); return; }
+  const sc=el.closest('.scroll')||document.querySelector('.scroll'); if(!sc) return;
+  const pad=parseFloat(getComputedStyle(sc).paddingBottom)||0;
+  const top=el.getBoundingClientRect().top-sc.getBoundingClientRect().top+sc.scrollTop;
+  let h=Math.floor(sc.clientHeight-pad-top);
+  el.style.height=Math.max(160,h)+'px';
+  const over=sc.scrollHeight-sc.clientHeight;
+  if(over>0){ h=Math.max(160,h-over); el.style.height=h+'px'; }
 }
-window.addEventListener('resize', function(){ try{ if(panelActive('integration')) _ipLayout(); }catch(e){} });
+// One watcher for all three pages: the screen turning, the Mac window moving,
+// a browser bar appearing — anything that changes the page's own size.
+function _fitActive(){
+  try{
+    if(panelActive('integration')) _fitCols(document.querySelector('#intg-devices .ip-body'));
+    if(panelActive('device')) _fitCols(document.getElementById('dp-cols')||document.getElementById('sp-cols'));
+  }catch(e){}
+}
+(function(){
+  let t=0; const go=()=>{ clearTimeout(t); t=setTimeout(_fitActive,60); };
+  window.addEventListener('resize', go); window.addEventListener('orientationchange', go);
+  if(window.visualViewport) window.visualViewport.addEventListener('resize', go);
+  try{ const ro=new ResizeObserver(go); const hook=()=>{ const sc=document.querySelector('.scroll'); if(sc) ro.observe(sc); else setTimeout(hook,500); }; hook(); }catch(e){}
+})();
+function _ipLayout(){ _fitCols(document.querySelector('#intg-devices .ip-body')); }
 function ipSearch(v){ _ip.q=String(v||''); _ipPaint(); }
 function ipKind(k){ _ip.kind=k; _ipPaint(); }
 function ipGroup(){ _ip.group=_ip.group==='room'?'type':'room'; _ipPaint(); }
@@ -5604,11 +5741,8 @@ function _dpPageHTML(cols, G, Z, deviceId){
 function _dpLayout(){
   const el=document.getElementById('dp-cols'); if(!el) return;
   _dpApplyFilter();
-  if(window.innerWidth<=700){ el.style.height=''; return; }
-  const sc=document.querySelector('.scroll'); const top=el.getBoundingClientRect().top+(sc?sc.scrollTop:0);
-  el.style.height=Math.max(420, Math.round(window.innerHeight-top-24))+'px';
+  _fitCols(el);
 }
-window.addEventListener('resize', function(){ try{ if(panelActive('device')) _dpLayout(); }catch(e){} });
 function _dpApplyFilter(){
   const el=document.getElementById('dp-cols'); if(!el) return;
   const q=_dpQ.trim().toLowerCase();
@@ -5861,13 +5995,7 @@ const _SP_KINDS=[['door','Door'],['window','Window'],['garage_door','Garage Door
 function spKind(c){ const s=document.getElementById('ent-showsas'); if(!s) return; s.value=(s.value===c)?'':c; spKindSync(); }
 function spKindSync(){ const s=document.getElementById('ent-showsas'); if(!s) return;
   document.querySelectorAll('#dev-body .sp-k').forEach(b=>{ b.classList.toggle('on', b.getAttribute('data-c')===s.value); if(s.value) b.classList.remove('dflt'); }); }
-function _spLayout(){
-  const el=document.getElementById('sp-cols'); if(!el) return;
-  if(window.innerWidth<=700){ el.style.height=''; return; }
-  const sc=document.querySelector('.scroll'); const top=el.getBoundingClientRect().top+(sc?sc.scrollTop:0);
-  el.style.height=Math.max(460, Math.round(window.innerHeight-top-24))+'px';
-}
-window.addEventListener('resize', function(){ try{ if(document.getElementById('sp-cols')) _spLayout(); }catch(e){} });
+function _spLayout(){ _fitCols(document.getElementById('sp-cols')); }
 // Today, from the platform's own logbook — the call the popup and the device page already make.
 async function _spHistory(eid){
   let lb=[];
@@ -6509,7 +6637,7 @@ function renderDiscoveredFlows(){
   const tile=f=>`<div class="itile"><div class="itile-ico">${intgLogo(f.handler)}</div><div class="itile-foot"><div class="itile-body"><div class="itile-nm">${esc(flowName(f))}</div><div class="itile-sub">${esc(integrationName(f.handler))}</div></div><div class="itile-act"><button class="itile-skip" onclick="skipFlow('${f.flow_id}')">Ignore</button><button class="itile-add" onclick="addFlow('${f.flow_id}')">Add</button></div></div></div>`;
   const ignoredTile=e=>`<div class="itile"><div class="itile-ico">${intgLogo(e.domain)}</div><div class="itile-foot"><div class="itile-body"><div class="itile-nm">${esc(e.title||integrationName(e.domain))}</div><div class="itile-sub">${esc(integrationName(e.domain))} · ignored</div></div><div class="itile-act"><button class="itile-skip" onclick="restoreFlow('${esc(e.entry_id)}')">Stop ignoring</button></div></div></div>`;
   let h='';
-  if(!visible.length && !hidden.length){ host.innerHTML='<div class="empty"><div class="et">No new devices</div><div class="es">Devices found on the network appear here to add.</div></div>'; return; }
+  if(!visible.length && !hidden.length){ host.innerHTML='<div class="empty"><div class="et">No new devices</div><div class="es">Devices found on the network appear here to add.</div></div>'; try{ ilDiscApply(); }catch(e){} return; }
   if(visible.length>=3) h+=`<button class="btn-ghost" style="margin:0 0 10px" onclick="skipAllFlows()">Ignore all (${visible.length})</button>`;
   if(visible.length) h+=`<div class="itile-grid">`+visible.map(tile).join('')+`</div>`;
   else if(!_showIgnoredFlows) h+='<div class="empty"><div class="et">No new devices</div><div class="es">Devices found on the network appear here to add.</div></div>';
@@ -6518,6 +6646,7 @@ function renderDiscoveredFlows(){
     if(_showIgnoredFlows) h+=`<div class="itile-grid">`+hidden.map(ignoredTile).join('')+`</div>`;
   }
   host.innerHTML=h;
+  try{ ilDiscApply(); }catch(e){}   // 715: the count on its heading, and folded when long
 }
 async function skipAllFlows(){
   const all=[..._flows]; let n=0;
