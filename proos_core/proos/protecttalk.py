@@ -21,6 +21,13 @@ Hearing the camera needs nothing here: the platform's live view already carries 
 microphone; the page un-mutes it.
 
 Nothing is recorded or kept: audio passes from the request straight into ffmpeg's input.
+
+REGISTER 702 — A RECORD OF EVERY TALK SESSION (Dave, 7 Oct 2026: voice "not reaching the door" sometimes).
+The audio is never kept, but what HAPPENED is: the last LOG_KEEP sessions, each with when it opened, the
+camera's address and codec, how many slices and bytes arrived, the longest gap between slices, how it ended
+(stopped / went quiet / encoder gone), the encoder's exit code and its last words. ffmpeg's error output was
+thrown away before, so a session that failed said nothing at all. log() serves the record (GET
+/protect/talk/log); it holds no audio and no names of people.
 """
 from __future__ import annotations
 
@@ -30,6 +37,7 @@ import shutil
 import subprocess
 import threading
 import time
+from collections import deque
 
 IDLE = 4.0              # s without audio before a session is closed (plumbing)
 MAX_SESSIONS = 4        # talk sessions at once on one box (plumbing)
@@ -37,6 +45,8 @@ _CODECS = {"opus": ["-c:a", "libopus", "-b:a", "48k", "-application", "voip", "-
            "aac": ["-c:a", "aac", "-b:a", "64k"]}
 _URL = re.compile(r"^rtp://[0-9A-Za-z.\-\[\]:]+:\d{2,5}$")
 
+LOG_KEEP = 20           # sessions kept in the record (plumbing)
+_log: deque = deque(maxlen=LOG_KEEP)
 _lock = threading.Lock()
 _sessions: dict = {}     # id -> {"proc", "cam", "rate", "last"}
 _reaper = {"t": None}
@@ -79,10 +89,16 @@ def start(client, camera_id: str, popen=subprocess.Popen) -> dict:
     info = client.talkback(camera_id) or {}
     url, codec, rate = info.get("url"), info.get("codec"), info.get("samplingRate") or 24000
     args = ffmpeg_args(url, codec, rate)
-    proc = popen(args, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    proc = popen(args, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
     sid = secrets.token_hex(8)
+    now = time.time()
+    rec = {"session": sid, "camera": camera_id, "address": url, "codec": codec, "rate": int(rate),
+           "opened": now, "slices": 0, "bytes": 0, "longest_gap_s": 0.0, "first_audio_s": None,
+           "ended": None, "how": None, "encoder_exit": None, "encoder_said": ""}
+    _watch_stderr(proc, rec)
     with _lock:
-        _sessions[sid] = {"proc": proc, "cam": camera_id, "rate": int(rate), "last": time.time()}
+        _sessions[sid] = {"proc": proc, "cam": camera_id, "rate": int(rate), "last": now, "rec": rec}
+        _log.append(rec)
     _ensure_reaper()
     return {"session": sid, "rate": int(rate), "codec": codec, "idle": IDLE}
 
@@ -92,7 +108,16 @@ def audio(sid: str, pcm: bytes) -> None:
         s = _sessions.get(sid)
         if not s:
             raise TalkError(404, "that talk session has ended")
-        s["last"] = time.time()
+        now = time.time()
+        rec = s.get("rec")
+        if rec is not None and pcm:
+            if rec["slices"]:
+                rec["longest_gap_s"] = round(max(rec["longest_gap_s"], now - s["last"]), 3)
+            else:
+                rec["first_audio_s"] = round(now - rec["opened"], 3)
+            rec["slices"] += 1
+            rec["bytes"] += len(pcm)
+        s["last"] = now
         proc = s["proc"]
     if not pcm:
         return
@@ -100,20 +125,57 @@ def audio(sid: str, pcm: bytes) -> None:
         proc.stdin.write(pcm)
         proc.stdin.flush()
     except Exception:  # noqa: BLE001 — the encoder went away: the session is over
-        stop(sid)
+        stop(sid, how="encoder gone")
         raise TalkError(410, "the camera stopped listening")
 
 
-def stop(sid: str) -> bool:
+def stop(sid: str, how: str = "stopped") -> bool:
     with _lock:
         s = _sessions.pop(sid, None)
     if not s:
         return False
-    _close(s["proc"])
+    _close(s["proc"], s.get("rec"), how)
     return True
 
 
-def _close(proc) -> None:
+def _close(proc, rec=None, how: str = "stopped") -> None:
+    try:
+        _close_proc(proc)
+    finally:
+        if rec is not None:
+            rec["ended"] = time.time()
+            rec["how"] = how
+            try:
+                rec["encoder_exit"] = proc.poll() if hasattr(proc, "poll") else None
+            except Exception:  # noqa: BLE001
+                pass
+
+
+def _watch_stderr(proc, rec) -> None:
+    """Keep the encoder's last words (its error output) on the session's record."""
+    err = getattr(proc, "stderr", None)
+    if err is None or not hasattr(err, "readline"):
+        return
+
+    def run():
+        try:
+            for line in iter(err.readline, b""):
+                rec["encoder_said"] = (rec["encoder_said"] + line.decode("utf-8", "replace"))[-400:]
+        except Exception:  # noqa: BLE001
+            pass
+    threading.Thread(target=run, name="protect-talk-err", daemon=True).start()
+
+
+def log() -> list:
+    """The record of the last sessions, newest first. No audio, ever."""
+    with _lock:
+        out = [dict(r) for r in reversed(_log)]
+    for r in out:
+        r["open_s"] = round((r["ended"] or time.time()) - r["opened"], 1)
+    return out
+
+
+def _close_proc(proc) -> None:
     try:
         proc.stdin.close()
     except Exception:  # noqa: BLE001
@@ -129,7 +191,8 @@ def _close(proc) -> None:
 
 def _reap_locked(now: float) -> None:
     for sid in [k for k, v in _sessions.items() if now - v["last"] > IDLE]:
-        threading.Thread(target=_close, args=(_sessions.pop(sid)["proc"],), daemon=True).start()
+        s = _sessions.pop(sid)
+        threading.Thread(target=_close, args=(s["proc"], s.get("rec"), "went quiet"), daemon=True).start()
 
 
 def reap(now: float | None = None) -> int:
