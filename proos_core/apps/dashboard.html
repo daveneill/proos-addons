@@ -1776,6 +1776,7 @@ body[data-home-state="noticing"] .home-state-go,body[data-home-state="attention"
 .zi-door .zi-leaf{transform-origin:6px 12px;transform-box:view-box}
 .zi-door.on .zi-leaf{animation:ziDoor calc(var(--m-listen) * 2.2) ease-in-out infinite}
 @keyframes ziDoor{0%,100%{transform:scaleX(1)}50%{transform:scaleX(.35)}}
+.zi-garage.on .zi-slats{animation:ziSash calc(var(--m-listen) * 2.2) ease-in-out infinite}
 .zi-window.on .zi-sash{animation:ziSash calc(var(--m-listen) * 2.2) ease-in-out infinite}
 @keyframes ziSash{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
 .zi-motion .zi-r1,.zi-motion .zi-r2{opacity:.35}
@@ -4527,7 +4528,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026100820';
+const PROOS_BUILD='2026100821';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -12539,10 +12540,10 @@ function _alarmShown(eid){
 //     police / medical / emergency → panic; tamper → tamper);
 //  3. otherwise a plain zone.
 // ACTIVE is what the zone reports: on, or the panel's "violated". Only an active zone animates.
-const _ZONE_KIND_OF={door:'door',garage_door:'door',opening:'door',window:'window',motion:'motion',occupancy:'motion',
+const _ZONE_KIND_OF={door:'door',garage_door:'garage',opening:'door',window:'window',motion:'motion',occupancy:'motion',
   presence:'motion',smoke:'smoke',carbon_monoxide:'smoke',gas:'smoke',heat:'smoke',moisture:'water',sound:'glass',
   vibration:'glass',tamper:'tamper',safety:'panic',problem:'zone'};
-const _ZONE_WORDS={door:['Open','Closed'],window:['Open','Closed'],motion:['Motion','Clear'],smoke:['Smoke','Clear'],
+const _ZONE_WORDS={door:['Open','Closed'],garage:['Open','Closed'],window:['Open','Closed'],motion:['Motion','Clear'],smoke:['Smoke','Clear'],
   water:['Wet','Dry'],glass:['Break','Clear'],tamper:['Tamper','OK'],panic:['Alarm','OK'],zone:['Active','Normal']};
 function _zoneTwin(z){
   const u=entityUniqueId[z]; if(!u) return null;
@@ -12577,6 +12578,9 @@ function _zoneInfo(z){
 // The icons. Each draws its kind; .on animates it (door swings, ripples spread, smoke rises, a drop falls …).
 const _ZONE_ICONS={
   door:'<svg viewBox="0 0 24 24"><path d="M4 21h16"/><path d="M6 21V3h12v18"/><g class="zi-leaf"><path d="M6 3l7 2v16l-7-0z"/><circle cx="11" cy="12" r=".6"/></g></svg>',
+  // 720 (Dave, 8 Oct 2026: "if it shows an icon in pro then thats what it needs to change to in dashboard they cant be
+  // different"): Garage Door was drawn as a plain door here while Pro drew a garage door. Its own picture, same as Pro's.
+  garage:'<svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="14" rx="1"/><g class="zi-slats"><path d="M3 10h18M3 14h18"/></g></svg>',
   window:'<svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="1"/><path d="M4 12h16"/><g class="zi-sash"><rect x="5.5" y="4.5" width="13" height="6.5"/></g></svg>',
   motion:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><circle class="zi-r1" cx="12" cy="12" r="5.5"/><circle class="zi-r2" cx="12" cy="12" r="9"/></svg>',
   smoke:'<svg viewBox="0 0 24 24"><circle cx="12" cy="17" r="4"/><path d="M8 17h8"/><path class="zi-p1" d="M10 10c-1-2 1-3 0-5"/><path class="zi-p2" d="M14 10c-1-2 1-3 0-5"/></svg>',
