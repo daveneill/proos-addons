@@ -880,12 +880,16 @@ html.proos-has-bg #landing::before,html.proos-has-bg #proos-reboot::before,html.
 .sp-a{grid-area:a;display:flex;flex-direction:column;gap:12px}
 .sp-form{grid-area:form;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:20px;border-radius:16px;background:var(--card);border:0.5px solid var(--line-soft)}
 .sp-hist{grid-area:hist;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:18px;border-radius:16px;background:var(--card);border:0.5px solid var(--line-soft)}
-.sp-headcard{display:flex;align-items:center;gap:20px;padding:22px;border-radius:16px;background:var(--card);border:0.5px solid var(--line-soft)}
-.sp-ic{width:84px;height:84px;border-radius:22px;background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;flex:0 0 auto}
-.sp-ic svg{width:44px;height:44px;stroke:rgba(255,255,255,0.8);fill:none;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
+/* 719 (Dave: "font is too large needs to be standardised"): the sensor head wears the integration head's
+   own scale — the same 16/18 padding, 54 px mark, 22 px title, small grey sub-lines. */
+.sp-headcard{display:flex;align-items:center;gap:16px;padding:16px 18px;border-radius:16px;background:var(--card);border:0.5px solid var(--line-soft)}
+.sp-ic{width:54px;height:54px;border-radius:13px;background:rgba(255,255,255,0.06);border:0.5px solid var(--line-soft);display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.sp-ic svg{width:28px;height:28px;stroke:rgba(255,255,255,0.8);fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
 .sp-hbody{flex:1;min-width:0}
-.sp-nm{font-size:28px;font-weight:300;letter-spacing:-0.4px}
-.sp-word{font-size:15px;color:rgba(255,255,255,0.75);margin:4px 0 6px}
+.sp-nm{font-size:22px;font-weight:300;letter-spacing:-0.3px;margin:0 0 2px}
+.sp-word{font-size:14px;color:rgba(255,255,255,0.8);margin:0 0 3px}
+/* the head cards' small lines, one size on every standard page */
+.sp-hbody .rsub,.ip-hbody .rsub,.il-head .rsub{font-size:12.5px;color:var(--t2);font-weight:400;line-height:1.35}
 .sp-ctl{padding:12px 16px;border-radius:16px;background:var(--card);border:0.5px solid var(--line-soft);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .sp-gap{margin-top:18px}
 .sp-note{margin:0}
@@ -901,10 +905,8 @@ html.proos-has-bg #landing::before,html.proos-has-bg #proos-reboot::before,html.
 @media (max-width:700px){
   .sp-cols{grid-template-columns:minmax(0,1fr);grid-template-rows:auto;grid-template-areas:"a" "form" "hist";height:auto!important}
   .sp-form,.sp-hist{overflow:visible}
-  .sp-headcard{padding:16px;gap:14px}
-  .sp-ic{width:56px;height:56px;border-radius:16px}
-  .sp-ic svg{width:30px;height:30px}
-  .sp-nm{font-size:20px}
+  .sp-headcard{padding:14px;gap:12px}
+  .sp-nm{font-size:19px}
 }
 .act{background:var(--card);border:0.5px solid var(--line-soft);border-radius:12px;padding:2px 0 6px}
 .act-day{font-size:10px;letter-spacing:0.05em;color:var(--t3);padding:9px 14px 5px}
@@ -2670,7 +2672,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026100819';
+const PROOS_BUILD='2026100820';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -5294,6 +5296,12 @@ function openEntityInfo(eid){
   document.getElementById('entinfo').classList.add('open');
   _entInfoHistory(eid);
 }
+// ── ON THE DEVICE PAGE, A TAP OPENS THE SENSOR PAGE (register 719) ────────
+// Dave, 8 Oct 2026: "when you press on the device/zone … shouldnt it go straight to" the sensor page. The
+// popup first (register 462: a tap shows the thing's state before its settings) is now a step for nothing
+// here — the sensor page carries its state, today's history, details and controls. Everywhere else in Pro
+// keeps the popup.
+function openEntityPage(eid){ closeEntityInfo(); renderEntityManage(eid); }
 function closeEntityInfo(){ const o=document.getElementById('entinfo'); if(o) o.classList.remove('open'); }
 // The platform's own logbook, the same call the device page's Activity card
 // makes — not a second reader with its own opinion of what happened.
@@ -5416,7 +5424,7 @@ function renderDeviceManage(deviceId){
     // not a pair of buttons, so that row stacks instead of fighting for the
     // right-hand edge. Everything else sits inline.
     const stack=(dom==='media_player'||dom==='climate'||dom==='vacuum');
-    return `<div class="row erow${stack?' erow-stack':''}"><div class="erow-l" onclick="openEntityInfo('${esc(eid)}')">`
+    return `<div class="row erow${stack?' erow-stack':''}"><div class="erow-l" onclick="openEntityPage('${esc(eid)}')">`
       +`<div class="rl">${esc(_entLabel(e,d))}</div><div class="rsub">${esc(dom)}</div></div>`
       +`<div class="ectl">`
       +(hasCtl?`<span class="epill${dead?'':' live'}" id="tst_${safe}">${esc(String(val))}</span>${ctlFor(eid)}`
@@ -5500,7 +5508,7 @@ function renderDeviceManage(deviceId){
     const dead=!pic||['unavailable','unknown',''].includes(String(st||''));
     const live=!dead&&String(st)!=='idle';
     const src=pic?String(pic).replace('/api/camera_proxy/','/api/camera_proxy_stream/'):'';
-    return `<div class="dcam" onclick="openEntityInfo('${esc(eid)}')"><div class="dcam-f">`
+    return `<div class="dcam" onclick="openEntityPage('${esc(eid)}')"><div class="dcam-f">`
       +(dead?`<span class="dcam-off">${esc(String(st||'')==='unavailable'?'No signal':'Can\u2019t check')}</span>`
             :`<img src="${esc(_localUrl()+src)}" alt="" loading="lazy" `
               +`onerror="this.hidden=true;this.nextElementSibling.hidden=false">`
@@ -5574,7 +5582,7 @@ function renderDeviceManage(deviceId){
     +(_offByInt.length>1?`<div class="row tappable" onclick="enableOffByIntegration('${esc(deviceId)}')"><div class="erow-l"><div class="rl">Turn On All ${_offByInt.length}</div>`
       +`<div class="rsub">The ones the integration left off</div></div><div class="rr">&rsaquo;</div></div>`:'')
     +G.disabled.slice().sort((a,b)=>_entLabel(a,d).localeCompare(_entLabel(b,d))).map(e=>
-      `<div class="row dimrow" onclick="openEntityInfo('${esc(e.entity_id)}')">`
+      `<div class="row dimrow" onclick="openEntityPage('${esc(e.entity_id)}')">`
       +`<div class="erow-l"><div class="rl">${esc(_entLabel(e,d))}</div>`
       +`<div class="rsub">${esc(DOM(e))}</div></div>`
       +`<div class="rr">${esc(e.disabled_by==='integration'?'Off by the integration':(e.disabled_by==='user'?'Turned off here':'Disabled'))} &rsaquo;</div></div>`).join(''),'Off',G.disabled.length);
@@ -5723,18 +5731,18 @@ function _dpAreasHTML(Z, d){
   const areaName=i=>{ const a=Z.areas.find(x=>String(attrOf(x.entity_id,'index'))===String(i)); return a?_entLabel(a,d):''; };
   return `<div class="bld-sec-h">Alarm Areas<span class="dg-ct">${Z.areas.length}</span></div>`
     + Z.areas.map(a=>{ const n=zc(a);
-        return `<div class="row tappable dp-area${n?'':' dimrow'}" onclick="openEntityInfo('${esc(a.entity_id)}')"><div class="erow-l"><div class="rl">${esc(_entLabel(a,d))}</div>`
+        return `<div class="row tappable dp-area${n?'':' dimrow'}" onclick="openEntityPage('${esc(a.entity_id)}')"><div class="erow-l"><div class="rl">${esc(_entLabel(a,d))}</div>`
           +`<div class="rsub">${n?(n+' zone'+(n===1?'':'s')):'No zones'}</div></div>`
           +`<span class="epill${_ipDead(a.entity_id)?'':' live'}" id="trd_${eidSafe(a.entity_id)}">${esc(String(stState(a.entity_id)))}</span></div>`; }).join('')
     + (Z.keypads.length?`<div class="bld-sec-h dp-sub">Keypads<span class="dg-ct">${Z.keypads.length}</span></div>`
       + Z.keypads.map(k=>{ const t=attrOf(k.entity_id,'temperature');
-          return `<div class="row tappable" onclick="openEntityInfo('${esc(k.entity_id)}')"><div class="erow-l"><div class="rl">${esc(_entLabel(k,d))}</div>`
+          return `<div class="row tappable" onclick="openEntityPage('${esc(k.entity_id)}')"><div class="erow-l"><div class="rl">${esc(_entLabel(k,d))}</div>`
             +`<div class="rsub">${esc(areaName(attrOf(k.entity_id,'area'))||'')}</div></div>`
             +(t!=null&&t!==''?`<span class="rsub">${esc(String(t))}°</span>`:'')+`</div>`; }).join(''):'');
 }
 function _dpZoneTile(z, d){
   const k=_dpZoneKind(z), s=_dpZoneWord(z), idx=attrOf(z.entity_id,'index'), safe=eidSafe(z.entity_id);
-  return `<div class="row tappable dp-zone" id="tzt_${safe}" onclick="openEntityInfo('${esc(z.entity_id)}')">`
+  return `<div class="row tappable dp-zone" id="tzt_${safe}" onclick="openEntityPage('${esc(z.entity_id)}')">`
     +`<span class="dp-zi${s.a?' a':''}"><svg viewBox="0 0 24 24" aria-hidden="true">${_DP_ZICO[k]||_DP_ZICO.zone}</svg></span>`
     +`<span class="rl dp-zn">${idx!=null&&idx!==''?esc(String(idx))+' · ':''}${esc(_entLabel(z,d))}</span>`
     +`<span class="dp-zw${s.a?' a':''}" id="tzn_${safe}">${esc(s.w)}</span></div>`;
@@ -5968,7 +5976,8 @@ function renderEntityManage(entityId){
         +`<select id="ent-showsas" class="fsel sp-more" data-target="${esc(_sa)}" onchange="spKindSync()" aria-label="More kinds">${opts}</select></div>`;
   } else if(DEVICE_CLASSES[dom]){ const cur=e.device_class||''; const orig=e.original_device_class?(' — '+e.original_device_class.replace(/_/g,' ')):''; const opts='<option value="">Default'+orig+'</option>'+DEVICE_CLASSES[dom].map(c=>`<option value="${c}"${cur===c?' selected':''}>${c.replace(/_/g,' ')}</option>`).join(''); dcField=`<div class="field"><div class="field-label">Show as (Type)</div><select id="ent-dc" class="fsel">${opts}</select></div>`; }
   let precField='';
-  if(dom==='sensor'){ const p=(e.options&&e.options.sensor&&e.options.sensor.display_precision); precField=`<div class="field"><div class="field-label">Decimal Places (Optional)</div><input id="ent-prec" type="number" min="0" max="6" value="${p!=null?esc(String(p)):''}"/></div>`; }
+  // 719: only a sensor that reads a number has decimal places (a zone's "Normal" does not — seen on the box).
+  if(dom==='sensor' && (attrOf(entityId,'unit_of_measurement')!=null || isFinite(parseFloat(stState(entityId))))){ const p=(e.options&&e.options.sensor&&e.options.sensor.display_precision); precField=`<div class="field"><div class="field-label">Decimal Places (Optional)</div><input id="ent-prec" type="number" min="0" max="6" value="${p!=null?esc(String(p)):''}"/></div>`; }
   const seg=(label,leftLabel,leftOn,leftFn,rightLabel,rightFn)=>`<div class="field"><div class="field-label">${label}</div><div class="seg"><button class="${leftOn?'on':''}" onclick="${leftFn}">${leftLabel}</button><button class="${!leftOn?'on':''}" onclick="${rightFn}">${rightLabel}</button></div></div>`;
   const voice=!!(e.options&&e.options.conversation&&e.options.conversation.should_expose);
   // ROOM: the entity's own room, or the device's (the platform's own rule — an entity with no room of its own is in its device's).
@@ -6026,6 +6035,19 @@ function renderEntityManage(entityId){
   _scrollPut('#dev-body .sp-cols>section', _keep, entityId);
   _spLayout();
   _spHistory(entityId);
+  // 719: the bulk entity list Pro loads does not carry Shows As (device_class) — read on the box: it said
+  // nothing while the platform's own record said garage_door, so the page showed "As the Integration Says"
+  // after a save that had worked. Read this entity's (and its twin's) own record once, then draw again.
+  const _need=[entityId,_sa].filter(x=>x&&!_spReg.has(x));
+  if(_need.length) _spRegLoad(_need).then(()=>{ if(_devSheet&&_devSheet.entId===entityId&&document.getElementById('sp-cols')) renderEntityManage(entityId); });
+}
+const _spReg=new Set();
+async function _spRegLoad(ids){
+  for(const id of ids){
+    try{ const r=await snd({type:'config/entity_registry/get', entity_id:id}, 8000); const g=r&&r.result; _spReg.add(id);
+      const e=(_ents||[]).find(x=>x.entity_id===id); if(g&&e){ e.device_class=g.device_class||null; e.original_device_class=g.original_device_class||null; } }
+    catch(err){ _spReg.add(id); }
+  }
 }
 // The eight kinds an alarm zone most often is, shown as pictures (register 714).
 const _SP_KINDS=[['door','Door'],['window','Window'],['garage_door','Garage Door'],['motion','Motion'],['smoke','Smoke'],['moisture','Water Leak'],['sound','Glass Break'],['safety','Panic']];
@@ -6112,7 +6134,9 @@ async function saveEntSettings(){
       const r=await _coreFetch(proCoreUrl()+'/rename',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({entity_id:id, name})}, 12000);
       if(!r.ok){ const j=await r.json().catch(()=>({})); toast(j&&j.error?j.error:"Couldn't rename"); renderEntityManage(id); return; }
     }
-    await snd(msg); if(saMsg) await snd(saMsg); toast('Saved'); await loadSite(); renderEntityManage(id); rerenderConfig(); _pushDashReload(); }
+    await snd(msg); if(saMsg) await snd(saMsg); toast('Saved'); await loadSite();
+    _spReg.delete(id); if(saMsg) _spReg.delete(saMsg.entity_id);   // 719: the page shows what the platform now holds
+    renderEntityManage(id); rerenderConfig(); _pushDashReload(); }
   catch(err){ toast("Couldn't save"); renderEntityManage(id); }
 }
 // ── device command tester: fire real commands at a device's entities, with LIVE state (HA device-page style, inside ProOS) ──

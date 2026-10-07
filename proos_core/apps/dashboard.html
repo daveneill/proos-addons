@@ -4527,7 +4527,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026100619';
+const PROOS_BUILD='2026100820';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -6642,6 +6642,10 @@ let _entSubId=null, _allSubId=null, _entSubKey='', _wantedSet=null;
 let _zoneIds=new Set();
 function _wantedEntities(){
   try{ _zoneIds=new Set([].concat(...Object.keys(states).filter(e=>e.startsWith('alarm_control_panel.')).map(_alarmZones))); }catch(e){}
+  // 719: a zone is now drawn once, as its status sensor (see _alarmZones) — its on/off twin, where Shows As
+  // lives, is no longer a zone of its own, so it is asked for here by name or a change would stop reaching an
+  // open dashboard (read on the box: the twins were on the feed only because they were being drawn twice).
+  try{ [..._zoneIds].forEach(z=>{ const t=_zoneTwin(z); if(t) _zoneIds.add(t); }); }catch(e){}
   return Object.keys(states).filter(e=>{ const d=e.slice(0,e.indexOf('.'));
     return !_NOISE_DOMAINS.has(d) || !!entityAreaMap[e] || e.indexOf('sensor.proos_')===0 || _zoneIds.has(e); });
 }
@@ -12505,7 +12509,14 @@ function _alarmZones(eid){
   const mine=Object.keys(states).filter(e=>e!==eid && entityPlatformMap[e]===p && !hiddenEntities.has(e));
   if(_alarmLinksZones(p)){
     const idx=att(eid,'index'); if(typeof idx!=='number') return [];
-    return mine.filter(e=>_isLinkedZone(e) && states[e].attributes.area===idx);
+    // 719 (read on Dave's box once the 26 on/off sensors were turned on): each on/off part carries an area and
+    // status too, so zones were drawn twice — 42 tiles for 26, the copies with a plain icon. And the on/off part's
+    // area is NOT the zone's: Unit Front Door's says 1 while its status sensor says 2, so the copy landed under
+    // another alarm area. A zone is ONE thing under one identity: drawn once, as its status sensor, by the status
+    // sensor's area; its on/off part only gives its kind. The pair is found across the whole panel, not per area.
+    const sUid=new Set(mine.filter(e=>e.startsWith('sensor.') && _isLinkedZone(e)).map(e=>entityUniqueId[e]).filter(Boolean));
+    return mine.filter(e=>_isLinkedZone(e) && states[e].attributes.area===idx
+      && !(e.startsWith('binary_sensor.') && entityUniqueId[e] && sUid.has(entityUniqueId[e])));
   }
   const panels=mine.filter(e=>e.startsWith('alarm_control_panel.'));
   if(panels.length) return [];
