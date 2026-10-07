@@ -1754,14 +1754,42 @@ body[data-home-state="noticing"] .home-state-go,body[data-home-state="attention"
 .sec-alarm-card .sec-alarm-info{flex:1}
 .sec-alarm-card .sec-alarm-label{font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.50);margin-bottom:4px}
 .sec-alarm-card .sec-alarm-status{font-size:20px;font-weight:200;letter-spacing:-0.5px}
-.sec-alarm-modes{display:flex;gap:8px}
+.sec-alarm-modes{display:flex;gap:8px;flex-wrap:wrap}
+.sec-alarm-modes .sec-mode-btn{flex:0 1 120px;min-width:88px}   /* 706: never stretched across a wide card */
 /* 703: an area's zones */
 .sec-zones{border-top:.5px solid rgba(255,255,255,.10);padding-top:12px;display:flex;flex-direction:column;gap:8px}
-.sec-zones-head{display:flex;justify-content:space-between;align-items:center;background:none;border:0;padding:0;color:rgba(255,255,255,.75);font-size:13px;cursor:pointer;text-align:left}
-.sec-zones-more{color:rgba(255,255,255,.50);font-size:12px}
-.sec-zone-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px}
-.sec-zone{display:flex;justify-content:space-between;gap:8px;padding:8px 10px;border-radius:10px;background:rgba(255,255,255,.04);font-size:13px}
-.sec-zone-n{color:rgba(255,255,255,.85);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sec-zones-head{display:flex;justify-content:space-between;align-items:center;color:rgba(255,255,255,.75);font-size:13px}
+.sec-zone-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:6px}
+.sec-zone{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:10px;background:rgba(255,255,255,.04);font-size:13px}
+.sec-zone-n{flex:1;min-width:0;color:rgba(255,255,255,.85);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 706: a live icon per zone kind — still when normal, moving when active. Timed from --m-listen, the page's own
+   heartbeat for 'something is live right now' (motion_system_bench: no new raw durations). */
+.sec-zone-ic{width:26px;height:26px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border-radius:8px;background:rgba(255,255,255,.06)}
+.sec-zone-ic svg{width:18px;height:18px;stroke:rgba(255,255,255,.55);fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;overflow:visible}
+.sec-zone.open .sec-zone-ic{background:rgba(224,164,58,.16)}.sec-zone.open .sec-zone-ic svg{stroke:#e0a43a}
+.sec-zone.alarm .sec-zone-ic{background:rgba(214,74,63,.25)}.sec-zone.alarm .sec-zone-ic svg{stroke:#ff7a6e}
+.sec-zone.dead .sec-zone-ic svg{stroke:rgba(255,255,255,.25)}
+.zi-door .zi-leaf{transform-origin:6px 12px;transform-box:view-box}
+.zi-door.on .zi-leaf{animation:ziDoor calc(var(--m-listen) * 2.2) ease-in-out infinite}
+@keyframes ziDoor{0%,100%{transform:scaleX(1)}50%{transform:scaleX(.35)}}
+.zi-window.on .zi-sash{animation:ziSash calc(var(--m-listen) * 2.2) ease-in-out infinite}
+@keyframes ziSash{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+.zi-motion .zi-r1,.zi-motion .zi-r2{opacity:.35}
+.zi-motion.on .zi-r1,.zi-motion.on .zi-r2{transform-origin:12px 12px;transform-box:view-box;animation:ziRipple calc(var(--m-listen) * 1.45) ease-out infinite}
+.zi-motion.on .zi-r2{animation-delay:.5s}
+@keyframes ziRipple{0%{transform:scale(.4);opacity:.9}100%{transform:scale(1.15);opacity:0}}
+.zi-smoke .zi-p1,.zi-smoke .zi-p2{opacity:.35}
+.zi-smoke.on .zi-p1,.zi-smoke.on .zi-p2{animation:ziPuff calc(var(--m-listen) * 1.8) ease-in infinite}.zi-smoke.on .zi-p2{animation-delay:.7s}
+@keyframes ziPuff{0%{transform:translateY(2px);opacity:0}40%{opacity:1}100%{transform:translateY(-4px);opacity:0}}
+.zi-water .zi-drop{opacity:0}
+.zi-water.on .zi-drop{animation:ziDrop var(--m-listen) ease-in infinite}
+@keyframes ziDrop{0%{transform:translateY(-3px);opacity:0}30%{opacity:1}100%{transform:translateY(2px);opacity:0}}
+.zi-glass .zi-crack{opacity:.3}.zi-glass.on .zi-crack{animation:ziFlash calc(var(--m-listen) * .8) steps(2) infinite}
+.zi-tamper.on .zi-shake,.zi-panic.on .zi-shake{animation:ziFlash calc(var(--m-listen) * .8) steps(2) infinite}
+.zi-zone.on .zi-dot{transform-origin:12px 12px;transform-box:view-box;animation:ziPulse calc(var(--m-listen) * 1.3) ease-in-out infinite}
+@keyframes ziFlash{0%{opacity:1}100%{opacity:.15}}
+@keyframes ziPulse{0%,100%{transform:scale(1)}50%{transform:scale(.6)}}
+@media (prefers-reduced-motion:reduce){.sec-zone-ic.on *{animation:none!important}}
 .sec-zone-w{color:rgba(255,255,255,.50);flex-shrink:0}
 .sec-zone.open .sec-zone-w{color:#e0a43a}
 .sec-zone.alarm{background:rgba(214,74,63,.18)}.sec-zone.alarm .sec-zone-w{color:#ff7a6e}
@@ -4495,7 +4523,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026100617';
+const PROOS_BUILD='2026100618';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -12486,34 +12514,73 @@ function _alarmShown(eid){
   const p=entityPlatformMap[eid];
   return !(p && _alarmLinksZones(p) && !_alarmZones(eid).length);
 }
-// A zone in words, from what it reports: a panel zone's own status word; a sensor by its kind.
+// 706 · EVERY ZONE, WITH A LIVE ICON FOR ITS KIND (Dave, 7 Oct 2026: "all the zones need to be shown than have an animated
+// icon that shows movement or not and then in the device settings … change to if they are a motion sensor or a door or
+// smoke etc with the appropiate animation icon in alarm"; on where the kind is kept: "A" — the platform's own "Show as").
+// A zone's KIND, first source that has one:
+//  1. the platform's Show as on the zone's on/off twin — the Ness publishes each zone twice under ONE identity
+//     (sensor + binary_sensor, both unique_id elkm1_zone_NNN, read on Dave's box) — or on the zone itself (UniFi);
+//  2. the alarm's own zone definition (the Ness: fire → smoke; interior → motion; entry/exit, perimeter → door;
+//     police / medical / emergency → panic; tamper → tamper);
+//  3. otherwise a plain zone.
+// ACTIVE is what the zone reports: on, or the panel's "violated". Only an active zone animates.
+const _ZONE_KIND_OF={door:'door',garage_door:'door',opening:'door',window:'window',motion:'motion',occupancy:'motion',
+  presence:'motion',smoke:'smoke',carbon_monoxide:'smoke',gas:'smoke',heat:'smoke',moisture:'water',sound:'glass',
+  vibration:'glass',tamper:'tamper',safety:'panic',problem:'zone'};
+const _ZONE_WORDS={door:['Open','Closed'],window:['Open','Closed'],motion:['Motion','Clear'],smoke:['Smoke','Clear'],
+  water:['Wet','Dry'],glass:['Break','Clear'],tamper:['Tamper','OK'],panic:['Alarm','OK'],zone:['Active','Normal']};
+function _zoneTwin(z){
+  const u=entityUniqueId[z]; if(!u) return null;
+  const p=entityPlatformMap[z];
+  return Object.keys(states).find(e=>e!==z && entityUniqueId[e]===u && entityPlatformMap[e]===p && e.startsWith('binary_sensor.'))||null;
+}
+function _zoneKind(z){
+  const tw=z.startsWith('binary_sensor.')?z:_zoneTwin(z);
+  const dc=tw&&att(tw,'device_class'); if(dc&&_ZONE_KIND_OF[dc]) return _ZONE_KIND_OF[dc];
+  const d=String(att(z,'definition')||'').toLowerCase();
+  if(d){
+    if(/fire|smoke|heat/.test(d)) return 'smoke';
+    if(/police|medical|emergency|panic|duress/.test(d)) return 'panic';
+    if(/tamper/.test(d)) return 'tamper';
+    if(/water|flood|leak/.test(d)) return 'water';
+    if(/interior/.test(d)) return 'motion';
+    if(/entry|exit|perimeter/.test(d)) return 'door';
+  }
+  return 'zone';
+}
 function _zoneInfo(z){
   const v=st(z), a=(states[z]&&states[z].attributes)||{}, name=entityNames[z]||a.friendly_name||z.split('.')[1].replace(/_/g,' ');
-  if(_alarmDead(v)) return {name, word:'No Signal', rank:2, cls:'dead'};
-  if(a.triggered_alarm===true) return {name, word:'Caused Alarm', rank:0, cls:'alarm'};
-  if(z.startsWith('binary_sensor.')){
-    const c=a.device_class, on=v==='on';
-    const w=c==='motion'||c==='occupancy'?(on?'Motion':'Clear'):c==='moisture'?(on?'Wet':'Dry'):(on?'Open':'Closed');
-    return {name, word:w, rank:on?1:3, cls:on?'open':''};
-  }
+  const kind=_zoneKind(z), w=_ZONE_WORDS[kind]||_ZONE_WORDS.zone;
+  if(_alarmDead(v)) return {name, kind, word:'No Signal', rank:2, cls:'dead', active:false};
+  if(a.triggered_alarm===true) return {name, kind, word:'Caused Alarm', rank:0, cls:'alarm', active:true};
+  if(z.startsWith('binary_sensor.')){ const on=v==='on'; return {name, kind, word:on?w[0]:w[1], rank:on?1:3, cls:on?'open':'', active:on}; }
   const lv=String(a.logical_status||v||'').toLowerCase();
-  const normal=lv==='normal';
-  return {name, word:cap(String(v).replace(/_/g,' ')), rank:normal?3:1, cls:normal?'':'open'};
+  if(lv==='normal') return {name, kind, word:w[1], rank:3, cls:'', active:false};
+  if(lv==='violated') return {name, kind, word:w[0], rank:1, cls:'open', active:true};
+  return {name, kind, word:cap(String(v).replace(/_/g,' ')), rank:1, cls:'open', active:false};   // bypassed, trouble: the panel's own word
 }
+// The icons. Each draws its kind; .on animates it (door swings, ripples spread, smoke rises, a drop falls …).
+const _ZONE_ICONS={
+  door:'<svg viewBox="0 0 24 24"><path d="M4 21h16"/><path d="M6 21V3h12v18"/><g class="zi-leaf"><path d="M6 3l7 2v16l-7-0z"/><circle cx="11" cy="12" r=".6"/></g></svg>',
+  window:'<svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="1"/><path d="M4 12h16"/><g class="zi-sash"><rect x="5.5" y="4.5" width="13" height="6.5"/></g></svg>',
+  motion:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><circle class="zi-r1" cx="12" cy="12" r="5.5"/><circle class="zi-r2" cx="12" cy="12" r="9"/></svg>',
+  smoke:'<svg viewBox="0 0 24 24"><circle cx="12" cy="17" r="4"/><path d="M8 17h8"/><path class="zi-p1" d="M10 10c-1-2 1-3 0-5"/><path class="zi-p2" d="M14 10c-1-2 1-3 0-5"/></svg>',
+  water:'<svg viewBox="0 0 24 24"><path d="M12 3s5 6 5 9.5A5 5 0 0 1 7 12.5C7 9 12 3 12 3z"/><path class="zi-drop" d="M12 18v3"/></svg>',
+  glass:'<svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="1"/><path class="zi-crack" d="M12 3l-2 6 4 3-3 4 2 5"/></svg>',
+  tamper:'<svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2"/><path class="zi-shake" d="M9 12h6M12 9v6"/></svg>',
+  panic:'<svg viewBox="0 0 24 24"><path d="M12 3l9 16H3z"/><path class="zi-shake" d="M12 10v4M12 17v.5"/></svg>',
+  zone:'<svg viewBox="0 0 24 24"><circle class="zi-dot" cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="8"/></svg>'
+};
 function _zonesHTML(eid){
   const zs=_alarmZones(eid).map(z=>Object.assign({id:z},_zoneInfo(z)))
     .sort((x,y)=>x.rank-y.rank||String(x.name).localeCompare(String(y.name)));
   if(!zs.length) return '';
-  const notNormal=zs.filter(z=>z.rank<3), open=_secZonesOpen.has(eid);
-  const row=z=>`<div class="sec-zone ${z.cls}"><span class="sec-zone-n">${_hEsc(z.name)}</span><span class="sec-zone-w">${_hEsc(z.word)}</span></div>`;
-  const shown=open?zs:notNormal;
-  return `<div class="sec-zones"><button class="sec-zones-head" onclick="_secZonesToggle('${_hEsc(eid)}')">`
-    +`<span>${notNormal.length?notNormal.length+' of '+zs.length+' Zones Need Attention':'All '+zs.length+' Zones Normal'}</span>`
-    +`<span class="sec-zones-more">${open?'Hide':'All Zones'}</span></button>`
-    +(shown.length?`<div class="sec-zone-list">${shown.map(row).join('')}</div>`:'')+`</div>`;
+  const notNormal=zs.filter(z=>z.rank<3);
+  const tile=z=>`<div class="sec-zone ${z.cls}" data-zone="${_hEsc(z.id)}"><span class="sec-zone-ic zi-${z.kind}${z.active?' on':''}">${_ZONE_ICONS[z.kind]||_ZONE_ICONS.zone}</span>`
+    +`<span class="sec-zone-n">${_hEsc(z.name)}</span><span class="sec-zone-w">${_hEsc(z.word)}</span></div>`;
+  return `<div class="sec-zones"><div class="sec-zones-head"><span>${notNormal.length?notNormal.length+' of '+zs.length+' Zones Need Attention':'All '+zs.length+' Zones Normal'}</span></div>`
+    +`<div class="sec-zone-list">${zs.map(tile).join('')}</div></div>`;
 }
-const _secZonesOpen=new Set();
-function _secZonesToggle(eid){ _secZonesOpen.has(eid)?_secZonesOpen.delete(eid):_secZonesOpen.add(eid); updateSecurity(); }
 
 // ── ACCESS PAGE ── Garage doors, gates, locks
 // THIS HOUSE IS NOT EVERY HOUSE (19 Aug 2026, register 233). These two
