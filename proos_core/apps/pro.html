@@ -133,7 +133,6 @@ select option,select optgroup{background:#1a1c20;color:#fff}
 .usr-badge{font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;border-radius:5px}
 .usr-badge.pro{background:var(--accent-soft);color:#aeb9ff;border:0.5px solid var(--accent-line)}
 .usr-badge.home{background:rgba(76,175,130,0.16);color:#84d9b4;border:0.5px solid rgba(76,175,130,0.4)}
-.usr-badge.ro{background:rgba(255,255,255,0.08);color:var(--t2)}
 .usr-badge.tech{background:rgba(255,255,255,0.10);color:var(--t1);border:0.5px solid var(--line)}
 .usr-acts{display:flex;gap:8px;flex:0 0 auto}
 .usr-iconbtn{background:none;border:0.5px solid var(--line);color:var(--t2);border-radius:9px;padding:8px 11px;font-size:12px;font-family:inherit;cursor:pointer;transition:background .15s,color .15s}
@@ -2666,7 +2665,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026100821';
+const PROOS_BUILD='2026100822';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -4073,7 +4072,7 @@ function _addRowCurate(c){
 }
 function filterAddIntegration(){
   const host=document.getElementById('addint-results'); if(!host) return;
-  const isTech=!!(_me.tech||_me.owner);
+  const isTech=!!(_me.tech||_me.developer);
   const curating = isTech && !_previewAsInstaller;   // Tech curating the full library
   const asInstaller = !isTech || _previewAsInstaller;
   const q=((document.getElementById('addint-search')||{}).value||'').trim().toLowerCase();
@@ -4303,7 +4302,7 @@ function renderConfigured(){
     // WHICH BUILD. Only when the box says the driver is not a stock one.
     const _bld=intgBuild(dom);
     const _bldSub=_bld?` \u00b7 <span class="itile-bld">${esc(_bld)}</span>`:'';
-    const _tech=!!(_me.tech||_me.owner)&&!_previewAsInstaller;
+    const _tech=!!(_me.tech||_me.developer)&&!_previewAsInstaller;
     const _pub=isCertified(dom)?'':(_catPublished&&_catPublished.has(dom)?'Published':'Not published');
     const _pubBtn=_tech&&!isCertified(dom)?`<button class="btn-ghost itile-pub${_catPublished&&_catPublished.has(dom)?' on':''}" onclick="event.stopPropagation();tilePublishToggle('${esc(dom)}',this)">${_catPublished&&_catPublished.has(dom)?'Published':'Publish'}</button>`:'';
     return `<div class="itile${attN?' att':''}" data-g="${_ilGroup(dom,n)}" data-att="${(attN||_badN)?1:0}" data-hay="${esc(_ilHay(dom))}" onclick="openIntegration('${esc(dom)}')"><div class="itile-ico">${intgLogo(dom)}</div><div class="itile-foot"><div class="itile-body"><div class="itile-nm">${esc(integrationName(dom))}${isCertified(dom)?'<span class="cert-pill">CERTIFIED</span>':''}</div><div class="itile-sub">${_what}${u?` · <span style="color:var(--accent)">${u} to add</span>`:''}${_stSub}${ctrlSub}${attSub}${_bldSub}${_tech&&_pub?` · <span class="itile-pubst${_pub==='Published'?' on':''}">${_pub} · installers ${_pub==='Published'?'see this':'don\u2019t see this'}</span>`:''}</div></div><div class="itile-act">${_pubBtn}<span class="itile-chev">&rsaquo;</span></div></div></div>`; }).join('');
@@ -4418,7 +4417,7 @@ async function loadCatalogTiers(){
 // published on this site. Everything else is hidden from installers. Owner/tech
 // see all, unless previewing the installer view.
 function _catVisible(dom){
-  if((_me.tech||_me.owner) && !_previewAsInstaller) return true;
+  if((_me.tech||_me.developer) && !_previewAsInstaller) return true;
   const c=_catTiers&&_catTiers[dom];
   if(c && c.tier==='certified') return true;
   if(c && c.tier==='hidden') return false;
@@ -5971,7 +5970,7 @@ function renderEntityManage(entityId){
     // committed_unavailable, repaired by recommit, but an avoidable limp).
     // Installers work in friendly names ONLY; Tech sees the id for
     // diagnostics; NOBODY renames an entity id from inside ProOS.
-    +((_me.tech||_me.owner)?`<div class="field"><div class="field-label">Entity ID (read-only)</div><div style="font-size:12.5px;color:var(--t2);padding:9px 2px;user-select:all;font-family:ui-monospace,Menlo,monospace">${esc(entityId)}</div></div>`:'')
+    +((_me.tech||_me.developer)?`<div class="field"><div class="field-label">Entity ID (read-only)</div><div style="font-size:12.5px;color:var(--t2);padding:9px 2px;user-select:all;font-family:ui-monospace,Menlo,monospace">${esc(entityId)}</div></div>`:'')
     +`</div>`
     +`<div class="sp-save"><button type="button" class="rp-cancel" onclick="renderDeviceManage(_devSheet.id)">Back</button><button type="button" class="btn-primary" onclick="saveEntSettings()">Save</button></div>`
     +(e.platform==='switch_as_x'?`<button class="rp-cancel" onclick="revertShowAsOutput('${esc(entityId)}')">Revert to Switch</button>`:'');
@@ -9432,7 +9431,7 @@ function rhDeviceRow(e,rec,inputs,first){
   // Core folded the other half into this row. Say so — in names — so the
   // installer is never left hunting for the "missing" second device.
   // (register 339: a Developer's diagnostic — an installer never reads it.)
-  const twins=(_me.tech||_me.owner)?_rhFoldedInto(rec,e):[];
+  const twins=(_me.tech||_me.developer)?_rhFoldedInto(rec,e):[];
   if(twins.length){
     const tw=twins.map(t=>{ const tm=(rec.meta&&rec.meta[t])||{}; const ti=(typeof integrationName==='function'&&tm.integration&&integrationName(tm.integration))||tm.integration||''; return esc(avName(t))+(ti?' ('+esc(ti)+')':''); }).join(', ');
     lines.push(`<div class="rh-note"><span>⧉</span> Seen twice — also arrives as ${tw}; ProOS runs it as one device</div>`);
@@ -11359,7 +11358,7 @@ function openCredentials(){ show('credentials'); renderCredentials(); }
 // both lived only in the Protech toolbox. An installer now opens those two tools; every
 // other toolbox tool stays Protech's.
 const _TECH_TABS_INSTALLER=['net','notify'];
-function _techFull(){ return !!(_me.tech||_me.owner); }
+function _techFull(){ return !!(_me.tech||_me.developer); }
 function openTech(tab){ if(!_techFull() && !_me.admin){ toast('Tech tools are for Protech accounts'); return; }
   if(tab) _techView=tab;
   if(!_techFull() && _TECH_TABS_INSTALLER.indexOf(_techView)<0) _techView='net';
@@ -13010,7 +13009,7 @@ async function catalogSyncNow(){
 }
 function techRestartHA(){ dangerConfirm('Restart the home engine','<div class="reset-wiped">The home will be offline for about a minute, then comes back on its own. Nothing is wiped.</div>','',async()=>{ try{ await snd({type:'call_service',domain:'homeassistant',service:'restart'}); toast('Restarting…'); setStatus('off','Restarting…'); }catch(e){ toast('Restart failed'); } }); }
 function techRestartCore(){ dangerConfirm('Restart ProOS Core','<div class="reset-wiped">Restarts the Core add-on. Rooms and settings are untouched.</div>','',async()=>{ try{ await snd({type:'call_service',domain:'hassio',service:'addon_restart',service_data:{addon:'b333b432_proos_core'}}); toast('Restarting Core…'); }catch(e){ toast('Restart failed'); } }); }
-async function techClearLog(){ if(!(_me.tech||_me.owner)) return; try{ await snd({type:'system_log/clear'}); toast('Log cleared'); renderTech(); }catch(e){ toast('Could not clear'); } }
+async function techClearLog(){ if(!(_me.tech||_me.developer)) return; try{ await snd({type:'system_log/clear'}); toast('Log cleared'); renderTech(); }catch(e){ toast('Could not clear'); } }
 
 // ── Developer tools (tech tier): full HA Developer-Tools parity ───────────────
 // Template · Actions · Events · Set State — so a tech never opens native HA.
@@ -13422,19 +13421,20 @@ async function renderUsers(){
   try{ const pr=await snd({type:'person/list'}); ((pr&&pr.result&&pr.result.storage)||[]).forEach(p=>{ if(p.user_id) _usrPersons[p.user_id]=p; }); }catch(e){}
   let html='<div class="wiz-hint">People who can sign in to this home. Homeowners get the Dashboard; pros get full ProOS access. Passwords are shown once, when they\'re set.</div>';
   try{ const cr=await fetch(proCoreUrl()+'/consent'); if(cr.ok){ const cd=await cr.json(); const on=!!(cd.state&&cd.state.tech_access); const instOn=!!(cd.state&&cd.state.installer_access); html+='<div class="usr-card"><div class="usr-row"><div class="usr-main"><div class="usr-name">Tech support access</div><div class="usr-sub" style="font-family:inherit">Let Protech reach this home for support'+(instOn?'':' — needs the homeowner\'s installer access on')+'</div></div><div class="usr-acts"><button class="usr-iconbtn" onclick="toggleTechAccess('+(!on)+')"'+(on?' style="color:#84d9b4;border-color:rgba(76,175,130,0.4)"':'')+'>'+(on?'On':'Off')+'</button></div></div></div>'; } }catch(e){}
-  if(!canManage){ html+='<div class="usr-reveal" style="border-color:var(--warn);background:rgba(225,112,85,0.14)">ProOS Core can\'t manage users over its current connection yet — commissioning will need an owner token. Check the Core logs.</div>'; }
+  if(!canManage){ html+='<div class="usr-reveal" style="border-color:var(--warn);background:rgba(225,112,85,0.14)">ProOS Core can\'t manage users over its current connection yet — commissioning will need the Developer account's token. Check the Core logs.</div>'; }
   if(!humans.length){ html+='<div class="empty"><div class="et">No people yet</div><div class="es">Add a homeowner or a pro below.</div></div>'; }
   else { humans.forEach(u=>{ html+=_usrCard(u); }); }
   html+='<button class="btn-ghost" style="margin-top:6px" onclick="usrAddToggle()">+ Add a person</button><div id="usr-add"></div>';
   body.innerHTML=html;
 }
 
-function _usrRoleMeta(u){ if(u.role==='tech') return {cls:'tech',label:'Tech'}; if(u.is_owner) return {cls:'pro',label:'Owner'}; if(u.role==='admin'||u.admin) return {cls:'pro',label:'Pro'}; if(u.role==='readonly') return {cls:'ro',label:'Read-only'}; return {cls:'home',label:'Homeowner'}; }
+// The four tiers, in the product's words (register 721): Developer · Tech · Installer · Homeowner.
+function _usrRoleMeta(u){ if(u.is_owner) return {cls:'tech',label:'Developer'}; if(u.role==='tech') return {cls:'tech',label:'Tech'}; if(u.role==='admin'||u.admin) return {cls:'pro',label:'Installer'}; return {cls:'home',label:'Homeowner'}; }
 function _usrInitials(name){ const p=(name||'?').trim().split(/\s+/); return (((p[0]||'')[0]||'?')+((p[1]||'')[0]||'')).toUpperCase(); }
 
 function _usrCard(u){
   const rm=_usrRoleMeta(u);
-  const isHomeowner = !u.is_owner && !u.admin && u.role!=='readonly';
+  const isHomeowner = !u.is_owner && !u.admin;
   // REGISTER 482 - EVERY LOGIN'S ASSIST RECORD IS REACHABLE, NOT ONLY A
   // HOMEOWNER'S. Dave: "add in the conversation history for installer also, as
   // currently only does homeowner." Three gaps, and all three were on this page:
@@ -13623,7 +13623,7 @@ function _usrAddForm(){
   box.innerHTML=`<div class="cred-card" style="margin-top:10px">`
     +`<div class="wiz-hint">One login per person. Pro Assist remembers each person separately \u2014 what they have said, what it has noticed, their conversations \u2014 so a shared \u201cFamily\u201d login would blend the household into one memory.</div>`
     +`<div class="field"><div class="field-label">Name</div><input id="usr-name" type="text" placeholder="e.g. Sam" autocapitalize="words"/></div>`
-    +`<div class="field"><div class="field-label">Role</div><select id="usr-role" class="fsel"><option value="homeowner">Homeowner — Dashboard access</option><option value="pro">Installer — full ProOS access</option>`+((_me.tech||_me.owner)?`<option value="tech">Tech — installer + elevated tools</option>`:'')+`</select></div>`
+    +`<div class="field"><div class="field-label">Role</div><select id="usr-role" class="fsel"><option value="homeowner">Homeowner — Dashboard access</option><option value="pro">Installer — full ProOS access</option>`+((_me.tech||_me.developer)?`<option value="tech">Tech — installer + elevated tools</option>`:'')+`</select></div>`
     +`<div class="field"><div class="field-label">Password</div><input id="usr-pw" type="text" placeholder="Leave blank to auto-generate"/><div class="field-hint">Shown once, right after you add them.</div></div>`
     +`<button class="btn-primary" onclick="usrAddSave()">Add Person</button></div>`;
   const el=document.getElementById('usr-name'); if(el) el.focus();
@@ -13767,8 +13767,8 @@ async function usrRename(id){
 function usrRoleForm(id,current){
   const box=document.getElementById('usr-act-'+id); if(!box) return;
   if(box.innerHTML){ box.innerHTML=''; return; }
-  const cur = current==='tech'?'tech':(current==='admin'?'pro':(current==='readonly'?'readonly':'homeowner'));
-  const roles=[['homeowner','Homeowner'],['pro','Installer']].concat((_me.tech||_me.owner)?[['tech','Tech']]:[]).concat([['readonly','Read-only']]);
+  const cur = current==='tech'?'tech':(current==='admin'?'pro':'homeowner');
+  const roles=[['homeowner','Homeowner'],['pro','Installer']].concat((_me.tech||_me.developer)?[['tech','Tech']]:[]);
   box.innerHTML='<div class="usr-seg">'+roles.map(r=>`<button class="${r[0]===cur?'on':''}" onclick="usrSetRole('${esc(id)}','${r[0]}')">${r[1]}</button>`).join('')+'</div>';
 }
 async function usrSetRole(id,role){
@@ -14503,7 +14503,10 @@ async function saveService(){
 
 // Resolve the ProOS tier from the signed-in HA user. HA gives admin/non-admin
 // + owner; the ProOS 'tech' flag layers on once users.py carries it.
-let _me={id:null,owner:false,tech:false};
+// THE FOUR TIERS (register 721, Dave 8 Oct 2026: "developer / tech / installer … Homeowner is the owner"):
+// _me.developer is the Developer account — the platform marks it with its own is_owner flag, which is
+// read here and never shown. Its old name was "owner", which read as the homeowner.
+let _me={id:null,developer:false,tech:false};
 function proSignOut(){
   try{ localStorage.removeItem('proos_pro_token'); }catch(e){}
   try{ location.reload(); }catch(e){ try{ location.href=location.href; }catch(_){}}
@@ -14525,10 +14528,10 @@ function rejectHomeowner(){
 }
 function proTier(u, tech){
   if(!u) return {label:'—', cls:'t-user'};
+  if(u.is_owner) return {label:'Developer', cls:'t-tech'};
   if(u.is_admin && tech) return {label:'Tech', cls:'t-tech'};
-  if(u.is_owner) return {label:'Owner', cls:'t-tech'};
   if(u.is_admin) return {label:'Installer', cls:'t-inst'};
-  return {label:'User', cls:'t-user'};
+  return {label:'Homeowner', cls:'t-user'};
 }
 async function refreshWhoami(){
   const av=document.getElementById('who-av'), menu=document.getElementById('who-menu'); if(!av) return;
@@ -14540,12 +14543,12 @@ async function refreshWhoami(){
     if(!u.is_admin && !u.is_owner){ rejectHomeowner(); return; }
     let tech=false;
     try{ const r=await fetch(proCoreUrl()+'/users'); if(r.ok){ const d=await r.json(); const me=((d&&d.users)||[]).find(x=>x.id===u.id); tech=!!(me&&me.tech); } }catch(e){}
-    _me={id:u.id, owner:!!u.is_owner, tech:tech, admin:!!u.is_admin};
+    _me={id:u.id, developer:!!u.is_owner, tech:tech, admin:!!u.is_admin};
     let mcConfirmed=false;
     try{ const wr=await fetch(proCoreUrl()+'/whoami'); if(wr.ok){ const w=await wr.json(); _me.must_change=!!w.must_change; mcConfirmed=true; } }catch(e){}
-    const tt=document.getElementById('tile-tech'); if(tt) tt.style.display=(_me.tech||_me.owner)?'':'none';
+    const tt=document.getElementById('tile-tech'); if(tt) tt.style.display=(_me.tech||_me.developer)?'':'none';
     try{ v2Render(); }catch(e){}   // tier may add/remove the Toolbox item
-    const fc=document.getElementById('danger-factory'); if(fc) fc.style.display=_me.owner?'':'none';
+    const fc=document.getElementById('danger-factory'); if(fc) fc.style.display=_me.developer?'':'none';
     // Release the change lock ONLY when Core confirms it's clear. If Core was
     // unreachable (e.g. mid-reboot), keep the cached lock so the change can't be
     // skipped by reloading.
@@ -15444,7 +15447,7 @@ function renderLabelsPanel(){
   labels.forEach(l=>{ const u=labelUsage(l.label_id);
     h+='<div class="row tappable" onclick="labelEdit(\''+esc(l.label_id)+'\')"><div class="rl"><span class="ldot" style="background:'+labelColorHex(l.color)+'"></span>'+esc(l.name||l.label_id)+'</div><div class="rr">'+(u?u+' item'+(u===1?'':'s')+' ':'')+'&rsaquo;</div></div>';
   });
-  if(sysLabels.length && (_me.tech||_me.owner)){
+  if(sysLabels.length && (_me.tech||_me.developer)){
     h+='<button class="btn-ghost" style="margin-top:8px" onclick="toggleSysLabels()">'+(_showSysLabels?'Hide':'Show')+' system labels ('+sysLabels.length+')</button>';
     if(_showSysLabels) sysLabels.forEach(l=>{ const u=labelUsage(l.label_id);
       h+='<div class="row tappable" onclick="labelEdit(\''+esc(l.label_id)+'\')"><div class="rl"><span class="ldot" style="background:'+labelColorHex(l.color)+'"></span>'+esc(l.name||l.label_id)+' <span class="tag" style="margin-left:6px">system</span></div><div class="rr">'+(u?u+' item'+(u===1?'':'s')+' ':'')+'&rsaquo;</div></div>';
@@ -16702,7 +16705,7 @@ function v2Render(){
   const logo=document.querySelector('.brand-logo-sm');
   // Toolbox is tech/developer only (Dave, 3 Aug): the rail item must not
   // render at all for an installer login — not open-then-blank.
-  const _secs=V2SECTIONS.filter(([k])=>k!=='toolbox'||_me.tech||_me.owner);
+  const _secs=V2SECTIONS.filter(([k])=>k!=='toolbox'||_me.tech||_me.developer);
   rail.innerHTML='<div class="v2logo">'+(logo?'<img src="'+logo.src+'"/>':'')+'<span>PRO<b>OS</b></span></div>'
     +_secs.map(([k,l])=>'<div class="v2item'+(k===_v2sec?' on':'')+'" onclick="v2go(\''+k+'\')" title="'+l+'">'+V2ICONS[k]+'<span>'+l+'</span><span class="v2badge" id="v2b-'+k+'"></span></div>').join('')
     +'<div class="v2item v2collapse" onclick="v2RailToggle()" title="Collapse / expand">'
@@ -18029,7 +18032,7 @@ function mlControls(){
 // (owner) sign-in; tech and installer see the scoped Master Log, where the
 // platform is never named. Core enforces the same gate on the route.
 function mlTypeOptions(){
-  return ML_TYPES.concat((_me&&_me.owner)?[['platform','Everything (platform log)']]:[]);
+  return ML_TYPES.concat((_me&&_me.developer)?[['platform','Everything (platform log)']]:[]);
 }
 let _mlEvery=null, _mlEveryAt=0;
 async function mlEverything(){
@@ -18222,7 +18225,7 @@ async function as2Status(){
         // a grid child now (register 432): the banner spans the whole row
         b.style.cssText='grid-column:1/-1;margin:0;padding:10px 14px;border:1px solid rgba(230,195,77,0.4);background:rgba(230,195,77,0.08);border-radius:12px;font-size:12.5px;display:flex;align-items:center;gap:10px';
         b.innerHTML='<span style="color:#e6c34d">Assist AI has no provider configured.</span>'
-          +((_me.tech||_me.owner)?'<button class="btn-ghost" style="padding:5px 12px;font-size:12px" onclick="openTech();techTab(\'assist\')">Configure</button>':'');
+          +((_me.tech||_me.developer)?'<button class="btn-ghost" style="padding:5px 12px;font-size:12px" onclick="openTech();techTab(\'assist\')">Configure</button>':'');
         dock.parentElement.insertBefore(b,dock);
       }
     } else if(b) b.remove();
@@ -18472,7 +18475,7 @@ async function _sysStatus(){
 // ── TOOLBOX — full HA parity, tech tier ───────────────────────────────────
 function renderToolbox(){
   const host=document.getElementById('toolbox-body'); if(!host) return;
-  if(!(_me.tech||_me.owner)){ host.innerHTML='<div class="empty"><div class="et">Toolbox is for Protech accounts</div></div>'; return; }
+  if(!(_me.tech||_me.developer)){ host.innerHTML='<div class="empty"><div class="et">Toolbox is for Protech accounts</div></div>'; return; }
   // Grouped like a real bench, not a drawer of loose tools: what am I
   // diagnosing / driving / building / presenting. Dev console lives below.
   // Each card leads with its icon KEY — same shape as the Systems cards — so
@@ -18488,7 +18491,7 @@ function renderToolbox(){
       ['term','Terminal','Full shell on the host',()=>{ openTech(); techTab('terminal'); }],
       ['act','Actions','Service calls and quick actions',()=>{ openTech(); techTab('actions'); }],
       ['dev','Developer','Advanced developer tools',()=>{ openTech(); techTab('dev'); }],
-      ...((_me.tech||_me.owner)?[['ai','Assist AI','Provider (Claude / ChatGPT), model, API keys',()=>{ openTech(); techTab('assist'); }],
+      ...((_me.tech||_me.developer)?[['ai','Assist AI','Provider (Claude / ChatGPT), model, API keys',()=>{ openTech(); techTab('assist'); }],
         ['alert','Notifications','Apple push key · send a test alert',()=>{ openTech(); techTab('notify'); }]]:[])]],
     ['Build',[
       ['helper','Helpers','Input booleans, numbers, texts',()=>openHelpers()],

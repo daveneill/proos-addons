@@ -4528,7 +4528,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026100821';
+const PROOS_BUILD='2026100822';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -16180,9 +16180,10 @@ function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){retu
 let _haUser=null;
 function proTier(u){
   if(!u) return {label:'—',color:'rgba(255,255,255,0.6)',bg:'rgba(255,255,255,0.08)'};
-  if(u.is_owner) return {label:'Owner',color:'#fff',bg:'rgba(255,255,255,0.12)'};
+  // The four tiers' words (register 721): the platform's is_owner marks the Developer account, never the homeowner.
+  if(u.is_owner) return {label:'Developer',color:'#fff',bg:'rgba(255,255,255,0.12)'};
   if(u.is_admin) return {label:'Installer',color:'#e3a23c',bg:'rgba(227,162,60,0.16)'};
-  return {label:'User',color:'#84d9b4',bg:'rgba(76,175,130,0.16)'};
+  return {label:'Homeowner',color:'#84d9b4',bg:'rgba(76,175,130,0.16)'};
 }
 function tierBadge(u){ const t=proTier(u); return '<span style="font-size:9px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;padding:2px 6px;border-radius:5px;color:'+t.color+';background:'+t.bg+'">'+esc(t.label)+'</span>'; }
 
