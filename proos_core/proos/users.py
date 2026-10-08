@@ -41,7 +41,44 @@ SUPERVISOR_TOKEN = os.environ.get("SUPERVISOR_TOKEN", "")
 
 GROUP_ADMIN = "system-admin"
 GROUP_USER = "system-users"
-GROUP_READONLY = "system-read-only"
+
+# ── THE FOUR TIERS (Dave, 8 Oct 2026, register 721) ──────────────────────────
+# "We also need to standardise the tiers as developer / tech / installer as
+# Homeowner is the owner as that's what clashes as you have been classing
+# developer as owner." … "Just four tiers."
+#
+# Before: the Developer (Protech's servicing account) was called "owner" —
+# because the platform marks that account with its own is_owner flag — and the
+# homeowner was "user" in one place, "homeowner" in another, "Read-only" in a
+# third; three functions in Core answered "which tier" in two different orders.
+# Now ONE function answers it, here, in the product's four words, and every
+# other place asks this one. The platform's is_owner flag is read, never shown:
+# it is how the platform marks the Developer account, nothing more.
+TIERS = ("developer", "tech", "installer", "homeowner")
+PRO_TIERS = ("developer", "tech", "installer")
+
+
+def tier(is_owner: bool, is_admin: bool, tech: bool) -> str:
+    """The one answer. Developer ⊇ Tech ⊇ Installer; everyone else is a Homeowner."""
+    if is_owner:
+        return "developer"
+    if is_admin and tech:
+        return "tech"
+    if is_admin:
+        return "installer"
+    return "homeowner"
+
+
+def tier_of(u: dict) -> str:
+    """tier() for a platform user record (auth/current_user, config/auth/list, or
+    a request's user): is_owner / is_admin as the platform gives them, tech from
+    ProOS's own store (or a 'tech' flag already resolved on the record)."""
+    u = u or {}
+    t = u.get("tech")
+    if t is None:
+        t = bool(u.get("id") and is_tech(u.get("id")))
+    return tier(bool(u.get("is_owner")), bool(u.get("is_admin") or u.get("admin")), bool(t))
+
 
 _ROLE_GROUP = {
     "tech": GROUP_ADMIN,
@@ -50,7 +87,6 @@ _ROLE_GROUP = {
     "admin": GROUP_ADMIN,
     "homeowner": GROUP_USER,
     "user": GROUP_USER,
-    "readonly": GROUP_READONLY,
 }
 
 # 'tech' is not a Home Assistant group - HA only has admin/non-admin. A tech is
@@ -120,7 +156,7 @@ def manage_check(ws_call) -> dict:
         return {
             "can_manage": False,
             "users": 0,
-            "hint": "supervisor connection lacks auth rights - act as baked owner: %s" % exc,
+            "hint": "supervisor connection lacks auth rights - act as the Developer account: %s" % exc,
         }
 
 
@@ -145,7 +181,7 @@ def create_user(ws_call, name: str, role: str = "user",
     if not group:
         raise ValueError("unknown role: %s" % role)
     if role.lower() == "tech" and not _caller_can_tech(ws_call, caller_id):
-        raise PermissionError("only a tech (or the owner) can create a tech")
+        raise PermissionError("only a Tech (or the Developer) can create a Tech")
     username = (username or _slug(name)).strip().lower()
     password = password or secrets.token_urlsafe(18)
 
@@ -203,12 +239,12 @@ def set_password(ws_call, user_id: str, password: str | None = None) -> str:
 
 
 def set_role(ws_call, user_id: str, role: str, caller_id: str | None = None) -> dict:
-    """Move a user between admin / non-admin / read-only."""
+    """Move a user between the tiers (installer / tech / homeowner)."""
     group = _ROLE_GROUP.get(role.lower())
     if not group:
         raise ValueError("unknown role: %s" % role)
     if role.lower() == "tech" and not _caller_can_tech(ws_call, caller_id):
-        raise PermissionError("only a tech (or the owner) can grant tech")
+        raise PermissionError("only a Tech (or the Developer) can grant Tech")
     ws_call("config/auth/update", user_id=user_id, group_ids=[group])
     _set_tech(user_id, role.lower() == "tech")
     return {"user_id": user_id, "role": role, "admin": group == GROUP_ADMIN,
@@ -240,7 +276,7 @@ def delete_user(ws_call, user_id: str) -> dict:
     """Remove a user. Guarded against deleting an owner."""
     for u in (ws_call("config/auth/list") or []):
         if u.get("id") == user_id and u.get("is_owner"):
-            raise RuntimeError("refusing to delete the owner account")
+            raise RuntimeError("refusing to delete the Developer account")
     ws_call("config/auth/delete", user_id=user_id)
     _set_tech(user_id, False)
     return {"user_id": user_id, "deleted": True}
@@ -393,7 +429,8 @@ def _normalise(u: dict, tech=frozenset()) -> dict:
         "system": bool(u.get("system_generated")),
         "admin": admin,
         "tech": is_t,
-        "role": "tech" if is_t else ("admin" if admin else ("readonly" if GROUP_READONLY in groups else "user")),
+        "role": "tech" if is_t else ("admin" if admin else "user"),
+        "tier": tier(bool(u.get("is_owner")), admin, is_t),
     }
 
 

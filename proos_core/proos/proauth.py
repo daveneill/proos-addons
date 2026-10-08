@@ -76,22 +76,15 @@ def _resolve(base: str, access_token: str) -> dict:
     uid = u.get("id")
     is_admin = bool(u.get("is_admin"))
     is_owner = bool(u.get("is_owner"))
+    from proos import users
     tech = False
     try:
-        from proos import users
         tech = bool(uid and users.is_tech(uid))
     except Exception:  # noqa: BLE001
         pass
-    if is_owner:
-        tier = "owner"
-    elif is_admin and tech:
-        tier = "tech"
-    elif is_admin:
-        tier = "installer"
-    else:
-        tier = "user"
+    # The four tiers, decided in ONE place (users.tier, register 721).
     return {"id": uid, "name": u.get("name"), "is_admin": is_admin,
-            "is_owner": is_owner, "tier": tier}
+            "is_owner": is_owner, "tier": users.tier(is_owner, is_admin, tech)}
 
 
 _TOKEN_CACHE = os.environ.get("PROOS_INSTALLER_TOKENS", "/data/proos_installer_tokens.json")
@@ -148,7 +141,7 @@ def login(username: str, password: str) -> dict:
                 raise RuntimeError("no access token from auth/token")
 
             who = _resolve(base, access)
-            if who["tier"] == "user":
+            if who["tier"] == "homeowner":
                 raise AuthError("this account only has Dashboard access", "not_installer")
 
             from proos.ha_ws import ws_command

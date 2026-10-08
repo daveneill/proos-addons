@@ -2061,19 +2061,15 @@ def _platforms_live(client) -> dict:
 
 
 def _tier(user: dict) -> str:
-    """Permission tier from the HA user on the request (§4 rails)."""
-    u = user or {}
-    if u.get("tech"):
-        return "tech"
-    if u.get("is_owner"):
-        return "owner"
-    if u.get("is_admin"):
-        return "installer"
-    return "homeowner"
+    """Permission tier from the platform user on the request (§4 rails) — the
+    product's four words from the ONE answer, users.tier_of (register 721)."""
+    from proos import users as _users
+    return _users.tier_of(user)
 
 
 def _is_pro(user: dict) -> bool:
-    return _tier(user) in ("tech", "owner", "installer")
+    from proos import users as _users
+    return _tier(user) in _users.PRO_TIERS
 
 
 _SOURCE_LIST_CAP = 40    # a Sonos can hold dozens of favourites; the cut is SAID
