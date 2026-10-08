@@ -284,12 +284,14 @@ CORE_VERSION = _read_core_version()
 # Integrations page applies, and an installer's save can never drop what
 # they were not shown (visibility.unveil).
 def _project_caller(u):
-    """'tech' | 'installer' | None."""
-    if not u:
+    """'tech' | 'installer' | None. Asks the one tier answer (users.tier_of,
+    register 721): a Developer has every Tech door, so both open as 'tech'."""
+    if not u or not users:
         return None
-    if u.get("is_owner") or (users and users.is_tech(u.get("id"))):
+    t = users.tier_of(u)
+    if t in ("developer", "tech"):
         return "tech"
-    if u.get("is_admin"):
+    if t == "installer":
         return "installer"
     return None
 
@@ -6096,14 +6098,10 @@ class Handler(BaseHTTPRequestHandler):
                 if not u:
                     return self._send(200, {"authenticated": False, "tier": None})
                 is_tech = bool(users and users.is_tech(u.get("id")))
-                if u.get("is_owner"):
-                    tier = "owner"
-                elif is_tech:
-                    tier = "tech"
-                elif u.get("is_admin"):
-                    tier = "installer"
-                else:
-                    tier = "user"
+                # The four tiers — developer / tech / installer / homeowner —
+                # from the one answer (users.tier, register 721). No users
+                # module, no tier: the app's safe direction is the Dashboard.
+                tier = users.tier(bool(u.get("is_owner")), bool(u.get("is_admin")), is_tech) if users else None
                 eff = {}
                 try:
                     if consent:
@@ -6518,7 +6516,7 @@ class Handler(BaseHTTPRequestHandler):
                 # ProOS credential) so it can be set up fresh from the panel.
                 u = getattr(self, "_user", None)
                 if not (users and u and (users.is_tech(u.get("id")) or u.get("is_owner"))):
-                    return self._send(403, {"error": "tech or owner access required"})
+                    return self._send(403, {"error": "Tech or Developer access required"})
                 b = self._body() or {}
                 domain = (b.get("domain") or "").strip()
                 if domain not in ("unifiprotect", "unifi"):
@@ -6545,7 +6543,7 @@ class Handler(BaseHTTPRequestHandler):
             if parts == ["unifi", "poe", "enable"]:
                 u = getattr(self, "_user", None)
                 if not (users and u and (users.is_tech(u.get("id")) or u.get("is_owner"))):
-                    return self._send(403, {"error": "tech or owner access required"})
+                    return self._send(403, {"error": "Tech or Developer access required"})
                 b = self._body() or {}
                 sw = (b.get("switch") or "").strip()
                 if not sw:
@@ -7470,7 +7468,7 @@ class Handler(BaseHTTPRequestHandler):
                 # Explicit confirm token; recovery backup taken inside factory_reset.
                 u = getattr(self, "_user", None)
                 if not (u and u.get("is_owner")):
-                    return self._send(403, {"error": "owner (Developer) access required"})
+                    return self._send(403, {"error": "Developer access required"})
                 body = self._body() or {}
                 if body.get("confirm") != "FACTORY":
                     return self._send(400, {"error": "factory reset requires confirm=FACTORY"})
@@ -8084,7 +8082,7 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(401, {"error": "sign in required"})
                 b = self._body() or {}
                 # THE WHOLE LADDER TRAVELS (register 106). This dict used to
-                # drop is_owner, so _tier() could never return "owner" through
+                # drop is_owner, so _tier() could never name the Developer (then "owner") through
                 # chat — the audit's D2. An owner was silently an installer,
                 # and any future owner-only capability would have failed
                 # without a symptom. Dave's tiers (developer > tech >
