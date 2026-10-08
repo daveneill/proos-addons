@@ -2665,7 +2665,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026100822';
+const PROOS_BUILD='2026100824';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -10802,6 +10802,11 @@ async function obState(){
   }catch(e){ return null; }
 }
 
+// PRO IS FOR iPAD AND MAC (register 723, Dave 8 Oct 2026: "iPad and Mac screen yes"). ProOS Pro the app is iPad and
+// Mac only; Pro opened in a phone's browser says so instead of drawing a phone layout nobody is meant to use. It is
+// the DEVICE's screen that decides (its short side under 600 points: every iPhone, either way up), never the window —
+// so an iPad in split view or slide-over, or a narrow Mac window, is never turned away.
+function _proOnPhone(){ try{ return Math.min(screen.width, screen.height) < 600; }catch(e){ return false; } }
 function renderGate(view, err){
   const g=document.getElementById('gate'); if(!g) return;
   // 686: detect and provisioning are the standard loading look; the rest centred.
@@ -10809,6 +10814,11 @@ function renderGate(view, err){
   const _dots='<div class="std-dots"><i></i><i></i><i></i></div>';
   if(view==='detect'){
     setHTML(g, '<div class="landing-heading">Opening Pro</div><div class="landing-sub">Checking this home</div>'+_dots);
+    return;
+  }
+  if(view==='phone'){
+    setHTML(g, '<div class="landing-heading">Pro Is for iPad and Mac</div>'
+      +'<div class="landing-sub">Open ProOS Pro on an iPad or a Mac. On a phone, the home\'s own app is ProOS.</div>');
     return;
   }
   if(view==='provisioning'){
@@ -13421,7 +13431,7 @@ async function renderUsers(){
   try{ const pr=await snd({type:'person/list'}); ((pr&&pr.result&&pr.result.storage)||[]).forEach(p=>{ if(p.user_id) _usrPersons[p.user_id]=p; }); }catch(e){}
   let html='<div class="wiz-hint">People who can sign in to this home. Homeowners get the Dashboard; pros get full ProOS access. Passwords are shown once, when they\'re set.</div>';
   try{ const cr=await fetch(proCoreUrl()+'/consent'); if(cr.ok){ const cd=await cr.json(); const on=!!(cd.state&&cd.state.tech_access); const instOn=!!(cd.state&&cd.state.installer_access); html+='<div class="usr-card"><div class="usr-row"><div class="usr-main"><div class="usr-name">Tech support access</div><div class="usr-sub" style="font-family:inherit">Let Protech reach this home for support'+(instOn?'':' — needs the homeowner\'s installer access on')+'</div></div><div class="usr-acts"><button class="usr-iconbtn" onclick="toggleTechAccess('+(!on)+')"'+(on?' style="color:#84d9b4;border-color:rgba(76,175,130,0.4)"':'')+'>'+(on?'On':'Off')+'</button></div></div></div>'; } }catch(e){}
-  if(!canManage){ html+='<div class="usr-reveal" style="border-color:var(--warn);background:rgba(225,112,85,0.14)">ProOS Core can\'t manage users over its current connection yet — commissioning will need the Developer account's token. Check the Core logs.</div>'; }
+  if(!canManage){ html+='<div class="usr-reveal" style="border-color:var(--warn);background:rgba(225,112,85,0.14)">ProOS Core can\'t manage users over its current connection yet — commissioning will need the Developer account token. Check the Core logs.</div>'; }
   if(!humans.length){ html+='<div class="empty"><div class="et">No people yet</div><div class="es">Add a homeowner or a pro below.</div></div>'; }
   else { humans.forEach(u=>{ html+=_usrCard(u); }); }
   html+='<button class="btn-ghost" style="margin-top:6px" onclick="usrAddToggle()">+ Add a person</button><div id="usr-add"></div>';
@@ -18624,6 +18634,8 @@ function v2RailToggle(){
 (function(){
   const gp=new URLSearchParams(location.search).get('gate');
   if(gp){ document.getElementById('app').style.display='none'; document.getElementById('landing').style.display='flex'; if(gp==='auto') gateDetect(); else renderGate(gp); return; }
+  // On a phone, Pro does not connect at all — it says where Pro lives (register 723).
+  if(_proOnPhone()){ document.getElementById('app').style.display='none'; document.getElementById('landing').style.display='flex'; renderGate('phone'); return; }
   connect();
 })();
 </script>
