@@ -2144,6 +2144,49 @@ class ToolRunner:
             tool, {k: v for k, v in info.items() if k != 'result'},
             self.user.get("name") or "?", _tier(self.user)), flush=True)
 
+    # Not a t_ tool, on purpose: the model is never offered it and cannot name it.
+    # Only the direct path calls it, after the platform's own recogniser matched.
+    _PLATFORM_NOTHING_DONE = ("no_intent_match", "no_valid_targets")
+
+    def platform_command(self, text, intent=""):
+        """REGISTER 731. The platform's OWN agent does one sentence it recognised.
+
+        Returns None when the platform did nothing (it found no match or nothing it
+        was told about) -- the turn then goes on to Assist as before. Otherwise
+        {"say", "intent", "error"?}. An unattended (engine) turn never gets here.
+        """
+        if (self.user or {}).get("engine"):
+            return None
+        res = self.ws_call("conversation/process", text=str(text or ""),
+                           agent_id="conversation.home_assistant") or {}
+        resp = (res.get("response") or {}) if isinstance(res, dict) else {}
+        kind = str(resp.get("response_type") or "")
+        data = resp.get("data") or {}
+        said = str((((resp.get("speech") or {}).get("plain") or {}).get("speech")) or "").strip()
+        if kind == "error" and str(data.get("code") or "") in self._PLATFORM_NOTHING_DONE:
+            return None
+        done = [str(t.get("id") or t.get("name") or "") for t in (data.get("success") or [])
+                if isinstance(t, dict)]
+        failed = [str(t.get("id") or t.get("name") or "") for t in (data.get("failed") or [])
+                  if isinstance(t, dict)]
+        # REGISTER 734: read on the box — the platform answers a QUESTION ("what time is it")
+        # with response_type action_done and nothing in success or failed. An act is one
+        # that touched something; a sentence trigger (an activity) is an act by definition.
+        acted = kind == "action_done" and bool(done or failed or intent == "trigger")
+        if acted:
+            self._audit("platform_command", intent=intent, text=str(text or ""),
+                        done=done, failed=failed)
+        t = {"tool": "platform_command", "kind": "act" if acted else "read",
+             "target": intent}
+        if kind not in ("action_done", "query_answer") or failed:
+            t["error"] = True
+        with _TRACE_LOCK:
+            self.trace.append(t)
+        if kind in ("action_done", "query_answer"):
+            return {"say": said or "Done.", "intent": intent}
+        # It TRIED and it did not work: said plainly, never handed on to run twice.
+        return {"say": said or "I couldn't do that just then.", "intent": intent, "error": True}
+
     # -- helpers ------------------------------------------------------------
     def home_domains(self) -> set:
         """Entity domains present in this home — the capability scan that
@@ -5831,13 +5874,12 @@ def chat(client, ws_call, project_mod, user: dict, text: str,
         except Exception:                                        # noqa: BLE001
             pass                       # unknown stays unknown — never invented
 
-    # No fast-path any more (A3, 6 Aug): one brain handles everything by reasoning
-    # over the tools. Every command is a model round-trip — the cost Dave accepted
-    # to stop patching a scenario per phrase. A5 (prompt caching + model routing)
-    # is what keeps that fast and cheap.
-    cfg = load_config()
-    if not (cfg.get("provider") and cfg.get("api_key")):
-        return {"error": "Pro Assist AI is not configured — set provider + API key in Pro › Tech Tools"}
+    # REGISTER 731: the AI key is checked AFTER the direct path, not before it. A
+    # command the platform understood needs no model, so a home with no AI key (or a
+    # lapsed one) still has every commissioned command, instantly — Dave's design,
+    # 9 Oct 2026: "everything commissioned in Pro is an instant voice command, no AI".
+    # (The comment that stood here, "No fast-path any more (A3, 6 Aug)", was stale
+    # since register 486 brought the direct path back.)
 
     # ── THE DIRECT PATH: WHAT A MODEL IS NOT NEEDED FOR (register 486) ───────
     # Dave: "this needs to be like Josh.ai on steroids, speed is crucial."
@@ -5862,6 +5904,7 @@ def chat(client, ws_call, project_mod, user: dict, text: str,
     # A fast wrong answer is worse than a slow right one in a product that turns
     # things off in people's houses. Certainty or nothing.
     _hit = None
+    _rec = None
     try:
         # THE PLATFORM'S OWN SENTENCE LIBRARY RECOGNISES (Dave's ruling, 5 Oct 2026);
         # ProOS maps the intent to its own tool, and acts only on a certain room.
@@ -5872,16 +5915,40 @@ def chat(client, ws_call, project_mod, user: dict, text: str,
         print("  [assist] direct path declined (%s) — the model has it" % e,
               flush=True)
         _hit = None
+    # REGISTER 731: anything else the platform recognised, its OWN agent does.
+    _plat = None
+    _t0 = time.time()
+    if not _hit and _rec:
+        try:
+            _pi = _direct.platform_can_take(_rec, text, _direct_rooms(client, project_mod))
+            if _pi:
+                _plat = runner.platform_command(text, _pi)
+        except Exception as e:                                   # noqa: BLE001
+            # Whether it acted is unknown, so it is NOT handed on to the model
+            # to do a second time; the person is told, and the log has why.
+            print("  [assist] platform agent failed (%s)" % e, flush=True)
+            _plat = {"say": "I couldn't do that just then.",
+                     "intent": "unknown", "error": True}
+    if _hit or _plat:
+        if _plat:
+            _hit = {"tool": "platform_command", "args": {}, "say": _plat["say"],
+                    "matched": "agent:" + str(_plat.get("intent") or "")}
+            if _plat.get("error"):
+                print("  [assist] platform agent did not do it: %s" % _plat["say"], flush=True)
     if _hit:
-        _t0 = time.time()
         # THE SENTENCE IS ALREADY COMPOSED (register 512). It was written when
         # the grammar resolved, so the runner is handed it rather than left to
         # draw a second, different form for the same act.
-        if _hit.get("say"):
-            runner.said_for_act[_say_key(_hit["tool"], _hit["args"])] = _hit["say"]
-        _out = runner.run(_hit["tool"], _hit["args"])
+        if _plat:
+            _out = {"error": _plat["say"]} if _plat.get("error") else {}
+        else:
+            if _hit.get("say"):
+                runner.said_for_act[_say_key(_hit["tool"], _hit["args"])] = _hit["say"]
+            _out = runner.run(_hit["tool"], _hit["args"])
         _err = (_out or {}).get("error") if isinstance(_out, dict) else None
-        if _err:
+        if _err and _plat:
+            reply = _plat["say"]           # the platform's own words for why
+        elif _err:
             # IT DOES NOT HAND THE TURN ON AFTER ACTING. The tool may already
             # have moved something, and running the model over the top of that
             # could do it twice — in a house, twice is a defect you can hear.
@@ -5944,6 +6011,11 @@ def chat(client, ws_call, project_mod, user: dict, text: str,
                 "speak_lead": None if _suppress else reply,
                 "spoken_already": _said,
                 "speak_suppress": _suppress}
+
+    # Only now does the turn need a model (register 731: after the direct path).
+    cfg = load_config()
+    if not (cfg.get("provider") and cfg.get("api_key")):
+        return {"error": "Pro Assist AI is not configured — set provider + API key in Pro › Tech Tools"}
 
     key = ((user or {}).get("id") or "anon", session or "default")
     with _LOCK:

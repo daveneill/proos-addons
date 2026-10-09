@@ -153,6 +153,17 @@ def resolve_platform(rec, text, where=None, rooms=(), scenes=()):
             for al in (row[2] if len(row) > 2 and row[2] else ()):
                 names[str(al).lower()] = (aid, nm)
     area_txt = _slot(rec, "area")
+    # REGISTER 734: A ROOM'S NAME HEARD AS A DEVICE'S NAME. Read on Dave's box: the Family
+    # Room's Sonos is itself called "Family Room", so the platform hears "turn off the family
+    # room" as {name: Family Room} on that one speaker, not {area: Family Room}. When the
+    # name the platform heard IS a room's name (and no room was named besides), the person
+    # meant the room — ProOS's room, the same as the area slot.
+    _nm = _slot(rec, "name")
+    room_by_name = (not area_txt and _nm and not (rec.get("targets") and all(
+        str(t).startswith("scene.") for t in rec.get("targets")))
+        and names.get(str(_nm).lower()))
+    if room_by_name:
+        area_txt = _nm
     if area_txt:
         hit = names.get(str(area_txt).lower())
         if not hit:
@@ -168,7 +179,7 @@ def resolve_platform(rec, text, where=None, rooms=(), scenes=()):
                 "say": say_for(tool, args, area_name, scene,
                                brief=brief_for(args.get("area_id")) if args.get("area_id") else False)}
 
-    name_slot = _slot(rec, "name")
+    name_slot = None if room_by_name else _slot(rec, "name")
     domain = _slot(rec, "domain")
     domains = set(domain if isinstance(domain, (list, tuple)) else ([domain] if domain else []))
 
