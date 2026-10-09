@@ -2665,7 +2665,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026100824';
+const PROOS_BUILD='2026100901';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -11944,7 +11944,16 @@ async function techViewAssist(view){
     // first-found is said when the chosen engine is gone.
     +'<div class="bld-sec" style="margin-top:18px"><div class="bld-sec-h">ProOS Voice</div>'
     +'<div class="wiz-hint">The voice Assist speaks with in the rooms (Assist voice replies). Engines and voices are read from this box.</div>'
-    +'<div id="as-voice-body" class="wiz-hint">Loading…</div></div>');
+    +'<div id="as-voice-body" class="wiz-hint">Loading…</div></div>'
+    // ── TRY A COMMAND (register 736 — Dave's design, 9 Oct 2026, stage A step 6).
+    // Type what someone would say: Core asks the platform's recogniser (it reads the
+    // sentence, it acts on nothing) and ProOS's own mapping, and says which road the
+    // sentence takes and what it would do. Nothing in the house is switched.
+    +'<div class="bld-sec" style="margin-top:18px"><div class="bld-sec-h">Try a Command</div>'
+    +'<div class="wiz-hint">Type what someone would say. ProOS shows whether it is instant or goes to the AI, and what it would do. Nothing is switched.</div>'
+    +'<div style="display:flex;gap:8px"><input id="as-try" class="set-input" type="text" placeholder="watch apple tv in the bedroom" autocapitalize="off" autocorrect="off" spellcheck="false" onkeydown="if(event.key===\'Enter\')assistTryIt()"/>'
+    +'<button class="btn-ghost" onclick="assistTryIt()">Try</button></div>'
+    +'<div id="as-try-out" class="wiz-hint" style="margin-top:10px"></div></div>');
   _asKeys=st.keys_saved||{};
   assistKeyLabel();
   assistVoiceLoad();
@@ -11971,6 +11980,24 @@ function assistKeyLabel(){
     inp.placeholder='sk-… (no '+nm+' key saved yet)';
     hint.textContent='Paste a '+nm+' key, then Save. '+(other?'The '+_AS_PROV_NAMES[other]+' key is kept separately and is never sent to '+nm+'.':'');
   }
+}
+async function assistTryIt(){
+  const inp=document.getElementById('as-try'), out=document.getElementById('as-try-out');
+  if(!inp||!out) return;
+  const text=(inp.value||'').trim(); if(!text){ out.textContent='Type a sentence first.'; return; }
+  out.textContent='Asking the box…';
+  try{
+    const r=await fetch(proCoreUrl()+'/assist/tryit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text})});
+    const d=await r.json();
+    if(!r.ok||d.error){ out.innerHTML='<b style="color:#e0564b">'+esc(d.error||'Failed')+'</b>'; return; }
+    const fast=d.road==='instant';
+    const rec=d.recognised;
+    out.innerHTML='<b style="color:'+(fast?'#84d9b4':'#e3a23c')+'">'+(fast?'Instant':'Goes to the AI')+'</b> · '+esc(proosWords(d.by||''))
+      +'<br>Would: '+esc(proosWords(d.would||''))
+      +(d.says?'<br>Says: “'+esc(d.says)+'”':'')
+      +(d.why?'<br>Why: '+esc(proosWords(d.why))+(d.ai_ready===false?' — and no AI key is set, so it would not be answered.':''):'')
+      +'<br><span style="opacity:.7">Heard as: '+esc(rec?((rec.intent||'an activity sentence')+(rec.sentence?' · “'+rec.sentence+'”':'')):'nothing')+' · '+esc(String(d.recognise_ms))+' ms to recognise</span>';
+  }catch(e){ out.textContent='ProOS Core unreachable'; }
 }
 async function assistVoiceLoad(){
   const body=document.getElementById('as-voice-body'); if(!body) return;
