@@ -1632,6 +1632,12 @@ def _commit_project(body, overwrite=False):
         res["activities"] = project.generate_committed(_client, saved, overwrite=ow)
     except Exception as e:
         res["activities"] = {"error": str(e)}
+    # REGISTER 733: every activity just generated gets its own instant sentences
+    # ("watch apple tv in the bedroom") in the platform's own sentence triggers.
+    try:
+        res["voice_activities"] = project.voice_activities(_client, saved)
+    except Exception as e:
+        res["voice_activities"] = {"ok": False, "error": str(e)}
     # Reflect the just-committed config in the cached controllers so the
     # dashboard's activity list + verdicts update on its next poll (they
     # build from the committed record). Done ONCE here, not per read.
@@ -8796,6 +8802,20 @@ def main():
                     print(f"  voice · exposure not written: {_vx.get('error')}")
             except Exception as _ve:
                 print(f"  voice · exposure skipped: {_ve}")
+            try:
+                # REGISTER 733: and every committed activity has its own sentences.
+                _va = project.voice_activities(_client, project.load())
+                if _va.get("ok"):
+                    print(f"  voice · activities: {_va.get('action')} "
+                          f"({_va.get('sentences', 0)} sentences)")
+                    if _va.get("action") in ("written", "removed") and _journal_mod is not None:
+                        _journal_mod.emit("service", "voice_activities",
+                                          {"action": _va.get("action"),
+                                           "activities": _va.get("activities") or []})
+                else:
+                    print(f"  voice · activities not written: {_va.get('error')}")
+            except Exception as _va_e:
+                print(f"  voice · activities skipped: {_va_e}")
             try:
                 # A2 Phase 3 (regs 272-273, Dave's ruling): Core converges
                 # www/ to its shipped app copies on every boot \u2014 install
