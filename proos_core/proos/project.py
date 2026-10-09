@@ -940,57 +940,103 @@ def mirror(client, project: dict) -> dict:
     return out
 
 
-def expose_assist(client, project: dict) -> dict:
-    """Reconcile ASSIST (voice) exposure to committed membership — one truth:
-    what the dashboard shows is what voice can address.
+# ── THE COMMISSIONING WRITER: WHAT THE PLATFORM'S VOICE AGENT IS TOLD (register 730) ──
+# Dave, 9 Oct 2026: "everything the installer commissions in Pro automatically becomes an
+# instant voice command, like Josh" — and the platform's own built-in agent is what makes it
+# instant. It can only be as right as what it is told: on his box it was told 77 things, five
+# of them the Office's speaker (the Sonos and the HomePod each twice, plus a camera speaker),
+# the MacBooks, and the alarm's siren, strobe and garage doors (no consent). The old pass only
+# sorted AV-platform media players of COMMITTED rooms, and only when a room was committed.
+#
+# THE RULES — from structure, never a rule for one device (5 Sep ruling):
+#   1. only what is in a ROOM counts (an area that is not the Home/services area);
+#   2. a settings or diagnostics entity (entity_category) never counts;
+#   3. a speaker or display counts only if it is in that room's record in Pro (committed or
+#      not: an assigned room is controllable — the laws); twins, laptops, camera speakers don't;
+#   4. locks, alarm panels, sirens, and everything from a security-class integration are never
+#      given to the voice agent — ProOS handles them, so Core's consent proof applies;
+#   5. scenes, weather and to-do lists count house-wide (Dave, 9 Oct: from the Home area
+#      "only weather and scenes"); in a room, sensors count only for the readings a person asks
+#      for (temperature, humidity, doors and windows, motion, occupancy).
+# Only entities whose exposure differs are written. Runs at every Core start and every
+# commission (mirror), and returns what it changed for the Master Log.
+_VOICE_CONTROL = {"light", "switch", "cover", "climate", "fan", "vacuum", "valve",
+                  "water_heater", "humidifier", "lawn_mower", "media_player"}
+_VOICE_NEVER = {"lock", "alarm_control_panel", "siren"}
+_VOICE_HOUSE = {"scene", "weather", "todo"}
+_VOICE_READINGS = {"temperature", "humidity", "door", "window", "opening",
+                   "motion", "occupancy"}
 
-    Scope is deliberately narrow: ONLY media_player entities on AV platforms
-    are managed, because they are the noise source — streaming twins (the HEOS
-    player of a committed Denon/Marantz), unclaimed zone entities, casting
-    laptops/phones. HA's defaults expose ALL of them, so "turn off the TV"
-    could land on gear no installer ever committed. After this pass:
-      - a member of a COMMITTED room        -> exposed to Assist
-      - every other AV-platform media_player -> hidden from Assist
-    Lights, covers, climate and sensors keep HA's own defaults untouched —
-    the stock per-area intents already handle them correctly, and managing
-    them here would surprise installers who curate exposure by hand.
-    Idempotent: only entities whose exposure actually differs are written."""
+
+def _security_platforms() -> set:
+    return {p for p, c in getattr(discovery, "CLASS_BY_INTEGRATION", {}).items()
+            if c == "security"}
+
+
+def voice_wants(ent: dict, area: str | None, rooms: set, members: set,
+                security: set) -> bool:
+    """Whether the platform's voice agent should be told about this entity."""
+    eid = ent.get("entity_id") or ""
+    domain = eid.split(".", 1)[0]
+    if ent.get("disabled_by") or ent.get("hidden_by") or ent.get("entity_category"):
+        return False
+    if domain in _VOICE_NEVER or ent.get("platform") in security:
+        return False
+    if domain in _VOICE_HOUSE:
+        return True
+    if area not in rooms:
+        return False
+    if domain == "media_player":
+        return eid in members
+    if domain in _VOICE_CONTROL:
+        return True
+    if domain in ("sensor", "binary_sensor"):
+        dc = ent.get("device_class") or ent.get("original_device_class")
+        return dc in _VOICE_READINGS
+    return False
+
+
+def expose_assist(client, project: dict) -> dict:
+    """Write the commissioning into the platform's voice exposure (the rules above)."""
     try:
         entities = client.entity_registry() or []
+        devices = client.device_registry() or []
+        areas = client.area_registry() or []
     except Exception as e:
-        return {"ok": False, "error": "entity_registry unavailable: %s" % e}
-    av_platforms = set(discovery._KNOWN)
+        return {"ok": False, "error": "registry unavailable: %s" % e}
+    from . import provision
+    home_names = {provision.SERVICES_AREA_NAME.lower(), *provision.LEGACY_SERVICES_NAMES}
+    rooms = {a.get("area_id") for a in areas
+             if a.get("area_id") and (a.get("name") or "").strip().lower() not in home_names
+             and a.get("area_id") not in provision.LEGACY_SERVICES_NAMES}
+    dev_area = {d.get("id"): d.get("area_id") for d in devices}
     members = set()
     for rec in (project or {}).get("areas", {}).values():
-        if rec and rec.get("committed"):
-            for e in _area_members(rec):
-                members.add(e)
+        if rec:
+            members.update(e for e in _area_members(rec) if e)
+    security = _security_platforms()
     expose, hide = [], []
     for ent in entities:
         eid = ent.get("entity_id") or ""
-        if not eid.startswith("media_player."):
+        if "." not in eid:
             continue
-        if ent.get("platform") not in av_platforms:
-            continue
-        # Current exposure lives in the entity's options under each assistant
-        # key; absent means "HA default" (exposed), so treat absent as exposed.
-        opts = (ent.get("options") or {}).get("conversation") or {}
-        cur = opts.get("should_expose", True)
-        want = eid in members
+        want = voice_wants(ent, area_of(ent, dev_area), rooms, members, security)
+        # No setting stored = the platform's default, which exposes: treat absent as exposed.
+        cur = ((ent.get("options") or {}).get("conversation") or {}).get("should_expose", True)
         if want and not cur:
             expose.append(eid)
-        elif not want and cur:
+        elif cur and not want:
             hide.append(eid)
-    out = {"ok": True, "exposed": expose, "hidden": hide}
+    out = {"ok": True, "exposed": sorted(expose), "hidden": sorted(hide)}
     try:
         if expose:
             ws_command(client.base_url, client._token, "homeassistant/expose_entity",
-                       assistants=["conversation"], entity_ids=expose, should_expose=True)
+                       assistants=["conversation"], entity_ids=sorted(expose), should_expose=True)
         if hide:
             ws_command(client.base_url, client._token, "homeassistant/expose_entity",
-                       assistants=["conversation"], entity_ids=hide, should_expose=False)
+                       assistants=["conversation"], entity_ids=sorted(hide), should_expose=False)
     except Exception as exc:  # noqa: BLE001
-        out = {"ok": False, "error": str(exc), "exposed": expose, "hidden": hide}
+        out = {"ok": False, "error": str(exc), "exposed": sorted(expose), "hidden": sorted(hide)}
     return out
 
 
