@@ -4528,7 +4528,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026100822';
+const PROOS_BUILD='2026100901';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -13131,18 +13131,21 @@ function _paLiveEntity(e){ const lo=e.replace('high_resolution','low_resolution'
 let _paGridRTC=[];
 function _paStopGridLive(){ _paGridRTC.forEach(r=>{ try{ r.cleanup(); }catch(e){} }); _paGridRTC=[]; for(let i=0;i<40;i++){ const v=document.getElementById('cvid'+i); if(v){ try{ v.srcObject=null; v.style.opacity='0'; }catch(e){} } } }
 function _paPauseGridVideos(){ for(let i=0;i<40;i++){ const v=document.getElementById('cvid'+i); if(v){ try{ v.pause(); }catch(e){} } } }
-function _paResumeGridVideos(){ let active=0; for(let i=0;i<40;i++){ const v=document.getElementById('cvid'+i); if(v&&v.srcObject){ active++; try{ v.play(); }catch(e){} } } if(active===0 && document.getElementById('cvid0') && window.RTCPeerConnection && _linkBudget().live) _paGridLive(); }
+// 726 · LIVE VIDEO ONLY WHERE IT CAN BE SEEN: closing a camera (or the doorbell's view) away from the camera page used to
+// restart every grid tile live behind the page you were on — the grid's DOM is kept for instant re-entry.
+function _paResumeGridVideos(){ if(curPage!=='cameras') return; let active=0; for(let i=0;i<40;i++){ const v=document.getElementById('cvid'+i); if(v&&v.srcObject){ active++; try{ v.play(); }catch(e){} } } if(active===0 && document.getElementById('cvid0') && window.RTCPeerConnection && _linkBudget().live) _paGridLive(); }
 async function _paWarmIce(){ if(window._paIceServers) return; try{ const r=await _pTimeout(snd({type:'camera/webrtc/get_client_config',entity_id:CONFIG.cameras[0].entity}),5000,null); window._paIceServers=(r&&r.result&&r.result.configuration&&r.result.configuration.iceServers)||[]; }catch(e){ window._paIceServers=[]; } }
 async function _paGridLive(){
   _paStopGridLive();
   if(!window.RTCPeerConnection) return; // no WebRTC → grid stays on snapshots
   if(!_linkBudget().live) return;       // away from home the grid stays on pictures (register 356)
   await _paWarmIce();
+  if(curPage!=='cameras') return;      // 726: the page was left while waiting — nothing starts behind it
   // ALL tiles stream live — like the native Protect app — because the grid
   // plays each camera's LOW-RES sub-stream (_paLiveEntity prefers the
   // low_resolution channel; those entities are enabled in HA). Eleven 360p
   // streams cost less than two 4K ones. Full-res only in single-camera view.
-  for(let i=0;i<CONFIG.cameras.length;i++){ if(!document.getElementById('cvid'+i)) break; _paTileLive(i, _paLiveEntity(CONFIG.cameras[i].entity)); await new Promise(r=>setTimeout(r,40)); }
+  for(let i=0;i<CONFIG.cameras.length;i++){ if(curPage!=='cameras') return; if(!document.getElementById('cvid'+i)) break; _paTileLive(i, _paLiveEntity(CONFIG.cameras[i].entity)); await new Promise(r=>setTimeout(r,40)); }
 }
 function _paTileLive(i, entity){
   const vid=document.getElementById('cvid'+i), img=document.getElementById('camimg'+i), ph=document.getElementById('camph'+i);
@@ -13193,7 +13196,7 @@ function _paEvRender(){
 
 // ── Per-camera detail: live + talkback (if speaker) + that camera's recent events ──
 function openProtectCamera(i){
-  const cam=CONFIG.cameras[i]; if(!cam) return; window._paCurCam=i;
+  const cam=CONFIG.cameras[i]; if(!cam) return; window._paCurCam=i; window._paOpenSeq=(window._paOpenSeq||0)+1;
   const pcCam=_pcCamForName(cam.name); const ff=(pcCam&&pcCam.featureFlags)||{};
   let ov=document.getElementById('pa-detail');
   if(!ov){ ov=document.createElement('div'); ov.id='pa-detail'; ov.className='pa-fs'; document.body.appendChild(ov); }
@@ -13229,7 +13232,9 @@ function openProtectCamera(i){
 function _paWebRTC(entity, videoEl, onFail){
   let pc=null, subId=null, sessionId=null, handler=null, dead=false, fired=false;
   const fail=()=>{ if(fired||dead) return; fired=true; if(onFail){ try{ onFail(); }catch(e){} } };
-  const cleanup=()=>{ dead=true; if(handler){ try{ ws.removeEventListener('message',handler); }catch(e){} handler=null; } if(pc){ try{ pc.close(); }catch(e){} pc=null; } try{ if(videoEl) videoEl.srcObject=null; }catch(e){} };
+  // 726 · A FINISHED STREAM IS ENDED ON THE BOX TOO: the platform's own player unsubscribes; this closed only its own end.
+  const endOnBox=()=>{ if(subId==null) return; const id=subId; subId=null; try{ snd({type:'unsubscribe_events',subscription:id}).catch(()=>{}); }catch(e){} };
+  const cleanup=()=>{ dead=true; endOnBox(); if(handler){ try{ ws.removeEventListener('message',handler); }catch(e){} handler=null; } if(pc){ try{ pc.close(); }catch(e){} pc=null; } try{ if(videoEl) videoEl.srcObject=null; }catch(e){} };
   (async()=>{
     try{
       pc=new RTCPeerConnection({iceServers:(window._paIceServers||[]), bundlePolicy:'max-bundle'});
@@ -13254,6 +13259,7 @@ function _paWebRTC(entity, videoEl, onFail){
       const res=await _pTimeout(snd({type:'camera/webrtc/offer', entity_id:entity, offer: offer.sdp}),8000,null);
       if(!res||!res.success){ cleanup(); fail(); return; }
       subId=res.id;
+      if(dead) endOnBox();   // closed while the box was still answering
     }catch(e){ cleanup(); fail(); }
   })();
   return { cleanup };
@@ -13441,12 +13447,27 @@ function _doorbellRang(eid){
   const i=(CONFIG.cameras||[]).findIndex(c=>c.entity===ce); if(i<0) return;
   const ov=document.getElementById('pa-detail');
   const already=ov && ov.style.display!=='none' && window._paCurCam===i;
-  if(!already) openProtectCamera(i);
+  if(!already){ openProtectCamera(i); _doorbellArmClose(eid, v, i, t); }
+  else if(window._paRingSeq===window._paOpenSeq) _doorbellArmClose(eid, v, i, t);   // rang again on the ring's own view: a new minute
   let tries=0;
   const soundWhenLive=()=>{ const vid=document.getElementById('pa-det-vid');
     if(vid && vid.style.display!=='none'){ _paSoundOn(); return; }
     if(++tries<40) setTimeout(soundWhenLive, 250); };
   soundWhenLive();
+}
+// 726 · THE DOORBELL'S VIEW CLOSES ITSELF (Dave, 9 Oct 2026: "60 secs if talk not started but if talk started then it can be
+// closed manually"). A view the ring opened closes when the ring stops being "now" — _RING_NOW_MS after the ring, the
+// doorbell widget's own minute — unless Talk was started in it, someone opened another camera, or a newer ring came.
+function _doorbellArmClose(eid, ring, i, ringAt){
+  const seq=window._paOpenSeq; window._paRingSeq=seq;   // this view is the ring's
+  setTimeout(()=>{
+    if(_ringSeen[eid]!==ring) return;                                   // a newer ring has its own minute
+    const ov=document.getElementById('pa-detail');
+    if(!ov || ov.style.display==='none') return;                        // already closed
+    if(window._paCurCam!==i || window._paOpenSeq!==seq) return;          // a camera opened since — not the ring's view
+    if(_paTalk || (window._paTalkedAt && window._paTalkedAt>=ringAt)) return;   // Talk started: closed by hand
+    closeProtectCamera();
+  }, Math.max(0, ringAt+_RING_NOW_MS-Date.now()));
 }
 let _paTalk=null;
 function _paResample(f32, from, to){
@@ -13472,6 +13493,7 @@ async function _paTalkStart(ev, camName, btn){
   if(ev&&ev.preventDefault) ev.preventDefault();
   if(_paTalk) return;
   const pcCam=_pcCamForName(camName); if(!pcCam) return;
+  window._paTalkedAt=Date.now();   // 726: a view where Talk was started is closed only by hand
   const t=_paTalk={btn, q:[], sid:null, rate:24000, released:false, sending:false};
   btn.classList.add('talking'); btn.querySelector('span').textContent='Connecting…';
   t.app=_proosApp();
