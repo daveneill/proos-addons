@@ -1058,6 +1058,16 @@ body[data-home-state="noticing"] .home-state-go,body[data-home-state="attention"
 .pa-fs-btn{background:rgba(0,0,0,.5);border:.5px solid rgba(255,255,255,.18);color:#fff;font-size:13px;font-weight:600;padding:10px 20px;border-radius:22px;cursor:pointer;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);display:flex;align-items:center;gap:7px}
 .pa-fs-livebtn{background:rgba(33,57,240,.92);border-color:transparent}
 .pa-fs-livedot{width:7px;height:7px;border-radius:50%;background:#fff}
+/* 727 · THE CAMERA'S BUTTONS NEVER CHANGE SIZE (Dave, 9 Oct 2026: "mobile buttons are small then when you press one they go
+   larger"). A label never wraps; on a phone the buttons are equal slots across the bottom, so "Talk" becoming
+   "Connecting…" or "Sound Off" becoming "Sound On" moves nothing and pushes nothing off the screen. */
+.pa-fs-ctrls .pa-fs-btn{white-space:nowrap;justify-content:center}
+@media (max-width:600px){
+  .pa-fs-ctrls{left:8px;right:8px;display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:6px}
+  .pa-fs-ctrls .pa-fs-btn{min-width:0;padding:10px 4px;font-size:12px;gap:5px}
+  .pa-fs-ctrls .pa-fs-btn span:not(.pa-fs-livedot){overflow:hidden;text-overflow:ellipsis}
+}
+@media (max-width:385px){ .pa-fs-ctrls .pa-fs-btn{font-size:11px} }   /* iPhone SE: "Connecting…" still whole */
 .pa-fs-tl{background:#0c0c0f;overflow-y:auto;padding:16px 10px}
 #pa-det-events{min-height:0}
 .pa-sc{position:absolute;inset:0;overflow-y:auto;scrollbar-width:none}
@@ -4528,7 +4538,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026100901';
+const PROOS_BUILD='2026100902';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
