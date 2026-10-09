@@ -8783,6 +8783,20 @@ def main():
             except Exception:
                 pass
             try:
+                # REGISTER 730: the platform's voice agent is told exactly what is
+                # commissioned, at every start (and every commission, via mirror).
+                _vx = project.expose_assist(_client, project.load())
+                if _vx.get("ok"):
+                    print(f"  voice · told the platform's agent: +{len(_vx['exposed'])} "
+                          f"-{len(_vx['hidden'])}")
+                    if (_vx["exposed"] or _vx["hidden"]) and _journal_mod is not None:
+                        _journal_mod.emit("service", "voice_exposure",
+                                          {"exposed": _vx["exposed"], "hidden": _vx["hidden"]})
+                else:
+                    print(f"  voice · exposure not written: {_vx.get('error')}")
+            except Exception as _ve:
+                print(f"  voice · exposure skipped: {_ve}")
+            try:
                 # A2 Phase 3 (regs 272-273, Dave's ruling): Core converges
                 # www/ to its shipped app copies on every boot \u2014 install
                 # when different, leave alone when identical, journaled.
