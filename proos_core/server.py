@@ -8080,6 +8080,22 @@ class Handler(BaseHTTPRequestHandler):
                     pass
                 return self._send_bytes(200, ctype, data)
             # ── Pro Assist AI gateway ──
+            if parts == ["assist", "tryit"]:
+                # REGISTER 736: Pro's Try a Command box — a dry run, nothing is switched.
+                if not _assist:
+                    return self._send(503, {"error": "assist module not loaded"})
+                u = getattr(self, "_user", None)
+                if not u:
+                    return self._send(401, {"error": "sign in required"})
+                b = self._body() or {}
+                try:
+                    return self._send(200, _assist.try_it(
+                        _client, _ws_call, project,
+                        {"id": u.get("id"), "name": u.get("name"),
+                         "is_admin": bool(u.get("is_admin")), "is_owner": bool(u.get("is_owner"))},
+                        str(b.get("text") or "")))
+                except Exception as e:  # noqa: BLE001
+                    return self._send(200, {"error": str(e)})
             if parts == ["assist", "chat"]:
                 if not _assist:
                     return self._send(503, {"error": "assist module not loaded"})
