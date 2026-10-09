@@ -1977,8 +1977,10 @@ def apply_scene(client, ws_call, project_mod, ma, scene_entity_id: str,
                             {"entity_id": spk, "volume_level": round(vol / 100.0, 2)})
             except Exception:
                 pass
-        client._req("POST", "/api/services/music_assistant/play_media",
-                    {"entity_id": spk, "media_id": uri, "enqueue": "play"})
+        _ref = _music_send(client, spk, uri, "play").refused()   # register 738
+        if _ref:
+            out["music"] = "failed — %s" % _ref
+            return out
         out["music"] = {"playing": rec.get("query") or uri, "speaker": spk}
     except Exception as e:                                       # noqa: BLE001
         out["music"] = "failed — %s" % e
@@ -2121,6 +2123,45 @@ def _slim_state(snap_val) -> dict:
     if a.get("friendly_name"):
         out["name"] = a.get("friendly_name")
     return out
+
+
+# ── REGISTER 738: A PLAY IS JUDGED BY THE SPEAKER, NEVER BY WHETHER THE REQUEST CAME BACK IN TIME ──
+# Dave, 10 Oct 2026 5:50 am: "Said I couldn't do that — timed out — but started playing anyway."
+# Read on the box: the platform's play_media call does not return until the music engine has
+# fetched what it is playing; the service was slow (its own retries, 05:48:05–05:48:20), Core's
+# request gave up at its 10-second limit, and the turn reported "timed out" as a failure — the
+# Office started playing at 05:48:24. A request that has not answered YET is not a refusal. So
+# the play is SENT without the turn waiting on it, and the only things that decide what is said
+# are the platform's own refusal (an HTTP error it returned) or the speaker's own state.
+MUSIC_REFUSAL_WAIT_S = 2.0          # how long a turn listens for an outright refusal
+
+
+class _MusicSent:
+    """One play, sent. refused() is the platform's own refusal (its HTTP error) once it has
+    answered with one, else None — a request still waiting, or one that gave up waiting, is
+    not a refusal; the speaker's state is what says whether it plays."""
+    def __init__(self):
+        self.err, self.done = "", False
+
+    def refused(self):
+        return self.err if "HTTP " in self.err else None
+
+
+def _music_send(client, eid, uri, enqueue, wait=None):
+    sent = _MusicSent()
+
+    def _go():
+        try:
+            client._req("POST", "/api/services/music_assistant/play_media",
+                        {"entity_id": eid, "media_id": uri, "enqueue": enqueue})
+        except Exception as e:  # noqa: BLE001
+            sent.err = str(e)
+        sent.done = True
+
+    th = threading.Thread(target=_go, daemon=True, name="proos-music-send")
+    th.start()
+    th.join(MUSIC_REFUSAL_WAIT_S if wait is None else wait)
+    return sent
 
 
 class ToolRunner:
@@ -3471,8 +3512,9 @@ class ToolRunner:
         if enqueue == "play" and self._music_busy(eid):
             return {"error": "the last play for that room is still starting — I won't send another on top of it",
                     "note": "do not retry: the music service is still answering the last request"}
-        self.client._req("POST", "/api/services/music_assistant/play_media",
-                         {"entity_id": eid, "media_id": uri, "enqueue": enqueue})
+        _ref = _music_send(self.client, eid, uri, enqueue).refused()  # register 738
+        if _ref:
+            return {"error": "the music service refused it: %s" % _ref}
         if enqueue == "play":
             ToolRunner._music_inflight[eid] = time.time()
         self._audit("music_play", area=area, entity=eid, uri=uri, mode=enqueue)
@@ -3515,7 +3557,8 @@ class ToolRunner:
     _MUSIC_LEAD = ("something ", "some ", "a bit of ", "a little ", "a little bit of ")
     _MUSIC_PICK = (("radio", "radio"), ("artists", "artist"), ("playlists", "playlist"),
                    ("albums", "album"), ("tracks", "track"))
-    MUSIC_PROOF_S = 10.0
+    MUSIC_PROOF_S = 6.0      # how long the turn watches the speaker before saying it is still starting
+    MUSIC_SETTLE_S = 2.0     # after the platform says it is done, how long the speaker has to start
 
     @classmethod
     def music_query(cls, q, with_mood=False):
@@ -3580,15 +3623,28 @@ class ToolRunner:
             before = (self.client._req("GET", "/api/states/%s" % eid) or {})
         except Exception:  # noqa: BLE001
             before = {}
-        self.client._req("POST", "/api/services/music_assistant/play_media",
-                         {"entity_id": eid, "media_id": it["uri"], "enqueue": "replace"})
+        sent = _music_send(self.client, eid, it["uri"], "replace", wait=0)   # register 738
         ToolRunner._music_inflight[eid] = time.time()
         self._audit("music_play", area=area, entity=eid, uri=it["uri"], mode="replace",
                     asked=asked, picked=it.get("name"), kind=kind)
         name = str(it.get("name") or q)
-        t0, playing, st = time.time(), False, {}
-        while time.time() - t0 < self.MUSIC_PROOF_S:
+        t0, playing, st, refused, done_at = time.time(), False, {}, None, None
+
+        def _watching():
+            el = time.time() - t0
+            if el >= self.MUSIC_PROOF_S + self.MUSIC_SETTLE_S:
+                return False
+            # keep watching to the end of the window, and for the settle time after the
+            # platform says it is done, whichever is later
+            return el < self.MUSIC_PROOF_S or (done_at is not None and time.time() - done_at < self.MUSIC_SETTLE_S)
+
+        while _watching():
             time.sleep(0.5)
+            refused = sent.refused()
+            if refused:
+                break
+            if sent.done and done_at is None:
+                done_at = time.time()
             try:
                 st = self.client._req("GET", "/api/states/%s" % eid) or {}
             except Exception:  # noqa: BLE001
@@ -3607,10 +3663,25 @@ class ToolRunner:
             room = None
         if playing:
             ToolRunner._music_inflight.pop(eid, None)
-        if not playing:
+        if refused:
+            ToolRunner._music_inflight.pop(eid, None)
+            return {"error": "the music service refused %s: %s" % (name, refused),
+                    "picked": name, "kind": kind, "playing_on": eid}
+        if not playing and done_at is not None and not sent.err and time.time() - done_at >= self.MUSIC_SETTLE_S:
+            # EVIDENCE OF FAILURE, not a guess: the platform answered that it had done it,
+            # and the speaker still did not play.
+            ToolRunner._music_inflight.pop(eid, None)
             return {"error": "the speaker didn't start playing %s (it says %s)"
                              % (name, st.get("state") or "nothing"),
                     "picked": name, "kind": kind, "playing_on": eid}
+        if not playing:
+            # STILL STARTING: sent, not refused, not yet playing — the music service is still
+            # answering (read on the box: up to 11 s). Said as it is; the room stays held so a
+            # second ask is not stacked on it; no failure is claimed.
+            return {"ok": True, "pending": True, "playing_on": eid, "picked": name, "kind": kind,
+                    "say": ("Starting %s in the %s — the music service is slow right now." % (name, room))
+                           if room else ("Starting %s — the music service is slow right now." % name),
+                    "note": "sent and not refused; not playing yet. Do not send it again."}
         return {"ok": True, "playing_on": eid, "picked": name, "kind": kind,
                 "proof": {"state": "playing", "title": (st.get("attributes") or {}).get("media_title"),
                           "seconds": round(time.time() - t0, 1)},
