@@ -219,6 +219,92 @@ def resolve_platform(rec, text, where=None, rooms=(), scenes=()):
     return None
 
 
+# ── EVERYTHING ELSE THE PLATFORM UNDERSTOOD: ITS OWN AGENT DOES IT (register 731) ──
+# Dave, 9 Oct 2026 (design, stage A): "everything the installer commissions in Pro
+# automatically becomes an instant voice command, like Josh", and the law: never
+# rebuild what the platform does. resolve_platform maps only the verbs ProOS has its
+# own meaning for (a room on/off, a room's lights, volume, transport, a ProOS scene).
+# EVERY OTHER sentence the platform's library recognised -- the blinds, the heating, a
+# fan, a named lamp, "what's the temperature in the office", the weather -- was being
+# handed to the cloud model, which took several rounds to do what the platform's own
+# agent does in one step. From this build the platform's own agent does it, over
+# exactly what register 730 told it about (rooms only, never security), and ProOS
+# speaks its answer. Same law as the rest of this module: certainty or nothing.
+#
+# NOT HERE, deliberately:
+#   - HassMediaSearchAndPlay: "play something relaxing" is A5's (the committed speaker
+#     and a check that it is actually playing), not the platform's guess of a player;
+#   - timers and broadcast: they act on the speaker you are talking TO, and a turn
+#     typed or spoken in the app has no such speaker -- the platform would refuse;
+#   - two instructions in one sentence, an unknown room, or one sentence that would
+#     move several things with no room or name to say which.
+PLATFORM_LATER = {"HassMediaSearchAndPlay"}                     # A5
+PLATFORM_NEEDS_A_SPEAKER = {"HassStartTimer", "HassCancelTimer", "HassCancelAllTimers",
+                            "HassIncreaseTimer", "HassDecreaseTimer", "HassPauseTimer",
+                            "HassUnpauseTimer", "HassTimerStatus", "HassBroadcast",
+                            "HassNevermind", "HassRespond"}
+# A READING moves nothing: the platform answers it from the live state, so a question
+# that is one of these is safe to answer at once (the rest of a question is Assist's).
+PLATFORM_READINGS = {"HassGetState", "HassGetWeather", "HassGetCurrentTime",
+                     "HassGetCurrentDate", "HassClimateGetTemperature"}
+
+
+def platform_can_take(rec, text, rooms=()):
+    """The platform's intent name when its own agent may do this sentence now, else None.
+
+    Called only after resolve_platform declined. Never acts; the caller hands the SAME
+    sentence to the platform's own agent (conversation/process, agent
+    conversation.home_assistant), which recognises it the same way and does it.
+    """
+    if not rec or not rec.get("match") or rec.get("fuzzy_match"):
+        return None
+    # REGISTER 733: A SENTENCE THE HOME WAS GIVEN. The platform reports a sentence trigger
+    # as source "trigger" — an automation's own sentence (ProOS writes one per activity:
+    # "watch apple tv in the bedroom"). It matched the WHOLE sentence as written, so it is
+    # certain by construction, and the platform's agent runs it.
+    if rec.get("source") == "trigger":
+        return "trigger"
+    if rec.get("source") not in (None, "builtin"):
+        return None
+    intent = str(((rec.get("intent") or {}).get("name")) or "")
+    if not intent or intent in PLATFORM_LATER or intent in PLATFORM_NEEDS_A_SPEAKER:
+        return None
+    padded = " " + _norm(text) + " "
+    if any(c in padded for c in _COMPOUND):
+        return None
+    if intent in PLATFORM_READINGS:
+        return intent
+    if "?" in str(text or ""):
+        return None                       # a question that is not a reading: Assist's
+    # REGISTER 732: A TV OR SPEAKER IS NEVER POWERED RAW. "Turn off the bedroom TV"
+    # names a media player, and the platform's agent would switch that one box off --
+    # leaving the Apple TV, the soundbar and the input where they were. A room's AV
+    # power is choreographed by its activities (TV Off, Watch …), so it goes to Assist,
+    # which runs the activity. (Register 733: the room's TV Off now has its own sentences,
+    # "turn off the bedroom tv", which the platform checks before this one is ever reached.)
+    if intent in ("HassTurnOn", "HassTurnOff"):
+        _dom = _slot(rec, "domain")
+        _doms = set(_dom if isinstance(_dom, (list, tuple)) else ([_dom] if _dom else []))
+        if "media_player" in _doms or any(
+                str(t).startswith("media_player.") for t in (rec.get("targets") or {})):
+            return None
+    area_txt = _slot(rec, "area")
+    if area_txt:
+        known = set()
+        for row in (rooms or []):
+            if row and row[1]:
+                known.add(str(row[1]).lower())
+                for al in (row[2] if len(row) > 2 and row[2] else ()):
+                    known.add(str(al).lower())
+        if str(area_txt).lower() not in known:
+            return None                   # a room ProOS has not been given: Assist decides
+        return intent
+    targets = list((rec.get("targets") or {}).keys())
+    if len(targets) == 1:
+        return intent                     # one thing, by its name: certain
+    return None                           # several things and no room said which: Assist asks
+
+
 # ── ONE PHRASEBOOK, USED BY BOTH ROADS (register 488) ────────────────────────
 # The direct path composes these for the commands it resolves. The MODEL takes
 # the same five verbs when it reasons its way to them, and when it does, the

@@ -1040,6 +1040,129 @@ def expose_assist(client, project: dict) -> dict:
     return out
 
 
+# ── THE COMMISSIONING WRITER, PART 2: EVERY ACTIVITY GETS ITS SENTENCES (register 733) ──
+# Dave, 9 Oct 2026 (design stage A, step 4): "everything the installer commissions in Pro
+# automatically becomes an instant voice command, like Josh". An activity is a script
+# ("ProOS · Bedroom · Watch Apple TV"), and the platform's built-in agent cannot say that
+# name. The platform's OWN mechanism for a home's own sentences is the sentence trigger
+# (an automation triggered by conversation), checked BEFORE its built-in sentences — so
+# "turn off the bedroom TV" lands on the room's TV Off, never on the TV alone (register 732).
+#
+# ONE automation, ProOS's own (id proos_voice_activities), written from the activities as they
+# are stored on the box (activities_status — the same list every dashboard shows) for every
+# committed room. Sentences come from the room's name and the activity's label, nothing typed:
+#   "<label> in [the] <room>"  ·  "[the] <room> <label>"
+# and for a TV Off, the ways people say it: "turn [the] tv off in [the] <room>", "turn off
+# [the] tv in [the] <room>", "turn [the] <room> tv off", "turn off [the] <room> tv".
+# It runs the script (exactly what a tap does) and answers in a few words.
+# An installer who edits it in the platform is never overwritten (the stamped proos_hash, the
+# generator's own rule); with no activities at all, an unedited one is removed.
+VOICE_ACTIVITIES_ID = "proos_voice_activities"
+_TEMPLATE_CHARS = re.compile(r"[\[\]\(\)\{\}<>|;]")
+
+
+def _speakable(text) -> str:
+    """A name as a sentence template can hold it: template characters out, one space."""
+    return " ".join(_TEMPLATE_CHARS.sub(" ", str(text or "")).split()).strip().lower()
+
+
+def activity_sentences(room: str, label: str, kind: str | None = None) -> list:
+    r, l = _speakable(room), _speakable(label)
+    if not r or not l:
+        return []
+    out = ["%s in [the] %s" % (l, r), "[the] %s %s" % (r, l)]
+    if kind == "tv_off" or l == "tv off":
+        out += ["turn [the] tv off in [the] %s" % r, "turn off [the] tv in [the] %s" % r,
+                "turn [the] %s tv off" % r, "turn off [the] %s tv" % r]
+    return out
+
+
+def activity_said(room: str, label: str, kind: str | None = None) -> str:
+    """What the home says when it starts the activity: short, the room first."""
+    import re as _re
+    m = _re.match(r"^watch(?:ing)?\s+(.+)$", str(label or "").strip(), _re.I)
+    return "%s, %s." % (room, m.group(1) if m else str(label or "").strip())
+
+
+def _voice_hash(cfg: dict) -> str:
+    import hashlib
+    c = json.loads(json.dumps(cfg))
+    (c.get("variables") or {}).pop("proos_hash", None)
+    return hashlib.sha256(json.dumps(c, sort_keys=True).encode()).hexdigest()[:16]
+
+
+def voice_activities_config(rooms: list):
+    """rooms: [(room name, [activity dicts from activities_status])]. None when nothing."""
+    triggers, said, seen = [], {}, set()
+    for room, acts in rooms:
+        for a in acts or []:
+            eid = a.get("entity_id") or ""
+            if not eid.startswith("script.") or eid in said:
+                continue
+            cmds = [s for s in activity_sentences(room, a.get("label"), a.get("kind"))
+                    if s not in seen]
+            if not cmds:
+                continue
+            seen.update(cmds)
+            triggers.append({"trigger": "conversation", "command": cmds, "id": eid})
+            said[eid] = activity_said(room, a.get("label"), a.get("kind"))
+    if not triggers:
+        return None
+    cfg = {"id": VOICE_ACTIVITIES_ID, "alias": "ProOS · Voice · Activities",
+           "description": "Written by ProOS Core from the committed rooms' activities. "
+                          "Edit it and Core leaves it alone.",
+           "mode": "parallel", "max": 10,
+           "triggers": triggers,
+           "conditions": [],
+           "actions": [{"action": "script.turn_on", "target": {"entity_id": "{{ trigger.id }}"}},
+                       {"set_conversation_response": "{{ said[trigger.id] }}"}],
+           "variables": {"said": said}}
+    cfg["variables"]["proos_hash"] = _voice_hash(cfg)
+    return cfg
+
+
+def voice_activities(client, project: dict) -> dict:
+    """Write the activities' sentences into the platform (the rules above)."""
+    names = {}
+    try:
+        names = {a.get("area_id"): a.get("name") for a in (client.area_registry() or [])}
+    except Exception:  # noqa: BLE001
+        pass
+    rooms = []
+    for area, rec in sorted(((project or {}).get("areas") or {}).items()):
+        if not (rec and rec.get("committed") and rec.get("display")):
+            continue
+        st = activities_status(client, project, area) or {}
+        if st.get("error"):
+            return {"ok": False, "error": "activities unreadable: %s" % st["error"]}
+        room = names.get(rec.get("area_id") or area) or rec.get("name") or area
+        rooms.append((room, st.get("activities") or []))
+    want = voice_activities_config(rooms)
+    path = "/api/config/automation/config/%s" % VOICE_ACTIVITIES_ID
+    try:
+        cur = client._req("GET", path)
+    except RuntimeError as e:
+        if "HTTP 404" not in str(e):
+            return {"ok": False, "error": str(e)}
+        cur = None
+    if isinstance(cur, dict) and cur:
+        stored = (cur.get("variables") or {}).get("proos_hash")
+        if not stored or stored != _voice_hash(cur):
+            return {"ok": True, "action": "kept_edited", "sentences": 0}
+        if want is None:
+            client._req("DELETE", path)
+            return {"ok": True, "action": "removed", "sentences": 0}
+        if stored == want["variables"]["proos_hash"]:
+            return {"ok": True, "action": "unchanged",
+                    "sentences": sum(len(t["command"]) for t in want["triggers"])}
+    elif want is None:
+        return {"ok": True, "action": "none", "sentences": 0}
+    client._req("POST", path, want)
+    return {"ok": True, "action": "written",
+            "activities": sorted(t["id"] for t in want["triggers"]),
+            "sentences": sum(len(t["command"]) for t in want["triggers"])}
+
+
 # ── ACTIVITY GENERATION (committed rooms → HA scripts) ───────────────────────
 
 def _friendly_names(client, entities) -> dict:
