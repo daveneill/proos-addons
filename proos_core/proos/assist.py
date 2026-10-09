@@ -946,6 +946,15 @@ TOOLS = [
                    "description": "optional: artist, album, track, playlist, radio"},
          "limit": {"type": "integer", "description": "per kind, default 6"}},
          "required": ["query"]}},
+    {"name": "music_search_play",
+     "description": "ONE STEP for 'play <something> in <room>': searches the music engine, picks "
+                    "(an exact name match, else the top playlist), plays it on the room's music "
+                    "speaker and confirms it is actually playing. Use this instead of "
+                    "music_search + music_play unless the person wants to choose.",
+     "input_schema": {"type": "object", "properties": {
+         "area_id": {"type": "string"},
+         "query": {"type": "string", "description": "what they asked for, e.g. 'something relaxing', 'Triple M'"}},
+         "required": ["area_id", "query"]}},
     {"name": "music_play",
      "description": "Play (or queue) music in a room. area_id is the room; the room's committed "
                     "MA speaker is resolved automatically. media_uri comes from music_search. "
@@ -1355,6 +1364,7 @@ _TOOL_GATES = {
     "knowledge_write":       {"pro": True},
     "music_search":          {"engine": True},
     "music_play":            {"engine": True},
+    "music_search_play":     {"engine": True},
     "music_playlist_create": {"engine": True},
     # device_recover, recovery_history and device_liveness are offered to
     # EVERYONE: a homeowner
@@ -3463,6 +3473,116 @@ class ToolRunner:
         self._audit("music_play", area=area, entity=eid, uri=uri, mode=enqueue)
         return {"ok": True, "playing_on": eid, "mode": enqueue,
                 "next": "verify with get_states on %s if the user asked to confirm" % eid}
+
+    # ── REGISTER 735: ONE STEP FROM "PLAY SOMETHING RELAXING IN THE OFFICE" TO MUSIC ────
+    # Dave, 9 Oct 2026: "I asked it to play something relaxing in the office and it took over
+    # 13 steps and was slow." The platform recognises the sentence itself (HassMediaSearchAndPlay,
+    # read on his box: search_query "something relaxing", area Office) but would hand it to the
+    # room's native speakers, which cannot search a music service. The engine CAN (ProOS Music,
+    # the platform's Music Assistant): its own search, its own play, on the room's engine player
+    # — the same _room_ma_speaker music_play uses. ProOS adds only the pick and the proof.
+    # THE PICK (Dave, 9 Oct: "finish everything as you advised" — the advice was a top
+    # playlist for a mood): a result whose name IS what was asked wins (a station, an artist,
+    # a playlist, an album, a track, in that order); otherwise the engine's top playlist, then
+    # its top station, then its top track. THE PROOF: the player is read back until it is
+    # playing; "playing" is said only when it is.
+    _MUSIC_LEAD = ("something ", "some ", "a bit of ", "a little ", "a little bit of ")
+    _MUSIC_PICK = (("radio", "radio"), ("artists", "artist"), ("playlists", "playlist"),
+                   ("albums", "album"), ("tracks", "track"))
+    MUSIC_PROOF_S = 10.0
+
+    @classmethod
+    def music_query(cls, q, with_mood=False):
+        """What to search for. A MOOD is said as one ("something relaxing", "chill music");
+        found by a bench on the box's own results: a track called "Relaxing" exact-matched
+        "relaxing" and one song would have played instead of a playlist."""
+        q = " ".join(str(q or "").lower().split()).strip(" .!")
+        mood = False
+        for p in cls._MUSIC_LEAD:
+            if q.startswith(p):
+                q, mood = q[len(p):], True
+                break
+        if q.endswith(" music") and len(q) > 6:
+            q, mood = q[:-6], True
+        return (q.strip(), mood) if with_mood else q.strip()
+
+    @classmethod
+    def music_pick(cls, res, query, mood=False):
+        res = res or {}
+        want = str(query or "").lower().strip()
+        for kind, label in cls._MUSIC_PICK:
+            if mood and kind in ("tracks", "albums"):
+                continue                  # a mood is never one song or one album by its title
+            for it in (res.get(kind) or []):
+                if isinstance(it, dict) and str(it.get("name") or "").lower().strip() == want and it.get("uri"):
+                    return it, label
+        for kind, label in (("playlists", "playlist"), ("radio", "radio"), ("tracks", "track")):
+            for it in (res.get(kind) or []):
+                if isinstance(it, dict) and it.get("uri"):
+                    return it, label
+        return None, None
+
+    def t_music_search_play(self, args):
+        """Find and play music in a room in one step, and confirm it is playing."""
+        area = (args.get("area_id") or "").strip()
+        asked = (args.get("query") or "").strip()
+        q, mood = self.music_query(asked, with_mood=True)
+        if not area or not q:
+            return {"error": "area_id and query required"}
+        # ANY SPEAKER, ANY SERVICE (Dave, 9 Oct: "this is to support anything added, not just
+        # my products"). The engine searches whatever services the installer connected to it.
+        # A room with no engine player (or a home with no engine) is handed back: the direct
+        # road then gives the sentence to the platform's own search-and-play, which works for
+        # any player whose own integration can search.
+        if not self.ma:
+            return {"handoff": "platform", "error": "the music engine (ProOS Music) isn't linked"}
+        eid = self._room_ma_speaker(area)
+        if not eid:
+            return {"handoff": "platform", "error": "no music speaker in that room — commission one in Pro first"}
+        try:
+            res = self.ma.search(q, limit=5)
+        except Exception as e:  # noqa: BLE001
+            print("  [assist] music search failed: %s" % e, flush=True)
+            return {"error": "music isn't answering right now"}
+        it, kind = self.music_pick(res, q, mood)
+        if not it:
+            return {"error": "nothing found for %s" % q}
+        try:
+            before = (self.client._req("GET", "/api/states/%s" % eid) or {})
+        except Exception:  # noqa: BLE001
+            before = {}
+        self.client._req("POST", "/api/services/music_assistant/play_media",
+                         {"entity_id": eid, "media_id": it["uri"], "enqueue": "replace"})
+        self._audit("music_play", area=area, entity=eid, uri=it["uri"], mode="replace",
+                    asked=asked, picked=it.get("name"), kind=kind)
+        name = str(it.get("name") or q)
+        t0, playing, st = time.time(), False, {}
+        while time.time() - t0 < self.MUSIC_PROOF_S:
+            time.sleep(0.5)
+            try:
+                st = self.client._req("GET", "/api/states/%s" % eid) or {}
+            except Exception:  # noqa: BLE001
+                continue
+            a = st.get("attributes") or {}
+            if st.get("state") == "playing" and (
+                    a.get("media_title") != (before.get("attributes") or {}).get("media_title")
+                    or before.get("state") != "playing"):
+                playing = True
+                break
+        room = None
+        try:
+            room = next((x.get("name") for x in (self.client.area_registry() or [])
+                         if x.get("area_id") == self._resolve_area_id(area)), None)
+        except Exception:  # noqa: BLE001
+            room = None
+        if not playing:
+            return {"error": "the speaker didn't start playing %s (it says %s)"
+                             % (name, st.get("state") or "nothing"),
+                    "picked": name, "kind": kind, "playing_on": eid}
+        return {"ok": True, "playing_on": eid, "picked": name, "kind": kind,
+                "proof": {"state": "playing", "title": (st.get("attributes") or {}).get("media_title"),
+                          "seconds": round(time.time() - t0, 1)},
+                "say": ("%s, playing %s." % (room, name)) if room else ("Playing %s." % name)}
 
     def t_music_playlist_create(self, args):
         if not self.ma:
@@ -5766,6 +5886,70 @@ def _say_key(tool, args):
                                for k, v in (args or {}).items())))
 
 
+# ── TRY A COMMAND (register 736, stage A step 6) ──────────────────────────────
+# Dave's design, 9 Oct 2026: the installer types what someone would say and sees which road
+# it takes — instant (ProOS's own verbs, an activity's sentence, the platform's agent) or the
+# cloud AI — and what it would do. NOTHING IS SWITCHED: the platform's recogniser reads the
+# sentence without acting (its debug command) and ProOS's mapping is pure. The same two
+# functions the live turn uses (resolve_platform, platform_can_take), so what Pro shows is
+# what a turn would do, not a second opinion.
+_TRY_WORDS = {
+    "room_off": "turn the room off (its activities' own power-off)",
+    "room_on": "turn the room on",
+    "area_control": "switch the room's lights",
+    "room_volume": "change the room's volume, on the speaker Pro committed",
+    "room_media": "pause / play / skip on the room's player",
+    "scene_apply": "run the scene",
+    "music_search_play": "search the music engine, play the pick on the room's music speaker, and confirm it is playing",
+}
+
+
+def try_it(client, ws_call, project_mod, user: dict, text: str, where=None) -> dict:
+    text = (text or "").strip()
+    if not text:
+        return {"error": "type a sentence"}
+    t0 = time.time()
+    rec = _direct.platform_recognize(ws_call, text) if ws_call else None
+    ms = int((time.time() - t0) * 1000)
+    runner = ToolRunner(client, ws_call, project_mod, user or {})
+    rooms = _direct_rooms(client, project_mod)
+    recog = None
+    if rec and rec.get("match"):
+        recog = {"source": rec.get("source"), "intent": ((rec.get("intent") or {}).get("name")),
+                 "slots": rec.get("slots") or {}, "sentence": rec.get("sentence_template"),
+                 "near_miss": bool(rec.get("fuzzy_match"))}
+    out = {"text": text, "recognised": recog, "recognise_ms": ms}
+    hit = _direct.resolve_platform(rec, text, where, rooms, lambda: _direct_scenes(runner))
+    if hit:
+        a = dict(hit.get("args") or {})
+        out.update({"road": "instant", "by": "ProOS",
+                    "would": _TRY_WORDS.get(hit["tool"], hit["tool"]),
+                    "detail": {"tool": hit["tool"], "args": a},
+                    "says": hit.get("say") or "(said after it is done)"})
+        return out
+    pi = _direct.platform_can_take(rec, text, rooms)
+    if pi == "trigger":
+        out.update({"road": "instant", "by": "Activity sentence",
+                    "would": "run the activity whose sentence is “%s”" % (rec.get("sentence_template") or text)})
+        return out
+    if pi:
+        out.update({"road": "instant", "by": "Built-in sentences",
+                    "would": "the built-in voice agent does %s %s" % (pi, json.dumps(rec.get("slots") or {}))})
+        return out
+    cfg = load_config()
+    if not rec or not rec.get("match"):
+        why = "no sentence on this box matches it"
+    elif rec.get("fuzzy_match"):
+        why = "only a near match — instant needs the exact words"
+    else:
+        why = ("recognised as %s, but not certain enough to act without thinking "
+               "(no room said, a device or room ProOS doesn't have, two things at once, or a question)"
+               % ((rec.get("intent") or {}).get("name") or "a sentence"))
+    out.update({"road": "ai", "by": "Assist (cloud AI)", "would": "Assist reasons it out",
+                "why": why, "ai_ready": bool(cfg.get("provider") and cfg.get("api_key"))})
+    return out
+
+
 def chat(client, ws_call, project_mod, user: dict, text: str,
          session: str = "default", home_name: str = "", ma=None,
          where: dict | None = None, awareness=None, mcp=None,
@@ -5945,6 +6129,20 @@ def chat(client, ws_call, project_mod, user: dict, text: str,
             if _hit.get("say"):
                 runner.said_for_act[_say_key(_hit["tool"], _hit["args"])] = _hit["say"]
             _out = runner.run(_hit["tool"], _hit["args"])
+            # REGISTER 735: a room with no music engine player hands the sentence to the
+            # platform's own search-and-play (any player whose integration can search).
+            if isinstance(_out, dict) and _out.get("handoff") == "platform":
+                try:
+                    _plat = runner.platform_command(text, "HassMediaSearchAndPlay")
+                except Exception as e:                           # noqa: BLE001
+                    print("  [assist] platform agent failed (%s)" % e, flush=True)
+                    _plat = {"say": "I couldn't do that just then.", "intent": "unknown", "error": True}
+                if _plat is None:
+                    _plat = {"say": "I couldn't find a speaker in that room that can play music.",
+                             "intent": "HassMediaSearchAndPlay", "error": True}
+                _hit["matched"] = "agent:HassMediaSearchAndPlay"
+                _out = {"error": _plat["say"]} if _plat.get("error") else {}
+                _hit["say"] = None if _plat.get("error") else _plat["say"]
         _err = (_out or {}).get("error") if isinstance(_out, dict) else None
         if _err and _plat:
             reply = _plat["say"]           # the platform's own words for why
@@ -5960,7 +6158,9 @@ def chat(client, ws_call, project_mod, user: dict, text: str,
             reply = ("I couldn't do that — %s." % _why.rstrip(".")) if _human \
                 else "I couldn't do that just then."
         else:
-            reply = _hit["say"]
+            # REGISTER 735: an answer that depends on what was FOUND (the music picked and
+            # proven playing) is composed by the tool after the act, not before it.
+            reply = _hit["say"] or ((_out or {}).get("say") if isinstance(_out, dict) else None) or "Done."
             # REGISTER 512: the room's name has now actually been said, so the
             # next command to it moments later can drop it. Recorded HERE and
             # not at resolve time, because a tool that failed said nothing.

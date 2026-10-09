@@ -194,6 +194,15 @@ def resolve_platform(rec, text, where=None, rooms=(), scenes=()):
     if not area_id:
         return None                       # no certain room: Assist asks which (ruling 5 Oct)
 
+    # REGISTER 735: "play <something> in <room>" — the platform recognised it; ProOS's
+    # music_search_play does it in one step on the room's music speaker and proves it plays
+    # (or hands it back to the platform's own search-and-play when the room has no engine).
+    if intent == "HassMediaSearchAndPlay":
+        q = _slot(rec, "search_query")
+        if q and str(q).strip():
+            return {"tool": "music_search_play", "args": {"area_id": area_id, "query": str(q).strip()},
+                    "matched": "platform:music", "say": None}
+        return None
     if intent in ("HassTurnOn", "HassTurnOff"):
         act = "turn_on" if intent == "HassTurnOn" else "turn_off"
         if domains == {"light"}:
@@ -249,7 +258,7 @@ def resolve_platform(rec, text, where=None, rooms=(), scenes=()):
 #     typed or spoken in the app has no such speaker -- the platform would refuse;
 #   - two instructions in one sentence, an unknown room, or one sentence that would
 #     move several things with no room or name to say which.
-PLATFORM_LATER = {"HassMediaSearchAndPlay"}                     # A5
+PLATFORM_LATER = {"HassMediaSearchAndPlay"}   # ProOS's music_search_play (735); the agent only on its handoff
 PLATFORM_NEEDS_A_SPEAKER = {"HassStartTimer", "HassCancelTimer", "HassCancelAllTimers",
                             "HassIncreaseTimer", "HassDecreaseTimer", "HassPauseTimer",
                             "HassUnpauseTimer", "HassTimerStatus", "HassBroadcast",
