@@ -3468,8 +3468,13 @@ class ToolRunner:
             return {"error": "no committed music speaker in that room — commission one in Pro first"}
         mode = (args.get("mode") or "play").lower()
         enqueue = {"play": "play", "next": "next", "add": "add"}.get(mode, "play")
+        if enqueue == "play" and self._music_busy(eid):
+            return {"error": "the last play for that room is still starting — I won't send another on top of it",
+                    "note": "do not retry: the music service is still answering the last request"}
         self.client._req("POST", "/api/services/music_assistant/play_media",
                          {"entity_id": eid, "media_id": uri, "enqueue": enqueue})
+        if enqueue == "play":
+            ToolRunner._music_inflight[eid] = time.time()
         self._audit("music_play", area=area, entity=eid, uri=uri, mode=enqueue)
         return {"ok": True, "playing_on": eid, "mode": enqueue,
                 "next": "verify with get_states on %s if the user asked to confirm" % eid}
@@ -3486,6 +3491,27 @@ class ToolRunner:
     # a playlist, an album, a track, in that order); otherwise the engine's top playlist, then
     # its top station, then its top track. THE PROOF: the player is read back until it is
     # playing; "playing" is said only when it is.
+    # REGISTER 737: ONE PLAY AT A TIME PER SPEAKER. Read on Dave's box (20:40): a play waited on
+    # the music service, and a SECOND play for the same Office speaker arrived on top a minute
+    # later — that is what tripped the engine's 30-second stuck-speaker guard. While a speaker's
+    # last play is still starting (sent, not yet reading back playing, within the window), another
+    # is not sent; the person is told the last one is still starting.
+    MUSIC_INFLIGHT_S = 120.0
+    _music_inflight = {}            # speaker entity -> time the last play was sent (shared)
+
+    def _music_busy(self, eid):
+        t = ToolRunner._music_inflight.get(eid)
+        if not t or time.time() - t >= self.MUSIC_INFLIGHT_S:
+            return False
+        try:
+            st = self.client._req("GET", "/api/states/%s" % eid) or {}
+        except Exception:  # noqa: BLE001
+            return True
+        if st.get("state") == "playing":
+            ToolRunner._music_inflight.pop(eid, None)
+            return False
+        return True
+
     _MUSIC_LEAD = ("something ", "some ", "a bit of ", "a little ", "a little bit of ")
     _MUSIC_PICK = (("radio", "radio"), ("artists", "artist"), ("playlists", "playlist"),
                    ("albums", "album"), ("tracks", "track"))
@@ -3539,6 +3565,9 @@ class ToolRunner:
         eid = self._room_ma_speaker(area)
         if not eid:
             return {"handoff": "platform", "error": "no music speaker in that room — commission one in Pro first"}
+        if self._music_busy(eid):
+            return {"error": "the last play for that room is still starting — I won't send another on top of it",
+                    "note": "do not retry: the music service is still answering the last request"}
         try:
             res = self.ma.search(q, limit=5)
         except Exception as e:  # noqa: BLE001
@@ -3553,6 +3582,7 @@ class ToolRunner:
             before = {}
         self.client._req("POST", "/api/services/music_assistant/play_media",
                          {"entity_id": eid, "media_id": it["uri"], "enqueue": "replace"})
+        ToolRunner._music_inflight[eid] = time.time()
         self._audit("music_play", area=area, entity=eid, uri=it["uri"], mode="replace",
                     asked=asked, picked=it.get("name"), kind=kind)
         name = str(it.get("name") or q)
@@ -3575,6 +3605,8 @@ class ToolRunner:
                          if x.get("area_id") == self._resolve_area_id(area)), None)
         except Exception:  # noqa: BLE001
             room = None
+        if playing:
+            ToolRunner._music_inflight.pop(eid, None)
         if not playing:
             return {"error": "the speaker didn't start playing %s (it says %s)"
                              % (name, st.get("state") or "nothing"),

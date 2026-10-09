@@ -1055,6 +1055,17 @@ MUSIC_LOG = None         # -> str: recent ProOS Music add-on log text
 MUSIC_RESTART = None     # -> restarts the ProOS Music add-on
 WEDGE_WINDOW = 15 * 60   # how recent a stuck-command warning must be to count
 _WEDGE_RE = re.compile(r"acquiring playback lock", re.I)
+# REGISTER 737 (Dave, 9 Oct 2026, 9:47 pm: "Go" — "sick of it locking up"). Read on his box,
+# twice that day (14:49 "Piano Chill", 20:40 "Pure Chill"): a play asked the music SERVICE for
+# a whole playlist, the service answered "too many requests", the engine retried with longer and
+# longer waits (1, 2, 4, 8, 17, 35 s) while holding the speaker — and the lock warning above was
+# the CONSEQUENCE. ProOS then restarted the engine; the restart re-reads the library from the
+# service (more requests), and the next play was slowed again. A lock warning that follows the
+# service's own retries is the service throttling, not a wedge: restarting cannot help, and hurts.
+# The provider is named from the engine's own logger ([music_assistant.<provider>]) — any service.
+_THROTTLE_RE = re.compile(r"\[music_assistant\.([A-Za-z0-9_ ]+)\]\s+Attempt\s+\d+/\d+\s+failed:\s*([^\x1b]*)")
+_PROVNAME_RE = re.compile(r"\[music_assistant\.([A-Z][^\]]*)\]|Loaded music provider ([^\x1b\n]+)")
+THROTTLE_LOOKBACK = 3 * 60   # how far before the lock warning a service retry counts as its cause
 _LOGTS_RE = re.compile(r"(\d{4})-(\d\d)-(\d\d)[ T](\d\d):(\d\d):(\d\d)")
 
 
@@ -1089,6 +1100,43 @@ def _wedge_age(text):
     return (newest - last_warn).total_seconds()
 
 
+def _throttle_cause(text):
+    """(provider name, the service's words) when the engine was waiting on its music
+    SERVICE in the minutes before its last stuck-speaker warning, else None. Same clock
+    (the log's own stamps), so no timezone maths."""
+    last_warn = None
+    lines = []
+    for line in str(text or "").splitlines():
+        ts = _logstamp(line)
+        if ts is None:
+            continue
+        lines.append((ts, line))
+        if _WEDGE_RE.search(line) and (last_warn is None or ts > last_warn):
+            last_warn = ts
+    if last_warn is None:
+        return None
+    hit = None
+    for ts, line in lines:
+        if ts > last_warn or (last_warn - ts).total_seconds() > THROTTLE_LOOKBACK:
+            continue
+        m = _THROTTLE_RE.search(line)
+        if m:
+            hit = m
+    if not hit:
+        return None
+    raw = hit.group(1).strip()
+    # The service's NAME is the engine's own (register 160's law: never invented from an
+    # id): a logger tag it writes with the display name, or its "Loaded music provider X".
+    key = raw.lower().replace(" ", "_")
+    name = raw if " " in raw else None
+    for _ts, line in lines:
+        for groups in (_PROVNAME_RE.findall(line) or []):
+            for cand in groups:
+                if cand and cand.strip().lower().replace(" ", "_") == key:
+                    name = cand.strip()
+    return (name or "the music service"), hit.group(2).strip()
+
+
 def music_wedge_check(now, seen, _first_ts=None, text=None):
     """Open/keep/clear the wedged-engine incident. `_first_ts` overrides the
     parsed evidence age (the bench pins staleness without faking clocks).
@@ -1110,6 +1158,27 @@ def music_wedge_check(now, seen, _first_ts=None, text=None):
         age = (now - _first_ts) if age is not None else None
     if age is None or age >= WEDGE_WINDOW:
         return                       # nothing live: the sweep clears it
+    # REGISTER 737: the engine was waiting on its music SERVICE — say that, and do NOT restart.
+    try:
+        slow = _throttle_cause(text)
+    except Exception:                                            # noqa: BLE001
+        slow = None
+    if slow:
+        prov, words = slow
+        sid = _iid("music_service_slow", "site", prov)
+        seen.add(sid)
+        _ensure(sid, {
+            "kind": "music_service_slow", "room": "site", "slug": "site",
+            "severity": "warning", "audience": AUD_HOME,
+            "title": "Music Is Waiting on %s" % prov,
+            "cause": "%s is limiting how fast ProOS Music can ask it for music, so the last "
+                     "play is waiting while it tries again. It will start, or give up, on its "
+                     "own within about two minutes. Restarting would only add more requests. "
+                     "The speakers and the network are fine. The service's own words: \"%s\"."
+                     % (prov, words),
+            "subject": "proos_music",
+            "actions": []})
+        return
     seen.add(cid)
     _ensure(cid, {
         "kind": "music_wedged", "room": "site", "slug": "site",
@@ -1123,11 +1192,13 @@ def music_wedge_check(now, seen, _first_ts=None, text=None):
         # do nothing with those, so they stay in Pro.
         "audience": AUD_HOME,
         "title": "Music is not responding",
-        "cause": "ProOS Music has stopped responding to commands. A track "
-                 "that failed mid-stream left the speaker's playback stuck, "
-                 "so every play, pause and stop is taking about 30 seconds "
-                 "before anything happens. The speakers are fine and the "
-                 "network is fine — the music service needs restarting.",
+        # REGISTER 737: the card says what the log shows, no more — the old words
+        # ("a track that failed mid-stream") were a guess at the cause.
+        "cause": "ProOS Music has stopped responding to commands. A speaker's "
+                 "last play never finished, so every play, pause and stop is "
+                 "taking about 30 seconds before anything happens. The "
+                 "speakers are fine and the network is fine — the music "
+                 "service needs restarting.",
         "subject": "proos_music",
         "actions": [{"kind": "restart_music",
                      "label": "Restart ProOS Music"}]})
