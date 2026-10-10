@@ -4538,7 +4538,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101101';
+const PROOS_BUILD='2026101102';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -14641,12 +14641,13 @@ function _spmChips(fav){
 }
 function spmService(sid){
   const s=_spm.services.find(x=>x.service_id===sid); if(!s) return;
-  _musicMode='speaker';
+  _musicMode='speaker'; _spmClearSearch();
   const mem=_spmRecall(_spm.entity);
   _spm.sid=sid; _spm.acct=(mem&&mem.sid===sid&&s.accounts.some(a=>a.account===mem.acct))?mem.acct:s.default;
   _spmRemember(); _spmChips(); _spmHome();
 }
-function spmAccount(acct){ _spm.acct=acct; _spmRemember(); _spmChips(); _spmHome(); }
+function _spmClearSearch(){ const q=document.getElementById('music-search'); if(q) q.value=''; clearTimeout(_musicSearchTimer); }
+function spmAccount(acct){ _spm.acct=acct; _spmClearSearch(); _spmRemember(); _spmChips(); _spmHome(); }
 function _spmKeep(it){ _spm.items.push(it); return _spm.items.length-1; }
 function _spmCard(it){
   const i=_spmKeep(it);
@@ -14695,7 +14696,9 @@ function _spmCrumb(){
   const top=_spm.stack[_spm.stack.length-1];
   if(!top){ crumb.style.display='none'; crumb.innerHTML=''; return; }
   crumb.style.display='block';
-  crumb.innerHTML=`<button class="mus-libchip" onclick="spmBack()">‹ ${_mEsc(top.title||'Back')}</button>`;
+  // Seen 11 Oct: a long playlist name made the back chip and the Play button span the page. The page
+  // under them already names what is open; the controls say what they do.
+  crumb.innerHTML=`<button class="mus-libchip" onclick="spmBack()">‹ Back</button>`;
 }
 async function _spmOpen(it, push){
   const entity=_spm.entity, seq=++_spm.seq;
@@ -14708,7 +14711,7 @@ async function _spmOpen(it, push){
   if(err){ if(g) g.innerHTML=_mEmpty('Couldn’t open '+(it.title||'this')+' — '+err); return; }
   const items=(j&&j.items)||[];
   let h='';
-  if(it.play!==false) h+=`<div style="grid-column:1/-1;display:flex;gap:8px;padding-bottom:4px"><button class="mus-libchip on" onclick="spmPlay(${_spmKeep(it)})">▶ Play ${_mEsc(it.title||'')}</button></div>`;
+  if(it.play!==false) h+=`<div style="grid-column:1/-1;display:flex;align-items:center;gap:12px;padding-bottom:4px;min-width:0"><button class="mus-libchip on" style="flex-shrink:0" onclick="spmPlay(${_spmKeep(it)})">▶ Play</button><div style="font-size:14px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">${_mEsc(it.title||'')}</div></div>`;
   if(g) g.innerHTML=h+(items.length?_spmMixed(items):_mEmpty('Nothing here'));
 }
 function spmBack(){
