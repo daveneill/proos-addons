@@ -142,6 +142,7 @@ class SpeakerMusicError(Exception):
 
 
 _LOCK = threading.RLock()
+_ITEMS_LOCK = threading.Lock()
 _SESSIONS = {}          # (household, service id, account serial) -> {"br", "items", "lock"}
 _NAMES = {}             # household -> {service id: the speaker's own name for it}
 ITEMS_KEPT = 3000       # browse items remembered per account so a tap can be played (plumbing)
@@ -248,11 +249,13 @@ def _session(sp, service_id, account=None, time_zone=None):
 
 
 def _keep(s, item):
-    items = s["items"]
-    items[item.item_id] = item
-    items.move_to_end(item.item_id)
-    while len(items) > ITEMS_KEPT:
-        items.popitem(last=False)
+    """Remember an item so a later tap can play it (searches run side by side, so this is locked)."""
+    with _ITEMS_LOCK:
+        items = s["items"]
+        items[item.item_id] = item
+        items.move_to_end(item.item_id)
+        while len(items) > ITEMS_KEPT:
+            items.popitem(last=False)
     return item
 
 
@@ -296,42 +299,73 @@ def open_item(sp, service_id, item_id, account=None, time_zone=None, index=0, co
 
 
 def search(sp, service_id, q, account=None, time_zone=None, categories=None, count=8):
-    """Search the service in each of ITS OWN search categories (the service lists them)."""
+    """Search the service in each of ITS OWN search categories (the service lists them).
+    REGISTER 751 (measured from the dashboard): one after another, Spotify's five categories took 4.2 s.
+    A signed-in account's searches each open their own connection to the service (the library does
+    that), so they are asked SIDE BY SIDE; an account with no sign-in shares one connection, so its
+    categories are still asked in turn."""
     s = _session(sp, service_id, account, time_zone)
-    out = []
-    with s["lock"]:
-        cats = categories or list(s["br"].available_search_categories or [])
-        for cat in cats:
-            try:
-                res = s["br"].search(cat, q, count=int(count))
-                out.append({"category": cat, "items": [card(_keep(s, i)) for i in res.items]})
-            except Exception as e:                               # noqa: BLE001
-                out.append({"category": cat, "items": [], "error": str(e)[:160]})
-    return {"q": q, "results": out}
+    cats = list(categories or s["br"].available_search_categories or [])
+    results = {}
+
+    def one(cat):
+        try:
+            res = s["br"].search(cat, q, count=int(count))
+            results[cat] = {"category": cat, "items": [card(_keep(s, i)) for i in res.items]}
+        except Exception as e:                                   # noqa: BLE001
+            results[cat] = {"category": cat, "items": [], "error": str(e)[:160]}
+
+    if getattr(s["account"], "token", "") and len(cats) > 1:
+        ts = [threading.Thread(target=one, args=(c,), daemon=True) for c in cats]
+        for t in ts:
+            t.start()
+        for t in ts:
+            t.join(30)
+    else:
+        for c in cats:
+            one(c)
+    return {"q": q, "results": [results[c] for c in cats if c in results]}
 
 
-def enqueue(sp, br, item):
-    """Add one playable item to the speaker's queue WITH its details. REGISTER 748 (seen on the speaker):
-    the library's add_uri_to_queue(uri, x) takes x as the queue POSITION — every earlier play sent the
-    speaker no title, so the dashboard showed nothing. The speaker's own AddURIToQueue is called with
-    the metadata in its own field; the speaker then fills in artist, album and artwork itself."""
+def prepare(br, item):
+    """(uri, metadata) for one playable item — the library builds both from the service's own item."""
     from soco.music_services.browser.playback import build_metadata, build_uri, resolve_item
     iid, typ, mime, title = resolve_item(br, item)
     uri = build_uri(br, iid, typ, mime)
+    return uri, build_metadata(br, iid, title, typ, mime=mime, uri=uri)
+
+
+def add_to_queue(sp, uri, meta):
+    """Add one item to the speaker's queue WITH its details. REGISTER 748 (seen on the speaker): the
+    library's add_uri_to_queue(uri, x) takes x as the queue POSITION — every earlier play sent the
+    speaker no title, so the dashboard showed nothing. The speaker's own AddURIToQueue is called with
+    the metadata in its own field; the speaker then fills in artist, album and artwork itself."""
     r = sp.avTransport.AddURIToQueue([
-        ("InstanceID", 0), ("EnqueuedURI", uri),
-        ("EnqueuedURIMetaData", build_metadata(br, iid, title, typ, mime=mime, uri=uri)),
+        ("InstanceID", 0), ("EnqueuedURI", uri), ("EnqueuedURIMetaData", meta),
         ("DesiredFirstTrackNumberEnqueued", 0), ("EnqueueAsNext", 0)])
     return int(r.get("NumTracksAdded") or 0)
 
 
+def enqueue(sp, br, item):
+    uri, meta = prepare(br, item)
+    return add_to_queue(sp, uri, meta)
+
+
+_FILLS = {}             # speaker -> the newest play's number; an older play stops adding to the queue
+
+
 def play(sp, service_id, item_id, account=None, time_zone=None, wait_s=10.0, limit=100):
     """Play an item on the speaker: a playlist/album as the speaker's own queue (first track started,
-    the rest added behind it), a track or stream on its own. The answer is the SPEAKER's state."""
+    the rest added behind it), a track or stream on its own. The answer is the SPEAKER's state.
+    REGISTER 751 (seen from the dashboard): the queue fill held the service for its whole length, so a
+    search typed straight after waited ~10 s behind it. Now the service is held only to prepare each
+    track; the speaker is told outside it, and a newer play on the same speaker stops an older fill."""
     s = _session(sp, service_id, account, time_zone)
     br = s["br"]
-    s["lock"].acquire()
-    try:
+    key = getattr(sp, "ip_address", None) or id(sp)
+    with _LOCK:
+        gen = _FILLS[key] = _FILLS.get(key, 0) + 1
+    with s["lock"]:
         it = s["items"].get(item_id, item_id)
         if getattr(it, "can_browse", False):
             tracks = [t for t in br.get_metadata(it, count=int(limit)).items if not t.can_browse]
@@ -339,23 +373,24 @@ def play(sp, service_id, item_id, account=None, time_zone=None, wait_s=10.0, lim
                 raise SpeakerMusicError("there's nothing to play directly inside “%s” — open it to choose" % it.title)
         else:
             tracks = [it]
-        t0 = time.time()
-        sp.clear_queue()
-        enqueue(sp, br, tracks[0])
-        sp.play_from_queue(0)
-    except Exception:
-        s["lock"].release()
-        raise
+        first = prepare(br, tracks[0])
+    t0 = time.time()
+    sp.clear_queue()
+    add_to_queue(sp, *first)
+    sp.play_from_queue(0)
 
     def rest():
-        try:
-            for t in tracks[1:]:
-                try:
-                    enqueue(sp, br, t)
-                except Exception:                                # noqa: BLE001
-                    pass
-        finally:
-            s["lock"].release()
+        for t in tracks[1:]:
+            if _FILLS.get(key) != gen:
+                return                                           # a newer play took this speaker
+            try:
+                with s["lock"]:
+                    uri, meta = prepare(br, t)
+                if _FILLS.get(key) != gen:
+                    return
+                add_to_queue(sp, uri, meta)
+            except Exception:                                    # noqa: BLE001
+                pass
 
     threading.Thread(target=rest, daemon=True).start()
     state = ""
