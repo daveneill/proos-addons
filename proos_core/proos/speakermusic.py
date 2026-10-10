@@ -52,15 +52,21 @@ def listener_port(events, port=None):
     return port
 
 
-def choose_account(accounts, service_id, name=None):
-    """The account to use for one service, from the accounts the speaker already handed over: the named
-    one within that service (a name that isn't there is None, never someone else's); with no name,
-    that service's first. None if it has none."""
+def choose_account(accounts, service_id, name=None, serial=None):
+    """The account to use for one service, from the accounts the speaker already handed over.
+    DAVE'S RULING, 11 Oct 2026: "defaults to first account added then option for additional accounts".
+      - serial given: exactly that account of that service (the "additional accounts" option);
+      - name given: that person's account within that service;
+      - neither: the FIRST ADDED — the lowest account serial the speaker holds for that service (the
+        speaker numbers a service's accounts as they are added: INFERRED, checked on the box in
+        register 748 against the order Dave added them).
+    A serial or name that isn't there is None — never someone else's account."""
     mine = [a for a in accounts or [] if getattr(a, "service_id", None) == service_id]
+    if serial is not None:
+        return next((a for a in mine if str(getattr(a, "serial_number", "")) == str(serial)), None)
     if name:
-        hit = next((a for a in mine if (getattr(a, "nickname", "") or "").lower() == name.lower()), None)
-        return hit
-    return mine[0] if mine else None
+        return next((a for a in mine if (getattr(a, "nickname", "") or "").lower() == name.lower()), None)
+    return min(mine, key=lambda a: getattr(a, "serial_number", 0) or 0) if mine else None
 
 
 _ACCOUNTS = {}          # household id -> (accounts, when read). Memory only — never written to disk.
@@ -122,15 +128,259 @@ def speaker_address(client, entity_id):
         return None
 
 
+# ════════════════════════════════════════════════════════════════════════════════════════════════
+# STAGE 1 OF THE MUSIC DESIGN (docs/ProOS_Music_Design_2026-10-11.md, approved by Dave 11 Oct 05:55):
+# Core's speaker-music service. The home's own speaker plays, with the home's own accounts; Core finds
+# the music and asks. Every answer comes from the speaker or the service — nothing is invented here.
+# ════════════════════════════════════════════════════════════════════════════════════════════════
+import threading                                                     # noqa: E402
+from collections import OrderedDict                                  # noqa: E402
+
+
+class SpeakerMusicError(Exception):
+    """A reason, in plain words, that a speaker's music can't be reached. Shown as it is."""
+
+
+_LOCK = threading.RLock()
+_SESSIONS = {}          # (household, service id, account serial) -> {"br", "items", "lock"}
+_NAMES = {}             # household -> {service id: the speaker's own name for it}
+ITEMS_KEPT = 3000       # browse items remembered per account so a tap can be played (plumbing)
+
+
+def connect(client, network_info, entity_id):
+    """The speaker that leads this speaker's group, ready to talk to — or SpeakerMusicError, saying why.
+    Addresses are READ (register 741); the listener is pointed at Core's published port first."""
+    ok, why = soco_ready()
+    if not ok:
+        raise SpeakerMusicError(why)
+    import soco
+    from soco import config as soco_config
+    ip = speaker_address(client, entity_id)
+    if not ip:
+        raise SpeakerMusicError("the network doesn't report an address for this speaker")
+    box = box_address(network_info)
+    if not box:
+        raise SpeakerMusicError("this box's own network address isn't known")
+    soco_config.EVENT_ADVERTISE_IP = box
+    soco_config.EVENT_LISTENER_PORT = EVENT_PORT
+    listener_port(soco_events())
+    sp = soco.SoCo(ip)
+    try:
+        return sp.group.coordinator if sp.group else sp
+    except Exception as e:                                       # noqa: BLE001
+        raise SpeakerMusicError("the speaker didn't answer (%s)" % type(e).__name__)
+
+
+def accounts_of(sp):
+    """(accounts, how) — the home's accounts as the speaker handed them over, kept (register 745)."""
+    from soco.music_services.browser import MusicServiceBrowser
+    try:
+        return household_accounts(sp.household_id,
+                                  lambda: MusicServiceBrowser.get_accounts(device=sp, timeout=10))
+    except Exception as e:                                       # noqa: BLE001
+        raise SpeakerMusicError("the speaker didn't hand over the home's music accounts (%s)" % e)
+
+
+def parse_service_names(xml_text):
+    """{service id: name} from the speaker's own list of the services it knows (ListAvailableServices)."""
+    import xml.etree.ElementTree as ET
+    out = {}
+    try:
+        for el in ET.fromstring(xml_text or "").iter("Service"):
+            try:
+                out[int(el.get("Id"))] = el.get("Name") or ""
+            except (TypeError, ValueError):
+                continue
+    except ET.ParseError:
+        pass
+    return out
+
+
+def service_names(sp):
+    hh = sp.household_id
+    if hh not in _NAMES:
+        r = sp.musicServices.ListAvailableServices()
+        _NAMES[hh] = parse_service_names(r.get("AvailableServiceDescriptorList"))
+    return _NAMES[hh]
+
+
+def list_services(accounts, names):
+    """The home's services and their accounts, in the speaker's own words. Each service's default is
+    its first-added account (Dave's ruling, 11 Oct). Never a token — only what a person may see."""
+    out, by = [], {}
+    for a in sorted(accounts or [], key=lambda a: getattr(a, "serial_number", 0) or 0):
+        sid = getattr(a, "service_id", None)
+        name = names.get(sid)
+        if not name:
+            continue
+        if sid not in by:
+            by[sid] = {"service_id": sid, "service": name, "accounts": []}
+            out.append(by[sid])
+        by[sid]["accounts"].append({"account": getattr(a, "serial_number", 0),
+                                    "name": getattr(a, "nickname", "") or None})
+    for s in out:
+        s["default"] = s["accounts"][0]["account"]
+    return out
+
+
+def services(sp):
+    accounts, how = accounts_of(sp)
+    return {"services": list_services(accounts, service_names(sp)), "accounts": how}
+
+
+def _session(sp, service_id, account=None, time_zone=None):
+    from soco.music_services.browser import MusicServiceBrowser
+    accounts, _how = accounts_of(sp)
+    acct = choose_account(accounts, int(service_id), serial=account)
+    if acct is None:
+        raise SpeakerMusicError("that account isn't set up for this service on these speakers")
+    key = (sp.household_id, int(service_id), acct.serial_number)
+    with _LOCK:
+        s = _SESSIONS.get(key)
+        if s is None:
+            name = service_names(sp).get(int(service_id))
+            if not name:
+                raise SpeakerMusicError("these speakers don't know that service")
+            br = MusicServiceBrowser(name, account=acct, device=sp, time_zone=time_zone or None)
+            s = _SESSIONS[key] = {"br": br, "items": OrderedDict(), "lock": threading.Lock(),
+                                  "account": acct}
+    return s
+
+
+def _keep(s, item):
+    items = s["items"]
+    items[item.item_id] = item
+    items.move_to_end(item.item_id)
+    while len(items) > ITEMS_KEPT:
+        items.popitem(last=False)
+    return item
+
+
+def card(item):
+    """One item as the pages and Assist see it. "play" is the service's own canPlay when it says;
+    a single track or stream is playable; otherwise None — not known until tried."""
+    raw = getattr(item, "raw", None) or {}
+    can = raw.get("canPlay") if isinstance(raw, dict) else None
+    if isinstance(can, str):
+        can = can.lower() == "true"
+    if can is None and not item.can_browse:
+        can = True
+    return {"id": item.item_id, "title": item.title, "artist": item.artist or None,
+            "art": item.album_art_uri or None, "type": item.item_type or None,
+            "open": bool(item.can_browse), "play": can}
+
+
+def home(sp, service_id, account=None, time_zone=None, sections=12, per=12):
+    """The service's own home page — its sections in its own order, each with its first items."""
+    s = _session(sp, service_id, account, time_zone)
+    br, out = s["br"], []
+    with s["lock"]:
+        for sec in list(br.get_metadata().items)[:sections]:
+            _keep(s, sec)
+            c = card(sec)
+            if sec.can_browse:
+                try:
+                    c["items"] = [card(_keep(s, i)) for i in list(br.get_metadata(sec, count=per).items)]
+                except Exception as e:                           # noqa: BLE001
+                    c["items"], c["error"] = [], str(e)[:160]
+            out.append(c)
+    return {"service_id": int(service_id), "account": s["account"].serial_number, "sections": out}
+
+
+def open_item(sp, service_id, item_id, account=None, time_zone=None, index=0, count=50):
+    s = _session(sp, service_id, account, time_zone)
+    with s["lock"]:
+        it = s["items"].get(item_id, item_id)
+        res = s["br"].get_metadata(it, index=int(index), count=int(count))
+        return {"items": [card(_keep(s, i)) for i in res.items], "index": res.index, "total": res.total}
+
+
+def search(sp, service_id, q, account=None, time_zone=None, categories=None, count=8):
+    """Search the service in each of ITS OWN search categories (the service lists them)."""
+    s = _session(sp, service_id, account, time_zone)
+    out = []
+    with s["lock"]:
+        cats = categories or list(s["br"].available_search_categories or [])
+        for cat in cats:
+            try:
+                res = s["br"].search(cat, q, count=int(count))
+                out.append({"category": cat, "items": [card(_keep(s, i)) for i in res.items]})
+            except Exception as e:                               # noqa: BLE001
+                out.append({"category": cat, "items": [], "error": str(e)[:160]})
+    return {"q": q, "results": out}
+
+
+def enqueue(sp, br, item):
+    """Add one playable item to the speaker's queue WITH its details. REGISTER 748 (seen on the speaker):
+    the library's add_uri_to_queue(uri, x) takes x as the queue POSITION — every earlier play sent the
+    speaker no title, so the dashboard showed nothing. The speaker's own AddURIToQueue is called with
+    the metadata in its own field; the speaker then fills in artist, album and artwork itself."""
+    from soco.music_services.browser.playback import build_metadata, build_uri, resolve_item
+    iid, typ, mime, title = resolve_item(br, item)
+    uri = build_uri(br, iid, typ, mime)
+    r = sp.avTransport.AddURIToQueue([
+        ("InstanceID", 0), ("EnqueuedURI", uri),
+        ("EnqueuedURIMetaData", build_metadata(br, iid, title, typ, mime=mime, uri=uri)),
+        ("DesiredFirstTrackNumberEnqueued", 0), ("EnqueueAsNext", 0)])
+    return int(r.get("NumTracksAdded") or 0)
+
+
+def play(sp, service_id, item_id, account=None, time_zone=None, wait_s=10.0, limit=100):
+    """Play an item on the speaker: a playlist/album as the speaker's own queue (first track started,
+    the rest added behind it), a track or stream on its own. The answer is the SPEAKER's state."""
+    s = _session(sp, service_id, account, time_zone)
+    br = s["br"]
+    s["lock"].acquire()
+    try:
+        it = s["items"].get(item_id, item_id)
+        if getattr(it, "can_browse", False):
+            tracks = [t for t in br.get_metadata(it, count=int(limit)).items if not t.can_browse]
+            if not tracks:
+                raise SpeakerMusicError("there's nothing to play directly inside “%s” — open it to choose" % it.title)
+        else:
+            tracks = [it]
+        t0 = time.time()
+        sp.clear_queue()
+        enqueue(sp, br, tracks[0])
+        sp.play_from_queue(0)
+    except Exception:
+        s["lock"].release()
+        raise
+
+    def rest():
+        try:
+            for t in tracks[1:]:
+                try:
+                    enqueue(sp, br, t)
+                except Exception:                                # noqa: BLE001
+                    pass
+        finally:
+            s["lock"].release()
+
+    threading.Thread(target=rest, daemon=True).start()
+    state = ""
+    while time.time() - t0 < wait_s:
+        state = (sp.get_current_transport_info() or {}).get("current_transport_state") or ""
+        if state == "PLAYING":
+            break
+        time.sleep(0.25)
+    title = getattr(it, "title", "") or ""
+    return {"ok": state == "PLAYING", "state": state, "seconds": round(time.time() - t0, 1),
+            "title": title, "queued": len(tracks)}
+
+
 def proof(client, network_info, entity_id, service="Spotify", account=None, term="relaxing",
-          play=False, say=print):
-    """Run the 740 proof from Core. Returns {"ok", "lines": [...]} — every line also goes to Core's log."""
+          play_it=False, say=print, time_zone=None, play=None):
+    """Pro's Speaker Music Test — it drives the REAL service above, step by step, and every line also goes
+    to Core's log. account: a person's name for that service, or empty for the first added."""
+    if play is not None:
+        play_it = play
     lines = []
 
-    def out(s):
-        lines.append(s)
+    def out(x):
+        lines.append(x)
         try:
-            say("  [speakermusic] " + s)
+            say("  [speakermusic] " + x)
         except Exception:                                        # noqa: BLE001
             pass
 
@@ -138,108 +388,50 @@ def proof(client, network_info, entity_id, service="Spotify", account=None, term
     if not ok:
         out("STOP: " + why)
         return {"ok": False, "lines": lines}
-    import soco
-    from soco import config as soco_config
-    from soco.music_services.browser import MusicServiceBrowser
-
-    ip = speaker_address(client, entity_id)
-    box = box_address(network_info)
-    out("1. %s is at %s (from the platform); this box is %s" % (entity_id, ip or "UNKNOWN", box or "UNKNOWN"))
-    if not ip or not box:
-        out("STOP: need both addresses")
-        return {"ok": False, "lines": lines}
-    soco_config.EVENT_ADVERTISE_IP = box
-    soco_config.EVENT_LISTENER_PORT = EVENT_PORT
-    # REGISTER 741 (seen on the box): SoCo builds its listener when it is first imported and fixes its
-    # port THEN (1400). Setting the config afterwards changed nothing, and the speaker was told to reply
-    # on a port the box does not publish. The listener itself is told, before it starts.
-    listener_port(soco_events())
-    sp = soco.SoCo(ip)
     try:
-        sp = sp.group.coordinator if sp.group else sp
-        out("   speaker answers: %s" % sp.player_name)
-    except Exception as e:                                       # noqa: BLE001
-        out("STOP: the speaker didn't answer Core: %s" % e)
-        return {"ok": False, "lines": lines}
-    t0 = time.time()
-    lst = soco_events().event_listener
-    out("   Core asks the speaker to reply to http://%s:%s (listening on %s)" % (
-        soco_config.EVENT_ADVERTISE_IP, lst.requested_port_number,
-        ("%s:%s" % lst.address) if getattr(lst, "address", None) else "not yet started"))
-    try:
-        accounts, how = household_accounts(getattr(sp, "household_id", None),
-                                           lambda: MusicServiceBrowser.get_accounts(device=sp, timeout=10))
-    except Exception as e:                                       # noqa: BLE001
-        out("STOP at 2 (the speaker handing Core the household's accounts, port %d, asked twice): %s: %s"
-            % (EVENT_PORT, type(e).__name__, e))
-        return {"ok": False, "lines": lines}
-    out("2. household accounts %s (%.1fs): %s" % (how, time.time() - t0, ", ".join(
-        "service %s%s" % (a.service_id, (" (%s)" % a.nickname) if getattr(a, "nickname", "") else "")
-        for a in accounts) or "none"))
-    try:
-        out("   listener actually on %s:%s" % tuple(soco_events().event_listener.address))
-    except Exception:                                            # noqa: BLE001
-        pass
-    # REGISTER 744 (seen on the box): opening a service WITHOUT an account makes the library read the
-    # household's accounts a SECOND time, and that second read never arrived. It is never needed: the
-    # accounts were just read. The account is chosen from them — the person's, by name, within THAT
-    # service (the old match took the first "Dave" of any service) — and always handed over.
-    try:
-        from soco.music_services import MusicService
-        acct = choose_account(accounts, int(MusicService(service, device=sp).service_id), account)
-    except Exception as e:                                       # noqa: BLE001
-        out("STOP at 3 (finding %s in this home): %s: %s" % (service, type(e).__name__, e))
-        return {"ok": False, "lines": lines}
-    if acct is None:
-        out("STOP at 3: no %s account%s is set up on these speakers" % (service, (" named %r" % account) if account else ""))
-        return {"ok": False, "lines": lines}
-    out("   using %s account %s" % (service, getattr(acct, "nickname", "") or "(no name)"))
-    try:
-        br = MusicServiceBrowser(service, account=acct, device=sp)
-    except Exception as e:                                       # noqa: BLE001
-        out("STOP at 3 (opening %s): %s: %s" % (service, type(e).__name__, e))
-        return {"ok": False, "lines": lines}
-    t0 = time.time()
-    try:
-        home = list(getattr(br.get_metadata(), "items", []) or [])
-        out("3. %s home page (%.1fs): %s" % (service, time.time() - t0, "; ".join(i.title for i in home[:8])))
-    except Exception as e:                                       # noqa: BLE001
-        out("3. home page FAILED: %s: %s" % (type(e).__name__, e))
-    t0 = time.time()
-    found = []
-    try:
-        found = list(getattr(br.search("playlists", term, count=5), "items", []) or [])
-        out("4. search %r playlists (%.1fs): %s" % (term, time.time() - t0, " | ".join(i.title for i in found)))
-    except Exception as e:                                       # noqa: BLE001
-        out("4. search FAILED: %s: %s" % (type(e).__name__, e))
-    if play and found:
-        from soco.music_services.browser.playback import build_metadata, build_uri, resolve_item
+        sp = connect(client, network_info, entity_id)
+        out("1. %s answers: %s" % (entity_id, sp.player_name))
+        lst = soco_events().event_listener
+        out("   Core asks the speaker to reply to http://%s:%s" % (box_address(network_info), lst.requested_port_number))
         t0 = time.time()
-        try:
-            tracks = list(getattr(br.get_metadata(found[0], count=50), "items", []) or [])
-            sp.clear_queue()
-
-            def add(t):
-                iid, typ, mime, title = resolve_item(br, t)
-                uri = build_uri(br, iid, typ, mime)
-                sp.add_uri_to_queue(uri, build_metadata(br, iid, title, typ, mime=mime, uri=uri))
-
-            add(tracks[0])
-            sp.play_from_queue(0)
-            state = ""
-            for _ in range(40):
-                state = sp.get_current_transport_info().get("current_transport_state")
-                if state == "PLAYING":
-                    break
-                time.sleep(0.25)
-            first = time.time() - t0
-            for t in tracks[1:]:
-                try:
-                    add(t)
-                except Exception:                                # noqa: BLE001
-                    pass
-            out("5. play %r: %s %.1fs after asking; %d queued" % (found[0].title, state, first, len(tracks)))
-        except Exception as e:                                   # noqa: BLE001
-            out("5. play FAILED: %s: %s" % (type(e).__name__, e))
+        svc = services(sp)
+        out("2. accounts %s (%.1fs): %s" % (svc["accounts"], time.time() - t0, "; ".join(
+            "%s: %s" % (x["service"], ", ".join("%s%s" % (a["name"] or "account", " #%s" % a["account"])
+                                                for a in x["accounts"])) for x in svc["services"])))
+        mine = next((x for x in svc["services"] if x["service"].lower() == str(service).lower()), None)
+        if mine is None:
+            out("STOP at 3: %s isn't set up on these speakers" % service)
+            return {"ok": False, "lines": lines}
+        acct = None
+        if account:
+            accounts, _h = accounts_of(sp)
+            hit = choose_account(accounts, mine["service_id"], name=account)
+            if hit is None:
+                out("STOP at 3: no %s account named %r" % (service, account))
+                return {"ok": False, "lines": lines}
+            acct = hit.serial_number
+        acct = acct if acct is not None else mine["default"]
+        out("   using %s account #%s; the home's time zone: %s" % (service, acct, time_zone or "not known"))
+        t0 = time.time()
+        h = home(sp, mine["service_id"], acct, time_zone)
+        out("3. %s home page (%.1fs): %s" % (service, time.time() - t0, "; ".join(
+            "%s (%d)" % (x["title"], len(x.get("items") or [])) for x in h["sections"][:8])))
+        t0 = time.time()
+        r = search(sp, mine["service_id"], term, acct, time_zone, categories=["playlists"], count=5)
+        found = (r["results"][0]["items"] if r["results"] else [])
+        out("4. search %r playlists (%.1fs): %s" % (term, time.time() - t0, " | ".join(x["title"] for x in found)))
+        if play_it and found:
+            p = globals()["play"](sp, mine["service_id"], found[0]["id"], acct, time_zone)
+            out("5. play %r: %s %.1fs after asking; %d queued" % (p["title"], p["state"] or "NOT PLAYING", p["seconds"], p["queued"]))
+            time.sleep(1.5)
+            info = sp.get_current_track_info() or {}
+            out("   the speaker shows: %s — %s%s" % (info.get("title") or "(no title)", info.get("artist") or "(no artist)",
+                                                    "; with artwork" if info.get("album_art") else "; NO artwork"))
+    except SpeakerMusicError as e:
+        out("STOP: %s" % e)
+        return {"ok": False, "lines": lines}
+    except Exception as e:                                       # noqa: BLE001
+        out("STOP: %s: %s" % (type(e).__name__, e))
+        return {"ok": False, "lines": lines}
     out("DONE")
     return {"ok": True, "lines": lines}
