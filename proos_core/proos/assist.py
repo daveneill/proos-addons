@@ -947,9 +947,10 @@ TOOLS = [
          "limit": {"type": "integer", "description": "per kind, default 6"}},
          "required": ["query"]}},
     {"name": "music_search_play",
-     "description": "ONE STEP for 'play <something> in <room>': searches the music engine, picks "
-                    "(an exact name match, else the top playlist), plays it on the room's music "
-                    "speaker and confirms it is actually playing. Use this instead of "
+     "description": "ONE STEP for 'play <something> in <room>': searches the room speaker's own "
+                    "music services (the home's own accounts) — or ProOS Music where it is added — "
+                    "plays a result named exactly as asked, otherwise the best fit for the "
+                    "description, and confirms the speaker is actually playing. Use this instead of "
                     "music_search + music_play unless the person wants to choose.",
      "input_schema": {"type": "object", "properties": {
          "area_id": {"type": "string"},
@@ -1364,7 +1365,6 @@ _TOOL_GATES = {
     "knowledge_write":       {"pro": True},
     "music_search":          {"engine": True},
     "music_play":            {"engine": True},
-    "music_search_play":     {"engine": True},
     "music_playlist_create": {"engine": True},
     # device_recover, recovery_history and device_liveness are offered to
     # EVERYONE: a homeowner
@@ -3554,55 +3554,175 @@ class ToolRunner:
             return False
         return True
 
-    _MUSIC_LEAD = ("something ", "some ", "a bit of ", "a little ", "a little bit of ")
-    _MUSIC_PICK = (("radio", "radio"), ("artists", "artist"), ("playlists", "playlist"),
-                   ("albums", "album"), ("tracks", "track"))
-    MUSIC_PROOF_S = 6.0      # how long the turn watches the speaker before saying it is still starting
+    MUSIC_PROOF_S = 6.0      # how long the turn watches the speaker before saying it hasn't started
     MUSIC_SETTLE_S = 2.0     # after the platform says it is done, how long the speaker has to start
 
-    @classmethod
-    def music_query(cls, q, with_mood=False):
-        """What to search for. A MOOD is said as one ("something relaxing", "chill music");
-        found by a bench on the box's own results: a track called "Relaxing" exact-matched
-        "relaxing" and one song would have played instead of a playlist."""
-        q = " ".join(str(q or "").lower().split()).strip(" .!")
-        mood = False
-        for p in cls._MUSIC_LEAD:
-            if q.startswith(p):
-                q, mood = q[len(p):], True
-                break
-        if q.endswith(" music") and len(q) > 6:
-            q, mood = q[:-6], True
-        return (q.strip(), mood) if with_mood else q.strip()
+    # ── MUSIC DESIGN STAGE 3 (register 753; design approved by Dave 11 Oct 05:55) ─────────────────
+    # NO RULES PER SCENARIO (Dave, 10 Oct: "I dont want to go back to you writing rules for each
+    # scenario"). The mood words, the pick order and the "the music service is slow" reply (735,
+    # 737, 738) are gone. What is played is decided in two ways only:
+    #   - a NAME: a result whose title IS what was asked ("P!nk", "Discover Weekly") is played — the
+    #     service's own result, matched to the person's own words;
+    #   - anything else is a DESCRIPTION ("something relaxing", "something to cook to") and the AI
+    #     chooses — the best-fitting playlist (Dave's ruling 5), or better words to search with.
+    # With no AI set up, a description plays the service's own top playlist: the service's ranking,
+    # never ProOS's. What is SAID is the speaker's own state.
+    @staticmethod
+    def _same_words(a, b):
+        return " ".join(str(a or "").casefold().split()) == " ".join(str(b or "").casefold().split())
 
-    @classmethod
-    def music_pick(cls, res, query, mood=False):
-        res = res or {}
-        want = str(query or "").lower().strip()
-        for kind, label in cls._MUSIC_PICK:
-            if mood and kind in ("tracks", "albums"):
-                continue                  # a mood is never one song or one album by its title
-            for it in (res.get(kind) or []):
-                if isinstance(it, dict) and str(it.get("name") or "").lower().strip() == want and it.get("uri"):
-                    return it, label
-        for kind, label in (("playlists", "playlist"), ("radio", "radio"), ("tracks", "track")):
-            for it in (res.get(kind) or []):
-                if isinstance(it, dict) and it.get("uri"):
-                    return it, label
-        return None, None
+    @staticmethod
+    def music_candidates(results):
+        """[{id, title, artist, kind, play}] in the service's own order, from the service's own results."""
+        out = []
+        for grp in results or []:
+            kind = str(grp.get("category") or "")
+            for it in grp.get("items") or []:
+                if it.get("id"):
+                    out.append({"id": it["id"], "title": it.get("title") or "", "artist": it.get("artist"),
+                                "kind": kind, "play": it.get("play")})
+        return out
+
+    def _ai_pick(self, asked, cands):
+        """The AI's choice for a description: (index or None, better search words or None). None, None
+        when no AI is set up or it doesn't answer."""
+        cfg = load_config()
+        if not (cfg.get("provider") and cfg.get("api_key")) or not cands:
+            return None, None
+        lines = ["%d. %s — %s%s" % (i + 1, c["kind"] or "item", c["title"],
+                                    (" (%s)" % c["artist"]) if c.get("artist") else "")
+                 for i, c in enumerate(cands[:24])]
+        prompt = ("Someone asked a home's speaker to play: \"%s\".\n"
+                  "These are the music service's own search results:\n%s\n\n"
+                  "Reply with ONLY the number of the single best fit. If they described a mood, an "
+                  "activity or a style rather than naming something, choose a playlist. If nothing fits, "
+                  "reply 0 and, on the next line, two to four better words to search for."
+                  % (asked, "\n".join(lines)))
+        try:
+            text = _one_answer(cfg, prompt)
+        except Exception as e:                                   # noqa: BLE001
+            print("  [assist] music choice: the AI didn't answer (%s)" % e, flush=True)
+            return None, None
+        m = re.search(r"\d+", text or "")
+        if not m:
+            return None, None
+        n = int(m.group(0))
+        if n == 0:
+            rest = (text or "").split("\n", 1)
+            return None, (rest[1].strip().strip('"') if len(rest) > 1 and rest[1].strip() else None)
+        return (n - 1, None) if 0 < n <= min(len(cands), 24) else (None, None)
+
+    def choose_music(self, asked, cands, research=None):
+        """(candidate, how) — how is "name", "ai" or "service". research(words) searches again."""
+        playable = [c for c in cands if c.get("play") is not False]
+        for c in playable:
+            if self._same_words(c["title"], asked):
+                return c, "name"
+        i, words = self._ai_pick(asked, playable)
+        if i is not None:
+            return playable[i], "ai"
+        if words and research:
+            again = [c for c in research(words) if c.get("play") is not False]
+            for c in again:
+                if self._same_words(c["title"], words):
+                    return c, "name"
+            j, _w = self._ai_pick(asked, again)
+            if j is not None:
+                return again[j], "ai"
+            playable = again or playable
+        top = next((c for c in playable if "playlist" in (c.get("kind") or "").lower()), None)
+        return (top or (playable[0] if playable else None)), "service"
+
+    def _room_name(self, area):
+        try:
+            return next((x.get("name") for x in (self.client.area_registry() or [])
+                         if x.get("area_id") == self._resolve_area_id(area)), None)
+        except Exception:  # noqa: BLE001
+            return None
+
+    def _room_sonos_speaker(self, area):
+        """The room's speaker the speaker-music service can talk to (the service says which), or None."""
+        area_id = self._resolve_area_id(area)
+        if not area_id:
+            return None
+        try:
+            dev_area = {d.get("id"): d.get("area_id") for d in (self.client.device_registry() or [])}
+            ents = self.client.entity_registry() or []
+        except Exception:  # noqa: BLE001
+            return None
+        from proos import speakermusic as _spm
+        cands = sorted(e.get("entity_id") for e in ents if _spm.can_speak(e) and area_of(e, dev_area) == area_id)
+        if not cands:
+            return None
+        try:
+            snap = self.client.snapshot(cands)
+            live = [e for e in cands if (snap.get(e) or {}).get("state") not in (None, "unavailable")]
+            return (live or cands)[0]
+        except Exception:  # noqa: BLE001
+            return cands[0]
+
+    def _play_by_speaker(self, area, asked):
+        """Rung 1 of the design's ladder: the room's own speaker, with the home's own account. None when
+        the room has no such speaker or it can't be reached (the next rung then tries)."""
+        eid = self._room_sonos_speaker(area)
+        if not eid:
+            return None
+        try:
+            from proos import speakermusic as _spm
+            sp = _spm.connect(self.client, _spm.network_info(), eid)
+            accounts, _how = _spm.accounts_of(sp)
+            try:
+                playing = ((self.client._req("GET", "/api/states/%s" % eid) or {}).get("attributes") or {}).get("media_content_id") or ""
+            except Exception:  # noqa: BLE001
+                playing = ""
+            svc = _spm.pick_service(accounts, _spm.service_names(sp), playing)
+            if not svc:
+                return None
+            sid, acct = svc
+            tz = _spm.home_time_zone(self.client)
+        except Exception as e:  # noqa: BLE001
+            print("  [assist] the room's speaker music isn't reachable (%s) — next rung" % e, flush=True)
+            return None
+        t0 = time.time()
+
+        def _search(words):
+            return self.music_candidates(_spm.search(sp, sid, words, acct, tz).get("results"))
+        try:
+            pick, how = self.choose_music(asked, _search(asked), _search)
+        except Exception as e:  # noqa: BLE001
+            return {"error": "the music service didn't answer (%s)" % str(e)[:120]}
+        service = _spm.service_names(sp).get(sid) or "the music service"
+        if not pick:
+            return {"error": "%s found nothing for %s" % (service, asked)}
+        try:
+            p = _spm.play(sp, sid, pick["id"], acct, tz)
+        except Exception as e:  # noqa: BLE001
+            return {"error": "%s couldn't play %s: %s" % (service, pick["title"], str(e)[:120])}
+        self._audit("music_play", area=area, entity=eid, uri=pick["id"], mode="replace", asked=asked,
+                    picked=pick["title"], kind=pick.get("kind"), chosen_by=how, service=service)
+        room = self._room_name(area)
+        if not p.get("ok"):
+            return {"error": "the speaker didn't start playing %s (it says %s)"
+                             % (pick["title"], (p.get("state") or "nothing").lower()),
+                    "picked": pick["title"], "playing_on": eid}
+        print("  [assist] music: %r → %r (%s, chosen by %s) PLAYING in %.1fs"
+              % (asked, pick["title"], service, how, time.time() - t0), flush=True)
+        return {"ok": True, "playing_on": eid, "picked": pick["title"], "kind": pick.get("kind"),
+                "chosen_by": how, "service": service,
+                "proof": {"state": "playing", "seconds": round(time.time() - t0, 1)},
+                "say": ("%s, playing %s." % (room, pick["title"])) if room else ("Playing %s." % pick["title"])}
 
     def t_music_search_play(self, args):
-        """Find and play music in a room in one step, and confirm it is playing."""
+        """Find and play music in a room in one step, and confirm it is playing. The design's ladder:
+        the room's own speaker and the home's own accounts first; then ProOS Music where the installer
+        added it; else the platform's own search-and-play (handed back)."""
         area = (args.get("area_id") or "").strip()
-        asked = (args.get("query") or "").strip()
-        q, mood = self.music_query(asked, with_mood=True)
-        if not area or not q:
+        asked = " ".join(str(args.get("query") or "").split()).strip(" .!?")
+        if not area or not asked:
             return {"error": "area_id and query required"}
-        # ANY SPEAKER, ANY SERVICE (Dave, 9 Oct: "this is to support anything added, not just
-        # my products"). The engine searches whatever services the installer connected to it.
-        # A room with no engine player (or a home with no engine) is handed back: the direct
-        # road then gives the sentence to the platform's own search-and-play, which works for
-        # any player whose own integration can search.
+        out = self._play_by_speaker(area, asked)
+        if out is not None:
+            return out
         if not self.ma:
             return {"handoff": "platform", "error": "the music engine (ProOS Music) isn't linked"}
         eid = self._room_ma_speaker(area)
@@ -3611,31 +3731,37 @@ class ToolRunner:
         if self._music_busy(eid):
             return {"error": "the last play for that room is still starting — I won't send another on top of it",
                     "note": "do not retry: the music service is still answering the last request"}
+
+        def _search(words):
+            res = self.ma.search(words, limit=5) or {}
+            return self.music_candidates([{"category": k, "items": [
+                {"id": it.get("uri"), "title": it.get("name"), "play": True}
+                for it in (v or []) if isinstance(it, dict) and it.get("uri")]}
+                for k, v in res.items() if isinstance(v, list)])
         try:
-            res = self.ma.search(q, limit=5)
+            cands = _search(asked)
         except Exception as e:  # noqa: BLE001
             print("  [assist] music search failed: %s" % e, flush=True)
             return {"error": "music isn't answering right now"}
-        it, kind = self.music_pick(res, q, mood)
+        it, how = self.choose_music(asked, cands, _search)
         if not it:
-            return {"error": "nothing found for %s" % q}
+            return {"error": "nothing found for %s" % asked}
+        kind = it.get("kind")
         try:
             before = (self.client._req("GET", "/api/states/%s" % eid) or {})
         except Exception:  # noqa: BLE001
             before = {}
-        sent = _music_send(self.client, eid, it["uri"], "replace", wait=0)   # register 738
+        sent = _music_send(self.client, eid, it["id"], "replace", wait=0)   # register 738
         ToolRunner._music_inflight[eid] = time.time()
-        self._audit("music_play", area=area, entity=eid, uri=it["uri"], mode="replace",
-                    asked=asked, picked=it.get("name"), kind=kind)
-        name = str(it.get("name") or q)
+        self._audit("music_play", area=area, entity=eid, uri=it["id"], mode="replace",
+                    asked=asked, picked=it.get("title"), kind=kind, chosen_by=how)
+        name = str(it.get("title") or asked)
         t0, playing, st, refused, done_at = time.time(), False, {}, None, None
 
         def _watching():
             el = time.time() - t0
             if el >= self.MUSIC_PROOF_S + self.MUSIC_SETTLE_S:
                 return False
-            # keep watching to the end of the window, and for the settle time after the
-            # platform says it is done, whichever is later
             return el < self.MUSIC_PROOF_S or (done_at is not None and time.time() - done_at < self.MUSIC_SETTLE_S)
 
         while _watching():
@@ -3655,12 +3781,7 @@ class ToolRunner:
                     or before.get("state") != "playing"):
                 playing = True
                 break
-        room = None
-        try:
-            room = next((x.get("name") for x in (self.client.area_registry() or [])
-                         if x.get("area_id") == self._resolve_area_id(area)), None)
-        except Exception:  # noqa: BLE001
-            room = None
+        room = self._room_name(area)
         if playing:
             ToolRunner._music_inflight.pop(eid, None)
         if refused:
@@ -3668,21 +3789,18 @@ class ToolRunner:
             return {"error": "the music service refused %s: %s" % (name, refused),
                     "picked": name, "kind": kind, "playing_on": eid}
         if not playing and done_at is not None and not sent.err and time.time() - done_at >= self.MUSIC_SETTLE_S:
-            # EVIDENCE OF FAILURE, not a guess: the platform answered that it had done it,
-            # and the speaker still did not play.
             ToolRunner._music_inflight.pop(eid, None)
             return {"error": "the speaker didn't start playing %s (it says %s)"
                              % (name, st.get("state") or "nothing"),
                     "picked": name, "kind": kind, "playing_on": eid}
         if not playing:
-            # STILL STARTING: sent, not refused, not yet playing — the music service is still
-            # answering (read on the box: up to 11 s). Said as it is; the room stays held so a
-            # second ask is not stacked on it; no failure is claimed.
+            # Sent, not refused, not playing yet: said as it is — what the speaker shows, nothing about
+            # why (the "slow service" line is gone, register 753). The room stays held.
             return {"ok": True, "pending": True, "playing_on": eid, "picked": name, "kind": kind,
-                    "say": ("Starting %s in the %s — the music service is slow right now." % (name, room))
-                           if room else ("Starting %s — the music service is slow right now." % name),
+                    "say": ("The %s hasn't started %s yet." % (room, name)) if room
+                           else ("%s hasn't started yet." % name),
                     "note": "sent and not refused; not playing yet. Do not send it again."}
-        return {"ok": True, "playing_on": eid, "picked": name, "kind": kind,
+        return {"ok": True, "playing_on": eid, "picked": name, "kind": kind, "chosen_by": how,
                 "proof": {"state": "playing", "title": (st.get("attributes") or {}).get("media_title"),
                           "seconds": round(time.time() - t0, 1)},
                 "say": ("%s, playing %s." % (room, name)) if room else ("Playing %s." % name)}
@@ -6003,7 +6121,7 @@ _TRY_WORDS = {
     "room_volume": "change the room's volume, on the speaker Pro committed",
     "room_media": "pause / play / skip on the room's player",
     "scene_apply": "run the scene",
-    "music_search_play": "search the music engine, play the pick on the room's music speaker, and confirm it is playing",
+    "music_search_play": "search the room speaker's own music services (or ProOS Music), play the best fit, and confirm it is playing",
 }
 
 
@@ -6623,6 +6741,23 @@ def proof_run(client, project_mod, user, ma=None, awareness=None) -> dict:
             "note": ("each row's answer should match what you can see with "
                      "your own eyes; a row that doesn't is a defect — report "
                      "the row, not a feeling")}
+
+
+def _one_answer(cfg, prompt, max_tokens=40):
+    """One short question to the configured AI, its text answer back (music design stage 3: the
+    choice for a description). Same two roads as test_provider and the chat."""
+    if cfg["provider"] == "claude":
+        r = _http_json("https://api.anthropic.com/v1/messages",
+                       {"model": cfg.get("model") or DEFAULT_MODELS["claude"], "max_tokens": max_tokens,
+                        "messages": [{"role": "user", "content": prompt}]},
+                       {"x-api-key": cfg["api_key"], "anthropic-version": "2023-06-01"})
+        return "".join(c.get("text", "") for c in (r.get("content") or []) if isinstance(c, dict))
+    r = _http_json(_OPENAI_RESPONSES,
+                   {"model": cfg.get("model") or DEFAULT_MODELS["openai"], "input": prompt,
+                    "max_output_tokens": max(400, max_tokens)},
+                   {"Authorization": "Bearer %s" % cfg["api_key"]})
+    return "".join(c.get("text", "") for o in (r.get("output") or [])
+                   for c in (o.get("content") or []) if c.get("type") == "output_text")
 
 
 def test_provider() -> dict:

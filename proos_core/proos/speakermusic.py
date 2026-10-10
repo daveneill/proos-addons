@@ -404,6 +404,62 @@ def play(sp, service_id, item_id, account=None, time_zone=None, wait_s=10.0, lim
             "title": title, "queued": len(tracks)}
 
 
+# WHICH SPEAKERS THIS SERVICE CAN TALK TO. The library speaks the Sonos protocol; that is a fact about
+# the LIBRARY, so it lives here, in the one module that speaks it — Assist and the pages ask, and never
+# name a brand themselves. HEOS joins in stage 5.
+SPEAKS_PLATFORMS = ("sonos",)
+
+
+def can_speak(entity_entry):
+    """True when this registry entry is a speaker this service can talk to."""
+    return (str((entity_entry or {}).get("entity_id") or "").startswith("media_player.")
+            and (entity_entry or {}).get("platform") in SPEAKS_PLATFORMS)
+
+
+# ── For Assist (music design stage 3, register 753) ────────────────────────────────────────
+def network_info():
+    """The Supervisor's network report (where the box's own address is read from)."""
+    try:
+        from proos import sysadmin as _sa
+        return _sa._info("/network/info") or {}
+    except Exception:                                            # noqa: BLE001
+        return {}
+
+
+_TZ = {}
+
+
+def home_time_zone(client):
+    """The home's time zone as the platform holds it."""
+    if "tz" not in _TZ:
+        try:
+            _TZ["tz"] = (client._req("GET", "/api/config") or {}).get("time_zone") or None
+        except Exception:                                        # noqa: BLE001
+            return None
+    return _TZ["tz"]
+
+
+def pick_service(accounts, names, playing_uri=""):
+    """(service id, account) Assist searches when nobody named a service. Read, in this order, from the
+    speaker itself: the service it is PLAYING now (its own address says sid=…); else the first service
+    whose first-added account is signed in (a service that needs no sign-in has little to search);
+    else the first the speaker lists. None when the home has no service at all."""
+    import re as _re
+    svcs = list_services(accounts, names)
+    if not svcs:
+        return None
+    m = _re.search(r"[?&]sid=(\d+)", playing_uri or "")
+    now = m and next((x for x in svcs if x["service_id"] == int(m.group(1))), None)
+    if now:
+        return now["service_id"], now["default"]
+    by_serial = {(getattr(a, "service_id", None), getattr(a, "serial_number", None)): a for a in accounts or []}
+    for x in svcs:
+        a = by_serial.get((x["service_id"], x["default"]))
+        if a is not None and getattr(a, "token", ""):
+            return x["service_id"], x["default"]
+    return svcs[0]["service_id"], svcs[0]["default"]
+
+
 def proof(client, network_info, entity_id, service="Spotify", account=None, term="relaxing",
           play_it=False, say=print, time_zone=None, play=None):
     """Pro's Speaker Music Test — it drives the REAL service above, step by step, and every line also goes
