@@ -4538,7 +4538,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026100902';
+const PROOS_BUILD='2026101101';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -14231,6 +14231,7 @@ function musicSelectSpeaker(eid){
     }).catch(()=>{});
     musicDiscover();      // MA engine → artwork-forward Discover landing
   }
+  else if(_spmCan(eid)) musicSpeakerHome(eid);      // a Sonos: the home's own services through it (stage 2)
   else musicLoadFavourites(eid);                    // native engine → this speaker's own favourites
 }
 // The ProOS Music "sources" setup (streaming services) is ONLY meaningful on an
@@ -14574,6 +14575,186 @@ function musicCrumbBack(){
   }
 }
 
+// ── THE SPEAKER'S OWN MUSIC (music design stage 2, register 750) ──────────────────────────
+// A Sonos room, with or without ProOS Music: the home's own services and accounts as the speaker
+// holds them, through Core (/speakers/music/*, stage 1). The service's own home page in its own
+// order, search in its own categories, and play — the speaker plays with the home's own account.
+// Detected, never configured: the speakers the library speaks (Sonos) are asked; if they answer
+// nothing, the page falls back to the speaker's favourites (the design's ladder, rung 4), saying why.
+let _spm={entity:null, services:[], sid:null, acct:null, items:[], stack:[], seq:0};
+function _spmCan(e){ return !!e && isSonos(e) && musicEngine(e)!=='ma'; }
+function _spmGet(path, params){
+  const qs=new URLSearchParams(Object.assign({entity_id:_spm.entity}, params||{}));
+  return fetch(proosCoreBase()+'/speakers/music/'+path+'?'+qs.toString())
+    .then(r=>r.json().then(j=>{ if(!r.ok) throw new Error((j&&j.error)||('error '+r.status)); return j; }));
+}
+function _spmRemember(){
+  try{ localStorage.setItem('proos_spm_'+_spm.entity, JSON.stringify({sid:_spm.sid, acct:_spm.acct})); }catch(e){}
+}
+function _spmRecall(entity){
+  try{ return JSON.parse(localStorage.getItem('proos_spm_'+entity)||'null'); }catch(e){ return null; }
+}
+// Which service opens first: the one this person chose last time on this speaker; else the one the
+// speaker is playing now (its own address says which: sid=…); else the first the speaker lists.
+function _spmPickService(entity, services){
+  const mem=_spmRecall(entity);
+  if(mem && services.some(s=>s.service_id===mem.sid)) return mem;
+  const m=String(att(entity,'media_content_id')||'').match(/[?&]sid=(\d+)/);
+  const now=m && services.find(s=>s.service_id===+m[1]);
+  const s=now||services[0];
+  return s?{sid:s.service_id, acct:s.default}:null;
+}
+async function musicSpeakerHome(entity){
+  _spm.entity=entity; const seq=++_spm.seq;
+  _musicCrumb=[]; clearTimeout(_musicSearchTimer); _musicSearchSeq++;
+  _musicMode='speaker'; _musicCat=null;
+  const srch=document.getElementById('music-search'); if(srch) srch.value='';
+  const crumb=document.getElementById('music-crumb'); if(crumb){ crumb.style.display='none'; crumb.innerHTML=''; }
+  _showDiscover();
+  const d=document.getElementById('music-discover'); if(d) d.innerHTML=_mEmpty('Loading…');
+  let svcs=null, why='';
+  try{ svcs=(await _spmGet('services')).services||[]; }catch(e){ why=String(e&&e.message||e); }
+  if(seq!==_spm.seq || entity!==_musicSpeaker) return;
+  if(!svcs || !svcs.length){
+    // The ladder's next rung: the speaker's own favourites — and the reason is said once.
+    if(why) showToast('This speaker’s music services couldn’t be reached — '+why);
+    musicLoadFavourites(entity); return;
+  }
+  _spm.services=svcs;
+  const pick=_spmPickService(entity, svcs); _spm.sid=pick.sid; _spm.acct=pick.acct;
+  _spmChips(); _spmHome();
+}
+function _spmService(){ return _spm.services.find(s=>s.service_id===_spm.sid)||null; }
+function _spmAcctName(a, s){ return (a&&a.name) || (s?s.service:'') ; }
+function _spmChips(fav){
+  const c=document.getElementById('music-cats'); if(!c) return;
+  const s=_spmService();
+  let h=_spm.services.map(x=>`<button class="mus-libchip${(!fav&&x.service_id===_spm.sid)?' on':''}" onclick="spmService(${x.service_id})">${_mEsc(x.service)}</button>`).join('');
+  h+=`<button class="mus-libchip${fav?' on':''}" onclick="musicLoadFavourites(_musicSpeaker)">Favourites</button>`;
+  if(fav){ c.innerHTML=h; return; }
+  // WHOSE ACCOUNT (Dave's ruling, 11 Oct): the first added by default, the home's others one tap away.
+  if(s && s.accounts.length>1){
+    h+='<span style="width:1px;align-self:stretch;background:rgba(255,255,255,0.15);margin:0 2px"></span>'
+     + s.accounts.map(a=>`<button class="mus-libchip${a.account===_spm.acct?' on':''}" onclick="spmAccount(${a.account})">${_mEsc(_spmAcctName(a,s))}</button>`).join('');
+  }
+  c.innerHTML=h;
+}
+function spmService(sid){
+  const s=_spm.services.find(x=>x.service_id===sid); if(!s) return;
+  _musicMode='speaker';
+  const mem=_spmRecall(_spm.entity);
+  _spm.sid=sid; _spm.acct=(mem&&mem.sid===sid&&s.accounts.some(a=>a.account===mem.acct))?mem.acct:s.default;
+  _spmRemember(); _spmChips(); _spmHome();
+}
+function spmAccount(acct){ _spm.acct=acct; _spmRemember(); _spmChips(); _spmHome(); }
+function _spmKeep(it){ _spm.items.push(it); return _spm.items.length-1; }
+function _spmCard(it){
+  const i=_spmKeep(it);
+  const art=it.art?`<img src="${_mEsc(it.art)}" loading="lazy" onerror="this.remove()"/>`:'';
+  const play=(it.play!==false)?`<button class="mus-play" onclick="event.stopPropagation();spmPlay(${i})"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>`:'';
+  return `<div class="mus-card${it.type==='artist'?' artist':''}" onclick="spmTap(${i})">
+    <div class="mus-art"><span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center">${_musicNoteSvg}</span>${art}${play}</div>
+    <div class="mus-ct">${_mEsc(it.title||'')}</div>${it.artist?`<div class="mus-cs">${_mEsc(it.artist)}</div>`:''}
+  </div>`;
+}
+function _spmRow(it){
+  const i=_spmKeep(it);
+  const art=it.art?`<img src="${_mEsc(it.art)}" loading="lazy" onerror="this.remove()"/>`:_musicNoteSvg;
+  return `<div class="mus-trow" onclick="spmTap(${i})"><div class="tr-art">${art}</div>
+    <div class="tr-m"><div class="tr-t">${_mEsc(it.title||'')}</div>${it.artist?`<div class="tr-s">${_mEsc(it.artist)}</div>`:''}</div></div>`;
+}
+// One list as the pages already lay one out: things that open are tiles, single pieces are rows.
+function _spmMixed(items){
+  let h='', run=[];
+  const flush=()=>{ if(run.length){ h+='<div class="mus-tlist" style="grid-column:1/-1">'+run.join('')+'</div>'; run=[]; } };
+  items.forEach(it=>{ if(it.open){ flush(); h+='<div>'+_spmCard(it)+'</div>'; } else run.push(_spmRow(it)); });
+  flush(); return h;
+}
+async function _spmHome(){
+  const entity=_spm.entity, seq=++_spm.seq; _spm.items=[]; _spm.stack=[];
+  const crumb=document.getElementById('music-crumb'); if(crumb){ crumb.style.display='none'; crumb.innerHTML=''; }
+  _showDiscover();
+  const d=document.getElementById('music-discover'); if(d) d.innerHTML=_mEmpty('Loading…');
+  let j=null, err='';
+  try{ j=await _spmGet('home', {service_id:_spm.sid, account:_spm.acct}); }catch(e){ err=String(e&&e.message||e); }
+  if(seq!==_spm.seq || entity!==_musicSpeaker || _musicMode!=='speaker') return;
+  if(err){ if(d) d.innerHTML=_mEmpty('Couldn’t load '+((_spmService()||{}).service||'this service')+' — '+err); return; }
+  // The service's own sections in its own order: a section with items is a shelf; the loose ones
+  // (a section that is itself a single item) gather in one shelf at the top, untitled.
+  const secs=(j&&j.sections)||[];
+  const loose=secs.filter(x=>!(x.items&&x.items.length));
+  let h='';
+  if(loose.length) h+=`<div class="mus-shelf"><div class="mus-scroller">${loose.map(_spmCard).join('')}</div></div>`;
+  secs.filter(x=>x.items&&x.items.length).forEach(x=>{
+    h+=`<div class="mus-shelf"><div class="mus-shelf-h"><div class="mus-shelf-t">${_mEsc(x.title||'')}</div></div><div class="mus-scroller">${x.items.map(_spmCard).join('')}</div></div>`;
+  });
+  if(d) d.innerHTML=h||_mEmpty('Nothing on this service’s home page');
+}
+function _spmCrumb(){
+  const crumb=document.getElementById('music-crumb'); if(!crumb) return;
+  const top=_spm.stack[_spm.stack.length-1];
+  if(!top){ crumb.style.display='none'; crumb.innerHTML=''; return; }
+  crumb.style.display='block';
+  crumb.innerHTML=`<button class="mus-libchip" onclick="spmBack()">‹ ${_mEsc(top.title||'Back')}</button>`;
+}
+async function _spmOpen(it, push){
+  const entity=_spm.entity, seq=++_spm.seq;
+  if(push) _spm.stack.push({id:it.id, title:it.title});
+  _spmCrumb(); _showGrid();
+  const g=document.getElementById('music-grid'); if(g) g.innerHTML=_mEmpty('Loading…');
+  let j=null, err='';
+  try{ j=await _spmGet('open', {service_id:_spm.sid, account:_spm.acct, item:it.id}); }catch(e){ err=String(e&&e.message||e); }
+  if(seq!==_spm.seq || entity!==_musicSpeaker) return;
+  if(err){ if(g) g.innerHTML=_mEmpty('Couldn’t open '+(it.title||'this')+' — '+err); return; }
+  const items=(j&&j.items)||[];
+  let h='';
+  if(it.play!==false) h+=`<div style="grid-column:1/-1;display:flex;gap:8px;padding-bottom:4px"><button class="mus-libchip on" onclick="spmPlay(${_spmKeep(it)})">▶ Play ${_mEsc(it.title||'')}</button></div>`;
+  if(g) g.innerHTML=h+(items.length?_spmMixed(items):_mEmpty('Nothing here'));
+}
+function spmBack(){
+  _spm.stack.pop();
+  const top=_spm.stack[_spm.stack.length-1];
+  if(top) _spmOpen({id:top.id, title:top.title}, false); else { _spmCrumb(); _spmHome(); }
+}
+function spmTap(i){
+  const it=_spm.items[i]; if(!it) return;
+  if(it.open) _spmOpen(it, true); else spmPlay(i);
+}
+async function spmSearch(q){
+  const entity=_spm.entity, seq=++_spm.seq; _spm.items=[];
+  _showGrid();
+  const g=document.getElementById('music-grid'); if(g) g.innerHTML=_mEmpty('Searching…');
+  let j=null, err='';
+  try{ j=await _spmGet('search', {service_id:_spm.sid, account:_spm.acct, q:q}); }catch(e){ err=String(e&&e.message||e); }
+  if(seq!==_spm.seq || entity!==_musicSpeaker) return;
+  if(err){ if(g) g.innerHTML=_mEmpty('Search unavailable — '+err); return; }
+  // Grouped in the SERVICE's own categories, with its own names for them.
+  let h='';
+  ((j&&j.results)||[]).forEach(r=>{
+    if(!(r.items&&r.items.length)) return;
+    h+='<div class="ms-sec-h">'+_mEsc(_humanizeKey(r.category))+'</div>'+_spmMixed(r.items);
+  });
+  if(g) g.innerHTML=h||_mEmpty('No results for “'+q+'”');
+}
+// Play on the speaker. The answer is the SPEAKER's own state (stage 1): playing → the strip shows
+// the track the speaker reports; not playing or refused → said, with the speaker's/service's words.
+async function spmPlay(i){
+  const it=_spm.items[i], entity=_spm.entity; if(!it||!entity) return;
+  if(_musicBusy[entity]){ _musicPendingUi(true,'Starting '+(it.title||'')+'…'); return; }
+  _musicBusy[entity]={t0:Date.now()};
+  _musicPendingUi(true,'Starting '+(it.title||'')+'…');
+  let j=null, msg='';
+  try{
+    const r=await fetch(proosCoreBase()+'/speakers/music/play',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({entity_id:entity, service_id:_spm.sid, account:_spm.acct, item:it.id})});
+    j=await r.json().catch(()=>null);
+    if(!r.ok) msg=(j&&j.error)||('error '+r.status);
+  }catch(e){ msg=String(e&&e.message||e); }
+  delete _musicBusy[entity]; _musicPendingUi(false);
+  if(msg){ showToast('Couldn’t play on '+playerRoomName(entity)+' — '+msg); _musicReport(entity,'speaker','play',msg); return; }
+  if(!(j&&j.ok)){ showToast(playerRoomName(entity)+' didn’t start playing '+(it.title||'')+(j&&j.state?' ('+j.state.toLowerCase()+')':'')); return; }
+  renderMusicNowPlaying();
+}
 // Native engine: browse the selected Sonos/HEOS speaker's own saved favourites.
 // Used only for speakers with no Music Assistant twin (native-only sites). Sonos
 // exposes a "favorites" node (often grouped in folders we expand in parallel);
@@ -14607,6 +14788,8 @@ async function musicLoadFavourites(entity){
     _musicItems=items;
     _musicSearchRow(true);   // favourites exist → now show search
     if(cats) cats.innerHTML='<span style="font-size:9px;letter-spacing:0.12em;text-transform:uppercase;color:rgba(255,255,255,0.50);align-self:center">Favourites</span>';
+    // A Sonos whose own services answered keeps its service chips, Favourites lit (stage 2).
+    if(_spm.entity===entity && _spm.services.length && _spmCan(entity)) _spmChips(true);
     renderMusicGrid(items);
   }catch(e){
     if(entity!==_musicSpeaker) return;
@@ -14830,6 +15013,13 @@ function musicSearch(q){
   q=(q||'').trim();
   clearTimeout(_musicSearchTimer);
   // Engine speakers ALWAYS search through Core — no HA config-entry id needed.
+  if(_musicMode==='speaker' && _spm.entity===_musicSpeaker){
+    // The speaker's own services: a real search through the service (stage 2), debounced.
+    _musicSearchSeq++;
+    if(!q){ _spm.stack=[]; _spmCrumb(); _spmHome(); return; }
+    _musicSearchTimer=setTimeout(()=>spmSearch(q),320);
+    return;
+  }
   if(musicEngine(_musicSpeaker)!=='ma'){
     const ql=q.toLowerCase();
     _musicSearchSeq++;   // cancel any in-flight MA search if engine just changed
