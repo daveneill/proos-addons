@@ -63,6 +63,28 @@ def choose_account(accounts, service_id, name=None):
     return mine[0] if mine else None
 
 
+_ACCOUNTS = {}          # household id -> (accounts, when read). Memory only — never written to disk.
+
+
+def household_accounts(household_id, read, now=None):
+    """The home's music accounts as the speaker handed them over — kept for Core's lifetime.
+    REGISTER 745 (seen on the box): reads from the speaker came back, then didn't, then did — every other
+    one, six in a row (cause not known). The accounts only change when someone adds a service in the
+    speaker's own app, so they are read ONCE and kept; a read that doesn't arrive is asked once more.
+    Returns (accounts, how) — how says whether they were read now or kept from earlier."""
+    now = now or time.time()
+    kept = _ACCOUNTS.get(household_id) if household_id else None
+    if kept:
+        return kept[0], "kept from %s" % time.strftime("%H:%M", time.localtime(kept[1]))
+    try:
+        accounts, how = read(), "read from the speaker via port %d" % EVENT_PORT
+    except Exception:                                            # noqa: BLE001
+        accounts, how = read(), "read from the speaker via port %d (second ask)" % EVENT_PORT
+    if household_id:
+        _ACCOUNTS[household_id] = (accounts, now)
+    return accounts, how
+
+
 def box_address(network_info):
     """The box's own LAN address, from the Supervisor's /network/info payload."""
     for iface in (network_info or {}).get("interfaces") or []:
@@ -145,12 +167,13 @@ def proof(client, network_info, entity_id, service="Spotify", account=None, term
         soco_config.EVENT_ADVERTISE_IP, lst.requested_port_number,
         ("%s:%s" % lst.address) if getattr(lst, "address", None) else "not yet started"))
     try:
-        accounts = MusicServiceBrowser.get_accounts(device=sp, timeout=10)
+        accounts, how = household_accounts(getattr(sp, "household_id", None),
+                                           lambda: MusicServiceBrowser.get_accounts(device=sp, timeout=10))
     except Exception as e:                                       # noqa: BLE001
-        out("STOP at 2 (the speaker handing Core the household's accounts, port %d): %s: %s"
+        out("STOP at 2 (the speaker handing Core the household's accounts, port %d, asked twice): %s: %s"
             % (EVENT_PORT, type(e).__name__, e))
         return {"ok": False, "lines": lines}
-    out("2. household accounts via port %d (%.1fs): %s" % (EVENT_PORT, time.time() - t0, ", ".join(
+    out("2. household accounts %s (%.1fs): %s" % (how, time.time() - t0, ", ".join(
         "service %s%s" % (a.service_id, (" (%s)" % a.nickname) if getattr(a, "nickname", "") else "")
         for a in accounts) or "none"))
     try:
