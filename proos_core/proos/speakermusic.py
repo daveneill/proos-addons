@@ -52,6 +52,17 @@ def listener_port(events, port=None):
     return port
 
 
+def choose_account(accounts, service_id, name=None):
+    """The account to use for one service, from the accounts the speaker already handed over: the named
+    one within that service (a name that isn't there is None, never someone else's); with no name,
+    that service's first. None if it has none."""
+    mine = [a for a in accounts or [] if getattr(a, "service_id", None) == service_id]
+    if name:
+        hit = next((a for a in mine if (getattr(a, "nickname", "") or "").lower() == name.lower()), None)
+        return hit
+    return mine[0] if mine else None
+
+
 def box_address(network_info):
     """The box's own LAN address, from the Supervisor's /network/info payload."""
     for iface in (network_info or {}).get("interfaces") or []:
@@ -142,12 +153,26 @@ def proof(client, network_info, entity_id, service="Spotify", account=None, term
     out("2. household accounts via port %d (%.1fs): %s" % (EVENT_PORT, time.time() - t0, ", ".join(
         "service %s%s" % (a.service_id, (" (%s)" % a.nickname) if getattr(a, "nickname", "") else "")
         for a in accounts) or "none"))
-    acct = None
-    if account:
-        acct = next((a for a in accounts if (getattr(a, "nickname", "") or "").lower() == account.lower()), None)
     try:
-        br = (MusicServiceBrowser(service, account=acct, device=sp) if acct
-              else MusicServiceBrowser(service, device=sp))
+        out("   listener actually on %s:%s" % tuple(soco_events().event_listener.address))
+    except Exception:                                            # noqa: BLE001
+        pass
+    # REGISTER 744 (seen on the box): opening a service WITHOUT an account makes the library read the
+    # household's accounts a SECOND time, and that second read never arrived. It is never needed: the
+    # accounts were just read. The account is chosen from them — the person's, by name, within THAT
+    # service (the old match took the first "Dave" of any service) — and always handed over.
+    try:
+        from soco.music_services import MusicService
+        acct = choose_account(accounts, int(MusicService(service, device=sp).service_id), account)
+    except Exception as e:                                       # noqa: BLE001
+        out("STOP at 3 (finding %s in this home): %s: %s" % (service, type(e).__name__, e))
+        return {"ok": False, "lines": lines}
+    if acct is None:
+        out("STOP at 3: no %s account%s is set up on these speakers" % (service, (" named %r" % account) if account else ""))
+        return {"ok": False, "lines": lines}
+    out("   using %s account %s" % (service, getattr(acct, "nickname", "") or "(no name)"))
+    try:
+        br = MusicServiceBrowser(service, account=acct, device=sp)
     except Exception as e:                                       # noqa: BLE001
         out("STOP at 3 (opening %s): %s: %s" % (service, type(e).__name__, e))
         return {"ok": False, "lines": lines}
