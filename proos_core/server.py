@@ -261,6 +261,31 @@ try:
 except Exception:  # optional - installer login must not stop boot
     proauth = None
 
+
+# ── The speaker music service's two readings (register 748) ─────────────────────────────
+_SPM_TZ = {"name": None}
+
+
+def _speaker_net_info():
+    """The Supervisor's network report — where the box's own address is read from."""
+    try:
+        from proos import sysadmin as _sa
+        return _sa._info("/network/info") or {}
+    except Exception:                                            # noqa: BLE001
+        return {}
+
+
+def _home_time_zone():
+    """The home's time zone as the platform holds it (Settings › System › General) — sent to the music
+    service so its home page greets the right time of day (register 746: "Good evening" at 5:39 am)."""
+    if not _SPM_TZ["name"]:
+        try:
+            _SPM_TZ["name"] = (_client._req("GET", "/api/config") or {}).get("time_zone") or None
+        except Exception:                                        # noqa: BLE001
+            return None
+    return _SPM_TZ["name"]
+
+
 _controllers: dict[str, RoomController] = {}
 _state_version = 0  # bumps on any project/activity change; clients poll /health
 
@@ -5493,6 +5518,42 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, {"folders": _ma.recommendations()})
                 except Exception as e:                           # noqa: BLE001
                     return self._send(502, {"folders": [], "error": str(e)})
+            # ── THE SPEAKER'S OWN MUSIC (music design stage 1, register 748) ──────────
+            # Read through the speaker with the home's own accounts. Every signed-in
+            # person may browse (music is a household power). A failure answers 502
+            # with the speaker's or the service's own reason — never an empty page.
+            if len(parts) == 3 and parts[:2] == ["speakers", "music"] and parts[2] in (
+                    "services", "home", "open", "search"):
+                _qs = parse_qs(urlparse(self.path).query)
+
+                def _a(k, d=None):
+                    return (_qs.get(k) or [d])[0]
+                _eid = _a("entity_id") or ""
+                if not _eid.startswith("media_player."):
+                    return self._send(400, {"error": "entity_id (a speaker) required"})
+                try:
+                    from proos import speakermusic as _spm
+                    _sp = _spm.connect(_client, _speaker_net_info(), _eid)
+                    if parts[2] == "services":
+                        return self._send(200, _spm.services(_sp))
+                    _sid = _a("service_id")
+                    if not _sid:
+                        return self._send(400, {"error": "service_id required"})
+                    _acct = _a("account")
+                    _acct = int(_acct) if _acct not in (None, "") else None
+                    _tz = _home_time_zone()
+                    if parts[2] == "home":
+                        return self._send(200, _spm.home(_sp, int(_sid), _acct, _tz))
+                    if parts[2] == "open":
+                        if not _a("item"):
+                            return self._send(400, {"error": "item required"})
+                        return self._send(200, _spm.open_item(
+                            _sp, int(_sid), _a("item"), _acct, _tz,
+                            index=int(_a("index", "0") or 0), count=int(_a("count", "50") or 50)))
+                    return self._send(200, _spm.search(_sp, int(_sid), _a("q") or "", _acct, _tz,
+                                                       count=int(_a("count", "8") or 8)))
+                except Exception as e:                           # noqa: BLE001
+                    return self._send(502, {"error": str(e)[:300]})
             # ── Stage 1 Music Mirror: Core is the only music API ──────────────
             # (Audit 2026-08-09.) Each route hands the engine its own command and
             # renders what it returns — no hand-rolled shelves, no Home Assistant
@@ -8010,6 +8071,23 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, {"b64": _b64.b64encode(png).decode(),
                                         "icon": _roomart.icon_for(nm),
                                         "origin": "generated"})
+            if parts == ["speakers", "music", "play"]:
+                # Music design stage 1 (register 748): play an item on the speaker with the
+                # home's own account. Household power, like music/play. The answer is the
+                # SPEAKER's own state; a refusal is the speaker's or the service's words.
+                b = self._body() or {}
+                _eid = str(b.get("entity_id") or "")
+                if not _eid.startswith("media_player.") or not b.get("service_id") or not b.get("item"):
+                    return self._send(400, {"error": "entity_id, service_id and item required"})
+                try:
+                    from proos import speakermusic as _spm
+                    _sp = _spm.connect(_client, _speaker_net_info(), _eid)
+                    _acct = b.get("account")
+                    return self._send(200, _spm.play(_sp, int(b["service_id"]), str(b["item"]),
+                                                     int(_acct) if _acct not in (None, "") else None,
+                                                     _home_time_zone()))
+                except Exception as e:                           # noqa: BLE001
+                    return self._send(502, {"ok": False, "error": str(e)[:300]})
             if parts == ["speaker", "proof"]:
                 # REGISTER 741: the speaker's own music services, proved from Core on the box.
                 # Installer only; reads unless "play" is asked for.
@@ -8020,12 +8098,9 @@ class Handler(BaseHTTPRequestHandler):
                 b = self._body() or {}
                 try:
                     from proos import speakermusic as _spm
-                    from proos import sysadmin as _sa
-                    try:
-                        _ni = _sa._info("/network/info")
-                    except Exception:  # noqa: BLE001
-                        _ni = {}
+                    _ni = _speaker_net_info()
                     res = _spm.proof(_client, _ni, str(b.get("entity_id") or "").strip(),
+                                     time_zone=_home_time_zone(),
                                      service=str(b.get("service") or "Spotify"),
                                      account=(str(b.get("account") or "").strip() or None),
                                      term=str(b.get("term") or "relaxing"),
