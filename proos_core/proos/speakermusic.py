@@ -36,6 +36,22 @@ def soco_ready():
         return False, "the speaker music library isn't installed in this Core (%s)" % type(e).__name__
 
 
+def soco_events():
+    from soco import events
+    return events
+
+
+def listener_port(events, port=None):
+    """Point SoCo's one event listener at Core's published port. A listener already running on another
+    port is stopped first, so it restarts on ours. Returns the port it will use."""
+    port = port or EVENT_PORT
+    lst = events.event_listener
+    if getattr(lst, "is_running", False) and tuple(getattr(lst, "address", ()) or ())[1:2] != (port,):
+        lst.stop()
+    lst.requested_port_number = port
+    return port
+
+
 def box_address(network_info):
     """The box's own LAN address, from the Supervisor's /network/info payload."""
     for iface in (network_info or {}).get("interfaces") or []:
@@ -101,6 +117,10 @@ def proof(client, network_info, entity_id, service="Spotify", account=None, term
         return {"ok": False, "lines": lines}
     soco_config.EVENT_ADVERTISE_IP = box
     soco_config.EVENT_LISTENER_PORT = EVENT_PORT
+    # REGISTER 741 (seen on the box): SoCo builds its listener when it is first imported and fixes its
+    # port THEN (1400). Setting the config afterwards changed nothing, and the speaker was told to reply
+    # on a port the box does not publish. The listener itself is told, before it starts.
+    listener_port(soco_events())
     sp = soco.SoCo(ip)
     try:
         sp = sp.group.coordinator if sp.group else sp
@@ -109,6 +129,10 @@ def proof(client, network_info, entity_id, service="Spotify", account=None, term
         out("STOP: the speaker didn't answer Core: %s" % e)
         return {"ok": False, "lines": lines}
     t0 = time.time()
+    lst = soco_events().event_listener
+    out("   Core asks the speaker to reply to http://%s:%s (listening on %s)" % (
+        soco_config.EVENT_ADVERTISE_IP, lst.requested_port_number,
+        ("%s:%s" % lst.address) if getattr(lst, "address", None) else "not yet started"))
     try:
         accounts = MusicServiceBrowser.get_accounts(device=sp, timeout=10)
     except Exception as e:                                       # noqa: BLE001
