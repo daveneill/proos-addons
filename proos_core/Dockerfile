@@ -35,6 +35,15 @@ RUN apk add --no-cache libjpeg-turbo-utils || echo "libjpeg-turbo-utils unavaila
 # button says talk is not available on this box.
 RUN apk add --no-cache ffmpeg || echo "ffmpeg unavailable — talk is off"
 
+# REGISTER 741: the speaker's own music services (Sonos: the home's own accounts, search, home page,
+# library, play as the speaker's queue) — SoCo with pull request #1010, pinned. Its dependencies come
+# from Alpine's own packages; SoCo itself without dependencies. Never fatal: without it Pro says the
+# speaker music library isn't installed, and nothing else changes.
+RUN (apk add --no-cache py3-lxml py3-requests py3-xmltodict py3-appdirs py3-pip git \
+     && pip install --no-cache-dir --break-system-packages --no-deps ifaddr \
+          "git+https://github.com/SoCo/SoCo.git@97dba030b89715d7d97ad8f31039ce6aa3ecfb13") \
+    || echo "speaker music library unavailable — Pro will say so"
+
 COPY proos /app/proos
 # Product app tile artwork — ships with the release (see appart/README.md).
 COPY appart /app/appart

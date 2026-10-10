@@ -8010,6 +8010,30 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, {"b64": _b64.b64encode(png).decode(),
                                         "icon": _roomart.icon_for(nm),
                                         "origin": "generated"})
+            if parts == ["speaker", "proof"]:
+                # REGISTER 741: the speaker's own music services, proved from Core on the box.
+                # Installer only; reads unless "play" is asked for.
+                u = getattr(self, "_user", None)
+                if not (users and u and (u.get("is_admin") or u.get("is_owner")
+                                         or users.is_tech(u.get("id")))):
+                    return self._send(403, {"error": "installer access required"})
+                b = self._body() or {}
+                try:
+                    from proos import speakermusic as _spm
+                    from proos import sysadmin as _sa
+                    try:
+                        _ni = _sa._info("/network/info")
+                    except Exception:  # noqa: BLE001
+                        _ni = {}
+                    res = _spm.proof(_client, _ni, str(b.get("entity_id") or "").strip(),
+                                     service=str(b.get("service") or "Spotify"),
+                                     account=(str(b.get("account") or "").strip() or None),
+                                     term=str(b.get("term") or "relaxing"),
+                                     play=bool(b.get("play")),
+                                     say=lambda m: print(m, flush=True))
+                    return self._send(200, res)
+                except Exception as e:  # noqa: BLE001
+                    return self._send(200, {"ok": False, "lines": ["STOP: %s" % e]})
             # ── A CLIENT'S VOICE BECOMES TEXT (register 240) ──────────────
             # Dave's ruling, 19 Aug: the platform's own transcriber — the one
             # his box is already set up for, reading en-AU, which we read off
