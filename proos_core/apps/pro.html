@@ -2665,7 +2665,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026100901';
+const PROOS_BUILD='2026101001';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -11953,7 +11953,19 @@ async function techViewAssist(view){
     +'<div class="wiz-hint">Type what someone would say. ProOS shows whether it is instant or goes to the AI, and what it would do. Nothing is switched.</div>'
     +'<div style="display:flex;gap:8px"><input id="as-try" class="set-input" type="text" placeholder="watch apple tv in the bedroom" autocapitalize="off" autocorrect="off" spellcheck="false" onkeydown="if(event.key===\'Enter\')assistTryIt()"/>'
     +'<button class="btn-ghost" onclick="assistTryIt()">Try</button></div>'
-    +'<div id="as-try-out" class="wiz-hint" style="margin-top:10px"></div></div>');
+    +'<div id="as-try-out" class="wiz-hint" style="margin-top:10px"></div></div>'
+    // ── SPEAKER MUSIC TEST (register 741). Proves, from Core on this box, that a speaker reads the
+    // home's own music accounts, searches them and plays — the road register 740 proved from a Mac.
+    // Reads unless Play is ticked. A test, not a feature: its words are the engine's own.
+    +'<div class="bld-sec" style="margin-top:18px"><div class="bld-sec-h">Speaker Music Test</div>'
+    +'<div class="wiz-hint">Checks that a speaker can search the home\'s own music accounts from this box. Nothing plays unless Play is ticked.</div>'
+    +'<div class="field"><div class="field-label">Speaker</div><input id="sm-ent" class="set-input" type="text" value="media_player.office_office" autocapitalize="off" autocorrect="off" spellcheck="false"/></div>'
+    +'<div style="display:flex;gap:8px"><input id="sm-svc" class="set-input" type="text" value="Spotify" placeholder="Service"/>'
+    +'<input id="sm-acct" class="set-input" type="text" value="" placeholder="Account name (optional)"/>'
+    +'<input id="sm-term" class="set-input" type="text" value="relaxing" placeholder="Search"/></div>'
+    +'<div style="display:flex;gap:8px;align-items:center;margin-top:8px"><label style="display:flex;gap:6px;align-items:center"><input id="sm-play" type="checkbox"/> Play</label>'
+    +'<button class="btn-ghost" onclick="speakerMusicTest()">Run Test</button></div>'
+    +'<pre id="sm-out" class="wiz-hint" style="white-space:pre-wrap;margin-top:10px"></pre></div>');
   _asKeys=st.keys_saved||{};
   assistKeyLabel();
   assistVoiceLoad();
@@ -11980,6 +11992,17 @@ function assistKeyLabel(){
     inp.placeholder='sk-… (no '+nm+' key saved yet)';
     hint.textContent='Paste a '+nm+' key, then Save. '+(other?'The '+_AS_PROV_NAMES[other]+' key is kept separately and is never sent to '+nm+'.':'');
   }
+}
+async function speakerMusicTest(){
+  const out=document.getElementById('sm-out'); if(!out) return;
+  const v=id=>((document.getElementById(id)||{}).value||'').trim();
+  out.textContent='Running — about 15 seconds…';
+  try{
+    const r=await fetch(proCoreUrl()+'/speaker/proof',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({entity_id:v('sm-ent'),service:v('sm-svc')||'Spotify',account:v('sm-acct'),term:v('sm-term')||'relaxing',play:!!(document.getElementById('sm-play')||{}).checked})});
+    const d=await r.json();
+    out.textContent=((d.lines||[]).join('\n'))||(d.error||'No answer');
+  }catch(e){ out.textContent='ProOS Core unreachable'; }
 }
 async function assistTryIt(){
   const inp=document.getElementById('as-try'), out=document.getElementById('as-try-out');
