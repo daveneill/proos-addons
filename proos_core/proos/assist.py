@@ -3560,13 +3560,15 @@ class ToolRunner:
     # ── MUSIC DESIGN STAGE 3 (register 753; design approved by Dave 11 Oct 05:55) ─────────────────
     # NO RULES PER SCENARIO (Dave, 10 Oct: "I dont want to go back to you writing rules for each
     # scenario"). The mood words, the pick order and the "the music service is slow" reply (735,
-    # 737, 738) are gone. What is played is decided in two ways only:
-    #   - a NAME: a result whose title IS what was asked ("P!nk", "Discover Weekly") is played — the
-    #     service's own result, matched to the person's own words;
-    #   - anything else is a DESCRIPTION ("something relaxing", "something to cook to") and the AI
-    #     chooses — the best-fitting playlist (Dave's ruling 5), or better words to search with.
-    # With no AI set up, a description plays the service's own top playlist: the service's ranking,
-    # never ProOS's. What is SAID is the speaker's own state.
+    # 737, 738) are gone.
+    # REGISTER 757 (Dave 17:35 "go", after 756 on the box): the AI asked to CHOOSE from the literal
+    # words' results took the first playlist every time ("17" three times), and the literal words
+    # were the weakness ("something to cook to" found playlists NAMED that). So the AI now does the
+    # one thing only it can, BEFORE the search: it turns the request into what to search for — the
+    # name itself when one was named ("P!nk"), else a few words for a fitting playlist ("dinner
+    # cooking"). The SERVICE ranks the results; a result carrying the name plays, else the
+    # service's top playlist (Dave's ruling 5). No AI set up: the person's own words are searched.
+    # What is SAID is the speaker's own state. Every step is timed in the log.
     @staticmethod
     def _same_words(a, b):
         return " ".join(str(a or "").casefold().split()) == " ".join(str(b or "").casefold().split())
@@ -3583,58 +3585,50 @@ class ToolRunner:
                                 "kind": kind, "play": it.get("play")})
         return out
 
-    def _ai_pick(self, asked, cands):
-        """The AI's choice for a description: (index or None, better search words or None). None, None
-        when no AI is set up or it doesn't answer."""
+    def _ai_words(self, asked):
+        """What to search for, from the AI: ("name", the exact name) when something specific was named,
+        ("search", a few words for a fitting playlist) for a mood, activity or style. None when no AI is
+        set up or it doesn't answer."""
         cfg = load_config()
-        if not (cfg.get("provider") and cfg.get("api_key")) or not cands:
-            return None, None
-        lines = ["%d. %s — %s%s" % (i + 1, c["kind"] or "item", c["title"],
-                                    (" (%s)" % c["artist"]) if c.get("artist") else "")
-                 for i, c in enumerate(cands[:24])]
+        if not (cfg.get("provider") and cfg.get("api_key")):
+            return None
         prompt = ("Someone asked a home's speaker to play: \"%s\".\n"
-                  "These are the music service's own search results:\n%s\n\n"
-                  "Reply with ONLY the number of the single best fit. If they described a mood, an "
-                  "activity or a style rather than naming something, choose a playlist. If nothing fits, "
-                  "reply 0 and, on the next line, two to four better words to search for."
-                  % (asked, "\n".join(lines)))
+                  "Reply with exactly ONE line:\n"
+                  "NAME: <the name exactly> — if they named a specific artist, song, album, playlist or station\n"
+                  "SEARCH: <two to five words to search a music service with, to find a fitting playlist> — "
+                  "if they described a mood, an activity or a style." % asked)
         t0 = time.time()
         try:
             text = _one_answer(cfg, prompt, quick=True)
         except Exception as e:                                   # noqa: BLE001
-            print("  [assist] music choice: the AI didn't answer (%s)" % e, flush=True)
-            return None, None
-        print("  [assist] music choice: the AI answered in %.1fs (%r)" % (time.time() - t0, (text or "")[:40]), flush=True)
-        m = re.search(r"\d+", text or "")
+            print("  [assist] music words: the AI didn't answer (%s)" % e, flush=True)
+            return None
+        print("  [assist] music words: the AI answered in %.1fs (%r)" % (time.time() - t0, (text or "")[:60]), flush=True)
+        m = re.search(r"\b(NAME|SEARCH)\s*:\s*(.+)", text or "", re.I)
         if not m:
-            return None, None
-        n = int(m.group(0))
-        if n == 0:
-            rest = (text or "").split("\n", 1)
-            return None, (rest[1].strip().strip('"') if len(rest) > 1 and rest[1].strip() else None)
-        return (n - 1, None) if 0 < n <= min(len(cands), 24) else (None, None)
+            return None
+        words = m.group(2).strip().strip('"').strip()
+        return (m.group(1).lower(), words) if words else None
 
-    def choose_music(self, asked, cands, research=None):
-        """(candidate, how) — how is "ai", "name" or "service". research(words) searches again.
-        REGISTER 755 (Dave 08:02 "go", after 754 on the box): THE AI JUDGES EVERY REQUEST when there is
-        one. A title that equals the words is shown to it like any other result, never decided without
-        it — "something relaxing" had played an ALBUM titled "Something Relaxing" by the words alone.
-        The title shortcut is used only when the AI isn't set up or doesn't answer."""
-        playable = [c for c in cands if c.get("play") is not False]
-        named = next((c for c in playable if self._same_words(c["title"], asked)), None)
-        i, words = self._ai_pick(asked, playable)
-        if i is not None:
-            return playable[i], "ai"
-        if words and research:
-            again = [c for c in research(words) if c.get("play") is not False]
-            j, _w = self._ai_pick(asked, again)
-            if j is not None:
-                return again[j], "ai"
-            playable = again or playable
-        if named is not None:
-            return named, "name"
-        top = next((c for c in playable if "playlist" in (c.get("kind") or "").lower()), None)
-        return (top or (playable[0] if playable else None)), "service"
+    def choose_music(self, asked, search, times=None):
+        """(candidate, how, words) — search(words) returns the service's own results as candidates.
+        how: "ai-name", "ai-search", "name" (no AI, the words carried a name) or "service"."""
+        times = times if times is not None else {}
+        t = time.time()
+        ai = self._ai_words(asked)
+        times["ai"] = round(time.time() - t, 1)
+        kind, words = ai if ai else (None, asked)
+        t = time.time()
+        cands = [c for c in search(words) if c.get("play") is not False]
+        if not cands and words != asked:
+            cands = [c for c in search(asked) if c.get("play") is not False]
+        times["search"] = round(time.time() - t, 1)
+        if kind in ("name", None):
+            hit = next((c for c in cands if self._same_words(c["title"], words)), None)
+            if hit is not None:
+                return hit, ("ai-name" if ai else "name"), words
+        top = next((c for c in cands if "playlist" in (c.get("kind") or "").lower()), None)
+        return (top or (cands[0] if cands else None)), ("ai-search" if ai else "service"), words
 
     def _room_name(self, area):
         try:
@@ -3670,6 +3664,7 @@ class ToolRunner:
         eid = self._room_sonos_speaker(area)
         if not eid:
             return None
+        t_conn = time.time()
         try:
             from proos import speakermusic as _spm
             sp = _spm.connect(self.client, _spm.network_info(), eid)
@@ -3686,30 +3681,34 @@ class ToolRunner:
         except Exception as e:  # noqa: BLE001
             print("  [assist] the room's speaker music isn't reachable (%s) — next rung" % e, flush=True)
             return None
+        times = {"speaker": round(time.time() - t_conn, 1)}
         t0 = time.time()
 
         def _search(words):
             return self.music_candidates(_spm.search(sp, sid, words, acct, tz).get("results"))
         try:
-            pick, how = self.choose_music(asked, _search(asked), _search)
+            pick, how, words = self.choose_music(asked, _search, times)
         except Exception as e:  # noqa: BLE001
             return {"error": "the music service didn't answer (%s)" % str(e)[:120]}
         service = _spm.service_names(sp).get(sid) or "the music service"
         if not pick:
             return {"error": "%s found nothing for %s" % (service, asked)}
+        t = time.time()
         try:
             p = _spm.play(sp, sid, pick["id"], acct, tz)
         except Exception as e:  # noqa: BLE001
             return {"error": "%s couldn't play %s: %s" % (service, pick["title"], str(e)[:120])}
+        times["play"] = round(time.time() - t, 1)
         self._audit("music_play", area=area, entity=eid, uri=pick["id"], mode="replace", asked=asked,
-                    picked=pick["title"], kind=pick.get("kind"), chosen_by=how, service=service)
+                    searched=words, picked=pick["title"], kind=pick.get("kind"), chosen_by=how, service=service)
         room = self._room_name(area)
         if not p.get("ok"):
             return {"error": "the speaker didn't start playing %s (it says %s)"
                              % (pick["title"], (p.get("state") or "nothing").lower()),
                     "picked": pick["title"], "playing_on": eid}
-        print("  [assist] music: %r → %r (%s, chosen by %s) PLAYING in %.1fs"
-              % (asked, pick["title"], service, how, time.time() - t0), flush=True)
+        print("  [assist] music: %r → searched %r → %r (%s, %s) PLAYING — speaker %.1fs · AI %.1fs · search %.1fs · play %.1fs"
+              % (asked, words, pick["title"], service, how, times.get("speaker", 0), times.get("ai", 0),
+                 times.get("search", 0), times.get("play", 0)), flush=True)
         return {"ok": True, "playing_on": eid, "picked": pick["title"], "kind": pick.get("kind"),
                 "chosen_by": how, "service": service,
                 "proof": {"state": "playing", "seconds": round(time.time() - t0, 1)},
@@ -3742,11 +3741,10 @@ class ToolRunner:
                 for it in (v or []) if isinstance(it, dict) and it.get("uri")]}
                 for k, v in res.items() if isinstance(v, list)])
         try:
-            cands = _search(asked)
+            it, how, words = self.choose_music(asked, _search)
         except Exception as e:  # noqa: BLE001
             print("  [assist] music search failed: %s" % e, flush=True)
             return {"error": "music isn't answering right now"}
-        it, how = self.choose_music(asked, cands, _search)
         if not it:
             return {"error": "nothing found for %s" % asked}
         kind = it.get("kind")
@@ -3757,7 +3755,7 @@ class ToolRunner:
         sent = _music_send(self.client, eid, it["id"], "replace", wait=0)   # register 738
         ToolRunner._music_inflight[eid] = time.time()
         self._audit("music_play", area=area, entity=eid, uri=it["id"], mode="replace",
-                    asked=asked, picked=it.get("title"), kind=kind, chosen_by=how)
+                    asked=asked, searched=words, picked=it.get("title"), kind=kind, chosen_by=how)
         name = str(it.get("title") or asked)
         t0, playing, st, refused, done_at = time.time(), False, {}, None, None
 
