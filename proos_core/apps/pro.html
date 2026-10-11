@@ -2665,7 +2665,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026101001';
+const PROOS_BUILD='2026101103';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -11965,10 +11965,40 @@ async function techViewAssist(view){
     +'<input id="sm-term" class="set-input" type="text" value="relaxing" placeholder="Search"/></div>'
     +'<div style="display:flex;gap:8px;align-items:center;margin-top:8px"><label style="display:flex;gap:6px;align-items:center"><input id="sm-play" type="checkbox"/> Play</label>'
     +'<button class="btn-ghost" onclick="speakerMusicTest()">Run Test</button></div>'
-    +'<pre id="sm-out" class="wiz-hint" style="white-space:pre-wrap;margin-top:10px"></pre></div>');
+    +'<pre id="sm-out" class="wiz-hint" style="white-space:pre-wrap;margin-top:10px"></pre></div>'
+    // ── APPLE MUSIC TOKEN (music design stage 4, register 759; Dave's ruling 3: installer-pasted now,
+    // ProOS Connect later). The token is made on the installer's Mac from the Protech key; only the
+    // token is pasted. Core says whose key it is and when it ends — it never shows the token again.
+    +'<div class="bld-sec" style="margin-top:18px"><div class="bld-sec-h">Apple Music Token</div>'
+    +'<div class="wiz-hint">Lets this home search Apple Music. Made on your Mac from the Protech MusicKit key; lasts up to six months.</div>'
+    +'<div id="am-status" class="wiz-hint" style="margin:6px 0">Checking…</div>'
+    +'<div class="field"><div class="field-label">Paste a New Token</div><textarea id="am-token" class="set-input" rows="3" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="eyJ…"></textarea></div>'
+    +'<div style="display:flex;gap:8px;margin-top:8px"><button class="btn-ghost" onclick="appleTokenSave()">Save Token</button>'
+    +'<button class="btn-ghost" onclick="appleTokenSave(true)">Remove Token</button></div></div>');
   _asKeys=st.keys_saved||{};
   assistKeyLabel();
   assistVoiceLoad();
+  appleTokenLoad();
+}
+function _amShow(d){
+  const el=document.getElementById('am-status'); if(!el) return;
+  if(!d||d.error){ el.innerHTML='<b style="color:#e0564b">'+esc((d&&d.error)||'Couldn\u2019t read')+'</b>'; return; }
+  if(!d.set){ el.textContent='No token — Apple Music can\u2019t be searched in this home yet.'; return; }
+  el.innerHTML=(d.expired?'<b style="color:#e0564b">Expired</b>':'<b style="color:#84d9b4">Set</b>')
+    +' · key '+esc(d.key_id||'?')+' · team '+esc(d.team_id||'?')+' · ends '+esc(d.expires||'?')
+    +(d.expired?'':' ('+Math.floor(d.days_left)+' days left)');
+}
+async function appleTokenLoad(){
+  try{ const r=await fetch(proCoreUrl()+'/speaker/apple-token'); _amShow(await r.json()); }catch(e){ _amShow({error:'ProOS Core unreachable'}); }
+}
+async function appleTokenSave(clear){
+  const ta=document.getElementById('am-token');
+  const token=clear?'':((ta&&ta.value)||'').trim();
+  if(!clear&&!token){ _amShow({error:'Paste the token first'}); return; }
+  try{
+    const r=await fetch(proCoreUrl()+'/speaker/apple-token',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token})});
+    const d=await r.json(); if(r.ok&&ta) ta.value=''; _amShow(d);
+  }catch(e){ _amShow({error:'ProOS Core unreachable'}); }
 }
 // ONE KEY PER PROVIDER (register 434). Core keeps a key for each provider;
 // the label says whether the provider chosen in the dropdown has one, and
