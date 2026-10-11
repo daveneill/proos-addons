@@ -455,16 +455,49 @@ def _queue_play(sp, s, tracks, prep, title, wait_s):
             "title": title, "queued": len(tracks)}
 
 
-# WHICH SPEAKERS THIS SERVICE CAN TALK TO. The library speaks the Sonos protocol; that is a fact about
-# the LIBRARY, so it lives here, in the one module that speaks it — Assist and the pages ask, and never
-# name a brand themselves. HEOS joins in stage 5.
-SPEAKS_PLATFORMS = ("sonos",)
+# WHICH SPEAKERS THIS SERVICE CAN TALK TO. A fact about the libraries, so it lives here — Assist and the
+# pages ask, and never name a brand themselves. Sonos through SoCo (this module); HEOS through the
+# platform's own HEOS integration plus the player's search (heosmusic.py, stage 5, registers 766–768).
+SPEAKS_PLATFORMS = ("sonos", "heos")
 
 
 def can_speak(entity_entry):
     """True when this registry entry is a speaker this service can talk to."""
     return (str((entity_entry or {}).get("entity_id") or "").startswith("media_player.")
             and (entity_entry or {}).get("platform") in SPEAKS_PLATFORMS)
+
+
+def platform_of(client, entity_id):
+    """The integration that owns this speaker, as the platform's own registry says."""
+    try:
+        return next((e.get("platform") for e in client.entity_registry() or []
+                     if e.get("entity_id") == entity_id), None)
+    except Exception:                                            # noqa: BLE001
+        return None
+
+
+def for_speaker(client, network_info, entity_id):
+    """(the brand's module, the speaker ready to talk to). Both modules answer the same calls in the same
+    shapes — services, home, open_item, search, play, assist_service — so nothing above names a brand."""
+    if platform_of(client, entity_id) == "heos":
+        from proos import heosmusic as _hm
+        return _hm, _hm.connect(client, entity_id)
+    import sys as _sys
+    return _sys.modules[__name__], connect(client, network_info, entity_id)
+
+
+def assist_service(sp, attrs):
+    """(service id, account, name) Assist searches on a Sonos when nobody named a service (pick_service).
+    Apple Music is searched through Apple's catalogue with the installer's token (stage 4); without one
+    it can't be searched, so it is not chosen for a spoken request."""
+    from proos import applemusic as _am
+    accounts, _how = accounts_of(sp)
+    skip = () if _am.ready() else (APPLE_MUSIC_SID,)
+    names = service_names(sp)
+    svc = pick_service(accounts, names, (attrs or {}).get("media_content_id") or "", skip)
+    if not svc:
+        return None
+    return svc[0], svc[1], names.get(svc[0]) or "the music service"
 
 
 # ── For Assist (music design stage 3, register 753) ────────────────────────────────────────

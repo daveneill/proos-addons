@@ -3574,6 +3574,11 @@ class ToolRunner:
         return " ".join(str(a or "").casefold().split()) == " ".join(str(b or "").casefold().split())
 
     @staticmethod
+    def _starts_with_words(title, name):
+        t, n = str(title or "").casefold().split(), str(name or "").casefold().split()
+        return bool(n) and t[:len(n)] == n
+
+    @staticmethod
     def music_candidates(results):
         """[{id, title, artist, kind, play}] in the service's own order, from the service's own results."""
         out = []
@@ -3625,6 +3630,12 @@ class ToolRunner:
         times["search"] = round(time.time() - t, 1)
         if kind in ("name", None):
             hit = next((c for c in cands if self._same_words(c["title"], words)), None)
+            # REGISTER 770 (seen on the Marantz, 766): TuneIn answers "triple m" with Triple R, triple j,
+            # then Triple M Radio — no title IS the name, and the first result is the wrong station. The
+            # design's words: "a result CARRYING the name plays". So, after an exact title, the first
+            # result whose title begins with the name's own words, in the service's order.
+            if hit is None:
+                hit = next((c for c in cands if self._starts_with_words(c["title"], words)), None)
             if hit is not None:
                 return hit, ("ai-name" if ai else "name"), words
         top = next((c for c in cands if "playlist" in (c.get("kind") or "").lower()), None)
@@ -3669,21 +3680,18 @@ class ToolRunner:
             return None
         t_conn = time.time()
         try:
+            # The brand's own road (Sonos or HEOS, stage 5) — the service module says which; both
+            # answer the same calls, so nothing here names a brand.
             from proos import speakermusic as _spm
-            sp = _spm.connect(self.client, _spm.network_info(), eid)
-            accounts, _how = _spm.accounts_of(sp)
+            mod, sp = _spm.for_speaker(self.client, _spm.network_info(), eid)
             try:
-                playing = ((self.client._req("GET", "/api/states/%s" % eid) or {}).get("attributes") or {}).get("media_content_id") or ""
+                attrs = (self.client._req("GET", "/api/states/%s" % eid) or {}).get("attributes") or {}
             except Exception:  # noqa: BLE001
-                playing = ""
-            # Apple Music is searched through Apple's catalogue with the installer's token (stage 4);
-            # without one it can't be searched, so it is not the service chosen for a spoken request.
-            from proos import applemusic as _am
-            skip = () if _am.ready() else (_spm.APPLE_MUSIC_SID,)
-            svc = _spm.pick_service(accounts, _spm.service_names(sp), playing, skip)
+                attrs = {}
+            svc = mod.assist_service(sp, attrs)
             if not svc:
                 return None
-            sid, acct = svc
+            sid, acct, service = svc
             tz = _spm.home_time_zone(self.client)
         except Exception as e:  # noqa: BLE001
             print("  [assist] the room's speaker music isn't reachable (%s) — next rung" % e, flush=True)
@@ -3692,17 +3700,16 @@ class ToolRunner:
         t0 = time.time()
 
         def _search(words):
-            return self.music_candidates(_spm.search(sp, sid, words, acct, tz).get("results"))
+            return self.music_candidates(mod.search(sp, sid, words, acct, tz).get("results"))
         try:
             pick, how, words = self.choose_music(asked, _search, times)
         except Exception as e:  # noqa: BLE001
             return {"error": "the music service didn't answer (%s)" % str(e)[:120]}
-        service = _spm.service_names(sp).get(sid) or "the music service"
         if not pick:
             return {"error": "%s found nothing for %s" % (service, asked)}
         t = time.time()
         try:
-            p = _spm.play(sp, sid, pick["id"], acct, tz)
+            p = mod.play(sp, sid, pick["id"], acct, tz)
         except Exception as e:  # noqa: BLE001
             return {"error": "%s couldn't play %s: %s" % (service, pick["title"], str(e)[:120])}
         times["play"] = round(time.time() - t, 1)
