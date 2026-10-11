@@ -9013,7 +9013,9 @@ def main():
                 _nd = provision.ensure_native_door(_ws_call)
                 if _nd.get("changed"):
                     print(f"  door \u00b7 converged {_nd['changed']}")
-                elif _nd.get("current"):
+                elif _nd.get("current") and not _nd.get("errors"):
+                    # register 763: this line printed beside the refusal for seven weeks — "already
+                    # ProOS" is said only when nothing failed.
                     print("  door \u00b7 already ProOS (nothing written)")
                 if _nd.get("errors"):
                     print(f"  door \u00b7 errors: {_nd['errors']}")
