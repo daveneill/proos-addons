@@ -5558,8 +5558,10 @@ class Handler(BaseHTTPRequestHandler):
                 if not _eid.startswith("media_player."):
                     return self._send(400, {"error": "entity_id (a speaker) required"})
                 try:
-                    from proos import speakermusic as _spm
-                    _sp = _spm.connect(_client, _speaker_net_info(), _eid)
+                    # The brand's own road (Sonos or HEOS — stage 5): the service module chooses it
+                    # from the platform's registry; both answer these calls in the same shapes.
+                    from proos import speakermusic as _spm0
+                    _spm, _sp = _spm0.for_speaker(_client, _speaker_net_info(), _eid)
                     if parts[2] == "services":
                         return self._send(200, _spm.services(_sp))
                     _sid = _a("service_id")
@@ -8122,8 +8124,8 @@ class Handler(BaseHTTPRequestHandler):
                 if not _eid.startswith("media_player.") or not b.get("service_id") or not b.get("item"):
                     return self._send(400, {"error": "entity_id, service_id and item required"})
                 try:
-                    from proos import speakermusic as _spm
-                    _sp = _spm.connect(_client, _speaker_net_info(), _eid)
+                    from proos import speakermusic as _spm0
+                    _spm, _sp = _spm0.for_speaker(_client, _speaker_net_info(), _eid)
                     _acct = b.get("account")
                     return self._send(200, _spm.play(_sp, int(b["service_id"]), str(b["item"]),
                                                      int(_acct) if _acct not in (None, "") else None,
