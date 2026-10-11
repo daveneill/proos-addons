@@ -2512,16 +2512,20 @@ _MA_REACH = _reach_mod.Backoff("ProOS Music")   # register 437: a silent Music n
 
 def _ma_where():
     """(url, token) the platform itself uses for ProOS Music — its entry first,
-    the Supervisor discovery message filling in what the entry lacks."""
+    the Supervisor discovery message filling in what the entry lacks.
+    REGISTER 761 (music design stage 6 — ProOS Music is optional, off by default): with no
+    entry, ProOS Music is simply not added. The platform's entry is the link (the 13 Sep
+    mirror ruling), so with no entry the Supervisor's discovery is not asked — read on Dave's
+    box, that ask was refused (HTTP 401) and logged, with "no entry yet", every time anything
+    looked: a home without ProOS Music must not be told, over and over, that it is missing."""
     try:
         st = _ma_token_from_storage()
     except Exception:  # noqa: BLE001
         st = None
-    if not st or not st[1]:
+    if st and not st[1]:
         disc = _ma_from_discovery()
         if disc:
-            st = ((st[0] if st else None) or disc[0],
-                  (st[1] if st else None) or disc[1])
+            st = (st[0] or disc[0], st[1] or disc[1])
     return st
 
 
@@ -3011,6 +3015,16 @@ def _ma_host_candidates():
     return out
 
 
+_MA_SAID = {"last": None}
+
+
+def _ma_say_once(state, line):
+    """Log ProOS Music's presence only when it CHANGES (register 761) — absent is a normal state."""
+    if _MA_SAID["last"] != state:
+        _MA_SAID["last"] = state
+        print(line, flush=True)
+
+
 def _ma_token_from_storage():
     """(url, token) the HA music_assistant integration already stored, or None.
     ProCore reuses HA's own working token (read-only) instead of minting one —
@@ -3027,6 +3041,7 @@ def _ma_token_from_storage():
         return None
     for e in (store.get("data") or {}).get("entries", []) or []:
         if e.get("domain") == "music_assistant":
+            _ma_say_once("present", "  MA · ProOS Music is added in this home (platform entry found)")
             d = e.get("data") or {}
             url, tok = d.get("url"), d.get("token")
             # A newer MA server with auth DISABLED stores ONLY the url — no
@@ -3037,7 +3052,7 @@ def _ma_token_from_storage():
             # (observed live 2026-07-24). url alone is a valid entry.
             if url:
                 return (url, tok or None)
-    print("  MA · no music_assistant entry in HA store yet", flush=True)
+    _ma_say_once("absent", "  MA · ProOS Music is not added in this home (no platform entry) — optional, nothing to do")
     return None
 
 
