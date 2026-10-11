@@ -194,7 +194,11 @@ def deploy_dashboards() -> dict:
 # core.default_panel key (frontend/storage.py + frontend.ts). The
 # system-data write is a MERGE — the platform keeps other keys there.
 # --------------------------------------------------------------------------
-DOOR_URL_PATH = "proos"
+# REGISTER 763 (read on Dave's box, 12 Oct 2026): "proos" was refused by the platform at every boot
+# since 24 Aug — "Url path needs to contain a hyphen (-)" (the platform's own rule for a dashboard's
+# address) — so the door was never created, its page could not be saved, and the installation default
+# pointed at a dashboard that did not exist. The address carries a hyphen; the title stays "ProOS".
+DOOR_URL_PATH = "proos-home"
 DOOR_TITLE = "ProOS"
 DOOR_ICON = "mdi:home-circle"          # matches the add-on's panel icon
 DOOR_CONFIG = {"views": [{"title": DOOR_TITLE, "panel": True,
@@ -264,7 +268,12 @@ def ensure_native_door(ws_call=None) -> dict:
     except Exception as e:  # noqa: BLE001
         result["errors"].append("door_page: %s" % e)
 
-    # 3 · the installation default — MERGED into the platform's core keys
+    # 3 · the installation default — MERGED into the platform's core keys. Only when the door
+    # EXISTS (register 763): a default that names a dashboard the platform never made sends the
+    # homeowner nowhere — exactly what happened on Dave's box for seven weeks.
+    if not door:
+        result["errors"].append("default: not set — the door does not exist")
+        return result
     try:
         res = ws_call("frontend/get_system_data", key="core") or {}
         value = dict(res.get("value") or {})
