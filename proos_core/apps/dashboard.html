@@ -4538,7 +4538,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101201';
+const PROOS_BUILD='2026101202';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -14599,7 +14599,8 @@ function _spmRecall(entity){
 // speaker is playing now (its own address says which: sid=…); else the first the speaker lists.
 function _spmPickService(entity, services){
   const mem=_spmRecall(entity);
-  if(mem && services.some(s=>s.service_id===mem.sid)) return mem;
+  if(mem && services.some(s=>s.service_id===mem.sid))
+    return {sid:mem.sid, acct:(mem.acct!=null?mem.acct:services.find(s=>s.service_id===mem.sid).default)};
   // A Sonos says it in its address (sid=…); a HEOS player says it as its own source id.
   const m=String(att(entity,'media_content_id')||'').match(/[?&]sid=(\d+)/);
   const src=m?+m[1]:(att(entity,'media_source_id')!=null?+att(entity,'media_source_id'):null);
@@ -14615,9 +14616,12 @@ async function musicSpeakerHome(entity){
   const crumb=document.getElementById('music-crumb'); if(crumb){ crumb.style.display='none'; crumb.innerHTML=''; }
   _showDiscover();
   const d=document.getElementById('music-discover'); if(d) d.innerHTML=_mEmpty('Loading…');
-  let svcs=null, why='';
-  try{ svcs=(await _spmGet('services')).services||[]; }catch(e){ why=String(e&&e.message||e); }
+  let svcs=null, conn=[], why='';
+  try{ const j=await _spmGet('services'); svcs=j.services||[]; conn=j.connect||[]; }catch(e){ why=String(e&&e.message||e); }
   if(seq!==_spm.seq || entity!==_musicSpeaker) return;
+  // Services that don't answer aren't offered (Dave, 768); those the person can sign in to on the service's
+  // own page are offered to CONNECT (registers 775–778; Dave 12 Oct: "any signins to be on both").
+  _spm.services=svcs||[]; _spm.connect=conn;
   if(!svcs || !svcs.length){
     // The ladder's next rung: the speaker's own favourites — and the reason is said once.
     if(why) showToast('This speaker’s music services couldn’t be reached — '+why);
@@ -14634,6 +14638,7 @@ function _spmChips(fav){
   const s=_spmService();
   let h=_spm.services.map(x=>`<button class="mus-libchip${(!fav&&x.service_id===_spm.sid)?' on':''}" onclick="spmService(${x.service_id})">${_mEsc(x.service)}</button>`).join('');
   h+=`<button class="mus-libchip${fav?' on':''}" onclick="musicLoadFavourites(_musicSpeaker)">Favourites</button>`;
+  h+=(_spm.connect||[]).map(x=>`<button class="mus-libchip" style="opacity:.7" onclick="spmConnect(${x.service_id})">+ Connect ${_mEsc(x.service)}</button>`).join('');
   if(fav){ c.innerHTML=h; return; }
   // WHOSE ACCOUNT (Dave's ruling, 11 Oct): the first added by default, the home's others one tap away.
   if(s && s.accounts.length>1){
@@ -14742,6 +14747,44 @@ async function spmSearch(q){
   });
   if(g) g.innerHTML=h||_mEmpty('No results for “'+q+'”');
 }
+// CONNECT A SERVICE (registers 775–778). The person signs in on the service's OWN page (ProOS never sees a
+// password); Core is asked every few seconds whether they've finished; once they have, the service answers
+// with ProOS's own sign-in and opens. The page opens from a link the person taps (an app may refuse a page
+// opened for them).
+async function spmConnect(sid){
+  const entity=_spm.entity, c=(_spm.connect||[]).find(x=>x.service_id===sid), name=c?c.service:'the service';
+  let j=null, msg='';
+  try{
+    const r=await fetch(proosCoreBase()+'/speakers/music/connect',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({entity_id:entity, service_id:sid})});
+    j=await r.json().catch(()=>null); if(!r.ok) msg=(j&&j.error)||('error '+r.status);
+  }catch(e){ msg=String(e&&e.message||e); }
+  if(msg){ showToast('Couldn’t connect '+name+' — '+msg); return; }
+  _spm.seq++; _showGrid();
+  const g=document.getElementById('music-grid');
+  if(g) g.innerHTML=`<div style="grid-column:1/-1;padding:18px 4px;color:#fff;font-size:14px;line-height:1.6">Sign in to ${_mEsc(name)} on its own page — ProOS never sees your password.<br><br>`
+    +`<a class="mus-libchip on" href="${_mEsc(j.url)}" target="_blank" rel="noopener" style="display:inline-block;text-decoration:none">Open ${_mEsc(name)} Sign-In</a>`
+    +(j.code?`<br><br>Code: <b>${_mEsc(j.code)}</b>`:'')
+    +`<div id="spm-conn-state" style="margin-top:14px;color:rgba(255,255,255,.6)">Waiting for you to sign in…</div></div>`;
+  _spmWaitConnect(entity, sid, name, Date.now());
+}
+async function _spmWaitConnect(entity, sid, name, t0){
+  if(entity!==_spm.entity || entity!==_musicSpeaker || Date.now()-t0>15*60*1000) return;
+  await new Promise(r=>setTimeout(r,3000));
+  let j=null, r=null;
+  try{
+    r=await fetch(proosCoreBase()+'/speakers/music/connect/finish',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({entity_id:entity, service_id:sid})});
+    j=await r.json().catch(()=>null);
+  }catch(e){ return _spmWaitConnect(entity, sid, name, t0); }
+  if(!r.ok){ const st=document.getElementById('spm-conn-state'); if(st) st.textContent='Couldn’t finish — '+((j&&j.error)||('error '+r.status)); return; }
+  if(j&&j.ok){
+    showToast(name+' connected');
+    try{ localStorage.setItem('proos_spm_'+entity, JSON.stringify({sid:sid, acct:null})); }catch(e){}
+    musicSpeakerHome(entity); return;
+  }
+  _spmWaitConnect(entity, sid, name, t0);
+}
 // Play on the speaker. The answer is the SPEAKER's own state (stage 1): playing → the strip shows
 // the track the speaker reports; not playing or refused → said, with the speaker's/service's words.
 async function spmPlay(i){
@@ -14795,7 +14838,7 @@ async function musicLoadFavourites(entity){
     _musicSearchRow(true);   // favourites exist → now show search
     if(cats) cats.innerHTML='<span style="font-size:9px;letter-spacing:0.12em;text-transform:uppercase;color:rgba(255,255,255,0.50);align-self:center">Favourites</span>';
     // A Sonos whose own services answered keeps its service chips, Favourites lit (stage 2).
-    if(_spm.entity===entity && _spm.services.length && _spmCan(entity)) _spmChips(true);
+    if(_spm.entity===entity && (_spm.services.length || (_spm.connect||[]).length) && _spmCan(entity)) _spmChips(true);
     renderMusicGrid(items);
   }catch(e){
     if(entity!==_musicSpeaker) return;

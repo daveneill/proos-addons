@@ -2665,7 +2665,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026101103';
+const PROOS_BUILD='2026101201';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -11974,7 +11974,15 @@ async function techViewAssist(view){
     +'<div id="am-status" class="wiz-hint" style="margin:6px 0">Checking…</div>'
     +'<div class="field"><div class="field-label">Paste a New Token</div><textarea id="am-token" class="set-input" rows="3" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="eyJ…"></textarea></div>'
     +'<div style="display:flex;gap:8px;margin-top:8px"><button class="btn-ghost" onclick="appleTokenSave()">Save Token</button>'
-    +'<button class="btn-ghost" onclick="appleTokenSave(true)">Remove Token</button></div></div>');
+    +'<button class="btn-ghost" onclick="appleTokenSave(true)">Remove Token</button></div></div>'
+    // ── MUSIC SIGN-INS (registers 768, 775–778). Which of a speaker's services answer, which don't and why,
+    // and a Connect for any the person can sign in to on the service's own page (Dave, 12 Oct: "I want any
+    // signins to be on both" — this and the homeowner's Music page). ProOS never sees a password.
+    +'<div class="bld-sec" style="margin-top:18px"><div class="bld-sec-h">Music Sign-Ins</div>'
+    +'<div class="wiz-hint">The music services a speaker holds, which ones answer, and Connect for any that need signing in again.</div>'
+    +'<div style="display:flex;gap:8px"><input id="mi-ent" class="set-input" type="text" value="media_player.office_office" autocapitalize="off" autocorrect="off" spellcheck="false"/>'
+    +'<button class="btn-ghost" onclick="musicSignInsLoad()">Check</button></div>'
+    +'<div id="mi-out" class="wiz-hint" style="margin-top:10px"></div></div>');
   _asKeys=st.keys_saved||{};
   assistKeyLabel();
   assistVoiceLoad();
@@ -11987,6 +11995,45 @@ function _amShow(d){
   el.innerHTML=(d.expired?'<b style="color:#e0564b">Expired</b>':'<b style="color:#84d9b4">Set</b>')
     +' · key '+esc(d.key_id||'?')+' · team '+esc(d.team_id||'?')+' · ends '+esc(d.expires||'?')
     +(d.expired?'':' ('+Math.floor(d.days_left)+' days left)');
+}
+function _miEnt(){ return ((document.getElementById('mi-ent')||{}).value||'').trim(); }
+async function musicSignInsLoad(){
+  const out=document.getElementById('mi-out'); if(!out) return;
+  out.textContent='Asking the speaker…';
+  try{
+    const r=await fetch(proCoreUrl()+'/speakers/music/services?entity_id='+encodeURIComponent(_miEnt()));
+    const d=await r.json();
+    if(!r.ok){ out.innerHTML='<b style="color:#e0564b">'+esc(d.error||'Failed')+'</b>'; return; }
+    let h='';
+    (d.services||[]).forEach(x=>{ h+='<div><b style="color:#84d9b4">Answers</b> · '+esc(x.service)+(x.own_sign_in?' · ProOS sign-in':'')+'</div>'; });
+    (d.not_shown||[]).forEach(w=>{ h+='<div><b style="color:#e3a23c">Not shown</b> · '+esc(w)+'</div>'; });
+    (d.connect||[]).forEach(x=>{ h+='<div style="margin-top:6px"><button class="btn-ghost" onclick="musicSignInConnect('+x.service_id+','+JSON.stringify(esc(x.service)).replace(/"/g,'&quot;')+')">Connect '+esc(x.service)+'</button></div>'; });
+    out.innerHTML=h||'No services on this speaker.';
+  }catch(e){ out.textContent='ProOS Core unreachable'; }
+}
+async function musicSignInConnect(sid, name){
+  const out=document.getElementById('mi-out'); if(!out) return;
+  const ent=_miEnt();
+  try{
+    const r=await fetch(proCoreUrl()+'/speakers/music/connect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({entity_id:ent, service_id:sid})});
+    const d=await r.json();
+    if(!r.ok){ out.innerHTML='<b style="color:#e0564b">'+esc(d.error||'Failed')+'</b>'; return; }
+    out.innerHTML='Sign in to '+esc(name)+' on its own page — ProOS never sees the password.<br><a class="btn-ghost" style="display:inline-block;margin-top:8px;text-decoration:none" href="'+esc(d.url)+'" target="_blank" rel="noopener">Open '+esc(name)+' Sign-In</a>'
+      +(d.code?'<br>Code: <b>'+esc(d.code)+'</b>':'')+'<div id="mi-wait" style="margin-top:8px">Waiting for the sign-in…</div>';
+    const t0=Date.now();
+    const tick=async()=>{
+      if(Date.now()-t0>15*60*1000) return;
+      await new Promise(res=>setTimeout(res,3000));
+      try{
+        const f=await fetch(proCoreUrl()+'/speakers/music/connect/finish',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({entity_id:ent, service_id:sid})});
+        const j=await f.json();
+        if(!f.ok){ const w=document.getElementById('mi-wait'); if(w) w.innerHTML='<b style="color:#e0564b">'+esc(j.error||'Failed')+'</b>'; return; }
+        if(j.ok){ musicSignInsLoad(); return; }
+      }catch(e){}
+      tick();
+    };
+    tick();
+  }catch(e){ out.textContent='ProOS Core unreachable'; }
 }
 async function appleTokenLoad(){
   try{ const r=await fetch(proCoreUrl()+'/speaker/apple-token'); _amShow(await r.json()); }catch(e){ _amShow({error:'ProOS Core unreachable'}); }
