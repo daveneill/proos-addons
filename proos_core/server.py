@@ -3542,7 +3542,10 @@ def factory_reset(clear_proos_data=False, keep_auth=False):
                    "tech_users.json", "installer_state.json",
                    "provisioned.json", "terminal_audit.log",
                    # the old home's last full sweep and its schedule (register 663)
-                   "sweep_last.json", "sweep_config.json", "sweep_acted.json", "port_history.json", "push_status.json"):
+                   "sweep_last.json", "sweep_config.json", "sweep_acted.json", "port_history.json", "push_status.json",
+                   # the installer-pasted Apple Music token (register 759) — like the AI key, placed
+                   # per box by the installer; a reset home is set up afresh
+                   "apple_music_token.json"):
         _p = os.path.join(_pdata, _fname)
         try:
             if os.path.exists(_p):
@@ -5518,6 +5521,14 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, {"folders": _ma.recommendations()})
                 except Exception as e:                           # noqa: BLE001
                     return self._send(502, {"folders": [], "error": str(e)})
+            if parts == ["speaker", "apple-token"]:
+                # Music design stage 4 (register 759): whether an Apple Music token is set, whose key,
+                # and when it ends — never the token itself. Installer only.
+                u = getattr(self, "_user", None)
+                if not (users and u and (u.get("is_admin") or u.get("is_owner") or users.is_tech(u.get("id")))):
+                    return self._send(403, {"error": "installer access required"})
+                from proos import applemusic as _am
+                return self._send(200, _am.status())
             # ── THE SPEAKER'S OWN MUSIC (music design stage 1, register 748) ──────────
             # Read through the speaker with the home's own accounts. Every signed-in
             # person may browse (music is a household power). A failure answers 502
@@ -8071,6 +8082,22 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, {"b64": _b64.b64encode(png).decode(),
                                         "icon": _roomart.icon_for(nm),
                                         "origin": "generated"})
+            if parts == ["speaker", "apple-token"]:
+                # Music design stage 4 (register 759; Dave's ruling 3: "installer pasted now, ProOS Connect
+                # later"). The installer pastes the token made on their Mac from the Protech key; Core reads
+                # what it says (whose key, when it ends), refuses one that isn't a token or has expired, and
+                # stores only the token. {"token": ""} clears it. Installer only.
+                u = getattr(self, "_user", None)
+                if not (users and u and (u.get("is_admin") or u.get("is_owner") or users.is_tech(u.get("id")))):
+                    return self._send(403, {"error": "installer access required"})
+                b = self._body() or {}
+                from proos import applemusic as _am
+                try:
+                    if not str(b.get("token") or "").strip():
+                        return self._send(200, _am.clear_token())
+                    return self._send(200, _am.save_token(b.get("token")))
+                except _am.AppleMusicError as e:
+                    return self._send(400, {"error": str(e)})
             if parts == ["speakers", "music", "play"]:
                 # Music design stage 1 (register 748): play an item on the speaker with the
                 # home's own account. Household power, like music/play. The answer is the
