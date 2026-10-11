@@ -3598,11 +3598,13 @@ class ToolRunner:
                   "activity or a style rather than naming something, choose a playlist. If nothing fits, "
                   "reply 0 and, on the next line, two to four better words to search for."
                   % (asked, "\n".join(lines)))
+        t0 = time.time()
         try:
-            text = _one_answer(cfg, prompt)
+            text = _one_answer(cfg, prompt, quick=True)
         except Exception as e:                                   # noqa: BLE001
             print("  [assist] music choice: the AI didn't answer (%s)" % e, flush=True)
             return None, None
+        print("  [assist] music choice: the AI answered in %.1fs (%r)" % (time.time() - t0, (text or "")[:40]), flush=True)
         m = re.search(r"\d+", text or "")
         if not m:
             return None, None
@@ -3613,23 +3615,24 @@ class ToolRunner:
         return (n - 1, None) if 0 < n <= min(len(cands), 24) else (None, None)
 
     def choose_music(self, asked, cands, research=None):
-        """(candidate, how) — how is "name", "ai" or "service". research(words) searches again."""
+        """(candidate, how) — how is "ai", "name" or "service". research(words) searches again.
+        REGISTER 755 (Dave 08:02 "go", after 754 on the box): THE AI JUDGES EVERY REQUEST when there is
+        one. A title that equals the words is shown to it like any other result, never decided without
+        it — "something relaxing" had played an ALBUM titled "Something Relaxing" by the words alone.
+        The title shortcut is used only when the AI isn't set up or doesn't answer."""
         playable = [c for c in cands if c.get("play") is not False]
-        for c in playable:
-            if self._same_words(c["title"], asked):
-                return c, "name"
+        named = next((c for c in playable if self._same_words(c["title"], asked)), None)
         i, words = self._ai_pick(asked, playable)
         if i is not None:
             return playable[i], "ai"
         if words and research:
             again = [c for c in research(words) if c.get("play") is not False]
-            for c in again:
-                if self._same_words(c["title"], words):
-                    return c, "name"
             j, _w = self._ai_pick(asked, again)
             if j is not None:
                 return again[j], "ai"
             playable = again or playable
+        if named is not None:
+            return named, "name"
         top = next((c for c in playable if "playlist" in (c.get("kind") or "").lower()), None)
         return (top or (playable[0] if playable else None)), "service"
 
@@ -6743,19 +6746,38 @@ def proof_run(client, project_mod, user, ma=None, awareness=None) -> dict:
                      "the row, not a feeling")}
 
 
-def _one_answer(cfg, prompt, max_tokens=40):
+_QUICK_REFUSED = {}     # model -> True once the provider refused the quick-answer setting for it
+
+
+def _one_answer(cfg, prompt, max_tokens=40, quick=False):
     """One short question to the configured AI, its text answer back (music design stage 3: the
-    choice for a description). Same two roads as test_provider and the chat."""
+    choice for a description). Same two roads as test_provider and the chat.
+    quick=True (register 755, measured on the box: the choice took up to ~7 s on the main model):
+    the installer's fast model when one is configured (Pro › Assist AI, the same fast_model short
+    commands already use), and on the OpenAI road the provider's lowest reasoning effort — if the
+    provider refuses that setting for this model, asked again without it, and remembered."""
+    model = cfg.get("model") or DEFAULT_MODELS["claude" if cfg["provider"] == "claude" else "openai"]
+    if quick and (cfg.get("fast_model") or "").strip():
+        model = cfg["fast_model"].strip()
     if cfg["provider"] == "claude":
         r = _http_json("https://api.anthropic.com/v1/messages",
-                       {"model": cfg.get("model") or DEFAULT_MODELS["claude"], "max_tokens": max_tokens,
+                       {"model": model, "max_tokens": max_tokens,
                         "messages": [{"role": "user", "content": prompt}]},
                        {"x-api-key": cfg["api_key"], "anthropic-version": "2023-06-01"})
         return "".join(c.get("text", "") for c in (r.get("content") or []) if isinstance(c, dict))
-    r = _http_json(_OPENAI_RESPONSES,
-                   {"model": cfg.get("model") or DEFAULT_MODELS["openai"], "input": prompt,
-                    "max_output_tokens": max(400, max_tokens)},
-                   {"Authorization": "Bearer %s" % cfg["api_key"]})
+    body = {"model": model, "input": prompt, "max_output_tokens": max(400, max_tokens)}
+    hdrs = {"Authorization": "Bearer %s" % cfg["api_key"]}
+    if quick and not _QUICK_REFUSED.get(model):
+        try:
+            r = _http_json(_OPENAI_RESPONSES, dict(body, reasoning={"effort": "minimal"}), hdrs)
+        except RuntimeError as e:
+            if "reasoning" not in str(e).lower() and "effort" not in str(e).lower():
+                raise
+            print("  [assist] the AI refused the quick setting for %s — asking without it" % model, flush=True)
+            _QUICK_REFUSED[model] = True
+            r = _http_json(_OPENAI_RESPONSES, body, hdrs)
+    else:
+        r = _http_json(_OPENAI_RESPONSES, body, hdrs)
     return "".join(c.get("text", "") for o in (r.get("output") or [])
                    for c in (o.get("content") or []) if c.get("type") == "output_text")
 
