@@ -3560,7 +3560,9 @@ def factory_reset(clear_proos_data=False, keep_auth=False):
                    "sweep_last.json", "sweep_config.json", "sweep_acted.json", "port_history.json", "push_status.json",
                    # the installer-pasted Apple Music token (register 759) — like the AI key, placed
                    # per box by the installer; a reset home is set up afresh
-                   "apple_music_token.json"):
+                   "apple_music_token.json",
+                   # ProOS's own music-service sign-ins (register 778) — the old home's accounts
+                   "speaker_links.json"):
         _p = os.path.join(_pdata, _fname)
         try:
             if os.path.exists(_p):
@@ -8115,6 +8117,25 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, _am.save_token(b.get("token")))
                 except _am.AppleMusicError as e:
                     return self._send(400, {"error": str(e)})
+            if parts[:3] == ["speakers", "music", "connect"] and len(parts) in (3, 4) and parts[3:] in ([], ["finish"]):
+                # SIGN-INS OF PROOS'S OWN (registers 775–778). Dave, 12 Oct: "I want any signins to be on
+                # both" — so a household power, like play: any signed-in person may start one from the Music
+                # page or Pro. The person signs in on the service's OWN page; ProOS never sees a password.
+                # connect → the page to open; connect/finish → kept once they've signed in, else waiting.
+                b = self._body() or {}
+                _eid = str(b.get("entity_id") or "")
+                if not _eid.startswith("media_player.") or not b.get("service_id"):
+                    return self._send(400, {"error": "entity_id and service_id required"})
+                try:
+                    from proos import speakermusic as _spm0
+                    _spm, _sp = _spm0.for_speaker(_client, _speaker_net_info(), _eid)
+                    if not hasattr(_spm, "connect_begin"):
+                        return self._send(400, {"error": "this speaker's services are signed in from its own app"})
+                    if parts[3:] == ["finish"]:
+                        return self._send(200, _spm.connect_finish(_sp, int(b["service_id"])))
+                    return self._send(200, _spm.connect_begin(_sp, int(b["service_id"])))
+                except Exception as e:                           # noqa: BLE001
+                    return self._send(502, {"ok": False, "error": str(e)[:300]})
             if parts == ["speakers", "music", "play"]:
                 # Music design stage 1 (register 748): play an item on the speaker with the
                 # home's own account. Household power, like music/play. The answer is the
