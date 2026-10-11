@@ -241,7 +241,201 @@ def list_services(accounts, names):
     return out
 
 
+# ════════════════════════════════════════════════════════════════════════════════════════════════
+# A SERVICE SHOWS ONLY WHEN IT ANSWERS; SIGN-INS OF PROOS'S OWN (registers 768, 775–778).
+# DAVE'S RULING (768): "all subscriptions need to be based on if they are signed in and show if they are
+# if not then they dont show". Each service's own first page is ASKED (kept a while); one that answers
+# nothing is not offered. READ ON THE BOX (775): Pandora refuses the household's stored sign-in when asked
+# from outside the speaker ("AuthTokenExpired: Failed to reauth device id"), though the speaker plays it.
+# PROVEN (776/777): the person signs in on the service's OWN page (the library's link flow — no password
+# passes through ProOS); ProOS keeps that sign-in for browsing and searching; the speaker plays what it
+# finds with the household's own account; nothing is written to the speaker. DAVE (12 Oct 09:31): "I want
+# any signins to be on both" — the homeowner's Music page and Pro.
+# ════════════════════════════════════════════════════════════════════════════════════════════════
+import copy as _copy                                                 # noqa: E402
+import json as _json                                                 # noqa: E402
+import os as _os                                                     # noqa: E402
+
+LINKS_PATH = _os.path.join(_os.environ.get("PROOS_DATA_DIR", "/data"), "speaker_links.json")
+ANSWERED_KEPT_S = 600   # plumbing: how long "this service answered" is kept before it is asked again
+REFUSED_KEPT_S = 60     # plumbing: how long "this service didn't answer" is kept (shorter: a blip shouldn't hide it long)
+LINK_WAIT_S = 900       # plumbing: how long a started sign-in waits for the person to finish on the service's page
+LINKABLE = ("AppLink", "DeviceLink")   # the sign-in kinds the service's own web page can complete (the library's words)
+_ANSWERED = {}          # (household, sid, serial) -> (answered, when, why)
+_PENDING = {}           # (household, sid) -> (manager, link, started)
+
+
+def _links():
+    try:
+        with open(LINKS_PATH, encoding="utf-8") as fh:
+            return _json.load(fh) or {}
+    except Exception:                                            # noqa: BLE001
+        return {}
+
+
+def _links_write(d):
+    _os.makedirs(_os.path.dirname(LINKS_PATH), exist_ok=True)
+    tmp = LINKS_PATH + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        _json.dump(d, fh)
+    _os.replace(tmp, LINKS_PATH)
+
+
+def own_sign_in(household_id, service_id, serial):
+    return ((_links().get(str(household_id)) or {}).get(str(int(service_id))) or {}).get(str(serial))
+
+
+def save_sign_in(household_id, service_id, serial, token, key, name=""):
+    d = _links()
+    d.setdefault(str(household_id), {}).setdefault(str(int(service_id)), {})[str(serial)] = {
+        "token": token, "key": key, "name": name or "", "linked_at": int(time.time())}
+    _links_write(d)
+
+
+def with_own_sign_in(household_id, acct):
+    """The account with ProOS's own sign-in in place of the household's, when ProOS has one for it."""
+    own = own_sign_in(household_id, getattr(acct, "service_id", 0), getattr(acct, "serial_number", ""))
+    if not own:
+        return acct
+    mine = _copy.copy(acct)
+    mine.token, mine.key = own.get("token") or "", own.get("key") or ""
+    mine._proos_own = True
+    return mine
+
+
+def keep_fresh(sp, s):
+    """A service may renew ProOS's own sign-in while answering (the library replaces it in memory): keep
+    the renewed one, so the next start of Core doesn't hold a spent one."""
+    a = s.get("account")
+    if not getattr(a, "_proos_own", False):
+        return
+    own = own_sign_in(sp.household_id, a.service_id, a.serial_number) or {}
+    if a.token and (a.token != own.get("token") or a.key != own.get("key")):
+        save_sign_in(sp.household_id, a.service_id, a.serial_number, a.token, a.key, own.get("name") or "")
+
+
+def _forget_service(household_id, service_id):
+    with _LOCK:
+        for k in [k for k in _SESSIONS if k[0] == household_id and k[1] == int(service_id)]:
+            _SESSIONS.pop(k, None)
+        for k in [k for k in _ANSWERED if k[0] == household_id and k[1] == int(service_id)]:
+            _ANSWERED.pop(k, None)
+
+
+def answers(sp, svc, now=None):
+    """(answered, why) — the service's own first page asked with its default account: something there, or
+    not. Kept ANSWERED_KEPT_S when it answered, REFUSED_KEPT_S when not."""
+    now = now or time.time()
+    key = (sp.household_id, svc["service_id"], svc["default"])
+    kept = _ANSWERED.get(key)
+    if kept and now - kept[1] < (ANSWERED_KEPT_S if kept[0] else REFUSED_KEPT_S):
+        return kept[0], kept[2]
+    try:
+        if _apple(svc["service_id"]):
+            from proos import applemusic as _am
+            ok = bool(_am.charts(_apple_sf(), 1)) if _am.ready() else False
+            why = None if ok else "Apple Music needs the installer's Apple token (Pro › Tech Tools › Assist)"
+        else:
+            s = _session(sp, svc["service_id"], svc["default"])
+            with s["lock"]:
+                ok = bool(list(s["br"].get_metadata(count=5).items))
+            keep_fresh(sp, s)
+            why = None if ok else "%s gave nothing to play" % svc["service"]
+    except Exception as e:                                       # noqa: BLE001
+        ok, why = False, "%s didn't answer (%s)" % (svc["service"], str(e)[:120])
+    with _LOCK:
+        _ANSWERED[key] = (ok, now, why)
+    return ok, why
+
+
+def can_link(sp, service_id):
+    """True when the person can sign in to this service on its own web page (the library's link flow)."""
+    if _apple(service_id):
+        return False                 # Apple allows its sign-in only from the Sonos phone app (library's own words)
+    try:
+        from soco.music_services.music_service import MusicService
+        return MusicService(service_names(sp).get(int(service_id)) or "", device=sp).auth_type in LINKABLE
+    except Exception:                                            # noqa: BLE001
+        return False
+
+
 def services(sp):
+    """The services to offer: those that ANSWER (Dave, 768). Those that don't are named with why; any of
+    them the person can sign in to on the service's own page is listed under "connect"."""
+    accounts, how = accounts_of(sp)
+    every = list_services(accounts, service_names(sp))
+    res = {}
+
+    def one(x):
+        res[x["service_id"]] = answers(sp, x)
+    ts = [threading.Thread(target=one, args=(x,), daemon=True) for x in every]
+    for t in ts:
+        t.start()
+    for t in ts:
+        t.join(25)
+    shown, connect, hidden = [], [], []
+    for x in every:
+        ok, why = res.get(x["service_id"], (False, "%s didn't answer in time" % x["service"]))
+        if ok:
+            x = dict(x, own_sign_in=bool(own_sign_in(sp.household_id, x["service_id"], x["default"])))
+            shown.append(x)
+        else:
+            hidden.append(why)
+            if can_link(sp, x["service_id"]):
+                connect.append({"service_id": x["service_id"], "service": x["service"], "why": why})
+    return {"services": shown, "connect": connect, "not_shown": hidden, "accounts": how}
+
+
+def connect_begin(sp, service_id):
+    """Start a sign-in of ProOS's own: the service's own sign-in page, for the person to open. Nothing is
+    written to the speaker."""
+    sid = int(service_id)
+    name = service_names(sp).get(sid)
+    if not name:
+        raise SpeakerMusicError("these speakers don't know that service")
+    if not can_link(sp, sid):
+        raise SpeakerMusicError("%s can't be signed in from here — sign in from the speaker's own app" % name)
+    from soco.music_services.onboarding import MusicServiceAccountManager
+    try:
+        mgr = MusicServiceAccountManager(name, device=sp)
+        link = mgr.begin_link()
+    except Exception as e:                                       # noqa: BLE001
+        raise SpeakerMusicError("%s didn't give a sign-in page (%s)" % (name, str(e)[:160]))
+    if not link.standalone_supported:
+        raise SpeakerMusicError("%s only signs in from its own app" % name)
+    with _LOCK:
+        _PENDING[(sp.household_id, sid)] = (mgr, link, time.time())
+    return {"service_id": sid, "service": name, "url": link.registration_url,
+            "code": link.link_code if link.show_link_code else None}
+
+
+def connect_finish(sp, service_id):
+    """Finish it once the person has signed in: the service hands ProOS its own sign-in, kept on this box
+    for the household's first-added account of that service (Dave's ruling 2). Not signed in yet →
+    {"ok": False, "waiting": True}."""
+    sid = int(service_id)
+    p = _PENDING.get((sp.household_id, sid))
+    if not p or time.time() - p[2] > LINK_WAIT_S:
+        raise SpeakerMusicError("that sign-in has expired — start it again")
+    mgr, link, _at = p
+    name = service_names(sp).get(sid) or "the service"
+    try:
+        cred = mgr.get_device_auth_token(link)
+    except Exception as e:                                       # noqa: BLE001
+        return {"ok": False, "waiting": True, "why": str(e)[:160]}
+    accounts, _how = accounts_of(sp)
+    acct = choose_account(accounts, sid)
+    if acct is None:
+        raise SpeakerMusicError("these speakers have no %s account to play it with — add %s in the speaker's own app first" % (name, name))
+    save_sign_in(sp.household_id, sid, acct.serial_number, cred.auth_token, cred.private_key, cred.nickname)
+    with _LOCK:
+        _PENDING.pop((sp.household_id, sid), None)
+    _forget_service(sp.household_id, sid)
+    return {"ok": True, "service_id": sid, "service": name}
+
+
+def services_list_only(sp):
+    """Every service the speaker holds, as before, unmeasured (Pro's test reads it)."""
     accounts, how = accounts_of(sp)
     return {"services": list_services(accounts, service_names(sp)), "accounts": how}
 
@@ -252,6 +446,9 @@ def _session(sp, service_id, account=None, time_zone=None):
     acct = choose_account(accounts, int(service_id), serial=account)
     if acct is None:
         raise SpeakerMusicError("that account isn't set up for this service on these speakers")
+    # A sign-in of ProOS's own (registers 775–778), when the household's is refused to ProOS — the
+    # speaker still PLAYS with its own account (the queue's address carries that account, proven 777).
+    acct = with_own_sign_in(sp.household_id, acct)
     key = (sp.household_id, int(service_id), acct.serial_number)
     with _LOCK:
         s = _SESSIONS.get(key)
@@ -308,6 +505,7 @@ def home(sp, service_id, account=None, time_zone=None, sections=12, per=12):
                 except Exception as e:                           # noqa: BLE001
                     c["items"], c["error"] = [], str(e)[:160]
             out.append(c)
+    keep_fresh(sp, s)
     return {"service_id": int(service_id), "account": s["account"].serial_number, "sections": out}
 
 
@@ -320,7 +518,9 @@ def open_item(sp, service_id, item_id, account=None, time_zone=None, index=0, co
     with s["lock"]:
         it = s["items"].get(item_id, item_id)
         res = s["br"].get_metadata(it, index=int(index), count=int(count))
-        return {"items": [card(_keep(s, i)) for i in res.items], "index": res.index, "total": res.total}
+        out = {"items": [card(_keep(s, i)) for i in res.items], "index": res.index, "total": res.total}
+    keep_fresh(sp, s)
+    return out
 
 
 def search(sp, service_id, q, account=None, time_zone=None, categories=None, count=8):
@@ -352,6 +552,7 @@ def search(sp, service_id, q, account=None, time_zone=None, categories=None, cou
     else:
         for c in cats:
             one(c)
+    keep_fresh(sp, s)
     return {"q": q, "results": [results[c] for c in cats if c in results]}
 
 
@@ -492,9 +693,14 @@ def assist_service(sp, attrs):
     it can't be searched, so it is not chosen for a spoken request."""
     from proos import applemusic as _am
     accounts, _how = accounts_of(sp)
-    skip = () if _am.ready() else (APPLE_MUSIC_SID,)
     names = service_names(sp)
-    svc = pick_service(accounts, names, (attrs or {}).get("media_content_id") or "", skip)
+    # Only a service that ANSWERS is searched (Dave, 768) — one refused to ProOS (Pandora before it is
+    # signed in, 775) or Apple without the token is skipped, never tried and failed on a spoken request.
+    shown = set(x["service_id"] for x in services(sp)["services"])
+    skip = set(x["service_id"] for x in list_services(accounts, names)) - shown
+    if not _am.ready():
+        skip.add(APPLE_MUSIC_SID)
+    svc = pick_service(accounts, names, (attrs or {}).get("media_content_id") or "", tuple(skip))
     if not svc:
         return None
     return svc[0], svc[1], names.get(svc[0]) or "the music service"
@@ -570,7 +776,7 @@ def proof(client, network_info, entity_id, service="Spotify", account=None, term
         lst = soco_events().event_listener
         out("   Core asks the speaker to reply to http://%s:%s" % (box_address(network_info), lst.requested_port_number))
         t0 = time.time()
-        svc = services(sp)
+        svc = services_list_only(sp)
         out("2. accounts %s (%.1fs): %s" % (svc["accounts"], time.time() - t0, "; ".join(
             "%s: %s" % (x["service"], ", ".join("%s%s" % (a["name"] or "account", " #%s" % a["account"])
                                                 for a in x["accounts"])) for x in svc["services"])))
