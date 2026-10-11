@@ -4538,7 +4538,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101102';
+const PROOS_BUILD='2026101201';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -14576,13 +14576,14 @@ function musicCrumbBack(){
 }
 
 // ── THE SPEAKER'S OWN MUSIC (music design stage 2, register 750) ──────────────────────────
-// A Sonos room, with or without ProOS Music: the home's own services and accounts as the speaker
-// holds them, through Core (/speakers/music/*, stage 1). The service's own home page in its own
+// A Sonos or HEOS room (HEOS: stage 5, registers 766–768), with or without ProOS Music: the home's own
+// services and accounts as the speaker holds them, through Core (/speakers/music/*, stage 1). Core offers
+// only services that are signed in AND give something to play (Dave's ruling, 768). The service's own home page in its own
 // order, search in its own categories, and play — the speaker plays with the home's own account.
 // Detected, never configured: the speakers the library speaks (Sonos) are asked; if they answer
 // nothing, the page falls back to the speaker's favourites (the design's ladder, rung 4), saying why.
 let _spm={entity:null, services:[], sid:null, acct:null, items:[], stack:[], seq:0};
-function _spmCan(e){ return !!e && isSonos(e) && musicEngine(e)!=='ma'; }
+function _spmCan(e){ return !!e && (isSonos(e) || isHeos(e)) && musicEngine(e)!=='ma'; }
 function _spmGet(path, params){
   const qs=new URLSearchParams(Object.assign({entity_id:_spm.entity}, params||{}));
   return fetch(proosCoreBase()+'/speakers/music/'+path+'?'+qs.toString())
@@ -14599,8 +14600,10 @@ function _spmRecall(entity){
 function _spmPickService(entity, services){
   const mem=_spmRecall(entity);
   if(mem && services.some(s=>s.service_id===mem.sid)) return mem;
+  // A Sonos says it in its address (sid=…); a HEOS player says it as its own source id.
   const m=String(att(entity,'media_content_id')||'').match(/[?&]sid=(\d+)/);
-  const now=m && services.find(s=>s.service_id===+m[1]);
+  const src=m?+m[1]:(att(entity,'media_source_id')!=null?+att(entity,'media_source_id'):null);
+  const now=src!=null && services.find(s=>s.service_id===src);
   const s=now||services[0];
   return s?{sid:s.service_id, acct:s.default}:null;
 }
