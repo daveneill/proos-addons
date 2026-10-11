@@ -616,7 +616,42 @@ def play(sp, service_id, item_id, account=None, time_zone=None, wait_s=10.0, lim
                 raise SpeakerMusicError("there's nothing to play directly inside “%s” — open it to choose" % it.title)
         else:
             tracks = [it]
-    return _queue_play(sp, s, tracks, lambda t: prepare(br, t), getattr(it, "title", "") or "", wait_s)
+            first = prepare(br, it)
+    if not getattr(it, "can_browse", False) and is_stream(first[0]):
+        return _stream_play(sp, first, getattr(it, "title", "") or "", wait_s)
+    one = locals().get("first")
+    return _queue_play(sp, s, tracks, lambda t: one if (one is not None and t is it) else prepare(br, t),
+                       getattr(it, "title", "") or "", wait_s)
+
+
+# REGISTER 782 (seen on the box, Dave 10:38): a Pandora station from "My Stations" answered "UPnP Error 800" —
+# Core put it in the speaker's QUEUE, and a station can't be queued. The speaker's own address says what a thing
+# is: a station or stream starts directly (the speaker's own SetAVTransportURI — how the same Pandora program
+# played on the Office in 777, PLAYING 5.8 s); a track goes in the queue as before. These are the speaker's own
+# address kinds for a station or stream (the library's and the speaker's words, read from the box).
+STREAM_SCHEMES = ("x-sonosapi-radio:", "x-sonosapi-stream:", "x-sonosapi-hls:", "x-rincon-mp3radio:", "aac:", "hls-radio:")
+
+
+def is_stream(uri):
+    return str(uri or "").startswith(STREAM_SCHEMES)
+
+
+def _stream_play(sp, first, title, wait_s):
+    """Start a station or stream directly on the speaker (no queue); a newer play stops any older fill."""
+    key = getattr(sp, "ip_address", None) or id(sp)
+    with _LOCK:
+        _FILLS[key] = _FILLS.get(key, 0) + 1
+    uri, meta = first
+    t0 = time.time()
+    sp.play_uri(uri, meta=meta, title=title)
+    state = ""
+    while time.time() - t0 < wait_s:
+        state = (sp.get_current_transport_info() or {}).get("current_transport_state") or ""
+        if state == "PLAYING":
+            break
+        time.sleep(0.25)
+    return {"ok": state == "PLAYING", "state": state, "seconds": round(time.time() - t0, 1),
+            "title": title, "queued": 0}
 
 
 def _queue_play(sp, s, tracks, prep, title, wait_s):
