@@ -3628,7 +3628,10 @@ class ToolRunner:
             if hit is not None:
                 return hit, ("ai-name" if ai else "name"), words
         top = next((c for c in cands if "playlist" in (c.get("kind") or "").lower()), None)
-        return (top or (cands[0] if cands else None)), ("ai-search" if ai else "service"), words
+        # register 758: a NAME whose own result can't be played directly (an artist on Spotify) plays the
+        # service's top playlist for it — and the log says exactly that, not "ai-search".
+        how = ("ai-name, top playlist" if kind == "name" else "ai-search") if ai else "service"
+        return (top or (cands[0] if cands else None)), how, words
 
     def _room_name(self, area):
         try:
@@ -3673,7 +3676,11 @@ class ToolRunner:
                 playing = ((self.client._req("GET", "/api/states/%s" % eid) or {}).get("attributes") or {}).get("media_content_id") or ""
             except Exception:  # noqa: BLE001
                 playing = ""
-            svc = _spm.pick_service(accounts, _spm.service_names(sp), playing)
+            # Apple Music is searched through Apple's catalogue with the installer's token (stage 4);
+            # without one it can't be searched, so it is not the service chosen for a spoken request.
+            from proos import applemusic as _am
+            skip = () if _am.ready() else (_spm.APPLE_MUSIC_SID,)
+            svc = _spm.pick_service(accounts, _spm.service_names(sp), playing, skip)
             if not svc:
                 return None
             sid, acct = svc

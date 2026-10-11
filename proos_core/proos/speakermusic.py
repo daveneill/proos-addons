@@ -147,6 +147,22 @@ _SESSIONS = {}          # (household, service id, account serial) -> {"br", "ite
 _NAMES = {}             # household -> {service id: the speaker's own name for it}
 ITEMS_KEPT = 3000       # browse items remembered per account so a tap can be played (plumbing)
 
+# APPLE MUSIC (music design stage 4, register 759). 204 is the speaker's OWN id for Apple Music (read from
+# its list on Dave's box). The household's stored Apple sign-in is refused to outside apps (register 740),
+# so for Apple the search, charts and track lists come from Apple's own catalogue (applemusic.py, with the
+# installer's token) — and the SPEAKER plays, song by song, with its own Apple sign-in (proven, 742).
+APPLE_MUSIC_SID = 204
+_CLIENT = {"c": None}
+
+
+def _apple(service_id):
+    return int(service_id) == APPLE_MUSIC_SID
+
+
+def _apple_sf():
+    from proos import applemusic as _am
+    return _am.storefront(_CLIENT["c"]) if _CLIENT["c"] is not None else "us"
+
 
 def connect(client, network_info, entity_id):
     """The speaker that leads this speaker's group, ready to talk to — or SpeakerMusicError, saying why.
@@ -154,6 +170,7 @@ def connect(client, network_info, entity_id):
     ok, why = soco_ready()
     if not ok:
         raise SpeakerMusicError(why)
+    _CLIENT["c"] = client
     import soco
     from soco import config as soco_config
     ip = speaker_address(client, entity_id)
@@ -276,6 +293,10 @@ def card(item):
 def home(sp, service_id, account=None, time_zone=None, sections=12, per=12):
     """The service's own home page — its sections in its own order, each with its first items."""
     s = _session(sp, service_id, account, time_zone)
+    if _apple(service_id):
+        from proos import applemusic as _am
+        return {"service_id": int(service_id), "account": s["account"].serial_number,
+                "sections": _am.charts(_apple_sf(), per)}
     br, out = s["br"], []
     with s["lock"]:
         for sec in list(br.get_metadata().items)[:sections]:
@@ -292,6 +313,10 @@ def home(sp, service_id, account=None, time_zone=None, sections=12, per=12):
 
 def open_item(sp, service_id, item_id, account=None, time_zone=None, index=0, count=50):
     s = _session(sp, service_id, account, time_zone)
+    if _apple(service_id):
+        from proos import applemusic as _am
+        items = _am.tracks(item_id, _apple_sf(), count)
+        return {"items": items, "index": 0, "total": len(items)}
     with s["lock"]:
         it = s["items"].get(item_id, item_id)
         res = s["br"].get_metadata(it, index=int(index), count=int(count))
@@ -305,6 +330,9 @@ def search(sp, service_id, q, account=None, time_zone=None, categories=None, cou
     that), so they are asked SIDE BY SIDE; an account with no sign-in shares one connection, so its
     categories are still asked in turn."""
     s = _session(sp, service_id, account, time_zone)
+    if _apple(service_id):
+        from proos import applemusic as _am
+        return {"q": q, "results": _am.search(q, _apple_sf(), count)}
     cats = list(categories or s["br"].available_search_categories or [])
     results = {}
 
@@ -354,6 +382,16 @@ def enqueue(sp, br, item):
 _FILLS = {}             # speaker -> the newest play's number; an older play stops adding to the queue
 
 
+def apple_prepare(br, c):
+    """(uri, metadata) for one Apple song by its catalogue id — the speaker's own Apple track address
+    (proven on Dave's Sonos, register 742: PLAYING 4.8 s)."""
+    from soco.music_services.browser.playback import build_metadata, build_uri
+    from proos import applemusic as _am
+    iid = "song:%s" % _am.split(c["id"])[1]
+    uri = build_uri(br, iid, "track", "audio/mp4")
+    return uri, build_metadata(br, iid, c.get("title") or "", "track", mime="audio/mp4", uri=uri)
+
+
 def play(sp, service_id, item_id, account=None, time_zone=None, wait_s=10.0, limit=100):
     """Play an item on the speaker: a playlist/album as the speaker's own queue (first track started,
     the rest added behind it), a track or stream on its own. The answer is the SPEAKER's state.
@@ -362,9 +400,13 @@ def play(sp, service_id, item_id, account=None, time_zone=None, wait_s=10.0, lim
     track; the speaker is told outside it, and a newer play on the same speaker stops an older fill."""
     s = _session(sp, service_id, account, time_zone)
     br = s["br"]
-    key = getattr(sp, "ip_address", None) or id(sp)
-    with _LOCK:
-        gen = _FILLS[key] = _FILLS.get(key, 0) + 1
+    if _apple(service_id):
+        from proos import applemusic as _am
+        songs = _am.tracks(item_id, _apple_sf(), limit)
+        if not songs:
+            raise SpeakerMusicError("Apple Music has no songs to play for that")
+        title = next((c.get("title") for c in songs if c["id"] == item_id), None) or str(item_id)
+        return _queue_play(sp, s, songs, lambda c: apple_prepare(br, c), title, wait_s)
     with s["lock"]:
         it = s["items"].get(item_id, item_id)
         if getattr(it, "can_browse", False):
@@ -373,7 +415,17 @@ def play(sp, service_id, item_id, account=None, time_zone=None, wait_s=10.0, lim
                 raise SpeakerMusicError("there's nothing to play directly inside “%s” — open it to choose" % it.title)
         else:
             tracks = [it]
-        first = prepare(br, tracks[0])
+    return _queue_play(sp, s, tracks, lambda t: prepare(br, t), getattr(it, "title", "") or "", wait_s)
+
+
+def _queue_play(sp, s, tracks, prep, title, wait_s):
+    """The speaker's own queue: cleared, the first track started, the rest added behind it; the
+    service held only to prepare each track; a newer play on this speaker stops this fill."""
+    key = getattr(sp, "ip_address", None) or id(sp)
+    with _LOCK:
+        gen = _FILLS[key] = _FILLS.get(key, 0) + 1
+    with s["lock"]:
+        first = prep(tracks[0])
     t0 = time.time()
     sp.clear_queue()
     add_to_queue(sp, *first)
@@ -385,7 +437,7 @@ def play(sp, service_id, item_id, account=None, time_zone=None, wait_s=10.0, lim
                 return                                           # a newer play took this speaker
             try:
                 with s["lock"]:
-                    uri, meta = prepare(br, t)
+                    uri, meta = prep(t)
                 if _FILLS.get(key) != gen:
                     return
                 add_to_queue(sp, uri, meta)
@@ -399,7 +451,6 @@ def play(sp, service_id, item_id, account=None, time_zone=None, wait_s=10.0, lim
         if state == "PLAYING":
             break
         time.sleep(0.25)
-    title = getattr(it, "title", "") or ""
     return {"ok": state == "PLAYING", "state": state, "seconds": round(time.time() - t0, 1),
             "title": title, "queued": len(tracks)}
 
@@ -439,13 +490,14 @@ def home_time_zone(client):
     return _TZ["tz"]
 
 
-def pick_service(accounts, names, playing_uri=""):
+def pick_service(accounts, names, playing_uri="", skip=()):
     """(service id, account) Assist searches when nobody named a service. Read, in this order, from the
     speaker itself: the service it is PLAYING now (its own address says sid=…); else the first service
     whose first-added account is signed in (a service that needs no sign-in has little to search);
-    else the first the speaker lists. None when the home has no service at all."""
+    else the first the speaker lists. None when the home has no service at all. skip: services that
+    can't be searched right now (Apple Music without the installer's token)."""
     import re as _re
-    svcs = list_services(accounts, names)
+    svcs = [x for x in list_services(accounts, names) if x["service_id"] not in set(skip or ())]
     if not svcs:
         return None
     m = _re.search(r"[?&]sid=(\d+)", playing_uri or "")
