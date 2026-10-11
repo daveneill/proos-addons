@@ -216,6 +216,15 @@ def gives_something(secs):
     return any((s.get("items") or []) or (s.get("play") and not s.get("open")) for s in secs or [])
 
 
+def first_title(secs):
+    """The first title on a service's own page: a playable item's, else a section's."""
+    for s in secs or []:
+        for i in s.get("items") or []:
+            if i.get("title"):
+                return i["title"]
+    return next((s.get("title") for s in secs or [] if s.get("title")), "")
+
+
 def works(sp, src, now=None):
     """(True, None) when this service gives something to play, measured on its own page; else (False, why).
     Kept WORKS_KEPT_S, so a service that starts answering shows again by itself."""
@@ -225,8 +234,22 @@ def works(sp, src, now=None):
     if kept and now - kept[1] < WORKS_KEPT_S:
         return kept[0], kept[2]
     try:
-        ok = gives_something(_sections(sp, src["root"], sections=4, per=3))
+        secs = _sections(sp, src["root"], sections=4, per=3)
+        ok = gives_something(secs)
         why = None if ok else "%s gave nothing to play on this player" % src["service"]
+        # REGISTER 772 (seen on the box): Deezer's page lists a fixed "Flow" entry the player shows without
+        # asking Deezer — and playing it left the Marantz idle. A listed item is not a played one. A
+        # service that can be searched must also ANSWER a search, asked with the first title on its own
+        # page (no word invented); its refusal hides it, in the player's words.
+        if ok:
+            crit = search_criteria(sp, src["service_id"])
+            if crit:
+                probe = first_title(secs)
+                if probe:
+                    cli(sp.host, "browse/search?sid=%d&search=%s&scid=%s&range=0,0"
+                        % (int(src["service_id"]), urllib.parse.quote(probe[:128]), crit[0]["scid"]))
+    except SpeakerMusicError as e:
+        ok, why = False, "%s didn't answer a search on this player (%s)" % (src["service"], str(e)[:80])
     except Exception as e:                                       # noqa: BLE001
         ok, why = False, "%s didn't answer (%s)" % (src["service"], str(e)[:80])
     with _LOCK:
