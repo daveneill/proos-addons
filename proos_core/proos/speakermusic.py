@@ -672,11 +672,20 @@ def _enqueue(sp, s, tracks, prep, mode, title):
                 break
             time.sleep(0.25)
 
+    # REGISTER 792: a newer play or a Clear on this speaker stops this fill too (it reads the speaker's fill number,
+    # without taking it, so adding a song never stops a playlist that is still filling).
+    key = getattr(sp, "ip_address", None) or id(sp)
+    gen = _FILLS.get(key, 0)
+
     def rest():
         for k, t in enumerate(tracks[1:], start=1):
+            if _FILLS.get(key, 0) != gen:
+                return
             try:
                 with s["lock"]:
                     uri, meta = prep(t)
+                if _FILLS.get(key, 0) != gen:
+                    return
                 add_to_queue(sp, uri, meta, (pos + k) if pos else 0, mode == "next" and pos > 0)
             except Exception:                                    # noqa: BLE001
                 pass
@@ -979,3 +988,19 @@ def queue_move(sp, item, shift):
 def queue_play(sp, item):
     sp.play_from_queue(_pos(item))
     return {"ok": True}
+
+
+def queue_clear(sp):
+    """REGISTER 792 (Dave 13:33: "clear queue i had to hit 4-5 times to clear it it seemed to do it in stages"):
+    Core was still ADDING the rest of a playlist behind the first track when Clear emptied the queue, so the queue
+    filled again behind each Clear. Clear now stops any fill on this speaker first, then empties the speaker's own
+    queue — and says how many it holds afterwards (the speaker's own count)."""
+    key = getattr(sp, "ip_address", None) or id(sp)
+    with _LOCK:
+        _FILLS[key] = _FILLS.get(key, 0) + 1
+    sp.clear_queue()
+    try:
+        left = len(list(sp.get_queue(max_items=1) or []))
+    except Exception:                                            # noqa: BLE001
+        left = None
+    return {"ok": left == 0, "left": left}

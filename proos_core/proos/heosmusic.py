@@ -458,3 +458,11 @@ def queue_play(sp, item):
     sp.client.call_service("media_player", "play_media", sp.entity_id,
                            {"media_content_id": str(_qid(item)), "media_content_type": "queue"})
     return {"ok": True}
+
+
+def queue_clear(sp):
+    """The player's own queue emptied — the platform's own clear (no fill of Core's runs on HEOS); the answer is
+    the player's own queue, counted afterwards."""
+    sp.client.call_service("media_player", "clear_playlist", sp.entity_id, {})
+    left = len(_queue_raw(sp))
+    return {"ok": left == 0, "left": left}
