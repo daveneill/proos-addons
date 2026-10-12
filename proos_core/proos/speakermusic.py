@@ -505,6 +505,20 @@ def home(sp, service_id, account=None, time_zone=None, sections=12, per=12):
                 except Exception as e:                           # noqa: BLE001
                     c["items"], c["error"] = [], str(e)[:160]
             out.append(c)
+        # REGISTER 794 (Dave 11:35: "cant see and start a playlist"): a service whose home is its new content page
+        # (Spotify) keeps the person's own library in its classic tree — read on the Office: Popular Playlists,
+        # Charts, New Releases, Genres and Moods, Your Music (› Playlists, Songs, Albums). That tree's first level
+        # goes on top as one shelf, in the service's own order and words, so the library is one tap away.
+        if getattr(br, "_content_endpoint", ""):
+            try:
+                from soco.music_services.browser.models import _legacy_item
+                recs = br._scoped_client().get_metadata("root", 0, 30, False, None, None)["items"]
+                tiles = [card(_keep(s, _legacy_item(r, "smapi"))) for r in recs]
+                if tiles:
+                    out.insert(0, {"id": "browse", "title": "Browse", "artist": None, "art": None, "type": "container",
+                                   "open": True, "play": False, "items": tiles})
+            except Exception as e:                               # noqa: BLE001
+                print("  [speakermusic] the service's classic tree didn't answer (%s)" % str(e)[:120], flush=True)
     keep_fresh(sp, s)
     return {"service_id": int(service_id), "account": s["account"].serial_number, "sections": out}
 
