@@ -2667,7 +2667,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026101301';
+const PROOS_BUILD='2026101302';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -12736,12 +12736,43 @@ async function techViewHealth(view){
     +row('Hostname', v.hostname)
     +(v.board?row('Board', v.board):'')
     +'</div></div>';
+  html+='<div id="tech-updates" class="cred-card" style="margin-top:12px"><div class="cred-top"><span class="cred-name">Updates</span></div><div class="es" style="margin-top:6px">Reading…</div></div>';
   html+='<div class="cred-card" style="margin-top:12px"><div class="cred-top"><span class="cred-name">Resources</span></div><div style="margin-top:8px">';
   html+='<div style="font-size:12px;color:var(--t2)">Core CPU '+pct(res.core_cpu)+'</div>'+bar(res.core_cpu);
   html+='<div style="font-size:12px;color:var(--t2);margin-top:14px">Core memory '+pct(res.core_mem_pct)+'</div>'+bar(res.core_mem_pct);
   if(disk.total){ const used=(disk.total-disk.free); const dp=disk.total?Math.round(used/disk.total*100):0; html+='<div style="font-size:12px;color:var(--t2);margin-top:14px">Disk '+dp+'% · '+gb(disk.free)+' free of '+gb(disk.total)+'</div>'+bar(dp); }
   html+='</div></div>';
   setHTML(view,html);
+  techUpdatesLoad();
+}
+// UPDATES (register 813): the platform and the operating system move only to the version THIS Core approves, only
+// when a person presses Update. Every number is the system manager's own; Core checks the result and says it.
+const _TU_NAMES={platform:'Platform',os:'Operating System',supervisor:'System Manager'};
+async function techUpdatesLoad(){
+  const card=document.getElementById('tech-updates'); if(!card) return;
+  let d=null; try{ const r=await fetch(proCoreUrl()+'/sysadmin/updates'); d=await r.json(); if(!r.ok) throw new Error((d&&d.error)||('error '+r.status)); }
+  catch(e){ setHTML(card,'<div class="cred-top"><span class="cred-name">Updates</span></div><div class="es" style="margin-top:6px">Couldn\u2019t read updates — '+esc((e&&e.message)||'ProOS Core unreachable')+'</div>'); return; }
+  let h='<div class="cred-top"><span class="cred-name">Updates</span></div><div style="margin-top:6px">';
+  (d.rows||[]).forEach(x=>{
+    const btn=(x.state==='update_available'&&!d.pending)?'<button class="btn-primary" style="margin-left:auto" onclick="techUpdateApply(\''+esc(x.kind)+'\')">Update to '+esc(x.approved)+'</button>':'';
+    h+='<div style="padding:9px 0;border-bottom:0.5px solid var(--line)"><div style="display:flex;align-items:center;gap:12px;font-size:13px"><span style="color:var(--t1)">'+esc(_TU_NAMES[x.kind]||x.kind)+'</span><span style="color:var(--t2)">'+esc(x.installed||'—')+'</span>'+btn+'</div><div style="font-size:12px;color:var(--t2);margin-top:3px">'+esc(x.words||'')+'</div></div>';
+  });
+  if(d.pending) h+='<div style="font-size:12px;color:#e3a23c;margin-top:10px">Updating '+esc(_TU_NAMES[d.pending.kind]||d.pending.kind)+' from '+esc(d.pending.from)+' to '+esc(d.pending.to)+'…</div>';
+  if(d.last){
+    h+='<div style="font-size:12px;margin-top:10px;color:'+(d.last.ok?'#46e3a0':'#e0564b')+'">Last update: '+esc(d.last.words||'')+'</div>';
+    (d.last.checks||[]).forEach(c=>{ h+='<div style="font-size:12px;color:var(--t2);margin-top:2px">'+(c.ok?'✓ ':'✗ ')+esc(c.words||'')+'</div>'; });
+  }
+  setHTML(card,h+'</div>');
+}
+async function techUpdateApply(kind){
+  const nm=_TU_NAMES[kind]||kind;
+  if(!await proAsk('Update the '+nm+' now? '+(kind==='os'?'The box restarts.':'The platform restarts; a backup is taken first.'))) return;
+  try{
+    const r=await fetch(proCoreUrl()+'/sysadmin/updates/apply',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind})});
+    const d=await r.json().catch(()=>({}));
+    toast((d&&d.words)||(r.ok?'Started':'Couldn\u2019t start the update'));
+  }catch(e){ toast(_coreFailWords('',e)); }
+  techUpdatesLoad();
 }
 async function techAddonAction(slug,action){
   if((action==='rebuild'||action==='stop')&&!await proAsk(action.charAt(0).toUpperCase()+action.slice(1)+' this add-on?')) return;
