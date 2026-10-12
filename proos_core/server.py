@@ -5550,6 +5550,18 @@ class Handler(BaseHTTPRequestHandler):
             # Read through the speaker with the home's own accounts. Every signed-in
             # person may browse (music is a household power). A failure answers 502
             # with the speaker's or the service's own reason — never an empty page.
+            if parts == ["speakers", "music", "queue"]:
+                # register 790: the speaker's own queue, read for the page (household power, like play)
+                _qs = parse_qs(urlparse(self.path).query)
+                _eid = (_qs.get("entity_id") or [""])[0]
+                if not _eid.startswith("media_player."):
+                    return self._send(400, {"error": "entity_id (a speaker) required"})
+                try:
+                    from proos import speakermusic as _spm0
+                    _spm, _sp = _spm0.for_speaker(_client, _speaker_net_info(), _eid)
+                    return self._send(200, _spm.queue(_sp))
+                except Exception as e:                           # noqa: BLE001
+                    return self._send(502, {"error": str(e)[:300]})
             if len(parts) == 3 and parts[:2] == ["speakers", "music"] and parts[2] in (
                     "services", "home", "open", "search"):
                 _qs = parse_qs(urlparse(self.path).query)
@@ -8134,6 +8146,22 @@ class Handler(BaseHTTPRequestHandler):
                     if parts[3:] == ["finish"]:
                         return self._send(200, _spm.connect_finish(_sp, int(b["service_id"])))
                     return self._send(200, _spm.connect_begin(_sp, int(b["service_id"])))
+                except Exception as e:                           # noqa: BLE001
+                    return self._send(502, {"ok": False, "error": str(e)[:300]})
+            if parts[:3] == ["speakers", "music", "queue"] and len(parts) == 4 and parts[3] in ("remove", "move", "play"):
+                # register 790: change the speaker's own queue — remove, move one item, or play from it
+                b = self._body() or {}
+                _eid = str(b.get("entity_id") or "")
+                if not _eid.startswith("media_player.") or not b.get("item"):
+                    return self._send(400, {"error": "entity_id and item required"})
+                try:
+                    from proos import speakermusic as _spm0
+                    _spm, _sp = _spm0.for_speaker(_client, _speaker_net_info(), _eid)
+                    if parts[3] == "remove":
+                        return self._send(200, _spm.queue_remove(_sp, b["item"]))
+                    if parts[3] == "move":
+                        return self._send(200, _spm.queue_move(_sp, b["item"], int(b.get("pos_shift") or 0)))
+                    return self._send(200, _spm.queue_play(_sp, b["item"]))
                 except Exception as e:                           # noqa: BLE001
                     return self._send(502, {"ok": False, "error": str(e)[:300]})
             if parts == ["speakers", "music", "play"]:
