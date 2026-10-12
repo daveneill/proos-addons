@@ -3562,7 +3562,9 @@ def factory_reset(clear_proos_data=False, keep_auth=False):
                    # per box by the installer; a reset home is set up afresh
                    "apple_music_token.json",
                    # ProOS's own music-service sign-ins (register 778) — the old home's accounts
-                   "speaker_links.json"):
+                   "speaker_links.json",
+                   # the address each speaker last answered at with its own id (register 799) — the old home's speakers
+                   "speaker_addresses.json"):
         _p = os.path.join(_pdata, _fname)
         try:
             if os.path.exists(_p):
@@ -3777,6 +3779,38 @@ def _sweep_loop():
         except Exception as e:                                   # noqa: BLE001
             print("  [sweep] schedule error: %s" % e, flush=True)
         time.sleep(60)
+
+
+_RECONNECT_LOOK_S = 60   # plumbing: how often Core looks for an integration stuck in "setup_error" (register 798)
+
+
+def _reconnect_once():
+    """One look (register 798): an integration the platform left in "setup_error" after a power cut is reloaded
+    through the platform's own reload once its device answers. Only with the add-on's auto_heal on."""
+    from proos import reconnect as _rc
+    if not bool(_opt("auto_heal", False)) or _client is None:
+        return []
+    from proos import platform_entries as _pe
+
+    def _data(eid):
+        e = _pe.by_id(eid) or {}
+        return e.get("data") or {}
+
+    def _log(ev):
+        if _journal_mod is not None:
+            _journal_mod.emit("site", "auto_heal", ev)
+
+    return _rc.check(_client.config_entries(), _data, _client.reload_integration, _log)
+
+
+def _reconnect_loop():
+    time.sleep(90)
+    while True:
+        try:
+            _reconnect_once()
+        except Exception as e:                                   # noqa: BLE001
+            print("  [reconnect] look failed: %s" % e, flush=True)
+        time.sleep(_RECONNECT_LOOK_S)
 
 
 # Keep the awareness watch list in step with HA without a restart. Boot and the
@@ -9228,6 +9262,7 @@ def main():
         BACKUP_PASSWORD = cfg["backup_password"]
     threading.Thread(target=_habits_loop, name="proos-habits", daemon=True).start()
     threading.Thread(target=_sweep_loop, name="proos-sweep-daily", daemon=True).start()
+    threading.Thread(target=_reconnect_loop, name="proos-reconnect", daemon=True).start()
     if _WATCH_REDISCOVER_SEC > 0:
         threading.Thread(target=_watch_rediscover_loop, name="proos-watch-heal", daemon=True).start()
         threading.Thread(target=_atv_learn_loop, name="proos-atv-learn", daemon=True).start()
