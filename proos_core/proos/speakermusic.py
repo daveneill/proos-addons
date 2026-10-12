@@ -174,6 +174,12 @@ def connect(client, network_info, entity_id):
     import soco
     from soco import config as soco_config
     ip = speaker_address(client, entity_id)
+    from_memory = False
+    if not ip:
+        # REGISTER 799: the network forgot the speaker (its controller down, 796) — try the last address the
+        # SPEAKER ITSELF confirmed, and use it only if the same speaker answers there again.
+        ip = remembered_address(entity_id)
+        from_memory = bool(ip)
     if not ip:
         raise SpeakerMusicError("the network doesn't report an address for this speaker")
     box = box_address(network_info)
@@ -183,6 +189,7 @@ def connect(client, network_info, entity_id):
     soco_config.EVENT_LISTENER_PORT = EVENT_PORT
     listener_port(soco_events())
     sp = soco.SoCo(ip)
+    sp = _confirmed(client, entity_id, sp, ip, from_memory)
     try:
         return sp.group.coordinator if sp.group else sp
     except Exception as e:                                       # noqa: BLE001
@@ -263,6 +270,77 @@ LINK_WAIT_S = 900       # plumbing: how long a started sign-in waits for the per
 LINKABLE = ("AppLink", "DeviceLink")   # the sign-in kinds the service's own web page can complete (the library's words)
 _ANSWERED = {}          # (household, sid, serial) -> (answered, when, why)
 _PENDING = {}           # (household, sid) -> (manager, link, started)
+
+
+# ── THE SPEAKER'S LAST CONFIRMED ADDRESS (register 799; Dave 12 Oct 18:06 "go on both") ──────────────────────
+# Read on the box (796): when the network controller's integration was stuck after a power cut, the platform's
+# device tracker held no address for any Sonos and every room's music stopped — though every speaker was on the
+# network and answering. The platform's tracker stays THE answer. ProOS keeps only what it measured itself: the
+# address at which the speaker answered with its OWN id (its RINCON id, matched to the platform's device record).
+# Used only when the platform has no address, and only if the same speaker answers there again; if not, said.
+ADDRESSES_PATH = _os.path.join(_os.environ.get("PROOS_DATA_DIR", "/data"), "speaker_addresses.json")
+SPEAKER_ID_TEMPLATE = (
+    "{%- set ns = namespace(id='') -%}"
+    "{%- for i in (device_attr(device_id(eid), 'identifiers') or []) -%}"
+    "{%- if i[0] == 'sonos' -%}{%- set ns.id = i[1] -%}{%- endif -%}{%- endfor -%}{{ ns.id }}"
+)
+
+
+def speaker_identity(client, entity_id):
+    """The speaker's own id as the platform's device record holds it (Sonos: RINCON_…), or None."""
+    try:
+        tpl = "{% set eid = '" + str(entity_id).replace("'", "") + "' %}" + SPEAKER_ID_TEMPLATE
+        out = str(client.render_template(tpl) or "").strip()
+        return out if out.upper().startswith("RINCON_") else None
+    except Exception:                                            # noqa: BLE001
+        return None
+
+
+def _addresses():
+    try:
+        with open(ADDRESSES_PATH, encoding="utf-8") as fh:
+            return _json.load(fh) or {}
+    except Exception:                                            # noqa: BLE001
+        return {}
+
+
+def remembered_address(entity_id):
+    return (_addresses().get(str(entity_id)) or {}).get("ip")
+
+
+def remember_address(entity_id, uid, ip):
+    d = _addresses()
+    if (d.get(str(entity_id)) or {}).get("ip") == ip and (d.get(str(entity_id)) or {}).get("uid") == uid:
+        return
+    d[str(entity_id)] = {"ip": ip, "uid": uid, "seen": int(time.time())}
+    try:
+        _os.makedirs(_os.path.dirname(ADDRESSES_PATH), exist_ok=True)
+        tmp = ADDRESSES_PATH + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            _json.dump(d, fh)
+        _os.replace(tmp, ADDRESSES_PATH)
+    except Exception:                                            # noqa: BLE001
+        pass
+
+
+def _confirmed(client, entity_id, sp, ip, from_memory):
+    """The speaker at ip, checked against the platform's record of it. Confirmed → the address is kept.
+    From memory and NOT confirmed → refused, saying which (silent, or a different speaker now answers there)."""
+    uid = speaker_identity(client, entity_id)
+    try:
+        seen = str(sp.uid or "")
+    except Exception:                                            # noqa: BLE001
+        seen = ""
+    same = bool(uid and seen and seen.upper() == uid.upper())
+    if same:
+        remember_address(entity_id, uid, ip)
+    elif from_memory:
+        if not seen:
+            raise SpeakerMusicError("the network doesn't report an address for this speaker, and it no longer "
+                                    "answers at %s, the last address it answered at" % ip)
+        raise SpeakerMusicError("the network doesn't report an address for this speaker, and a different speaker "
+                                "now answers at %s, the last address it was seen at" % ip)
+    return sp
 
 
 def _links():
