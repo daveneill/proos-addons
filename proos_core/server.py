@@ -4579,7 +4579,61 @@ class Handler(BaseHTTPRequestHandler):
             return self._send_bytes(status, ctype, bytes(payload))
         return self._send(status, payload)
 
+    # ── PROOS'S OWN FRONT DOOR (register 808, build 1 of "only serve ProOS") ─────────────────────────
+    # A person at Core's address gets ProOS's pages and ProOS's sign-in; the platform paths those pages and the
+    # app use pass straight through to the platform inside the box (proos/frontdoor.py). A request that came through
+    # another door — the Supervisor's ingress (read in its 2026.09.3 source: it adds X-Forwarded-For and, for a signed-in
+    # session, X-Remote-User-Id; older ones added X-Ingress-Path) — keeps its own road unchanged.
+    def _front_door(self, method):
+        """True when this request was answered by the front door (passed through, or a page served)."""
+        from proos import frontdoor as _fd
+        if _fd.came_through_another_door(getattr(self, "headers", None) or {}):
+            return False
+        if _fd.is_platform_path(self.path):
+            from proos import sysadmin as _sa
+            _fd.passthrough(self, _fd.platform_address(_sa._info))
+            return True
+        if method == "GET":
+            page = {"": "dashboard", "pro": "pro"}.get(self.path.split("?")[0].strip("/"))
+            if page:
+                fp = os.path.join(os.path.dirname(os.path.abspath(__file__)), "apps", page + ".html")
+                try:
+                    with open(fp, "rb") as fh:
+                        data = _fd.mark_page(fh.read())
+                except Exception:                                # noqa: BLE001
+                    self._send(404, {"error": "app not shipped"})
+                    return True
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+                return True
+        return False
+
+    def _front_door_only(self):
+        # The platform's other methods (Pro deletes and updates through them) — the front door's paths only.
+        if self._front_door(self.command):
+            return
+        self._send(405, {"error": "not allowed here"})
+
+    do_PUT = _front_door_only
+    do_DELETE = _front_door_only
+    do_PATCH = _front_door_only
+
+    def do_HEAD(self):
+        from proos import frontdoor as _fd
+        if not _fd.came_through_another_door(self.headers):
+            if _fd.is_platform_path(self.path):
+                return self._front_door_only()
+        self.send_response(405)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
     def do_GET(self):
+        if self._front_door("GET"):
+            return
         if not self._auth():
             return
         parts = [p for p in self.path.split("?")[0].strip("/").split("/") if p]
@@ -6307,6 +6361,8 @@ class Handler(BaseHTTPRequestHandler):
     _POST_HOUSEHOLD = ()
 
     def do_POST(self):
+        if self._front_door("POST"):
+            return
         if not self._auth():
             return
         parts = [p for p in self.path.split("?")[0].strip("/").split("/") if p]
