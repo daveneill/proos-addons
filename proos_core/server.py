@@ -8148,9 +8148,11 @@ class Handler(BaseHTTPRequestHandler):
                     from proos import speakermusic as _spm0
                     _spm, _sp = _spm0.for_speaker(_client, _speaker_net_info(), _eid)
                     _acct = b.get("account")
+                    # register 785: "next" / "add" put it in the speaker's own queue; anything else plays now.
+                    _mode = b.get("mode") if b.get("mode") in ("next", "add") else "now"
                     return self._send(200, _spm.play(_sp, int(b["service_id"]), str(b["item"]),
                                                      int(_acct) if _acct not in (None, "") else None,
-                                                     _home_time_zone()))
+                                                     _home_time_zone(), mode=_mode))
                 except Exception as e:                           # noqa: BLE001
                     return self._send(502, {"ok": False, "error": str(e)[:300]})
             if parts == ["speaker", "proof"]:
