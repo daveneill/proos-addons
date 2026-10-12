@@ -2667,7 +2667,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026101202';
+const PROOS_BUILD='2026101203';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -12013,6 +12013,15 @@ async function musicSignInsLoad(){
     out.innerHTML=h||'No services on this speaker.';
   }catch(e){ out.textContent='ProOS Core unreachable'; }
 }
+// REGISTER 800: copy the sign-in address for an app that cannot open a new window itself.
+async function musicSignInCopy(btn){
+  const url=btn&&btn.getAttribute('data-url'); if(!url) return;
+  let ok=false;
+  try{ if(navigator.clipboard&&navigator.clipboard.writeText){ await navigator.clipboard.writeText(url); ok=true; } }catch(e){}
+  if(!ok){ try{ const ta=document.createElement('textarea'); ta.value=url; document.body.appendChild(ta); ta.select();
+    ok=!!document.execCommand('copy'); ta.remove(); }catch(e){} }
+  toast(ok?'Link copied — paste it in your browser to sign in':'Couldn\u2019t copy — the address is '+url);
+}
 async function musicSignInConnect(sid, name){
   const out=document.getElementById('mi-out'); if(!out) return;
   const ent=_miEnt();
@@ -12020,7 +12029,7 @@ async function musicSignInConnect(sid, name){
     const r=await fetch(proCoreUrl()+'/speakers/music/connect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({entity_id:ent, service_id:sid})});
     const d=await r.json();
     if(!r.ok){ out.innerHTML='<b style="color:#e0564b">'+esc(d.error||'Failed')+'</b>'; return; }
-    out.innerHTML='Sign in to '+esc(name)+' on its own page — ProOS never sees the password.<br><a class="btn-ghost" style="display:inline-block;margin-top:8px;text-decoration:none" href="'+esc(d.url)+'" target="_blank" rel="noopener">Open '+esc(name)+' Sign-In</a>'
+    out.innerHTML='Sign in to '+esc(name)+' on its own page — ProOS never sees the password.<br><a class="btn-ghost" style="display:inline-block;margin-top:8px;text-decoration:none" href="'+esc(d.url)+'" target="_blank" rel="noopener">Open '+esc(name)+' Sign-In</a> <button class="btn-ghost" style="margin-top:8px" data-url="'+esc(d.url)+'" onclick="musicSignInCopy(this)">Copy Link</button>'
       +(d.code?'<br>Code: <b>'+esc(d.code)+'</b>':'')+'<div id="mi-wait" style="margin-top:8px">Waiting for the sign-in…</div>';
     const t0=Date.now();
     const tick=async()=>{

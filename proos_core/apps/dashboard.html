@@ -4538,7 +4538,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101206';
+const PROOS_BUILD='2026101207';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -14766,9 +14766,20 @@ async function spmConnect(sid){
   const g=document.getElementById('music-grid');
   if(g) g.innerHTML=`<div style="grid-column:1/-1;padding:18px 4px;color:#fff;font-size:14px;line-height:1.6">Sign in to ${_mEsc(name)} on its own page — ProOS never sees your password.<br><br>`
     +`<a class="mus-libchip on" href="${_mEsc(j.url)}" target="_blank" rel="noopener" style="display:inline-block;text-decoration:none">Open ${_mEsc(name)} Sign-In</a>`
+    +` <button class="mus-libchip" data-url="${_mEsc(j.url)}" onclick="spmCopyLink(this)">Copy Link</button>`
     +(j.code?`<br><br>Code: <b>${_mEsc(j.code)}</b>`:'')
     +`<div id="spm-conn-state" style="margin-top:14px;color:rgba(255,255,255,.6)">Waiting for you to sign in…</div></div>`;
   _spmWaitConnect(entity, sid, name, Date.now());
+}
+// REGISTER 800: an app that cannot open the sign-in page itself (one built before 1.0.901's app change) still
+// gets there — the person copies the address and pastes it in their browser. Core keeps asking either way.
+async function spmCopyLink(btn){
+  const url=btn&&btn.getAttribute('data-url'); if(!url) return;
+  let ok=false;
+  try{ if(navigator.clipboard&&navigator.clipboard.writeText){ await navigator.clipboard.writeText(url); ok=true; } }catch(e){}
+  if(!ok){ try{ const ta=document.createElement('textarea'); ta.value=url; document.body.appendChild(ta); ta.select();
+    ok=!!document.execCommand('copy'); ta.remove(); }catch(e){} }
+  showToast(ok?'Link copied — paste it in your browser to sign in':'Couldn’t copy — the address is '+url);
 }
 async function _spmWaitConnect(entity, sid, name, t0){
   if(entity!==_spm.entity || entity!==_musicSpeaker || Date.now()-t0>15*60*1000) return;
