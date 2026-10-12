@@ -564,14 +564,14 @@ def prepare(br, item):
     return uri, build_metadata(br, iid, title, typ, mime=mime, uri=uri)
 
 
-def add_to_queue(sp, uri, meta):
+def add_to_queue(sp, uri, meta, position=0, as_next=0):
     """Add one item to the speaker's queue WITH its details. REGISTER 748 (seen on the speaker): the
     library's add_uri_to_queue(uri, x) takes x as the queue POSITION — every earlier play sent the
     speaker no title, so the dashboard showed nothing. The speaker's own AddURIToQueue is called with
     the metadata in its own field; the speaker then fills in artist, album and artwork itself."""
     r = sp.avTransport.AddURIToQueue([
         ("InstanceID", 0), ("EnqueuedURI", uri), ("EnqueuedURIMetaData", meta),
-        ("DesiredFirstTrackNumberEnqueued", 0), ("EnqueueAsNext", 0)])
+        ("DesiredFirstTrackNumberEnqueued", int(position or 0)), ("EnqueueAsNext", 1 if as_next else 0)])
     return int(r.get("NumTracksAdded") or 0)
 
 
@@ -593,7 +593,7 @@ def apple_prepare(br, c):
     return uri, build_metadata(br, iid, c.get("title") or "", "track", mime="audio/mp4", uri=uri)
 
 
-def play(sp, service_id, item_id, account=None, time_zone=None, wait_s=10.0, limit=100):
+def play(sp, service_id, item_id, account=None, time_zone=None, wait_s=10.0, limit=100, mode="now"):
     """Play an item on the speaker: a playlist/album as the speaker's own queue (first track started,
     the rest added behind it), a track or stream on its own. The answer is the SPEAKER's state.
     REGISTER 751 (seen from the dashboard): the queue fill held the service for its whole length, so a
@@ -607,6 +607,8 @@ def play(sp, service_id, item_id, account=None, time_zone=None, wait_s=10.0, lim
         if not songs:
             raise SpeakerMusicError("Apple Music has no songs to play for that")
         title = next((c.get("title") for c in songs if c["id"] == item_id), None) or str(item_id)
+        if mode in ("next", "add"):
+            return _enqueue(sp, s, songs, lambda c: apple_prepare(br, c), mode, title)
         return _queue_play(sp, s, songs, lambda c: apple_prepare(br, c), title, wait_s)
     with s["lock"]:
         it = s["items"].get(item_id, item_id)
@@ -618,10 +620,48 @@ def play(sp, service_id, item_id, account=None, time_zone=None, wait_s=10.0, lim
             tracks = [it]
             first = prepare(br, it)
     if not getattr(it, "can_browse", False) and is_stream(first[0]):
+        if mode in ("next", "add"):
+            raise SpeakerMusicError("a station can't go in the queue — play it instead")
         return _stream_play(sp, first, getattr(it, "title", "") or "", wait_s)
     one = locals().get("first")
+    if mode in ("next", "add"):
+        return _enqueue(sp, s, tracks, lambda t: one if (one is not None and t is it) else prepare(br, t),
+                        mode, getattr(it, "title", "") or "")
     return _queue_play(sp, s, tracks, lambda t: one if (one is not None and t is it) else prepare(br, t),
                        getattr(it, "title", "") or "", wait_s)
+
+
+# PLAY NEXT / ADD TO QUEUE (register 785; Dave 10:57 "go" on 781). Into the SPEAKER's own queue — the speaker's own
+# AddURIToQueue with its own position fields: "next" goes straight after the track playing now (its own queue position
+# + 1), "add" goes at the end. What is said is the speaker's own count of tracks added. A speaker playing something
+# that isn't its queue (a station) keeps playing it; the tracks wait in the queue, and the answer says so.
+def _enqueue(sp, s, tracks, prep, mode, title):
+    try:
+        on_queue = str((sp.get_current_media_info() or {}).get("uri") or "").startswith("x-rincon-queue:")
+    except Exception:                                            # noqa: BLE001
+        on_queue = False
+    pos = 0
+    if mode == "next" and on_queue:
+        try:
+            pos = int((sp.get_current_track_info() or {}).get("playlist_position") or 0) + 1
+        except (TypeError, ValueError):
+            pos = 0
+    with s["lock"]:
+        first = prep(tracks[0])
+    added = add_to_queue(sp, first[0], first[1], pos, mode == "next" and pos > 0)
+
+    def rest():
+        for k, t in enumerate(tracks[1:], start=1):
+            try:
+                with s["lock"]:
+                    uri, meta = prep(t)
+                add_to_queue(sp, uri, meta, (pos + k) if pos else 0, mode == "next" and pos > 0)
+            except Exception:                                    # noqa: BLE001
+                pass
+    if len(tracks) > 1:
+        threading.Thread(target=rest, daemon=True).start()
+    return {"ok": added > 0, "mode": mode, "title": title, "queued": len(tracks) if added else 0,
+            "on_queue": on_queue, "position": pos or None}
 
 
 # REGISTER 782 (seen on the box, Dave 10:38): a Pandora station from "My Stations" answered "UPnP Error 800" —

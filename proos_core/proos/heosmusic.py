@@ -334,10 +334,35 @@ def _media_id(item_id):
 _SEEN = ("media_content_id", "media_title", "media_station", "media_album_id")
 
 
-def play(sp, service_id, item_id, account=None, time_zone=None, wait_s=PLAY_WATCH_S, limit=100):
+def queue_length(sp):
+    """How many items the player's own queue holds — the platform's own heos.get_queue."""
+    r = sp.client._req("POST", "/api/services/heos/get_queue?return_response", {"entity_id": sp.entity_id}) or {}
+    q = ((r.get("service_response") or {}).get(sp.entity_id) or {}).get("queue")
+    return len(q) if isinstance(q, list) else None
+
+
+def play(sp, service_id, item_id, account=None, time_zone=None, wait_s=PLAY_WATCH_S, limit=100, mode="now"):
     """Play through the PLATFORM's own play (proven, 767). The answer is the player's own state: playing,
-    and showing something new (or already this very station)."""
+    and showing something new (or already this very station).
+    REGISTER 785: mode "next"/"add" → the platform's own play with enqueue next/add; the answer is the player's
+    own queue, counted before and after."""
     c = sp.client
+    if mode in ("next", "add"):
+        _sid, kind = _path(item_id)
+        if kind == "station":
+            raise SpeakerMusicError("a station can't go in the queue — play it instead")
+        before_n = queue_length(sp)
+        c.call_service("media_player", "play_media", sp.entity_id,
+                       {"media_content_id": item_id, "media_content_type": "music", "enqueue": mode})
+        after_n = None
+        for _ in range(10):
+            after_n = queue_length(sp)
+            if before_n is not None and after_n is not None and after_n > before_n:
+                break
+            time.sleep(0.5)
+        grew = before_n is not None and after_n is not None and after_n > before_n
+        return {"ok": grew, "mode": mode, "title": item_name(item_id), "queued": (after_n - before_n) if grew else 0,
+                "on_queue": True, "position": None}
     path = "/api/states/%s" % sp.entity_id
     before = c._req("GET", path) or {}
     b_attrs = before.get("attributes") or {}
