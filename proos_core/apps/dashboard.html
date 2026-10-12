@@ -4484,6 +4484,9 @@ function _lc(el){ try{ const s=el.selectionStart; el.value=el.value.toLowerCase(
 function _originUrl(){
   try{
     if(location.protocol!=='http:' && location.protocol!=='https:') return '';
+    // REGISTER 808: served through ProOS's own front door, the platform's data paths pass through this same
+    // address — nothing beside it, nothing of the platform's own shown.
+    if(typeof window!=='undefined' && window.PROOS_FRONT_DOOR) return location.origin;
     // Reg 269: served by CORE on its direct port, this page's origin is
     // Core's — the platform rides beside it on its own standard port.
     if(location.port==='8770') return location.protocol+'//'+location.hostname+':8123';
@@ -4538,7 +4541,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101207';
+const PROOS_BUILD='2026101301';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -6705,6 +6708,7 @@ function _proosSelfBase(){
   // prefix (/api/hassio_ingress/<token>), on the direct port the origin
   // itself. A RELATION, never a guessed URL. Legacy /local/ pages match
   // nothing here and keep the old host:8770 path untouched.
+  if(typeof window!=='undefined' && window.PROOS_FRONT_DOOR) return location.origin;   // register 808: ProOS's own front door IS Core
   try{ const m=location.pathname.match(/^(.*)\/app\/(?:pro|dashboard)$/); if(m) return location.origin+m[1]; }catch(e){}
   return null;
 }

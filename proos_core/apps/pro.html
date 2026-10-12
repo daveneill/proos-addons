@@ -2667,7 +2667,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026101203';
+const PROOS_BUILD='2026101301';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -2745,6 +2745,7 @@ function _proosSelfBase(){
   // prefix (/api/hassio_ingress/<token>), on the direct port the origin
   // itself. A RELATION, never a guessed URL. Legacy /local/ pages match
   // nothing here and keep the old host:8770 path untouched.
+  if(typeof window!=='undefined' && window.PROOS_FRONT_DOOR) return location.origin;   // register 808: ProOS's own front door IS Core
   try{ const m=location.pathname.match(/^(.*)\/app\/(?:pro|dashboard)$/); if(m) return location.origin+m[1]; }catch(e){}
   return null;
 }
@@ -2789,6 +2790,9 @@ function _coreFailWords(path, e){
 function _originUrl(){
   try{
     if(location.protocol!=='http:' && location.protocol!=='https:') return '';
+    // REGISTER 808: served through ProOS's own front door, the platform's data paths pass through this same
+    // address — nothing beside it, nothing of the platform's own shown.
+    if(typeof window!=='undefined' && window.PROOS_FRONT_DOOR) return location.origin;
     // Reg 269: served by CORE on its direct port, this page's origin is
     // Core's — the platform rides beside it on its own standard port.
     if(location.port==='8770') return location.protocol+'//'+location.hostname+':8123';
