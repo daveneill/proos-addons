@@ -2212,6 +2212,8 @@ body.aws-open .v2tabs{display:none!important}
   .aw-inc{position:fixed;inset:0;z-index:9100;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center;animation:awsIn .2s ease}
   .awi-card{background:var(--bg,#12151a);border:.5px solid var(--line);border-radius:20px 20px 0 0;width:100%;max-width:560px;max-height:86vh;overflow:auto;padding:20px 20px 30px}
   @media(min-width:700px){.aw-inc{align-items:center}.awi-card{border-radius:20px}}
+  /* register 788 (Dave 12 Oct: every popup a centred card, "all for continuity") — Pro's last bottom sheet */
+  .aw-inc{align-items:center}.awi-card{border-radius:20px;width:min(560px,calc(100vw - 32px))}
   .awi-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:18px}
   .awi-nm{font-size:19px;font-weight:650;letter-spacing:-.01em}.awi-when{font-size:12px;color:var(--t3);margin-top:2px}
   .awi-x{appearance:none;background:rgba(255,255,255,.06);border:none;color:var(--t1);width:32px;height:32px;border-radius:9px;font-size:15px;cursor:pointer;flex:0 0 auto}
@@ -2665,7 +2667,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026101201';
+const PROOS_BUILD='2026101202';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.

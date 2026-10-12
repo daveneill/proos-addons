@@ -4538,7 +4538,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101203';
+const PROOS_BUILD='2026101205';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -7560,6 +7560,7 @@ function _proosEnterKind(pg){
 
 function showPage(p){
   closePlayer();
+  try{ closeMusicAct(); _proosHoistPopups(); }catch(e){}     // register 788: no popup outlives its page
   try{ _closeMore(); }catch(e){}
   try{ const _det=document.getElementById('pa-detail'); if(_det && _det.style.display!=='none' && typeof closeProtectCamera==='function') closeProtectCamera(); }catch(e){}
   curPage=p;
@@ -14839,6 +14840,8 @@ async function _spmQueue(it, entity, mode){
   if(msg){ showToast('Couldn’t queue on '+room+' — '+msg); return; }
   if(!(j&&j.ok)){ showToast(room+' didn’t take '+(it.title||'it')+' into its queue'); return; }
   const n=j.queued>1?' ('+j.queued+' tracks)':'';
+  // Dave's ruling B (12 Oct 11:41): Play next while a station plays stops the station and plays it now.
+  if(j.started){ showToast('Playing now on '+room+' — the queue carries on after it'); renderMusicNowPlaying(); return; }
   showToast((mode==='next'?'Playing next on ':'Added to the queue on ')+room+n
     +(j.on_queue?'':' — it waits in the queue while the station plays'));
 }
@@ -15620,18 +15623,32 @@ function musicAct(mode){
 // The queue comes from Core (/music/queue/<player_id>) — the engine's own
 // ordered list — so we surface "Up Next" + position honestly.
 let _upNext={entity:null, cid:null, next:null, count:0, idx:0};
+// REGISTER 790 (queue build 2): a Sonos or HEOS room's queue is the SPEAKER's own, read through Core
+// (/speakers/music/queue) in the same shape — so the same strip, the same queue card, the same drag and remove.
+function _mqSpeaker(){ return !!_musicSpeaker && typeof _spmCan==='function' && _spmCan(_musicSpeaker); }
+function _mqUrl(){
+  return _mqSpeaker() ? proosCoreBase()+'/speakers/music/queue?entity_id='+encodeURIComponent(_musicSpeaker)
+                      : proosCoreBase()+'/music/queue/'+encodeURIComponent(_musicPlayerId());
+}
+function _mqAct(act, body){
+  if(_mqSpeaker()) return fetch(proosCoreBase()+'/speakers/music/queue/'+act,{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(Object.assign({entity_id:_musicSpeaker}, body))});
+  return fetch(proosCoreBase()+'/music/queue/'+encodeURIComponent(_musicPlayerId())+'/'+act,{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(body)});
+}
 async function musicLoadUpNext(entity){
   const el=document.getElementById('music-upnext'); if(!el) return;
-  if(musicEngine(entity)!=='ma'){ el.style.display='none'; return; }
-  const pid=entityUniqueId[entity]||''; if(!pid){ el.style.display='none'; return; }
+  const spk=typeof _spmCan==='function' && _spmCan(entity);
+  if(musicEngine(entity)!=='ma' && !spk){ el.style.display='none'; return; }
+  const pid=entityUniqueId[entity]||''; if(!pid && !spk){ el.style.display='none'; return; }
   const cid=att(entity,'media_content_id')||'';
   if(_upNext.entity===entity && _upNext.cid===cid){ renderUpNext(); return; }
   _upNext={entity, cid, next:null, count:0, idx:0};
   try{
-    // The queue comes from Core now (GET /music/queue/<player_id>), not HA's
-    // music_assistant.get_queue. The current + next item are derived from the
-    // engine's own ordered list.
-    const r=await fetch(proosCoreBase()+'/music/queue/'+encodeURIComponent(pid));
+    // The queue comes from Core: the engine's own list (/music/queue/<player_id>) or, for a Sonos/HEOS room,
+    // the speaker's own (/speakers/music/queue, register 790). Current + next are derived from that list.
+    const r=await fetch(spk ? proosCoreBase()+'/speakers/music/queue?entity_id='+encodeURIComponent(entity)
+                            : proosCoreBase()+'/music/queue/'+encodeURIComponent(pid));
     const q=await r.json();
     if(entity!==_musicSpeaker) return;
     const items=(q&&q.items)||[]; const ci=(q&&q.current_index!=null)?q.current_index:-1;
@@ -15663,7 +15680,7 @@ function renderUpNext(){
     return;
   }
   // MA queue objects bypass att(), so the metadata filter is applied here too
-  const artist=_metaOk((n.artists&&n.artists[0]&&n.artists[0].name)||n.media_artist||'')||'';
+  const artist=_metaOk((n.artists&&n.artists[0]&&n.artists[0].name)||n.media_artist||n.artist||'')||'';   // .artist: a speaker's own queue (790)
   const _nm=_metaOk(n.name||'')||'';
   const more=_upNext.count>0?(' · '+_upNext.idx+'/'+_upNext.count):'';
   el.innerHTML='<span class="un-k">Up Next</span><span class="un-t" onclick="openMusicQueue()" style="cursor:pointer">'+_mEsc(_nm)+(artist?' — '+_mEsc(artist):'')+'<span style="color:rgba(255,255,255,0.50)">'+_mEsc(more)+'</span></span><button class="un-x" onclick="openMusicQueue()">Queue</button><button class="un-x" onclick="musicClearQueue()">Clear</button>';
@@ -15694,17 +15711,18 @@ function _ensureQueueOverlay(){
 }
 function closeMusicQueue(){ const o=document.getElementById('music-queue-overlay'); if(o) o.style.display='none'; }
 async function openMusicQueue(){
-  if(musicEngine(_musicSpeaker)!=='ma') return;
-  const pid=_musicPlayerId(); if(!pid){ showToast('Queue unavailable'); return; }
+  if(musicEngine(_musicSpeaker)!=='ma' && !_mqSpeaker()) return;
+  const pid=_musicPlayerId(); if(!pid && !_mqSpeaker()){ showToast('Queue unavailable'); return; }
+  try{ _proosHoistPopups(); }catch(e){}
   _ensureQueueOverlay();
   document.getElementById('mq-body').innerHTML=_mEmpty('Loading queue\u2026');
   document.getElementById('music-queue-overlay').style.display='flex';
   _renderMusicQueue();
 }
 async function _renderMusicQueue(){
-  const pid=_musicPlayerId(); const body=document.getElementById('mq-body'); if(!body||!pid) return;
+  const pid=_musicPlayerId(); const body=document.getElementById('mq-body'); if(!body||(!pid&&!_mqSpeaker())) return;
   try{
-    const r=await fetch(proosCoreBase()+'/music/queue/'+encodeURIComponent(pid));
+    const r=await fetch(_mqUrl());
     const d=await r.json();
     _mqItems=(d&&d.items)||[]; _mqCur=(d&&d.current_index);
   }catch(e){ body.innerHTML=_mEmpty('Queue unavailable'); return; }
@@ -15780,25 +15798,23 @@ async function _mqUp(ev){
   }
 }
 async function musicQueueMove(itemId, shift){
-  const pid=_musicPlayerId(); if(!pid||!itemId||!shift) return;
-  try{ await fetch(proosCoreBase()+'/music/queue/'+encodeURIComponent(pid)+'/move',
-    {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({item:itemId,pos_shift:shift})}); }catch(e){}
+  const pid=_musicPlayerId(); if((!pid&&!_mqSpeaker())||!itemId||!shift) return;
+  try{ const r=await _mqAct('move',{item:itemId,pos_shift:shift}); if(!r.ok){ const j=await r.json().catch(()=>null); showToast('Couldn’t move it — '+((j&&j.error)||r.status)); } }catch(e){}
   setTimeout(_renderMusicQueue,400);
 }
 async function musicQueueRemove(itemId){
-  const pid=_musicPlayerId(); if(!pid||!itemId) return;
-  try{ await fetch(proosCoreBase()+'/music/queue/'+encodeURIComponent(pid)+'/remove',
-    {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({item:itemId})}); }catch(e){}
+  const pid=_musicPlayerId(); if((!pid&&!_mqSpeaker())||!itemId) return;
+  try{ const r=await _mqAct('remove',{item:itemId}); if(!r.ok){ const j=await r.json().catch(()=>null); showToast('Couldn’t remove it — '+((j&&j.error)||r.status)); } }catch(e){}
+  _upNext.cid=null;
   setTimeout(_renderMusicQueue,350);
 }
 // Tap a queue row to jump to and play that track.
 async function _mqPlay(itemId){
-  const pid=_musicPlayerId(); if(!pid||!itemId) return;
+  const pid=_musicPlayerId(); if((!pid&&!_mqSpeaker())||!itemId) return;
   // Instant feedback: highlight the tapped row now, don't wait for the re-fetch.
   const idx=_mqItems.findIndex(it=>(it.queue_item_id||it.item_id)===itemId);
   if(idx>=0){ _mqCur=idx; _paintMusicQueue(); }
-  try{ await fetch(proosCoreBase()+'/music/queue/'+encodeURIComponent(pid)+'/play',
-    {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({item:itemId})}); }catch(e){}
+  try{ await _mqAct('play',{item:itemId}); }catch(e){}
   setTimeout(()=>{ _renderMusicQueue(); if(typeof renderMusicNowPlaying==='function') renderMusicNowPlaying(); }, 400);
 }
 
@@ -19578,6 +19594,28 @@ async function saveService(){
      Same file / same URL, so the installed PWA just needs a refresh.
      Safe to remove: delete everything between these comment markers.
 ==================================================================== -->
+<style id="proos-centred-popups">
+#widget-picker,#music-act-sheet,#scene-edit,#proos-sheet,#player-apps-sheet,#player-group-sheet,#assist-overlay{
+  justify-content:center!important;align-items:center!important}
+.appc-ov,#all-lights-overlay,#light-overlay,#climate-all-overlay,#climate-overlay,#device-chooser,.pa-dbmsg{
+  align-items:center!important;justify-content:center!important;padding:0!important}
+#light-overlay,#climate-all-overlay,#climate-overlay,#all-lights-overlay,#assist-overlay,.appc-ov,#widget-picker,#proos-sheet{z-index:9400!important}
+/* the scrims stop being the part of the column that pushed the sheet down — they cover the whole screen behind the card */
+.widget-picker-scrim,.scene-edit-scrim,.proos-scrim,#music-act-sheet .scrim,#player-apps-sheet>div:first-child,#player-group-sheet>div:first-child{
+  position:absolute!important;inset:0!important;flex:none!important;background:rgba(0,0,0,0.55)!important}
+.widget-picker-sheet,#music-act-sheet .sheet,.scene-edit-sheet,.proos-card,.appc-box,#assist-panel,.all-lights-panel,.light-panel,
+.climate-all-panel,.climate-panel,#device-chooser .dc-card,.pa-dbmsg-card,#player-apps-sheet>div:last-child,#player-group-sheet>div:last-child{
+  position:relative!important;z-index:1;width:min(520px,calc(100vw - 32px))!important;max-width:none!important;
+  max-height:min(82dvh,calc(100dvh - 2*(var(--proos-sat,0px) + 24px)))!important;min-height:0!important;overflow-y:auto;
+  border-radius:20px!important;border:0.5px solid rgba(255,255,255,0.12)!important;
+  padding-bottom:20px!important;margin:0!important;box-shadow:0 24px 60px rgba(0,0,0,0.55)}
+.widget-picker-sheet.wl-wide{width:min(760px,calc(100vw - 32px))!important}
+/* a card isn't dragged from an edge: the grab handles go */
+#music-act-sheet .grip,.widget-picker-handle,.scene-edit-handle,.proos-handle{display:none!important}
+/* the card arrives where it stays (no slide up from the bottom edge it no longer touches) */
+#assist-panel{transform:scale(0.97)!important;opacity:0;transition:transform var(--m-move) var(--e-sheet),opacity var(--m-move)!important}
+#assist-overlay.open #assist-panel{transform:none!important;opacity:1}
+</style>
 <style id="proos-refresh">
 /* THE OLD TILE GLASS, ACROSS THE BOARD (register 623, 26 Sep 2026). Dave: "all
    tiles are to change to the old tile colour and transparency.. accross the
@@ -20912,6 +20950,27 @@ body:has(#widget-picker.open) #widget-add-pill{display:none!important}   /* regi
 </script>
 <!-- ===================== end ProOS Dashboard Refresh ===================== -->
 
+<!-- ══════════════ EVERY POPUP IS A CENTRED CARD (register 788) ══════════════
+     Dave, 12 Oct 2026 11:38: "Can you make all the popups centre screen so it cant interfear with the navbars etc" —
+     11:41: "All for continuity" (the dashboard and Pro). SEEN on his Mac (787): the music hold sheet slid up from the
+     bottom UNDER the bottom bar (Add to queue half hidden, Cancel gone) — it sat inside the Music page, so its own
+     z-index only counted inside the page and the bar (z 60, outside the page) drew over it; and a tap meant for it
+     landed on the bar. Every bottom sheet shared that edge with the bar. Now: one card, centred on every screen —
+     phone, iPad, Mac — the same width rule everywhere (the phone just gets the narrower end), a darkened page behind
+     it, above the bar and the now-playing strip, its own scroll when long. The overlays are moved to the page's top
+     level (once at start, and whenever a page opens) so no page can hold them under the bar again. -->
+
+<script>
+/* register 788: the overlays live at the page's top level, never inside a page (where the bar drew over them) */
+function _proosHoistPopups(){
+  ['music-act-sheet','widget-picker','scene-edit','player-apps-sheet','player-group-sheet','light-overlay','all-lights-overlay',
+   'climate-overlay','climate-all-overlay','assist-overlay','device-chooser','proos-sheet','music-queue-overlay'].forEach(function(id){
+    var el=document.getElementById(id);
+    if(el && el.parentElement!==document.body){ try{ document.body.appendChild(el); }catch(e){} }
+  });
+}
+try{ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',_proosHoistPopups); else _proosHoistPopups(); }catch(e){}
+</script>
 </body>
 
 </html>
