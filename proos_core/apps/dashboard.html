@@ -4538,7 +4538,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101202';
+const PROOS_BUILD='2026101203';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -14661,7 +14661,7 @@ function _spmCard(it){
   const i=_spmKeep(it);
   const art=it.art?`<img src="${_mEsc(it.art)}" loading="lazy" onerror="this.remove()"/>`:'';
   const play=(it.play!==false)?`<button class="mus-play" onclick="event.stopPropagation();spmPlay(${i})"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>`:'';
-  return `<div class="mus-card${it.type==='artist'?' artist':''}" onclick="spmTap(${i})">
+  return `<div class="mus-card${it.type==='artist'?' artist':''}" onclick="spmTap(${i})" ${_spmHoldAttrs(i)}>
     <div class="mus-art"><span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center">${_musicNoteSvg}</span>${art}${play}</div>
     <div class="mus-ct">${_mEsc(it.title||'')}</div>${it.artist?`<div class="mus-cs">${_mEsc(it.artist)}</div>`:''}
   </div>`;
@@ -14669,7 +14669,7 @@ function _spmCard(it){
 function _spmRow(it){
   const i=_spmKeep(it);
   const art=it.art?`<img src="${_mEsc(it.art)}" loading="lazy" onerror="this.remove()"/>`:_musicNoteSvg;
-  return `<div class="mus-trow" onclick="spmTap(${i})"><div class="tr-art">${art}</div>
+  return `<div class="mus-trow" onclick="spmTap(${i})" ${_spmHoldAttrs(i)}><div class="tr-art">${art}</div>
     <div class="tr-m"><div class="tr-t">${_mEsc(it.title||'')}</div>${it.artist?`<div class="tr-s">${_mEsc(it.artist)}</div>`:''}</div></div>`;
 }
 // One list as the pages already lay one out: things that open are tiles, single pieces are rows.
@@ -14728,6 +14728,7 @@ function spmBack(){
   if(top) _spmOpen({id:top.id, title:top.title}, false); else { _spmCrumb(); _spmHome(); }
 }
 function spmTap(i){
+  if(_spmHeld){ _spmHeld=false; return; }          // the hold opened the sheet — this tap is its release
   const it=_spm.items[i]; if(!it) return;
   if(it.open) _spmOpen(it, true); else spmPlay(i);
 }
@@ -14787,8 +14788,30 @@ async function _spmWaitConnect(entity, sid, name, t0){
 }
 // Play on the speaker. The answer is the SPEAKER's own state (stage 1): playing → the strip shows
 // the track the speaker reports; not playing or refused → said, with the speaker's/service's words.
-async function spmPlay(i){
+// HOLD A TILE (register 785; Dave 10:57 "go" on 781): Play now / Play next / Add to queue — into the SPEAKER's own
+// queue. Whether a thing can be queued is the speaker's say (a station can't): Core answers, the page says it.
+let _spmHoldTimer=null, _spmHeld=false;
+function _spmHoldAttrs(i){ return `onpointerdown="spmHoldStart(${i})" onpointerup="spmHoldEnd()" onpointerleave="spmHoldEnd()" onpointercancel="spmHoldEnd()"`; }
+function spmHoldStart(i){
+  _spmHeld=false; clearTimeout(_spmHoldTimer);
+  _spmHoldTimer=setTimeout(()=>{ _spmHeld=true; try{ _proosHaptic('lift'); }catch(e){} spmAct(i); }, 480);
+}
+function spmHoldEnd(){ clearTimeout(_spmHoldTimer); }
+function spmAct(i){
+  const it=_spm.items[i]; if(!it) return;
+  const sh=document.getElementById('music-act-sheet'); if(!sh) return;
+  const t=document.getElementById('music-act-title'); if(t) t.textContent=it.title||'';
+  const sub=document.getElementById('music-act-sub'); if(sub) sub.textContent='to '+playerRoomName(_spm.entity);
+  sh.style.display='flex';
+  const ex=_musicActExtra(); if(!ex) return;
+  ex.innerHTML=`<button class="mus-act-btn" onclick="closeMusicAct();spmPlay(${i})">Play now</button>`
+    +`<button class="mus-act-btn" onclick="closeMusicAct();spmPlay(${i},'next')">Play next</button>`
+    +`<button class="mus-act-btn" onclick="closeMusicAct();spmPlay(${i},'add')">Add to queue</button>`
+    +`<button class="mus-act-btn" onclick="closeMusicAct()">Cancel</button>`;
+}
+async function spmPlay(i, mode){
   const it=_spm.items[i], entity=_spm.entity; if(!it||!entity) return;
+  if(mode==='next'||mode==='add') return _spmQueue(it, entity, mode);
   if(_musicBusy[entity]){ _musicPendingUi(true,'Starting '+(it.title||'')+'…'); return; }
   _musicBusy[entity]={t0:Date.now()};
   _musicPendingUi(true,'Starting '+(it.title||'')+'…');
@@ -14803,6 +14826,21 @@ async function spmPlay(i){
   if(msg){ showToast('Couldn’t play on '+playerRoomName(entity)+' — '+msg); _musicReport(entity,'speaker','play',msg); return; }
   if(!(j&&j.ok)){ showToast(playerRoomName(entity)+' didn’t start playing '+(it.title||'')+(j&&j.state?' ('+j.state.toLowerCase()+')':'')); return; }
   renderMusicNowPlaying();
+}
+async function _spmQueue(it, entity, mode){
+  let j=null, msg='';
+  try{
+    const r=await fetch(proosCoreBase()+'/speakers/music/play',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({entity_id:entity, service_id:_spm.sid, account:_spm.acct, item:it.id, mode:mode})});
+    j=await r.json().catch(()=>null);
+    if(!r.ok) msg=(j&&j.error)||('error '+r.status);
+  }catch(e){ msg=String(e&&e.message||e); }
+  const room=playerRoomName(entity);
+  if(msg){ showToast('Couldn’t queue on '+room+' — '+msg); return; }
+  if(!(j&&j.ok)){ showToast(room+' didn’t take '+(it.title||'it')+' into its queue'); return; }
+  const n=j.queued>1?' ('+j.queued+' tracks)':'';
+  showToast((mode==='next'?'Playing next on ':'Added to the queue on ')+room+n
+    +(j.on_queue?'':' — it waits in the queue while the station plays'));
 }
 // Native engine: browse the selected Sonos/HEOS speaker's own saved favourites.
 // Used only for speakers with no Music Assistant twin (native-only sites). Sonos
