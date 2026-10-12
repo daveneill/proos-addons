@@ -4538,7 +4538,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101205';
+const PROOS_BUILD='2026101206';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -15686,8 +15686,17 @@ function renderUpNext(){
   el.innerHTML='<span class="un-k">Up Next</span><span class="un-t" onclick="openMusicQueue()" style="cursor:pointer">'+_mEsc(_nm)+(artist?' — '+_mEsc(artist):'')+'<span style="color:rgba(255,255,255,0.50)">'+_mEsc(more)+'</span></span><button class="un-x" onclick="openMusicQueue()">Queue</button><button class="un-x" onclick="musicClearQueue()">Clear</button>';
   el.style.display='flex';
 }
-function musicClearQueue(){
+async function musicClearQueue(){
   if(!_musicSpeaker) return;
+  // REGISTER 792: a Sonos/HEOS room's queue is cleared by Core, which first stops its own fill of a playlist
+  // still being added (that fill is why Clear had to be pressed 4–5 times); said from the speaker's own count.
+  if(_mqSpeaker()){
+    let j=null; try{ const r=await _mqAct('clear',{}); j=await r.json().catch(()=>null); }catch(e){}
+    showToast(j&&j.ok?'Queue cleared':('Couldn’t clear the queue'+(j&&j.left!=null?' — '+j.left+' left':'')));
+    _upNext.cid=null; setTimeout(renderMusicNowPlaying,600);
+    const ov=document.getElementById('music-queue-overlay'); if(ov&&ov.style.display==='flex') _renderMusicQueue();
+    return;
+  }
   svc('media_player','clear_playlist',{entity_id:_musicSpeaker});
   showToast('Queue cleared');
   _upNext.cid=null;
