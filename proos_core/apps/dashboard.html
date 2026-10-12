@@ -4293,6 +4293,18 @@ async function dashLogin(){
   const errEl=document.getElementById('setup-error');
   if(!origin){ errEl.textContent='Open ProOS from your home\u2019s own address to sign in.'; errEl.style.display='block'; return; }
   errEl.style.display='none'; _setupBusy(true);
+  // REGISTER 810 (Dave 13 Oct 07:23: "I logged in as Homeowner and developer and I get the dashboard each time"):
+  // through ProOS's own front door there is ONE sign-in. Core is asked first, with the rule Pro already uses
+  // (installer, tech and owner get Pro; a homeowner is refused there) — the same rule the app applies to pick its face.
+  if(typeof window!=='undefined' && window.PROOS_FRONT_DOOR){
+    try{
+      const r0=await fetch(proosCoreBase()+'/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:user,password:pass})});
+      let d0={}; try{ d0=await r0.json(); }catch(e){}
+      if(r0.ok&&d0.token){ localStorage.setItem('proos_pro_token',d0.token); location.replace('/pro'); return; }
+      if(r0.status===401){ _setupBusy(false); errEl.style.display='block'; errEl.textContent=d0.error||'Wrong username or password.'; return; }
+      // 403 = a homeowner (the Dashboard is theirs); anything else — the platform's own sign-in below says what is wrong.
+    }catch(e){}
+  }
   try{
     const r1=await fetch(origin+'/auth/login_flow',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({client_id:origin,handler:['homeassistant',null],redirect_uri:origin+'/'})});
     if(!r1.ok) throw new Error('Sign-in unavailable ('+r1.status+')');
@@ -4311,6 +4323,8 @@ async function dashLogin(){
     throw new Error('Sign-in failed');
   }catch(e){ _setupBusy(false); errEl.style.display='block'; errEl.textContent=(e&&e.message)||'Could not sign in.'; }
 }
+// REGISTER 810: an installer already signed in on this device, opening the front door again, goes straight to Pro.
+(function(){ try{ if(typeof window!=='undefined' && window.PROOS_FRONT_DOOR && !localStorage.getItem('ha_token') && localStorage.getItem('proos_pro_token')) location.replace('/pro'); }catch(e){} })();
 async function _dashExchange(origin,code){
   const body=new URLSearchParams({grant_type:'authorization_code',code,client_id:origin});
   const r=await fetch(origin+'/auth/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body});
@@ -4541,7 +4555,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101301';
+const PROOS_BUILD='2026101302';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
