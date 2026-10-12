@@ -8148,15 +8148,18 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, _spm.connect_begin(_sp, int(b["service_id"])))
                 except Exception as e:                           # noqa: BLE001
                     return self._send(502, {"ok": False, "error": str(e)[:300]})
-            if parts[:3] == ["speakers", "music", "queue"] and len(parts) == 4 and parts[3] in ("remove", "move", "play"):
-                # register 790: change the speaker's own queue — remove, move one item, or play from it
+            if parts[:3] == ["speakers", "music", "queue"] and len(parts) == 4 and parts[3] in ("remove", "move", "play", "clear"):
+                # register 790: change the speaker's own queue — remove, move one item, or play from it;
+                # register 792: clear it (stopping Core's own fill first)
                 b = self._body() or {}
                 _eid = str(b.get("entity_id") or "")
-                if not _eid.startswith("media_player.") or not b.get("item"):
+                if not _eid.startswith("media_player.") or (parts[3] != "clear" and not b.get("item")):
                     return self._send(400, {"error": "entity_id and item required"})
                 try:
                     from proos import speakermusic as _spm0
                     _spm, _sp = _spm0.for_speaker(_client, _speaker_net_info(), _eid)
+                    if parts[3] == "clear":
+                        return self._send(200, _spm.queue_clear(_sp))
                     if parts[3] == "remove":
                         return self._send(200, _spm.queue_remove(_sp, b["item"]))
                     if parts[3] == "move":
