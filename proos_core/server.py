@@ -25,6 +25,7 @@ import re
 import sys
 import time
 import shutil
+import socket
 import threading
 import queue
 import datetime
@@ -3564,7 +3565,9 @@ def factory_reset(clear_proos_data=False, keep_auth=False):
                    # ProOS's own music-service sign-ins (register 778) — the old home's accounts
                    "speaker_links.json",
                    # the address each speaker last answered at with its own id (register 799) — the old home's speakers
-                   "speaker_addresses.json"):
+                   "speaker_addresses.json",
+                   # the box's last platform/OS update and its checks (register 813) — the old home's history
+                   "platform_update.json"):
         _p = os.path.join(_pdata, _fname)
         try:
             if os.path.exists(_p):
@@ -3803,6 +3806,58 @@ def _reconnect_once():
     return _rc.check(_client.config_entries(), _data, _client.reload_integration, _log)
 
 
+def _supervisor_req(method, path, body):
+    """A Supervisor call whose refusal comes back as the Supervisor's own words (register 813)."""
+    from proos import sysadmin as _sa
+    import urllib.error as _ue
+    try:
+        return _sa._req(method, path, body, timeout=30)
+    except _ue.HTTPError as e:
+        try:
+            msg = json.loads(e.read().decode()).get("message") or str(e)
+        except Exception:                                        # noqa: BLE001
+            msg = str(e)
+        raise RuntimeError(msg)
+
+
+def _update_checks():
+    """The box's own readings after an update (register 813) — or None while the platform is still starting."""
+    from proos import sysadmin as _sa, frontdoor as _fd
+    try:
+        entries = _client.config_entries() if _client is not None else None
+    except Exception:                                            # noqa: BLE001
+        entries = None
+    if not entries:
+        return None
+    out = [("platform", True, "The platform answers and lists its %d integrations." % len(entries))]
+    addr = _fd.platform_address(_sa._info)
+    door_ok = False
+    if addr:
+        try:
+            socket.create_connection(addr, 5).close()
+            door_ok = True
+        except OSError:
+            pass
+    out.append(("front_door", door_ok, "ProOS's front door reaches the platform inside the box." if door_ok
+                else "ProOS's front door can't reach the platform inside the box."))
+    stuck = [e.get("title") or e.get("domain") for e in entries
+             if e.get("state") in ("setup_error", "setup_retry") and not e.get("disabled_by")]
+    out.append(("integrations", not stuck, "Every integration loaded." if not stuck
+                else "Not loaded yet: %s (Core keeps reloading a stuck one once its device answers)." % ", ".join(stuck[:8])))
+    return out
+
+
+def _platform_update_once():
+    from proos import sysadmin as _sa, platformupdates as _pu
+
+    def _log(ev):
+        if _journal_mod is not None:
+            _journal_mod.emit("site", "platform_update", dict(ev, action="finished"))
+        print("  [updates] %s" % ev.get("words"), flush=True)
+
+    return _pu.check(_sa._info, _update_checks, _log)
+
+
 def _reconnect_loop():
     time.sleep(90)
     while True:
@@ -3810,6 +3865,10 @@ def _reconnect_loop():
             _reconnect_once()
         except Exception as e:                                   # noqa: BLE001
             print("  [reconnect] look failed: %s" % e, flush=True)
+        try:
+            _platform_update_once()
+        except Exception as e:                                   # noqa: BLE001
+            print("  [updates] check failed: %s" % e, flush=True)
         time.sleep(_RECONNECT_LOOK_S)
 
 
@@ -5083,6 +5142,13 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(403, {"error": "tech access required"})
                 from proos import sysadmin as _sa
                 return self._send(200, _sa.health())
+            if parts == ["sysadmin", "updates"]:
+                # REGISTER 813: what the box runs, what this Core approves, and what can be done.
+                u = getattr(self, "_user", None)
+                if not (users and u and (users.is_tech(u.get("id")) or u.get("is_owner"))):
+                    return self._send(403, {"error": "tech access required"})
+                from proos import sysadmin as _sa, platformupdates as _pu
+                return self._send(200, _pu.status(_sa._info))
             if parts and parts[0] == "unifi" and (len(parts) < 2 or parts[1] not in ("net", "poe")):
                 if getattr(self, "_user", None) is None:
                     return self._send(403, {"error": "authentication required"})
@@ -7064,6 +7130,14 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, _sa.addon_action(parts[2], parts[3]))
                 if len(parts) == 3 and parts[1] == "core":
                     return self._send(200, _sa.core_action(parts[2]))
+                if parts == ["sysadmin", "updates", "apply"]:
+                    # REGISTER 813: one part of the box to ITS APPROVED version, only when a person presses Update.
+                    from proos import platformupdates as _pu
+                    res = _pu.apply(str((self._body() or {}).get("kind") or ""), _sa._info, _supervisor_req)
+                    if res.get("ok") and _journal_mod is not None:
+                        _journal_mod.emit("site", "platform_update", {"action": "started", "by": u.get("name") or u.get("id"),
+                                                                       "words": res.get("words")})
+                    return self._send(200 if res.get("ok") else 409, res)
                 return self._send(404, {"error": "unknown sysadmin route"})
             if parts and parts[0] == "unifi":
                 return self._unifi(parts, "POST", self._body())
