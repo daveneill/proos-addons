@@ -1,0 +1,6 @@
+{
+  "platform": "2026.9.4",
+  "os": "18.3",
+  "approved_on": "2026-10-13",
+  "why": "The versions Dave's own box runs, where ProOS was built and seen working (register 813). A new version is approved by testing it on a staging box and shipping this file in a Core update."
+}
