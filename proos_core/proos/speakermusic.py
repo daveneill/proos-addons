@@ -569,10 +569,20 @@ def add_to_queue(sp, uri, meta, position=0, as_next=0):
     library's add_uri_to_queue(uri, x) takes x as the queue POSITION — every earlier play sent the
     speaker no title, so the dashboard showed nothing. The speaker's own AddURIToQueue is called with
     the metadata in its own field; the speaker then fills in artist, album and artwork itself."""
+    return add_to_queue_at(sp, uri, meta, position, as_next)[0]
+
+
+def add_to_queue_at(sp, uri, meta, position=0, as_next=0):
+    """(tracks added, the queue number the first one landed at) — both the speaker's own answer."""
     r = sp.avTransport.AddURIToQueue([
         ("InstanceID", 0), ("EnqueuedURI", uri), ("EnqueuedURIMetaData", meta),
         ("DesiredFirstTrackNumberEnqueued", int(position or 0)), ("EnqueueAsNext", 1 if as_next else 0)])
-    return int(r.get("NumTracksAdded") or 0)
+    try:
+        first_no = int(r.get("FirstTrackNumberEnqueued") or 0)
+    except (TypeError, ValueError):
+        first_no = 0
+    return int(r.get("NumTracksAdded") or 0), first_no
+
 
 
 def enqueue(sp, br, item):
@@ -648,7 +658,19 @@ def _enqueue(sp, s, tracks, prep, mode, title):
             pos = 0
     with s["lock"]:
         first = prep(tracks[0])
-    added = add_to_queue(sp, first[0], first[1], pos, mode == "next" and pos > 0)
+    added, first_no = add_to_queue_at(sp, first[0], first[1], pos, mode == "next" and pos > 0)
+    # DAVE'S RULING B (12 Oct 11:41): "Play next" while a STATION plays (it never ends, so "next" never comes)
+    # stops the station and plays it now from the queue, then carries on through the queue.
+    started, state = False, ""
+    if mode == "next" and not on_queue and added and first_no:
+        sp.play_from_queue(first_no - 1)
+        started = True
+        t0 = time.time()
+        while time.time() - t0 < 10:
+            state = (sp.get_current_transport_info() or {}).get("current_transport_state") or ""
+            if state == "PLAYING":
+                break
+            time.sleep(0.25)
 
     def rest():
         for k, t in enumerate(tracks[1:], start=1):
@@ -660,8 +682,11 @@ def _enqueue(sp, s, tracks, prep, mode, title):
                 pass
     if len(tracks) > 1:
         threading.Thread(target=rest, daemon=True).start()
-    return {"ok": added > 0, "mode": mode, "title": title, "queued": len(tracks) if added else 0,
-            "on_queue": on_queue, "position": pos or None}
+    out = {"ok": added > 0, "mode": mode, "title": title, "queued": len(tracks) if added else 0,
+           "on_queue": on_queue, "position": pos or None, "started": started}
+    if started:
+        out.update(ok=state == "PLAYING", state=state)
+    return out
 
 
 # REGISTER 782 (seen on the box, Dave 10:38): a Pandora station from "My Stations" answered "UPnP Error 800" —
@@ -892,3 +917,65 @@ def proof(client, network_info, entity_id, service="Spotify", account=None, term
         return {"ok": False, "lines": lines}
     out("DONE")
     return {"ok": True, "lines": lines}
+
+
+# ════════════════════════════════════════════════════════════════════════════════════════════════
+# THE SPEAKER'S OWN QUEUE — see it, play from it, remove, move (register 790; queue build 2, Dave 12:28 "Go").
+# The platform's sonos.get_queue lists titles but no artwork, and the platform has no move for Sonos; the speaker's
+# own interface (SoCo, which Core already speaks to it with) has both — so the queue is read and changed there.
+# Each item's id is its place in the queue ("pos:<n>", counted from 0) as read; the page reads the queue again
+# after every change, so an id is never used against a queue that has moved under it.
+# ════════════════════════════════════════════════════════════════════════════════════════════════
+QUEUE_READ_MAX = 500    # plumbing: the most queue items read for the page at once
+
+
+def _pos(item):
+    s = str(item or "")
+    if not s.startswith("pos:"):
+        raise SpeakerMusicError("that isn't an item in this queue")
+    return int(s[4:])
+
+
+def queue(sp):
+    try:
+        on_queue = str((sp.get_current_media_info() or {}).get("uri") or "").startswith("x-rincon-queue:")
+    except Exception:                                            # noqa: BLE001
+        on_queue = False
+    cur = None
+    if on_queue:
+        try:
+            cur = int((sp.get_current_track_info() or {}).get("playlist_position") or 0) - 1
+        except (TypeError, ValueError):
+            cur = None
+    ip = getattr(sp, "ip_address", "")
+    out = []
+    for n, it in enumerate(list(sp.get_queue(max_items=QUEUE_READ_MAX) or [])):
+        art = getattr(it, "album_art_uri", "") or ""
+        if art.startswith("/") and ip:
+            art = "http://%s:1400%s" % (ip, art)
+        out.append({"queue_item_id": "pos:%d" % n, "name": getattr(it, "title", "") or "",
+                    "artist": getattr(it, "creator", "") or "", "image": art or None})
+    return {"items": out, "current_index": cur if (cur is not None and cur >= 0) else None, "on_queue": on_queue,
+            "can_move": True, "can_remove": True}
+
+
+def queue_remove(sp, item):
+    sp.remove_from_queue(_pos(item))
+    return {"ok": True}
+
+
+def queue_move(sp, item, shift):
+    """Move one item by `shift` places — the speaker's own ReorderTracksInQueue (1-based; InsertBefore is a place
+    in the queue as it stands before the move)."""
+    i = _pos(item)
+    j = max(0, i + int(shift or 0))
+    if j == i:
+        return {"ok": True}
+    sp.avTransport.ReorderTracksInQueue([("InstanceID", 0), ("StartingIndex", i + 1), ("NumberOfTracks", 1),
+                                         ("InsertBefore", (j + 2) if j > i else (j + 1)), ("UpdateID", 0)])
+    return {"ok": True}
+
+
+def queue_play(sp, item):
+    sp.play_from_queue(_pos(item))
+    return {"ok": True}

@@ -352,8 +352,13 @@ def play(sp, service_id, item_id, account=None, time_zone=None, wait_s=PLAY_WATC
         if kind == "station":
             raise SpeakerMusicError("a station can't go in the queue — play it instead")
         before_n = queue_length(sp)
+        # DAVE'S RULING B (12 Oct 11:41): "next" while a STATION plays (it never ends) plays it now — the platform's
+        # own enqueue "play" (add to the queue and play it); the player says what it's playing in media_type.
+        st = c._req("GET", "/api/states/%s" % sp.entity_id) or {}
+        on_station = (st.get("attributes") or {}).get("media_type") == "station"
+        enq = "play" if (mode == "next" and on_station) else mode
         c.call_service("media_player", "play_media", sp.entity_id,
-                       {"media_content_id": item_id, "media_content_type": "music", "enqueue": mode})
+                       {"media_content_id": item_id, "media_content_type": "music", "enqueue": enq})
         after_n = None
         for _ in range(10):
             after_n = queue_length(sp)
@@ -362,7 +367,7 @@ def play(sp, service_id, item_id, account=None, time_zone=None, wait_s=PLAY_WATC
             time.sleep(0.5)
         grew = before_n is not None and after_n is not None and after_n > before_n
         return {"ok": grew, "mode": mode, "title": item_name(item_id), "queued": (after_n - before_n) if grew else 0,
-                "on_queue": True, "position": None}
+                "on_queue": not on_station, "position": None, "started": enq == "play"}
     path = "/api/states/%s" % sp.entity_id
     before = c._req("GET", path) or {}
     b_attrs = before.get("attributes") or {}
@@ -402,3 +407,54 @@ def assist_service(sp, attrs):
     now = next((s for s in searchable if str(s["service_id"]) == str((attrs or {}).get("media_source_id"))), None)
     s = now or searchable[0]
     return s["service_id"], None, s["service"]
+
+
+# THE PLAYER'S OWN QUEUE (register 790) — all through the platform's own HEOS services: heos.get_queue,
+# heos.remove_from_queue, heos.move_queue_item, and play_media with type "queue". An item's id is the player's own
+# queue id.
+def _queue_raw(sp):
+    r = sp.client._req("POST", "/api/services/heos/get_queue?return_response", {"entity_id": sp.entity_id}) or {}
+    q = ((r.get("service_response") or {}).get(sp.entity_id) or {}).get("queue")
+    return q if isinstance(q, list) else []
+
+
+def queue(sp):
+    st = sp.client._req("GET", "/api/states/%s" % sp.entity_id) or {}
+    cur_qid = (st.get("attributes") or {}).get("media_queue_id")
+    items, cur = [], None
+    for n, it in enumerate(_queue_raw(sp)):
+        if str(it.get("queue_id")) == str(cur_qid):
+            cur = n
+        items.append({"queue_item_id": "q:%s" % it.get("queue_id"), "name": it.get("song") or "",
+                      "artist": it.get("artist") or "", "image": it.get("image_url") or None})
+    return {"items": items, "current_index": cur, "on_queue": (st.get("attributes") or {}).get("media_type") != "station",
+            "can_move": True, "can_remove": True}
+
+
+def _qid(item):
+    s = str(item or "")
+    if not s.startswith("q:"):
+        raise SpeakerMusicError("that isn't an item in this queue")
+    return int(s[2:])
+
+
+def queue_remove(sp, item):
+    sp.client._req("POST", "/api/services/heos/remove_from_queue", {"entity_id": sp.entity_id, "queue_ids": [_qid(item)]})
+    return {"ok": True}
+
+
+def queue_move(sp, item, shift):
+    qid = _qid(item)
+    ids = [int(it.get("queue_id")) for it in _queue_raw(sp)]
+    if qid not in ids:
+        raise SpeakerMusicError("that item has left the queue")
+    dest = max(1, min(len(ids), ids.index(qid) + 1 + int(shift or 0)))
+    sp.client._req("POST", "/api/services/heos/move_queue_item",
+                   {"entity_id": sp.entity_id, "queue_ids": [qid], "destination_position": dest})
+    return {"ok": True}
+
+
+def queue_play(sp, item):
+    sp.client.call_service("media_player", "play_media", sp.entity_id,
+                           {"media_content_id": str(_qid(item)), "media_content_type": "queue"})
+    return {"ok": True}
