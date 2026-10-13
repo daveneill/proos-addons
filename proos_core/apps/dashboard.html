@@ -4564,7 +4564,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101309';
+const PROOS_BUILD='2026101401';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -19393,6 +19393,8 @@ document.addEventListener('click', function(e){
       // Favourite changed on ANOTHER panel: drop the throttle for that room
       // and refetch now — the 30s poll becomes the fallback, not the path
       // (Dave, 2 Aug: add/remove should appear straight away).
+      // REGISTER 856: an instant voice reply that proved wrong — the device's own state, said once.
+      _dashES.addEventListener('voice', function(ev){ try{ var w=String(ev.data||'').trim(); if(w) showToast(w); }catch(e){} });
       _dashES.addEventListener('appfavs', function(ev){
         try{
           var a=String(ev.data||'').trim(); if(!a) return;
