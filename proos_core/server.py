@@ -5162,6 +5162,13 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(403, {"error": "tech access required"})
                 from proos import sysadmin as _sa
                 return self._send(200, _sa.health())
+            if parts == ["sysadmin", "boxname"]:
+                # REGISTER 826: the box's network name now, and its own proos-<id>.
+                u = getattr(self, "_user", None)
+                if not (users and u and (users.is_tech(u.get("id")) or u.get("is_owner"))):
+                    return self._send(403, {"error": "tech access required"})
+                from proos import sysadmin as _sa, boxname as _bn
+                return self._send(200, _bn.status(_sa._info))
             if parts == ["sysadmin", "updates"]:
                 # REGISTER 813: what the box runs, what this Core approves, and what can be done.
                 u = getattr(self, "_user", None)
@@ -7152,6 +7159,14 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, _sa.addon_action(parts[2], parts[3]))
                 if len(parts) == 3 and parts[1] == "core":
                     return self._send(200, _sa.core_action(parts[2]))
+                if parts == ["sysadmin", "boxname"]:
+                    # REGISTER 826: rename the box, the platform's way; reported only when the box itself says so.
+                    from proos import boxname as _bn
+                    res = _bn.rename(str((self._body() or {}).get("name") or ""), _sa._info, _supervisor_req)
+                    if res.get("ok") and _journal_mod is not None:
+                        _journal_mod.emit("site", "box_name", {"name": res.get("name"), "was": res.get("was"),
+                                                               "by": u.get("name") or u.get("id")})
+                    return self._send(200 if res.get("ok") else 409, res)
                 if parts == ["sysadmin", "updates", "apply"]:
                     # REGISTER 813: one part of the box to ITS APPROVED version, only when a person presses Update.
                     from proos import platformupdates as _pu
