@@ -4564,7 +4564,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101306';
+const PROOS_BUILD='2026101309';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -14210,6 +14210,16 @@ function initMusicPage(){
     return;
   }
   renderMusicSpeakers(speakers);
+  // REGISTER 839 (Dave 13 Oct 17:48: "if im on a area page and press music it should open on that player for that room").
+  // Opened from a room, Music opens on THAT room's player: the one playing, else paused, else one with its own music
+  // services (a Sonos or HEOS), else the room's first. A room with no music player of its own keeps the house rule below.
+  const room=(typeof curRoom==='number' && curRoom>=0 && CONFIG.rooms) ? CONFIG.rooms[curRoom] : null;
+  const here=room ? speakers.filter(e=>entityAreaMap[e]===room.id) : [];
+  if(here.length){
+    musicSelectSpeaker(here.find(e=>st(e)==='playing')||here.find(e=>st(e)==='paused')
+      ||here.find(e=>typeof _spmCan==='function' && _spmCan(e))||here[0]);
+    return;
+  }
   const keep=_musicSpeaker&&speakers.indexOf(_musicSpeaker)!==-1;
   const def=keep?_musicSpeaker:(speakers.find(e=>st(e)==='playing')||speakers.find(e=>st(e)==='paused')||speakers[0]);
   musicSelectSpeaker(def);
@@ -14725,8 +14735,37 @@ async function _spmHome(){
   secs.filter(x=>x.items&&x.items.length).forEach(x=>{
     h+=`<div class="mus-shelf"><div class="mus-shelf-h"><div class="mus-shelf-t">${_mEsc(x.title||'')}</div></div><div class="mus-scroller">${x.items.map(_spmCard).join('')}</div></div>`;
   });
+  // register 843 (music design stage 7): Apple Music's home offers this person's own library and For You once they sign in.
+  if(_spm.sid===204 && j && j.signed_in===false) h=_spmAppleSignInCard()+h;
   if(d) d.innerHTML=h||_mEmpty('Nothing on this service’s home page');
 }
+// ── A PERSON'S OWN APPLE MUSIC (register 843) ──────────────────────────────────────────────────────────────────
+// Apple's own sign-in runs in the ProOS app (StoreKit): the page fetches the home's developer token from Core, asks the
+// app, and the app answers through window._proosAppleMusic(token, reason). The token goes to Core for THIS person.
+function _spmInApp(){ try{ return !!(window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.proos); }catch(e){ return false; } }
+function _spmAppleSignInCard(){
+  return '<div class="mus-shelf"><div style="margin:0 16px;padding:16px 18px;border-radius:14px;background:rgba(255,255,255,0.06);display:flex;align-items:center;gap:14px;flex-wrap:wrap">'
+    +'<div style="flex:1;min-width:200px"><div style="font-size:15px;font-weight:600;color:#fff">Your Apple Music</div>'
+    +'<div style="font-size:12.5px;color:rgba(255,255,255,0.6);margin-top:3px">'+(_spmInApp()?'Sign in once to see your own library and For You here.':'Sign in from the ProOS app on your iPhone or iPad to see your own library and For You.')+'</div></div>'
+    +(_spmInApp()?'<button class="mus-libchip on" onclick="spmAppleSignIn()">Sign In to Apple Music</button>':'')+'</div></div>';
+}
+async function spmAppleSignIn(){
+  if(!_spmInApp()){ showToast('Sign in to Apple Music from the ProOS app on your iPhone or iPad'); return; }
+  let j=null, msg='';
+  try{ const r=await fetch(proosCoreBase()+'/speakers/apple/developer-token'); j=await r.json().catch(()=>null); if(!r.ok) msg=(j&&j.error)||('error '+r.status); }
+  catch(e){ msg=String(e&&e.message||e); }
+  if(msg||!(j&&j.token)){ showToast('Couldn’t start the Apple Music sign-in — '+(msg||'no token')); return; }
+  try{ window.webkit.messageHandlers.proos.postMessage('applemusic:signin:'+j.token); }catch(e){ showToast('Couldn’t reach the ProOS app'); }
+}
+if(typeof window!=='undefined') window._proosAppleMusic=async function(token, reason){
+  if(!token){ showToast('Apple Music sign-in didn’t finish — '+(reason||'no reason given')); return; }
+  let d=null, msg='';
+  try{ const r=await fetch(proosCoreBase()+'/speakers/apple/me',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_token:token})});
+    d=await r.json().catch(()=>null); if(!r.ok) msg=(d&&d.error)||('error '+r.status); }catch(e){ msg=String(e&&e.message||e); }
+  if(msg||!(d&&d.signed_in)){ showToast('Couldn’t keep your Apple Music sign-in — '+(msg||'Core didn’t take it')); return; }
+  showToast('Signed in to your Apple Music');
+  if(_musicMode==='speaker' && _spm.sid===204) _spmHome();
+};
 function _spmCrumb(){
   const crumb=document.getElementById('music-crumb'); if(!crumb) return;
   const top=_spm.stack[_spm.stack.length-1];
@@ -14847,7 +14886,35 @@ function spmAct(i){
     +`<button class="mus-act-btn" onclick="closeMusicAct();spmPlay(${i},'next')">Play next</button>`
     +`<button class="mus-act-btn" onclick="closeMusicAct();spmPlay(${i},'add')">Add to queue</button>`
     +`<button class="mus-act-btn" onclick="spmPlaylistPick(${i})">Add to Playlist</button>`
+    +`<button class="mus-act-btn" onclick="closeMusicAct();spmAddFavourite(${i})">Add to Favourites</button>`
+    +`<button class="mus-act-btn" onclick="spmShowInfo(${i})">Show Info</button>`
     +`<button class="mus-act-btn" onclick="closeMusicAct()">Cancel</button>`;
+}
+// register 841: Add to Favourites — the speaker's own favourites; said added only from the speaker's own answer.
+async function spmAddFavourite(i){
+  const it=_spm.items[i], entity=_spm.entity; if(!it||!entity) return;
+  let j=null, msg='';
+  try{
+    const r=await fetch(proosCoreBase()+'/speakers/music/favourites/add',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({entity_id:entity, service_id:_spm.sid, account:_spm.acct, item:it.id})});
+    j=await r.json().catch(()=>null);
+    if(!r.ok) msg=(j&&j.error)||('error '+r.status);
+  }catch(e){ msg=String(e&&e.message||e); }
+  if(msg||!(j&&j.ok)){ showToast('Couldn’t add '+(it.title||'it')+' to Favourites — '+(msg||'the speaker didn’t take it')); return; }
+  showToast('Added '+(j.title||it.title||'it')+' to Favourites');
+}
+// register 839: Show Info on a Sonos or HEOS room — what the service itself said about the item (its name, artist and
+// kind), which service and whose account it comes from, and the room it would play in. Nothing added that wasn't given.
+function spmShowInfo(i){
+  const it=_spm.items[i], entity=_spm.entity; if(!it||!entity) return;
+  const ex=_musicActExtra(); if(!ex) return;
+  const s=(typeof _spmService==='function')?_spmService():null;
+  const acct=s&&(s.accounts||[]).find(a=>a.account===_spm.acct);
+  const row=(k,v)=>v?'<div style="display:flex;gap:12px;padding:7px 6px;border-bottom:1px solid rgba(255,255,255,0.06)"><div style="width:84px;flex-shrink:0;color:rgba(255,255,255,0.5);font-size:12.5px">'+k+'</div><div style="color:#fff;font-size:13.5px;min-width:0;overflow-wrap:anywhere">'+_mEsc(v)+'</div></div>':'';
+  const kind=String(it.type||'').replace(/\./g,' ').replace(/([a-z])([A-Z])/g,'$1 $2');
+  ex.innerHTML='<div style="padding:2px 0 12px">'+row('Title',it.title)+row('Artist',it.artist)+row('Kind',kind?kind.charAt(0).toUpperCase()+kind.slice(1):'')
+    +row('Service',s&&s.service)+row('Account',acct&&acct.name)+row('Room',playerRoomName(entity))+'</div>'
+    +'<button class="mus-act-btn" onclick="closeMusicAct()">Close</button>';
 }
 // THE SPEAKER'S OWN PLAYLISTS (register 828, queue build 3). The list and what can be done with it are the speaker's
 // own answer through Core: a Sonos room adds to one of its playlists or a new one; a HEOS room can't add one song
