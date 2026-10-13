@@ -1664,6 +1664,12 @@ def _commit_project(body, overwrite=False):
         res["voice_activities"] = project.voice_activities(_client, saved)
     except Exception as e:
         res["voice_activities"] = {"ok": False, "error": str(e)}
+    # REGISTER 853: and every app the room's devices carry ("open netflix in the bedroom").
+    try:
+        from proos import voiceapps as _vapps
+        res["voice_apps"] = _vapps.voice_apps(_client, saved)
+    except Exception as e:
+        res["voice_apps"] = {"ok": False, "error": str(e)}
     # Reflect the just-committed config in the cached controllers so the
     # dashboard's activity list + verdicts update on its next poll (they
     # build from the committed record). Done ONCE here, not per read.
@@ -9159,6 +9165,28 @@ def main():
         _ha_stream.start()
         _client.stream = _ha_stream
         auth.watch(_ha_stream)        # register 447: a revoked login is heard
+
+        def _voice_event(data):
+            # REGISTER 853: a sentence the home was given ("open netflix in the bedroom") — the platform matched
+            # it and answered at once; Core now does the act, the same launch the app tiles use, off the stream's thread.
+            from proos import voiceapps as _vapps
+            t0 = time.time()
+
+            def _go():
+                res = _vapps.handle(_client, project, data)
+                ms = int((time.time() - t0) * 1000)
+                print("  voice · %s %s in %s → %s (%d ms)" % (data.get("kind"), data.get("app"), data.get("room"),
+                                                                 ("launched " + str(res.get("launched"))) if res.get("ok")
+                                                                 else (res.get("error") or res), ms), flush=True)
+                if _journal_mod is not None:
+                    try:
+                        _journal_mod.emit(str(data.get("area") or "site"), "voice_app",
+                                          {"app": data.get("app"), "device": data.get("device"), "ok": bool(res.get("ok")),
+                                           "error": res.get("error"), "ms": ms})
+                    except Exception:                            # noqa: BLE001
+                        pass
+            threading.Thread(target=_go, daemon=True, name="voice-app").start()
+        _ha_stream.on_voice = _voice_event
         print("  HA event stream: starting (state_changed → live cache)")
     except Exception as _hs_e:                                   # noqa: BLE001
         print(f"  HA event stream failed to start — polling stands: {_hs_e}")
@@ -9315,6 +9343,19 @@ def main():
                     print(f"  voice · activities not written: {_va.get('error')}")
             except Exception as _va_e:
                 print(f"  voice · activities skipped: {_va_e}")
+            try:
+                # REGISTER 853: and every app each room's devices carry, as instant sentences.
+                from proos import voiceapps as _vapps
+                _vp = _vapps.voice_apps(_client, project.load())
+                if _vp.get("ok"):
+                    print(f"  voice · apps: {_vp.get('action')} ({_vp.get('sentences', 0)} sentences"
+                          f"{', ' + ', '.join(_vp.get('apps') or []) if _vp.get('apps') else ''})")
+                    if _vp.get("action") in ("written", "removed") and _journal_mod is not None:
+                        _journal_mod.emit("service", "voice_apps", {"action": _vp.get("action"), "apps": _vp.get("apps") or []})
+                else:
+                    print(f"  voice · apps not written: {_vp.get('error')}")
+            except Exception as _vp_e:
+                print(f"  voice · apps skipped: {_vp_e}")
             try:
                 # A2 Phase 3 (regs 272-273, Dave's ruling): Core converges
                 # www/ to its shipped app copies on every boot \u2014 install

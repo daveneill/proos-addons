@@ -1,5 +1,5 @@
 name: ProOS Core
-version: "1.0.917"
+version: "1.0.918"
 slug: proos_core
 description: >-
   The operational layer above Home Assistant — state-based room control,
@@ -160,6 +160,10 @@ options:
   #                fire scripts, the state never claims an activity. Devices
   #                may be added to rooms without being committed.
   awareness_mode: activities
+  # ASSIST OPEN (register 851, 14 Oct 2026): every signed-in person gets the developer's Assist surface — the same
+  # tools, the same platform mirror, the same consent road — on the dashboard and in Pro alike. For a TEST box, while
+  # the rules between homeowner, installer, tech and developer are being written against what works. Off = the tiers.
+  assist_open: false
 schema:
   home_id: str
   area: str?
@@ -188,3 +192,4 @@ schema:
   intent_convergence: bool?
   awareness_mode: list(activities|monitor)?
   auto_home_weather: bool?
+  assist_open: bool?
