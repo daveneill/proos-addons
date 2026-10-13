@@ -1670,6 +1670,11 @@ def _commit_project(body, overwrite=False):
         res["voice_apps"] = _vapps.voice_apps(_client, saved)
     except Exception as e:
         res["voice_apps"] = {"ok": False, "error": str(e)}
+    # REGISTER 855: and every room speaker's favourites and own playlists ("play bec's top 100 in the office").
+    try:
+        res["voice_favourites"] = _voice_favs_write(saved)
+    except Exception as e:
+        res["voice_favourites"] = {"ok": False, "error": str(e)}
     # Reflect the just-committed config in the cached controllers so the
     # dashboard's activity list + verdicts update on its next poll (they
     # build from the committed record). Done ONCE here, not per read.
@@ -3864,6 +3869,18 @@ def _platform_update_once():
         print("  [updates] %s" % ev.get("words"), flush=True)
 
     return _pu.check(_sa._info, _update_checks, _log)
+
+
+def _voice_favs_write(saved):
+    """REGISTER 855: the favourites' sentences — the platform's browser read through Core's own websocket helper,
+    the speaker's brand from the platform's registry (a Sonos adds its own playlists)."""
+    from proos import voicefavs as _vfavs
+    from proos import speakermusic as _spm0
+    from proos.ha_ws import ws_command as _wsc
+
+    def _ws(msg_type, **fields):
+        return _wsc(_client.base_url, _client._token, msg_type, timeout=12, **fields)
+    return _vfavs.voice_favs(_client, _ws, saved, platform_of=lambda eid: _spm0.platform_of(_client, eid))
 
 
 def _rooms_tidy_once():
@@ -9173,20 +9190,60 @@ def main():
             t0 = time.time()
 
             def _go():
-                res = _vapps.handle(_client, project, data)
+                # REGISTER 855: a favourite or the speaker's own playlist is the platform's own play; an app is appctl's launch.
+                if data.get("kind") == "favourite":
+                    from proos import voicefavs as _vfavs
+                    res = _vfavs.handle(_client, data)
+                    what = data.get("name")
+                elif data.get("kind") == "plan":
+                    # REGISTER 858: a learned sentence — the exact calls that worked, replayed through the assistant's own
+                    # tools by a runner for the home (the platform can't say who spoke; assist_open decides the surface).
+                    from proos import homeplan as _hp
+                    from proos import voicefavs as _vfavs
+                    try:
+                        calls = [tuple(c) for c in json.loads(data.get("steps") or "[]")]
+                    except Exception:                        # noqa: BLE001
+                        calls = []
+                    rnr = _assist.ToolRunner(_client, _ws_call, project, {"id": "learned", "name": "Home"}, ma=_ma,
+                                             awareness=_assist_awareness(), mcp=_mcp_client())
+                    okp, results, needs = _hp.run_calls(rnr, calls, lambda d: _vfavs.handle(_client, d))
+                    res = {"ok": okp, "played": data.get("text")} if okp else {"error": (results[-1]["result"] or {}).get("error") if results else str(needs)}
+                    what = data.get("text")
+                else:
+                    res = _vapps.handle(_client, project, data)
+                    what = data.get("app")
                 ms = int((time.time() - t0) * 1000)
-                print("  voice · %s %s in %s → %s (%d ms)" % (data.get("kind"), data.get("app"), data.get("room"),
-                                                                 ("launched " + str(res.get("launched"))) if res.get("ok")
+                print("  voice · %s %s in %s → %s (%d ms)" % (data.get("kind"), what, data.get("room"),
+                                                                 ("done " + str(res.get("launched") or res.get("played"))) if res.get("ok")
                                                                  else (res.get("error") or res), ms), flush=True)
+                # REGISTER 856: the reply was said at once; the device's own state decides whether it was true.
+                from proos import voicecheck as _vck
+                if res.get("ok") and data.get("kind") == "plan":
+                    okc, secs, words = True, 0, "each call answered"       # the tools themselves read back (their own law)
+                elif res.get("ok"):
+                    if data.get("kind") == "favourite":
+                        okc, secs, words = _vck.check_play(_client, data.get("entity_id"), what)
+                    else:
+                        okc, secs, words = _vck.check_app(_client, res.get("device") or data.get("device"), what)
+                else:
+                    okc, secs, words = False, 0, res.get("error") or "it couldn't be done"
+                print("  voice · %s %s %s (%.1f s)" % (what, "confirmed:" if okc else "NOT confirmed:", words, secs), flush=True)
+                if not okc:
+                    _dash_ping("voice", _vck.correction(data.get("room"), words))
                 if _journal_mod is not None:
                     try:
-                        _journal_mod.emit(str(data.get("area") or "site"), "voice_app",
-                                          {"app": data.get("app"), "device": data.get("device"), "ok": bool(res.get("ok")),
-                                           "error": res.get("error"), "ms": ms})
+                        _journal_mod.emit(str(data.get("area") or "site"), "voice_" + str(data.get("kind") or "act"),
+                                          {"what": what, "device": data.get("device") or data.get("entity_id"), "ok": bool(res.get("ok")),
+                                           "confirmed": okc, "check_s": secs, "words": words, "error": res.get("error"), "ms": ms})
                     except Exception:                            # noqa: BLE001
                         pass
             threading.Thread(target=_go, daemon=True, name="voice-app").start()
         _ha_stream.on_voice = _voice_event
+        try:
+            from proos import assist as _assist_mod
+            _assist_mod.CORRECTION_HOOK = lambda words: _dash_ping("voice", words)   # register 857
+        except Exception:                                        # noqa: BLE001
+            pass
         print("  HA event stream: starting (state_changed → live cache)")
     except Exception as _hs_e:                                   # noqa: BLE001
         print(f"  HA event stream failed to start — polling stands: {_hs_e}")
@@ -9356,6 +9413,18 @@ def main():
                     print(f"  voice · apps not written: {_vp.get('error')}")
             except Exception as _vp_e:
                 print(f"  voice · apps skipped: {_vp_e}")
+            try:
+                # REGISTER 855: and every room speaker's favourites and own playlists, as instant sentences.
+                _vf = _voice_favs_write(project.load())
+                if _vf.get("ok"):
+                    print(f"  voice · favourites: {_vf.get('action')} ({_vf.get('sentences', 0)} sentences, "
+                          f"{_vf.get('favourites', 0)} favourites)")
+                    if _vf.get("action") in ("written", "removed") and _journal_mod is not None:
+                        _journal_mod.emit("service", "voice_favourites", {"action": _vf.get("action"), "favourites": _vf.get("favourites", 0)})
+                else:
+                    print(f"  voice · favourites not written: {_vf.get('error')}")
+            except Exception as _vf_e:
+                print(f"  voice · favourites skipped: {_vf_e}")
             try:
                 # A2 Phase 3 (regs 272-273, Dave's ruling): Core converges
                 # www/ to its shipped app copies on every boot \u2014 install
