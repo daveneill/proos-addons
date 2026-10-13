@@ -391,6 +391,21 @@ def play(sp, service_id, item_id, account=None, time_zone=None, wait_s=PLAY_WATC
             "title": item_name(item_id), "queued": 1}
 
 
+def assist_services(sp, attrs):
+    """[(service id, account, name)]: the one playing now first, then every other that can be searched (register 862)."""
+    first = assist_service(sp, attrs)
+    out = [first] if first else []
+    for s in services(sp)["services"]:
+        if first and s["service_id"] == first[0]:
+            continue
+        try:
+            if search_criteria(sp, s["service_id"]):
+                out.append((s["service_id"], s.get("default"), s.get("service")))
+        except SpeakerMusicError:
+            continue
+    return out
+
+
 def assist_service(sp, attrs):
     """(service id, account, name) Assist searches when nobody named a service: the one the player is
     playing now (its own source id) if it can be searched, else the first offered that can. None if none."""

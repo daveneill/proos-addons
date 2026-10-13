@@ -959,6 +959,28 @@ def assist_service(sp, attrs):
     return svc[0], svc[1], names.get(svc[0]) or "the music service"
 
 
+def assist_services(sp, attrs):
+    """[(service id, account, name)] in the order Assist tries them for a spoken request (register 862, seen on the
+    box: "Beck's top 100" was searched on Triple M alone — the service the speaker was playing — and nothing else was
+    tried): the one playing now first, then every other service that answers, in the speaker's order."""
+    from proos import applemusic as _am
+    accounts, _how = accounts_of(sp)
+    names = service_names(sp)
+    shown = [x["service_id"] for x in services(sp)["services"]]
+    skip = set(x["service_id"] for x in list_services(accounts, names)) - set(shown)
+    if not _am.ready():
+        skip.add(APPLE_MUSIC_SID)
+    first = pick_service(accounts, names, (attrs or {}).get("media_content_id") or "", tuple(skip))
+    out = []
+    if first:
+        out.append((first[0], first[1], names.get(first[0]) or "the music service"))
+    for x in list_services(accounts, names):
+        if x["service_id"] in skip or (first and x["service_id"] == first[0]):
+            continue
+        out.append((x["service_id"], x["default"], names.get(x["service_id"]) or "the music service"))
+    return out
+
+
 # ── For Assist (music design stage 3, register 753) ────────────────────────────────────────
 def network_info():
     """The Supervisor's network report (where the box's own address is read from)."""

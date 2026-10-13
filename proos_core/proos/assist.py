@@ -3766,42 +3766,126 @@ class ToolRunner:
         except Exception:  # noqa: BLE001
             return cands[0]
 
-    def _play_by_speaker(self, area, asked):
-        """Rung 1 of the design's ladder: the room's own speaker, with the home's own account. None when
-        the room has no such speaker or it can't be reached (the next rung then tries)."""
-        eid = self._room_sonos_speaker(area)
-        if not eid:
-            return None
-        t_conn = time.time()
-        try:
-            # The brand's own road (Sonos or HEOS, stage 5) — the service module says which; both
-            # answer the same calls, so nothing here names a brand.
-            from proos import speakermusic as _spm
-            mod, sp = _spm.for_speaker(self.client, _spm.network_info(), eid)
-            try:
-                attrs = (self.client._req("GET", "/api/states/%s" % eid) or {}).get("attributes") or {}
-            except Exception:  # noqa: BLE001
-                attrs = {}
-            svc = mod.assist_service(sp, attrs)
-            if not svc:
-                return None
-            sid, acct, service = svc
-            tz = _spm.home_time_zone(self.client)
-        except Exception as e:  # noqa: BLE001
-            print("  [assist] the room's speaker music isn't reachable (%s) — next rung" % e, flush=True)
-            return None
-        times = {"speaker": round(time.time() - t_conn, 1)}
-        t0 = time.time()
+    # REGISTER 862 (seen on the box, 14 Oct 09:39; Dave 10:01: "it needs to differentiate between a Favourite, song, album,
+    # playlist or radio — if it doesn't then it should ask: I have found a few, what would you like"). Speech heard
+    # "Beck's top 100" for Bec's Top 100: the instant sentence didn't match, the platform's general play took it, and
+    # ProOS searched one service for it. NOW: with the heard name, what fits is GATHERED — the room speaker's own
+    # favourites that are close (letters and digits alike; a general rule, no name anywhere in code), and from the
+    # service's search a song, an album, a playlist or a station whose title carries the name. ONE fit plays. SEVERAL
+    # fits across kinds are asked about, and the answer ("the favourite", "the playlist", "the second one") plays it.
+    FAVOURITE_CLOSE = 0.85       # plumbing: how alike (difflib ratio of the letters and digits) a heard name must be
+    CHOICE_KEPT_S = 90           # plumbing: how long a "which would you like?" waits for its answer
+    _pending_choice = {}         # session key -> {"options": [...], "ts": when asked}
+    KIND_WORDS = {"favourite": ("favourite", "favorite", "fave"), "track": ("song", "track"), "album": ("album",),
+                  "playlist": ("playlist",), "station": ("station", "radio", "stream")}
 
-        def _search(words):
-            return self.music_candidates(mod.search(sp, sid, words, acct, tz).get("results"))
-        self._music_key = (eid, int(sid), acct)          # register 857: a kept search is this speaker's, this service's, this account's
+    def _favourites_like(self, area, asked):
+        """The room speaker's favourites whose names are close to what was heard: [(ratio, play data)], best first."""
+        import difflib
         try:
-            pick, how, words = self.choose_music(asked, _search, times)
-        except Exception as e:  # noqa: BLE001
-            return {"error": "the music service didn't answer (%s)" % str(e)[:120]}
-        if not pick:
-            return {"error": "%s found nothing for %s" % (service, asked)}
+            cfg = self.client._req("GET", "/api/config/automation/config/proos_voice_favourites") or {}
+        except Exception:                                        # noqa: BLE001
+            return []
+        said = (cfg.get("variables") or {}).get("said") or {}
+        want = re.sub(r"[^a-z0-9]", "", str(asked).lower().replace("’", "'"))
+        if len(want) < 4:
+            return []
+        out = []
+        for v in said.values():
+            if not isinstance(v, dict) or v.get("area") != area or not v.get("name"):
+                continue
+            have = re.sub(r"[^a-z0-9]", "", str(v["name"]).lower().replace("’", "'"))
+            r = difflib.SequenceMatcher(None, want, have).ratio()
+            if r >= self.FAVOURITE_CLOSE:
+                out.append((r, dict(v, kind="favourite")))
+        return sorted(out, key=lambda x: -x[0])
+
+    @staticmethod
+    def _kind_of(cat):
+        c = str(cat or "").lower()
+        for k, words in (("track", ("track", "song")), ("album", ("album",)), ("playlist", ("playlist",)),
+                         ("station", ("station", "radio", "stream")), ("artist", ("artist",))):
+            if any(w in c for w in words):
+                return k
+        return c or "item"
+
+    def _name_hits_by_kind(self, cands, words):
+        """The first result carrying the name, per kind (song, album, playlist, station) — the service's own order."""
+        out = {}
+        for c in cands:
+            k = self._kind_of(c.get("kind"))
+            if k in out or k == "artist":
+                continue
+            if self._same_words(c["title"], words) or self._starts_with_words(c["title"], words):
+                out[k] = c
+        return out
+
+    def _ask_which(self, area, options):
+        """Remember the options for this session and compose the question."""
+        key = getattr(self, "session_key", None)
+        if key is not None:
+            ToolRunner._pending_choice[key] = {"options": options, "ts": time.time(), "area": area}
+        said = ", ".join("the %s %s%s" % (o["kind"] if o["kind"] != "track" else "song", o["title"],
+                                           (" on " + o["service"]) if o.get("service") else "") for o in options)
+        return {"ok": True, "asked": True, "say": "I found a few: %s. Which would you like?" % said, "options": options}
+
+    def pending_choice(self):
+        key = getattr(self, "session_key", None)
+        p = ToolRunner._pending_choice.get(key) if key is not None else None
+        if p and time.time() - p["ts"] <= self.CHOICE_KEPT_S:
+            return p
+        if key is not None:
+            ToolRunner._pending_choice.pop(key, None)
+        return None
+
+    def answer_choice(self, text):
+        """The answer to "which would you like?" — by kind word, by number/ordinal, or by name. None if it isn't one."""
+        p = self.pending_choice()
+        if not p:
+            return None
+        t = " " + " ".join(str(text or "").lower().replace("’", "'").split()) + " "
+        opts = p["options"]
+        pick = None
+        for n, o in enumerate(opts, 1):
+            words = self.KIND_WORDS.get(o["kind"], (o["kind"],))
+            if any(" %s " % w in t for w in words):
+                pick = o
+                break
+        if pick is None:
+            ords = {"first": 1, "1st": 1, "one": 1, "1": 1, "second": 2, "2nd": 2, "two": 2, "2": 2, "third": 3, "3rd": 3,
+                    "three": 3, "3": 3, "fourth": 4, "4": 4, "last": len(opts)}
+            for w, n in ords.items():
+                if " %s " % w in t and 1 <= n <= len(opts):
+                    pick = opts[n - 1]
+                    break
+        if pick is None:
+            for o in opts:
+                if self._same_words(o["title"], text.strip()):
+                    pick = o
+                    break
+        if pick is None:
+            return None
+        ToolRunner._pending_choice.pop(getattr(self, "session_key", None), None)
+        return self._play_option(p["area"], pick)
+
+    def _play_option(self, area, o):
+        room = self._room_name(area)
+        if o["kind"] == "favourite":
+            from proos import voicefavs as _vf
+            r = _vf.handle(self.client, o["data"])
+            self._audit("music_play", area=area, entity=o["data"].get("entity_id"), uri=o["data"].get("media_content_id"),
+                        mode="replace", picked=o["title"], kind="favourite", chosen_by="favourite", service="favourites")
+            if not r.get("ok"):
+                return {"error": "the speaker didn't take %s (%s)" % (o["title"], r.get("error") or "no reason given")}
+            self._verify_play_later(o["data"].get("entity_id"), room, o["title"])
+            return {"ok": True, "playing_on": o["data"].get("entity_id"), "picked": o["title"], "kind": "favourite", "chosen_by": "favourite",
+                    "service": "favourites", "proof": {"state": "taken", "checked_after": True},
+                    "say": ("%s, %s." % (room, o["title"])) if room else ("Playing %s." % o["title"])}
+        return self._play_pick(area, o["eid"], o["mod"], o["sp"], o["sid"], o["acct"], o["service"], o["tz"], o["cand"],
+                               o["title"], "chosen", o.get("asked") or o["title"], {})
+
+    def _play_pick(self, area, eid, mod, sp, sid, acct, service, tz, pick, words, how, asked, times):
+        t0 = time.time()
         t = time.time()
         try:
             # REGISTER 857 (build 5): the speaker TAKING it is the answer (queue cleared, the first track in, play
@@ -3825,6 +3909,72 @@ class ToolRunner:
                 "chosen_by": how, "service": service,
                 "proof": {"state": "taken", "seconds": round(time.time() - t0, 1), "checked_after": True},
                 "say": ("%s, %s." % (room, pick["title"])) if room else ("Playing %s." % pick["title"])}
+
+    def _play_by_speaker(self, area, asked):
+        """Rung 1 of the design's ladder: the room's own speaker, with the home's own account. None when
+        the room has no such speaker or it can't be reached (the next rung then tries)."""
+        eid = self._room_sonos_speaker(area)
+        if not eid:
+            return None
+        favs = self._favourites_like(area, asked)
+        t_conn = time.time()
+        try:
+            # The brand's own road (Sonos or HEOS, stage 5) — the service module says which; both
+            # answer the same calls, so nothing here names a brand.
+            from proos import speakermusic as _spm
+            mod, sp = _spm.for_speaker(self.client, _spm.network_info(), eid)
+            try:
+                attrs = (self.client._req("GET", "/api/states/%s" % eid) or {}).get("attributes") or {}
+            except Exception:  # noqa: BLE001
+                attrs = {}
+            svcs = mod.assist_services(sp, attrs)
+            if not svcs:
+                return None
+            tz = _spm.home_time_zone(self.client)
+        except Exception as e:  # noqa: BLE001
+            print("  [assist] the room's speaker music isn't reachable (%s) — next rung" % e, flush=True)
+            return None
+        times = {"speaker": round(time.time() - t_conn, 1)}
+        t0 = time.time()
+        pick, how, words, tried = None, None, asked, []
+        for sid, acct, service in svcs:
+            def _search(words, _sid=sid, _acct=acct):
+                return self.music_candidates(mod.search(sp, _sid, words, _acct, tz).get("results"))
+            self._music_key = (eid, int(sid), acct)      # register 857: a kept search is this speaker's, this service's, this account's
+            try:
+                pick, how, words = self.choose_music(asked, _search, times)
+            except Exception as e:  # noqa: BLE001
+                print("  [assist] %s didn't answer for %r (%s) — next service" % (service, asked, str(e)[:80]), flush=True)
+                tried.append(service)
+                continue
+            tried.append(service)
+            if pick or favs:
+                # register 862: what FITS the name, by kind — the room's close favourites, and the service's song/album/
+                # playlist/station carrying the name. One fits → it plays. Several → ask which.
+                hits = {}
+                if how and how.startswith(("name", "ai-name")) and not how.endswith("top playlist"):
+                    cands, _kept = self._cached_search(_search, words)
+                    hits = self._name_hits_by_kind(cands, words)
+                options = [{"kind": "favourite", "title": f["name"], "data": f} for _r, f in favs]
+                options += [{"kind": k, "title": c["title"], "service": service, "cand": c, "eid": eid, "mod": mod, "sp": sp,
+                             "sid": sid, "acct": acct, "tz": tz, "asked": asked} for k, c in hits.items()]
+                if len(options) > 1:
+                    seen_t, uniq = set(), []
+                    for o in options:
+                        kt = (o["kind"], o["title"].lower())
+                        if kt not in seen_t:
+                            seen_t.add(kt)
+                            uniq.append(o)
+                    if len(uniq) > 1:
+                        return self._ask_which(area, uniq)
+                    options = uniq
+                if options and options[0]["kind"] == "favourite":
+                    return self._play_option(area, options[0])
+            if pick:
+                break                                            # register 862: the first service that has it
+        if not pick:
+            return {"error": "nothing found for %s on %s" % (asked, " or ".join(tried) or "the speaker's services")}
+        return self._play_pick(area, eid, mod, sp, sid, acct, service, tz, pick, words, how, asked, times)
 
     def _verify_play_later(self, eid, room, title):
         """The check after the reply (856): the speaker's own state, a correction to the dashboards if it never played."""
@@ -6388,6 +6538,18 @@ def chat(client, ws_call, project_mod, user: dict, text: str,
         return {"error": "empty message"}
     runner = ToolRunner(client, ws_call, project_mod, user, ma=ma,
                         awareness=awareness, mcp=mcp)
+    runner.session_key = ((user or {}).get("id") or "anon", session or "default")   # register 862: a question's answer
+    # REGISTER 862: "which would you like?" was asked a moment ago — this may be the answer ("the favourite", "the
+    # playlist", "the second one"); nothing else is tried first, so the answer never becomes a new search.
+    _t0 = time.time()
+    try:
+        _chosen = runner.answer_choice(text)
+    except Exception as e:                                       # noqa: BLE001
+        print("  [assist] the answer to the music question failed (%s)" % e, flush=True)
+        _chosen = None
+    if _chosen is not None:
+        _say = _chosen.get("say") or (("I couldn't do that — %s." % str(_chosen.get("error")).rstrip(".")) if _chosen.get("error") else "Done.")
+        return _plan_reply(runner, user, session, text, where, _t0, _say, "choice", 0)
     # ── WHAT THE HOME CAN SAY BEFORE THE ANSWER ARRIVES (register 488) ───────
     # The model reaches the same five verbs the direct path does, by reasoning.
     # When it does, and the act succeeds, ProOS says the SAME WORDS it would
@@ -6593,8 +6755,10 @@ def chat(client, ws_call, project_mod, user: dict, text: str,
             # So it says so plainly instead, and the log carries the reason.
             print("  [assist] direct %s failed: %s" % (_hit["tool"], _err), flush=True)
             _why = str(_err).strip()
-            _human = (_why and _why[0].islower() and "_" not in _why
-                      and "area_id" not in _why and len(_why) < 160)
+            # REGISTER 862: a reason that reads as a sentence is said whatever its first letter ("Triple M found
+            # nothing for …" was hidden behind "just then" because it began with a capital).
+            _human = (_why and "_" not in _why and "area_id" not in _why and len(_why) < 160
+                      and not re.match(r"^[A-Z][A-Za-z]*Error\b|^Traceback|^HTTP \d", _why))
             reply = ("I couldn't do that — %s." % _why.rstrip(".")) if _human \
                 else "I couldn't do that just then."
         else:
