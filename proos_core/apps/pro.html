@@ -2667,7 +2667,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026101302';
+const PROOS_BUILD='2026101303';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -3880,17 +3880,18 @@ function _pushDashReload(){ clearTimeout(_dashReloadT); _dashReloadT=setTimeout(
 async function assignDeviceToArea(deviceId, areaId){
   if(!areaId) return;
   try{ await snd({type:'config/device_registry/update', device_id:deviceId, area_id:areaId});
-       // Pin the device's AV media_player entities with an area override too, so the
-       // no-auto-room sweep treats this as an EXPLICIT placement and won't clear the device
-       // back to Unassigned (a bare device area looks identical to HA's auto-guess).
-       const _mps=(_ents||[]).filter(e=>e.device_id===deviceId && DOM(e)==='media_player');
-       for(const e of _mps){ try{ await snd({type:'config/entity_registry/update', entity_id:e.entity_id, area_id:areaId}); }catch(_){} }
+       // REGISTER 817: the device's room is the room. The entity "pin" that used to follow here existed only for the
+       // no-auto-room sweep, retired on 4 Aug — and platform 2026.10.1 refuses it (an entity with no name of its own
+       // may not carry a room of its own; those pins are what raised Dave's ten repairs).
        toast('Added to room'); await loadSite(); rerenderConfig(); _scheduleActivitySync(); _pushDashReload(); }
   catch(e){ toast("Couldn't assign — try again"); }
 }
 async function assignEntityToArea(entityId, areaId){
   if(!areaId) return;
-  try{ await snd({type:'config/entity_registry/update', entity_id:entityId, area_id:areaId});
+  // REGISTER 817: through Core, which puts the room where the platform wants it (the device, for an entity with no name
+  // of its own — platform 2026.10.1 refuses it on the entity).
+  try{ const r=await _coreFetch(proCoreUrl()+'/project/assign',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({entity_id:entityId, area_id:areaId})}, 15000);
+       if(!r.ok){ const j=await r.json().catch(()=>({})); throw new Error((j&&j.error)||('error '+r.status)); }
        toast('Added to room'); await loadSite(); rerenderConfig(); _scheduleActivitySync(); _pushDashReload(); }
   catch(e){ toast("Couldn't assign — try again"); }
 }
@@ -6096,7 +6097,12 @@ async function saveEntSettings(){
   const sa=document.getElementById('ent-showsas'); let saMsg=null;
   if(sa){ const t=sa.getAttribute('data-target'), v=(sa.value||'').trim();
     if(t===id) msg.device_class=v||null; else saMsg={type:'config/entity_registry/update', entity_id:t, device_class:v||null}; }
-  if(document.getElementById('ent-area')){ const av=gv('ent-area'); msg.area_id=av||null; }   // 714: the entity's own room, or none (its device's)
+  // 714: the entity's own room, or none (its device's). REGISTER 817: sent ONLY when it changed (an unchanged room no
+  // longer rides along with an icon edit), and for an entity that stands for its device (no name of its own) it goes
+  // through Core, which puts the DEVICE in the room — platform 2026.10.1 refuses such an entity a room of its own.
+  let roomViaCore;
+  if(document.getElementById('ent-area')){ const av=gv('ent-area')||null;
+    if(av!==(e.area_id||null)){ if(e.device_id && !(e.name||'').trim() && !(e.original_name||'').trim()) roomViaCore=av; else msg.area_id=av; } }
   if(document.getElementById('ent-prec')){ const pv=gv('ent-prec'); msg.options_domain='sensor'; msg.options={display_precision:(pv===''||pv==null)?null:Number(pv)}; }
   // (No entity-id rename here, ever — see the Entity ID ruling above.)
   document.getElementById('dev-actions').innerHTML='<div class="wiz-hint">Saving…</div>';
@@ -6109,7 +6115,12 @@ async function saveEntSettings(){
       const r=await _coreFetch(proCoreUrl()+'/rename',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({entity_id:id, name})}, 12000);
       if(!r.ok){ const j=await r.json().catch(()=>({})); toast(j&&j.error?j.error:"Couldn't rename"); renderEntityManage(id); return; }
     }
-    await snd(msg); if(saMsg) await snd(saMsg); toast('Saved'); await loadSite();
+    await snd(msg); if(saMsg) await snd(saMsg);
+    if(roomViaCore!==undefined){
+      const rr=await _coreFetch(proCoreUrl()+'/project/assign',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({entity_id:id, area_id:roomViaCore||''})}, 15000);
+      if(!rr.ok){ const j=await rr.json().catch(()=>({})); toast(j&&j.error?j.error:"Couldn't change the room"); renderEntityManage(id); return; }
+    }
+    toast('Saved'); await loadSite();
     _spReg.delete(id); if(saMsg) _spReg.delete(saMsg.entity_id);   // 719: the page shows what the platform now holds
     renderEntityManage(id); rerenderConfig(); _pushDashReload(); }
   catch(err){ toast("Couldn't save"); renderEntityManage(id); }
