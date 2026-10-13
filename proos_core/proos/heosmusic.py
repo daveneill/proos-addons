@@ -484,6 +484,12 @@ def add_to_playlist(sp, *a, **k):
     raise SpeakerMusicError("HEOS can't add one song to a playlist — it can save the whole queue as a new playlist")
 
 
+def add_favourite(sp, *a, **k):
+    """register 841: not offered on HEOS from here — its CLI adds only a playing STATION to its favourites (service
+    options), not a song, album or playlist; said plainly."""
+    raise SpeakerMusicError("HEOS only adds a station that is playing to its favourites — use the HEOS app")
+
+
 def save_queue(sp, title):
     t = (title or "").strip()
     if not t:
