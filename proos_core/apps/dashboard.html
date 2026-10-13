@@ -4564,7 +4564,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101305';
+const PROOS_BUILD='2026101306';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -15018,8 +15018,15 @@ async function _browseFavourites(entity){
     const arts=await Promise.all(own.map(c=>browse('playlist',c.media_content_id).then(r=>{
       const seen=[]; ((r&&r.success&&r.result&&r.result.children)||[]).forEach(t=>{ if(t&&t.thumbnail&&seen.indexOf(t.thumbnail)<0&&seen.length<4) seen.push(t.thumbnail); });
       return seen; })));
-    own.forEach((c,k)=>{ const a=arts[k]||[]; flat.push({title:c.title, thumbnail:c.thumbnail||a[0]||null, _mosaic:(a.length>=4?a:null),
-      media_content_type:'playlist', media_content_id:c.title, source:'Sonos Playlist', _tab:'Playlists'}); });
+    own.forEach((c,k)=>{ const a=arts[k]||[];
+      // REGISTER 835 (Dave 17:13, screenshot: Dave's Tunes twice — one blank): a favourite made of the speaker's own playlist
+      // comes from the platform with the same name and NO picture. That favourite and this playlist are one tile: the
+      // favourite keeps its own play road (favorite_item_id) and takes the playlist's covers. A favourite with a picture of
+      // its own (a service's playlist that happens to share the name) is a different thing and stays separate.
+      const fav=flat.find(x=>x._tab==='Playlists' && !x.thumbnail && !x._mosaic && x.source!=='Sonos Playlist' && x.title===c.title);
+      if(fav){ fav.thumbnail=a[0]||null; fav._mosaic=(a.length>=4?a:null); fav.source='Sonos Playlist'; return; }
+      flat.push({title:c.title, thumbnail:c.thumbnail||a[0]||null, _mosaic:(a.length>=4?a:null),
+        media_content_type:'playlist', media_content_id:c.title, source:'Sonos Playlist', _tab:'Playlists'}); });
     return flat;
   }
   // Favourites are often grouped in non-playable folders — expand one level.
