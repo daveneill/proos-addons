@@ -97,6 +97,9 @@ class HaStream(threading.Thread):
         # the new state, so a woken consumer always reads fresh. A broken
         # hook must never kill the stream — guarded at the call site.
         self.on_change = None
+        # REGISTER 853: the home's own voice events (proos_voice — a sentence the platform matched, fired by the
+        # automation ProOS wrote). Called with the event's data; a broken hook must never kill the stream.
+        self.on_voice = None
         # ── THE REGISTRY EPOCH (19 Aug 2026, register 242) ─────────────────
         # MEASURED ON DAVE'S BOX, not guessed: the Supervisor log showed
         # THREE full websocket connections — connect, upgrade, auth, one
@@ -281,6 +284,7 @@ class HaStream(threading.Thread):
             for _i, _et in ((6, "user_removed"), (7, "user_updated")):
                 _send_text(sock, json.dumps(
                     {"id": _i, "type": "subscribe_events", "event_type": _et}))
+            _send_text(sock, json.dumps({"id": 8, "type": "subscribe_events", "event_type": "proos_voice"}))
 
             pending_events = []
             seeded = False
@@ -331,6 +335,14 @@ class HaStream(threading.Thread):
                         continue
                     if _ev.get("event_type") in ("user_removed", "user_updated"):
                         self._user_gen += 1
+                        continue
+                    if _ev.get("event_type") == "proos_voice":
+                        cb = self.on_voice
+                        if cb is not None:
+                            try:
+                                cb(_ev.get("data") or {})
+                            except Exception as _ve:         # noqa: BLE001
+                                print("  voice · event handler failed: %s" % _ve, flush=True)
                         continue
                     data = _ev.get("data") or {}
                     if seeded:

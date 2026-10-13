@@ -1138,13 +1138,23 @@ def voice_activities(client, project: dict) -> dict:
         room = names.get(rec.get("area_id") or area) or rec.get("name") or area
         rooms.append((room, st.get("activities") or []))
     want = voice_activities_config(rooms)
-    path = "/api/config/automation/config/%s" % VOICE_ACTIVITIES_ID
+    out = voice_write(client, VOICE_ACTIVITIES_ID, want)
+    if out.get("action") == "written":
+        out["activities"] = sorted(t["id"] for t in want["triggers"])
+    return out
+
+
+def voice_write(client, automation_id: str, want) -> dict:
+    """ONE writer for every sentence automation ProOS keeps (activities 733, apps 853 …): differences only; an
+    automation the installer edited (its hash no longer ProOS's) is left alone; nothing to say removes it."""
+    path = "/api/config/automation/config/%s" % automation_id
     try:
         cur = client._req("GET", path)
     except RuntimeError as e:
         if "HTTP 404" not in str(e):
             return {"ok": False, "error": str(e)}
         cur = None
+    n = (lambda w: sum(len(t["command"]) for t in w["triggers"]))
     if isinstance(cur, dict) and cur:
         stored = (cur.get("variables") or {}).get("proos_hash")
         if not stored or stored != _voice_hash(cur):
@@ -1153,14 +1163,11 @@ def voice_activities(client, project: dict) -> dict:
             client._req("DELETE", path)
             return {"ok": True, "action": "removed", "sentences": 0}
         if stored == want["variables"]["proos_hash"]:
-            return {"ok": True, "action": "unchanged",
-                    "sentences": sum(len(t["command"]) for t in want["triggers"])}
+            return {"ok": True, "action": "unchanged", "sentences": n(want)}
     elif want is None:
         return {"ok": True, "action": "none", "sentences": 0}
     client._req("POST", path, want)
-    return {"ok": True, "action": "written",
-            "activities": sorted(t["id"] for t in want["triggers"]),
-            "sentences": sum(len(t["command"]) for t in want["triggers"])}
+    return {"ok": True, "action": "written", "sentences": n(want)}
 
 
 # ── ACTIVITY GENERATION (committed rooms → HA scripts) ───────────────────────

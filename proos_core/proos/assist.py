@@ -2072,6 +2072,39 @@ def _platforms_live(client) -> dict:
         return {}
 
 
+# ── ASSIST OPEN (register 851; Dave 14 Oct 08:25/08:34: "have it all working with no restrictions between Pro and
+# Dashboard and once its working as expected we then write the rules"). ONE add-on option, assist_open, default off. On
+# (the test box), every signed-in person is given the developer's Assist surface — the same tools, the same mirror, the
+# same consent road — in ONE place: the ToolRunner's view of the person (open_user). Nothing else in Core changes: Pro's
+# pages, routes and the tech gate keep their own rules; the audit still names who asked and says "assist-open". The
+# rules between homeowner, installer, tech and developer are written afterwards, on this switch.
+OPEN_OPTION = "assist_open"
+_OPEN = {"at": 0.0, "on": False}
+OPEN_KEPT_S = 30          # plumbing: how long one read of the option is kept
+
+
+def open_mode(now=None, path="/data/options.json"):
+    now = now or time.time()
+    if now - _OPEN["at"] < OPEN_KEPT_S:
+        return _OPEN["on"]
+    on = False
+    try:
+        with open(path, encoding="utf-8") as fh:
+            on = bool((json.load(fh) or {}).get(OPEN_OPTION))
+    except Exception:                                            # noqa: BLE001
+        on = False
+    _OPEN.update(at=now, on=on)
+    return on
+
+
+def open_user(user: dict) -> dict:
+    """The person as Assist sees them: themselves, or — with assist_open on — themselves holding the developer's surface."""
+    u = dict(user or {})
+    if u.get("id") and open_mode():
+        u.update(is_owner=True, tech=True, assist_open=True)
+    return u
+
+
 def _tier(user: dict) -> str:
     """Permission tier from the platform user on the request (§4 rails) — the
     product's four words from the ONE answer, users.tier_of (register 721)."""
@@ -2180,7 +2213,7 @@ class ToolRunner:
         # The whole point of ProAssist is that it answers from these VERDICTS —
         # a "Pro in the box" who has actually looked, not one who guesses.
         self.awareness = awareness or {}
-        self.user = user or {}
+        self.user = open_user(user)          # register 851: assist_open gives everyone the developer's surface
         self.actions = []          # audit of every side-effect this turn
         self.trace = []            # EVERY tool call this turn — reads and
                                    # acts alike (Dave, 16 Aug: "how do I
@@ -2191,9 +2224,10 @@ class ToolRunner:
         rec = {"tool": tool, **info}
         self.actions.append(rec)
         # Same log stream the watcher uses, so every side-effect is traceable.
-        print("  [assist] %s %s by %s(%s)" % (
+        print("  [assist] %s %s by %s(%s%s)" % (
             tool, {k: v for k, v in info.items() if k != 'result'},
-            self.user.get("name") or "?", _tier(self.user)), flush=True)
+            self.user.get("name") or "?", _tier(self.user),
+            ", assist-open" if self.user.get("assist_open") else ""), flush=True)
 
     # Not a t_ tool, on purpose: the model is never offered it and cannot name it.
     # Only the direct path calls it, after the platform's own recogniser matched.
@@ -6462,6 +6496,7 @@ def chat(client, ws_call, project_mod, user: dict, text: str,
     # tools are only offered when the engine is linked, so the doctrine
     # only names them then (18 Aug 2026).
     _eng = bool(getattr(runner, "ma", None))
+    user = runner.user                                      # register 851: the prompt is told the same person the tools see
     system = _system_prompt(user, home_name, where, _eng)  # OpenAI + benches
     try:
         if cfg["provider"] == "claude":
@@ -6672,7 +6707,7 @@ def _proof_summary(tool, out):
 def proof_run(client, project_mod, user, ma=None, awareness=None) -> dict:
     """Every READ tool, run live, each answer beside what the installer can
     verify by looking. Installer-gated; read-only BY CONSTRUCTION."""
-    if not _is_pro(user):
+    if not _is_pro(open_user(user)):
         return {"error": "installer access required — the proof run is a Pro instrument"}
     guard = _ReadOnlyClient(client)
     runner = ToolRunner(guard, None, project_mod, user, ma=ma,
