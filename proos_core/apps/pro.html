@@ -2667,7 +2667,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026101303';
+const PROOS_BUILD='2026101304';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -12747,6 +12747,7 @@ async function techViewHealth(view){
     +row('Hostname', v.hostname)
     +(v.board?row('Board', v.board):'')
     +'</div></div>';
+  html+='<div id="tech-boxname" class="cred-card" style="margin-top:12px"><div class="cred-top"><span class="cred-name">Box Name</span></div><div class="es" style="margin-top:6px">Reading…</div></div>';
   html+='<div id="tech-updates" class="cred-card" style="margin-top:12px"><div class="cred-top"><span class="cred-name">Updates</span></div><div class="es" style="margin-top:6px">Reading…</div></div>';
   html+='<div class="cred-card" style="margin-top:12px"><div class="cred-top"><span class="cred-name">Resources</span></div><div style="margin-top:8px">';
   html+='<div style="font-size:12px;color:var(--t2)">Core CPU '+pct(res.core_cpu)+'</div>'+bar(res.core_cpu);
@@ -12754,7 +12755,30 @@ async function techViewHealth(view){
   if(disk.total){ const used=(disk.total-disk.free); const dp=disk.total?Math.round(used/disk.total*100):0; html+='<div style="font-size:12px;color:var(--t2);margin-top:14px">Disk '+dp+'% · '+gb(disk.free)+' free of '+gb(disk.total)+'</div>'+bar(dp); }
   html+='</div></div>';
   setHTML(view,html);
-  techUpdatesLoad();
+  techUpdatesLoad(); techBoxNameLoad();
+}
+// BOX NAME (register 826): the box's network name, renamed the platform's way. Offered: the box's own proos-<id>.
+async function techBoxNameLoad(){
+  const card=document.getElementById('tech-boxname'); if(!card) return;
+  let d=null; try{ const r=await fetch(proCoreUrl()+'/sysadmin/boxname'); d=await r.json(); if(!r.ok) throw new Error((d&&d.error)||('error '+r.status)); }
+  catch(e){ setHTML(card,'<div class="cred-top"><span class="cred-name">Box Name</span></div><div class="es" style="margin-top:6px">Couldn\u2019t read the box name — '+esc((e&&e.message)||'ProOS Core unreachable')+'</div>'); return; }
+  const cur=d.name||'', sug=d.suggested||'';
+  const offer=(sug&&sug!==cur)?sug:cur;
+  setHTML(card,'<div class="cred-top"><span class="cred-name">Box Name</span></div>'
+    +'<div style="font-size:13px;margin-top:6px;color:var(--t2)">On the network as <b style="color:var(--t1)">'+esc(cur||'—')+'</b>'+(sug&&sug!==cur?' · this box\u2019s own name is '+esc(sug):'')+'</div>'
+    +'<div style="display:flex;gap:8px;margin-top:10px"><input id="tb-name" type="text" value="'+esc(offer)+'" autocomplete="off" autocapitalize="off" style="flex:1"/>'
+    +'<button class="btn-ghost" onclick="techBoxNameSave()">Rename</button></div>'
+    +'<div class="es" style="margin-top:6px">Letters, numbers and hyphens. Anything that reaches the box by its name (a bookmark, the file share) will need the new one.</div>');
+}
+async function techBoxNameSave(){
+  const el=document.getElementById('tb-name'); const name=((el&&el.value)||'').trim().toLowerCase(); if(!name) return;
+  if(!await proAsk('Rename the box to '+name+' on the network?')) return;
+  try{
+    const r=await fetch(proCoreUrl()+'/sysadmin/boxname',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
+    const d=await r.json().catch(()=>({}));
+    toast((d&&d.words)||(r.ok?'Renamed':'Couldn\u2019t rename the box'));
+  }catch(e){ toast(_coreFailWords('',e)); }
+  techBoxNameLoad();
 }
 // UPDATES (register 813): the platform and the operating system move only to the version THIS Core approves, only
 // when a person presses Update. Every number is the system manager's own; Core checks the result and says it.
