@@ -428,7 +428,7 @@ def queue(sp):
         items.append({"queue_item_id": "q:%s" % it.get("queue_id"), "name": it.get("song") or "",
                       "artist": it.get("artist") or "", "image": it.get("image_url") or None})
     return {"items": items, "current_index": cur, "on_queue": (st.get("attributes") or {}).get("media_type") != "station",
-            "can_move": True, "can_remove": True}
+            "can_move": True, "can_remove": True, "can_save_queue": True}
 
 
 def _qid(item):
@@ -458,6 +458,46 @@ def queue_play(sp, item):
     sp.client.call_service("media_player", "play_media", sp.entity_id,
                            {"media_content_id": str(_qid(item)), "media_content_type": "queue"})
     return {"ok": True}
+
+
+# PLAYLISTS ON HEOS (register 828). READ in pyheos 1.0.6 (the platform's HEOS library): HEOS's own playlists are source
+# 1025 (const MUSIC_SOURCE_PLAYLISTS, "4.4.13 Get HEOS Playlists"), and the whole queue is saved as a new one with
+# player/save_queue ("4.2.18", name up to 128). HEOS has NO command to add one song to an existing playlist, so a HEOS
+# room offers Save Queue as Playlist and says plainly that adding one song isn't offered. Values are quoted the
+# library's way (message.QUOTE_MAP: & = %).
+PLAYLIST_SID = 1025
+_QUOTE = {"&": "%26", "=": "%3D", "%": "%25"}
+
+
+def _q(v):
+    return "".join(_QUOTE.get(ch, ch) for ch in str(v))
+
+
+def playlists(sp):
+    _f, payload = cli(sp.host, "browse/browse?sid=%d" % PLAYLIST_SID)
+    items = [{"id": str(it.get("cid") or ""), "title": urllib.parse.unquote(str(it.get("name") or ""))}
+             for it in payload or [] if it.get("cid")]
+    return {"playlists": items, "can_add": False, "can_create": False, "can_save_queue": True}
+
+
+def add_to_playlist(sp, *a, **k):
+    raise SpeakerMusicError("HEOS can't add one song to a playlist — it can save the whole queue as a new playlist")
+
+
+def save_queue(sp, title):
+    t = (title or "").strip()
+    if not t:
+        raise SpeakerMusicError("the playlist needs a name")
+    if len(t) > 128:
+        raise SpeakerMusicError("a HEOS playlist name is up to 128 letters")
+    if not _queue_raw(sp):
+        raise SpeakerMusicError("the queue is empty — there's nothing to save")
+    before = [p["title"] for p in playlists(sp)["playlists"]]
+    cli(sp.host, "player/save_queue?pid=%s&name=%s" % (sp.pid, _q(t)))
+    after = [p["title"] for p in playlists(sp)["playlists"]]
+    if t not in after or len(after) < len(before) + (0 if t in before else 1):
+        raise SpeakerMusicError("the player took it, but %s isn't in its playlists" % t)
+    return {"ok": True, "title": t}
 
 
 def queue_clear(sp):

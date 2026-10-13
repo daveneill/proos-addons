@@ -70,18 +70,30 @@ def choose_account(accounts, service_id, name=None, serial=None):
 
 
 _ACCOUNTS = {}          # household id -> (accounts, when read). Memory only — never written to disk.
+ACCOUNTS_FRESH_S = 600  # plumbing: how long the home's accounts are used before the speaker is asked again
+ACCOUNTS_RETRY_S = 60   # plumbing: after a re-read the speaker didn't answer, how soon to ask again (the kept list serves)
 
 
 def household_accounts(household_id, read, now=None):
-    """The home's music accounts as the speaker handed them over — kept for Core's lifetime.
+    """The home's music accounts as the speaker handed them over.
     REGISTER 745 (seen on the box): reads from the speaker came back, then didn't, then did — every other
-    one, six in a row (cause not known). The accounts only change when someone adds a service in the
-    speaker's own app, so they are read ONCE and kept; a read that doesn't arrive is asked once more.
-    Returns (accounts, how) — how says whether they were read now or kept from earlier."""
+    one, six in a row (cause not known). So they are kept, and a read that doesn't arrive never empties them.
+    REGISTER 828 (Dave 13 Oct 15:08: "I also added another service to Sonos and it doesnt show up"): kept for
+    Core's LIFETIME meant a service added in the speaker's own app never showed until Core restarted. Now the
+    speaker is asked again once the kept list is ACCOUNTS_FRESH_S old; if it doesn't answer, the kept list is used
+    and it is asked again ACCOUNTS_RETRY_S later. Returns (accounts, how) — how says read now or kept."""
     now = now or time.time()
     kept = _ACCOUNTS.get(household_id) if household_id else None
-    if kept:
+    if kept and now - kept[1] < ACCOUNTS_FRESH_S:
         return kept[0], "kept from %s" % time.strftime("%H:%M", time.localtime(kept[1]))
+    if kept:
+        try:
+            accounts = read()
+        except Exception:                                        # noqa: BLE001
+            _ACCOUNTS[household_id] = (kept[0], now - ACCOUNTS_FRESH_S + ACCOUNTS_RETRY_S)
+            return kept[0], "kept from earlier (the speaker didn't answer a fresh read)"
+        _ACCOUNTS[household_id] = (accounts, now)
+        return accounts, "read again from the speaker"
     try:
         accounts, how = read(), "read from the speaker via port %d" % EVENT_PORT
     except Exception:                                            # noqa: BLE001
@@ -1057,7 +1069,7 @@ def queue(sp):
         out.append({"queue_item_id": "pos:%d" % n, "name": getattr(it, "title", "") or "",
                     "artist": getattr(it, "creator", "") or "", "image": art or None})
     return {"items": out, "current_index": cur if (cur is not None and cur >= 0) else None, "on_queue": on_queue,
-            "can_move": True, "can_remove": True}
+            "can_move": True, "can_remove": True, "can_save_queue": True}
 
 
 def queue_remove(sp, item):
@@ -1080,6 +1092,91 @@ def queue_move(sp, item, shift):
 def queue_play(sp, item):
     sp.play_from_queue(_pos(item))
     return {"ok": True}
+
+
+# THE SPEAKER'S OWN PLAYLISTS (register 828; Dave 13 Oct 15:08 "go 3"; scoped in 781). A Sonos playlist is the
+# speaker's own (the library's get_sonos_playlists / create_sonos_playlist; the speaker's AddURIToSavedQueue). A
+# streaming service's own playlist (Spotify, Pandora) can't be added to — neither the speaker nor the platform offers
+# it. What is said is the speaker's own count of the playlist, read before and after.
+def playlists(sp):
+    out = [{"id": p.item_id, "title": p.title} for p in (sp.get_sonos_playlists(complete_result=True) or [])]
+    return {"playlists": out, "can_add": True, "can_create": True, "can_save_queue": True}
+
+
+def _playlist_state(sp, playlist_id):
+    """(the speaker's own update number for the playlist, how many tracks it holds)."""
+    r, _ = sp.music_library._music_lib_search(playlist_id, 0, 1)
+    return r.get("UpdateID"), int(r.get("TotalMatches") or 0)
+
+
+def _add_saved(sp, playlist_id, update_id, uri, meta):
+    r = sp.avTransport.AddURIToSavedQueue([
+        ("InstanceID", 0), ("UpdateID", update_id), ("ObjectID", playlist_id), ("EnqueuedURI", uri),
+        ("EnqueuedURIMetaData", meta), ("AddAtIndex", 4294967295)])
+    return r.get("NewUpdateID", update_id)
+
+
+def add_to_playlist(sp, service_id, item_id, playlist_id=None, title=None, account=None, time_zone=None, limit=100):
+    """Add a song, album or playlist from a service to one of the speaker's own playlists (or a new one)."""
+    s = _session(sp, service_id, account, time_zone)
+    br = s["br"]
+    if _apple(service_id):
+        from proos import applemusic as _am
+        tracks = _am.tracks(item_id, _apple_sf(), limit)
+        prep = (lambda c: apple_prepare(br, c))
+        name = next((c.get("title") for c in tracks if c["id"] == item_id), None) or str(item_id)
+    else:
+        with s["lock"]:
+            it = s["items"].get(item_id, item_id)
+            tracks = ([t for t in br.get_metadata(it, count=int(limit)).items if not t.can_browse]
+                      if getattr(it, "can_browse", False) else [it])
+        prep = (lambda t: prepare(br, t))
+        name = getattr(it, "title", "") or ""
+    if not tracks:
+        raise SpeakerMusicError("there's nothing in that to add")
+    with s["lock"]:
+        first = prep(tracks[0])
+    if is_stream(first[0]):
+        raise SpeakerMusicError("a station can't go in a playlist")
+    if not playlist_id:
+        t = (title or "").strip()
+        if not t:
+            raise SpeakerMusicError("a new playlist needs a name")
+        playlist_id = sp.create_sonos_playlist(t).item_id
+    uid, before = _playlist_state(sp, playlist_id)
+    uid = _add_saved(sp, playlist_id, uid, *first)
+    _uid, after = _playlist_state(sp, playlist_id)
+    if after <= before:
+        raise SpeakerMusicError("the speaker didn't add it (the playlist still holds %d)" % after)
+
+    def rest():
+        u = _uid
+        for t in tracks[1:]:
+            try:
+                with s["lock"]:
+                    uri, meta = prep(t)
+                u = _add_saved(sp, playlist_id, u, uri, meta)
+            except Exception:                                    # noqa: BLE001
+                pass
+    if len(tracks) > 1:
+        threading.Thread(target=rest, daemon=True).start()
+    return {"ok": True, "title": name, "playlist_id": playlist_id, "added": after - before, "holds": after,
+            "more": len(tracks) - 1}
+
+
+def save_queue(sp, title):
+    """The whole queue saved as a new playlist — the speaker's own SaveQueue (the library's
+    create_sonos_playlist_from_queue); said from the new playlist's own count, read back."""
+    t = (title or "").strip()
+    if not t:
+        raise SpeakerMusicError("the playlist needs a name")
+    if not list(sp.get_queue(max_items=1) or []):
+        raise SpeakerMusicError("the queue is empty — there's nothing to save")
+    pl = sp.create_sonos_playlist_from_queue(t)
+    _u, holds = _playlist_state(sp, pl.item_id)
+    if not holds:
+        raise SpeakerMusicError("the speaker made %s but it holds nothing" % t)
+    return {"ok": True, "title": t, "playlist_id": pl.item_id, "holds": holds}
 
 
 def queue_clear(sp):
