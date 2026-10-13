@@ -2078,6 +2078,8 @@ def _platforms_live(client) -> dict:
 # same consent road — in ONE place: the ToolRunner's view of the person (open_user). Nothing else in Core changes: Pro's
 # pages, routes and the tech gate keep their own rules; the audit still names who asked and says "assist-open". The
 # rules between homeowner, installer, tech and developer are written afterwards, on this switch.
+# register 857: where a wrong instant reply goes (server sets it to the dashboards' live wire; None = log only)
+CORRECTION_HOOK = None
 OPEN_OPTION = "assist_open"
 _OPEN = {"at": 0.0, "on": False}
 OPEN_KEPT_S = 30          # plumbing: how long one read of the option is kept
@@ -3649,34 +3651,92 @@ class ToolRunner:
         words = m.group(2).strip().strip('"').strip()
         return (m.group(1).lower(), words) if words else None
 
+    # REGISTER 857 (the Assist plan, build 5): a search's answer is kept a while, so the same words asked
+    # again (or asked by the AI road after the name road) cost nothing. Memory only; the service is the truth.
+    MUSIC_SEARCH_KEPT_S = 600     # plumbing: how long one search's results are kept
+    _music_searches = {}          # (search identity, words) -> (candidates, when)
+
+    def _cached_search(self, search, words):
+        key = (getattr(self, "_music_key", None) or id(search), words.lower())
+        hit = ToolRunner._music_searches.get(key)
+        now = time.time()
+        if hit and now - hit[1] < self.MUSIC_SEARCH_KEPT_S:
+            return list(hit[0]), True
+        cands = [c for c in search(words) if c.get("play") is not False]
+        ToolRunner._music_searches[key] = (cands, now)
+        if len(ToolRunner._music_searches) > 500:
+            ToolRunner._music_searches.clear()
+        return cands, False
+
+    def _name_hit(self, cands, words):
+        hit = next((c for c in cands if self._same_words(c["title"], words)), None)
+        # REGISTER 770 (seen on the Marantz, 766): TuneIn answers "triple m" with Triple R, triple j,
+        # then Triple M Radio — no title IS the name, and the first result is the wrong station. The
+        # design's words: "a result CARRYING the name plays". So, after an exact title, the first
+        # result whose title begins with the name's own words, in the service's order.
+        if hit is None:
+            hit = next((c for c in cands if self._starts_with_words(c["title"], words)), None)
+        return hit
+
     def choose_music(self, asked, search, times=None):
         """(candidate, how, words) — search(words) returns the service's own results as candidates.
-        how: "ai-name", "ai-search", "name" (no AI, the words carried a name) or "service"."""
+        how: "ai-name", "ai-search", "ai-name, top playlist", "name" (no AI, the words carried a name) or "service".
+
+        REGISTER 857 (build 5; measured 754: the AI was the largest single step, 1.9–3.5 s, then the search 1–3 s, one
+        after the other). The AI's judgement stays — it is what keeps an album merely TITLED "Something Relaxing" from
+        playing for a mood (754/756) — but it is asked AT THE SAME TIME as the service is searched for the words as
+        said, so the turn costs the longer of the two, not both. The AI's answer and every search are kept ten minutes."""
         times = times if times is not None else {}
         t = time.time()
-        ai = self._ai_words(asked)
-        times["ai"] = round(time.time() - t, 1)
+        box = {}
+
+        def _ask_ai():
+            box["ai"] = self._cached_ai_words(asked)
+
+        def _first_search():
+            try:
+                box["cands"] = self._cached_search(search, asked)
+            except Exception as e:                               # noqa: BLE001
+                box["err"] = e
+        th = threading.Thread(target=_ask_ai, daemon=True)
+        th.start()
+        _first_search()
+        th.join(timeout=12)
+        if "err" in box:
+            raise box["err"]
+        ai = box.get("ai")
+        cands, kept = box.get("cands") or ([], False)
+        times["ai"] = times["search"] = round(time.time() - t, 1)
         kind, words = ai if ai else (None, asked)
-        t = time.time()
-        cands = [c for c in search(words) if c.get("play") is not False]
-        if not cands and words != asked:
-            cands = [c for c in search(asked) if c.get("play") is not False]
-        times["search"] = round(time.time() - t, 1)
+        if words != asked:
+            t2 = time.time()
+            more, kept2 = self._cached_search(search, words)
+            times["search"] = round(times["search"] + time.time() - t2, 1)
+            kept = kept and kept2
+            if more:
+                cands = more
         if kind in ("name", None):
-            hit = next((c for c in cands if self._same_words(c["title"], words)), None)
-            # REGISTER 770 (seen on the Marantz, 766): TuneIn answers "triple m" with Triple R, triple j,
-            # then Triple M Radio — no title IS the name, and the first result is the wrong station. The
-            # design's words: "a result CARRYING the name plays". So, after an exact title, the first
-            # result whose title begins with the name's own words, in the service's order.
-            if hit is None:
-                hit = next((c for c in cands if self._starts_with_words(c["title"], words)), None)
+            hit = self._name_hit(cands, words)
             if hit is not None:
-                return hit, ("ai-name" if ai else "name"), words
+                return hit, ("ai-name" if ai else "name") + (" (kept)" if kept else ""), words
         top = next((c for c in cands if "playlist" in (c.get("kind") or "").lower()), None)
         # register 758: a NAME whose own result can't be played directly (an artist on Spotify) plays the
         # service's top playlist for it — and the log says exactly that, not "ai-search".
         how = ("ai-name, top playlist" if kind == "name" else "ai-search") if ai else "service"
-        return (top or (cands[0] if cands else None)), how, words
+        return (top or (cands[0] if cands else None)), how + (" (kept)" if kept else ""), words
+
+    _ai_words_kept = {}       # asked -> (answer, when)
+
+    def _cached_ai_words(self, asked):
+        key = " ".join(str(asked).lower().split())
+        hit = ToolRunner._ai_words_kept.get(key)
+        now = time.time()
+        if hit and now - hit[1] < self.MUSIC_SEARCH_KEPT_S:
+            return hit[0]
+        ans = self._ai_words(asked)
+        if ans is not None:
+            ToolRunner._ai_words_kept[key] = (ans, now)
+        return ans
 
     def _room_name(self, area):
         try:
@@ -3735,6 +3795,7 @@ class ToolRunner:
 
         def _search(words):
             return self.music_candidates(mod.search(sp, sid, words, acct, tz).get("results"))
+        self._music_key = (eid, int(sid), acct)          # register 857: a kept search is this speaker's, this service's, this account's
         try:
             pick, how, words = self.choose_music(asked, _search, times)
         except Exception as e:  # noqa: BLE001
@@ -3743,24 +3804,42 @@ class ToolRunner:
             return {"error": "%s found nothing for %s" % (service, asked)}
         t = time.time()
         try:
-            p = mod.play(sp, sid, pick["id"], acct, tz)
+            # REGISTER 857 (build 5): the speaker TAKING it is the answer (queue cleared, the first track in, play
+            # sent — each a call the speaker accepted or refused); the reply goes out then, and the speaker's own
+            # state is checked afterwards (voicecheck, 856) — a wrong claim reaches the dashboards as a correction.
+            p = mod.play(sp, sid, pick["id"], acct, tz, wait_s=0)
         except Exception as e:  # noqa: BLE001
             return {"error": "%s couldn't play %s: %s" % (service, pick["title"], str(e)[:120])}
         times["play"] = round(time.time() - t, 1)
         self._audit("music_play", area=area, entity=eid, uri=pick["id"], mode="replace", asked=asked,
                     searched=words, picked=pick["title"], kind=pick.get("kind"), chosen_by=how, service=service)
         room = self._room_name(area)
-        if not p.get("ok"):
-            return {"error": "the speaker didn't start playing %s (it says %s)"
-                             % (pick["title"], (p.get("state") or "nothing").lower()),
+        if p.get("ok") is False and p.get("state") not in ("", None, "TRANSITIONING", "STOPPED", "PAUSED_PLAYBACK"):
+            return {"error": "the speaker didn't take %s (it says %s)" % (pick["title"], (p.get("state") or "nothing").lower()),
                     "picked": pick["title"], "playing_on": eid}
-        print("  [assist] music: %r → searched %r → %r (%s, %s) PLAYING — speaker %.1fs · AI %.1fs · search %.1fs · play %.1fs"
+        print("  [assist] music: %r → searched %r → %r (%s, %s) TAKEN — speaker %.1fs · AI %.1fs · search %.1fs · play %.1fs"
               % (asked, words, pick["title"], service, how, times.get("speaker", 0), times.get("ai", 0),
                  times.get("search", 0), times.get("play", 0)), flush=True)
+        self._verify_play_later(eid, room, pick["title"])
         return {"ok": True, "playing_on": eid, "picked": pick["title"], "kind": pick.get("kind"),
                 "chosen_by": how, "service": service,
-                "proof": {"state": "playing", "seconds": round(time.time() - t0, 1)},
-                "say": ("%s, playing %s." % (room, pick["title"])) if room else ("Playing %s." % pick["title"])}
+                "proof": {"state": "taken", "seconds": round(time.time() - t0, 1), "checked_after": True},
+                "say": ("%s, %s." % (room, pick["title"])) if room else ("Playing %s." % pick["title"])}
+
+    def _verify_play_later(self, eid, room, title):
+        """The check after the reply (856): the speaker's own state, a correction to the dashboards if it never played."""
+        from proos import voicecheck as _vck
+        client, on_wrong = self.client, (getattr(self, "on_correction", None) or CORRECTION_HOOK)
+
+        def _go():
+            okc, secs, words = _vck.check_play(client, eid, title)
+            print("  [assist] music: %s %s (%.1f s)" % ("confirmed:" if okc else "NOT confirmed:", words, secs), flush=True)
+            if not okc and on_wrong is not None:
+                try:
+                    on_wrong(_vck.correction(room, words))
+                except Exception:                                # noqa: BLE001
+                    pass
+        threading.Thread(target=_go, daemon=True, name="music-verify").start()
 
     def t_music_search_play(self, args):
         """Find and play music in a room in one step, and confirm it is playing. The design's ladder:
@@ -3788,6 +3867,7 @@ class ToolRunner:
                 {"id": it.get("uri"), "title": it.get("name"), "play": True}
                 for it in (v or []) if isinstance(it, dict) and it.get("uri")]}
                 for k, v in res.items() if isinstance(v, list)])
+        self._music_key = ("ma", eid)
         try:
             it, how, words = self.choose_music(asked, _search)
         except Exception as e:  # noqa: BLE001
@@ -6220,6 +6300,85 @@ def try_it(client, ws_call, project_mod, user: dict, text: str, where=None) -> d
     return out
 
 
+def _home_plan_turn(runner, client, project_mod, user, text, where, session, t0):
+    """REGISTER 858: the home catalogue road. The reply dict when the plan was made and done (or needs a question);
+    None when the full assistant should have the turn."""
+    from proos import homeplan as _hp
+    cfg = load_config()
+    if not (cfg.get("provider") and cfg.get("api_key")):
+        return None
+    if "?" in text and len(text.split()) > 3:
+        return None                                   # a question is the assistant's; a plan is an act
+    rooms = _direct_rooms(client, project_mod)
+    aid, _nm = _area_from_text(runner, text)
+    if not aid and where and where.get("area_id"):
+        aid = where.get("area_id")
+    doms = runner.home_domains()
+    cat = _hp.catalogue(client, project_mod, aid, rooms, _direct_scenes(runner),
+                        has_lights="light" in doms, has_covers="cover" in doms)
+    if not (cat["scenes"] or cat["activities"] or cat["apps"] or cat["favourites"] or cat["lights"]):
+        return None                                   # nothing to plan with: the assistant reasons
+    # register 859 (build 7): the last exchange rides along, so "louder" or "and the blinds" is read against it
+    _k = ((user or {}).get("id") or "anon", session or "default")
+    with _LOCK:
+        _prev = list(_SESSIONS.get(_k) or [])[-2:]
+    earlier = None
+    if len(_prev) == 2 and _prev[0].get("role") == "user":
+        earlier = (str(_prev[0].get("content") or "")[:200], str(_prev[1].get("content") or "")[:200])
+    t = time.time()
+    try:
+        answer = _one_answer(cfg, _hp.prompt(text, cat, earlier), max_tokens=300, quick=True)
+    except Exception as e:                            # noqa: BLE001
+        print("  [assist] plan: the AI didn't answer (%s)" % e, flush=True)
+        return None
+    ai_ms = int((time.time() - t) * 1000)
+    plan = _hp.parse(answer, cat)
+    if not plan:
+        print("  [assist] plan: no plan from the AI in %d ms (%r) — the model has it" % (ai_ms, (answer or "")[:80]), flush=True)
+        return None
+    calls = _hp.calls_for(plan, cat)
+    if calls and calls[0][0] == "assist":
+        print("  [assist] plan: the AI handed it on (%d ms)" % ai_ms, flush=True)
+        return None
+    from proos import voicefavs as _vf
+    ok, results, needs = _hp.run_calls(runner, calls, lambda data: _vf.handle(client, data))
+    room = cat.get("room") or {}
+    if needs == "assist":
+        return None if not results else _plan_reply(runner, user, session, text, where, t0, plan.get("say") or "Done.", "plan:part", ai_ms)
+    if isinstance(needs, tuple):
+        return _plan_reply(runner, user, session, text, where, t0, needs[1], "plan:ask", ai_ms)
+    if not ok:
+        err = (results[-1]["result"] or {}).get("error") if results else "it couldn't be done"
+        return _plan_reply(runner, user, session, text, where, t0, "I couldn't do that — %s." % str(err).rstrip("."), "plan:failed", ai_ms)
+    say = plan.get("say") or ((room.get("name") + ", done.") if room.get("name") else "Done.")
+    if _hp.LEARN_AFTER <= 1:
+        try:
+            lr = _hp.learn(client, text, [[t_, a_] for t_, a_ in calls], say)
+            print("  [assist] plan: learned %r → %s" % (text, lr.get("action")), flush=True)
+        except Exception as e:                        # noqa: BLE001
+            print("  [assist] plan: not learned (%s)" % e, flush=True)
+    return _plan_reply(runner, user, session, text, where, t0, say, "plan", ai_ms)
+
+
+def _plan_reply(runner, user, session, text, where, t0, reply, how, ai_ms):
+    reply = product_words(reply)
+    _fire_prerender(reply)
+    runner.timing = {"rounds": 1, "total_ms": int((time.time() - t0) * 1000), "model_ms": ai_ms,
+                     "tool_ms": int((time.time() - t0) * 1000) - ai_ms, "cache_read": 0, "cache_written": 0, "model": how}
+    print("  [assist] PLAN %s in %d ms (AI %d ms)" % (how, runner.timing["total_ms"], ai_ms), flush=True)
+    _k = ((user or {}).get("id") or "anon", session or "default")
+    with _LOCK:
+        _hist = _safe_trim(list(_SESSIONS.get(_k) or []), _MAX_TURNS)
+        _hist.append({"role": "user", "content": text})
+        _hist.append({"role": "assistant", "content": reply})
+        _SESSIONS[_k] = _safe_trim(_hist, _MAX_TURNS)
+        _sess_save()
+    _hist_append(user, session, text, reply, where)
+    _said = list(getattr(runner, "spoken", None) or [])
+    return {"reply": reply, "actions": runner.actions, "trace": runner.trace, "timing": runner.timing,
+            "provider": "plan", "speak_lead": None if _said else reply, "spoken_already": _said, "speak_suppress": bool(_said)}
+
+
 def chat(client, ws_call, project_mod, user: dict, text: str,
          session: str = "default", home_name: str = "", ma=None,
          where: dict | None = None, awareness=None, mcp=None,
@@ -6383,6 +6542,17 @@ def chat(client, ws_call, project_mod, user: dict, text: str,
             print("  [assist] platform agent failed (%s)" % e, flush=True)
             _plat = {"say": "I couldn't do that just then.",
                      "intent": "unknown", "error": True}
+    # REGISTER 858 (build 6): nothing instant matched — the HOME CATALOGUE ROAD: one AI call with what the home has,
+    # one plan from a closed set, done and said at once, learned as an instant sentence when it worked. It declines
+    # (None) and the full assistant has the turn exactly as before when there is no AI, no plan, or the plan says assist.
+    if not _hit and not _plat:
+        try:
+            _planned = _home_plan_turn(runner, client, project_mod, user, text, where, session, _t0)
+        except Exception as e:                                   # noqa: BLE001
+            print("  [assist] plan road declined (%s) — the model has it" % e, flush=True)
+            _planned = None
+        if _planned is not None:
+            return _planned
     if _hit or _plat:
         if _plat:
             _hit = {"tool": "platform_command", "args": {}, "say": _plat["say"],
