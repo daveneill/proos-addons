@@ -192,6 +192,11 @@ def _entity_name_write(client, ent: dict, name):
     eid = ent.get("entity_id")
     if ent.get("has_entity_name"):
         if ent.get("name") is not None:
+            # REGISTER 817: with no name of its own the entity stands for its device, and platform 2026.10.1 refuses
+            # it a room of its own — so its room moves to the device first (the same room), then the name is dropped.
+            if ent.get("area_id") and ent.get("device_id") and not (ent.get("original_name") or "").strip():
+                from proos import roomplace as _rp
+                _rp._device_road(client, ent, ent.get("area_id"))
             client.set_entity_name(eid, None)      # drop the override; it follows
         return "follows"
     client.set_entity_name(eid, name)
@@ -227,6 +232,12 @@ def rename(client, entity_id: str, name) -> dict:
             out["device_renamed"] = True
             out["entity"] = _entity_name_write(client, ent, name)
         else:
+            if (name is None and ent.get("area_id") and ent.get("device_id")
+                    and not (ent.get("original_name") or "").strip()):
+                # REGISTER 817: one control of several, with a room of its own — the platform (2026.10.1) refuses it
+                # no name. Said, not attempted.
+                return {"error": "This control has its own room, so it needs a name of its own. Give it a name, or "
+                                 "take it out of its room first.", "entity_id": eid}
             client.set_entity_name(eid, name)
             out["entity"] = "named"
     except Exception as e:  # noqa: BLE001

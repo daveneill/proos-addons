@@ -2122,8 +2122,8 @@ class ActivityPublisher:
                             if not _hme or _we in done:
                                 continue
                             try:
-                                self.client.set_entity_area(
-                                    _we, _hme.get("area_id"))
+                                from proos import roomplace as _rp   # register 817: the platform's road
+                                _rp.place(self.client, _we, _hme.get("area_id"))
                                 done.add(_we)
                                 if _jrnl is not None:
                                     _jrnl.emit("site", "env_assign", {
