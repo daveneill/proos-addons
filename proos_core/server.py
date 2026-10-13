@@ -3567,7 +3567,9 @@ def factory_reset(clear_proos_data=False, keep_auth=False):
                    # the address each speaker last answered at with its own id (register 799) — the old home's speakers
                    "speaker_addresses.json",
                    # the box's last platform/OS update and its checks (register 813) — the old home's history
-                   "platform_update.json"):
+                   "platform_update.json",
+                   # each person's own Apple Music sign-in (register 843) — the old home's people
+                   "apple_music_people.json"):
         _p = os.path.join(_pdata, _fname)
         try:
             if os.path.exists(_p):
@@ -5743,6 +5745,18 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, _spm.queue(_sp))
                 except Exception as e:                           # noqa: BLE001
                     return self._send(502, {"error": str(e)[:300]})
+            if parts in (["speakers", "apple", "me"], ["speakers", "apple", "developer-token"]):
+                # register 843 (music design stage 7): this person's own Apple Music — whether they're signed in, and the
+                # home's developer token for the ProOS app's one-time Apple sign-in (only while it is good). Signed-in people only.
+                u = getattr(self, "_user", None)
+                if not (u and u.get("id")):
+                    return self._send(403, {"error": "sign in to ProOS first"})
+                from proos import applemusic as _am
+                if parts[2] == "me":
+                    return self._send(200, _am.person_status(u.get("id")))
+                tok = _am.developer_token()
+                return self._send(200 if tok else 409, {"token": tok} if tok else
+                                  {"error": "the home has no Apple Music token yet (Pro › Tech Tools › Assist)"})
             if parts == ["speakers", "music", "playlists"]:
                 # register 828: the speaker's own playlists, and what this brand can do with them
                 _qs = parse_qs(urlparse(self.path).query)
@@ -5777,14 +5791,17 @@ class Handler(BaseHTTPRequestHandler):
                     _acct = _a("account")
                     _acct = int(_acct) if _acct not in (None, "") else None
                     _tz = _home_time_zone()
+                    _who = (getattr(self, "_user", None) or {}).get("id")      # register 843: whose own Apple Music
                     if parts[2] == "home":
-                        return self._send(200, _spm.home(_sp, int(_sid), _acct, _tz))
+                        with _spm0.as_person(_who):
+                            return self._send(200, _spm.home(_sp, int(_sid), _acct, _tz))
                     if parts[2] == "open":
                         if not _a("item"):
                             return self._send(400, {"error": "item required"})
-                        return self._send(200, _spm.open_item(
-                            _sp, int(_sid), _a("item"), _acct, _tz,
-                            index=int(_a("index", "0") or 0), count=int(_a("count", "50") or 50)))
+                        with _spm0.as_person(_who):
+                            return self._send(200, _spm.open_item(
+                                _sp, int(_sid), _a("item"), _acct, _tz,
+                                index=int(_a("index", "0") or 0), count=int(_a("count", "50") or 50)))
                     return self._send(200, _spm.search(_sp, int(_sid), _a("q") or "", _acct, _tz,
                                                        count=int(_a("count", "8") or 8)))
                 except Exception as e:                           # noqa: BLE001
@@ -8383,6 +8400,40 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, _spm.queue_play(_sp, b["item"]))
                 except Exception as e:                           # noqa: BLE001
                     return self._send(502, {"ok": False, "error": str(e)[:300]})
+            if parts in (["speakers", "apple", "me"], ["speakers", "apple", "me", "signout"]):
+                # register 843: keep (or forget) THIS person's Apple Music sign-in, handed over by the ProOS app.
+                u = getattr(self, "_user", None)
+                if not (u and u.get("id")):
+                    return self._send(403, {"error": "sign in to ProOS first"})
+                from proos import applemusic as _am
+                try:
+                    if len(parts) == 4:
+                        return self._send(200, _am.clear_person(u.get("id")))
+                    st = _am.save_person(u.get("id"), (self._body() or {}).get("user_token"))
+                    if _journal_mod is not None:
+                        try:
+                            _journal_mod.emit("site", "apple_music_signin", {"by": u.get("name") or u.get("id")})
+                        except Exception:                        # noqa: BLE001
+                            pass
+                    return self._send(200, st)
+                except Exception as e:                           # noqa: BLE001
+                    return self._send(400, {"error": str(e)[:300]})
+            if parts == ["speakers", "music", "favourites", "add"]:
+                # register 841: add an item to the speaker's own favourites (Sonos). Household power, like the queue;
+                # said added only when the speaker returns the new favourite AND it is in the speaker's own list.
+                b = self._body() or {}
+                _eid = str(b.get("entity_id") or "")
+                if not _eid.startswith("media_player.") or not (b.get("service_id") and b.get("item")):
+                    return self._send(400, {"error": "entity_id, service_id and item required"})
+                try:
+                    from proos import speakermusic as _spm0
+                    _spm, _sp = _spm0.for_speaker(_client, _speaker_net_info(), _eid)
+                    _acct = b.get("account")
+                    return self._send(200, _spm.add_favourite(_sp, int(b["service_id"]), str(b["item"]),
+                                                              int(_acct) if _acct not in (None, "") else None,
+                                                              _home_time_zone()))
+                except Exception as e:                           # noqa: BLE001
+                    return self._send(502, {"ok": False, "error": str(e)[:300]})
             if parts[:3] == ["speakers", "music", "playlists"] and len(parts) == 4 and parts[3] in ("add", "save_queue"):
                 # register 828: add a song/album/playlist to one of the speaker's own playlists (Sonos), or save the
                 # whole queue as a new playlist (HEOS). Household power, like the queue. The answer is the speaker's.
@@ -8415,9 +8466,10 @@ class Handler(BaseHTTPRequestHandler):
                     _acct = b.get("account")
                     # register 785: "next" / "add" put it in the speaker's own queue; anything else plays now.
                     _mode = b.get("mode") if b.get("mode") in ("next", "add") else "now"
-                    return self._send(200, _spm.play(_sp, int(b["service_id"]), str(b["item"]),
-                                                     int(_acct) if _acct not in (None, "") else None,
-                                                     _home_time_zone(), mode=_mode))
+                    with _spm0.as_person((getattr(self, "_user", None) or {}).get("id")):     # register 843
+                        return self._send(200, _spm.play(_sp, int(b["service_id"]), str(b["item"]),
+                                                         int(_acct) if _acct not in (None, "") else None,
+                                                         _home_time_zone(), mode=_mode))
                 except Exception as e:                           # noqa: BLE001
                     return self._send(502, {"ok": False, "error": str(e)[:300]})
             if parts == ["speaker", "proof"]:
