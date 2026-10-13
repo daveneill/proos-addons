@@ -3858,8 +3858,28 @@ def _platform_update_once():
     return _pu.check(_sa._info, _update_checks, _log)
 
 
+def _rooms_tidy_once():
+    """REGISTER 817: once at start — every entity the platform flags (a room of its own, no name of its own) has its room
+    moved to its device, the same room; nothing changes room. Each move goes to the Master Log."""
+    from proos import roomplace as _rp
+    if _client is None:
+        return []
+    done = _rp.tidy(_client)
+    for row in done:
+        if _journal_mod is not None:
+            _journal_mod.emit("site", "room_tidy", dict(row, why="platform 2026.10: a room belongs on the device when "
+                                                                   "the entity has no name of its own"))
+        print("  [rooms] %s: room %s now on its device%s" % (row.get("entity"), row.get("room"),
+              "" if row.get("ok") else " — FAILED: %s" % row.get("error")), flush=True)
+    return done
+
+
 def _reconnect_loop():
     time.sleep(90)
+    try:
+        _rooms_tidy_once()
+    except Exception as e:                                       # noqa: BLE001
+        print("  [rooms] tidy failed: %s" % e, flush=True)
     while True:
         try:
             _reconnect_once()
@@ -7075,8 +7095,10 @@ class Handler(BaseHTTPRequestHandler):
                     if _who == "installer" and not _installer_gate()(_platform_resolver()(eid)):
                         return self._send(403, {"error": "that device is not published to installers"})
                     try:
-                        _client.set_entity_area(eid, aid or None)
-                        return self._send(200, {"ok": True, "entity_id": eid, "area_id": aid or None})
+                        # REGISTER 817: on the device when the entity stands for it (platform 2026.10.1 refuses the entity).
+                        from proos import roomplace as _rp
+                        placed = _rp.place(_client, eid, aid or None)
+                        return self._send(200, {"ok": True, "entity_id": eid, "area_id": aid or None, "road": placed.get("road")})
                     except Exception as e:
                         return self._send(502, {"ok": False, "error": str(e)})
                 if parts == ["project"]:
@@ -7569,12 +7591,15 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(400, {"error": "entity_id required"})
                 area = b.get("area_id")
                 try:
-                    entry = _client.set_entity_area(eid, area)
+                    # REGISTER 817: the room goes where the platform wants it (the device, for an entity with no name
+                    # of its own — platform 2026.10.1 refuses it on the entity).
+                    from proos import roomplace as _rp
+                    placed = _rp.place(_client, eid, area)
                 except Exception as e:
                     return self._send(502, {"error": f"area assign failed: {e}"})
                 return self._send(200, {
                     "ok": True, "entity_id": eid,
-                    "area_id": (entry or {}).get("area_id"),
+                    "area_id": placed.get("area_id"), "road": placed.get("road"),
                 })
             if parts == ["music", "enabled"]:
                 # Flip Core's own music_assistant option so the MA connection is
