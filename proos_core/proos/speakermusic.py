@@ -1228,13 +1228,18 @@ def _didl(inner):
             + inner + '</DIDL-Lite>')
 
 
-def favourite_elements(title, uri, meta, service):
-    """The <item> the Sonos app sends to make a favourite (the capture's shape)."""
+def favourite_elements(title, uri, meta, service, art=None):
+    """The <item> the Sonos app sends to make a favourite (the capture's shape). REGISTER 847 (Dave 14 Oct 06:30: "adds it
+    without the artwork"): a favourite's picture is its own upnp:albumArtURI (what the speaker, the Sonos app and the
+    platform show); the item's art from the service goes on the favourite and inside its metadata."""
     scheme = str(uri).split(":", 1)[0]
+    art_el = ('<upnp:albumArtURI>%s</upnp:albumArtURI>' % _x(art)) if art else ''
+    if art and 'albumArtURI' not in str(meta):
+        meta = str(meta).replace('</item>', art_el + '</item>', 1)
     return _didl('<item id="" parentID="FV:2" restricted="false"><dc:title>%s</dc:title>'
-                 '<upnp:class>object.itemobject.item.sonos-favorite</upnp:class><r:ordinal>-1</r:ordinal>'
+                 '<upnp:class>object.itemobject.item.sonos-favorite</upnp:class><r:ordinal>-1</r:ordinal>%s'
                  '<res protocolInfo="%s:*:*:*">%s</res><r:type>instantPlay</r:type><r:description>%s</r:description>'
-                 '<r:resMD>%s</r:resMD></item>' % (_x(title), _x(scheme), _x(uri), _x(service), _x(meta)))
+                 '<r:resMD>%s</r:resMD></item>' % (_x(title), art_el, _x(scheme), _x(uri), _x(service), _x(meta)))
 
 
 def _escape_id(item_id):
@@ -1272,6 +1277,7 @@ def add_favourite(sp, service_id, item_id, account=None, time_zone=None):
     with s["lock"]:
         it = s["items"].get(item_id, item_id)
         title = getattr(it, "title", "") or str(item_id)
+        art = getattr(it, "album_art_uri", "") or None
         if opens(it):
             kind = _fav_kind(it)
             if not kind:
@@ -1280,7 +1286,7 @@ def add_favourite(sp, service_id, item_id, account=None, time_zone=None):
         else:
             uri, meta = prepare(br, it)
     service = service_names(sp).get(int(service_id)) or ""
-    r = sp.contentDirectory.CreateObject([("ContainerID", "FV:2"), ("Elements", favourite_elements(title, uri, meta, service))])
+    r = sp.contentDirectory.CreateObject([("ContainerID", "FV:2"), ("Elements", favourite_elements(title, uri, meta, service, art))])
     oid = str((r or {}).get("ObjectID") or "")
     if not oid.startswith("FV:2/"):
         raise SpeakerMusicError("the speaker didn't make the favourite (it answered %s)" % (oid or "nothing"))
