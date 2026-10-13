@@ -1469,6 +1469,11 @@ body[data-home-state="noticing"] .home-state-go,body[data-home-state="attention"
 /* TRACKS ARE A LIST. A track has no artwork of its own — it borrows its
    album's — so a grid of track tiles is a grid of duplicates (Dave, 10 Aug).
    Same row treatment as the Browse rows above, tuned for a long list. */
+/* register 831 (Dave 13 Oct 16:12): a tile is 134px, the grid's columns can be ~104px — the art spilled into the next
+   tile and the names ran together. In the grid a tile fills its own column; the sideways shelves keep 134px. */
+#music-grid > div{min-width:0}
+#music-grid .mus-card{width:100%;min-width:0}
+#music-grid .mus-card .mus-art{width:100%;height:auto;aspect-ratio:1/1}
 #music-grid .mus-tlist{grid-column:1/-1;display:flex;flex-direction:column;gap:1px;margin-bottom:6px}
 .mus-trow{display:flex;align-items:center;gap:13px;padding:8px 10px;border-radius:9px;cursor:pointer;transition:background .13s}
 .mus-trow:hover{background:rgba(255,255,255,0.06)}
@@ -4559,7 +4564,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101303';
+const PROOS_BUILD='2026101304';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -14877,7 +14882,8 @@ async function spmAddToPlaylist(i, playlistId, name){
     if(!r.ok) msg=(j&&j.error)||('error '+r.status);
   }catch(e){ msg=String(e&&e.message||e); }
   if(msg||!(j&&j.ok)){ showToast('Couldn’t add to '+(name||'the playlist')+' — '+(msg||'the speaker didn’t take it')); return; }
-  showToast('Added to '+name+(j.more?' ('+(j.more+1)+' tracks)':'')+' — it now holds '+(j.holds+(j.more||0)));
+  // register 831: only the first track is confirmed before the answer; the rest are still being added.
+  showToast(j.more?('Adding '+(j.more+1)+' tracks to '+name+' — the first is in'):('Added to '+name+' — it now holds '+j.holds));
 }
 async function spmPlay(i, mode){
   const it=_spm.items[i], entity=_spm.entity; if(!it||!entity) return;
@@ -14949,13 +14955,29 @@ async function musicLoadFavourites(entity){
     if(cats) cats.innerHTML='<span style="font-size:9px;letter-spacing:0.12em;text-transform:uppercase;color:rgba(255,255,255,0.50);align-self:center">Favourites</span>';
     // A Sonos whose own services answered keeps its service chips, Favourites lit (stage 2).
     if(_spm.entity===entity && (_spm.services.length || (_spm.connect||[]).length) && _spmCan(entity)) _spmChips(true);
-    renderMusicGrid(items);
+    if(items.some(x=>x._tab)){ if(!items.some(x=>x._tab===_favTab)) _favTab=_FAV_ORDER.find(t=>items.some(x=>x._tab===t))||items[0]._tab; renderFavTab(); }
+    else renderMusicGrid(items);
   }catch(e){
     if(entity!==_musicSpeaker) return;
     _musicItems=[]; _musicView=[];
     _musicSearchRow(false);
     if(g) g.innerHTML=_mEmpty('Couldn’t load favourites');
   }
+}
+// The favourites' own tabs, in the Sonos app's order (register 831). Only tabs with something in them show.
+const _FAV_ORDER=['Playlists','Songs','Albums','Stations'];
+let _favTab='Playlists';
+function favTab(t){ _favTab=t; renderFavTab(); }
+function renderFavTab(){
+  const g=document.getElementById('music-grid'); if(!g) return;
+  const tabs=_FAV_ORDER.filter(t=>_musicItems.some(x=>x._tab===t));
+  _musicItems.forEach(x=>{ if(x._tab && tabs.indexOf(x._tab)<0) tabs.push(x._tab); });
+  const view=_musicItems.filter(x=>x._tab===_favTab);
+  _musicView=view;
+  g.innerHTML='<div style="grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap">'
+    +tabs.map(t=>'<button class="mus-libchip'+(t===_favTab?' on':'')+'" onclick="favTab(\''+t+'\')">'+_mEsc(t)+'</button>').join('')+'</div>'
+    +(view.length?_musicMixedHtml(view):_mEmpty('Nothing here'));
+  _scanAuthImgs(g);
 }
 // Fetch a speaker's saved favourites/presets through HA's universal browse_media.
 // Tries the Sonos-style 'favorites' shortcut first, then falls back to scanning
@@ -14976,6 +14998,23 @@ async function _browseFavourites(entity){
     // no favourites node found → leave root null (report "none", don't dump the media-source tree)
   }
   let children=(root&&root.children)||[];
+  // REGISTER 831 (Dave 13 Oct 16:20: "show them like the sonos app … Playlists, Songs, Albums, Stations under
+  // favourites"). A Sonos groups its favourites in the platform's browse by these four folders (read on the box);
+  // each item keeps the tab it came from. The speaker's own Sonos Playlists (SQ:, where Add to Playlist writes —
+  // 829) are not favourites; the platform lists them at SQ: and plays one BY ITS NAME with type "playlist"
+  // (read in its sonos/media_player.py, 2026.10.1), so they join the Playlists tab played that way.
+  const _FAV_TABS={'object.container.playlistContainer':'Playlists','object.item.audioItem.musicTrack':'Songs',
+                   'object.container.album.musicAlbum':'Albums','object.item.audioItem.audioBroadcast':'Stations'};
+  if(children.some(f=>f&&_FAV_TABS[f.media_content_id])){
+    const subs=await Promise.all(children.map(f=>browse(f.media_content_type,f.media_content_id)));
+    let flat=[];
+    subs.forEach((r,k)=>{ const tab=_FAV_TABS[children[k].media_content_id]||children[k].title||'';
+      ((r&&r.success&&r.result&&r.result.children)||[]).forEach(c=>{ if(c&&c.media_content_id&&c.can_play!==false) flat.push(Object.assign({}, c, {_tab:tab})); }); });
+    const sq=await browse('playlist','SQ:');
+    ((sq&&sq.success&&sq.result&&sq.result.children)||[]).forEach(c=>{ if(c&&c.title) flat.push({title:c.title, thumbnail:c.thumbnail||null,
+      media_content_type:'playlist', media_content_id:c.title, source:'Sonos Playlist', _tab:'Playlists'}); });
+    return flat;
+  }
   // Favourites are often grouped in non-playable folders — expand one level.
   if(children.some(f=>f&&f.can_expand&&f.can_play===false)){
     const subs=await Promise.all(children.map(f=>(f&&f.can_expand&&f.can_play===false)
@@ -15182,7 +15221,7 @@ function musicSearch(q){
   if(musicEngine(_musicSpeaker)!=='ma'){
     const ql=q.toLowerCase();
     _musicSearchSeq++;   // cancel any in-flight MA search if engine just changed
-    if(!ql){ renderMusicGrid(_musicItems); return; }
+    if(!ql){ if(_musicItems.some(x=>x._tab)) renderFavTab(); else renderMusicGrid(_musicItems); return; }   // 831: back to the tabs
     renderMusicGrid(_musicItems.filter(it=>(it.title||'').toLowerCase().includes(ql)));
     return;
   }
