@@ -171,6 +171,32 @@ def _apple(service_id):
     return int(service_id) == APPLE_MUSIC_SID
 
 
+# register 843: whose Apple Music this request is for — the signed-in ProOS person, set by Core around one request
+# (as_person) so the speaker's other services and HEOS are untouched. None = nobody's own (charts and search only).
+_PERSON = threading.local()
+
+
+class as_person:
+    def __init__(self, uid):
+        self.uid = uid
+
+    def __enter__(self):
+        _PERSON.uid = self.uid
+        return self
+
+    def __exit__(self, *a):
+        _PERSON.uid = None
+        return False
+
+
+def _apple_user():
+    uid = getattr(_PERSON, "uid", None)
+    if not uid:
+        return None
+    from proos import applemusic as _am
+    return _am.person_token(uid)
+
+
 def _apple_sf():
     from proos import applemusic as _am
     return _am.storefront(_CLIENT["c"]) if _CLIENT["c"] is not None else "us"
@@ -594,8 +620,9 @@ def home(sp, service_id, account=None, time_zone=None, sections=12, per=12):
     s = _session(sp, service_id, account, time_zone)
     if _apple(service_id):
         from proos import applemusic as _am
+        mine = _am.my_home(_apple_user(), _apple_sf(), per) if _apple_user() else []
         return {"service_id": int(service_id), "account": s["account"].serial_number,
-                "sections": _am.charts(_apple_sf(), per)}
+                "sections": mine + _am.charts(_apple_sf(), per), "signed_in": bool(_apple_user())}
     br, out = s["br"], []
     with s["lock"]:
         for sec in list(br.get_metadata().items)[:sections]:
@@ -629,7 +656,7 @@ def open_item(sp, service_id, item_id, account=None, time_zone=None, index=0, co
     s = _session(sp, service_id, account, time_zone)
     if _apple(service_id):
         from proos import applemusic as _am
-        items = _am.tracks(item_id, _apple_sf(), count)
+        items = _am.tracks(item_id, _apple_sf(), count, user=_apple_user())
         return {"items": items, "index": 0, "total": len(items)}
     with s["lock"]:
         it = s["items"].get(item_id, item_id)
@@ -729,10 +756,11 @@ def play(sp, service_id, item_id, account=None, time_zone=None, wait_s=10.0, lim
     br = s["br"]
     if _apple(service_id):
         from proos import applemusic as _am
-        songs = _am.tracks(item_id, _apple_sf(), limit)
+        songs = _am.tracks(item_id, _apple_sf(), limit, user=_apple_user())
         if not songs:
             raise SpeakerMusicError("Apple Music has no songs to play for that")
-        title = next((c.get("title") for c in songs if c["id"] == item_id), None) or str(item_id)
+        title = (next((c.get("title") for c in songs if c["id"] == item_id), None)
+                 or _am.name(item_id, _apple_sf(), _apple_user()) or str(item_id))
         if mode in ("next", "add"):
             return _enqueue(sp, s, songs, lambda c: apple_prepare(br, c), mode, title)
         return _queue_play(sp, s, songs, lambda c: apple_prepare(br, c), title, wait_s)
@@ -1134,9 +1162,10 @@ def add_to_playlist(sp, service_id, item_id, playlist_id=None, title=None, accou
     br = s["br"]
     if _apple(service_id):
         from proos import applemusic as _am
-        tracks = _am.tracks(item_id, _apple_sf(), limit)
+        tracks = _am.tracks(item_id, _apple_sf(), limit, user=_apple_user())
         prep = (lambda c: apple_prepare(br, c))
-        name = next((c.get("title") for c in tracks if c["id"] == item_id), None) or str(item_id)
+        name = (next((c.get("title") for c in tracks if c["id"] == item_id), None)
+                or _am.name(item_id, _apple_sf(), _apple_user()) or str(item_id))
     else:
         with s["lock"]:
             it = s["items"].get(item_id, item_id)
@@ -1174,6 +1203,91 @@ def add_to_playlist(sp, service_id, item_id, playlist_id=None, title=None, accou
         threading.Thread(target=rest, daemon=True).start()
     return {"ok": True, "title": name, "playlist_id": playlist_id, "added": after - before, "holds": after,
             "more": len(tracks) - 1}
+
+
+# ADD TO SONOS FAVOURITES (register 841; Dave 13 Oct 18:12 "yes okay" to a proof on the Office). READ FIRST: the library
+# (soco 97dba03) only READS favourites (FV:2). The Sonos app ADDS one with the speaker's own ContentDirectory CreateObject on
+# FV:2 — a capture of the app doing it (github gist ghcs27/4abc9101…): one <item> with dc:title, r:type instantPlay, a <res>
+# carrying the address, r:description (the service's name) and r:resMD (the item's own metadata, escaped); the speaker
+# answers with the new favourite's ObjectID (FV:2/<n>). A song or station uses the library's own address and metadata
+# (prepare). A playlist or album uses the container address the library's share-link plugin uses (album 1004206c,
+# playlist 1006206c, x-rincon-cpcontainer:) with this account's descriptor. NOT YET SEEN WORKING: said added only when the
+# speaker returns an FV:2 object AND the favourite is then in its own list.
+FAV_CONTAINER = {"album": ("1004206c", "object.container.album.musicAlbum"),
+                 "playlist": ("1006206c", "object.container.playlistContainer")}
+
+
+def _x(v):
+    from xml.sax.saxutils import escape
+    return escape(str(v or ""), {'"': "&quot;"})
+
+
+def _didl(inner):
+    return ('<DIDL-Lite xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/" '
+            'xmlns:r="urn:schemas-rinconnetworks-com:metadata-1-0/" xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/">'
+            + inner + '</DIDL-Lite>')
+
+
+def favourite_elements(title, uri, meta, service):
+    """The <item> the Sonos app sends to make a favourite (the capture's shape)."""
+    scheme = str(uri).split(":", 1)[0]
+    return _didl('<item id="" parentID="FV:2" restricted="false"><dc:title>%s</dc:title>'
+                 '<upnp:class>object.itemobject.item.sonos-favorite</upnp:class><r:ordinal>-1</r:ordinal>'
+                 '<res protocolInfo="%s:*:*:*">%s</res><r:type>instantPlay</r:type><r:description>%s</r:description>'
+                 '<r:resMD>%s</r:resMD></item>' % (_x(title), _x(scheme), _x(uri), _x(service), _x(meta)))
+
+
+def _escape_id(item_id):
+    """The library's own id escaping for an address (soco's playback.escape_id)."""
+    from soco.music_services.browser.playback import escape_id
+    return escape_id(item_id)
+
+
+def _container_address(br, item_id, title, kind):
+    key, klass = FAV_CONTAINER[kind]
+    enc = _escape_id(item_id)
+    desc = br.account.udn or br.music_service.desc
+    meta = _didl('<item id="%s%s" parentID="-1" restricted="true"><dc:title>%s</dc:title><upnp:class>%s</upnp:class>'
+                 '<desc id="cdudn" nameSpace="urn:schemas-rinconnetworks-com:metadata-1-0/">%s</desc></item>'
+                 % (key, enc, _x(title), klass, _x(desc)))
+    return "x-rincon-cpcontainer:%s%s" % (key, enc), meta
+
+
+def _fav_kind(it):
+    t = str(getattr(it, "item_type", "") or "").rsplit(".", 1)[-1].lower()
+    if t in FAV_CONTAINER:
+        return t
+    if "album" in t:
+        return "album"
+    if "playlist" in t or (opens(it) and t in ("container", "")):
+        return "playlist"
+    return None
+
+
+def add_favourite(sp, service_id, item_id, account=None, time_zone=None):
+    if _apple(service_id):
+        raise SpeakerMusicError("an Apple Music item can't be made a Sonos favourite from here yet")
+    s = _session(sp, service_id, account, time_zone)
+    br = s["br"]
+    with s["lock"]:
+        it = s["items"].get(item_id, item_id)
+        title = getattr(it, "title", "") or str(item_id)
+        if opens(it):
+            kind = _fav_kind(it)
+            if not kind:
+                raise SpeakerMusicError("“%s” can't be made a favourite — open it and choose" % title)
+            uri, meta = _container_address(br, getattr(it, "item_id", item_id), title, kind)
+        else:
+            uri, meta = prepare(br, it)
+    service = service_names(sp).get(int(service_id)) or ""
+    r = sp.contentDirectory.CreateObject([("ContainerID", "FV:2"), ("Elements", favourite_elements(title, uri, meta, service))])
+    oid = str((r or {}).get("ObjectID") or "")
+    if not oid.startswith("FV:2/"):
+        raise SpeakerMusicError("the speaker didn't make the favourite (it answered %s)" % (oid or "nothing"))
+    ids = {getattr(f, "item_id", None) for f in (sp.music_library.get_sonos_favorites(complete_result=True) or [])}
+    if oid not in ids:
+        raise SpeakerMusicError("the speaker answered %s, but it isn't in its favourites" % oid)
+    return {"ok": True, "title": title, "favourite_id": oid}
 
 
 def save_queue(sp, title):

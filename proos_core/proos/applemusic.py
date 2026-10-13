@@ -104,16 +104,21 @@ def storefront(client):
     return (str(cc).strip().lower() or "us")
 
 
-def _get(path, params=None):
+def _get(path, params=None, user=None):
     tok = _token()
     if not tok:
         raise AppleMusicError("Apple Music search needs the installer's Apple token (Pro › Tech Tools › Assist)")
     url = API + path + (("?" + urllib.parse.urlencode(params)) if params else "")
-    req = urllib.request.Request(url, headers={"Authorization": "Bearer " + tok})
+    headers = {"Authorization": "Bearer " + tok}
+    if user:
+        headers["Music-User-Token"] = user          # register 843: the person's own Apple Music, as Apple asks
+    req = urllib.request.Request(url, headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=TIMEOUT_S) as r:
             return json.loads(r.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
+        if user and e.code in (401, 403):
+            raise AppleMusicError("Apple refused this person's Apple Music sign-in (HTTP %d) — sign in again from the ProOS app" % e.code)
         if e.code in (401, 403):
             raise AppleMusicError("Apple refused the token (HTTP %d) — it may have expired; make a new one" % e.code)
         raise AppleMusicError("Apple Music answered HTTP %d" % e.code)
@@ -166,12 +171,155 @@ def split(item_id):
     return (p[1], p[2]) if len(p) == 3 and p[0] == "apple" else None
 
 
-def tracks(item_id, sf, limit=100):
-    """The songs an Apple item plays: a song itself; an album's or playlist's tracks; an artist's top songs."""
+def name(item_id, sf, user=None):
+    """REGISTER 837 (held since 761: "Apple playlist name in play's answer"): an album's, playlist's or artist's own name,
+    from Apple's catalogue — so the answer says "playing Pure Focus", never the catalogue id. None if Apple doesn't say."""
+    k = split(item_id)
+    if not k:
+        return None
+    try:
+        if k[0] in ("lplaylists", "lalbums"):
+            if not user:
+                return None
+            j = _get("/me/library/%s/%s" % ("playlists" if k[0] == "lplaylists" else "albums", k[1]), user=user)
+        else:
+            j = _get("/catalog/%s/%s/%s" % (sf, k[0], k[1]))
+    except AppleMusicError:
+        return None
+    d = ((j or {}).get("data") or [{}])[0]
+    return (d.get("attributes") or {}).get("name") or None
+
+
+# ── A PERSON'S OWN APPLE MUSIC (register 843 — music design stage 7; Dave 13 Oct 18:12 "yes okay") ─────────────────
+# The person signs in ONCE in the ProOS app on their iPhone or iPad (Apple's own StoreKit sign-in); Apple hands the app
+# a Music User Token made with the home's developer token, the page gives it to Core, and Core keeps it for that person
+# (by their ProOS user id) in one file in Core's own data. With it, Apple answers that person's library and For You.
+# What PLAYS is unchanged — the speaker, song by song, with the home's own Apple account, by catalogue id (742): a
+# library song carries its catalogue id (playParams.catalogId); one with none (an upload) can't be played that way and
+# is left out. THE DEVELOPER TOKEN NOW LEAVES CORE once per sign-in — to the person's own app, which Apple's sign-in
+# needs (the module note above said it never left; this is the one exception, stated).
+PEOPLE_PATH = os.path.join(os.environ.get("PROOS_DATA_DIR", "/data"), "apple_music_people.json")
+
+
+def _people():
+    try:
+        with open(PEOPLE_PATH, encoding="utf-8") as fh:
+            d = json.load(fh)
+        return d if isinstance(d, dict) else {}
+    except Exception:                                            # noqa: BLE001
+        return {}
+
+
+def _people_write(d):
+    os.makedirs(os.path.dirname(PEOPLE_PATH), exist_ok=True)
+    tmp = PEOPLE_PATH + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(d, fh)
+    try:
+        os.chmod(tmp, 0o600)
+    except Exception:                                            # noqa: BLE001
+        pass
+    os.replace(tmp, PEOPLE_PATH)
+
+
+def developer_token():
+    """For the person's own app to sign in with — only while the token is good."""
+    return _token() if ready() else None
+
+
+def save_person(uid, user_token, now=None):
+    uid, t = str(uid or ""), "".join(str(user_token or "").split())
+    if not uid or len(t) < 20:
+        raise AppleMusicError("that isn't an Apple Music sign-in")
+    d = _people()
+    d[uid] = {"token": t, "saved_at": int(now or time.time())}
+    _people_write(d)
+    return person_status(uid)
+
+
+def clear_person(uid):
+    d = _people()
+    if d.pop(str(uid or ""), None) is not None:
+        _people_write(d)
+    return person_status(uid)
+
+
+def person_token(uid):
+    return (_people().get(str(uid or "")) or {}).get("token") or None
+
+
+def person_status(uid):
+    rec = _people().get(str(uid or "")) or {}
+    return {"signed_in": bool(rec.get("token")), "since": rec.get("saved_at"), "can_sign_in": ready()}
+
+
+LIB_KINDS = {"library-playlists": "lplaylists", "library-albums": "lalbums"}
+
+
+def lcard(obj):
+    """A library item in the same shape as every other item. A library song becomes its catalogue song (what the
+    speaker can play); one with no catalogue id returns None."""
+    kind = obj.get("type") or ""
+    a = obj.get("attributes") or {}
+    if kind == "library-songs" or kind == "songs":
+        cat = (a.get("playParams") or {}).get("catalogId") or (obj.get("id") if kind == "songs" else None)
+        if not cat:
+            return None
+        return {"id": "apple:songs:%s" % cat, "title": a.get("name") or "", "artist": a.get("artistName") or None,
+                "art": _art(a), "type": "song", "open": False, "play": True}
+    if kind in LIB_KINDS:
+        return {"id": "apple:%s:%s" % (LIB_KINDS[kind], obj.get("id")), "title": a.get("name") or "",
+                "artist": a.get("artistName") or a.get("curatorName") or None, "art": _art(a),
+                "type": kind.split("-", 1)[1].rstrip("s"), "open": True, "play": True}
+    if kind in ("playlists", "albums"):          # a station can't be played song by song — not offered
+        return card(obj)
+    return None
+
+
+def my_home(user, sf, limit=12):
+    """The person's own shelves, in Apple's own words and order: Recently Added, their playlists and albums, For You."""
+    out = []
+
+    def shelf(sid, title, path, params=None):
+        try:
+            j = _get(path, dict({"limit": int(limit)}, **(params or {})), user=user)
+        except AppleMusicError as e:
+            if "sign in again" in str(e):
+                raise
+            return
+        items = [c for c in (lcard(o) for o in (j or {}).get("data") or []) if c]
+        if items:
+            out.append({"id": "apple-me:%s" % sid, "title": title, "open": True, "play": None, "items": items})
+    shelf("recent", "Recently Added", "/me/library/recently-added", {"limit": min(int(limit), 10)})
+    shelf("playlists", "Your Playlists", "/me/library/playlists")
+    shelf("albums", "Your Albums", "/me/library/albums")
+    try:
+        rec = _get("/me/recommendations", {"limit": 6}, user=user)
+        for r in (rec or {}).get("data") or []:
+            ttl = (((r.get("attributes") or {}).get("title") or {}).get("stringForDisplay")) or "For You"
+            items = [c for c in (lcard(o) for o in ((r.get("relationships") or {}).get("contents") or {}).get("data") or []) if c]
+            if items:
+                out.append({"id": "apple-me:rec:%s" % r.get("id"), "title": ttl, "open": True, "play": None,
+                            "items": items[:int(limit)]})
+    except AppleMusicError as e:
+        if "sign in again" in str(e):
+            raise
+    return out
+
+
+def tracks(item_id, sf, limit=100, user=None):
+    """The songs an Apple item plays: a song itself; an album's or playlist's tracks; an artist's top songs; a person's
+    own library playlist's or album's songs (with their sign-in), as catalogue songs."""
     k = split(item_id)
     if not k:
         raise AppleMusicError("that isn't an Apple Music item")
     kind, cid = k
+    if kind in ("lplaylists", "lalbums"):
+        if not user:
+            raise AppleMusicError("this is someone's own Apple Music — they need to be signed in from the ProOS app")
+        path = "/me/library/%s/%s/tracks" % ("playlists" if kind == "lplaylists" else "albums", cid)
+        j = _get(path, {"limit": min(int(limit), 100)}, user=user)
+        return [c for c in (lcard(o) for o in (j or {}).get("data") or []) if c]
     if kind == "songs":
         j = _get("/catalog/%s/songs/%s" % (sf, cid))
     elif kind == "artists":
