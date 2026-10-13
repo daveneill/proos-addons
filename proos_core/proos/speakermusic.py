@@ -563,6 +563,18 @@ def _keep(s, item):
     return item
 
 
+def opens(item):
+    """REGISTER 833 (seen on the box, Dave 13 Oct 16:40): Spotify's Your Music › Songs and Albums come as a trackList and an
+    albumList that the service marks NOT browsable (canEnumerate false) but playable — yet the library can't play a list
+    directly ("items of type 'tracklist' cannot be played directly; browse into the item"), and asked from Core they DO
+    open: Songs 377 tracks, Albums 23 albums. So a list (a type ending in "list", the library's own type word) opens
+    like any other container, and playing it plays what is in it."""
+    if getattr(item, "can_browse", False):
+        return True
+    t = str(getattr(item, "item_type", "") or "").rsplit(".", 1)[-1].lower()
+    return t.endswith("list")
+
+
 def card(item):
     """One item as the pages and Assist see it. "play" is the service's own canPlay when it says;
     a single track or stream is playable; otherwise None — not known until tried."""
@@ -574,7 +586,7 @@ def card(item):
         can = True
     return {"id": item.item_id, "title": item.title, "artist": item.artist or None,
             "art": item.album_art_uri or None, "type": item.item_type or None,
-            "open": bool(item.can_browse), "play": can}
+            "open": opens(item), "play": can}
 
 
 def home(sp, service_id, account=None, time_zone=None, sections=12, per=12):
@@ -726,14 +738,14 @@ def play(sp, service_id, item_id, account=None, time_zone=None, wait_s=10.0, lim
         return _queue_play(sp, s, songs, lambda c: apple_prepare(br, c), title, wait_s)
     with s["lock"]:
         it = s["items"].get(item_id, item_id)
-        if getattr(it, "can_browse", False):
-            tracks = [t for t in br.get_metadata(it, count=int(limit)).items if not t.can_browse]
+        if opens(it):
+            tracks = [t for t in br.get_metadata(it, count=int(limit)).items if not opens(t)]
             if not tracks:
                 raise SpeakerMusicError("there's nothing to play directly inside “%s” — open it to choose" % it.title)
         else:
             tracks = [it]
             first = prepare(br, it)
-    if not getattr(it, "can_browse", False) and is_stream(first[0]):
+    if not opens(it) and is_stream(first[0]):
         if mode in ("next", "add"):
             raise SpeakerMusicError("a station can't go in the queue — play it instead")
         return _stream_play(sp, first, getattr(it, "title", "") or "", wait_s)
@@ -1128,8 +1140,8 @@ def add_to_playlist(sp, service_id, item_id, playlist_id=None, title=None, accou
     else:
         with s["lock"]:
             it = s["items"].get(item_id, item_id)
-            tracks = ([t for t in br.get_metadata(it, count=int(limit)).items if not t.can_browse]
-                      if getattr(it, "can_browse", False) else [it])
+            tracks = ([t for t in br.get_metadata(it, count=int(limit)).items if not opens(t)]
+                      if opens(it) else [it])
         prep = (lambda t: prepare(br, t))
         name = getattr(it, "title", "") or ""
     if not tracks:
