@@ -51,8 +51,11 @@ def app_sentences(room: str, app: str) -> list:
         return []
     out = []
     for a in app_names(app):
-        out += ["(open|launch|start|put on) %s in [the] %s" % (a, r),
-                "(open|launch|start|put on) %s on [the] %s tv" % (a, r),
+        # register 863: every way a person says it — "turn on", "play", "watch" included — so the app sentence, matched
+        # before the platform's own play sentence, is the one that takes it (seen on the box 14 Oct 10:35: "play Netflix
+        # in the bedroom" went to the radio).
+        out += ["(open|launch|start|put on|turn on|play|watch|switch to|go to) %s in [the] %s" % (a, r),
+                "(open|launch|start|put on|turn on|play|watch|switch to|go to) %s on [the] %s tv" % (a, r),
                 "%s in [the] %s" % (a, r), "[the] %s %s" % (r, a)]
     return out
 

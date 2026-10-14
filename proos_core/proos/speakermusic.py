@@ -767,7 +767,22 @@ def play(sp, service_id, item_id, account=None, time_zone=None, wait_s=10.0, lim
     with s["lock"]:
         it = s["items"].get(item_id, item_id)
         if opens(it):
-            tracks = [t for t in br.get_metadata(it, count=int(limit)).items if not opens(t)]
+            inside = list(br.get_metadata(it, count=int(limit)).items)
+            tracks = [t for t in inside if not opens(t)]
+            if not tracks:
+                # REGISTER 863: an ARTIST (or any shelf that holds only shelves) plays its first shelf that holds tracks —
+                # Spotify's artist is Top Tracks, Albums, Related…; "play P!nk" plays P!nk's top tracks, not a station
+                # of soundalikes. One level down, the service's own order.
+                for sub in inside:
+                    if not opens(sub):
+                        continue
+                    try:
+                        deeper = [t for t in br.get_metadata(sub, count=int(limit)).items if not opens(t)]
+                    except Exception:                            # noqa: BLE001
+                        deeper = []
+                    if deeper:
+                        tracks = deeper
+                        break
             if not tracks:
                 raise SpeakerMusicError("there's nothing to play directly inside “%s” — open it to choose" % it.title)
         else:

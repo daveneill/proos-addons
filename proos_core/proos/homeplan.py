@@ -55,7 +55,7 @@ def catalogue(client, project_mod, area_id, rooms, scenes, has_lights=None, has_
             if area_id and v.get("area") and v.get("area") != area_id:
                 continue
             if v.get("app"):
-                cat["apps"].append({"id": tid, "room": v.get("area"), "app": v.get("app")})
+                cat["apps"].append({"id": tid, "room": v.get("area"), "app": v.get("app"), "device": v.get("device")})
             elif v.get("media_content_id"):
                 cat["favourites"].append({"id": tid, "room": v.get("area"), "name": v.get("name")})
                 cat.setdefault("_favs", {})[tid] = dict(v, kind="favourite")
@@ -156,7 +156,10 @@ def calls_for(plan, cat):
             out.append(("room_activity", {"script_entity_id": v}))
         elif k == "app":
             a = next((x for x in cat.get("apps") or [] if x["id"] == v), {})
-            out.append(("app_launch", {"area_id": a.get("room") or room, "app": a.get("app")}))
+            # register 863: the device rides along (the instant sentence's own pick) — a launch with no device came back
+            # "which device?" and was counted as done (seen on the box 14 Oct 10:34)
+            out.append(("app_launch", {"area_id": a.get("room") or room, "app": a.get("app")}
+                        | ({"device": a["device"]} if a.get("device") else {})))
         elif k == "favourite":
             out.append(("favourite", (cat.get("_favs") or {}).get(v) or {}))
         elif k == "lights":
@@ -188,7 +191,62 @@ def run_calls(runner, calls, play_favourite):
         results.append({"tool": tool, "args": args, "result": r})
         if not isinstance(r, dict) or r.get("error"):
             return False, results, None
+        if not done(r):
+            # register 863: only a result that SAYS done counts — "which device?", a hand-off or an empty answer is not
+            r["error"] = r.get("error") or _not_done_words(tool, r)
+            return False, results, None
     return True, results, None
+
+
+def done(r):
+    """A tool's answer that counts as done: ok, or a question asked, or a handoff the assistant will take up."""
+    if not isinstance(r, dict):
+        return False
+    return bool(r.get("ok") or r.get("asked") or r.get("handoff") or r.get("launched") or r.get("applied") or r.get("done"))
+
+
+def _not_done_words(tool, r):
+    if r.get("needs_choice"):
+        names = [o.get("name") or o.get("entity_id") for o in r.get("options") or []]
+        return "%s is on %s — which one?" % (r.get("app") or "it", " and ".join(names) or "several devices")
+    return "%s didn't say it was done" % tool.replace("_", " ")
+
+
+def complete_step(tool, args):
+    """A learned step that can be replayed as it is: an app launch names its device (register 863 — the dud learned on
+    14 Oct was an app launch with no device, which asks "which?" and does nothing)."""
+    if tool == "app_launch":
+        return bool((args or {}).get("device"))
+    return True
+
+
+def prune(client):
+    """Drop learned sentences whose steps can't be replayed (see complete_step). Returns what was done."""
+    from proos import project as _p
+    path = "/api/config/automation/config/%s" % VOICE_LEARNED_ID
+    try:
+        cur = client._req("GET", path)
+    except Exception:                                            # noqa: BLE001
+        return {"ok": False, "action": "unreachable"}
+    if not isinstance(cur, dict):
+        return {"ok": True, "action": "none"}
+    stored = (cur.get("variables") or {}).get("proos_hash")
+    if stored and stored != _p._voice_hash(cur):
+        return {"ok": True, "action": "kept_edited"}
+    kept, dropped = [], []
+    for v in ((cur.get("variables") or {}).get("said") or {}).values():
+        if not (isinstance(v, dict) and v.get("text")):
+            continue
+        steps = v.get("steps") or []
+        if all(complete_step(st[0], st[1] if len(st) > 1 else {}) for st in steps if isinstance(st, (list, tuple)) and st):
+            kept.append({"text": v["text"], "steps": steps, "say": v.get("say")})
+        else:
+            dropped.append(v["text"])
+    if not dropped:
+        return {"ok": True, "action": "unchanged", "kept": len(kept)}
+    want = learned_config(kept)
+    out = _p.voice_write(client, VOICE_LEARNED_ID, want)
+    return dict(out, dropped=dropped, kept=len(kept))
 
 
 def learned_config(entries):

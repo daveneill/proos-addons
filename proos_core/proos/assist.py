@@ -2652,6 +2652,25 @@ class ToolRunner:
             pass
         return None
 
+    def _app_in_room(self, area, words):
+        """The app in that room whose name is the words (letters and digits alike), or None."""
+        aid = self._resolve_area_id(area)
+        if not aid:
+            return None
+        try:
+            from . import appctl
+            cands = appctl.candidates(self.client, self.project, aid)
+        except Exception:  # noqa: BLE001
+            return None
+        want = re.sub(r"[^a-z0-9]", "", str(words).lower().replace("+", "plus"))
+        if len(want) < 3:
+            return None
+        for c in cands:
+            for a in c.get("apps") or []:
+                if re.sub(r"[^a-z0-9]", "", str(a).lower().replace("+", "plus")) == want:
+                    return a
+        return None
+
     def t_app_launch(self, args):
         """Open a named app on a room's app-capable devices (the smart TV, an
         Apple TV, a Shield…). A room can have several — when more than one offers
@@ -2667,9 +2686,25 @@ class ToolRunner:
             from . import appctl
         except Exception as e:  # noqa: BLE001
             return {"error": "app launch unavailable: %s" % e}
-        res = appctl.launch(self.client, self.project, aid, app, device=(args.get("device") or "").strip() or None)
+        dev = (args.get("device") or "").strip() or None
+        if not dev:
+            # register 863: ONE rule for which device, the same the instant sentences use (voiceapps.choose_device) —
+            # the room's display when it runs the app, otherwise the first device that does. Before this a launch with
+            # no device came back "which device?" and the plan road counted that as done (seen on the box 14 Oct 10:34).
+            try:
+                from . import voiceapps as _va
+                pick = _va.choose_device(appctl.candidates(self.client, self.project, aid), app)
+                dev = (pick or {}).get("entity_id")
+            except Exception:  # noqa: BLE001
+                dev = None
+        res = appctl.launch(self.client, self.project, aid, app, device=dev)
+        if res.get("needs_choice"):
+            names = [o.get("name") or o.get("entity_id") for o in res.get("options") or []]
+            res = dict(res, error="%s is on %s — which one?" % (app, " and ".join(names)))
         if res.get("ok"):
             self._audit("app_launch", app=res.get("launched"), device=res.get("device"), area=aid)
+            res["verify"] = {"kind": "app", "device": res.get("device"), "app": app}
+            res["say"] = "%s, %s." % (self._room_name(aid) or "Done", app)
             # The Bedroom bug (12 Aug, register 109): the launch WORKED, the
             # verdict sensor said 'watching Apple TV' — and Assist reported a
             # failure because the streamer's driver sat at 'idle' (it cannot
@@ -3880,6 +3915,7 @@ class ToolRunner:
             self._verify_play_later(o["data"].get("entity_id"), room, o["title"])
             return {"ok": True, "playing_on": o["data"].get("entity_id"), "picked": o["title"], "kind": "favourite", "chosen_by": "favourite",
                     "service": "favourites", "proof": {"state": "taken", "checked_after": True},
+                    "verify": {"kind": "play", "entity": o["data"].get("entity_id"), "name": o["title"]},
                     "say": ("%s, %s." % (room, o["title"])) if room else ("Playing %s." % o["title"])}
         return self._play_pick(area, o["eid"], o["mod"], o["sp"], o["sid"], o["acct"], o["service"], o["tz"], o["cand"],
                                o["title"], "chosen", o.get("asked") or o["title"], {})
@@ -3905,76 +3941,90 @@ class ToolRunner:
               % (asked, words, pick["title"], service, how, times.get("speaker", 0), times.get("ai", 0),
                  times.get("search", 0), times.get("play", 0)), flush=True)
         self._verify_play_later(eid, room, pick["title"])
+        what = "%s on %s" % (pick["title"], service) if service else pick["title"]
         return {"ok": True, "playing_on": eid, "picked": pick["title"], "kind": pick.get("kind"),
                 "chosen_by": how, "service": service,
                 "proof": {"state": "taken", "seconds": round(time.time() - t0, 1), "checked_after": True},
-                "say": ("%s, %s." % (room, pick["title"])) if room else ("Playing %s." % pick["title"])}
+                "verify": {"kind": "play", "entity": eid, "name": pick["title"]},
+                "say": ("%s, %s." % (room, what)) if room else ("Playing %s." % what)}
 
     def _play_by_speaker(self, area, asked):
-        """Rung 1 of the design's ladder: the room's own speaker, with the home's own account. None when
-        the room has no such speaker or it can't be reached (the next rung then tries)."""
+        """Rung 1 of the design's ladder: the room's own speaker, EVERY service it has, asked at once (register 863 —
+        one search like the Sonos app; before this one service was searched, the one the speaker last played).
+        None when the room has no such speaker or it can't be reached (the next rung then tries).
+        What is heard is ranked (musicsearch.rank): the room's close favourites and an exact title of any kind in the
+        first service that has one — one fit plays, several are asked about; else the first title carrying the words
+        (service order, then artist → song → album → playlist → station); else nothing, said with the services tried.
+        NEVER the top result."""
+        from proos import musicsearch as _ms
         eid = self._room_sonos_speaker(area)
         if not eid:
             return None
-        favs = self._favourites_like(area, asked)
         t_conn = time.time()
         try:
-            # The brand's own road (Sonos or HEOS, stage 5) — the service module says which; both
-            # answer the same calls, so nothing here names a brand.
-            from proos import speakermusic as _spm
-            mod, sp = _spm.for_speaker(self.client, _spm.network_info(), eid)
-            try:
-                attrs = (self.client._req("GET", "/api/states/%s" % eid) or {}).get("attributes") or {}
-            except Exception:  # noqa: BLE001
-                attrs = {}
-            svcs = mod.assist_services(sp, attrs)
-            if not svcs:
-                return None
-            tz = _spm.home_time_zone(self.client)
+            had = _ms.speaker_services(self.client, eid)
         except Exception as e:  # noqa: BLE001
             print("  [assist] the room's speaker music isn't reachable (%s) — next rung" % e, flush=True)
             return None
+        if not had:
+            return None
+        mod, sp, tz, svcs = had
         times = {"speaker": round(time.time() - t_conn, 1)}
-        t0 = time.time()
-        pick, how, words, tried = None, None, asked, []
-        for sid, acct, service in svcs:
-            def _search(words, _sid=sid, _acct=acct):
-                return self.music_candidates(mod.search(sp, _sid, words, _acct, tz).get("results"))
-            self._music_key = (eid, int(sid), acct)      # register 857: a kept search is this speaker's, this service's, this account's
+        favs = self._favourites_like(area, asked)
+        # The AI's reading of the words (a NAME, or SEARCH words for a mood) rides beside the first search.
+        box = {}
+
+        def _ask_ai():
             try:
-                pick, how, words = self.choose_music(asked, _search, times)
+                box["ai"] = self._cached_ai_words(asked)
             except Exception as e:  # noqa: BLE001
-                print("  [assist] %s didn't answer for %r (%s) — next service" % (service, asked, str(e)[:80]), flush=True)
-                tried.append(service)
-                continue
-            tried.append(service)
-            if pick or favs:
-                # register 862: what FITS the name, by kind — the room's close favourites, and the service's song/album/
-                # playlist/station carrying the name. One fits → it plays. Several → ask which.
-                hits = {}
-                if how and how.startswith(("name", "ai-name")) and not how.endswith("top playlist"):
-                    cands, _kept = self._cached_search(_search, words)
-                    hits = self._name_hits_by_kind(cands, words)
-                options = [{"kind": "favourite", "title": f["name"], "data": f} for _r, f in favs]
-                options += [{"kind": k, "title": c["title"], "service": service, "cand": c, "eid": eid, "mod": mod, "sp": sp,
-                             "sid": sid, "acct": acct, "tz": tz, "asked": asked} for k, c in hits.items()]
-                if len(options) > 1:
-                    seen_t, uniq = set(), []
-                    for o in options:
-                        kt = (o["kind"], o["title"].lower())
-                        if kt not in seen_t:
-                            seen_t.add(kt)
-                            uniq.append(o)
-                    if len(uniq) > 1:
-                        return self._ask_which(area, uniq)
-                    options = uniq
-                if options and options[0]["kind"] == "favourite":
-                    return self._play_option(area, options[0])
-            if pick:
-                break                                            # register 862: the first service that has it
-        if not pick:
-            return {"error": "nothing found for %s on %s" % (asked, " or ".join(tried) or "the speaker's services")}
-        return self._play_pick(area, eid, mod, sp, sid, acct, service, tz, pick, words, how, asked, times)
+                box["err"] = e
+        th = threading.Thread(target=_ask_ai, daemon=True)
+        th.start()
+        t = time.time()
+        res = _ms.search_all(self.client, eid, asked)
+        th.join(timeout=8)
+        ai = box.get("ai")
+        kind, words = ai if ai else (None, asked)
+        how_ai = "ai-name" if kind == "name" else ("ai-search" if kind == "search" else "service")
+        if words != asked:
+            res = _ms.search_all(self.client, eid, words)
+        times["ai"] = times["search"] = round(time.time() - t, 1)
+        tried = [x["name"] for x in res.get("services") or []]
+        if kind == "search":
+            # a mood, an activity, a style: the first playlist any service offers for the AI's words (register 758)
+            for svc in res.get("services") or []:
+                top = ((svc.get("kinds") or {}).get("playlist") or [None])[0]
+                if top:
+                    return self._play_pick(area, eid, mod, sp, top["sid"], top["acct"], svc["name"], tz, top, words,
+                                           how_ai, asked, times)
+            return {"error": _ms.nothing_found(res, words)}
+        how, cards = _ms.rank(res, words)
+        options = [{"kind": "favourite", "title": f["name"], "data": f} for _r, f in favs]
+        if how == "exact":
+            options += [{"kind": c["kind"], "title": c["title"], "service": c["service"], "cand": c, "eid": eid, "mod": mod,
+                         "sp": sp, "sid": c["sid"], "acct": c["acct"], "tz": tz, "asked": asked} for c in cards]
+        seen_t, uniq = set(), []
+        for o in options:
+            kt = (o["kind"], str(o["title"]).lower())
+            if kt not in seen_t:
+                seen_t.add(kt)
+                uniq.append(o)
+        if len(uniq) > 1:
+            return self._ask_which(area, uniq)
+        if uniq:
+            o = uniq[0]
+            if o["kind"] == "favourite":
+                return self._play_option(area, o)
+            return self._play_pick(area, eid, mod, sp, o["sid"], o["acct"], o["service"], tz, o["cand"], words,
+                                   how_ai + ", exact", asked, times)
+        if how == "partial" and cards:
+            c = cards[0]
+            return self._play_pick(area, eid, mod, sp, c["sid"], c["acct"], c["service"], tz, c, words,
+                                   how_ai + ", carries the name", asked, times)
+        print("  [assist] music: %r → nothing carries it on %s (%d ms)" % (words, ", ".join(tried) or "no service",
+                                                                           res.get("ms") or 0), flush=True)
+        return {"error": _ms.nothing_found(res, words)}
 
     def _verify_play_later(self, eid, room, title):
         """The check after the reply (856): the speaker's own state, a correction to the dashboards if it never played."""
@@ -3999,6 +4049,11 @@ class ToolRunner:
         asked = " ".join(str(args.get("query") or "").split()).strip(" .!?")
         if not area or not asked:
             return {"error": "area_id and query required"}
+        app = self._app_in_room(area, asked)
+        if app:
+            # register 863 (seen on the box 14 Oct 10:35: "play Netflix in the bedroom" searched the radio): a name that is
+            # an app in that room is the app, however the sentence began. Apps win over music.
+            return self.t_app_launch({"area_id": area, "app": app})
         out = self._play_by_speaker(area, asked)
         if out is not None:
             return out
@@ -6500,14 +6555,48 @@ def _home_plan_turn(runner, client, project_mod, user, text, where, session, t0)
     if not ok:
         err = (results[-1]["result"] or {}).get("error") if results else "it couldn't be done"
         return _plan_reply(runner, user, session, text, where, t0, "I couldn't do that — %s." % str(err).rstrip("."), "plan:failed", ai_ms)
-    say = plan.get("say") or ((room.get("name") + ", done.") if room.get("name") else "Done.")
+    asked = next((r["result"] for r in results if isinstance(r.get("result"), dict) and r["result"].get("asked")), None)
+    if asked:
+        return _plan_reply(runner, user, session, text, where, t0, asked.get("say") or "Which would you like?", "plan:ask", ai_ms)
+    said = [r["result"].get("say") for r in results if isinstance(r.get("result"), dict) and r["result"].get("say")]
+    say = plan.get("say") or (said[-1] if said else ((room.get("name") + ", done.") if room.get("name") else "Done."))
     if _hp.LEARN_AFTER <= 1:
+        # register 863: a sentence is learned only once the checks PASSED — the speaker seen playing, the app seen open.
+        # "Turn on Netflix in the bedroom" was learned on 14 Oct from a launch that had done nothing (seen 10:34).
+        verifies = [r["result"]["verify"] for r in results if isinstance(r.get("result"), dict) and r["result"].get("verify")]
+        _learn_when_confirmed(client, text, [[t_, a_] for t_, a_ in calls], say, verifies)
+    return _plan_reply(runner, user, session, text, where, t0, say, "plan", ai_ms)
+
+
+def _learn_when_confirmed(client, text, steps, say, verifies, check=None, learn=None):
+    """Learn now when there is nothing to check; otherwise after every check passed (in its own thread)."""
+    from proos import homeplan as _hp
+    from proos import voicecheck as _vck
+    learn = learn or _hp.learn
+
+    def _learn():
         try:
-            lr = _hp.learn(client, text, [[t_, a_] for t_, a_ in calls], say)
+            lr = learn(client, text, steps, say)
             print("  [assist] plan: learned %r → %s" % (text, lr.get("action")), flush=True)
         except Exception as e:                        # noqa: BLE001
             print("  [assist] plan: not learned (%s)" % e, flush=True)
-    return _plan_reply(runner, user, session, text, where, t0, say, "plan", ai_ms)
+    if not verifies:
+        _learn()
+        return None
+
+    def _go():
+        for v in verifies:
+            if v.get("kind") == "app":
+                okc, _s, words = (check or _vck.check_app)(client, v.get("device"), v.get("app"))
+            else:
+                okc, _s, words = (check or _vck.check_play)(client, v.get("entity"), v.get("name"))
+            if not okc:
+                print("  [assist] plan: NOT learned %r — %s" % (text, words), flush=True)
+                return
+        _learn()
+    th = threading.Thread(target=_go, daemon=True, name="plan-learn")
+    th.start()
+    return th
 
 
 def _plan_reply(runner, user, session, text, where, t0, reply, how, ai_ms):
