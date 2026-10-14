@@ -84,12 +84,13 @@ def order_services(svcs, words="", option=None):
     return sorted(list(svcs), key=key)
 
 
-def speaker_services(client, entity_id):
-    """(mod, sp, tz, [(sid, acct, name)]) for the speaker, kept a while; None when the speaker has no services."""
+def speaker_services(client, entity_id, fresh=False):
+    """(mod, sp, tz, [(sid, acct, name)]) for the speaker, kept a while; None when the speaker has no services.
+    fresh=True reads the speaker again whatever is kept (the warmer's call)."""
     now = time.time()
     with _LOCK:
         hit = _services.get(entity_id)
-    if hit and now - hit[1] < SERVICES_KEPT_S:
+    if hit and now - hit[1] < SERVICES_KEPT_S and not fresh:
         return hit[0]
     from proos import speakermusic as _spm
     mod, sp = _spm.for_speaker(client, _spm.network_info(), entity_id)
@@ -105,6 +106,48 @@ def speaker_services(client, entity_id):
     with _LOCK:
         _services[entity_id] = (out, now)
     return out
+
+
+# REGISTER 880 (read on the box 14 Oct 19:58: "speaker 3.4s · AI 6.0s · search 6.0s · play 2.4s" — the reply reached the
+# platform with 0.15 s of its 12 s wait left). The speaker's service list is rebuilt from the speaker once it is
+# SERVICES_KEPT_S old, and the FIRST spoken request after that paid the 3.4 s. Now Core keeps it current itself: a
+# warmer re-reads each committed room speaker's list shortly before it would go stale, so no spoken request pays.
+# A mirror of the speaker's own facts, refreshed; nothing invented.
+WARM_EVERY_S = 60       # plumbing: how often the warmer looks
+WARM_RETRY_S = 300      # plumbing: how long a speaker that didn't answer the warmer is left before it is asked again
+_warm_failed = {}       # entity_id -> when it last didn't answer
+
+
+def warm_once(client, speakers, now=None):
+    """One pass: re-read every speaker whose kept list is about to go stale. Returns the ids re-read."""
+    done, now = [], now or time.time()
+    for eid in list(speakers or []):
+        with _LOCK:
+            hit = _services.get(eid)
+        if hit and now - hit[1] < SERVICES_KEPT_S - 2 * WARM_EVERY_S:
+            continue
+        if now - _warm_failed.get(eid, 0) < WARM_RETRY_S:
+            continue
+        try:
+            speaker_services(client, eid, fresh=True)
+            _warm_failed.pop(eid, None)
+            done.append(eid)
+        except Exception as e:                                   # noqa: BLE001
+            _warm_failed[eid] = now
+            print("  [musicsearch] warmer: %s didn't answer (%s) — asked again in %d min" % (eid, str(e)[:120], WARM_RETRY_S // 60), flush=True)
+    return done
+
+
+def start_warmer(client, speakers_fn):
+    """speakers_fn() → [entity_id] of the committed rooms' speakers, read each pass (a room commissioned later is warmed)."""
+    def loop():
+        while True:
+            try:
+                warm_once(client, speakers_fn() or [])
+            except Exception as e:                               # noqa: BLE001
+                print("  [musicsearch] warmer pass failed: %s" % str(e)[:120], flush=True)
+            time.sleep(WARM_EVERY_S)
+    threading.Thread(target=loop, name="music-warmer", daemon=True).start()
 
 
 def forget_services(entity_id=None):

@@ -140,7 +140,12 @@ def resolve_platform(rec, text, where=None, rooms=(), scenes=()):
         # rule handed every home sentence to the platform's agent — which has no page to read the room from. ProOS's
         # own sentence is ProOS's: the words, the room from the words or the certain room the person is in, Core's
         # music road — exactly the pre-923 road.
-        words = str(_slot(rec, "music") or "").strip()
+        # the platform's debug recogniser reports a trigger match WITHOUT its slots (read on the box 14 Oct 16:50:
+        # {"match": true, "source": "trigger", "sentence_template": "..."} and nothing else) — the words are taken from
+        # the text itself, after the sentence's own verb
+        import re as _re
+        m = _re.match(r"^\s*(?:play some|play me|put on|listen to|play)\s+(.+?)[.!?]*\s*$", str(text or ""), _re.I)
+        words = (m.group(1).strip() if m else "") or str(_slot(rec, "music") or "").strip()
         if words:
             from proos import voicemusic as _vm
             name, aid = _vm.split_room(words, [(r[0], r[1]) for r in (rooms or [])])

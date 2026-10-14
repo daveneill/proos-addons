@@ -2793,12 +2793,8 @@ class ToolRunner:
         dname = self._device_name(dev)
         if out.get("ok"):
             self._audit("app_shortcut_create", app=name, device=dev, area=aid, tested=True)
-            try:
-                from . import voiceapps as _va
-                wr = _va.voice_apps(self.client, self.project.load())
-                print("  [assist] voice · apps rewritten after the new shortcut: %s" % wr.get("action"), flush=True)
-            except Exception as e:  # noqa: BLE001
-                print("  [assist] voice · apps not rewritten (%s)" % e, flush=True)
+            from . import voiceapps as _va
+            _va.rewrite_after_shortcuts(self.client, self.project)   # register 879: apps AND the music sentence's taken list
             out["say"] = "%s is set up in the %s on the %s — and it's on now." % (name, room, dname)
         else:
             out["say"] = "I couldn't set %s up in the %s — %s." % (name, room, str(out.get("error") or "the test failed").rstrip("."))
@@ -3774,6 +3770,8 @@ class ToolRunner:
         return True
 
     MUSIC_PROOF_S = 6.0      # how long the turn watches the speaker before saying it hasn't started
+    MUSIC_ROAD_BUDGET_S = 7.0  # plumbing (register 880): speaker read + search + the AI's reading, within the platform's
+                               # 12 s wait for a spoken reply with the play (≈2.5 s) still to come
     MUSIC_SETTLE_S = 2.0     # after the platform says it is done, how long the speaker has to start
 
     # ── MUSIC DESIGN STAGE 3 (register 753; design approved by Dave 11 Oct 05:55) ─────────────────
@@ -4160,7 +4158,11 @@ class ToolRunner:
             times["ai"] = 0.0
             times["search"] = round(time.time() - t, 1)
         else:
-            th.join(timeout=8)
+            # REGISTER 880 (read on the box 14 Oct 19:58: the reply reached the platform with 0.15 s of its 12 s wait left):
+            # the AI is waited for only within what is left of the road's budget, measured from the speaker's first
+            # read — past it the words as said stand, and the AI's answer is kept for the next ask. A spoken reply that
+            # arrives after the platform stopped waiting is "On it…" and nothing after; Dave: no "still processing".
+            th.join(timeout=max(0.5, self.MUSIC_ROAD_BUDGET_S - (time.time() - t_conn)))
             ai = box.get("ai")
             kind, words = ai if ai else (None, asked)
             how_ai = "ai-name" if kind == "name" else ("ai-search" if kind == "search" else "service")
@@ -4235,11 +4237,14 @@ class ToolRunner:
         out = self._play_by_speaker(area, asked)
         if out is not None:
             return out
-        if not self.ma:
-            return {"handoff": "platform", "error": "the music engine (ProOS Music) isn't linked"}
-        eid = self._room_ma_speaker(area)
+        # REGISTER 879: the room HAS a speaker the service knows but it didn't answer — that is the answer, said as it
+        # is. (Before: the sentence was handed to the platform's agent, which since 923 matches ProOS's OWN music
+        # sentence first and asked "Which room?" — a loop into ourselves, seen on the rig 14 Oct.)
+        eid = self._room_ma_speaker(area) if self.ma else None
         if not eid:
-            return {"handoff": "platform", "error": "no music speaker in that room — commission one in Pro first"}
+            if self._room_sonos_speaker(area):
+                return {"error": "the %s speaker didn't answer" % (self._room_name(area) or "room")}
+            return {"error": "no music speaker in that room — commission one in Pro first"}
         if self._music_busy(eid):
             return {"error": "the last play for that room is still starting — I won't send another on top of it",
                     "note": "do not retry: the music service is still answering the last request"}
@@ -6999,7 +7004,34 @@ def chat(client, ws_call, project_mod, user: dict, text: str,
     # REGISTER 731: anything else the platform recognised, its OWN agent does.
     _plat = None
     _t0 = time.time()
-    if not _hit and _rec:
+    # REGISTER 879 (14 Oct 2026; Dave: "on the bedroom page it must never ask which room"; 9 Oct: "everything commissioned
+    # is an instant voice command, no AI"). THE PAGE SUPPLIES THE ROOM THE WORDS LEFT OUT. "tv off", "watch apple tv",
+    # "netflix" said on the Bedroom page are the room's own sentences minus the room; until now they went to the AI plan
+    # road (4–20 s, and nothing at all in a home without an AI key). The same words completed with the certain room
+    # ("tv off in the bedroom") are put to the platform's OWN recogniser; a sentence-trigger match is the room's own
+    # activity, app or favourite, and the platform's agent runs that completed sentence. One mechanism for all three,
+    # no grammar of ProOS's own; a miss is silent and the turn goes on exactly as before.
+    _completed = None
+    if not _hit and ws_call and where and where.get("area_id") and where.get("confidence") == "certain" \
+            and not (_rec and _rec.get("match") and _rec.get("source") == "trigger"):
+        try:
+            _rn = next((r[1] for r in _direct_rooms(client, project_mod) if r[0] == where.get("area_id")), None)
+            if _rn:
+                _cand = "%s in the %s" % (str(text or "").strip().rstrip(".!?"), _rn)
+                _rec2 = _direct.platform_recognize(ws_call, _cand)
+                if _rec2 and _rec2.get("match") and _rec2.get("source") == "trigger" \
+                        and "{" not in str(_rec2.get("sentence_template") or ""):
+                    _completed = _cand
+        except Exception as e:                                   # noqa: BLE001
+            print("  [assist] page-room completion declined (%s)" % e, flush=True)
+    if _completed:
+        try:
+            _plat = runner.platform_command(_completed, "trigger")
+            print("  [assist] DIRECT page-room: %r → %r in %dms" % (text, _completed, int((time.time() - _t0) * 1000)), flush=True)
+        except Exception as e:                                   # noqa: BLE001
+            print("  [assist] platform agent failed (%s)" % e, flush=True)
+            _plat = {"say": "I couldn't do that just then.", "intent": "unknown", "error": True}
+    if not _hit and not _plat and _rec:
         try:
             _pi = _direct.platform_can_take(_rec, text, _direct_rooms(client, project_mod))
             if _pi:
@@ -7047,20 +7079,10 @@ def chat(client, ws_call, project_mod, user: dict, text: str,
             if _hit.get("say"):
                 runner.said_for_act[_say_key(_hit["tool"], _hit["args"])] = _hit["say"]
             _out = runner.run(_hit["tool"], _hit["args"])
-            # REGISTER 735: a room with no music engine player hands the sentence to the
-            # platform's own search-and-play (any player whose integration can search).
-            if isinstance(_out, dict) and _out.get("handoff") == "platform":
-                try:
-                    _plat = runner.platform_command(text, "HassMediaSearchAndPlay")
-                except Exception as e:                           # noqa: BLE001
-                    print("  [assist] platform agent failed (%s)" % e, flush=True)
-                    _plat = {"say": "I couldn't do that just then.", "intent": "unknown", "error": True}
-                if _plat is None:
-                    _plat = {"say": "I couldn't find a speaker in that room that can play music.",
-                             "intent": "HassMediaSearchAndPlay", "error": True}
-                _hit["matched"] = "agent:HassMediaSearchAndPlay"
-                _out = {"error": _plat["say"]} if _plat.get("error") else {}
-                _hit["say"] = None if _plat.get("error") else _plat["say"]
+            # (register 735's hand-off of the sentence to the platform's own search-and-play ended here; since 923 the
+            # platform matches ProOS's own music sentence first, so the hand-off came straight back — register 879.
+            # The platform's play intent BY NAME is the design for a room whose speaker can't search; it waits on a
+            # read of the platform's intent route on the box.)
         _err = (_out or {}).get("error") if isinstance(_out, dict) else None
         if _err and _plat:
             reply = _plat["say"]           # the platform's own words for why

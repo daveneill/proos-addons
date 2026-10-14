@@ -175,3 +175,24 @@ def handle(client, project_mod, data: dict, launch=None) -> dict:
         return {"error": "%s isn't set up in this room — add it under Apps in Pro" % app}
     except Exception as e:                                       # noqa: BLE001
         return {"error": str(e)[:200]}
+
+
+def rewrite_after_shortcuts(client, project_mod) -> dict:
+    """ONE place for what a change to a room's App Shortcuts means for voice (register 879, 14 Oct 2026): the apps
+    sentences are rewritten from the shortcuts, and the music sentence re-reads the names the apps now own, so a
+    shortcut added in Pro is a voice command at once and never also a music search. Called by Pro's shortcuts
+    routes and by the assistant's own shortcut build — before this only the assistant's road rewrote, and only
+    the apps sentence; a shortcut added in Pro became a voice command at the next commit or boot."""
+    out = {}
+    try:
+        out["apps"] = voice_apps(client, project_mod.load())
+    except Exception as e:                                       # noqa: BLE001
+        out["apps"] = {"ok": False, "error": str(e)[:160]}
+    try:
+        from proos import voicemusic as _vm
+        out["music"] = _vm.voice_music(client)
+    except Exception as e:                                       # noqa: BLE001
+        out["music"] = {"ok": False, "error": str(e)[:160]}
+    print("  voice · after shortcuts: apps %s, music %s" % ((out["apps"] or {}).get("action") or (out["apps"] or {}).get("error"),
+                                                           (out["music"] or {}).get("action") or (out["music"] or {}).get("error")), flush=True)
+    return out

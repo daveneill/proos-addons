@@ -71,6 +71,10 @@ def choose_account(accounts, service_id, name=None, serial=None):
 
 _ACCOUNTS = {}          # household id -> (accounts, when read). Memory only — never written to disk.
 ACCOUNTS_FRESH_S = 600  # plumbing: how long the home's accounts are used before the speaker is asked again
+SPEAKER_REQUEST_TIMEOUT_S = 6   # plumbing: one request to the speaker (the library's own default is 20 s — a speaker that
+                                # is off the network made a voice reply 20 s late, past the platform's 12 s wait; register 879)
+SPEAKER_PORT = 1400             # the speaker's own control port (the library's)
+SPEAKER_KNOCK_S = 2.5           # plumbing: how long one knock on that port waits before "the speaker didn't answer"
 ACCOUNTS_RETRY_S = 60   # plumbing: after a re-read the speaker didn't answer, how soon to ask again (the kept list serves)
 
 
@@ -225,7 +229,16 @@ def connect(client, network_info, entity_id):
         raise SpeakerMusicError("this box's own network address isn't known")
     soco_config.EVENT_ADVERTISE_IP = box
     soco_config.EVENT_LISTENER_PORT = EVENT_PORT
+    soco_config.REQUEST_TIMEOUT = SPEAKER_REQUEST_TIMEOUT_S
     listener_port(soco_events())
+    # register 879: ONE knock on the speaker's own door before anything is asked of it — a speaker off the network
+    # cost two library time-outs (20 s) before, and a voice reply came after the platform had stopped waiting
+    answered, why = knock(ip)
+    if not answered and from_memory:
+        raise SpeakerMusicError("the network doesn't report an address for this speaker, and it no longer "
+                                "answers at %s, the last address it answered at" % ip)
+    if not answered:
+        raise SpeakerMusicError("the speaker didn't answer at %s (%s)" % (ip, why))
     sp = soco.SoCo(ip)
     sp = _confirmed(client, entity_id, sp, ip, from_memory)
     try:
@@ -359,6 +372,17 @@ def remember_address(entity_id, uid, ip):
         _os.replace(tmp, ADDRESSES_PATH)
     except Exception:                                            # noqa: BLE001
         pass
+
+
+def knock(ip: str):
+    """(True, None) when something answers on the speaker's control port at ip; (False, why) otherwise. A physical
+    read, bounded by SPEAKER_KNOCK_S — the one seam a bench stands in for."""
+    import socket as _socket
+    try:
+        _socket.create_connection((ip, SPEAKER_PORT), timeout=SPEAKER_KNOCK_S).close()
+        return True, None
+    except OSError as e:
+        return False, type(e).__name__
 
 
 def _confirmed(client, entity_id, sp, ip, from_memory):

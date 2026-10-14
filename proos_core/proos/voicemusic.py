@@ -28,7 +28,9 @@ VOICE_MUSIC_ID = "proos_voice_music"
 EVENT = "proos_voice"
 REPLY_EVENT = "proos_voice_reply"
 REPLY_WAIT_S = 12            # plumbing: how long the platform waits for Core's own words before answering "on it"
-VERBS = "(play|put on|listen to|play some|play me)"
+VERBS = "(play some|play me|listen to|put on|play)"   # longest first: the platform takes the first alternative that
+                                                     # fits, so "play" alone left "some adele" in the slot (register 879)
+LEFTOVERS = ("some", "me", "us")                      # a verb's tail the slot may still carry ("play me some adele")
 
 
 def _norm(s):
@@ -83,6 +85,20 @@ def split_room(words: str, rooms: list):
     if best:
         return best[0], best[1]
     return w, None
+
+
+def strip_leftovers(words: str) -> str:
+    """"some adele" → "adele": the platform's recogniser fills the wildcard with everything after the FIRST alternative
+    that fits ("play"), so the slot can begin with the rest of the verb (register 879, seen on the rig 14 Oct)."""
+    w = _norm(words)
+    changed = True
+    while changed:
+        changed = False
+        for t in LEFTOVERS:
+            if w.startswith(t + " ") and len(w) > len(t) + 1:
+                w = w[len(t) + 1:]
+                changed = True
+    return w
 
 
 def voice_music_config(taken: list):
@@ -143,6 +159,7 @@ def handle(client, runner, rooms: list, data: dict) -> dict:
     if data.get("kind") != "music":
         return {"ignored": True}
     music, area = split_room(data.get("music") or "", rooms)
+    music = strip_leftovers(music)
     if not area:
         area = room_of_device(client, data.get("device_id"))
     if not music:
