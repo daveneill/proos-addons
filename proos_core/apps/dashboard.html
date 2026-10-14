@@ -4564,7 +4564,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101401';
+const PROOS_BUILD='2026101402';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -4973,6 +4973,27 @@ function _artOf(eid){
     }
   }catch(_){}
   return att(eid,'entity_picture')||null;
+}
+// REGISTER 863 (Dave 14 Oct 10:42: "it does not say it's P!nk Radio or where it's playing it from"): WHAT AND WHERE.
+// The context line under the track — the station, playlist or album it's coming from, and the service — from the
+// speaker's own attributes: media_channel (a station), media_playlist, media_album_name; the service from the sid in
+// the speaker's own media address, named by the services the Music page loaded (nothing is guessed: no name, no service).
+let _npServiceNames={};
+function _npNoteServices(list){ (list||[]).forEach(s=>{ if(s&&s.service_id!=null&&s.service) _npServiceNames[String(s.service_id)]=s.service; }); }
+function _npContext(eid){
+  if(!eid) return '';
+  const title=att(eid,'media_title')||'';
+  let from=att(eid,'media_channel')||att(eid,'media_playlist')||'';
+  if(!from){ const alb=att(eid,'media_album_name')||''; if(alb && alb!==title) from=alb; }
+  if(from && from===title) from='';
+  const m=String(att(eid,'media_content_id')||'').match(/[?&]sid=(\d+)/);
+  const svc=m?(_npServiceNames[m[1]]||''):'';
+  return [from,svc].filter(Boolean).join(' · ');
+}
+function _npArtistLine(eid, artist){
+  const ctx=_npContext(eid);
+  if(!ctx) return artist||'';
+  return artist?(artist+' — '+ctx):ctx;
 }
 // REGISTER 477 - THE ROOM BINDS TO WHICHEVER TWIN IS ACTUALLY DRIVING THE AUDIO.
 // True when this NATIVE speaker's Music Assistant twin has already drawn the
@@ -5897,7 +5918,7 @@ function buildRoomCards(r, makeCardFn, labelPrefix, scope){
       if(_nativeTwinMaDrawn(e,candidates,seen)) return;
       seen.add(e);
       const title=att(e,'media_title')||att(e,'media_channel')||'\u2013';
-      const artist=att(e,'media_artist')||'';
+      const artist=_npArtistLine(e, att(e,'media_artist')||'');
       const art=_artOf(e);
       const _ze=_zoneVolForEntity(e)||e;   // zone player -> the room's ONE volume
       const vol=parseFloat(att(_ze,'volume_level')||0);
@@ -14659,7 +14680,7 @@ async function musicSpeakerHome(entity){
   if(seq!==_spm.seq || entity!==_musicSpeaker) return;
   // Services that don't answer aren't offered (Dave, 768); those the person can sign in to on the service's
   // own page are offered to CONNECT (registers 775–778; Dave 12 Oct: "any signins to be on both").
-  _spm.services=svcs||[]; _spm.connect=conn;
+  _spm.services=svcs||[]; _spm.connect=conn; _npNoteServices(svcs);
   if(!svcs || !svcs.length){
     // The ladder's next rung: the speaker's own favourites — and the reason is said once.
     if(why) showToast('This speaker’s music services couldn’t be reached — '+why);
@@ -14797,23 +14818,35 @@ function spmBack(){
 function spmTap(i){
   if(_spmHeld){ _spmHeld=false; return; }          // the hold opened the sheet — this tap is its release
   const it=_spm.items[i]; if(!it) return;
+  if(it.sid!=null && it.sid!==_spm.sid && _spm.services.some(x=>x.service_id===it.sid)){ _spm.sid=it.sid; _spm.acct=it.acct; _spmRemember(); _spmChips(); }   // 863: a result from another service opens there
   if(it.open) _spmOpen(it, true); else spmPlay(i);
 }
-async function spmSearch(q){
-  const entity=_spm.entity, seq=++_spm.seq; _spm.items=[];
+// REGISTER 863 (Dave 14 Oct 10:49: "it searches all the added services and shows what it finds under each service").
+// One call to Core; Core asks every service side by side and answers within its budget — a service still answering is
+// said so and asked again once. Each card carries its own service, so a tap plays it there.
+const _KIND_WORDS={artist:'Artists',track:'Songs',album:'Albums',playlist:'Playlists',station:'Stations',podcast:'Podcasts',genre:'Genres',other:'More'};
+async function spmSearchAll(q, again){
+  const entity=_spm.entity, seq=again?_spm.seq:++_spm.seq; _spm.items=[];
   _showGrid();
-  const g=document.getElementById('music-grid'); if(g) g.innerHTML=_mEmpty('Searching…');
+  const g=document.getElementById('music-grid'); if(g&&!again) g.innerHTML=_mEmpty('Searching every service…');
   let j=null, err='';
-  try{ j=await _spmGet('search', {service_id:_spm.sid, account:_spm.acct, q:q}); }catch(e){ err=String(e&&e.message||e); }
+  try{ j=await _spmGet('searchall', {q:q}); }catch(e){ err=String(e&&e.message||e); }
   if(seq!==_spm.seq || entity!==_musicSpeaker) return;
   if(err){ if(g) g.innerHTML=_mEmpty('Search unavailable — '+err); return; }
-  // Grouped in the SERVICE's own categories, with its own names for them.
-  let h='';
-  ((j&&j.results)||[]).forEach(r=>{
-    if(!(r.items&&r.items.length)) return;
-    h+='<div class="ms-sec-h">'+_mEsc(_humanizeKey(r.category))+'</div>'+_spmMixed(r.items);
+  _npNoteServices((j.services||[]).map(s=>({service_id:s.service_id, service:s.name})));
+  let h='', any=false;
+  (j.services||[]).forEach(s=>{
+    const kinds=s.kinds||{}; const order=['artist','track','album','playlist','station','podcast','genre','other'];
+    const has=order.filter(k=>(kinds[k]||[]).length);
+    let body='';
+    if(has.length){ any=true; has.forEach(k=>{ body+='<div class="ms-sec-h" style="opacity:.75;font-size:11px">'+_KIND_WORDS[k]+'</div>'+_spmMixed(kinds[k]); }); }
+    else if(s.pending) body=_mEmpty(s.name+' is still answering…');
+    else if(s.error) body=_mEmpty(s.name+' — '+s.error);
+    else body=_mEmpty('Nothing on '+s.name);
+    h+='<div class="ms-sec-h" style="grid-column:1/-1;margin-top:10px">'+_mEsc(s.name)+'</div>'+body;
   });
-  if(g) g.innerHTML=h||_mEmpty('No results for “'+q+'”');
+  if(g) g.innerHTML=h||_mEmpty('No results for “'+_mEsc(q)+'”');
+  if(!again && (j.pending||[]).length) setTimeout(()=>{ if(seq===_spm.seq && entity===_musicSpeaker) spmSearchAll(q, true); }, 2500);
 }
 // CONNECT A SERVICE (registers 775–778). The person signs in on the service's OWN page (ProOS never sees a
 // password); Core is asked every few seconds whether they've finished; once they have, the service answers
@@ -14896,7 +14929,7 @@ async function spmAddFavourite(i){
   let j=null, msg='';
   try{
     const r=await fetch(proosCoreBase()+'/speakers/music/favourites/add',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({entity_id:entity, service_id:_spm.sid, account:_spm.acct, item:it.id})});
+      body:JSON.stringify({entity_id:entity, service_id:(it.sid!=null?it.sid:_spm.sid), account:(it.sid!=null?it.acct:_spm.acct), item:it.id})});
     j=await r.json().catch(()=>null);
     if(!r.ok) msg=(j&&j.error)||('error '+r.status);
   }catch(e){ msg=String(e&&e.message||e); }
@@ -14944,7 +14977,7 @@ async function spmAddToPlaylist(i, playlistId, name){
   let j=null, msg='';
   try{
     const r=await fetch(proosCoreBase()+'/speakers/music/playlists/add',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({entity_id:entity, service_id:_spm.sid, account:_spm.acct, item:it.id, playlist_id:playlistId||'', title:title})});
+      body:JSON.stringify({entity_id:entity, service_id:(it.sid!=null?it.sid:_spm.sid), account:(it.sid!=null?it.acct:_spm.acct), item:it.id, playlist_id:playlistId||'', title:title})});
     j=await r.json().catch(()=>null);
     if(!r.ok) msg=(j&&j.error)||('error '+r.status);
   }catch(e){ msg=String(e&&e.message||e); }
@@ -14961,7 +14994,7 @@ async function spmPlay(i, mode){
   let j=null, msg='';
   try{
     const r=await fetch(proosCoreBase()+'/speakers/music/play',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({entity_id:entity, service_id:_spm.sid, account:_spm.acct, item:it.id})});
+      body:JSON.stringify({entity_id:entity, service_id:(it.sid!=null?it.sid:_spm.sid), account:(it.sid!=null?it.acct:_spm.acct), item:it.id})});
     j=await r.json().catch(()=>null);
     if(!r.ok) msg=(j&&j.error)||('error '+r.status);
   }catch(e){ msg=String(e&&e.message||e); }
@@ -14974,7 +15007,7 @@ async function _spmQueue(it, entity, mode){
   let j=null, msg='';
   try{
     const r=await fetch(proosCoreBase()+'/speakers/music/play',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({entity_id:entity, service_id:_spm.sid, account:_spm.acct, item:it.id, mode:mode})});
+      body:JSON.stringify({entity_id:entity, service_id:(it.sid!=null?it.sid:_spm.sid), account:(it.sid!=null?it.acct:_spm.acct), item:it.id, mode:mode})});
     j=await r.json().catch(()=>null);
     if(!r.ok) msg=(j&&j.error)||('error '+r.status);
   }catch(e){ msg=String(e&&e.message||e); }
@@ -15294,10 +15327,10 @@ function musicSearch(q){
   clearTimeout(_musicSearchTimer);
   // Engine speakers ALWAYS search through Core — no HA config-entry id needed.
   if(_musicMode==='speaker' && _spm.entity===_musicSpeaker){
-    // The speaker's own services: a real search through the service (stage 2), debounced.
+    // REGISTER 863: EVERY service the speaker has, at once, shown under each (like the Sonos app) — debounced.
     _musicSearchSeq++;
     if(!q){ _spm.stack=[]; _spmCrumb(); _spmHome(); return; }
-    _musicSearchTimer=setTimeout(()=>spmSearch(q),320);
+    _musicSearchTimer=setTimeout(()=>spmSearchAll(q),320);
     return;
   }
   if(musicEngine(_musicSpeaker)!=='ma'){
@@ -16105,7 +16138,7 @@ function _renderMusicNowPlayingNow(){
   // Same card design as the Media/area players, shown whenever a speaker is
   // selected — not gated on playback (that mount-on-play behaviour is for the area pages).
   const title=live?(att(truth,'media_title')||att(truth,'media_channel')||'–'):'Nothing playing';
-  const artist=live?(att(truth,'media_artist')||''):'';
+  const artist=live?_npArtistLine(truth, att(truth,'media_artist')||''):'';
   const art=live?_artOf(truth):null;
   const _zv=_zoneVolForEntity(entity)||entity;   // the room's ONE volume (Dave, 9 Aug)
   const vol=parseFloat(att(_zv,'volume_level')||0.5);
@@ -17919,7 +17952,7 @@ function ssRenderMedia(){
     eid=cands.find(e=>st(e)==='playing') || cands.find(e=>st(e)==='paused') || null;
   }
   if(!eid){ if(_ssCardSig){ m.style.display='none'; m.innerHTML=''; _ssCardSig=''; } return; }
-  const title=att(eid,'media_title')||att(eid,'media_channel')||'', artist=att(eid,'media_artist')||'', art=_artOf(eid)||'', stt=st(eid);
+  const title=att(eid,'media_title')||att(eid,'media_channel')||'', artist=_npArtistLine(eid, att(eid,'media_artist')||''), art=_artOf(eid)||'', stt=st(eid);
   const sig=eid+'|'+title+'|'+artist+'|'+stt;
   if(sig!==_ssCardSig){
     _ssCardSig=sig; m.style.display='';
