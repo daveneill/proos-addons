@@ -9256,11 +9256,12 @@ def main():
                 from proos import voicecheck as _vck
                 if res.get("ok") and data.get("kind") in ("plan", "music"):
                     okc, secs, words = True, 0, "each call answered"       # the tools themselves read back (their own law)
+                elif res.get("ok") and data.get("kind") == "app":
+                    # DAVE'S RULING 14 Oct 14:59 (register 873): "assist should not have to confirm if it ran as it's just
+                    # running the activity or shortcut" — the shortcut ran (device on, command taken); nothing is asked after.
+                    okc, secs, words = True, 0, "the shortcut ran"
                 elif res.get("ok"):
-                    if data.get("kind") == "favourite":
-                        okc, secs, words = _vck.check_play(_client, data.get("entity_id"), what, before=before)
-                    else:
-                        okc, secs, words = _vck.check_app(_client, res.get("device") or data.get("device"), what)
+                    okc, secs, words = _vck.check_play(_client, data.get("entity_id"), what, before=before)
                 else:
                     okc, secs, words = False, 0, res.get("error") or "it couldn't be done"
                 print("  voice · %s %s %s (%.1f s)" % (what, "confirmed:" if okc else "NOT confirmed:", words, secs), flush=True)
