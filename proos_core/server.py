@@ -9226,6 +9226,16 @@ def main():
                     okp, results, needs = _hp.run_calls(rnr, calls, lambda d: _vfavs.handle(_client, d))
                     res = {"ok": okp, "played": data.get("text")} if okp else {"error": (results[-1]["result"] or {}).get("error") if results else str(needs)}
                     what = data.get("text")
+                elif data.get("kind") == "music":
+                    # REGISTER 866: the platform's sentence waits for Core's own words — the one music road, then the reply.
+                    from proos import voicemusic as _vmus
+                    rnr = _assist.ToolRunner(_client, _ws_call, project, {"id": "learned", "name": "Home"}, ma=_ma,
+                                             awareness=_assist_awareness(), mcp=_mcp_client())
+                    rooms = [(a.get("area_id"), a.get("name")) for a in (_client.area_registry() or [])]
+                    res = _vmus.handle(_client, rnr, rooms, data)
+                    _vmus.reply(_client, data.get("cid"), res.get("say"))
+                    data = dict(data, room=res.get("area"), entity_id=res.get("playing_on"))
+                    what = res.get("picked") or res.get("music")
                 else:
                     res = _vapps.handle(_client, project, data)
                     what = data.get("app")
@@ -9235,7 +9245,7 @@ def main():
                                                                  else (res.get("error") or res), ms), flush=True)
                 # REGISTER 856: the reply was said at once; the device's own state decides whether it was true.
                 from proos import voicecheck as _vck
-                if res.get("ok") and data.get("kind") == "plan":
+                if res.get("ok") and data.get("kind") in ("plan", "music"):
                     okc, secs, words = True, 0, "each call answered"       # the tools themselves read back (their own law)
                 elif res.get("ok"):
                     if data.get("kind") == "favourite":
@@ -9442,6 +9452,13 @@ def main():
                     print(f"  voice · favourites not written: {_vf.get('error')}")
             except Exception as _vf_e:
                 print(f"  voice · favourites skipped: {_vf_e}")
+            try:
+                # REGISTER 866: music by name from ANY voice door — the platform's own wildcard sentence, answered with Core's words.
+                from proos import voicemusic as _vmus
+                _vm = _vmus.voice_music(_client)
+                print(f"  voice · music: {_vm.get('action')}" + (f" ({_vm.get('error')})" if _vm.get('error') else ""))
+            except Exception as _vm_e:
+                print(f"  voice · music skipped: {_vm_e}")
             try:
                 # REGISTER 863: learned sentences that can't be replayed (an app launch with no device) are dropped.
                 from proos import homeplan as _hpl
