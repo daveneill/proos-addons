@@ -134,6 +134,22 @@ def resolve_platform(rec, text, where=None, rooms=(), scenes=()):
     """
     if not rec or not rec.get("match") or rec.get("fuzzy_match"):
         return None
+    if rec.get("source") == "trigger" and "{music}" in str(rec.get("sentence_template") or ""):
+        # REGISTER 876 (Dave 14 Oct 16:20: "on the bedroom page … it asks which room — when did this change"): 923's
+        # own music sentence ("play {music}") is matched by the platform AHEAD of its built-in play sentence, and 733's
+        # rule handed every home sentence to the platform's agent — which has no page to read the room from. ProOS's
+        # own sentence is ProOS's: the words, the room from the words or the certain room the person is in, Core's
+        # music road — exactly the pre-923 road.
+        words = str(_slot(rec, "music") or "").strip()
+        if words:
+            from proos import voicemusic as _vm
+            name, aid = _vm.split_room(words, [(r[0], r[1]) for r in (rooms or [])])
+            if not aid and where and where.get("area_id") and where.get("confidence") == "certain":
+                aid = where.get("area_id")
+            if aid and name:
+                return {"tool": "music_search_play", "args": {"area_id": aid, "query": name},
+                        "matched": "platform:music", "say": None}
+        return None                       # no room anywhere: the platform's door asks "Which room?"
     if rec.get("source") not in (None, "builtin"):
         return None                       # a custom sentence or trigger is not ours to map
     if "?" in str(text or ""):

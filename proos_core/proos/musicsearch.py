@@ -260,10 +260,18 @@ def rank(result, words, favourites=None):
     services = result.get("services") or []
     kinds_wanted = [kind] if kind else list(KIND_ORDER)
     if not kind and station_family(favourites, name):
+        # the station nearest the name: an exact title first, else the leading match with the fewest extra words
+        # (register 875: "triple m" → Triple M 2000s was the first leading match; the plain station is the one meant)
+        best = None
         for s in services:
             for c in (s.get("kinds") or {}).get("station") or []:
-                if same_words(c.get("title"), name) or _letters(c.get("title"))[:len(_letters(name))] == _letters(name):
+                t = _letters(c.get("title"))
+                if same_words(c.get("title"), name):
                     return "exact", [c]
+                if t[:len(_letters(name))] == _letters(name) and (best is None or len(t) < len(_letters(best.get("title")))):
+                    best = c
+        if best is not None:
+            return "exact", [best]
     for s in services:
         exact = []
         for k in kinds_wanted:
