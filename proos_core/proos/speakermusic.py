@@ -770,6 +770,33 @@ def apple_prepare(br, c):
     return uri, build_metadata(br, iid, c.get("title") or "", "track", mime="audio/mp4", uri=uri)
 
 
+def _type_of(item):
+    return str(getattr(item, "item_type", "") or "").rsplit(".", 1)[-1].lower()
+
+
+def tracks_inside(br, it, limit=100):
+    """The tracks a container plays: its own, else — for an ARTIST or any shelf holding only shelves — the first shelf
+    that holds tracks and is NOT a station (register 863: "play P!nk" plays P!nk's music, never soundalikes).
+    REGISTER 881 (read on Dave's Office speaker, 15 Oct 07:20): Spotify's artist shelf is [Adele Radio (type program),
+    Top Tracks (type trackList), the albums…] — the station came FIRST, held 50 seeded tracks, and "play some adele"
+    queued Harry Styles. A shelf the service itself types as a program is a station and is passed over; the first list
+    of the artist's own tracks is taken. The service's own type, no names."""
+    inside = list(br.get_metadata(it, count=int(limit)).items)
+    tracks = [t for t in inside if not opens(t)]
+    if tracks:
+        return tracks
+    for sub in inside:
+        if not opens(sub) or _type_of(sub) == "program":
+            continue
+        try:
+            deeper = [t for t in br.get_metadata(sub, count=int(limit)).items if not opens(t)]
+        except Exception:                                        # noqa: BLE001
+            deeper = []
+        if deeper:
+            return deeper
+    return []
+
+
 def play(sp, service_id, item_id, account=None, time_zone=None, wait_s=10.0, limit=100, mode="now"):
     """Play an item on the speaker: a playlist/album as the speaker's own queue (first track started,
     the rest added behind it), a track or stream on its own. The answer is the SPEAKER's state.
@@ -791,22 +818,7 @@ def play(sp, service_id, item_id, account=None, time_zone=None, wait_s=10.0, lim
     with s["lock"]:
         it = s["items"].get(item_id, item_id)
         if opens(it):
-            inside = list(br.get_metadata(it, count=int(limit)).items)
-            tracks = [t for t in inside if not opens(t)]
-            if not tracks:
-                # REGISTER 863: an ARTIST (or any shelf that holds only shelves) plays its first shelf that holds tracks —
-                # Spotify's artist is Top Tracks, Albums, Related…; "play P!nk" plays P!nk's top tracks, not a station
-                # of soundalikes. One level down, the service's own order.
-                for sub in inside:
-                    if not opens(sub):
-                        continue
-                    try:
-                        deeper = [t for t in br.get_metadata(sub, count=int(limit)).items if not opens(t)]
-                    except Exception:                            # noqa: BLE001
-                        deeper = []
-                    if deeper:
-                        tracks = deeper
-                        break
+            tracks = tracks_inside(br, it, limit)
             if not tracks:
                 raise SpeakerMusicError("there's nothing to play directly inside “%s” — open it to choose" % it.title)
         else:

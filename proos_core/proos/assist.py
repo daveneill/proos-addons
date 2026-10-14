@@ -4105,7 +4105,7 @@ class ToolRunner:
         print("  [assist] music: %r → searched %r → %r (%s, %s) TAKEN — speaker %.1fs · AI %.1fs · search %.1fs · play %.1fs"
               % (asked, words, pick["title"], service, how, times.get("speaker", 0), times.get("ai", 0),
                  times.get("search", 0), times.get("play", 0)), flush=True)
-        self._verify_play_later(eid, room, pick["title"], before)
+        self._verify_play_later(eid, room, pick["title"], before, kind=pick.get("kind"))
         what = "%s on %s" % (pick["title"], service) if service else pick["title"]
         return {"ok": True, "playing_on": eid, "picked": pick["title"], "kind": pick.get("kind"),
                 "chosen_by": how, "service": service,
@@ -4205,14 +4205,14 @@ class ToolRunner:
                                                                            res.get("ms") or 0), flush=True)
         return {"error": _ms.nothing_found(res, words)}
 
-    def _verify_play_later(self, eid, room, title, before=None):
+    def _verify_play_later(self, eid, room, title, before=None, kind=None):
         """The check after the reply (856): the speaker's own state, a correction to the dashboards if it never played
-        (869: playing something other than it was, when `before` is known)."""
+        (869: playing something other than it was, when `before` is known; 881: for an artist or a track, playing THAT)."""
         from proos import voicecheck as _vck
         client, on_wrong = self.client, (getattr(self, "on_correction", None) or CORRECTION_HOOK)
 
         def _go():
-            okc, secs, words = _vck.check_play(client, eid, title, before=before)
+            okc, secs, words = _vck.check_play(client, eid, title, before=before, kind=kind)
             print("  [assist] music: %s %s (%.1f s)" % ("confirmed:" if okc else "NOT confirmed:", words, secs), flush=True)
             if not okc and on_wrong is not None:
                 try:

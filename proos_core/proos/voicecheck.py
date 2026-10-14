@@ -51,20 +51,51 @@ def _playing_sig(st):
     return (a.get("media_content_id"), a.get("media_title"), a.get("media_channel"), a.get("media_playlist"))
 
 
-def check_play(client, entity, name, wait_s=None, now=time.time, sleep=time.sleep, before=None):
+def _letters(s):
+    import re
+    return re.sub(r"[^a-z0-9]", "", str(s or "").lower())
+
+
+def names_it(attrs, name):
+    """Does what the speaker reports — artist, title, album, playlist, channel — carry the name that was picked?
+    Letters and digits alike; no name-specific rule."""
+    want = _letters(name)
+    if not want:
+        return False
+    for k in ("media_artist", "media_title", "media_album_name", "media_playlist", "media_channel", "media_album_artist"):
+        if want in _letters((attrs or {}).get(k)):
+            return True
+    return False
+
+
+def _what_plays(a, name):
+    t, ar = a.get("media_title"), a.get("media_artist")
+    return ("%s by %s" % (t, ar)) if t and ar else (t or name)
+
+
+def check_play(client, entity, name, wait_s=None, now=time.time, sleep=time.sleep, before=None, kind=None):
     """(confirmed, seconds, words). Confirmed when the speaker itself says playing — and, when `before` (the speaker's state
     just before the command) is given, playing something OTHER than it was (register 869, seen on the box 13:43: a favourite
-    was 'confirmed' in 0.0 s by the Adele track that was already playing)."""
+    was 'confirmed' in 0.0 s by the Adele track that was already playing).
+    REGISTER 881 (seen on the box 15 Oct 07:09: "play some adele" → "confirmed: Office is playing Sign of the Times" — Harry
+    Styles): playing something new is not playing what was asked. For an ARTIST or a TRACK the speaker reports who and what
+    is playing, so the check compares: confirmed only when what the speaker reports carries the name picked; otherwise NOT
+    confirmed, said with what is actually playing. For an album, playlist or station the speaker reports the track inside
+    it, so "playing" is the reading and the words say what is playing."""
     wait_s = PLAY_WAIT_S if wait_s is None else wait_s
     t0 = now()
     last = {}
     was = _playing_sig(before) if before else None
     was_playing = bool(before) and (before or {}).get("state") == "playing"
+    compare = str(kind or "").lower() in ("artist", "track")
     while now() - t0 <= wait_s:
         st = _state(client, entity)
         a = st.get("attributes") or {}
         if st.get("state") == "playing" and (not was_playing or _playing_sig(st) != was):
-            return True, round(now() - t0, 1), "%s is playing %s" % (a.get("friendly_name") or entity, a.get("media_title") or name)
+            who = a.get("friendly_name") or entity
+            if compare and not names_it(a, name):
+                return False, round(now() - t0, 1), "the %s is playing %s — not %s" % (who, _what_plays(a, name), name)
+            return True, round(now() - t0, 1), "%s is playing %s" % (who, _what_plays(a, name))
         last = {"state": st.get("state"), "name": a.get("friendly_name") or entity, "title": a.get("media_title")}
         sleep(STEP_S)
     if was_playing and last.get("state") == "playing":
