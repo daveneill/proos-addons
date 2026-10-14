@@ -2298,6 +2298,61 @@ class ToolRunner:
         self._domains = doms
         return doms
 
+    # REGISTER 874 (Dave 14 Oct 15:29, confirmed "go" 15:37): Assist may only run, create or control what is ASSIGNED to a
+    # room — the platform's own area assignment ("membership is the room's assignment", the product's law). Anything
+    # unassigned is refused BY NAME, whatever the tier. One reading, kept a minute.
+    _rooms_of_kept = (0.0, {}, None)
+
+    def _rooms_of(self) -> dict:
+        now = time.time()
+        when, table, who = ToolRunner._rooms_of_kept
+        if now - when < 60 and table and who == id(self.client):
+            return table
+        table = {}
+        try:
+            dev_area = {d.get("id"): d.get("area_id") for d in (self.client.device_registry() or [])}
+            for e in (self.client.entity_registry() or []):
+                a = area_of(e, dev_area)
+                if a:
+                    table[e.get("entity_id")] = a
+        except Exception:  # noqa: BLE001
+            return None                                      # the registry couldn't be read — said by None, never a refusal
+        ToolRunner._rooms_of_kept = (now, table, id(self.client))
+        return table
+
+    def _unassigned(self, entity_ids) -> list:
+        """The entities among these that no room holds — [] when every one is assigned, or when the registry can't be
+        read (the law since 18 Aug: a registry we cannot read never blocks the act; the refusal needs a reading)."""
+        rooms = self._rooms_of()
+        if rooms is None:
+            return []
+        return [e for e in entity_ids if e and "." in str(e) and e not in rooms]
+
+    @staticmethod
+    def _entity_ids_in(obj) -> list:
+        """Every entity id named anywhere in a platform config (trigger/condition/action), however nested."""
+        out = []
+
+        def walk(x):
+            if isinstance(x, dict):
+                for k, v in x.items():
+                    if k in ("entity_id", "entity_ids", "target") and not isinstance(v, dict):
+                        for e in (v if isinstance(v, list) else [v]):
+                            if isinstance(e, str) and "." in e:
+                                out.append(e)
+                    else:
+                        walk(v)
+            elif isinstance(x, list):
+                for v in x:
+                    walk(v)
+        walk(obj)
+        return list(dict.fromkeys(out))
+
+    @staticmethod
+    def _unassigned_words(unassigned) -> str:
+        n = ", ".join(unassigned[:4]) + (" and %d more" % (len(unassigned) - 4) if len(unassigned) > 4 else "")
+        return "%s %s assigned to a room — assign %s in Pro first" % (n, "isn't" if len(unassigned) == 1 else "aren't", "it" if len(unassigned) == 1 else "them")
+
     def _members(self, proj) -> set:
         out = set()
         for rec in (proj or {}).get("areas", {}).values():
@@ -2822,6 +2877,9 @@ class ToolRunner:
         if domain == "media_player" and action in _MEDIA_POWER:
             return {"error": "media power is choreographed per room — use room_activity "
                              "(rooms_overview lists each room's activities)"}
+        bad = self._unassigned([eid])
+        if bad:
+            return {"error": self._unassigned_words(bad)}          # register 874
         if domain == "media_player":
             proj = self.project.load()
             if eid not in self._members(proj):
@@ -4413,6 +4471,9 @@ class ToolRunner:
                              "are required"}
         entities = {}
         unknown = []
+        _bad = self._unassigned([(st.get("entity_id") or "").strip() for st in states if isinstance(st, dict)])
+        if _bad:
+            return {"error": self._unassigned_words(_bad)}         # register 874: only what a room holds
         for st in states:
             e = (st.get("entity_id") or "").strip()
             if "." not in e:
@@ -4852,6 +4913,9 @@ class ToolRunner:
         act = args.get("action") or []
         if not alias or not trig or not act:
             return {"error": "alias, trigger and action required"}
+        _bad = self._unassigned(self._entity_ids_in([trig, args.get("condition") or [], act]))
+        if _bad:
+            return {"error": self._unassigned_words(_bad)}         # register 874: only what a room holds
         aid = self._slugify(alias, "proos_assist")
         cfg = {"id": aid, "alias": alias, "trigger": trig,
                "condition": args.get("condition") or [], "action": act,
