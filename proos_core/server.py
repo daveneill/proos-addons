@@ -9208,6 +9208,12 @@ def main():
 
             def _go():
                 nonlocal data        # register 868: the music branch re-binds it below; without this every voice event died
+                before = None
+                if data.get("kind") == "favourite" and data.get("entity_id"):
+                    try:
+                        before = _client._req("GET", "/api/states/%s" % data["entity_id"]) or {}   # 869: what it was playing
+                    except Exception:                            # noqa: BLE001
+                        before = None
                 # REGISTER 855: a favourite or the speaker's own playlist is the platform's own play; an app is appctl's launch.
                 if data.get("kind") == "favourite":
                     from proos import voicefavs as _vfavs
@@ -9237,6 +9243,8 @@ def main():
                     _vmus.reply(_client, data.get("cid"), res.get("say"))
                     data = dict(data, room=res.get("area"), entity_id=res.get("playing_on"))
                     what = res.get("picked") or res.get("music")
+                    if res.get("ok"):
+                        res.setdefault("played", what)
                 else:
                     res = _vapps.handle(_client, project, data)
                     what = data.get("app")
@@ -9250,7 +9258,7 @@ def main():
                     okc, secs, words = True, 0, "each call answered"       # the tools themselves read back (their own law)
                 elif res.get("ok"):
                     if data.get("kind") == "favourite":
-                        okc, secs, words = _vck.check_play(_client, data.get("entity_id"), what)
+                        okc, secs, words = _vck.check_play(_client, data.get("entity_id"), what, before=before)
                     else:
                         okc, secs, words = _vck.check_app(_client, res.get("device") or data.get("device"), what)
                 else:
