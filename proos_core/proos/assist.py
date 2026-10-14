@@ -3860,8 +3860,10 @@ class ToolRunner:
         key = getattr(self, "session_key", None)
         if key is not None:
             ToolRunner._pending_choice[key] = {"options": options, "ts": time.time(), "area": area}
-        said = ", ".join("the %s %s%s" % (o["kind"] if o["kind"] != "track" else "song", o["title"],
-                                           (" on " + o["service"]) if o.get("service") else "") for o in options)
+        def _kind(o):
+            k = o["kind"] if o["kind"] != "track" else "song"
+            return ("the %s " % k) if k in ("favourite", "artist", "song", "album", "playlist", "station", "podcast") else ""
+        said = ", ".join("%s%s%s" % (_kind(o), o["title"], (" on " + o["service"]) if o.get("service") else "") for o in options)
         return {"ok": True, "asked": True, "say": "I found a few: %s. Which would you like?" % said, "options": options}
 
     def pending_choice(self):

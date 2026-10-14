@@ -252,6 +252,15 @@ def rank(result, words):
                     exact.append(c)
                     break
         if exact:
+            # register 864 (seen on the box 14 Oct 11:40: "the artist Adele on Spotify, the other Adele on Spotify"):
+            # a name that IS an artist is the artist — "play Adele" is Adele; nothing to ask. And a service's shelf
+            # of unknown kind ("other") never stands beside a known kind as if it were one.
+            known = [c for c in exact if c.get("kind") in ("artist", "track", "album", "playlist", "station")]
+            if known:
+                exact = known
+            artist = next((c for c in exact if c.get("kind") == "artist"), None)
+            if artist is not None and not kind:
+                return "exact", [artist]
             return "exact", exact
     for s in services:
         for k in kinds_wanted:

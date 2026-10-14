@@ -260,6 +260,9 @@ def find(client, project, area_id: str, app: str) -> list:
     return hits
 
 
+DISPLAY_ON_WAIT_S = 8.0      # plumbing: how long a display is given to read on after turn_on before the launch gives up
+
+
 def launch_power_plan(display_state, verdict_state, target_key):
     """Pure: what to do about POWER before an app command (3 Aug — the
     widget's client-side rule moved into Core so EVERY launch path
@@ -341,9 +344,21 @@ def launch(client, project, area_id: str, app: str, device: str = None,
                     dst = _state(client, disp)
         except Exception:                                        # noqa: BLE001
             pass
+    if power_on and target is not None and (dst.get("state") or "") in ("off", "standby", "unavailable", ""):
+        # REGISTER 865 (seen on the box 14 Oct 11:45: "Play Netflix" → "the display is off — run the room's watch
+        # activity first"): a room with no committed watch activity for the target still gets its display turned on —
+        # the platform's own turn_on on the display, then a bounded wait for it to read on. The person asked for the
+        # app; the TV coming on is part of that, never their job.
+        try:
+            client.call_service("media_player", "turn_on", disp)
+            from . import readback as _rb
+            _rb.confirm(client, disp, lambda r: str(r.get("state") or "").lower()
+                        not in ("off", "standby", "unavailable", "unknown", ""), wait=DISPLAY_ON_WAIT_S)
+            dst = _state(client, disp)
+        except Exception:                                        # noqa: BLE001
+            pass
     if require_display_on and (dst.get("state") or "") in ("off", "unavailable", "standby"):
-        return {"error": "the display is %s — run the room's watch activity first, then launch"
-                         % (dst.get("state") or "off"),
+        return {"error": "the display didn't turn on (it says %s)" % (dst.get("state") or "off"),
                 "display": disp}
     # Route the display to the target source's input (if the target isn't the
     # display itself and we know its committed input).
