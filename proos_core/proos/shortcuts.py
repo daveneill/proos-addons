@@ -362,20 +362,16 @@ def launch(client, project, area_id: str, sc: dict, power: bool = True) -> dict:
             break
     if err is not None:
         return {"error": "couldn't launch %s: %s" % (sc.get("name") or sc.get("app"), err)}
-    # REGISTER 446: read the target back. A source select reads the
-    # platform's `source`; an app package reads `app_id`; a URL play has no
-    # attribute that names it — unverified, said so.
+    # DAVE'S RULING, 14 Oct 14:11 (register 871): "Apple TV will never be correct with saying what's on, so it just needs
+    # to confirm it's on then send the command. There is no need to confirm if a device is on an app if the command
+    # works." So: the device awake (above), the command taken by the platform without error = DONE. What the device
+    # says it shows is read once and carried as information, never as the verdict.
     from . import readback as _rb
-    if sc["method"] == "play_media_app":
-        want = _rb.attr_text_is("app_id", sc.get("token"))
-    elif sc["method"] == "play_media_url":
-        want = lambda row: None                             # noqa: E731
-    else:
-        want = _rb.attr_text_is("source", sc.get("token"))
-    rb = _rb.confirm(client, target, want, attrs=("source", "app_id", "app_name"))
+    rb = _rb.confirm(client, target, lambda row: None, attrs=("source", "app_id", "app_name"), wait=0)
+    shown = ((rb.get("attributes") or {}).get("app_name") or (rb.get("attributes") or {}).get("source") or None)
     return {"ok": True, "app": sc.get("app"), "target": target,
             "method": sc["method"], "fired": cmd["data"],
-            "confirmed": rb.get("confirmed"), "read_back": rb}
+            "confirmed": True, "taken": True, "shows": shown, "read_back": rb}
 
 
 # ── REGISTER 867: the shortcuts ARE the room's apps for Assist and voice (Dave 14 Oct 12:32: "we confirmed ages ago that
@@ -422,20 +418,16 @@ def offer_words(room_name: str, app: str, devices: list) -> str:
 
 
 def build_tested(client, project, area_id: str, app: str, target: str, test=None) -> dict:
-    """Build the shortcut for (app, target), TEST it — the real launch, the device's own read-back — and add it to the
-    room only when the device confirmed it. Returns {ok, added, shortcut, launch} or {error, launch}."""
+    """Build the shortcut for (app, target), TEST it — the real launch: the device awake and the command taken by the
+    platform (Dave's ruling, 871) — and add it to the room only then. Returns {ok, added, shortcut, launch} or {error, launch}."""
     sc, err = from_request(client, {"app": app, "target": target})
     if err:
         return {"error": err}
     res = (test or launch)(client, project, area_id, sc)
     if not res.get("ok"):
         return {"error": res.get("error") or "the launch failed", "launch": res, "shortcut": sc}
-    if not res.get("confirmed"):
-        rb = res.get("read_back") or {}
-        shown = (rb.get("attributes") or {}).get("source") or (rb.get("attributes") or {}).get("app_name") or (rb.get("attributes") or {}).get("app_id")
-        why = ("the device can't say what it shows" if res.get("confirmed") is None
-               else ("it shows %s" % shown if shown else "it is %s" % (rb.get("state") or "off")))
-        return {"error": "%s didn't open on the device (%s) — not added" % (sc.get("name") or app, why), "launch": res, "shortcut": sc}
+    if not res.get("taken", res.get("confirmed")):
+        return {"error": "%s wasn't taken by the device — not added" % (sc.get("name") or app), "launch": res, "shortcut": sc}
     added = add(area_id, sc)
     if added.get("error"):
         return {"error": added["error"], "launch": res, "shortcut": sc}

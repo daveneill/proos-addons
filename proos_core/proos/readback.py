@@ -177,6 +177,21 @@ def attr_text_is(name, value):
     return _w
 
 
+def any_attr_text_is(names, value):
+    """REGISTER 870: the first of several text attributes that exists decides (an Apple TV names its app in app_name, a
+    TV in source) — None only when none of them is there."""
+    def _w(row):
+        a = (row.get("attributes") or {})
+        seen = False
+        for name in names:
+            if name in a and a.get(name) is not None:
+                seen = True
+                if " ".join(str(a.get(name)).split()).lower() == " ".join(str(value).split()).lower():
+                    return True
+        return False if seen else None
+    return _w
+
+
 def words(rb: dict, did: str) -> str:
     """One plain sentence for a person, from the reading."""
     c = rb.get("confirmed")

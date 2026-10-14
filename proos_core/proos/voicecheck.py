@@ -28,7 +28,9 @@ def _norm(s):
 
 
 def check_app(client, device, app, wait_s=None, now=time.time, sleep=time.sleep):
-    """(confirmed, seconds, words). Confirmed when the device's own source or app_name is the app."""
+    """(confirmed, seconds, words). DAVE'S RULING 14 Oct 14:11 (register 871): a streamer will never say reliably which
+    app is on, so the check is that the DEVICE IS ON after the command was taken — what it says it shows rides along as
+    information. Off / standby / unavailable within the wait is the failure."""
     wait_s = APP_WAIT_S if wait_s is None else wait_s
     t0 = now()
     last = {}
@@ -36,13 +38,12 @@ def check_app(client, device, app, wait_s=None, now=time.time, sleep=time.sleep)
         st = _state(client, device)
         a = st.get("attributes") or {}
         shown = a.get("app_name") or a.get("source") or ""
-        if _norm(shown) == _norm(app) or (_norm(app) and _norm(app) in _norm(shown)):
-            return True, round(now() - t0, 1), "%s shows %s" % (a.get("friendly_name") or device, shown)
-        last = {"state": st.get("state"), "shown": shown, "name": a.get("friendly_name") or device}
+        if st.get("state") not in (None, "", "off", "standby", "unavailable", "unknown"):
+            tail = (" (it shows %s)" % shown) if shown else ""
+            return True, round(now() - t0, 1), "%s is on, %s sent%s" % (a.get("friendly_name") or device, app, tail)
+        last = {"state": st.get("state"), "name": a.get("friendly_name") or device}
         sleep(STEP_S)
-    why = ("it is %s" % last.get("state")) if last.get("state") in (None, "off", "unavailable", "standby") else \
-          ("it shows %s" % last.get("shown") if last.get("shown") else "it shows nothing")
-    return False, round(now() - t0, 1), "the %s didn't open %s (%s)" % (last.get("name") or device, app, why)
+    return False, round(now() - t0, 1), "the %s didn't come on for %s (it is %s)" % (last.get("name") or device, app, last.get("state") or "unknown")
 
 
 def _playing_sig(st):
