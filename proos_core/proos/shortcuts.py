@@ -250,6 +250,8 @@ def command_for(sc: dict) -> dict:
 
 FEATURE_FOR = {"select_source": 2048, "play_media_app": 512, "play_media_url": 512}   # the platform's own feature bits
 RETRY_AFTER_S = 2.0        # plumbing: one more try after a device refused the command while waking
+TARGET_WAKE_WAIT_S = 30.0  # plumbing: how long a streamer is given to come back to the platform after turn_on (an Apple TV
+                           # read 20 s on the box, 14 Oct 14:46 — register 872); a command sent before that does nothing
 
 
 def can_take(row: dict, method: str) -> bool:
@@ -271,7 +273,7 @@ def _ready(client, target: str, method: str):
         return True
     if str(row.get("state") or "") in ("off", "standby", "unavailable", "unknown", ""):
         client.call_service("media_player", "turn_on", target)
-    rb = _rb.confirm(client, target, lambda r: can_take(r, method), wait=appctl.DISPLAY_ON_WAIT_S)
+    rb = _rb.confirm(client, target, lambda r: can_take(r, method), wait=TARGET_WAKE_WAIT_S)
     return bool(rb.get("confirmed"))
 
 

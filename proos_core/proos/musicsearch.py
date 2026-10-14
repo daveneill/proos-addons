@@ -236,14 +236,34 @@ def kind_said(words):
     return None, " ".join(str(words or "").split())
 
 
-def rank(result, words):
+def station_family(favourites, words):
+    """REGISTER 872 (seen on the box 14 Oct 14:48: "play triple m" played an obscure Spotify ARTIST called Triple M over the
+    radio station): the room's own favourites say what the household means — favourites whose names BEGIN with the words
+    ("Triple M 80s", "Triple M Rock") make the words a station family. favourites: names (strings)."""
+    w = _letters(words)
+    if not w:
+        return False
+    for n in favourites or []:
+        t = _letters(n)
+        if len(t) > len(w) and t[:len(w)] == w:
+            return True
+    return False
+
+
+def rank(result, words, favourites=None):
     """From a search_all result: ("exact", [options]) — exact-title matches of every kind in the FIRST service that has
     one (the design: several kinds there → ask); ("partial", [one option]) — the first result carrying the words, by
-    service order then kind order; ("none", []) when nothing carries them. An option is the card itself."""
+    service order then kind order; ("none", []) when nothing carries them. An option is the card itself.
+    favourites: the room speaker's favourite names — a station family there (872) puts an exact STATION first."""
     kind, name = kind_said(words)
     name = name or words
     services = result.get("services") or []
     kinds_wanted = [kind] if kind else list(KIND_ORDER)
+    if not kind and station_family(favourites, name):
+        for s in services:
+            for c in (s.get("kinds") or {}).get("station") or []:
+                if same_words(c.get("title"), name) or _letters(c.get("title"))[:len(_letters(name))] == _letters(name):
+                    return "exact", [c]
     for s in services:
         exact = []
         for k in kinds_wanted:

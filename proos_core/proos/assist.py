@@ -2720,7 +2720,7 @@ class ToolRunner:
                            "sensor (verify_by) — this device's raw state may sit at 'idle' or 'off' while the app plays, "
                            "because many streamer drivers cannot see what is on screen. Raw state here is NOT evidence of "
                            "failure. If you still doubt, ask the user what is on the screen — their answer settles it.")
-            res["verify"] = {"kind": "app", "device": sc.get("target"), "app": sc.get("token") if sc.get("method") == "select_source" else (sc.get("name") or app)}
+            # register 873 (Dave): a shortcut that ran is done — nothing to verify after, nothing to wait for before learning
             res["say"] = "%s, %s." % (room, sc.get("name") or app)
         return res
 
@@ -2745,7 +2745,6 @@ class ToolRunner:
             except Exception as e:  # noqa: BLE001
                 print("  [assist] voice · apps not rewritten (%s)" % e, flush=True)
             out["say"] = "%s is set up in the %s on the %s — and it's on now." % (name, room, dname)
-            out["verify"] = {"kind": "app", "device": dev, "app": name}
         else:
             out["say"] = "I couldn't set %s up in the %s — %s." % (name, room, str(out.get("error") or "the test failed").rstrip("."))
         return out
@@ -3905,6 +3904,15 @@ class ToolRunner:
     KIND_WORDS = {"favourite": ("favourite", "favorite", "fave"), "track": ("song", "track"), "album": ("album",),
                   "playlist": ("playlist",), "station": ("station", "radio", "stream")}
 
+    def _favourite_names(self, area):
+        """The room speaker's favourite names (from the favourites sentences Core wrote), for the station-family rule (872)."""
+        try:
+            cfg = self.client._req("GET", "/api/config/automation/config/proos_voice_favourites") or {}
+        except Exception:                                        # noqa: BLE001
+            return []
+        said = (cfg.get("variables") or {}).get("said") or {}
+        return [v["name"] for v in said.values() if isinstance(v, dict) and v.get("area") == area and v.get("name")]
+
     def _favourites_like(self, area, asked):
         """The room speaker's favourites whose names are close to what was heard: [(ratio, play data)], best first."""
         import difflib
@@ -4084,13 +4092,23 @@ class ToolRunner:
         th.start()
         t = time.time()
         res = _ms.search_all(self.client, eid, asked)
-        th.join(timeout=8)
-        ai = box.get("ai")
-        kind, words = ai if ai else (None, asked)
-        how_ai = "ai-name" if kind == "name" else ("ai-search" if kind == "search" else "service")
-        if words != asked:
-            res = _ms.search_all(self.client, eid, words)
-        times["ai"] = times["search"] = round(time.time() - t, 1)
+        fav_names = self._favourite_names(area)
+        # register 872 (read on the box: the AI's reading took 3.2–5.0 s of every 8–10 s): when the words AS SAID hit an
+        # exact title on some service, that is the answer — the AI is not waited for. It is waited for only when nothing
+        # exact was found (a mood, a style, a misheard name).
+        how0, cards0 = _ms.rank(res, asked, fav_names)
+        if how0 == "exact" and not self._favourites_like(area, asked):
+            ai, kind, words, how_ai = None, None, asked, "said"
+            times["ai"] = 0.0
+            times["search"] = round(time.time() - t, 1)
+        else:
+            th.join(timeout=8)
+            ai = box.get("ai")
+            kind, words = ai if ai else (None, asked)
+            how_ai = "ai-name" if kind == "name" else ("ai-search" if kind == "search" else "service")
+            if words != asked:
+                res = _ms.search_all(self.client, eid, words)
+            times["ai"] = times["search"] = round(time.time() - t, 1)
         tried = [x["name"] for x in res.get("services") or []]
         if kind == "search":
             # a mood, an activity, a style: the first playlist any service offers for the AI's words (register 758)
@@ -4100,7 +4118,7 @@ class ToolRunner:
                     return self._play_pick(area, eid, mod, sp, top["sid"], top["acct"], svc["name"], tz, top, words,
                                            how_ai, asked, times)
             return {"error": _ms.nothing_found(res, words)}
-        how, cards = _ms.rank(res, words)
+        how, cards = _ms.rank(res, words, fav_names)
         options = [{"kind": "favourite", "title": f["name"], "data": f} for _r, f in favs]
         if how == "exact":
             options += [{"kind": c["kind"], "title": c["title"], "service": c["service"], "cand": c, "eid": eid, "mod": mod,
