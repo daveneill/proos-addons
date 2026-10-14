@@ -96,7 +96,7 @@ def voice_music_config(taken: list):
            "conditions": [{"condition": "template",
                            "value_template": "{{ (trigger.slots.music | lower | trim) not in taken }}"}],
            "actions": [
-               {"variables": {"cid": "{{ (range(1, 10**9) | random) ~ '-' ~ ((now().timestamp() * 1000) | int) }}"}},
+               {"variables": {"cid": "{{ (now().timestamp() * 1000000) | int }}"}},
                {"event": EVENT, "event_data": {"kind": "music", "music": "{{ trigger.slots.music }}",
                                                "device_id": "{{ trigger.device_id }}", "cid": "{{ cid }}"}},
                {"wait_for_trigger": [{"trigger": "event", "event_type": REPLY_EVENT, "event_data": {"cid": "{{ cid }}"}}],

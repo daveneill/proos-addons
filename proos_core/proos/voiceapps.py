@@ -130,7 +130,12 @@ def voice_apps(client, project: dict) -> dict:
     from proos import shortcuts as _sc
     dev_names = {}
     try:
-        dev_names = {e.get("entity_id"): (e.get("name") or e.get("original_name")) for e in (client.entity_registry() or [])}
+        # register 868 (heard on the box: "Netflix on the media_player.bedroom_bedroom_apple_tv"): the device's own
+        # friendly name from its state — the registry's name is empty when the device never got one
+        for st in (client._req("GET", "/api/states") or []):
+            eid = st.get("entity_id") or ""
+            if eid.startswith("media_player."):
+                dev_names[eid] = (st.get("attributes") or {}).get("friendly_name") or eid
     except Exception:                                            # noqa: BLE001
         pass
     rooms = []
