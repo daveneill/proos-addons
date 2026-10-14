@@ -3871,6 +3871,34 @@ def _platform_update_once():
     return _pu.check(_sa._info, _update_checks, _log)
 
 
+def _music_speakers():
+    """The committed rooms' speakers the speaker-music service can talk to (register 880: what the warmer keeps warm)."""
+    out = []
+    try:
+        from proos import speakermusic as _spm
+        from proos.membership import area_of as _area_of
+        proj = project.load() or {}
+        areas = set((r.get("area_id") or k) for k, r in (proj.get("areas") or {}).items() if r and r.get("committed"))
+        dev_area = {d.get("id"): d.get("area_id") for d in (_client.device_registry() or [])}
+        for e in _client.entity_registry() or []:
+            if _spm.can_speak(e) and _area_of(e, dev_area) in areas:
+                out.append(e.get("entity_id"))
+    except Exception:                                            # noqa: BLE001
+        return []
+    return sorted(set(out))
+
+
+def _voice_after_shortcuts(res):
+    """Register 879: a room's App Shortcuts changed in Pro → the apps sentences and the music sentence's taken
+    list follow at once. The result rides on the route's answer as `voice`; a failure is said, never hidden."""
+    try:
+        from proos import voiceapps as _vapps
+        res["voice"] = _vapps.rewrite_after_shortcuts(_client, project)
+    except Exception as e:                                       # noqa: BLE001
+        res["voice"] = {"error": str(e)[:160]}
+    return res
+
+
 def _voice_favs_write(saved):
     """REGISTER 855: the favourites' sentences — the platform's browser read through Core's own websocket helper,
     the speaker's brand from the platform's registry (a Sonos adds its own playlists)."""
@@ -8259,14 +8287,17 @@ class Handler(BaseHTTPRequestHandler):
                 if action == "reorder":
                     return self._send(200, _shortcuts.reorder(area, b.get("order") or []))
                 if action == "remove":
-                    return self._send(200, _shortcuts.remove(
-                        area, (b.get("app") or "").strip(), (b.get("target") or "").strip()))
+                    res = _shortcuts.remove(area, (b.get("app") or "").strip(), (b.get("target") or "").strip())
+                    _voice_after_shortcuts(res)                 # register 879: the sentences follow the shortcuts
+                    return self._send(200, res)
                 sc, err = _shortcuts.from_request(_client, b)   # add / test build a shortcut
                 if err:
                     return self._send(400, {"error": err})
                 if action == "test":
                     return self._send(200, _shortcuts.launch(_client, project, area, sc))
                 res = _shortcuts.add(area, sc)
+                if not res.get("error"):
+                    _voice_after_shortcuts(res)                 # register 879: a shortcut added in Pro is a voice command now
                 return self._send(400 if res.get("error") else 200, res)
             if parts == ["scenes", "photo"]:
                 # Set/remove a scene's photo + display-name override. Homeowner
@@ -9469,6 +9500,14 @@ def main():
                 print(f"  voice · music: {_vm.get('action')}" + (f" ({_vm.get('error')})" if _vm.get('error') else ""))
             except Exception as _vm_e:
                 print(f"  voice · music skipped: {_vm_e}")
+            try:
+                # REGISTER 880: the committed room speakers' service lists are kept warm, so a spoken request never
+                # pays the speaker's cold read (3.4 s on the box).
+                from proos import musicsearch as _msw
+                _msw.start_warmer(_client, _music_speakers)
+                print("  voice · music warmer: on for %s" % (", ".join(_music_speakers()) or "no speaker yet"))
+            except Exception as _mw_e:
+                print(f"  voice · music warmer skipped: {_mw_e}")
             try:
                 # REGISTER 863: learned sentences that can't be replayed (an app launch with no device) are dropped.
                 from proos import homeplan as _hpl
