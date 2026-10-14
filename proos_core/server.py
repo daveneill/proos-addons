@@ -9207,6 +9207,7 @@ def main():
             t0 = time.time()
 
             def _go():
+                nonlocal data        # register 868: the music branch re-binds it below; without this every voice event died
                 # REGISTER 855: a favourite or the speaker's own playlist is the platform's own play; an app is appctl's launch.
                 if data.get("kind") == "favourite":
                     from proos import voicefavs as _vfavs
