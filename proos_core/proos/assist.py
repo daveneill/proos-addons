@@ -4000,12 +4000,16 @@ class ToolRunner:
         room = self._room_name(area)
         if o["kind"] == "favourite":
             from proos import voicefavs as _vf
+            try:
+                before = self.client._req("GET", "/api/states/%s" % o["data"].get("entity_id")) or {}
+            except Exception:  # noqa: BLE001
+                before = None
             r = _vf.handle(self.client, o["data"])
             self._audit("music_play", area=area, entity=o["data"].get("entity_id"), uri=o["data"].get("media_content_id"),
                         mode="replace", picked=o["title"], kind="favourite", chosen_by="favourite", service="favourites")
             if not r.get("ok"):
                 return {"error": "the speaker didn't take %s (%s)" % (o["title"], r.get("error") or "no reason given")}
-            self._verify_play_later(o["data"].get("entity_id"), room, o["title"])
+            self._verify_play_later(o["data"].get("entity_id"), room, o["title"], before)
             return {"ok": True, "playing_on": o["data"].get("entity_id"), "picked": o["title"], "kind": "favourite", "chosen_by": "favourite",
                     "service": "favourites", "proof": {"state": "taken", "checked_after": True},
                     "verify": {"kind": "play", "entity": o["data"].get("entity_id"), "name": o["title"]},
@@ -4016,6 +4020,10 @@ class ToolRunner:
     def _play_pick(self, area, eid, mod, sp, sid, acct, service, tz, pick, words, how, asked, times):
         t0 = time.time()
         t = time.time()
+        try:
+            before = self.client._req("GET", "/api/states/%s" % eid) or {}
+        except Exception:  # noqa: BLE001
+            before = None
         try:
             # REGISTER 857 (build 5): the speaker TAKING it is the answer (queue cleared, the first track in, play
             # sent — each a call the speaker accepted or refused); the reply goes out then, and the speaker's own
@@ -4033,7 +4041,7 @@ class ToolRunner:
         print("  [assist] music: %r → searched %r → %r (%s, %s) TAKEN — speaker %.1fs · AI %.1fs · search %.1fs · play %.1fs"
               % (asked, words, pick["title"], service, how, times.get("speaker", 0), times.get("ai", 0),
                  times.get("search", 0), times.get("play", 0)), flush=True)
-        self._verify_play_later(eid, room, pick["title"])
+        self._verify_play_later(eid, room, pick["title"], before)
         what = "%s on %s" % (pick["title"], service) if service else pick["title"]
         return {"ok": True, "playing_on": eid, "picked": pick["title"], "kind": pick.get("kind"),
                 "chosen_by": how, "service": service,
@@ -4119,13 +4127,14 @@ class ToolRunner:
                                                                            res.get("ms") or 0), flush=True)
         return {"error": _ms.nothing_found(res, words)}
 
-    def _verify_play_later(self, eid, room, title):
-        """The check after the reply (856): the speaker's own state, a correction to the dashboards if it never played."""
+    def _verify_play_later(self, eid, room, title, before=None):
+        """The check after the reply (856): the speaker's own state, a correction to the dashboards if it never played
+        (869: playing something other than it was, when `before` is known)."""
         from proos import voicecheck as _vck
         client, on_wrong = self.client, (getattr(self, "on_correction", None) or CORRECTION_HOOK)
 
         def _go():
-            okc, secs, words = _vck.check_play(client, eid, title)
+            okc, secs, words = _vck.check_play(client, eid, title, before=before)
             print("  [assist] music: %s %s (%.1f s)" % ("confirmed:" if okc else "NOT confirmed:", words, secs), flush=True)
             if not okc and on_wrong is not None:
                 try:

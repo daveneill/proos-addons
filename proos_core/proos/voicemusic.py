@@ -96,7 +96,7 @@ def voice_music_config(taken: list):
            "conditions": [{"condition": "template",
                            "value_template": "{{ (trigger.slots.music | lower | trim) not in taken }}"}],
            "actions": [
-               {"variables": {"cid": "{{ (now().timestamp() * 1000000) | int }}"}},
+               {"variables": {"cid": "{{ 'c' ~ ((now().timestamp() * 1000000) | int) }}"}},
                {"event": EVENT, "event_data": {"kind": "music", "music": "{{ trigger.slots.music }}",
                                                "device_id": "{{ trigger.device_id }}", "cid": "{{ cid }}"}},
                {"wait_for_trigger": [{"trigger": "event", "event_type": REPLY_EVENT, "event_data": {"cid": "{{ cid }}"}}],
@@ -128,7 +128,9 @@ def room_of_device(client, device_id: str):
 def reply(client, cid: str, say: str):
     """Core's own words back to the waiting automation."""
     try:
-        client._req("POST", "/api/events/%s" % REPLY_EVENT, {"cid": str(cid or ""), "say": str(say or "")})
+        # register 869 (seen on the box 13:40): the wait matches event_data EXACTLY — the id goes back as it came (a number
+        # stayed a number and a string reply never matched; the id is now a string on both sides)
+        client._req("POST", "/api/events/%s" % REPLY_EVENT, {"cid": cid if cid is not None else "", "say": str(say or "")})
         return True
     except Exception:                                            # noqa: BLE001
         return False

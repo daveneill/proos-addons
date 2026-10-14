@@ -248,6 +248,33 @@ def command_for(sc: dict) -> dict:
             "data": {"entity_id": target, "source": token}}
 
 
+FEATURE_FOR = {"select_source": 2048, "play_media_app": 512, "play_media_url": 512}   # the platform's own feature bits
+RETRY_AFTER_S = 2.0        # plumbing: one more try after a device refused the command while waking
+
+
+def can_take(row: dict, method: str) -> bool:
+    """The device's own word that it can take this command now: on, and the feature bit set."""
+    if not row or str(row.get("state") or "") in ("off", "standby", "unavailable", "unknown", ""):
+        return False
+    bit = FEATURE_FOR.get(method or "select_source", 0)
+    try:
+        return not bit or bool(int((row.get("attributes") or {}).get("supported_features") or 0) & bit)
+    except Exception:                                       # noqa: BLE001
+        return False
+
+
+def _ready(client, target: str, method: str):
+    """Wake the target when it is asleep and wait until it can take the command (its own features), bounded."""
+    from . import appctl, readback as _rb
+    row = _state(client, target)
+    if can_take(row, method):
+        return True
+    if str(row.get("state") or "") in ("off", "standby", "unavailable", "unknown", ""):
+        client.call_service("media_player", "turn_on", target)
+    rb = _rb.confirm(client, target, lambda r: can_take(r, method), wait=appctl.DISPLAY_ON_WAIT_S)
+    return bool(rb.get("confirmed"))
+
+
 def _rec_for_area(project, area_id: str) -> dict:
     try:
         for key, rec in (project.load() or {}).get("areas", {}).items():
@@ -311,12 +338,30 @@ def launch(client, project, area_id: str, sc: dict, power: bool = True) -> dict:
                                 {"entity_id": disp, "source": inp})
         except Exception:                                   # power/route is best-effort
             pass
+    # REGISTER 869 (seen on the box 14 Oct 13:41: "Entity media_player.bedroom_bedroom_apple_tv does not support action
+    # media_player.select_source"): a streamer that is asleep reports NO app features to the platform; the app command
+    # sent while it wakes is refused. So the TARGET is woken too — the platform's own turn_on — and the command waits
+    # until the device says it can take it (its own supported_features), within the display's bound.
+    if power:
+        try:
+            _ready(client, target, sc.get("method"))
+        except Exception:                                   # noqa: BLE001
+            pass
     cmd = command_for(sc)
-    try:
-        client._req("POST", "/api/services/%s/%s" % (cmd["domain"], cmd["service"]),
-                    cmd["data"])
-    except Exception as e:                                  # noqa: BLE001
-        return {"error": "couldn't launch %s: %s" % (sc.get("name") or sc.get("app"), e)}
+    err = None
+    for attempt in (1, 2):
+        try:
+            client._req("POST", "/api/services/%s/%s" % (cmd["domain"], cmd["service"]), cmd["data"])
+            err = None
+            break
+        except Exception as e:                              # noqa: BLE001
+            err = e
+            if attempt == 1 and "does not support" in str(e):
+                time.sleep(RETRY_AFTER_S)                   # the device woke between the check and the command — once more
+                continue
+            break
+    if err is not None:
+        return {"error": "couldn't launch %s: %s" % (sc.get("name") or sc.get("app"), err)}
     # REGISTER 446: read the target back. A source select reads the
     # platform's `source`; an app package reads `app_id`; a URL play has no
     # attribute that names it — unverified, said so.

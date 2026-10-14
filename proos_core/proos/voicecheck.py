@@ -45,18 +45,29 @@ def check_app(client, device, app, wait_s=None, now=time.time, sleep=time.sleep)
     return False, round(now() - t0, 1), "the %s didn't open %s (%s)" % (last.get("name") or device, app, why)
 
 
-def check_play(client, entity, name, wait_s=None, now=time.time, sleep=time.sleep):
-    """(confirmed, seconds, words). Confirmed when the speaker itself says playing."""
+def _playing_sig(st):
+    a = (st or {}).get("attributes") or {}
+    return (a.get("media_content_id"), a.get("media_title"), a.get("media_channel"), a.get("media_playlist"))
+
+
+def check_play(client, entity, name, wait_s=None, now=time.time, sleep=time.sleep, before=None):
+    """(confirmed, seconds, words). Confirmed when the speaker itself says playing — and, when `before` (the speaker's state
+    just before the command) is given, playing something OTHER than it was (register 869, seen on the box 13:43: a favourite
+    was 'confirmed' in 0.0 s by the Adele track that was already playing)."""
     wait_s = PLAY_WAIT_S if wait_s is None else wait_s
     t0 = now()
     last = {}
+    was = _playing_sig(before) if before else None
+    was_playing = bool(before) and (before or {}).get("state") == "playing"
     while now() - t0 <= wait_s:
         st = _state(client, entity)
         a = st.get("attributes") or {}
-        if st.get("state") == "playing":
+        if st.get("state") == "playing" and (not was_playing or _playing_sig(st) != was):
             return True, round(now() - t0, 1), "%s is playing %s" % (a.get("friendly_name") or entity, a.get("media_title") or name)
-        last = {"state": st.get("state"), "name": a.get("friendly_name") or entity}
+        last = {"state": st.get("state"), "name": a.get("friendly_name") or entity, "title": a.get("media_title")}
         sleep(STEP_S)
+    if was_playing and last.get("state") == "playing":
+        return False, round(now() - t0, 1), "the %s kept playing %s instead of %s" % (last.get("name") or entity, last.get("title") or "what it was", name)
     return False, round(now() - t0, 1), "the %s didn't start %s (it is %s)" % (last.get("name") or entity, name, last.get("state") or "unknown")
 
 
