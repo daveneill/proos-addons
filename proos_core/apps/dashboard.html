@@ -1451,6 +1451,9 @@ body[data-home-state="noticing"] .home-state-go,body[data-home-state="attention"
 #music-tools .mg-btn{height:100%}
 #music-tools #music-sources-slot{display:flex}
 #music-tools #music-sources-slot:empty{display:none}
+/* register 864 (Dave 14 Oct 11:40: "Queue seems to only be half the page width sometimes"): a slot whose only button is
+   hidden still took its share of the row, leaving the queue half-width beside nothing. A hidden button hides its slot. */
+#music-tools #music-sources-slot.empty{display:none}
 #music-tools #music-services-btn{width:100%;justify-content:center;height:auto;padding:9px 10px!important}
 #music-group .mg-btn{justify-content:center;padding:9px 10px;box-sizing:border-box}
 #music-tools #music-group{margin:0}
@@ -4564,7 +4567,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101402';
+const PROOS_BUILD='2026101403';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -14305,6 +14308,7 @@ function _updateMusicSourcesBtn(eid){
   // is written on the button itself, wherever it stands — native zones still
   // never see it.
   const b=document.getElementById('music-services-btn'); if(b) b.style.display=on ? 'inline-flex' : 'none';
+  const sl=document.getElementById('music-sources-slot'); if(sl) sl.classList.toggle('empty', !on);   // 864: the slot goes with its button
 }
 
 // Browse the Music Assistant library through the selected room's MA player. The
@@ -16171,7 +16175,7 @@ function _renderMusicNowPlayingNow(){
   np.innerHTML=makeMediaPageCard(entity,_zv,art,_pt,_pa,dev,vol,hasVol)
     +'<div id="music-tools"><div id="music-group"></div><div id="music-upnext"></div><div id="music-sources-slot"></div></div>';
   try{ const sb=document.getElementById('music-services-btn'), slot=document.getElementById('music-sources-slot');
-       if(sb&&slot) slot.appendChild(sb); }catch(e){}
+       if(sb&&slot){ slot.appendChild(sb); slot.classList.toggle('empty', sb.style.display==='none'); } }catch(e){}
   applyMobileCardStyles(np);
   applyMarquee(np);
   musicRenderGroup(entity);
