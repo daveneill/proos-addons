@@ -5792,6 +5792,23 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, _spm.playlists(_sp))
                 except Exception as e:                           # noqa: BLE001
                     return self._send(502, {"error": str(e)[:300]})
+            if parts == ["speakers", "music", "searchall"]:
+                # REGISTER 863: one search, every service the speaker has, grouped under each (like the Sonos app).
+                _qs = parse_qs(urlparse(self.path).query)
+                _eid = (_qs.get("entity_id") or [""])[0]
+                _q = (_qs.get("q") or [""])[0]
+                if not _eid.startswith("media_player."):
+                    return self._send(400, {"error": "entity_id (a speaker) required"})
+                if not _q.strip():
+                    return self._send(400, {"error": "q required"})
+                try:
+                    from proos import musicsearch as _msr
+                    from proos import speakermusic as _spm0
+                    _who = (getattr(self, "_user", None) or {}).get("id")
+                    with _spm0.as_person(_who):
+                        return self._send(200, _msr.search_all(_client, _eid, _q))
+                except Exception as e:                           # noqa: BLE001
+                    return self._send(502, {"error": str(e)[:300]})
             if len(parts) == 3 and parts[:2] == ["speakers", "music"] and parts[2] in (
                     "services", "home", "open", "search"):
                 _qs = parse_qs(urlparse(self.path).query)
@@ -9425,6 +9442,16 @@ def main():
                     print(f"  voice · favourites not written: {_vf.get('error')}")
             except Exception as _vf_e:
                 print(f"  voice · favourites skipped: {_vf_e}")
+            try:
+                # REGISTER 863: learned sentences that can't be replayed (an app launch with no device) are dropped.
+                from proos import homeplan as _hpl
+                _lp = _hpl.prune(_client)
+                if _lp.get("dropped"):
+                    print(f"  voice · learned: dropped {len(_lp['dropped'])} that couldn't be replayed ({', '.join(_lp['dropped'])}); {_lp.get('kept', 0)} kept")
+                else:
+                    print(f"  voice · learned: {_lp.get('action')}" + (f" ({_lp.get('kept')} kept)" if _lp.get('kept') is not None else ""))
+            except Exception as _lp_e:
+                print(f"  voice · learned skipped: {_lp_e}")
             try:
                 # A2 Phase 3 (regs 272-273, Dave's ruling): Core converges
                 # www/ to its shipped app copies on every boot \u2014 install
