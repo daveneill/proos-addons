@@ -894,23 +894,29 @@ TOOLS = [
      "input_schema": {"type": "object", "properties": {
          "area_id": {"type": "string"}}, "required": ["area_id"]}},
     {"name": "app_launch",
-     "description": "Open a streaming app (Netflix, Disney+, YouTube…) in a room. A room can have "
-                    "several devices that run apps — the smart TV, an Apple TV, a Shield. Call with "
-                    "just area_id + app first: if only one device has it, it launches; if MORE than "
-                    "one does, you get {needs_choice, options:[{entity_id,name}]} — ASK the user "
-                    "which device, then call again with `device` set to their chosen entity_id. If "
-                    "the app isn't anywhere you get the available list — say so, don't guess. Make "
-                    "sure the display is ON first (run the room's watch activity). Judge the OUTCOME "
-                    "by the room's verdict sensor (rooms_overview: verdict_sensor), NEVER by the "
-                    "device's raw state: many streamers cannot see which app is on screen, so their "
-                    "state can sit at 'idle' while Netflix plays — raw 'idle' is not evidence of "
-                    "failure. If the verdict and a raw state disagree, ask the user what is ON THE "
-                    "SCREEN — their answer settles it.",
+     "description": "Open a streaming app (Netflix, Disney+, YouTube…) in a room — through the room's APP SHORTCUT, the one "
+                    "the installer set up in Pro (register 867): its device, its command, the display on and routed first, "
+                    "then the device read back. Call with area_id + app. If the room has NO shortcut for that app you get "
+                    "{not_set_up: true, say, devices:[{entity_id,name}]} — say `say` to the user (it offers to add it) and, "
+                    "if they agree, call app_shortcut_create with the device they chose (the default is the first). NEVER "
+                    "launch on a device's own app list; the lists are the device's claim, the shortcut is the record. Judge "
+                    "the OUTCOME by `confirmed` and the room's verdict sensor (rooms_overview: verdict_sensor), never by a streamer's "
+                    "raw state — many cannot see which app is on screen, so 'idle' is not evidence of failure.",
      "input_schema": {"type": "object", "properties": {
          "area_id": {"type": "string"},
          "app": {"type": "string", "description": "app name, e.g. 'Netflix'"},
-         "device": {"type": "string", "description": "entity_id of the chosen device (only after needs_choice)"}},
+         "device": {"type": "string", "description": "entity_id of the device, when the room has shortcuts for the same app on several"}},
          "required": ["area_id", "app"]}},
+    {"name": "app_shortcut_create",
+     "description": "Set an app up in a room as an App Shortcut — ONLY after the user agreed. Core builds it for the device, "
+                    "TESTS it (the real launch; the device must read back showing the app) and adds it to the room's Apps "
+                    "only when the device confirmed; otherwise nothing is added and you get the device's own words. From "
+                    "then on voice and the room's Apps page use it.",
+     "input_schema": {"type": "object", "properties": {
+         "area_id": {"type": "string"},
+         "app": {"type": "string"},
+         "device": {"type": "string", "description": "entity_id of the device to run it on (from app_launch's devices)"}},
+         "required": ["area_id", "app", "device"]}},
     {"name": "area_entities",
      "description": "List the REAL entities assigned to a room, with their current state — use this "
                     "before building a scene so you use actual light/cover/climate ids and never "
@@ -2653,17 +2659,25 @@ class ToolRunner:
         return None
 
     def _app_in_room(self, area, words):
-        """The app in that room whose name is the words (letters and digits alike), or None."""
+        """The app named by the words in that room — the room's SHORTCUT first (register 867), else a device's own claim
+        (enough to OFFER setting it up, never to launch on). None when nothing there answers to the words."""
         aid = self._resolve_area_id(area)
         if not aid:
             return None
+        want = re.sub(r"[^a-z0-9]", "", str(words).lower().replace("+", "plus"))
+        if len(want) < 3:
+            return None
+        try:
+            from . import shortcuts as _sc
+            sc = _sc.find(aid, words)
+            if sc is not None:
+                return sc.get("name") or sc.get("app")
+        except Exception:  # noqa: BLE001
+            pass
         try:
             from . import appctl
             cands = appctl.candidates(self.client, self.project, aid)
         except Exception:  # noqa: BLE001
-            return None
-        want = re.sub(r"[^a-z0-9]", "", str(words).lower().replace("+", "plus"))
-        if len(want) < 3:
             return None
         for c in cands:
             for a in c.get("apps") or []:
@@ -2672,53 +2686,130 @@ class ToolRunner:
         return None
 
     def t_app_launch(self, args):
-        """Open a named app on a room's app-capable devices (the smart TV, an
-        Apple TV, a Shield…). A room can have several — when more than one offers
-        the app you'll get needs_choice with the options; ASK the user which,
-        then call again with `device` set to their pick. Honest: if the app isn't
-        available anywhere we return what IS. The display should already be ON
-        (run the room's watch activity first)."""
+        """REGISTER 867: an app opens through the room's APP SHORTCUT — the installer's record of device and command —
+        never through a device's own app list. No shortcut → not launched; the answer carries the offer to set it up
+        (and the devices that say they could), kept as this session's pending offer so "yes" settles it."""
         aid = self._resolve_area_id(args.get("area_id"))
         app = (args.get("app") or "").strip()
         if not aid or not app:
             return {"error": "area_id and app required"}
         try:
-            from . import appctl
+            from . import shortcuts as _sc
         except Exception as e:  # noqa: BLE001
-            return {"error": "app launch unavailable: %s" % e}
+            return {"error": "app shortcuts unavailable: %s" % e}
+        room = self._room_name(aid) or aid
         dev = (args.get("device") or "").strip() or None
-        if not dev:
-            # register 863: ONE rule for which device, the same the instant sentences use (voiceapps.choose_device) —
-            # the room's display when it runs the app, otherwise the first device that does. Before this a launch with
-            # no device came back "which device?" and the plan road counted that as done (seen on the box 14 Oct 10:34).
+        sc = _sc.find(aid, app, dev) or (None if dev else _sc.find(aid, app))
+        if sc is None:
+            devices = _sc.could_run(self.client, self.project, aid, app)
+            say = _sc.offer_words(room, app, devices)
+            offer = {"kind": "shortcut", "area": aid, "room": room, "app": app, "devices": devices,
+                     "default": (next((d for d in devices if d.get("is_display")), devices[0])["entity_id"] if devices else None)}
+            self._offer(offer if devices else None)
+            print("  [assist] app %s in %s: not set up%s" % (app, aid, " — offered" if devices else ""), flush=True)
+            return {"ok": False, "not_set_up": True, "say": say, "devices": devices, "error": say.rstrip("?.") }
+        res = _sc.launch(self.client, self.project, aid, sc) or {}
+        if res.get("ok"):
+            res["launched"] = sc.get("name") or app
+            res["device"] = sc.get("target")
+            self._audit("app_launch", app=res["launched"], device=res["device"], area=aid, shortcut=True)
+            res["verify_by"] = "sensor.proos_activity_%s" % aid
+            # register 109 kept: the launch's own read-back and the room's verdict judge it; a streamer's raw 'idle' is
+            # NOT evidence of failure; the person's own screen is the final witness.
+            res["note"] = ("launched through the room's shortcut. Judge the outcome by `confirmed` and the room's verdict "
+                           "sensor (verify_by) — this device's raw state may sit at 'idle' or 'off' while the app plays, "
+                           "because many streamer drivers cannot see what is on screen. Raw state here is NOT evidence of "
+                           "failure. If you still doubt, ask the user what is on the screen — their answer settles it.")
+            res["verify"] = {"kind": "app", "device": sc.get("target"), "app": sc.get("token") if sc.get("method") == "select_source" else (sc.get("name") or app)}
+            res["say"] = "%s, %s." % (room, sc.get("name") or app)
+        return res
+
+    def t_app_shortcut_create(self, args):
+        """REGISTER 867: build the shortcut, TEST it on the device, add it only when the device confirmed."""
+        aid = self._resolve_area_id(args.get("area_id"))
+        app = (args.get("app") or "").strip()
+        dev = (args.get("device") or "").strip()
+        if not aid or not app or not dev:
+            return {"error": "area_id, app and device required"}
+        from . import shortcuts as _sc
+        room = self._room_name(aid) or aid
+        out = _sc.build_tested(self.client, self.project, aid, app, dev)
+        name = ((out.get("shortcut") or {}).get("name")) or app
+        dname = self._device_name(dev)
+        if out.get("ok"):
+            self._audit("app_shortcut_create", app=name, device=dev, area=aid, tested=True)
             try:
                 from . import voiceapps as _va
-                pick = _va.choose_device(appctl.candidates(self.client, self.project, aid), app)
-                dev = (pick or {}).get("entity_id")
-            except Exception:  # noqa: BLE001
-                dev = None
-        res = appctl.launch(self.client, self.project, aid, app, device=dev)
-        if res.get("needs_choice"):
-            names = [o.get("name") or o.get("entity_id") for o in res.get("options") or []]
-            res = dict(res, error="%s is on %s — which one?" % (app, " and ".join(names)))
-        if res.get("ok"):
-            self._audit("app_launch", app=res.get("launched"), device=res.get("device"), area=aid)
-            res["verify"] = {"kind": "app", "device": res.get("device"), "app": app}
-            res["say"] = "%s, %s." % (self._room_name(aid) or "Done", app)
-            # The Bedroom bug (12 Aug, register 109): the launch WORKED, the
-            # verdict sensor said 'watching Apple TV' — and Assist reported a
-            # failure because the streamer's driver sat at 'idle' (it cannot
-            # see app playback). The result must carry the fact the model
-            # needs at the moment it needs it: which witness to believe.
-            res["verify_by"] = "sensor.proos_activity_%s" % aid
-            res["note"] = ("launched. Judge the outcome by the room's verdict sensor "
-                           "(verify_by above) — this device's raw state may sit at 'idle' "
-                           "or 'off' while the app plays, because many streamer drivers "
-                           "cannot see what is on screen. Raw state here is NOT evidence "
-                           "of failure. If the verdict says the room is watching this "
-                           "device, it worked; if you still doubt, ask the user what is "
-                           "on the screen — their answer settles it.")
-        return res
+                wr = _va.voice_apps(self.client, self.project.load())
+                print("  [assist] voice · apps rewritten after the new shortcut: %s" % wr.get("action"), flush=True)
+            except Exception as e:  # noqa: BLE001
+                print("  [assist] voice · apps not rewritten (%s)" % e, flush=True)
+            out["say"] = "%s is set up in the %s on the %s — and it's on now." % (name, room, dname)
+            out["verify"] = {"kind": "app", "device": dev, "app": name}
+        else:
+            out["say"] = "I couldn't set %s up in the %s — %s." % (name, room, str(out.get("error") or "the test failed").rstrip("."))
+        return out
+
+    def _device_name(self, eid):
+        try:
+            st = self.client._req("GET", "/api/states/%s" % eid) or {}
+            return (st.get("attributes") or {}).get("friendly_name") or eid
+        except Exception:  # noqa: BLE001
+            return eid
+
+    # REGISTER 867: an OFFER ("Add it on the Bedroom TV?") waits for its answer like a music question (862): yes / a device
+    # name / no — kept CHOICE_KEPT_S for the session, answered before anything else so "yes" never becomes a new request.
+    _pending_offer = {}
+
+    def _offer(self, offer):
+        key = getattr(self, "session_key", None)
+        if key is None:
+            return
+        if offer is None:
+            ToolRunner._pending_offer.pop(key, None)
+        else:
+            ToolRunner._pending_offer[key] = dict(offer, ts=time.time())
+
+    def pending_offer(self):
+        key = getattr(self, "session_key", None)
+        p = ToolRunner._pending_offer.get(key) if key is not None else None
+        if p and time.time() - p["ts"] <= self.CHOICE_KEPT_S:
+            return p
+        if key is not None:
+            ToolRunner._pending_offer.pop(key, None)
+        return None
+
+    YES_WORDS = ("yes", "yeah", "yep", "yup", "sure", "ok", "okay", "please", "do it", "go ahead", "go on", "add it", "set it up")
+    NO_WORDS = ("no", "nope", "don't", "do not", "not now", "leave it", "cancel", "never mind")
+
+    def answer_offer(self, text):
+        """The answer to an offer: yes (the default device), a device's name, or no. None when it isn't one."""
+        p = self.pending_offer()
+        if not p:
+            return None
+        t = " " + " ".join(str(text or "").lower().replace("’", "'").split()).strip(" .!?") + " "
+        if any(" %s " % w in t for w in self.NO_WORDS):
+            self._offer(None)
+            return {"ok": True, "say": "Okay — not added."}
+        dev = None
+        for d in p.get("devices") or []:
+            n = " " + str(d.get("name") or "").lower() + " "
+            short = n.replace(" " + str(p.get("room") or "").lower() + " ", " ")
+            if n.strip() and (n in t or (short.strip() and short in t)):
+                dev = d["entity_id"]
+                break
+        if dev is None and any(" %s " % w in t for w in self.YES_WORDS):
+            dev = p.get("default")
+        if dev is None:
+            return None
+        self._offer(None)
+        if p.get("kind") == "shortcut":
+            return self.t_app_shortcut_create({"area_id": p["area"], "app": p["app"], "device": dev})
+        if p.get("kind") == "dashboard":
+            r = self.t_scene_dashboard({"scene_entity_id": p["scene"], "show": True}) or {}
+            r.setdefault("say", "It's on your dashboard." if r.get("ok") or not r.get("error") else "I couldn't add it — %s." % r.get("error"))
+            return r
+        return None
 
     def t_device_control(self, args):
         eid = (args.get("entity_id") or "").strip()
@@ -4411,6 +4502,11 @@ class ToolRunner:
             out["on_scenes_page"] = "dashboard_scene" in ((reg.get(seid) or {}).get("labels") or [])
         except Exception:
             pass
+        if not out.get("on_scenes_page") and not upd_eid:
+            # REGISTER 867 (Dave 14 Oct 12:38: "it used to ask to add it to your dashboard … that seems gone"): the offer is
+            # Core's, kept for the session, so "yes" puts it on the dashboard whatever words the model chose.
+            self._offer({"kind": "dashboard", "scene": seid, "room": name, "devices": [], "default": "dashboard"})
+            out["ask"] = "Would you like %s on your dashboard?" % name
         # Companion-only change (no device states touched): NOTHING physical
         # moved, so there is nothing to apply or verify — applying would fire
         # the whole scene at the room the user didn't ask to change. The edit
@@ -6507,6 +6603,32 @@ def try_it(client, ws_call, project_mod, user: dict, text: str, where=None) -> d
     return out
 
 
+_APP_VERBS = re.compile(r"^(?:please\s+)?(?:can you\s+|could you\s+)?(open|launch|start|put on|turn on|play|watch|switch to|go to)\s+(.+?)[.!?]*$", re.I)
+
+
+def _app_turn(runner, user, text, where, session, t0):
+    """An app by name, instantly: "watch netflix", "open kayo in the office". None when the words don't name an app in
+    the room (the room from the words, else the page's room)."""
+    m = _APP_VERBS.match(" ".join(str(text or "").split()))
+    if not m:
+        return None
+    rest = m.group(2).strip()
+    aid, nm = _area_from_text(runner, rest)
+    if aid and nm:
+        rest = re.sub(r"\s+(in|on)\s+(the\s+|my\s+)?" + re.escape(nm) + r"(\s+tv)?\s*$", "", rest, flags=re.I).strip()
+    else:
+        aid = (where or {}).get("area_id")
+    if not aid or not rest:
+        return None
+    app = runner._app_in_room(aid, rest)
+    if not app:
+        return None
+    res = runner.t_app_launch({"area_id": aid, "app": app}) or {}
+    say = res.get("say") or ("I couldn't do that — %s." % str(res.get("error") or "it couldn't be done").rstrip("."))
+    print("  [assist] APP %s in %s → %s" % (app, aid, "launched" if res.get("ok") else ("offered" if res.get("not_set_up") else (res.get("error") or res))), flush=True)
+    return _plan_reply(runner, user, session, text, where, t0, say, "app" if res.get("ok") else ("app:offer" if res.get("not_set_up") else "app:failed"), 0)
+
+
 def _home_plan_turn(runner, client, project_mod, user, text, where, session, t0):
     """REGISTER 858: the home catalogue road. The reply dict when the plan was made and done (or needs a question);
     None when the full assistant should have the turn."""
@@ -6635,6 +6757,8 @@ def chat(client, ws_call, project_mod, user: dict, text: str,
     _t0 = time.time()
     try:
         _chosen = runner.answer_choice(text)
+        if _chosen is None:
+            _chosen = runner.answer_offer(text)                  # register 867: "yes" to "add it on the Bedroom TV?"
     except Exception as e:                                       # noqa: BLE001
         print("  [assist] the answer to the music question failed (%s)" % e, flush=True)
         _chosen = None
@@ -6799,6 +6923,16 @@ def chat(client, ws_call, project_mod, user: dict, text: str,
     # one plan from a closed set, done and said at once, learned as an instant sentence when it worked. It declines
     # (None) and the full assistant has the turn exactly as before when there is no AI, no plan, or the plan says assist.
     if not _hit and not _plat:
+        # REGISTER 866 (seen on the box 14 Oct 12:10: "Watch Netflix" typed from the Bedroom page took the AI plan road, 20 s,
+        # the watch scene then the launch): an app named with any of its verbs, the room from the words or the page, is
+        # launched at once — no AI, no plan — and said as the instant sentence says it.
+        try:
+            _apped = _app_turn(runner, user, text, where, session, _t0)
+        except Exception as e:                                   # noqa: BLE001
+            print("  [assist] app road declined (%s)" % e, flush=True)
+            _apped = None
+        if _apped is not None:
+            return _apped
         try:
             _planned = _home_plan_turn(runner, client, project_mod, user, text, where, session, _t0)
         except Exception as e:                                   # noqa: BLE001

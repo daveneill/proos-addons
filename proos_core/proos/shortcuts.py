@@ -296,6 +296,14 @@ def launch(client, project, area_id: str, sc: dict, power: bool = True) -> dict:
                     _rb.confirm(client, disp, lambda r: str(r.get("state") or "").lower()
                                 not in ("off", "standby", "unavailable", "unknown", ""),
                                 wait=wait)
+            dst = _state(client, disp)
+            if str(dst.get("state") or "") in ("off", "standby", "unavailable", ""):
+                # REGISTER 867: a room with no committed watch activity for the target still gets its display ON —
+                # the platform's own turn_on, then a bounded wait for it to read on (the same step appctl got in 865).
+                client.call_service("media_player", "turn_on", disp)
+                from . import readback as _rb
+                _rb.confirm(client, disp, lambda r: str(r.get("state") or "").lower()
+                            not in ("off", "standby", "unavailable", "unknown", ""), wait=appctl.DISPLAY_ON_WAIT_S)
             if target != disp:                              # route to the source's input
                 inp = (rec.get("inputs") or {}).get(target)
                 if inp:
@@ -323,6 +331,70 @@ def launch(client, project, area_id: str, sc: dict, power: bool = True) -> dict:
     return {"ok": True, "app": sc.get("app"), "target": target,
             "method": sc["method"], "fired": cmd["data"],
             "confirmed": rb.get("confirmed"), "read_back": rb}
+
+
+# ── REGISTER 867: the shortcuts ARE the room's apps for Assist and voice (Dave 14 Oct 12:32: "we confirmed ages ago that
+# the app lists were not reliable from the devices so we built the app shortcuts … assist priorities are what is in the
+# rooms first"). What is below answers "is this app set up here?", "which device could run it?" and, when Assist is
+# asked for one that isn't, builds it ONLY after a test launch the device confirmed.
+def _same(a, b):
+    import re
+    f = lambda x: re.sub(r"[^a-z0-9]", "", str(x or "").lower().replace("+", "plus"))   # noqa: E731
+    return f(a) == f(b) and bool(f(a))
+
+
+def find(area_id: str, app: str, target: str = None):
+    """The room's shortcut for an app (by its name or slug), the target narrowing it when given; None when not set up."""
+    for sc in room(area_id):
+        if target and sc.get("target") != target:
+            continue
+        if _same(sc.get("name"), app) or _same(sc.get("app"), app) or _same(canonical_slug(app), sc.get("app")):
+            return sc
+    return None
+
+
+def could_run(client, project, area_id: str, app: str) -> list:
+    """[{entity_id, name, is_display}] — the room's committed devices that say they carry the app (a hint for the OFFER,
+    never a launch: the device lists are the device's claim)."""
+    try:
+        from . import appctl
+        return [{"entity_id": c["entity_id"], "name": c.get("name") or c["entity_id"], "is_display": bool(c.get("is_display"))}
+                for c in appctl.candidates(client, project, area_id) if app in (c.get("apps") or [])
+                or any(_same(app, a) for a in (c.get("apps") or []))]
+    except Exception:                                       # noqa: BLE001
+        return []
+
+
+def offer_words(room_name: str, app: str, devices: list) -> str:
+    """What Assist says when the app isn't set up in the room."""
+    names = [d["name"] for d in devices or []]
+    if not names:
+        return "%s isn't set up in the %s, and none of the room's devices say they have it — add it under Apps in Pro." % (app, room_name)
+    first = next((d for d in devices if d.get("is_display")), devices[0])
+    if len(names) == 1:
+        return "%s isn't set up in the %s — the %s has it. Add it?" % (app, room_name, names[0])
+    return "%s isn't set up in the %s — it's on %s. Add it on the %s?" % (app, room_name, " and ".join(names), first["name"])
+
+
+def build_tested(client, project, area_id: str, app: str, target: str, test=None) -> dict:
+    """Build the shortcut for (app, target), TEST it — the real launch, the device's own read-back — and add it to the
+    room only when the device confirmed it. Returns {ok, added, shortcut, launch} or {error, launch}."""
+    sc, err = from_request(client, {"app": app, "target": target})
+    if err:
+        return {"error": err}
+    res = (test or launch)(client, project, area_id, sc)
+    if not res.get("ok"):
+        return {"error": res.get("error") or "the launch failed", "launch": res, "shortcut": sc}
+    if not res.get("confirmed"):
+        rb = res.get("read_back") or {}
+        shown = (rb.get("attributes") or {}).get("source") or (rb.get("attributes") or {}).get("app_name") or (rb.get("attributes") or {}).get("app_id")
+        why = ("the device can't say what it shows" if res.get("confirmed") is None
+               else ("it shows %s" % shown if shown else "it is %s" % (rb.get("state") or "off")))
+        return {"error": "%s didn't open on the device (%s) — not added" % (sc.get("name") or app, why), "launch": res, "shortcut": sc}
+    added = add(area_id, sc)
+    if added.get("error"):
+        return {"error": added["error"], "launch": res, "shortcut": sc}
+    return {"ok": True, "added": True, "shortcut": sc, "launch": res, "count": added.get("count")}
 
 
 # ── setup helpers (the Pro API leans on these) ───────────────────────────────
