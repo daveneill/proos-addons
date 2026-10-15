@@ -113,6 +113,9 @@ def load_registries(storage_dir: str = _STORAGE, client=None):
     changes); config entries stay on-disk since the WS API redacts their `data`
     (host/IP). Falls back entirely to disk if the live read fails."""
     entries = _read(storage_dir, "core.config_entries").get("entries", []) or []
+    # register 695: the address only — every login, password and token is dropped here
+    from .platform_entries import scrub as _scrub
+    entries = [_scrub(e) for e in entries]
     if client is not None:
         try:
             devices = client.device_registry() or []

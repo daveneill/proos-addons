@@ -6,14 +6,15 @@ the UniFi console so (a) the browser never handles the key, (b) there's no CORS,
 and (c) Home Assistant stays invisible. This is the foundation for the full Protect
 app-in-dashboard, and the same shape is reused for Access / Network / Alarm.
 
-Two upstream surfaces on the console (both local, one key):
-  • Official integration API  → https://{host}/proxy/protect/integration/v1/...
+ONE upstream surface: Ubiquiti's OFFICIAL Protect Integration API, local, one key
+  → https://{host}/proxy/protect/integration/v1/...
       Cameras (+PTZ, talkback, snapshot, RTSPS), live views, sensors, lights,
       sirens, chimes, speakers, relays, viewers, fobs, bridges, alarm-hubs,
-      arm-profiles, meta/info, and /subscribe/{events,devices} realtime streams.
-  • Private API               → https://{host}/proxy/protect/api/...
-      Historical event SEARCH, event THUMBNAILS, and VIDEO EXPORT (clips) — not
-      exposed by the official v1 API yet, so uiprotect/this module fall back here.
+      arm-profiles, meta/info.
+REGISTER 699 (Dave, 7 Oct 2026: "Everything needs to support Unifi API not reverse engineered"):
+the private /proxy/protect/api surface — event search, event thumbnails, clip export,
+reached with a UniFi OS login — is GONE. Events, thumbnails and clips are the platform's
+own Protect media (692–696); ProOS never signs in to the console (691).
 
 Auth: header  X-API-KEY: <local key>  (Protect → Settings → Control Plane →
 Integrations → create API key). Console cert is self-signed → TLS unverified.
@@ -33,7 +34,6 @@ import ssl
 import urllib.request
 import urllib.parse
 import urllib.error
-import re
 import threading
 import time
 
@@ -46,7 +46,6 @@ PLATFORM_KEYS = ("host", "port", "username", "password", "verify_ssl")   # the i
 
 SERVICE = "unifi_protect"
 INTEGRATION = "/proxy/protect/integration"
-PRIVATE = "/proxy/protect/api"
 
 # Integration GET endpoints safe to expose read-only as generic passthroughs.
 _GET_COLLECTIONS = {
@@ -72,37 +71,21 @@ class ProtectClient:
 
     def __init__(self, creds):
         self._creds = creds
-        self._session = None  # {"token","csrf"} for the private API (UniFi OS login)
-        self._login_lock = threading.Lock()
-        self._blocked_until = 0.0  # cooldown after a 429 so we don't hammer the console
-
-    def _ensure_session(self):
-        # Reuse the cached session; only log in once (guarded so concurrent
-        # requests don't each trigger a login — that's what tripped the 429).
-        if self._session:
-            return self._session
-        if time.time() < self._blocked_until:
-            raise ProtectError(429, "login rate-limited by console — retry shortly")
-        with self._login_lock:
-            if self._session:
-                return self._session
-            if time.time() < self._blocked_until:
-                raise ProtectError(429, "login rate-limited by console — retry shortly")
-            return self._session_login()
+        self._session = None  # 699: no login session exists any more; kept None for set_key's reset
 
     # ---- config ----
     def _conf(self):
-        """(key, host, verify, user, pw): host/verify/user/pw from the platform's
-        own unifiprotect entry, every call; the key from the entry when it has
-        one, else ProOS's own store."""
+        """(key, host, verify, None, None): host/verify from the platform's own
+        unifiprotect entry, every call; the key from the entry when it has one,
+        else ProOS's own store. Register 695: the integration's login is never
+        read, so the last two are always None."""
         d = _pe.data(_DOMAIN)
         key = (d.get("api_key") or "").strip() or self._creds.get(SERVICE)
         host = str(d.get("host") or "").strip().rstrip("/").replace("https://", "").replace("http://", "")
         port = d.get("port")
         if host and port and int(port) not in (443, 0) and ":" not in host:
             host = "%s:%s" % (host, int(port))
-        return (key, host or None, bool(d.get("verify_ssl")),
-                d.get("username"), d.get("password"))
+        return (key, host or None, bool(d.get("verify_ssl")), None, None)
 
     def configured(self) -> bool:
         key, host, _, _, _ = self._conf()
@@ -112,8 +95,8 @@ class ProtectClient:
         key, host, verify, user, pw = self._conf()
         e = _pe.entry(_DOMAIN) or {}
         out = {"configured": bool(key and host), "host": host, "verify_ssl": verify,
-               "has_login": bool(user and pw), "username": user,
-               # register 439: the address and login are the integration's own
+               "has_login": False,
+               # register 439: the address is the integration's own (695: its login is never read)
                "entry_id": e.get("entry_id"), "entry": bool(e),
                "key_from_entry": bool((_pe.data(_DOMAIN).get("api_key") or "").strip()),
                "has_key": bool(key)}
@@ -125,7 +108,7 @@ class ProtectClient:
             except ProtectError as e:
                 out["reachable"] = False
                 out["error"] = e.message
-            # private-API (event search / thumbnails / clips) needs the login session
+            # (the field keeps its old name, private_ok, for the pages that read it)
             # 691/692: ProOS no longer logs in. Event history, thumbnails and clips come from
             # the platform's own UniFi Protect media — ready whenever its integration is set up.
             _has_entry = bool(_pe.entry(_DOMAIN))   # (not `e`: the except above unbinds it)
@@ -133,13 +116,6 @@ class ProtectClient:
             out["events_source"] = "platform"
             if not _has_entry:
                 out["private_error"] = "set up the UniFi Protect integration"
-            if False and user and pw:
-                try:
-                    self._ensure_session()
-                    out["private_ok"] = True
-                except ProtectError as e:
-                    out["private_ok"] = False
-                    out["private_error"] = e.message
         return out
 
     def set_key(self, api_key) -> dict:
@@ -158,49 +134,11 @@ class ProtectClient:
         drop them, keep the key."""
         return bool(self._creds.strip(SERVICE, PLATFORM_KEYS))
 
-    # ---- private API session (UniFi OS local login) ----
-    def _session_login(self):
-        # REGISTER 691: ProOS does not sign in to the Protect console with a local user
-        # (the private API for event search, thumbnails and clips). Only the platform's
-        # integration signs in. Those three come back on the platform's own Protect media.
-        raise ProtectError(409, "event history, thumbnails and clips are not available yet — ProOS no longer signs in to the console; they are being moved to the platform's own camera media")
-        key, host, verify, user, pw = self._conf()
-        if not (host and user and pw):
-            raise ProtectError(409, "private API needs a local username/password")
-        try:
-            _REACH.check()
-        except _reach.Unreachable as e:
-            raise ProtectError(502, str(e))
-        url = f"https://{host}/api/auth/login"
-        data = json.dumps({"username": user, "password": pw, "rememberMe": True}).encode()
-        req = urllib.request.Request(url, data=data, method="POST",
-            headers={"Content-Type": "application/json", "Accept": "application/json"})
-        ctx = None if verify else _ssl_unverified
-        try:
-            with urllib.request.urlopen(req, timeout=_reach.TIMEOUT, context=ctx) as r:
-                _REACH.ok()
-                token = None
-                for c in (r.headers.get_all("Set-Cookie") or []):
-                    m = re.search(r"(?:^|\s)TOKEN=([^;]+)", c)
-                    if m:
-                        token = m.group(1)
-                csrf = r.headers.get("X-CSRF-Token") or r.headers.get("X-Updated-CSRF-Token")
-                if not token:
-                    raise ProtectError(401, "login returned no session token (use a LOCAL user, not SSO)")
-                self._session = {"token": token, "csrf": csrf}
-                return self._session
-        except urllib.error.HTTPError as e:
-            if e.code == 429:
-                self._blocked_until = time.time() + 60
-                raise ProtectError(429, "console rate-limited the login — waiting 60s before retry")
-            raise ProtectError(e.code, f"login failed: {e.code} (local user + password, not SSO)")
-        except (urllib.error.URLError, TimeoutError, OSError) as e:
-            _REACH.failed(f"cannot reach console at {host}: {getattr(e, 'reason', e)}")
-            raise ProtectError(502, f"cannot reach console for login: {getattr(e, 'reason', e)}")
-
     # ---- transport ----
     def _req(self, method: str, base: str, path: str, *, body=None,
              query: dict | None = None, raw: bool = False, timeout: int = _reach.TIMEOUT, _retry: bool = True):
+        if base != INTEGRATION:
+            raise ProtectError(400, "only Ubiquiti's official Protect Integration API is used (register 699)")
         key, host, verify, user, pw = self._conf()
         if not (key and host):
             raise ProtectError(409, "UniFi Protect is not configured")
@@ -215,15 +153,7 @@ class ProtectClient:
                 url += "?" + q
         data = None
         headers = {"Accept": "application/json"}
-        private = base == PRIVATE
-        if private:
-            # private /proxy/protect/api/* uses the UniFi OS login session, not the API key
-            self._ensure_session()
-            headers["Cookie"] = f"TOKEN={self._session['token']}"
-            if self._session.get("csrf"):
-                headers["X-CSRF-Token"] = self._session["csrf"]
-        else:
-            headers["X-API-KEY"] = key
+        headers["X-API-KEY"] = key
         if body is not None:
             data = json.dumps(body).encode()
             headers["Content-Type"] = "application/json"
@@ -239,12 +169,6 @@ class ProtectClient:
                     return {}
                 return json.loads(payload.decode())
         except urllib.error.HTTPError as e:
-            if private and e.code in (401, 403) and _retry:
-                # session likely expired — re-login once and retry
-                self._session = None
-                self._ensure_session()
-                return self._req(method, base, path, body=body, query=query,
-                                 raw=raw, timeout=timeout, _retry=False)
             detail = ""
             try:
                 detail = e.read().decode()[:300]
@@ -316,22 +240,6 @@ class ProtectClient:
 
     def meta_info(self):
         return self._req("GET", INTEGRATION, "/v1/meta/info")
-
-    # ---- private API: historical events, thumbnails, clips ----
-    def events(self, start=None, end=None, types=None, cameras=None, limit=None):
-        return self._req("GET", PRIVATE, "/events",
-                         query={"start": start, "end": end, "types": types,
-                                "cameras": cameras, "limit": limit})
-
-    def event_thumbnail(self, event_id):
-        return self._req("GET", PRIVATE, f"/events/{event_id}/thumbnail", raw=True)
-
-    def video_export(self, camera, start, end, kind=None, fps=None):
-        # private API: GET /proxy/protect/api/video/export?camera=&start=&end= → MP4 bytes
-        return self._req("GET", PRIVATE, "/video/export", raw=True, timeout=120,
-                         query={"camera": camera, "start": start, "end": end,
-                                "type": kind, "fps": fps})
-
 
 # ---------------------------------------------------------------------------
 # HTTP dispatch — called from server.py do_GET / do_POST when parts[0]=="unifi".
@@ -456,20 +364,6 @@ def handle(method, parts, qs, body, creds, layer=None):
                 return 200, "application/json", client.siren_play(p[1])
             if p[2] == "stop":
                 return 200, "application/json", client.siren_stop(p[1])
-
-        # events (private) + thumbnail + clip export
-        if p == ["events"] and method == "GET":
-            return 200, "application/json", client.events(
-                start=q1("start"), end=q1("end"), types=q1("types"),
-                cameras=q1("cameras"), limit=q1("limit"))
-        if len(p) == 3 and p[0] == "events" and p[2] == "thumbnail" and method == "GET":
-            data, ctype = client.event_thumbnail(p[1])
-            return 200, ctype, data
-        if p == ["video", "export"] and method == "POST":
-            b = body or {}
-            data, ctype = client.video_export(b.get("camera"), b.get("start"), b.get("end"),
-                                              kind=b.get("type"), fps=b.get("fps"))
-            return 200, ctype, data
 
         return 404, "application/json", {"errorMessage": f"unknown route: {method} /unifi/{'/'.join(parts)}"}
     except ProtectError as e:

@@ -53,64 +53,31 @@ class UniFiNetClient:
         self._lock = threading.Lock()
 
     def _conf(self):
-        """(host, verify, user, pw) from the platform's own UniFi Network entry;
-        the Protect entry when there is none. Read every call, kept nowhere."""
+        """(host, verify, None, None): the controller's ADDRESS from the platform's
+        own UniFi Network entry (the Protect entry when there is none). Register 695:
+        ProOS never reads the integration's login, so the last two are always None."""
         d = _pe.data(_DOMAIN)
-        host = d.get("host"); user = d.get("username"); pw = d.get("password")
-        verify = bool(d.get("verify_ssl"))
         self._inherited = False
-        self._source = _DOMAIN if (host and user and pw) else ""
-        if not (host and user and pw):
+        self._source = _DOMAIN if d.get("host") else ""
+        if not d.get("host"):
             pm = _pe.data(_PROTECT_DOMAIN)
-            if pm.get("host") and pm.get("username") and pm.get("password"):
-                host = host or pm.get("host")
-                user = pm.get("username"); pw = pm.get("password")
-                verify = bool(pm.get("verify_ssl"))
+            if pm.get("host"):
+                d = pm
                 self._inherited = True
                 self._source = _PROTECT_DOMAIN
-        host = str(host or "").strip().rstrip("/").replace("https://", "").replace("http://", "")
-        return (host, verify, user, pw)
+        host = str(d.get("host") or "").strip().rstrip("/").replace("https://", "").replace("http://", "")
+        return (host, bool(d.get("verify_ssl")), None, None)
 
     def configured(self) -> bool:
-        host, _, u, pw = self._conf()
-        return bool(host and u and pw)
+        """Never: ProOS does not sign in to the controller (691) and holds no login (695)."""
+        return False
 
     def _login(self):
         # REGISTER 691 (Dave, 6 Oct 2026: "Just do what the platform does"): ProOS does
         # not sign in to the UniFi controller. Its own logins — retried on every call
         # with no pause — could exhaust the console's login limit and lock everyone
-        # out. Only the platform's integration signs in.
+        # out. Only the platform's integration signs in. (695: the old sign-in code is gone.)
         raise NetError(409, "ProOS does not sign in to the controller; the platform's integration does")
-        host, verify, user, pw = self._conf()
-        if not (host and user and pw):
-            raise NetError(409, "needs host + a LOCAL username/password")
-        try:
-            _REACH.check()
-        except _reach.Unreachable as e:
-            raise NetError(502, str(e))
-        url = f"https://{host}/api/auth/login"
-        data = json.dumps({"username": user, "password": pw, "rememberMe": True}).encode()
-        req = urllib.request.Request(url, data=data, method="POST",
-            headers={"Content-Type": "application/json", "Accept": "application/json"})
-        ctx = None if verify else _ssl_unverified
-        try:
-            with urllib.request.urlopen(req, timeout=_reach.TIMEOUT, context=ctx) as r:
-                _REACH.ok()
-                token = None
-                for c in (r.headers.get_all("Set-Cookie") or []):
-                    m = re.search(r"(?:^|\s)TOKEN=([^;]+)", c)
-                    if m:
-                        token = m.group(1)
-                csrf = r.headers.get("X-CSRF-Token") or r.headers.get("X-Updated-CSRF-Token")
-                if not token:
-                    raise NetError(401, "login returned no token (use a LOCAL user, not SSO)")
-                self._session = {"token": token, "csrf": csrf}
-                return self._session
-        except urllib.error.HTTPError as e:
-            raise NetError(e.code, f"login failed: {e.code}")
-        except (urllib.error.URLError, TimeoutError, OSError) as e:
-            _REACH.failed(f"cannot reach controller at {host}: {getattr(e, 'reason', e)}")
-            raise NetError(502, f"cannot reach controller: {getattr(e, 'reason', e)}")
 
     def _ensure(self):
         if self._session:
@@ -184,8 +151,7 @@ class UniFiNetClient:
 
     def status(self) -> dict:
         host, verify, u, pw = self._conf()
-        out = {"configured": self.configured(), "host": host, "has_login": bool(u and pw),
-               "username": u or "",
+        out = {"configured": self.configured(), "host": host, "has_login": False,
                "inherited": bool(getattr(self, "_inherited", False)),
                # register 439: where the address and login come from — the
                # platform's own entry — so Pro can say so and offer its door
