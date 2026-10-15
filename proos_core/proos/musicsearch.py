@@ -160,13 +160,30 @@ def forget_services(entity_id=None):
             _services.pop(entity_id, None)
 
 
+# REGISTER 883 (read on Dave's Office speaker, 15 Oct 10:5x): Sonos Radio answers EVERY search category with the same
+# stations — "Smooth Jazz" (type program) under stations, artists, genres and all alike. Grouped by the category's name,
+# a station sat on the artist shelf, and with the streaming service slow (882) "play adele" could have taken "Adele Radio"
+# as an exact ARTIST — the soundalikes again. The item's OWN type, when the service gives one, says what it is.
+TYPE_KIND = {"program": "station", "stream": "station", "track": "track", "album": "album", "playlist": "playlist",
+             "artist": "artist", "tracklist": "playlist", "podcast": "podcast", "show": "podcast", "episode": "podcast"}
+
+
+def kind_of_item(item, category_kind):
+    t = str((item or {}).get("type") or "").rsplit(".", 1)[-1].lower()
+    return TYPE_KIND.get(t) or category_kind
+
+
 def _group(results, sid, acct, service):
-    kinds = {}
+    kinds, seen = {}, set()
     for grp in results or []:
-        k = kind_of(grp.get("category"))
+        ck = kind_of(grp.get("category"))
         for it in grp.get("items") or []:
             if not it.get("id"):
                 continue
+            k = kind_of_item(it, ck)
+            if (k, it.get("id")) in seen:                       # the same station under four categories is one card
+                continue
+            seen.add((k, it.get("id")))
             c = dict(it, sid=sid, acct=acct, service=service, kind=k, category=grp.get("category"))
             kinds.setdefault(k, []).append(c)
     return kinds
