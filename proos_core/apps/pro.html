@@ -2835,7 +2835,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026101605';
+const PROOS_BUILD='2026101606';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -12356,24 +12356,35 @@ async function assistTestCfg(){
 // every alert — register 309). The key file is read in the browser and
 // posted to Core once; Core keeps it in its credential store and never
 // hands it back — this screen shows only whether one is loaded.
+// ONE KEY PER APPLE SERVER (16 Oct 2026, register 893). Apple's test server (apps run from Xcode) and live server
+// (TestFlight, App Store) can need different keys; Dave's box held one test-server key and the live server refused
+// every alert (BadEnvironmentKeyInToken). Each loaded key says which server it is for; the line at the top says
+// whether every phone can be reached.
+const _NT_SERVERS=[['production','Live Server','TestFlight and App Store apps'],['sandbox','Test Server','apps run from Xcode (the developer build)'],['both','Both Servers','an older key that works on both']];
 async function techViewNotify(view){
   let st=null; try{ const r=await fetch(proCoreUrl()+'/push/config'); if(r.ok) st=await r.json(); }catch(e){}
+  const keys=(st&&st.keys)||{}, cov=(st&&st.covers)||{}, ref=(st&&st.refused)||{};
   const loaded=!!(st&&st.set);
+  const line=_NT_SERVERS.filter(([k])=>keys[k]&&keys[k].set).map(([k,l])=>l+': Key ID '+esc(keys[k].key_id||''));
   setHTML(view,
      '<div class="wiz-hint">Alerts from this home reach ProOS phones through ProOS Core, signed with your Apple push key. '
     +(st===null?'<b style="color:#e3a23c">ProOS Core unreachable</b>'
-      : loaded?'<b style="color:#84d9b4">Key loaded</b> · Key ID '+esc(st.key_id||'')+' · Team '+esc(st.team_id||'')
-      : '<b style="color:#e3a23c">No key loaded</b> — the box will log “no Apple push key loaded” for every alert until one is.')+'</div>'
-    +'<div class="bld-sec"><div class="bld-sec-h">Apple push key</div>'
-    +'<div class="wiz-hint">From your Apple Developer account: Certificates, Identifiers &amp; Profiles → Keys → + → tick <b>Apple Push Notifications service (APNs)</b> → Register → Download. The file is named AuthKey_<i>KEYID</i>.p8; the Key ID is the ten characters in that name and on the key’s page. One key serves every ProOS install.</div>'
-    +'<div class="field"><div class="field-label">Key file (.p8)</div><input id="nt-p8file" type="file" accept=".p8,text/plain" onchange="notifyKeyFilePicked(this)"/>'
+      : !loaded?'<b style="color:#e3a23c">No key loaded</b> — the box will log “no Apple push key loaded” for every alert until one is.'
+      : '<b style="color:#84d9b4">'+line.join(' · ')+'</b>'
+        +(!cov.production?' — <b style="color:#e3a23c">TestFlight and App Store apps can\u2019t be reached</b>: '+(ref.production?'Apple\u2019s live server refused Key ID '+esc(ref.production.key_id||'')+' (it only works on the test server) — load a key made for the live server.':'Apple\u2019s live server needs a key made for it (or for both).'):'')
+        +(!cov.sandbox?' — <b style="color:#e3a23c">developer builds can\u2019t be reached</b>: '+(ref.sandbox?'Apple\u2019s test server refused Key ID '+esc(ref.sandbox.key_id||'')+' — load a key made for the test server.':'Apple\u2019s test server needs a key made for it (or for both).'):''))+'</div>'
+    +'<div class="bld-sec"><div class="bld-sec-h">Apple Push Key</div>'
+    +'<div class="wiz-hint">From your Apple Developer account: Certificates, Identifiers &amp; Profiles → Keys → + → tick <b>Apple Push Notifications service (APNs)</b>, choose the environment → Register → Download. The file is named AuthKey_<i>KEYID</i>.p8; the Key ID is the ten characters in that name and on the key’s page. Apple lets you download it once.</div>'
+    +'<div class="field"><div class="field-label">This Key Is For</div><select id="nt-server" class="set-input">'
+      +_NT_SERVERS.map(([k,l,d])=>'<option value="'+k+'"'+(k===(!cov.production?'production':(!cov.sandbox?'sandbox':'production'))?' selected':'')+'>'+l+' — '+d+'</option>').join('')+'</select></div>'
+    +'<div class="field"><div class="field-label">Key File (.p8)</div><input id="nt-p8file" type="file" accept=".p8,text/plain" onchange="notifyKeyFilePicked(this)"/>'
     +'<textarea id="nt-p8" rows="3" style="margin-top:6px" placeholder="…or paste the contents of the .p8 file here (begins -----BEGIN PRIVATE KEY-----)" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea></div>'
-    +'<div class="field"><div class="field-label">Key ID</div><input id="nt-keyid" class="set-input" type="text" value="'+esc((st&&st.key_id)||'')+'" placeholder="e.g. 7Q3K2M9ABC" autocapitalize="characters" autocorrect="off" spellcheck="false"/></div>'
+    +'<div class="field"><div class="field-label">Key ID</div><input id="nt-keyid" class="set-input" type="text" value="" placeholder="e.g. 7Q3K2M9ABC" autocapitalize="characters" autocorrect="off" spellcheck="false"/></div>'
     +'<div class="field"><div class="field-label">Team ID</div><input id="nt-team" class="set-input" type="text" value="'+esc((st&&st.team_id)||'7XG3S6MMW8')+'" placeholder="10 characters, top right of developer.apple.com/account" autocapitalize="characters" autocorrect="off" spellcheck="false"/></div>'
-    +'<div style="display:flex;gap:8px;margin-top:10px"><button class="btn-primary" onclick="notifyKeySave()">'+(loaded?'Replace key':'Load key')+'</button>'
-    +(loaded?'<button class="btn-ghost" onclick="notifyKeyClear()">Remove key</button>':'')+'</div>'
+    +'<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="btn-primary" onclick="notifyKeySave()">Load Key</button>'
+    +_NT_SERVERS.filter(([k])=>keys[k]&&keys[k].set).map(([k,l])=>'<button class="btn-ghost" onclick="notifyKeyClear(\''+k+'\')">Remove '+l+' Key</button>').join('')+'</div>'
     +'<div id="nt-out" class="wiz-hint" style="margin-top:10px"></div></div>'
-    +'<div class="bld-sec" style="margin-top:18px"><div class="bld-sec-h">Send a test alert</div>'
+    +'<div class="bld-sec" style="margin-top:18px"><div class="bld-sec-h">Send a Test Alert</div>'
     +'<div class="wiz-hint">Goes the whole way: this box → ProOS Core → Apple → the phone. If nothing arrives within ten seconds, Logs → ProOS Core shows a line beginning “push ·” that says why.</div>'
     +'<div id="nt-phones" class="wiz-hint">Reading the phones this box knows…</div></div>');
   notifyPhonesLoad();
@@ -12400,15 +12411,16 @@ async function notifyKeySave(){
   const why=notifyKeyProblem(p8.trim(),keyId,team); if(why){ if(out) out.textContent=why; return; }
   if(out) out.textContent='Loading the key into ProOS Core…';
   try{
-    const r=await fetch(proCoreUrl()+'/push/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({p8:p8.trim(),key_id:keyId,team_id:team})});
+    const r=await fetch(proCoreUrl()+'/push/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({p8:p8.trim(),key_id:keyId,team_id:team,server:((document.getElementById('nt-server')||{}).value||'both')})});
     const d=await r.json().catch(()=>({}));
     if(!r.ok){ if(out) out.textContent=d.error||d.errorMessage||('Core refused ('+r.status+')'); return; }
     toast('Apple push key loaded'); techViewNotify(document.getElementById('tech-view'));
   }catch(e){ if(out) out.textContent=_coreFailWords('',e); }
 }
-async function notifyKeyClear(){
-  if(!await proAsk('Remove the Apple push key from this box? No alert can reach a ProOS phone until one is loaded again.')) return;
-  try{ const r=await fetch(proCoreUrl()+'/push/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clear:true})});
+async function notifyKeyClear(server){
+  server=server||'both'; const nm=((_NT_SERVERS.find(x=>x[0]===server)||[])[1]||'').toLowerCase();
+  if(!await proAsk('Remove the '+nm+' push key from this box? Phones that need it get no alerts until a key for that server is loaded again.')) return;
+  try{ const r=await fetch(proCoreUrl()+'/push/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clear:true,server})});
     if(!r.ok){ toast('Core refused'); return; } toast('Key removed'); techViewNotify(document.getElementById('tech-view')); }
   catch(e){ toast(_coreFailWords('',e)); }
 }

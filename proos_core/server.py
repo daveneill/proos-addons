@@ -4332,21 +4332,56 @@ def _last4(tok):
 # The account-wide Apple .p8 key lives in the credential store under "apns":
 # the PEM is the token; key_id/team_id/topic/env ride in meta. Per-device tokens
 # are never stored -- they arrive inside each notification HA POSTs to /push.
-def _apns_cred():
-    p8 = _creds.get("apns")
-    if not p8:
-        return None
-    m = _creds.meta("apns")
-    return {"p8": p8, "key_id": m.get("key_id"), "team_id": m.get("team_id"),
-            "topic": m.get("topic"), "env": m.get("env", "production")}
+# ONE KEY PER APPLE SERVER (16 Oct 2026, register 893). Apple now issues push keys that work on only ONE of its two
+# servers — the test server (sandbox: apps run from Xcode, the …ProOS.dev build) or the live server (production:
+# TestFlight and App Store). Dave's box held one key and sent with it to both: the test server delivered, the live
+# server refused every alert with BadEnvironmentKeyInToken. So a key can be loaded for one server ("apns_sandbox",
+# "apns_production") or, as before, for both ("apns" — older keys work on both). A phone's alert is signed with its
+# own server's key, else the both-servers key. Which server a phone needs comes from its app (…ProOS.dev = test).
+_APNS_SLOTS = {"sandbox": "apns_sandbox", "production": "apns_production", "both": "apns"}
+
+
+def _apns_cred(env=None):
+    slots = ([_APNS_SLOTS[env]] if env in ("sandbox", "production") else []) + ["apns"]
+    for slot in slots:
+        p8 = _creds.get(slot)
+        if not p8:
+            continue
+        m = _creds.meta(slot)
+        return {"p8": p8, "key_id": m.get("key_id"), "team_id": m.get("team_id"),
+                "topic": m.get("topic"), "env": env or m.get("env", "production"), "slot": slot}
+    return None
 
 
 def _apns_config_status():
-    p8 = _creds.get("apns")
-    m = _creds.meta("apns")
-    return {"set": bool(p8), "key_id": m.get("key_id"), "topic": m.get("topic"),
-            "env": m.get("env", "production"), "team_id": m.get("team_id"),
-            "key_last4": _last4(m.get("key_id"))}
+    keys = {}
+    for server, slot in _APNS_SLOTS.items():
+        p8 = _creds.get(slot)
+        m = _creds.meta(slot) if p8 else {}
+        keys[server] = {"set": bool(p8), "key_id": m.get("key_id"), "team_id": m.get("team_id"),
+                        "key_last4": _last4(m.get("key_id"))}
+    # Which key each server would use, and whether Apple has refused THAT key on THAT server — read from the last
+    # answer Apple gave for a phone on that server (register 893: an older-style key loaded "for both" can still be
+    # a one-server key; only Apple's reply shows it, so the reply decides, not the label)
+    covers, refused = {}, {}
+    for env in ("production", "sandbox"):
+        use = keys[env] if keys[env]["set"] else keys["both"]
+        covers[env] = bool(use["set"])
+        if use["set"]:
+            last = None
+            for rec in (push_status() or {}).values():
+                if rec.get("env") == env and rec.get("key_id") == use.get("key_id") and (not last or rec.get("at", 0) > last.get("at", 0)):
+                    last = rec
+            if last and not last.get("ok") and "BadEnvironmentKey" in str(last.get("words")):
+                covers[env] = False
+                refused[env] = {"key_id": use.get("key_id"), "at": last.get("at")}
+    first = keys["both"] if keys["both"]["set"] else (keys["production"] if keys["production"]["set"] else keys["sandbox"])
+    # the top-level fields stay as they were (one key) so nothing that reads them changes; "keys" says which server has which
+    return {"set": any(k["set"] for k in keys.values()), "key_id": first.get("key_id"), "topic": None,
+            "env": "production", "team_id": first.get("team_id"), "key_last4": first.get("key_last4"),
+            "keys": keys,
+            # can every phone be reached? the live server needs a production or both key, the test server a sandbox or both key
+            "covers": covers, "refused": refused}
 
 
 # Match the official service's contract: cap per device token, answer 429 past it.
@@ -4382,7 +4417,7 @@ def _push_status_load():
     return _PUSH_STATUS
 
 
-def _push_note(reg, ok, words):
+def _push_note(reg, ok, words, env=None, key_id=None):
     """PLAN B1 (3 Oct 2026; L-4, L-5). What actually happened to the last alert for each
     ProOS phone — delivered to Apple, or why not — kept per registration. On Dave's box
     every alert for two months died at "no Apple push key loaded in Core" while the
@@ -4393,7 +4428,10 @@ def _push_note(reg, ok, words):
             _push_status_load()
         name = (reg or {}).get("device_name") or "a phone"
         _PUSH_STATUS[name] = {"ok": bool(ok), "words": words, "at": time.time(),
-                              "app_id": (reg or {}).get("app_id")}
+                              "app_id": (reg or {}).get("app_id"),
+                              # which Apple server and which key Apple answered (register 893): the evidence for
+                              # "does this key work on that server" — Apple's own reply, never assumed
+                              "env": env, "key_id": key_id}
         tmp = _PUSH_STATUS_PATH + ".tmp"
         with open(tmp, "w", encoding="utf-8") as fh:
             json.dump(_PUSH_STATUS, fh)
@@ -7368,9 +7406,12 @@ class Handler(BaseHTTPRequestHandler):
             if parts == ["push", "config"]:
                 # Store the account-wide Apple .p8 push key. {clear:true} removes it.
                 b = self._body()
+                server = (b.get("server") or "both").strip()
+                if server not in _APNS_SLOTS:
+                    return self._send(400, {"error": "server must be both, production or sandbox"})
                 if b.get("clear"):
-                    _creds.delete("apns")
-                    return self._send(200, {"ok": True, "set": False})
+                    _creds.delete(_APNS_SLOTS[server])
+                    return self._send(200, {"ok": True, **_apns_config_status()})
                 p8 = (b.get("p8") or "").strip()
                 key_id = (b.get("key_id") or "").strip()
                 team_id = (b.get("team_id") or "").strip()
@@ -7384,9 +7425,11 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(400, {"error": "missing: " + ", ".join(miss)})
                 if "PRIVATE KEY" not in p8:
                     return self._send(400, {"error": "p8 must be the .p8 private-key PEM"})
-                _creds.put("apns", p8, name="Apple Push (APNs)", kind="apns_key",
+                _creds.put(_APNS_SLOTS[server], p8,
+                           name={"both": "Apple Push (APNs)", "production": "Apple Push (APNs) · live server",
+                                 "sandbox": "Apple Push (APNs) · test server"}[server], kind="apns_key",
                            extra={"key_id": key_id, "team_id": team_id,
-                                  "topic": topic, "env": env})
+                                  "topic": topic, "env": server if server != "both" else env})
                 return self._send(200, {"ok": True, **_apns_config_status()})
             if parts == ["push", "forget"]:
                 # A phone signing out (register 313): verified exactly like an
@@ -7425,7 +7468,10 @@ class Handler(BaseHTTPRequestHandler):
                     if reg is None:
                         return self._send(403, {"errorMessage": "not a registered ProOS phone"})
                 who = "%s (%s)" % (reg["device_name"], reg["app_id"])
-                cred = _apns_cred()
+                # which Apple server this phone's app needs: a development build (…ProOS.dev, signed for the
+                # sandbox) the test server; a TestFlight / App Store build the live server — then that server's key
+                _env = "sandbox" if reg["app_id"].endswith(".dev") else "production"
+                cred = _apns_cred(_env)
                 if not cred:
                     print(f"  push · {who} → no Apple push key loaded in Core", flush=True)
                     _push_note(reg, False, "no Apple push key is loaded in ProOS Core (Pro › System Setup › Notifications)")
@@ -7433,8 +7479,7 @@ class Handler(BaseHTTPRequestHandler):
                 # The app names its own bundle id at registration; that IS the
                 # Apple topic. A development build (…ProOS.dev, signed for the
                 # sandbox) goes to Apple's sandbox; a shop build to production.
-                cred = dict(cred, topic=reg["app_id"],
-                            env="sandbox" if reg["app_id"].endswith(".dev") else cred.get("env", "production"))
+                cred = dict(cred, topic=reg["app_id"], env=_env)
                 token = b.get("push_token")
                 if not _push_rate_ok(token):
                     print(f"  push · {who} → rate limit reached", flush=True)
@@ -7447,11 +7492,19 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(500, {"errorMessage": str(e)})
                 if res.get("ok"):
                     print(f"  push · {who} → delivered to Apple ({cred['env']})", flush=True)
-                    _push_note(reg, True, "delivered to Apple")
+                    _push_note(reg, True, "delivered to Apple", _env, cred.get("key_id"))
                     _push_prune_ghosts(reg)
                     return self._send(201, {"queued": True})
                 print(f"  push · {who} → Apple rejected: {res.get('reason') or res.get('status')}", flush=True)
-                _push_note(reg, False, "Apple refused it: %s" % (res.get("reason") or res.get("status")))
+                _why = res.get("reason") or res.get("status")
+                if str(_why).startswith("BadEnvironmentKey"):
+                    # Apple's own word for "this key is not allowed on this server" — say it so it can be acted on
+                    _srv = "live" if _env == "production" else "test"
+                    _push_note(reg, False, "Apple refused it: %s — the push key (Key ID …%s) is not allowed on Apple's %s server. "
+                               "Load a key for the %s server in Pro › System Setup › Notifications."
+                               % (_why, _last4(cred.get("key_id")) or "?", _srv, _srv), _env, cred.get("key_id"))
+                else:
+                    _push_note(reg, False, "Apple refused it: %s" % _why)
                 return self._send(500, {"errorMessage": "APNs rejected: " + (res.get("reason") or str(res.get("status"))),
                                         "unregistered": res.get("unregistered", False)})
             if parts == ["music", "setup"]:
