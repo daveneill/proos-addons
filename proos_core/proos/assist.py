@@ -1141,7 +1141,11 @@ TOOLS = [
                             "of the scene' means THIS, not remove_entities"},
          "remove_music": {"type": "boolean",
              "description": "UPDATE only: detach the music companion"},
-         "photo_query": {"type": "string", "description": "vivid mood description to match a photo"}},
+         "photo_query": {"type": "string", "description": "vivid mood description to match a photo"},
+         "phrases": {"type": "array", "items": {"type": "string"},
+                     "description": "trigger phrases that start the scene on their own (\"movie time\"). Offer two "
+                                    "or three in the household's words when you create a scene; refused if one is a "
+                                    "room's name or already taken (you are told which)."}},
          "required": ["name", "states"]}},
     # THE HALF THE PLATFORM HAS NEVER HEARD OF (19 Aug 2026, register 245).
     # Its own scene tool is better at scenes than ours — optimistic locking,
@@ -1187,6 +1191,16 @@ TOOLS = [
          "scene_entity_id": {"type": "string"},
          "show": {"type": "boolean", "description": "true to add to the dashboard, false to remove"}},
          "required": ["scene_entity_id", "show"]}},
+    {"name": "scene_phrases",
+     "description": "Set the TRIGGER PHRASES of a scene or an activity — the words that start it on their own "
+                    "(\"movie time\", \"goodnight\"), from every voice door, instantly. Pass the WHOLE list "
+                    "(it replaces what is there; [] clears). Works on any scene.* or script.* on the box, including "
+                    "ones made by hand. A phrase that is a room's name or already belongs to something else is "
+                    "refused with the reason — tell the person and suggest another. Use the household's own words.",
+     "input_schema": {"type": "object", "properties": {
+         "entity_id": {"type": "string", "description": "scene.* or script.*"},
+         "phrases": {"type": "array", "items": {"type": "string"}}},
+         "required": ["entity_id", "phrases"]}},
     {"name": "automation_create",
      "description": "Create OR update an automation (installer/tech only). trigger/condition/action "
                     "are lists of standard automation config dicts. Prefer firing a scene or a room activity "
@@ -1615,9 +1629,9 @@ _TOOL_GROUPS = {
         "tools": {"knowledge_read", "knowledge_search", "knowledge_write"},
     },
     "scene_extras": {
-        "what": "scene pictures, dashboards and music/activity companions "
+        "what": "scene pictures, dashboards, music/activity companions and trigger phrases "
                 "(scene_create and scene_apply are always available)",
-        "tools": {"scene_photo", "scene_dashboard", "scene_companions"},
+        "tools": {"scene_photo", "scene_dashboard", "scene_companions", "scene_phrases"},
     },
     "platform": {
         "what": "the underlying platform's own tools, for anything ProOS does "
@@ -4708,6 +4722,17 @@ class ToolRunner:
             out["photo_note"] = ("used a curated photo — AI-generated scene images need an OpenAI "
                                  "image key (Pro › Tech Tools › Assist AI). Mention this if the user "
                                  "expected a custom picture.")
+        # STAGE 4 (register 894): the phrases that start it — the platform's own aliases, the one setter Pro uses too.
+        if isinstance(args.get("phrases"), list):
+            from . import voicephrases as _vph
+            _st, _pb = _vph.set_phrases(self.client, self.ws_call, seid, args.get("phrases"))
+            if _st == 200:
+                out["phrases"] = _pb.get("phrases")
+            else:
+                out["phrases_refused"] = {"error": _pb.get("error"), "phrase": _pb.get("phrase")}
+        elif not upd_eid:
+            out["offer_phrases"] = ("offer two or three trigger phrases in the household's words (\"movie time\") — "
+                                    "they start it on their own from any voice door; save them with scene_phrases")
         return out
 
     # ── THE ONE HALF OF A SCENE THAT IS GENUINELY OURS (register 245) ────
@@ -4905,6 +4930,17 @@ class ToolRunner:
             out["photo_note"] = ("used a curated photo — a custom AI image needs an OpenAI image "
                                  "key in Pro › Tech Tools › Assist AI.")
         return out
+
+    def t_scene_phrases(self, args):
+        # STAGE 4 (register 894): the phrases are the platform's own aliases; ONE setter shared with Pro's route.
+        from . import voicephrases as _vph
+        st, body = _vph.set_phrases(self.client, self.ws_call, (args.get("entity_id") or "").strip(),
+                                    args.get("phrases") if isinstance(args.get("phrases"), list) else None)
+        if st != 200:
+            return {"error": body.get("error"), "phrase": body.get("phrase")}
+        self._audit("scene_phrases", entity=body.get("entity_id"), phrases=len(body.get("phrases") or []))
+        return {"ok": True, "entity_id": body.get("entity_id"), "phrases": body.get("phrases"),
+                "say_it": "each phrase now works on its own from any voice door"}
 
     def t_scene_apply(self, args):
         eid = (args.get("scene_entity_id") or "").strip()

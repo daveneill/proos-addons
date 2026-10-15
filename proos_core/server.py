@@ -1675,6 +1675,12 @@ def _commit_project(body, overwrite=False):
         res["voice_favourites"] = _voice_favs_write(saved)
     except Exception as e:
         res["voice_favourites"] = {"ok": False, "error": str(e)}
+    # REGISTER 894: and every scene's and activity's own trigger phrases ("movie time").
+    try:
+        from proos import voicephrases as _vph
+        res["voice_phrases"] = _vph.voice_phrases(_client)
+    except Exception as e:
+        res["voice_phrases"] = {"ok": False, "error": str(e)}
     # Reflect the just-committed config in the cached controllers so the
     # dashboard's activity list + verdicts update on its next poll (they
     # build from the committed record). Done ONCE here, not per read.
@@ -3897,6 +3903,19 @@ def _voice_after_shortcuts(res):
     except Exception as e:                                       # noqa: BLE001
         res["voice"] = {"error": str(e)[:160]}
     return res
+
+
+def _voice_phrases_set(entity_id=None, phrases=None):
+    """STAGE 4 (register 894): Pro's route and Assist share ONE setter (voicephrases.set_phrases)."""
+    from proos import voicephrases as _vph
+    st, body = _vph.set_phrases(_client, _ws_call, entity_id, phrases)
+    if _journal_mod is not None and entity_id and st == 200:
+        try:
+            _journal_mod.emit("site", "voice_phrases", {"entity": entity_id, "phrases": body.get("phrases"),
+                                                        "action": body.get("action")})
+        except Exception:                                        # noqa: BLE001
+            pass
+    return st, body
 
 
 def _voice_favs_write(saved):
@@ -6765,6 +6784,17 @@ class Handler(BaseHTTPRequestHandler):
                 out = _healthmon_mod.resolve_action(
                     _client, _iid_, b.get("action"))
                 return self._send(200 if not out.get("error") else 400, out)
+            if parts == ["voice", "phrases"]:
+                # STAGE 4 (register 894): a scene's or activity's trigger phrases. {entity_id, phrases:[…]} sets them —
+                # written to the platform's own alias field (ProOS keeps no copy), every NEW phrase checked first (a room's
+                # name, another thing's name or phrase is refused, as Josh refuses duplicates) — then the one phrases
+                # automation is rewritten. {} alone just rewrites it. Installer access, like the voice choice.
+                u = getattr(self, "_user", None)
+                if not (users and u and (u.get("is_admin") or u.get("is_owner")
+                                         or users.is_tech(u.get("id")))):
+                    return self._send(403, {"error": "installer access required"})
+                b = self._body() or {}
+                return self._send(*_voice_phrases_set(b.get("entity_id"), b.get("phrases")))
             if parts == ["voice", "default"]:
                 # The installer chooses the product's voice. An engine the
                 # box doesn't have is refused (a choice must be a reading);
@@ -9346,6 +9376,13 @@ def main():
                     okp, results, needs = _hp.run_calls(rnr, calls, lambda d: _vfavs.handle(_client, d))
                     res = {"ok": okp, "played": data.get("text")} if okp else {"error": (results[-1]["result"] or {}).get("error") if results else str(needs)}
                     what = data.get("text")
+                elif data.get("kind") == "scene":
+                    # REGISTER 894: a scene's own phrase — the ONE apply path (the dashboard tap's), companions and all.
+                    res = _assist.apply_scene(_client, _ws_call, project, _ma, data.get("entity_id") or "", None)
+                    if res.get("ok") is None and not res.get("error"):
+                        res["ok"] = True
+                    res.setdefault("played", data.get("name"))
+                    what = data.get("name")
                 elif data.get("kind") == "music":
                     # REGISTER 866: the platform's sentence waits for Core's own words — the one music road, then the reply.
                     from proos import voicemusic as _vmus
@@ -9369,6 +9406,9 @@ def main():
                 from proos import voicecheck as _vck
                 if res.get("ok") and data.get("kind") in ("plan", "music"):
                     okc, secs, words = True, 0, "each call answered"       # the tools themselves read back (their own law)
+                elif res.get("ok") and data.get("kind") == "scene":
+                    # Dave, 14 Oct (register 873): running an existing scene is just running it — nothing is asked after.
+                    okc, secs, words = True, 0, "the scene ran"
                 elif res.get("ok") and data.get("kind") == "app":
                     # DAVE'S RULING 14 Oct 14:59 (register 873): "assist should not have to confirm if it ran as it's just
                     # running the activity or shortcut" — the shortcut ran (device on, command taken); nothing is asked after.
@@ -9575,6 +9615,17 @@ def main():
                     print(f"  voice · favourites not written: {_vf.get('error')}")
             except Exception as _vf_e:
                 print(f"  voice · favourites skipped: {_vf_e}")
+            try:
+                # REGISTER 894: every scene's and activity's trigger phrases, said on their own ("movie time").
+                from proos import voicephrases as _vph
+                _vq = _vph.voice_phrases(_client)
+                if _vq.get("ok"):
+                    print(f"  voice · phrases: {_vq.get('action')} ({_vq.get('sentences', 0)} sentences"
+                          f"{'; clashes ' + str(_vq.get('clashes')) if _vq.get('clashes') else ''})")
+                else:
+                    print(f"  voice · phrases not written: {_vq.get('error')}")
+            except Exception as _vq_e:
+                print(f"  voice · phrases skipped: {_vq_e}")
             try:
                 # REGISTER 866: music by name from ANY voice door — the platform's own wildcard sentence, answered with Core's words.
                 from proos import voicemusic as _vmus

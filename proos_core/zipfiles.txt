@@ -112,6 +112,7 @@ proos/vitals.py
 proos/voiceapps.py
 proos/voicefavs.py
 proos/voicemusic.py
+proos/voicephrases.py
 proos/voicecheck.py
 proos/homeplan.py
 proos/musicsearch.py

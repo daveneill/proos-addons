@@ -1832,6 +1832,12 @@ body.v3 .rh-card{border-radius:22px}
 #app.v3 .panel .field input[type=text]:not([class]){padding:14px 16px}
 #app.v3 #tech-body .cred-top~.es,#app.v3 #tech-body div>.es{font-size:12.5px;color:var(--t3);line-height:1.45}
 #app.v3 .panel textarea:not([class]){background:rgba(255,255,255,0.06);border:0.5px solid var(--line);border-radius:10px;padding:12px 14px;color:#fff;font-size:13px;font-family:ui-monospace,Menlo,monospace;outline:none;width:100%;box-sizing:border-box}
+/* SC-02 / SC-04: a scene's or activity's phrases on its card */
+#app.v3 .v3ph{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:8px;position:relative;z-index:2}
+#app.v3 .v3ph .v3al{font-size:12px;padding:3px 8px}
+#app.v3 .itile:has(.v3ph){position:relative;padding-bottom:40px}
+#app.v3 .itile .v3ph{position:absolute;left:16px;right:16px;bottom:10px;margin:0;flex-wrap:nowrap;overflow:hidden}
+#app.v3 .scene-card .v3ph{position:absolute;top:10px;left:12px;right:150px;margin:0;flex-wrap:nowrap;overflow:hidden}
 
 </style>
 </head>
@@ -2835,7 +2841,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026101606';
+const PROOS_BUILD='2026101607';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -19477,6 +19483,60 @@ async function v3AliasDel(eid,i){
   const next=(e.aliases||[]).filter((_,n)=>n!==i);
   try{ await snd({type:'config/entity_registry/update',entity_id:eid,aliases:next}); toast('Alias removed'); await loadSite(); v3Devices(_v3dev); }
   catch(err){ toast('Couldn\'t remove the alias'); }
+}
+// ── STAGE 4 · TRIGGER PHRASES (SC-01, SC-02, SC-04 · register 894) ─────────
+// A scene's or activity's phrases are the platform's own aliases; Core writes them (one setter, shared with Assist),
+// checks each new one (a room's name or something else's phrase is refused) and rewrites the one sentence
+// automation, so "movie time" works on its own from every voice door.
+function v3PhraseList(eid){ const e=(_ents||[]).find(x=>x.entity_id===eid); return ((e&&e.aliases)||[]).slice(); }
+function v3PhrasesDecorate(name){
+  const host=document.getElementById(name+'-body'); if(!host) return;
+  if(name==='activities'){
+    host.querySelectorAll('.scene-card[data-scene-bg]').forEach(c=>{ v3PhraseRow(c,c.getAttribute('data-scene-bg')); });
+    const emp=host.querySelector(':scope>.empty');
+    if(emp&&!host.querySelector('.scene-card')){
+      // SC-01: Josh's three ways to make a scene
+      const ways=[['spark','Build a Scene','Pick devices and their settings, then the phrases that start it',"openCfgEditor({kind:'scene',isNew:true})"],
+        ['assist','Ask Assist','“Make a movie scene for the living room” — it builds it, tests it, offers phrases',"v3OpenAssist();setTimeout(()=>{const i=document.getElementById('assist-input');if(i){i.value='Make a scene for ';i.focus();}},300)"],
+        ['plug','Use an Existing One','Give an activity or script already on the box its own phrases',"openSection('scripts')"]];
+      setHTML(emp,'<div class="et">Scenes start several things at once, by a phrase you choose</div><div class="v3rows v3rgrid" style="margin-top:14px;text-align:left">'
+        +ways.map(([i,t,d,a])=>'<div class="v3row" onclick="'+a.replace(/"/g,'&quot;')+'"><div class="ri">'+(V3ICONS[i]||V3ICONS.box)+'</div><div class="rt"><div class="t1">'+esc(t)+'</div><div class="t2">'+esc(d)+'</div></div></div>').join('')+'</div>');
+    }
+  } else if(name==='scripts'){
+    host.querySelectorAll('.itile[onclick^="editScript("]').forEach(c=>{ const m=/editScript\('([^']+)'\)/.exec(c.getAttribute('onclick')||''); if(m) v3PhraseRow(c,m[1]); });
+  }
+}
+function v3PhraseRow(card,eid){
+  if(!eid||card.querySelector('.v3ph')) return;
+  const ph=v3PhraseList(eid);
+  const d=document.createElement('div'); d.className='v3ph';
+  setHTML(d,ph.map(p=>'<span class="v3al">“'+esc(p)+'”</span>').join('')+'<button class="v3add" onclick="event.stopPropagation();v3PhrasesOpen(\''+esc(eid)+'\')">'+(ph.length?'Phrases':'+ Phrase')+'</button>');
+  d.addEventListener('click',ev=>ev.stopPropagation());
+  card.appendChild(d);
+}
+function v3PhrasesOpen(eid){
+  const name=entName(eid); let list=v3PhraseList(eid);
+  const paint=()=>{ const b=document.getElementById('v3ph-list'); if(b) setHTML(b, list.length?list.map((p,i)=>'<span class="v3al">'+esc(p)+'<button aria-label="Remove phrase" onclick="v3PhraseDrop('+i+')">×</button></span>').join(''):'<span class="t2" style="color:rgba(255,255,255,.5)">No phrases yet — the name still works with “activate”.</span>'); };
+  window.v3PhraseDrop=(i)=>{ list.splice(i,1); paint(); };
+  const o=v3Popup('Phrases',name+' · what starts it on its own, from any voice door',
+    '<div id="v3ph-list" style="min-height:30px"></div>'+_v3input('v3ph-in','Add a Phrase','','The household’s own words — “movie time”, “goodnight”. Not a room’s name.'),
+    [['Cancel'],['Save',async()=>{
+      const inp=document.getElementById('v3ph-in'); const v=((inp&&inp.value)||'').trim(); if(v&&list.map(x=>x.toLowerCase()).indexOf(v.toLowerCase())<0) list.push(v);
+      const h=document.getElementById('v3ph-in-h');
+      try{
+        const r=await fetch(proCoreUrl()+'/voice/phrases',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({entity_id:eid,phrases:list})});
+        const d=await r.json().catch(()=>({}));
+        if(!r.ok){ if(h) h.textContent=d.error||('Core refused ('+r.status+')'); if(v) list=list.filter(x=>x!==v); paint(); return true; }
+        toast(list.length?'Phrases saved — say “'+list[0]+'”':'Phrases cleared'); await loadSite(); renderSection(_v2panel==='scripts'?'scripts':'activities');
+      }catch(err){ if(h) h.textContent=_coreFailWords?_coreFailWords('',err):'Core unreachable'; return true; }
+    }]]);
+  paint();
+  const inp=document.getElementById('v3ph-in'); if(inp) inp.addEventListener('keydown',ev=>{ if(ev.key==='Enter'){ ev.preventDefault(); const v=inp.value.trim(); if(v&&list.map(x=>x.toLowerCase()).indexOf(v.toLowerCase())<0){ list.push(v); inp.value=''; paint(); } } });
+  return o;
+}
+if(typeof renderSection==='function'){
+  const _v3rs=renderSection;
+  renderSection=function(name){ const r=_v3rs.apply(this,arguments); try{ if(name==='activities'||name==='scripts') v3PhrasesDecorate(name); }catch(e){} return r; };
 }
 function v3Rename(eid){
   const e=(_ents||[]).find(x=>x.entity_id===eid); if(!e) return;
