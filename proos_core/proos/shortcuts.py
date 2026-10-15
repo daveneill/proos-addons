@@ -62,6 +62,11 @@ _PLATFORM_METHOD = {
     "androidtv_remote": "play_media_app",
     "androidtv":        "play_media_app",
     "apple_tv":         "select_source",
+    # stage 1 of the planned build (register 889): the platform's own documented launch for two more brands — LG webOS
+    # lists its apps in source_list and launches them by select_source; Roku's source_list IS its app list. Google Cast
+    # launches an app by play_media with its own content type and is NOT assumed here — to be read on a device first.
+    "webostv":          "select_source",
+    "roku":             "select_source",
 }
 # which REGISTRY column a platform reads for its default token.
 _PLATFORM_COLUMN = {
