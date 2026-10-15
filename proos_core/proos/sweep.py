@@ -132,7 +132,7 @@ def check_proos(r, now):
                     out.append(_item("1c", subj, UNKNOWN,
                                      "ProOS has no record of an alert reaching %s — either none has been sent, "
                                      "or it uses a push service ProOS can't see. Send a test from "
-                                     "Pro › Toolbox › Notifications." % name))
+                                     "Pro › System Setup › Notifications." % name))
                 elif st.get("ok"):
                     out.append(_item("1c", subj, CONFIRMED,
                                      "the last alert to %s was %s" % (name, st.get("words") or "delivered"),

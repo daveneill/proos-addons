@@ -7428,7 +7428,7 @@ class Handler(BaseHTTPRequestHandler):
                 cred = _apns_cred()
                 if not cred:
                     print(f"  push · {who} → no Apple push key loaded in Core", flush=True)
-                    _push_note(reg, False, "no Apple push key is loaded in ProOS Core (Pro › Toolbox › Notifications)")
+                    _push_note(reg, False, "no Apple push key is loaded in ProOS Core (Pro › System Setup › Notifications)")
                     return self._send(500, {"errorMessage": "Apple push key not loaded in ProOS Core"})
                 # The app names its own bundle id at registration; that IS the
                 # Apple topic. A development build (…ProOS.dev, signed for the

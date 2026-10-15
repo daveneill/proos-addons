@@ -1826,6 +1826,12 @@ body.v3 .rh-card{border-radius:22px}
 #app.v3 input.set-input{background:rgba(255,255,255,0.06);border:0.5px solid var(--line);border-radius:10px;padding:12px 14px;color:#fff;font-size:14px;font-family:inherit;outline:none;min-width:0;flex:1}
 #app.v3 input.set-input:focus{border-color:rgba(255,255,255,0.3)}
 #app.v3 input.set-input::placeholder{color:rgba(255,255,255,0.25)}
+/* Bare text boxes (no class, outside a .field) drew as raw white boxes on the box — Box Diagnostics › Box Name, 16 Oct.
+   Same look as a field input; anything with its own class keeps its own. */
+#app.v3 .panel input[type=text]:not([class]),#app.v3 .panel input[type=number]:not([class]),#app.v3 .panel input[type=url]:not([class]),#app.v3 .panel input:not([type]):not([class]){background:rgba(255,255,255,0.06);border:0.5px solid var(--line);border-radius:10px;padding:12px 14px;color:#fff;font-size:14px;font-family:inherit;outline:none;min-width:0}
+#app.v3 .panel .field input[type=text]:not([class]){padding:14px 16px}
+#app.v3 #tech-body .cred-top~.es,#app.v3 #tech-body div>.es{font-size:12.5px;color:var(--t3);line-height:1.45}
+#app.v3 .panel textarea:not([class]){background:rgba(255,255,255,0.06);border:0.5px solid var(--line);border-radius:10px;padding:12px 14px;color:#fff;font-size:13px;font-family:ui-monospace,Menlo,monospace;outline:none;width:100%;box-sizing:border-box}
 
 </style>
 </head>
@@ -1942,7 +1948,7 @@ body.v3 .rh-card{border-radius:22px}
            Integration, one search across integrations, devices and entities, chips by group, then the
            groups — Your Systems, Phones & Tablets, Platform Services (folded) — with Discovered and the
            certified ones still to add exactly where they were. -->
-      <div class="il-head"><div><div class="rsub">Systems</div><div class="ip-title">Integrations</div></div>
+      <div class="il-head"><div><div class="rsub">System Setup</div><div class="ip-title">Integrations</div></div>
         <button type="button" class="ip-btn p" onclick="openAddIntegration()">Add Integration</button></div>
       <div class="ip-tools"><label class="ip-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4-4"/></svg>
         <input id="il-q" type="search" placeholder="Search integrations, devices, entities" aria-label="Search everything" oninput="ilSearch(this.value)" autocomplete="off"></label>
@@ -2829,7 +2835,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026101603';
+const PROOS_BUILD='2026101604';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -4982,7 +4988,7 @@ function _ipHeadHTML(dom, rows){
     + (faulted.length?`<button type="button" class="ip-btn" onclick="fixEntrySetup('${esc(faulted[0].entry_id)}','${esc(dom)}','Reconnect')">Reconnect</button>`:'')
     + (canAdd===false?'':`<button type="button" class="ip-btn p" onclick="addIntegration('${esc(dom)}')">${esc(intgAddLabel(dom).replace(/^\+ /,''))}</button>`);
   return `<div class="ip-headcard"><div class="ip-logo">${intgLogo(dom)}</div>`
-    + `<div class="ip-hbody"><div class="rsub">Systems › Integrations</div><div class="ip-title">${esc(integrationName(dom)||'Integration')}</div><div class="rsub">${esc(sub)}</div></div>`
+    + `<div class="ip-hbody"><div class="rsub">System Setup › Integrations</div><div class="ip-title">${esc(integrationName(dom)||'Integration')}</div><div class="rsub">${esc(sub)}</div></div>`
     + `<span class="ip-pill ${st[1]} ip-state">${st[0]}</span><div class="ip-acts">${acts}</div></div>`;
 }
 function intgPageHTML(dom){
@@ -19096,7 +19102,8 @@ function v3PageName(panel){
   if(panel==='activities') return 'Scenes';
   if(panel==='scripts') return 'Activities';
   // the page name is the list's own label, so the crumb and the list never disagree (rig walk, 16 Oct)
-  if(panel==='tech'||panel==='dashremote'){ const k=panel==='tech'?_techView:'dashremote'; const it=V3TOOLS.concat(V3SETUP).find(x=>x[0]===k); if(it) return it[1]; }
+  if(panel==='tech'){ const it=V3TOOLS.concat(V3SETUP).find(x=>x[0]===_techView); if(it) return it[1]; }
+  if(v3SecOf(panel)==='setup'&&panel!=='integration'&&panel!=='history'&&panel!=='navlayout'){ const k=v3SetupKey(panel); const it=V3SETUP.concat(V3SYSTEMS).find(x=>x[0]===k); if(it) return it[1]; }
   const pt=document.querySelector('#panel-'+panel+' .panel-head .panel-title');
   if(!pt) return '';
   const c=pt.cloneNode(true); c.querySelectorAll('.intg-logo,.intg-mono,img,svg').forEach(n=>n.remove());
@@ -19205,11 +19212,13 @@ function v3AreasEdit(){ if(_v2panel==='room'&&_roomHubArea) openRoomEdit(_roomHu
 // re-draw the list whenever the site data changes (rooms renamed, devices placed)
 if(typeof loadSite==='function'){
   const _v3ls=loadSite;
-  loadSite=async function(){ const r=await _v3ls.apply(this,arguments); try{ v3Badges(); if(_v2panel) v3Side(_v2sec); v3Backdrop(); }catch(e){} return r; };
+  loadSite=async function(){ const r=await _v3ls.apply(this,arguments); try{ v3Badges(); if(_v2panel){ v3Side(_v2sec); v3Title(_v2panel,_v2sec); } v3Backdrop(); }catch(e){} return r; };
 }
 // ── the backdrop: the building's own photograph, blurred behind every page ──
 function v3HomeArea(){ try{ return findHomeArea()||null; }catch(e){ return null; } }
-function v3Photo(a){ return a?(a.picture?imgSize(a.picture,'1024x1024'):((_roomIdent[a.area_id]||{}).fallback_photo||null)):null; }
+// the platform serves an area photo at 256x256, 512x512 or its original only — 1024x1024 is refused (seen on Dave's box
+// 16 Oct: every hero and the backdrop were blank; the rig's photos are plain URLs, so the rig could not show it)
+function v3Photo(a){ return a?(a.picture?imgSize(a.picture,'original'):((_roomIdent[a.area_id]||{}).fallback_photo||null)):null; }
 function v3Backdrop(){
   const a=v3HomeArea()||(_areas||[]).find(x=>x.picture)||null;
   const u=v3Photo(a); const app=document.getElementById('app');
