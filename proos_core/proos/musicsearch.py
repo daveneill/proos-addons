@@ -70,9 +70,18 @@ def preferred_order(option=None):
     return [str(x).strip().lower() for x in (option or []) if str(x).strip()]
 
 
-def order_services(svcs, words="", option=None):
-    """[(sid, acct, name)] in the home's preferred order: named first, then streaming, then radio —
-    radio first when the words ask for radio or a station."""
+def last_service_sid(attrs):
+    """The service the speaker is (or was last) playing from, from its own media id ("…?sid=12&…"); None when unknown."""
+    import re
+    m = re.search(r"[?&]sid=(\d+)", str((attrs or {}).get("media_content_id") or ""))
+    return int(m.group(1)) if m else None
+
+
+def order_services(svcs, words="", option=None, last_sid=None):
+    """[(sid, acct, name)] in the home's preferred order: named first (the option), then streaming before radio —
+    radio first when the words ask for radio or a station. REGISTER 884 (read on the box 15 Oct: the speaker's own
+    list came back Spotify-first at 10:40 and Apple-first at 11:40, and "the first service that has it" plays): ties
+    are settled the same way every time — the service the speaker last played from (its own reading), then the name."""
     pref = preferred_order(option)
     want_radio = is_radio(words)
 
@@ -80,7 +89,7 @@ def order_services(svcs, words="", option=None):
         n = str(x[2] or "").lower()
         named = pref.index(n) if n in pref else len(pref)
         radio = is_radio(n)
-        return (named, 0 if (radio == want_radio) else 1)
+        return (named, 0 if (radio == want_radio) else 1, 0 if (last_sid is not None and int(x[0]) == int(last_sid)) else 1, n)
     return sorted(list(svcs), key=key)
 
 
@@ -205,7 +214,11 @@ def search_all(client, entity_id, words, budget_s=None, count=COUNT, searcher=No
     if not had:
         return {"q": words, "services": [], "order": [], "ms": 0, "error": "this speaker has no music services"}
     mod, sp, tz, svcs = had
-    svcs = order_services(svcs, words)
+    try:
+        _attrs = (client._req("GET", "/api/states/%s" % entity_id) or {}).get("attributes") or {}
+    except Exception:                                            # noqa: BLE001
+        _attrs = {}
+    svcs = order_services(svcs, words, last_sid=last_service_sid(_attrs))
     out = {"q": words, "services": [{"service_id": s, "account": a, "name": n, "kinds": {}, "pending": True, "ms": None}
                                     for s, a, n in svcs],
            "order": [n for _s, _a, n in svcs], "ms": 0}
@@ -334,6 +347,14 @@ def rank(result, words, favourites=None):
                     best = c
         if best is not None:
             return "exact", [best]
+    # REGISTER 884: with no kind said, an exact ARTIST is the artist on whichever service has it, ahead of another
+    # service's song of the same name ("play P!nk": the artist on Spotify, not the track on Apple Music that happened
+    # to be listed first). The kind rule (864) holds across services; the service order settles ties within a kind.
+    if not kind:
+        for s in services:
+            for c in (s.get("kinds") or {}).get("artist") or []:
+                if same_words(c.get("title"), name):
+                    return "exact", [c]
     for s in services:
         exact = []
         for k in kinds_wanted:
@@ -348,9 +369,6 @@ def rank(result, words, favourites=None):
             known = [c for c in exact if c.get("kind") in ("artist", "track", "album", "playlist", "station")]
             if known:
                 exact = known
-            artist = next((c for c in exact if c.get("kind") == "artist"), None)
-            if artist is not None and not kind:
-                return "exact", [artist]
             return "exact", exact
     for s in services:
         for k in kinds_wanted:
