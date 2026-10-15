@@ -2835,7 +2835,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026101604';
+const PROOS_BUILD='2026101605';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -19112,6 +19112,9 @@ function v3PageName(panel){
 const _V3SECROOT={home:'home',areas:'hub',devices:null,scenes:'activities',diagnostics:null,setup:'site',toolbox:'toolbox'};
 function v3Title(panel,sec){
   const crumb=document.getElementById('v2crumb'); if(!crumb) return;
+  // the page starts on Home with the OLD default section key ('health') and no show() call — so a section that is not on
+  // the rail is worked out from the page (seen on Dave's box 16 Oct: an empty title on first load)
+  if(!V2SECTIONS.some(s=>s[0]===sec)){ sec=v3SecOf(panel); _v2sec=sec; }
   const secLabel=(V2SECTIONS.find(s=>s[0]===sec)||['',''])[1];
   let page=(_V3SECROOT[sec]===panel)?'':v3PageName(panel);
   if(page===secLabel) page='';
@@ -19563,6 +19566,8 @@ async function v3Software(){
   document.getElementById('app').classList.add('v3');
   try{ if(localStorage.getItem('proosRailMin')===null) document.body.classList.add('railmin'); }catch(e){ document.body.classList.add('railmin'); }
   v3EnsureCmd();
+  // Pro opens on Home without a show() call: name the section and write the title now, not on the first tap
+  if(typeof _v2panel!=='undefined'){ _v2sec=v3SecOf(_v2panel||'home'); try{ v3Title(_v2panel||'home',_v2sec); }catch(e){} }
   setTimeout(()=>{ v3ReadCore().then(()=>{ try{ v3HomeTop(); }catch(e){} }); v3Backdrop(); },1500);
 })();
 
