@@ -1665,6 +1665,168 @@ body.aws-open .v2tabs{display:none!important}
 .irr-seg{min-height:36px;min-width:44px;padding:0 10px;border:0;background:transparent;color:rgba(255,255,255,.72);font:inherit;font-size:12px;cursor:pointer}
 .irr-seg+.irr-seg{border-left:.5px solid rgba(255,255,255,.12)}
 .irr-seg.on{background:#fff;color:#111;font-weight:600}
+/* ============ V3 — THE JOSH.AI FLOW (16 Oct 2026, approved page catalogue AR/DV/SC/DG/SS/TB) ============
+   One menu down the left (Home · Areas · Devices · Scenes · Diagnostics · System Setup · Toolbox), sliding
+   back to icons as Pro Studio and today's Pro do; each section's own list beside it; Assist is the command
+   bar at the foot of every page, opening as a full-height panel on the right. Nothing is reached two ways. */
+#app.v3{--v3r:212px;--v3s:300px;--v3g:16px}
+body.railmin #app.v3{--v3r:76px}
+#app.v3 .bg{background:var(--v3bg,var(--proos-ground)) center/cover no-repeat;opacity:1;filter:blur(26px) saturate(1.1) brightness(.42);transform:scale(1.08)}
+#app.v3 .bg::after{background:linear-gradient(180deg,rgba(0,0,0,.25),rgba(0,0,0,.55) 60%,rgba(0,0,0,.8))}
+#app.v3{padding-left:calc(var(--v3r) + 2*var(--v3g))!important}
+body.v3-side #app.v3 .scroll{padding-left:calc(var(--v3s) + var(--v3g))}
+#app.v3 .scroll{padding-right:var(--v3g);padding-bottom:104px}
+/* rail */
+#app.v3 .v2rail{width:var(--v3r);left:var(--v3g);top:var(--v3g);bottom:var(--v3g);border-radius:26px;padding:16px 10px;
+  background:rgba(22,22,26,.55);border:1px solid rgba(255,255,255,.075);-webkit-backdrop-filter:blur(40px) saturate(1.3);backdrop-filter:blur(40px) saturate(1.3);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 10px 30px rgba(0,0,0,.35);transition:width .2s}
+#app.v3 .v2item{height:46px;border-radius:14px;padding:0 14px;gap:13px;font-size:14.5px;color:rgba(255,255,255,.55);border:0;margin-bottom:4px;position:relative}
+#app.v3 .v2item svg{width:21px;height:21px}
+#app.v3 .v2item.on{background:rgba(255,255,255,.12);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.08)}
+#app.v3 .v2item .v2badge{background:#ff453a}
+#app.v3 .v2item.v2collapse{margin-top:auto;color:rgba(255,255,255,.36)}
+#app.v3 .v2rail .v2foot{margin-top:6px;padding:8px 14px}
+body.railmin #app.v3 .v2rail{padding-left:10px;padding-right:10px}
+body.railmin #app.v3 .v2item{justify-content:center;padding:0}
+body.railmin #app.v3 .v2item>span:not(.v2badge),body.railmin #app.v3 .v2rail .v2logo span,body.railmin #app.v3 .v2rail .v2foot{display:none}
+body.railmin #app.v3 .v2item .v2badge{position:absolute;top:4px;right:6px;margin:0;min-width:17px;height:17px;font-size:10px}
+body.railmin #app.v3 .v2rail .v2logo{justify-content:center;padding-left:0;padding-right:0}
+body.railmin #app.v3 .v2item.v2collapse svg{transform:rotate(180deg)}
+/* the page title row (the top bar) */
+#app.v3 .topbar{background:transparent!important;border:0!important;box-shadow:none!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;padding:22px var(--v3g) 14px 0!important;margin:0!important}
+#app.v3 .v2crumb{font-size:15px;color:rgba(255,255,255,.55);margin-left:4px}
+#app.v3 .v2crumb b{font-size:30px;font-weight:600;letter-spacing:-.8px;color:#fff}
+#app.v3 .v2crumb .sep{margin:0 10px;opacity:.4}
+#app.v3 .v2back{width:40px;height:40px;padding:0;justify-content:center;border-radius:50%;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.075)}
+#app.v3 .v2back span{display:none}
+#app.v3 .who-avw{order:9}
+/* section list */
+.v3side{position:fixed;z-index:50;display:none;flex-direction:column;left:calc(var(--v3r) + 2*var(--v3g));width:var(--v3s);top:86px;bottom:92px;
+  background:rgba(22,22,26,.55);border:1px solid rgba(255,255,255,.075);border-radius:26px;-webkit-backdrop-filter:blur(40px) saturate(1.3);backdrop-filter:blur(40px) saturate(1.3);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06);overflow:hidden}
+body.v3-side .v3side{display:flex}
+#app.v3 ~ .v3side,.v3side{transition:left .2s}
+.v3sh{display:flex;align-items:center;justify-content:space-between;padding:20px 22px 10px;font-size:14px;font-weight:600;color:rgba(255,255,255,.62)}
+.v3sh button{background:none;border:0;color:#fff;opacity:.8;font:inherit;font-weight:500;cursor:pointer}
+.v3sl{flex:1;overflow-y:auto;padding:0 10px 10px;scrollbar-width:none}
+.v3si{display:flex;align-items:center;gap:12px;padding:8px 12px;min-height:46px;border-radius:14px;cursor:pointer;color:rgba(255,255,255,.88);font-size:15px;margin-bottom:2px;-webkit-tap-highlight-color:transparent}
+.v3si:hover{background:rgba(255,255,255,.05)}
+.v3si.on{background:rgba(255,255,255,.12);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.08)}
+.v3si .v3ic{width:30px;height:30px;border-radius:9px;background:rgba(255,255,255,.07);display:grid;place-items:center;color:rgba(255,255,255,.62);flex:none}
+.v3si .v3ic svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.v3si .v3th{width:30px;height:30px;border-radius:9px;flex:none;background:#2a2f38 center/cover;box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}
+.v3si .v3nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.v3si .v3ct{color:rgba(255,255,255,.36);font-size:13.5px;font-variant-numeric:tabular-nums}
+.v3si.l1{padding-left:22px}
+.v3bdg{background:#ff453a;color:#fff;font-size:12px;font-weight:600;border-radius:11px;padding:2px 8px;font-variant-numeric:tabular-nums}
+.v3grp{padding:14px 12px 6px;font-size:12px;font-weight:600;letter-spacing:.4px;color:rgba(255,255,255,.36);text-transform:uppercase}
+.v3sf{border-top:1px solid rgba(255,255,255,.075);padding:14px 22px 18px;display:flex;gap:18px}
+.v3sf button{background:none;border:0;color:rgba(255,255,255,.62);font:inherit;font-size:14px;font-weight:500;cursor:pointer;padding:0}
+/* command bar + Assist drawer */
+.v3cmd{position:fixed;z-index:55;left:calc(var(--v3r) + 2*var(--v3g));right:var(--v3g);bottom:var(--v3g);height:56px;border-radius:18px;
+  background:rgba(22,22,26,.6);border:1px solid rgba(255,255,255,.075);-webkit-backdrop-filter:blur(40px) saturate(1.3);backdrop-filter:blur(40px) saturate(1.3);
+  display:none;align-items:center;gap:12px;padding:0 18px;color:rgba(255,255,255,.62);font-size:15.5px;cursor:text;box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
+#app.v3 .v3cmd{display:flex}
+.v3cmd svg{width:19px;height:19px;stroke:#5b6cff;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.v3cmd .v3cp{flex:1}
+.v3cmd .v3cr{display:flex;align-items:center;gap:6px;font-size:13px;background:rgba(255,255,255,.07);border-radius:10px;padding:5px 10px}
+.v3cmd .v3cr:empty{display:none}
+body.v3-assist .v3cmd{visibility:hidden}
+.v3dim{position:fixed;inset:0;z-index:880;background:rgba(0,0,0,.28);display:none}
+body.v3-assist .v3dim{display:block}
+.v3drawer{position:fixed;z-index:890;top:var(--v3g,16px);right:16px;bottom:16px;width:min(480px,calc(100vw - 32px));border-radius:28px;display:none;flex-direction:column;overflow:hidden;
+  background:rgba(18,18,22,.95);border:1px solid rgba(255,255,255,.13);-webkit-backdrop-filter:blur(60px) saturate(1.5);backdrop-filter:blur(60px) saturate(1.5);
+  box-shadow:-30px 0 80px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.07)}
+body.v3-assist .v3drawer{display:flex}
+.v3dh{display:flex;align-items:center;gap:14px;padding:20px 20px 16px;border-bottom:1px solid rgba(255,255,255,.075)}
+.v3dh .v3di{width:40px;height:40px;border-radius:13px;background:linear-gradient(135deg,#2139F0,#7a5bff);display:grid;place-items:center;flex:none}
+.v3dh .v3di svg{width:20px;height:20px;stroke:#fff;fill:none;stroke-width:1.7}
+.v3dh b{font-size:19px;font-weight:600}
+.v3dh .v3dc{font-size:13.5px;color:rgba(255,255,255,.62)}
+.v3dh .v3dx{margin-left:auto;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.07);border:0;color:rgba(255,255,255,.8);font-size:20px;cursor:pointer}
+.v3db{flex:1;min-height:0;display:flex;flex-direction:column}
+.v3db #assist-overlay.docked{flex:1;min-height:0;display:flex;flex-direction:column;background:transparent!important;border:0!important;box-shadow:none!important;border-radius:0!important;margin:0!important}
+.v3db #assist-overlay.docked .as-head{display:none}
+.v3db #assist-overlay.docked #assist-history{flex:1;min-height:0;overflow-y:auto}
+body.v3 .assist-fab{display:none!important}
+/* shared page language */
+.v3page{display:flex;flex-direction:column;gap:18px}
+.v3card{background:rgba(22,22,26,.55);border:1px solid rgba(255,255,255,.075);border-radius:26px;-webkit-backdrop-filter:blur(40px) saturate(1.3);backdrop-filter:blur(40px) saturate(1.3);box-shadow:inset 0 1px 0 rgba(255,255,255,.06);overflow:hidden}
+.v3dh2{padding:24px 26px 6px}.v3dh2 .t{font-size:26px;font-weight:600;letter-spacing:-.6px}.v3dh2 .s{color:rgba(255,255,255,.62);font-size:14.5px;margin-top:4px;line-height:1.45}
+.v3sec{padding:8px 22px 16px}.v3sec>.h{display:flex;align-items:center;justify-content:space-between;font-size:14px;font-weight:600;color:rgba(255,255,255,.62);padding:10px 4px}
+.v3sec>.h button{background:none;border:0;color:#fff;opacity:.8;font:inherit;font-weight:500;cursor:pointer}
+.v3rows{border-radius:18px;background:rgba(255,255,255,.045);box-shadow:inset 0 0 0 1px rgba(255,255,255,.075);overflow:hidden}
+.v3row{display:flex;align-items:center;gap:14px;padding:14px 18px;border-top:1px solid rgba(255,255,255,.075);cursor:pointer;min-height:62px}
+.v3row:first-child{border-top:0}
+.v3row:hover{background:rgba(255,255,255,.03)}
+.v3row.static{cursor:default}.v3row.static:hover{background:none}
+.v3row .ri{width:38px;height:38px;border-radius:12px;background:rgba(255,255,255,.07);display:grid;place-items:center;flex:none;color:rgba(255,255,255,.8)}
+.v3row .ri svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.v3row .rt{flex:1;min-width:0}.v3row .t1{font-size:15.5px;font-weight:500;display:flex;align-items:center;gap:8px}
+.v3row .t2{font-size:13.5px;color:rgba(255,255,255,.62);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.v3row .rr{display:flex;align-items:center;gap:10px;color:rgba(255,255,255,.36);font-size:13.5px;flex:none}
+.v3row .cv{width:16px;height:16px;stroke:rgba(255,255,255,.36);fill:none;stroke-width:1.8}
+.v3tag{font-size:11px;font-weight:600;color:#9aa6ff;background:rgba(33,57,240,.22);border-radius:6px;padding:2px 7px}
+.v3chip{font-size:12.5px;font-weight:500;padding:4px 10px;border-radius:9px;background:rgba(255,255,255,.08);color:rgba(255,255,255,.75);white-space:nowrap}
+.v3chip.ok{background:rgba(50,215,75,.14);color:#5fe07a}.v3chip.amber{background:rgba(255,179,64,.15);color:#ffc266}.v3chip.red{background:rgba(255,69,58,.15);color:#ff7a70}
+.v3chip.blue{background:rgba(33,57,240,.25);color:#aab4ff}.v3chip.btn{background:rgba(255,255,255,.12);color:#fff;cursor:pointer}
+.v3btn{border:0;border-radius:14px;padding:11px 18px;font:inherit;font-size:14.5px;font-weight:500;background:rgba(255,255,255,.1);color:#fff;cursor:pointer}
+.v3btn.pri{background:#2139F0;box-shadow:0 6px 20px rgba(33,57,240,.4)}
+.v3foot{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 22px 20px;border-top:1px solid rgba(255,255,255,.075)}
+.v3foot .t2{color:rgba(255,255,255,.62);font-size:13.5px}
+.v3kp{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:6px 22px 4px}
+.v3kp>div{background:rgba(255,255,255,.045);border-radius:18px;padding:16px 18px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.075)}
+.v3kp b{display:block;font-size:30px;font-weight:300;letter-spacing:-.6px}.v3kp span{color:rgba(255,255,255,.62);font-size:13.5px}
+.v3al{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:9px;background:rgba(255,255,255,.08);font-size:13px;margin:2px 4px 2px 0}
+.v3al button{background:none;border:0;color:rgba(255,255,255,.5);cursor:pointer;font-size:14px;padding:0;line-height:1}
+.v3add{color:rgba(255,255,255,.45);font-size:13px;cursor:pointer;background:none;border:0;padding:4px 0}
+.v3empty{padding:26px;color:rgba(255,255,255,.62);font-size:14.5px;text-align:center}
+.v3seg{display:inline-flex;gap:4px;padding:4px;background:rgba(255,255,255,.06);border-radius:13px;margin:4px 22px 10px}
+.v3seg button{border:0;background:none;color:rgba(255,255,255,.62);font:inherit;font-size:14px;padding:8px 16px;border-radius:10px;cursor:pointer}
+.v3seg button.on{background:rgba(255,255,255,.14);color:#fff;font-weight:600}
+/* heroes */
+.v3hero{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding-bottom:24px;min-height:200px;background:#1b1f26 center/cover;border-radius:26px 26px 0 0}
+.v3hero::before{content:"";position:absolute;inset:0;border-radius:inherit;background:linear-gradient(180deg,rgba(0,0,0,.05) 0%,rgba(0,0,0,.2) 40%,rgba(0,0,0,.78) 100%)}
+.v3hero>*{position:relative}
+.v3hero .hn{font-size:44px;font-weight:300;letter-spacing:-1.2px;text-shadow:0 2px 6px rgba(0,0,0,.55),0 2px 28px rgba(0,0,0,.6);text-align:center}
+.v3hero .hs{color:rgba(255,255,255,.92);font-size:15px;margin-top:6px;text-shadow:0 1px 4px rgba(0,0,0,.8)}
+.v3hero .hx{position:absolute;right:16px;top:14px;font-size:12.5px;padding:5px 10px;border-radius:9px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.2);color:#fff;cursor:pointer}
+.v3hero.solo{border-radius:26px}
+/* Home */
+#panel-home .v3home-top{margin-bottom:16px}
+#panel-home .v3home-top .v3hero{min-height:230px}
+#panel-home .section-label{font-size:14px;font-weight:600;color:rgba(255,255,255,.62);text-transform:none;letter-spacing:0}
+body.v3 #panel-home .rh-card:has(#ml-health){display:none}
+/* room views: the overview lists the room's own pages; each page shows only its cards */
+#panel-room .v3room-ov{display:none}
+#panel-room[data-v3view="overview"] .v3room-ov{display:block}
+#panel-room[data-v3view] #room-devices>.rh-card{display:none}
+#panel-room[data-v3view="av"] #room-devices>.rh-card[data-v3="av"],
+#panel-room[data-v3view="activities"] #room-devices>.rh-card[data-v3="activities"],
+#panel-room[data-v3view="shortcuts"] #room-devices>.rh-card[data-v3="shortcuts"],
+#panel-room[data-v3view="dashboard"] #room-devices>.rh-card[data-v3="dashboard"],
+#panel-room[data-v3view="evidence"] #room-devices>.rh-card[data-v3="evidence"],
+#panel-room[data-v3view="options"] #room-devices>.rh-card[data-v3="options"],
+#panel-room[data-v3view="options"] #room-devices>.rh-card[data-v3="id"]{display:block}
+#panel-room[data-v3view="none"] #room-devices>.rh-card{display:block}
+.v3rgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.v3rgrid .v3row{border-top:1px solid rgba(255,255,255,.075)}
+.v3rgrid .v3row:nth-child(-n+2){border-top:0}
+.v3rgrid .v3row:nth-child(odd){border-right:1px solid rgba(255,255,255,.075)}
+@media (max-width:700px){ .v3rgrid{grid-template-columns:minmax(0,1fr)} .v3rgrid .v3row:nth-child(2){border-top:1px solid rgba(255,255,255,.075)} .v3rgrid .v3row:nth-child(odd){border-right:0} }
+/* glass for the cards the existing pages draw */
+body.v3 .rh-card,body.v3 .sys-tile,body.v3 .hlt-stat,body.v3 .cred-card,body.v3 .sys-card,body.v3 .hlt-inc{background:rgba(22,22,26,.55);border:1px solid rgba(255,255,255,.075);-webkit-backdrop-filter:blur(40px) saturate(1.3);backdrop-filter:blur(40px) saturate(1.3);box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
+body.v3 .rh-card{border-radius:22px}
+/* the page owns its width beside the list on an iPad in portrait */
+@media (max-width:1023px){ #app.v3{--v3r:76px;--v3s:260px} #app.v3 .v2item>span:not(.v2badge),#app.v3 .v2rail .v2logo span,#app.v3 .v2rail .v2foot{display:none} #app.v3 .v2item{justify-content:center;padding:0} }
+
+/* TB-01: the old dev console is folded into Developer — its empty holder takes no space */
+#app.v3 .tbx-dev:empty{display:none}
+/* .set-input was used by the Assist AI tests and others but never styled — raw white boxes on the rig walk (16 Oct). Same look as a field input. */
+#app.v3 input.set-input{background:rgba(255,255,255,0.06);border:0.5px solid var(--line);border-radius:10px;padding:12px 14px;color:#fff;font-size:14px;font-family:inherit;outline:none;min-width:0;flex:1}
+#app.v3 input.set-input:focus{border-color:rgba(255,255,255,0.3)}
+#app.v3 input.set-input::placeholder{color:rgba(255,255,255,0.25)}
+
 </style>
 </head>
 <body>
@@ -1867,12 +2029,12 @@ body.aws-open .v2tabs{display:none!important}
       </div>
       <div class="wiz-hint">Restart ProOS to reload its configuration, or reboot the whole machine if it's become unresponsive. Neither touches your rooms, devices or settings.</div>
       <div class="row tappable" onclick="restartHA()"><div class="rl">Restart ProOS<div class="es" style="font-size:11px;color:var(--t3);font-weight:300;margin-top:3px">Reloads config &amp; integrations · ~30–60s offline</div></div><div class="rr">&rsaquo;</div></div>
-      <div class="row tappable" onclick="rebootHost()"><div class="rl">Reboot the machine<div class="es" style="font-size:11px;color:var(--t3);font-weight:300;margin-top:3px">Full power-cycle of the host · ~2–3 min offline</div></div><div class="rr">&rsaquo;</div></div>
+      <div class="row tappable" onclick="rebootHost()"><div class="rl">Reboot the Machine<div class="es" style="font-size:11px;color:var(--t3);font-weight:300;margin-top:3px">Full power-cycle of the host · ~2–3 min offline</div></div><div class="rr">&rsaquo;</div></div>
       <div class="section-label" style="margin-top:30px">Danger zone</div>
       <div class="danger-card">
         <div class="danger-title">Reset This Home</div>
         <div class="danger-desc">Wipes rooms, devices, integrations, automations, scenes and dashboards back to a clean commissioned state — the owner account stays and the home remains set up. The OS and ProOS add-ons are untouched. A recovery backup is saved first.</div>
-        <button class="danger-btn" onclick="openResetConfirm()">Reset this home…</button>
+        <button class="danger-btn" onclick="openResetConfirm()">Reset This Home…</button>
       </div>
       <div class="danger-card" style="margin-top:14px" id="danger-factory">
         <div class="danger-title">Factory Reset</div>
@@ -2667,7 +2829,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026101304';
+const PROOS_BUILD='2026101603';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -11089,7 +11251,7 @@ function openResetConfirm(){
   _resetTarget=(homeName()||'').trim()||'RESET';
   const lbl=document.getElementById('reset-label'); if(lbl) lbl.textContent='Type "'+_resetTarget+'" to confirm';
   const inp=document.getElementById('reset-name'); if(inp){ inp.value=''; inp.placeholder=_resetTarget; }
-  const go=document.getElementById('reset-go'); if(go){ go.disabled=true; go.textContent='Reset this home'; }
+  const go=document.getElementById('reset-go'); if(go){ go.disabled=true; go.textContent='Reset This Home'; }
   const er=document.getElementById('reset-error'); if(er) er.textContent='';
   document.getElementById('reset-confirm').classList.add('open');
   setTimeout(()=>{ const i=document.getElementById('reset-name'); if(i) i.focus(); },120);
@@ -11113,7 +11275,7 @@ async function doReset(){
     setStatus('off','Resetting…');
   }catch(e){
     clearTimeout(t);
-    if(go){ go.disabled=false; go.textContent='Reset this home'; }
+    if(go){ go.disabled=false; go.textContent='Reset This Home'; }
     if(er) er.textContent=(e&&e.name==='AbortError')?'Timed out — check the home and try again.':((e&&e.message)||'Could not reach ProOS Core on :8770.');
   }
 }
@@ -11405,16 +11567,16 @@ function renderDashRemote(){
     +'<div class="cred-card">'
       +'<div class="cred-top"><span class="cred-name">Dashboards</span><span id="dr-count" style="margin-left:auto;font-size:12px;color:var(--t3)"></span></div>'
       +'<div id="dr-screens" style="display:flex;flex-direction:column;gap:8px;margin:12px 0 4px"><div class="cred-meta">Checking connected screens…</div></div>'
-      +'<button class="btn-primary" style="gap:10px" onclick="proPublishDashboards(false)"><span style="font-size:16px">⟳</span> Update all dashboards</button>'
+      +'<button class="btn-primary" style="gap:10px" onclick="proPublishDashboards(false)"><span style="font-size:16px">⟳</span> Update All Dashboards</button>'
     +'</div>'
-    +'<div class="cred-card"><div class="cred-top"><span class="cred-name">Control a screen</span></div><div class="cred-meta">Send the dashboard to a page, show a message, or reload it.</div>'
+    +'<div class="cred-card"><div class="cred-top"><span class="cred-name">Control a Screen</span></div><div class="cred-meta">Send the dashboard to a page, show a message, or reload it.</div>'
       +'<div style="display:flex;gap:8px;margin-top:12px"><select id="dashremote-page" style="flex:1;'+fld+'">'+pages.map(p=>'<option value="'+p+'">Go to '+p.charAt(0).toUpperCase()+p.slice(1)+'</option>').join('')+'</select><button class="btn-ghost" onclick="dashSend(\'goto\', document.getElementById(\'dashremote-page\').value)">Send</button></div>'
       +'<input id="dashremote-room" type="text" placeholder="…or a room name" style="width:100%;box-sizing:border-box;margin-top:8px;'+fld+'" onkeydown="if(event.key===\'Enter\'){dashSend(\'goto\',this.value);this.value=\'\';}"/>'
       +'<div style="display:flex;gap:8px;margin-top:8px"><input id="dashremote-msg" type="text" placeholder="Show a message — e.g. Commissioning complete" style="flex:1;min-width:0;'+fld+'"/><button class="btn-ghost" onclick="var m=document.getElementById(\'dashremote-msg\');dashSend(\'message\',m.value);m.value=\'\'">Send</button></div>'
       +'<div class="cred-actions" style="margin-top:12px"><button class="btn-ghost" onclick="dashSend(\'reload\')">Reload the dashboard app</button></div>'
     +'</div>'
-    +'<div class="cred-card"><div class="cred-top"><span class="cred-name">Re-discover devices</span></div><div class="cred-meta">Tell the dashboard to re-scan rooms and devices.</div><div class="cred-actions"><button class="btn-ghost" onclick="dashSend(\'rediscover\')">Send</button></div></div>'
-    +'<div class="cred-card" onclick="openNavLayout()" style="cursor:pointer"><div class="cred-top"><span class="cred-name">Nav layout</span></div><div class="cred-meta">Arrange the dashboard bottom-nav — order and show/hide icons for Home and Area pages.</div><div class="cred-actions"><button class="btn-ghost" onclick="openNavLayout()">Open</button></div></div>';
+    +'<div class="cred-card"><div class="cred-top"><span class="cred-name">Re-discover Devices</span></div><div class="cred-meta">Tell the dashboard to re-scan rooms and devices.</div><div class="cred-actions"><button class="btn-ghost" onclick="dashSend(\'rediscover\')">Send</button></div></div>'
+    +'<div class="cred-card" onclick="openNavLayout()" style="cursor:pointer"><div class="cred-top"><span class="cred-name">Nav Layout</span></div><div class="cred-meta">Arrange the dashboard bottom-nav — order and show/hide icons for Home and Area pages.</div><div class="cred-actions"><button class="btn-ghost" onclick="openNavLayout()">Open</button></div></div>';
   _dashRemoteRefresh();
   if(_dashRemotePoll) clearInterval(_dashRemotePoll);
   _dashRemotePoll=setInterval(_dashRemoteRefresh, 5000);
@@ -13084,8 +13246,8 @@ async function techExec(){
 function techViewActions(view){
   setHTML(view,''
     +'<div class="cred-card"><div class="cred-top"><span class="cred-name">Check Configuration</span></div><div class="cred-meta">Validates the home\'s configuration before a restart.<span id="cfg-check-res"></span></div><div class="cred-actions"><button class="btn-ghost" onclick="techCheckConfig()">Check Config</button></div></div>'
-    +'<div class="cred-card"><div class="cred-top"><span class="cred-name">Update ProOS Core</span></div><div class="cred-meta">Checks the ProOS store and updates Core in place.<span id="coreupd-res"></span></div><div class="cred-actions"><button class="btn-ghost" onclick="coreUpdCheck()">Check for update</button><button class="btn-ghost" id="coreupd-go" style="display:none" onclick="coreUpdGo()">Update Core</button></div></div>'
-    +'<div class="cred-card"><div class="cred-top"><span class="cred-name">Sync Integration Catalog</span></div><div class="cred-meta">Pulls the latest Protech master catalog (certified / native / hidden tiers).<span id="catsync-res"></span></div><div class="cred-actions"><button class="btn-ghost" onclick="catalogSyncNow()">Sync now</button></div></div>'
+    +'<div class="cred-card"><div class="cred-top"><span class="cred-name">Update ProOS Core</span></div><div class="cred-meta">Checks the ProOS store and updates Core in place.<span id="coreupd-res"></span></div><div class="cred-actions"><button class="btn-ghost" onclick="coreUpdCheck()">Check for Update</button><button class="btn-ghost" id="coreupd-go" style="display:none" onclick="coreUpdGo()">Update Core</button></div></div>'
+    +'<div class="cred-card"><div class="cred-top"><span class="cred-name">Sync Integration Catalog</span></div><div class="cred-meta">Pulls the latest Protech master catalog (certified / native / hidden tiers).<span id="catsync-res"></span></div><div class="cred-actions"><button class="btn-ghost" onclick="catalogSyncNow()">Sync Now</button></div></div>'
     +'<div class="cred-card"><div class="cred-top"><span class="cred-name">Reload Config</span></div><div class="cred-meta">Re-reads core configuration without a restart.</div><div class="cred-actions"><button class="btn-ghost" onclick="techReloadConfig()">Reload</button></div></div>'
     +'<div class="cred-card"><div class="cred-top"><span class="cred-name">Restart ProOS Core</span></div><div class="cred-meta">Restarts the Core add-on. Rooms and settings are untouched.</div><div class="cred-actions"><button class="btn-ghost" onclick="techRestartCore()">Restart Core</button></div></div>'
     +'<div class="cred-card"><div class="cred-top"><span class="cred-name">Restart the Home Engine</span></div><div class="cred-meta">Full restart (~1 min offline).</div><div class="cred-actions"><button class="btn-ghost cred-revoke" onclick="techRestartHA()">Restart</button></div></div>'
@@ -13358,7 +13520,7 @@ async function renderCredentials(){
   } else {
     real.forEach(s=>{ html+=_credCard(s); });
   }
-  html+='<button class="btn-ghost" style="margin-top:6px" onclick="credAddToggle()">+ Add a service token</button>';
+  html+='<button class="btn-ghost" style="margin-top:6px" onclick="credAddToggle()">+ Add a Service Token</button>';
   html+='<div id="cred-add"></div>';
   body.innerHTML=html;
 }
@@ -13638,11 +13800,11 @@ async function renderUsers(){
   humans.forEach(u=>{ _usrById[u.id]=u; });
   try{ const pr=await snd({type:'person/list'}); ((pr&&pr.result&&pr.result.storage)||[]).forEach(p=>{ if(p.user_id) _usrPersons[p.user_id]=p; }); }catch(e){}
   let html='<div class="wiz-hint">People who can sign in to this home. Homeowners get the Dashboard; pros get full ProOS access. Passwords are shown once, when they\'re set.</div>';
-  try{ const cr=await fetch(proCoreUrl()+'/consent'); if(cr.ok){ const cd=await cr.json(); const on=!!(cd.state&&cd.state.tech_access); const instOn=!!(cd.state&&cd.state.installer_access); html+='<div class="usr-card"><div class="usr-row"><div class="usr-main"><div class="usr-name">Tech support access</div><div class="usr-sub" style="font-family:inherit">Let Protech reach this home for support'+(instOn?'':' — needs the homeowner\'s installer access on')+'</div></div><div class="usr-acts"><button class="usr-iconbtn" onclick="toggleTechAccess('+(!on)+')"'+(on?' style="color:#84d9b4;border-color:rgba(76,175,130,0.4)"':'')+'>'+(on?'On':'Off')+'</button></div></div></div>'; } }catch(e){}
+  try{ const cr=await fetch(proCoreUrl()+'/consent'); if(cr.ok){ const cd=await cr.json(); const on=!!(cd.state&&cd.state.tech_access); const instOn=!!(cd.state&&cd.state.installer_access); html+='<div class="usr-card"><div class="usr-row"><div class="usr-main"><div class="usr-name">Tech Support Access</div><div class="usr-sub" style="font-family:inherit">Let Protech reach this home for support'+(instOn?'':' — needs the homeowner\'s installer access on')+'</div></div><div class="usr-acts"><button class="usr-iconbtn" onclick="toggleTechAccess('+(!on)+')"'+(on?' style="color:#84d9b4;border-color:rgba(76,175,130,0.4)"':'')+'>'+(on?'On':'Off')+'</button></div></div></div>'; } }catch(e){}
   if(!canManage){ html+='<div class="usr-reveal" style="border-color:var(--warn);background:rgba(225,112,85,0.14)">ProOS Core can\'t manage users over its current connection yet — commissioning will need the Developer account token. Check the Core logs.</div>'; }
   if(!humans.length){ html+='<div class="empty"><div class="et">No people yet</div><div class="es">Add a homeowner or a pro below.</div></div>'; }
   else { humans.forEach(u=>{ html+=_usrCard(u); }); }
-  html+='<button class="btn-ghost" style="margin-top:6px" onclick="usrAddToggle()">+ Add a person</button><div id="usr-add"></div>';
+  html+='<button class="btn-ghost" style="margin-top:6px" onclick="usrAddToggle()">+ Add a Person</button><div id="usr-add"></div>';
   body.innerHTML=html;
 }
 
@@ -15164,7 +15326,7 @@ async function deleteFlowHelper(){
   catch(e){ toast("Couldn't delete"); manageFlowHelper(entryId); }
 }
 function restartHA(){ dangerConfirm('Restart ProOS','<div class="reset-wiped">Reloads configuration and all integrations. The home goes briefly offline (~30–60s), then comes back on its own. Nothing is wiped.</div>','',async()=>{ try{ await snd({type:'call_service',domain:'homeassistant',service:'restart'}); }catch(e){} toast('Restarting ProOS…'); setStatus('off','Restarting…'); }); }
-function rebootHost(){ dangerConfirm('Reboot the machine','<div class="reset-wiped">Power-cycles the whole machine running this home (~2–3 min offline). Use only if ProOS is unresponsive. Nothing is wiped.</div>','',async()=>{ try{ await snd({type:'call_service',domain:'hassio',service:'host_reboot'}); }catch(e){} toast('Rebooting the machine…'); setStatus('off','Rebooting…'); }); }
+function rebootHost(){ dangerConfirm('Reboot the Machine','<div class="reset-wiped">Power-cycles the whole machine running this home (~2–3 min offline). Use only if ProOS is unresponsive. Nothing is wiped.</div>','',async()=>{ try{ await snd({type:'call_service',domain:'hassio',service:'host_reboot'}); }catch(e){} toast('Rebooting the machine…'); setStatus('off','Rebooting…'); }); }
 async function loadBackups(){
   const host=document.getElementById('backups-list'); if(!host) return;
   host.innerHTML='<div class="empty"><div class="et">Loading…</div></div>';
@@ -15486,7 +15648,7 @@ function intgCanAdd(dom){
 // for a weather service or a phone registration.
 function intgAddLabel(dom){
   const t=intgShape(dom);
-  return (t==='device'||t==='hub') ? '+ Add device' : (t==='helper' ? '+ Add helper' : '+ Add');
+  return (t==='device'||t==='hub') ? '+ Add Device' : (t==='helper' ? '+ Add Helper' : '+ Add');
 }
 function intgBuild(dom){
   const m=_manifests[dom]; if(!m||m.is_built_in!==false||!m.version) return '';
@@ -15655,7 +15817,7 @@ function renderLabelsPanel(){
   const body=document.getElementById('labels-body'); if(!body) return;
   let h='<div class="wiz-hint">Labels tag entities, devices and rooms so you can group and filter them. Categories sort automations, activities and scenes into folders.</div>';
   h+='<div class="bld-sec"><div class="bld-sec-h">Labels</div>';
-  h+='<button class="btn-primary" style="margin-bottom:14px" onclick="labelNew()">+ New label</button>';
+  h+='<button class="btn-primary" style="margin-bottom:14px" onclick="labelNew()">+ New Label</button>';
   const _all=(_labels||[]).filter(l=>l.label_id!==SCENE_LABEL&&l.label_id!==SYSTEM_LABEL).slice().sort((a,b)=>(a.name||'').localeCompare(b.name||''));
   // ProOS system labels are plumbing, not content: installers never see them
   // (so they can't be deleted by mistake); tech/owner can reveal them.
@@ -15674,7 +15836,7 @@ function renderLabelsPanel(){
   h+='</div>';
   h+='<div class="bld-sec"><div class="bld-sec-h">Categories</div>';
   h+='<div class="seg" style="margin-bottom:10px">'+CAT_SCOPES.map(s=>'<button class="'+(_catScope===s[0]?'on':'')+'" onclick="setCatScope(\''+s[0]+'\')">'+esc(s[1])+'</button>').join('')+'</div>';
-  h+='<button class="btn-primary" style="margin-bottom:14px" onclick="catNew()">+ New category</button>';
+  h+='<button class="btn-primary" style="margin-bottom:14px" onclick="catNew()">+ New Category</button>';
   const cats=_cats[_catScope];
   if(cats===undefined) h+='<div class="wiz-hint" style="opacity:.6">Loading…</div>';
   else if(!cats.length) h+='<div class="wiz-hint" style="opacity:.6">No categories in '+esc(scopeLabel(_catScope))+' yet.</div>';
@@ -15778,7 +15940,7 @@ function renderCategoryPick(){ const m=MG; if(!m) return; const scope=m.kind; co
   cats.slice().sort((a,b)=>(a.name||'').localeCompare(b.name||'')).forEach(c=>{
     b+='<div class="row tappable" onclick="setEntCategory(\''+esc(c.category_id)+'\')"><div class="rl">'+esc(c.name||c.category_id)+'</div><div class="rr">'+(cur===c.category_id?'✓':'')+'</div></div>';
   });
-  b+='<div class="row tappable" onclick="catNewFromManage()"><div class="rl" style="color:var(--accent)">+ New category</div><div class="rr">&rsaquo;</div></div>';
+  b+='<div class="row tappable" onclick="catNewFromManage()"><div class="rl" style="color:var(--accent)">+ New Category</div><div class="rr">&rsaquo;</div></div>';
   document.getElementById('item-body').innerHTML=b;
   document.getElementById('item-actions').innerHTML='<button class="rp-cancel" onclick="renderManage()">Back</button>';
 }
@@ -17655,7 +17817,7 @@ function openIconPicker(areaId){
     :[['Rooms',Object.keys(_RI_PATHS)]];
   const cur=((_areas||[]).find(x=>x.area_id===areaId)||{}).icon
     || (_roomIdent[areaId]||{}).icon || '';
-  let h='<div class="rp-head"><div class="rp-title">Room icon</div></div><div class="rp-list" style="padding:0 4px 4px">';
+  let h='<div class="rp-head"><div class="rp-title">Room Icon</div></div><div class="rp-list" style="padding:0 4px 4px">';
   groups.forEach(([label,icons])=>{
     h+='<div class="hub-fl" style="margin:10px 6px 6px">'+esc(label)+'</div><div class="ipk-grid">';
     icons.forEach(ic=>{
@@ -18702,7 +18864,7 @@ function renderToolbox(){
     ['Diagnose',[
       ['inspect','Entities · Inspect','Every entity — state, attributes, registry',()=>{ openTech(); techTab('inspect'); }],
       ['logs','Logs','Core · system services · host · any add-on',()=>{ openTech(); techTab('log'); }],
-      ['hdiag','Health diagnostics','Deep system health readouts',()=>{ openTech(); techTab('health'); }],
+      ['hdiag','Box Diagnostics','Deep system health readouts',()=>{ openTech(); techTab('health'); }],
       ['prep','Prepare','Required settings after a reset or re-pair',()=>{ openTech(); techTab('prepare'); }],
       ['iraw','Integrations (raw)','Config entries and reloads',()=>{ openTech(); techTab('integrations'); }]]],
     ['Drive',[
@@ -18767,7 +18929,7 @@ async function tbxState(){
 // ── tech tools open SOLO: Toolbox/Systems cards are the navigation, so the
 // tech page's own tab bar (a second copy of the same choices) never renders.
 // The page titles itself after the tool, so the crumb reads Toolbox › Logs.
-const _TECH_LABELS={log:'Logs',health:'Health diagnostics',prepare:'Prepare',integrations:'Integrations',net:'Network',
+const _TECH_LABELS={log:'Logs',health:'Box Diagnostics',prepare:'Prepare',integrations:'Integrations',net:'Network',
   inspect:'Entities',dev:'Developer',terminal:'Terminal',actions:'Actions',assist:'Assist AI',tiles:'App Tiles'};
 if(typeof renderTech==='function'){
   const _renderTechOrig=renderTech;
@@ -18820,6 +18982,580 @@ function v2RailToggle(){
   const min=document.body.classList.toggle('railmin');
   try{ localStorage.setItem('proosRailMin', min?'1':'0'); }catch(e){}
 }
+
+// ═════════════════════════════════════════════════════════════════════════
+// V3 — PRO IN THE JOSH.AI FLOW (16 Oct 2026). Dave approved the page catalogue
+// (docs/mockups/ProOS_Pro_All_Pages_Mock_2026-10-15.html, 77 pages + 48
+// popups, each numbered) and ruled: one menu, Josh's order, nothing reached
+// two ways, Assist is the command bar on every page. Every existing page and
+// popup keeps its own code and behaviour; this layer only decides WHERE each
+// one lives: the section it belongs to, the list beside it, the title above
+// it. The catalogue number of each place is written beside it below.
+// ═════════════════════════════════════════════════════════════════════════
+const _v3svg=d=>'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">'+d+'</svg>';
+const V3ICONS={
+  home:_v3svg('<path d="M3 11l9-7 9 7M5 9.5V21h14V9.5"/>'),
+  areas:_v3svg('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v7M12 15v5M3 11h6M15 11h6"/>'),
+  devices:_v3svg('<path d="M9 3v5M15 3v5M7 8h10v4a5 5 0 0 1-10 0V8zM12 17v4"/>'),
+  scenes:_v3svg('<path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/>'),
+  diagnostics:_v3svg('<path d="M3 12h4l2-5 4 10 2-5h6"/>'),
+  setup:_v3svg('<path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/>'),
+  toolbox:_v3svg('<path d="M14.5 6.5a4 4 0 0 0-5.3 5.3L4 17l3 3 5.2-5.2a4 4 0 0 0 5.3-5.3l-2.5 2.5-2.3-.7-.7-2.3z"/>'),
+  chev:_v3svg('<path d="M9 5l7 7-7 7"/>'), plus:_v3svg('<path d="M12 5v14M5 12h14"/>'),
+  tv:_v3svg('<rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8"/>'), play:_v3svg('<path d="M7 5l12 7-12 7z"/>'),
+  grid:_v3svg('<rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/>'),
+  check:_v3svg('<path d="M5 12.5l4.5 4.5L19 7.5"/>'), shield:_v3svg('<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/>'),
+  user:_v3svg('<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>'), box:_v3svg('<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h6"/>'),
+  clock:_v3svg('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'), plug:_v3svg('<path d="M9 3v5M15 3v5M7 8h10v4a5 5 0 0 1-10 0V8zM12 17v4"/>'),
+  music:_v3svg('<path d="M9 18V6l11-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/>'),
+  bolt:_v3svg('<path d="M13 3L5 13h6l-1 8 8-10h-6z"/>'), map:_v3svg('<path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z"/><path d="M9 3v15M15 6v15"/>'),
+  ear:_v3svg('<path d="M6 10a6 6 0 1 1 12 0c0 3-2 4-3 5s-1 4-4 4"/><path d="M9 10a3 3 0 0 1 6 0"/>'), log:_v3svg('<path d="M5 4h14v16H5z"/><path d="M8 8h8M8 12h8M8 16h5"/>'),
+  spark:_v3svg('<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/>'), list:_v3svg('<path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/>'),
+  tag:_v3svg('<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="7.5" r="1.5"/>'), light:_v3svg('<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z"/>'),
+  speaker:_v3svg('<rect x="6" y="3" width="12" height="18" rx="2"/><circle cx="12" cy="14" r="3"/>'), cam:_v3svg('<rect x="3" y="7" width="14" height="10" rx="2"/><path d="M17 11l4-2v6l-4-2"/>'),
+  assist:_v3svg('<path d="M12 3l1.9 4.9 4.9 1.9-4.9 1.9L12 16.6l-1.9-4.9-4.9-1.9 4.9-1.9zM19 15l.9 2.3 2.3.9-2.3.9-.9 2.3-.9-2.3-2.3-.9 2.3-.9z"/>'),
+  remote:_v3svg('<rect x="7" y="2" width="10" height="20" rx="3"/><circle cx="12" cy="8" r="2"/>'), drop:_v3svg('<path d="M12 3.5c-3.3 4.4-5.5 7.3-5.5 10a5.5 5.5 0 0 0 11 0c0-2.7-2.2-5.6-5.5-10z"/>')
+};
+// The menu, in Josh's order. V2SECTIONS is the shared list every older helper
+// reads (presence, the crumb), so it is replaced in place rather than copied.
+V2SECTIONS.length=0;
+[['home','Home'],['areas','Areas'],['devices','Devices'],['scenes','Scenes'],['diagnostics','Diagnostics'],['setup','System Setup'],['toolbox','Toolbox']].forEach(s=>V2SECTIONS.push(s));
+Object.assign(V2ICONS,{home:V3ICONS.home,areas:V3ICONS.areas,devices:V3ICONS.devices,scenes:V3ICONS.scenes,diagnostics:V3ICONS.diagnostics,setup:V3ICONS.setup,toolbox:V3ICONS.toolbox});
+// Section roots (no Back drawn on them). The old keys stay so a saved
+// "back to" never lands nowhere.
+Object.keys(_V2ROOTS).forEach(k=>delete _V2ROOTS[k]);
+Object.assign(_V2ROOTS,{home:'home',hub:'areas',activities:'scenes',site:'setup',toolbox:'toolbox'});
+PANELS.push('v3devices','v3diag','v3software');
+// Which section a page lives in (catalogue prefixes HM AR DV SC DG SS TB).
+function v3SecOf(p){
+  if(p==='home') return 'home';
+  if(p==='hub'||p==='room'||p==='rooms') return 'areas';
+  if(p==='v3devices'||p==='device') return 'devices';
+  if(p==='activities'||p==='scripts'||p==='automations') return 'scenes';
+  if(p==='v3diag'||p==='manage') return 'diagnostics';
+  if(p==='tech') return (_techView==='net'||_techView==='notify')?'setup':'toolbox';
+  if(p==='toolbox'||p==='helpers'||p==='blueprints'||p==='labels') return 'toolbox';
+  if(p==='assist2') return _v2sec||'home';
+  return 'setup';   // site users history v3software backups library integration music dashremote navlayout credentials maintenance applehome unifi unifi-net savant irrigation systems
+}
+let _v3dev='all', _v3diag='sweep', _v3roomView='overview';
+// ── the rail ──────────────────────────────────────────────────────────────
+v2go=function(sec){
+  try{ if(document.body.classList.contains('aws-open')) closeAwarenessScreen(); }catch(e){}
+  const old={health:'home',hub:'areas',systems:'setup'};
+  if(old[sec]) sec=old[sec];
+  if(sec==='assist2'){ v3OpenAssist(); return; }
+  _v2sec=sec;
+  if(sec==='home'){ show('home'); renderHealth(); }                       // HM-01
+  else if(sec==='areas'){ show('hub'); renderHub(); }                     // AR-01
+  else if(sec==='devices'){ v3Devices('all'); }                           // DV-01
+  else if(sec==='scenes'){ openSection('activities'); }                   // SC-01
+  else if(sec==='diagnostics'){ v3Diag('sweep'); }                        // DG-01
+  else if(sec==='setup'){ openSite(); }                                   // SS-01
+  else if(sec==='toolbox'){ show('toolbox'); renderToolbox(); }           // TB-01
+};
+v2Render=function(){
+  const rail=document.getElementById('v2rail'), tabs=document.getElementById('v2tabs');
+  if(!rail||!tabs) return;
+  const logo=document.querySelector('.brand-logo-sm');
+  const _secs=V2SECTIONS.filter(([k])=>k!=='toolbox'||_me.tech||_me.developer);
+  setHTML(rail,'<div class="v2logo">'+(logo?'<img src="'+logo.src+'"/>':'')+'<span>PRO<b>OS</b></span></div>'
+    +_secs.map(([k,l])=>'<div class="v2item'+(k===_v2sec?' on':'')+'" data-sec="'+k+'" onclick="v2go(\''+k+'\')" title="'+l+'">'+V3ICONS[k]+'<span>'+l+'</span><span class="v2badge" id="v2b-'+k+'"></span></div>').join('')
+    +'<div class="v2item v2collapse" onclick="v2RailToggle()" title="Slide back to icons / open out">'
+      +'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 6l-6 6 6 6"/></svg>'
+      +'<span>Slide Back</span></div>'
+    +'<div class="v2foot" id="v2foot">ProOS Pro · '+PROOS_BUILD+'</div>');
+  setHTML(tabs,_secs.map(([k,l])=>'<div class="v2t'+(k===_v2sec?' on':'')+'" data-sec="'+k+'" onclick="v2go(\''+k+'\')">'+V3ICONS[k]+'<span>'+l+'</span><span class="v2badge" id="v2bt-'+k+'"></span></div>').join(''));
+  v3Badges();
+};
+// The one badge on the menu: things the house has that no room holds (DV-02).
+function v3Badges(){
+  const n=(_unassignedEnts||[]).length;
+  ['v2b-devices','v2bt-devices'].forEach(id=>{ const el=document.getElementById(id); if(!el) return; el.textContent=n?String(n):''; el.classList.toggle('show',!!n); });
+}
+v2AfterShow=function(panel){
+  _v2panel=panel;
+  const sec=v3SecOf(panel); _v2sec=sec;
+  document.querySelectorAll('#v2rail .v2item[data-sec]').forEach(el=>el.classList.toggle('on',el.dataset.sec===sec));
+  document.querySelectorAll('#v2tabs .v2t[data-sec]').forEach(el=>el.classList.toggle('on',el.dataset.sec===sec));
+  v3Title(panel,sec);
+  const _hideTp=()=>{ ['tb-page','hdr-home','hero-summary'].forEach(id=>{ const el=document.getElementById(id); if(el){ el.style.display='none'; if(id==='tb-page') el.textContent=''; } }); };
+  _hideTp(); setTimeout(_hideTp,180);
+  try{ const p=document.getElementById('panel-'+panel); const head=p&&p.querySelector(':scope>.panel-head');
+    if(head){ head.querySelectorAll(':scope>.back').forEach(b=>{ b.style.display='none'; }); } }catch(e){}
+  v3Side(sec);
+  v3CmdRoom();
+  v2Beat();
+};
+function v3PageName(panel){
+  if(panel==='room'){ const t=_rhName?_rhName():''; const v=V3ROOMVIEWS.find(x=>x[0]===_v3roomView); return t+((v&&_v3roomView!=='overview')?' › '+v[1]:''); }
+  if(panel==='v3devices'){ if(_v3dev==='all') return 'All Devices'; if(_v3dev==='__none__') return 'Unassigned'; const a=_areas.find(x=>x.area_id===_v3dev); return a?a.name:'Devices'; }
+  if(panel==='v3diag'){ const d=V3DIAG.find(x=>x[0]===_v3diag); return d?d[1]:''; }
+  if(panel==='v3software') return 'Software';
+  if(panel==='site') return 'Building Settings';
+  if(panel==='activities') return 'Scenes';
+  if(panel==='scripts') return 'Activities';
+  // the page name is the list's own label, so the crumb and the list never disagree (rig walk, 16 Oct)
+  if(panel==='tech'||panel==='dashremote'){ const k=panel==='tech'?_techView:'dashremote'; const it=V3TOOLS.concat(V3SETUP).find(x=>x[0]===k); if(it) return it[1]; }
+  const pt=document.querySelector('#panel-'+panel+' .panel-head .panel-title');
+  if(!pt) return '';
+  const c=pt.cloneNode(true); c.querySelectorAll('.intg-logo,.intg-mono,img,svg').forEach(n=>n.remove());
+  return c.textContent.trim();
+}
+const _V3SECROOT={home:'home',areas:'hub',devices:null,scenes:'activities',diagnostics:null,setup:'site',toolbox:'toolbox'};
+function v3Title(panel,sec){
+  const crumb=document.getElementById('v2crumb'); if(!crumb) return;
+  const secLabel=(V2SECTIONS.find(s=>s[0]===sec)||['',''])[1];
+  let page=(_V3SECROOT[sec]===panel)?'':v3PageName(panel);
+  if(page===secLabel) page='';
+  setHTML(crumb,'<b>'+esc(secLabel)+'</b>'+(page?'<span class="sep">›</span>'+esc(page):''));
+}
+// ── the list beside each section ──────────────────────────────────────────
+function _v3item(key,on,lead,name,right,act,cls){
+  return '<div class="v3si'+(on?' on':'')+(cls?' '+cls:'')+'" data-k="'+esc(key)+'" onclick="'+act+'">'+lead+'<span class="v3nm">'+esc(name)+'</span>'+(right||'')+'</div>';
+}
+function _v3ic(k){ return '<span class="v3ic">'+(V3ICONS[k]||V3ICONS.box)+'</span>'; }
+function _v3thumb(a){
+  const pic=a&&(a.picture?imgSize(a.picture,'512x512'):((_roomIdent[a.area_id]||{}).fallback_photo||null));
+  return pic?'<span class="v3th" style="background-image:url(\''+esc(pic)+'\')"></span>':_v3ic('areas');
+}
+function _v3homeAreas(){ return (_areas||[]).filter(a=>!_systemAreas.has(a.area_id)).sort((a,b)=>(a.name||'').localeCompare(b.name||'')); }
+const V3DIAG=[['sweep','Health Sweep','health'],['awareness','Awareness','spark'],['incidents','Incidents','bolt'],['heard','Heard','ear'],['noticed','Assist Noticed','assist'],['log','Master Log','log']];
+const V3SETUP=[['site','Building Settings','home',()=>openSite()],['users','Manage Users','user',()=>openUsers()],['software','Software','box',()=>v3Software()],
+  ['backups','Backups','clock',()=>openBackups()],['library','Integrations','plug',()=>openBay('library')],['music','Music Services','music',()=>openMusic()],
+  ['dashremote','Dashboards','grid',()=>openDashRemote()],['notify','Notifications','bolt',()=>openTech('notify')],['net','Network','map',()=>openTech('net')],
+  ['credentials','Credentials','shield',()=>openCredentials()],['maintenance','Maintenance','setup',()=>openMaintenance()]];
+const V3SYSTEMS=[['applehome','Apple Home','home',()=>openAppleHome()],['unifi','UniFi Protect','cam',()=>openUnifi()],['unifi-net','UniFi Network','map',()=>openUniNet()],
+  ['savant','Savant','remote',()=>openSavant()],['irrigation','Irrigation','drop',()=>openIrrigation()]];
+const V3TOOLS=[['log','Logs','log'],['health','Box Diagnostics','diagnostics'],['prepare','Prepare','check'],['integrations','Recovery Log','plug'],['inspect','Inspect','spark'],
+  ['dev','Developer','tag'],['terminal','Terminal','box'],['actions','Actions','bolt'],['assist','Assist AI','assist'],['tiles','App Tiles','grid'],
+  ['helpers','Helpers','list'],['blueprints','Blueprints','map'],['labels','Labels','tag']];
+// TB-01 · the Toolbox board, as approved: one row per item in the list beside it, the same words, nothing else —
+// the old board's Entities/Integrations (raw)/Notifications/Dashboard layout/Nav layout tiles and its dev console
+// each reached a page the menu already reaches (Inspect, Recovery Log, System Setup › Notifications and Dashboards,
+// Developer), so in the new flow they would be the doubled routes Dave ruled out.
+const V3TOOLSUB={log:'Core and the platform',health:'Resources, updates',prepare:'Before handover',integrations:'Faults and reloads',inspect:'One entity — state, attributes, registry',
+  dev:'Templates, actions, events, set state',terminal:'The box\'s shell',actions:'Restarts, update Core',assist:'Provider, voice, music test',tiles:'Shortcut artwork',
+  helpers:'Toggles, numbers, texts',blueprints:'Import and manage',labels:'Tags and categories'};
+if(typeof renderToolbox==='function'){
+  const _v3rtb=renderToolbox;
+  renderToolbox=function(){
+    const r=_v3rtb.apply(this,arguments);
+    const host=document.getElementById('toolbox-body'); if(!host||!(_me.tech||_me.developer)) return r;
+    const ch=V3ICONS.chev.replace('<svg','<svg class="cv"');
+    setHTML(host,'<div class="v3card"><div class="v3dh2"><div class="t">Toolbox</div><div class="s">Developer only — installers don\'t see it on the menu</div></div>'
+      +'<div class="v3sec"><div class="v3rows v3rgrid">'+V3TOOLS.map(([k,l,i])=>'<div class="v3row" data-tool="'+k+'" onclick="v3ToolOpen(\''+k+'\')"><div class="ri">'+(V3ICONS[i]||V3ICONS.box)+'</div><div class="rt"><div class="t1">'+esc(l)+'</div><div class="t2">'+esc(V3TOOLSUB[k]||'')+'</div></div><div class="rr">'+ch+'</div></div>').join('')+'</div></div></div>');
+    const dev=document.getElementById('tbx-dev'); if(dev) setHTML(dev,'');
+    return r;
+  };
+}
+function v3SetupKey(p){
+  if(p==='history') return 'users'; if(p==='v3software') return 'software'; if(p==='integration') return 'library'; if(p==='navlayout') return 'dashremote';
+  if(p==='tech') return _techView; return p;
+}
+function v3Side(sec){
+  let host=document.getElementById('v3side');
+  if(!host){ host=document.createElement('div'); host.id='v3side'; host.className='v3side'; document.getElementById('app').appendChild(host); }
+  let h='';
+  const p=_v2panel;
+  if(sec==='areas'){
+    h='<div class="v3sh"><span>Areas</span><button onclick="v3AreasEdit()">Edit</button></div><div class="v3sl">'
+      +_v3item('building',p==='hub','<span class="v3ic">'+V3ICONS.home+'</span>',v3SiteName(),'',"v2go('areas')")
+      +_v3homeAreas().map(a=>_v3item(a.area_id,p==='room'&&_roomHubArea===a.area_id,_v3thumb(a),a.name||'Room','<span class="v3ct">'+(_perAreaDev[a.area_id]||0)+'</span>',"openRoomHub('"+esc(a.area_id)+"')",'l1')).join('')
+      +'</div><div class="v3sf"><button onclick="openRoomEdit(null)">+ Add Room</button></div>';
+  } else if(sec==='devices'){
+    const devSel=(p==='device'&&_devSheet&&_devSheet.id)?((function(){ const d=_devices.find(x=>x.id===_devSheet.id); return d?(deviceRoomId(d)||''):''; })()):(p==='v3devices'?_v3dev:'');
+    const un=(_unassignedEnts||[]).length;
+    h='<div class="v3sh"><span>Devices</span></div><div class="v3sl">'
+      +_v3item('all',p==='v3devices'&&_v3dev==='all',_v3ic('list'),'All Devices','<span class="v3ct">'+(_devices||[]).length+'</span>',"v3Devices('all')")
+      +_v3item('__none__',p==='v3devices'&&_v3dev==='__none__',_v3ic('grid'),'Unassigned',un?'<span class="v3bdg">'+un+'</span>':'<span class="v3ct">0</span>',"v3Devices('__none__')")
+      +_v3homeAreas().map(a=>_v3item(a.area_id,devSel===a.area_id,_v3thumb(a),a.name||'Room','<span class="v3ct">'+(_perAreaDev[a.area_id]||0)+'</span>',"v3Devices('"+esc(a.area_id)+"')",'l1')).join('')
+      +'</div>';
+  } else if(sec==='scenes'){
+    h='<div class="v3sh"><span>Scenes</span></div><div class="v3sl">'
+      +_v3item('activities',p==='activities',_v3ic('spark'),'Scenes','',"openSection('activities')")
+      +_v3item('scripts',p==='scripts',_v3ic('play'),'Activities','',"openSection('scripts')")
+      +_v3item('automations',p==='automations',_v3ic('bolt'),'Automations','',"openSection('automations')")
+      +'</div>';
+  } else if(sec==='diagnostics'){
+    h='<div class="v3sh"><span>Diagnostics</span></div><div class="v3sl">'
+      +V3DIAG.map(([k,l,i])=>_v3item(k,p==='v3diag'&&_v3diag===k,_v3ic(i),l,'',"v3Diag('"+k+"')")).join('')+'</div>';
+  } else if(sec==='setup'){
+    const cur=v3SetupKey(p);
+    h='<div class="v3sh"><span>System Setup</span></div><div class="v3sl">'
+      +V3SETUP.map(([k,l,i],n)=>_v3item(k,cur===k,_v3ic(i),l,'',"v3SetupOpen("+n+")")).join('')
+      +'<div class="v3grp">Systems</div>'
+      +V3SYSTEMS.map(([k,l,i],n)=>_v3item(k,cur===k,_v3ic(i),l,'',"v3SystemsOpen("+n+")")).join('')+'</div>';
+  } else if(sec==='toolbox'){
+    const cur=(p==='tech')?_techView:p;
+    h='<div class="v3sh"><span>Toolbox</span></div><div class="v3sl">'
+      +V3TOOLS.map(([k,l,i])=>_v3item(k,cur===k,_v3ic(i),l,'',"v3ToolOpen('"+k+"')")).join('')+'</div>';
+  }
+  setHTML(host,h);
+  document.body.classList.toggle('v3-side',!!h);
+}
+function v3SetupOpen(n){ const c=V3SETUP[n]; if(c) c[3](); }
+function v3SystemsOpen(n){ const c=V3SYSTEMS[n]; if(c) c[3](); }
+function v3ToolOpen(k){
+  if(k==='helpers') return openHelpers(); if(k==='blueprints') return openBlueprints(); if(k==='labels') return openLabels();
+  openTech(); techTab(k);
+}
+function v3SiteName(){ const n=(document.getElementById('hero-name')||{}).textContent||''; return (n&&n!=='—')?n:'Home'; }
+function v3AreasEdit(){ if(_v2panel==='room'&&_roomHubArea) openRoomEdit(_roomHubArea); else openRoomEdit(null); }
+// re-draw the list whenever the site data changes (rooms renamed, devices placed)
+if(typeof loadSite==='function'){
+  const _v3ls=loadSite;
+  loadSite=async function(){ const r=await _v3ls.apply(this,arguments); try{ v3Badges(); if(_v2panel) v3Side(_v2sec); v3Backdrop(); }catch(e){} return r; };
+}
+// ── the backdrop: the building's own photograph, blurred behind every page ──
+function v3HomeArea(){ try{ return findHomeArea()||null; }catch(e){ return null; } }
+function v3Photo(a){ return a?(a.picture?imgSize(a.picture,'1024x1024'):((_roomIdent[a.area_id]||{}).fallback_photo||null)):null; }
+function v3Backdrop(){
+  const a=v3HomeArea()||(_areas||[]).find(x=>x.picture)||null;
+  const u=v3Photo(a); const app=document.getElementById('app');
+  if(app&&u) app.style.setProperty('--v3bg','url("'+u.replace(/"/g,'%22')+'")');
+}
+// ── Assist: the command bar on every page, the panel on the right (GL-P01) ──
+function v3EnsureCmd(){
+  if(document.getElementById('v3cmd')) return;
+  const c=document.createElement('div'); c.id='v3cmd'; c.className='v3cmd'; c.setAttribute('role','button'); c.tabIndex=0;
+  c.onclick=()=>v3OpenAssist(); c.onkeydown=e=>{ if(e.key==='Enter') v3OpenAssist(); };
+  c.innerHTML=V3ICONS.assist+'<span class="v3cp">Type a command, or ask Assist</span><span class="v3cr" id="v3cmd-room"></span>';
+  document.getElementById('app').appendChild(c);
+  const dim=document.createElement('div'); dim.id='v3dim'; dim.className='v3dim'; dim.onclick=()=>v3CloseAssist(); document.body.appendChild(dim);
+  const d=document.createElement('div'); d.id='v3drawer'; d.className='v3drawer';
+  d.innerHTML='<div class="v3dh"><span class="v3di">'+V3ICONS.assist+'</span><div><b>Assist</b><div class="v3dc" id="v3d-ctx"></div></div><button class="v3dx" aria-label="Close" onclick="v3CloseAssist()">×</button></div><div class="v3db" id="v3d-body"></div>';
+  document.body.appendChild(d);
+}
+function v3Where(){ try{ const w=assistWhere()||{}; const a=w.area_id&&_areas.find(x=>x.area_id===w.area_id); return a?a.name:''; }catch(e){ return ''; } }
+function v3CmdRoom(){ const el=document.getElementById('v3cmd-room'); if(!el) return; const r=v3Where(); setHTML(el,r?(V3ICONS.areas.replace('<svg','<svg style="width:13px;height:13px;stroke:currentColor"')+esc(r)):''); }
+function v3OpenAssist(){
+  v3EnsureCmd();
+  const ov=document.getElementById('assist-overlay'), body=document.getElementById('v3d-body');
+  if(ov&&body&&ov.parentElement!==body) body.appendChild(ov);
+  if(ov){ ov.classList.add('docked','open'); assistOpen=true; }
+  const r=v3Where(); const ctx=document.getElementById('v3d-ctx'); if(ctx) ctx.textContent=r?(r+' · from this page'):'The whole house';
+  document.body.classList.add('v3-assist');
+  setTimeout(()=>{ const i=document.getElementById('assist-input'); if(i) i.focus(); },120);
+}
+function v3CloseAssist(){
+  document.body.classList.remove('v3-assist');
+  const ov=document.getElementById('assist-overlay');
+  if(ov){ ov.classList.remove('docked','open'); assistOpen=false; document.body.appendChild(ov); }
+}
+openAssist=function(){ v3OpenAssist(); };
+closeAssist=function(){ v3CloseAssist(); };
+openAssistSection=function(){ v3OpenAssist(); };
+v2AssistFab=function(){ v3OpenAssist(); };
+undockAssist=function(){};
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&document.body.classList.contains('v3-assist')) v3CloseAssist(); });
+// ── HOME (HM-01): the building, the verdict, what is happening, what needs a hand ──
+function v3HomeTop(){
+  const p=document.getElementById('panel-home'); if(!p) return;
+  let top=document.getElementById('v3home-top');
+  if(!top){ top=document.createElement('div'); top.id='v3home-top'; top.className='v3home-top v3card'; p.insertBefore(top,p.firstChild); }
+  const a=v3HomeArea(); const u=v3Photo(a);
+  // ONE DEFINITION OF "THE ROOMS" — the same filter the Rooms count below it uses (renderHealth), so the hero and
+  // the tile can never disagree (the rig walk caught "7 rooms" over "5 rooms", 16 Oct)
+  const _hid=(v3HomeArea()||{}).area_id;
+  const rooms=(_areas||[]).filter(x=>x.area_id&&!_systemAreas.has(x.area_id)&&x.area_id!==_hid).filter(x=>{ try{ return roomShows(x.area_id); }catch(e){ return true; } }).length;
+  const sub=[v3SiteName()!=='Home'?'':null, rooms+' room'+(rooms===1?'':'s'), _v3coreVer?('ProOS Core '+_v3coreVer):''].filter(Boolean).join(' · ');
+  setHTML(top,'<div class="v3hero solo" style="'+(u?'background-image:url(\''+esc(u)+'\')':'')+'"><div class="hn">'+esc(v3SiteName())+'</div><div class="hs">'+esc(sub)+'</div></div>');
+  const lbl=p.querySelector(':scope>.section-label'); if(lbl) lbl.textContent='Happening Now';
+  let na=document.getElementById('v3home-attn');
+  if(!na){ na=document.createElement('div'); na.id='v3home-attn'; na.className='v3card'; na.style.marginTop='16px'; const rooms_=document.getElementById('hlt-rooms'); if(rooms_&&rooms_.parentElement===p) p.insertBefore(na,rooms_.nextSibling); else p.appendChild(na); }
+  const inc=(_hltInc||[]), un=(_unassignedEnts||[]).length;
+  let rows='';
+  inc.slice(0,4).forEach(i=>{ rows+='<div class="v3row" onclick="v3Diag(\'incidents\')"><div class="ri">'+V3ICONS.bolt+'</div><div class="rt"><div class="t1">'+esc(i.title||'')+'</div><div class="t2">'+esc(i.cause||'')+'</div></div><div class="rr"><span class="v3chip '+(i.severity==='critical'?'red':'amber')+'">'+(i.severity==='critical'?'Needs a Fix':'Check')+'</span>'+V3ICONS.chev.replace('<svg','<svg class="cv"')+'</div></div>'; });
+  if(un) rows+='<div class="v3row" onclick="v3Devices(\'__none__\')"><div class="ri">'+V3ICONS.plug+'</div><div class="rt"><div class="t1">'+un+' device'+(un===1?'':'s')+' not in a room</div><div class="t2">Assist can\'t use them until they\'re in a room</div></div><div class="rr"><span class="v3chip btn">Place Them</span>'+V3ICONS.chev.replace('<svg','<svg class="cv"')+'</div></div>';
+  setHTML(na,'<div class="v3sec"><div class="h"><span>Needs Attention</span><button onclick="v3Diag(\'incidents\')">Open Diagnostics</button></div>'
+    +(rows?'<div class="v3rows">'+rows+'</div>':'<div class="v3rows"><div class="v3row static"><div class="ri">'+V3ICONS.check+'</div><div class="rt"><div class="t1">Nothing needs a hand</div><div class="t2">Every alarm ProOS Core holds is clear</div></div></div></div>')+'</div>');
+}
+let _v3coreVer='';
+async function v3ReadCore(){
+  try{ const r=await fetch(proCoreUrl()+'/health',{headers:{'Authorization':'Bearer '+(localStorage.getItem('proos_pro_token')||'')}}); const j=r.ok?await r.json():null;
+    _v3coreVer=(j&&(j.version||j.core_version))||''; window._v3health=j; }catch(e){}
+}
+if(typeof renderHealth==='function'){
+  const _v3rh=renderHealth;
+  renderHealth=async function(){ const r=await _v3rh.apply(this,arguments); try{ v3HomeTop(); }catch(e){} if(_v2panel==='v3diag'&&_v3diag==='incidents') v3IncidentsFill(); return r; };
+}
+// ── AREAS › ROOM (AR-02 … AR-10): one overview, each part of the room its own page ──
+const V3ROOMVIEWS=[['overview','Room'],['av','AV Setup'],['activities','Activities'],['shortcuts','App Shortcuts'],['dashboard','Dashboard'],['evidence','Evidence'],['options','Room Options']];
+const _V3CARDS={'identity':'id','devices & av':'av','activities':'activities','app shortcuts':'shortcuts','live status':'evidence',
+  'icons and widgets — homeowner dashboard':'dashboard','device truth':'evidence','environment':'evidence','assist voice replies':'options','evidence timeline':'evidence'};
+function v3RoomView(k){
+  _v3roomView=k;
+  const p=document.getElementById('panel-room'); if(p) p.setAttribute('data-v3view',k);
+  const sc=document.querySelector('.scroll'); if(sc) sc.scrollTop=0;
+  v3Title('room','areas');
+  setTimeout(v2BackSync,0);
+}
+function v3RoomDecorate(){
+  const host=document.getElementById('room-devices'); if(!host||!_roomHubArea) return;
+  host.querySelectorAll(':scope>.rh-card').forEach(c=>{ const t=((c.querySelector('.rh-hd-t')||{}).textContent||'').trim().toLowerCase(); c.setAttribute('data-v3',_V3CARDS[t]||'av'); });
+  let ov=host.querySelector(':scope>.v3room-ov');
+  if(!ov){ ov=document.createElement('div'); ov.className='v3room-ov v3card'; host.insertBefore(ov,host.firstChild); }
+  const a=_areas.find(x=>x.area_id===_roomHubArea); const rec=_rhRec?_rhRec():null; const u=v3Photo(a);
+  const n=_perAreaDev[_roomHubArea]||0; const committed=!!(rec&&rec.committed);
+  const srcN=rec?(rec.sources||[]).map(s=>entName(typeof s==='string'?s:(s&&s.entity))).filter(Boolean):[];
+  const avSub=rec&&rec.display?[entName(rec.display)].concat((rec.audio||[]).slice(0,1).map(e=>entName(typeof e==='string'?e:(e&&e.entity)))).concat(srcN.length?[srcN.join(', ')]:[]).join(' · '):'No display chosen yet';
+  const actNames=(Array.isArray(_avActivities)?_avActivities:[]).map(x=>{ try{ return _actShort(x); }catch(e){ return x&&x.object_id; } }).filter(Boolean);
+  const sc=(_rhShortcuts&&_rhShortcuts[_roomHubArea])||[];
+  const ch=V3ICONS.chev.replace('<svg','<svg class="cv"');
+  const row=(k,ic,t,s,r,tag,act)=>'<div class="v3row" onclick="'+(act||("v3RoomView('"+k+"')"))+'"><div class="ri">'+V3ICONS[ic]+'</div><div class="rt"><div class="t1">'+esc(t)+(tag?'<span class="v3tag">ProOS</span>':'')+'</div><div class="t2">'+esc(s)+'</div></div><div class="rr">'+(r||'')+ch+'</div></div>';
+  const needSave='Save the room first';
+  setHTML(ov,'<div class="v3hero" style="'+(u?'background-image:url(\''+esc(u)+'\')':'')+'"><span class="hx" onclick="openRoomEdit(\''+esc(_roomHubArea)+'\')">Edit</span><div class="hn">'+esc((a&&a.name)||'Room')+'</div><div class="hs">'+n+' device'+(n===1?'':'s')+(committed?' · committed':' · not saved yet')+'</div></div>'
+    +'<div class="v3sec"><div class="h"><span>Set Up This Room</span></div><div class="v3rows v3rgrid">'
+    +row('av','tv','AV Setup',avSub,'<span class="v3chip '+(committed?'ok':'amber')+'">'+(committed?'Committed':'Not Saved')+'</span>')
+    +row('devices','plug','Devices',n+' device'+(n===1?'':'s')+' — names, aliases, Shows As','', false,"v3Devices('"+esc(_roomHubArea)+"')")
+    +row('activities','play','Activities',actNames.length?actNames.join(' · '):(committed?'None yet':needSave),'<span class="v3ct">'+actNames.length+'</span>',true)
+    +row('shortcuts','grid','App Shortcuts',sc.length?sc.map(x=>x.name||x.app).join(' · '):'Tested on the device before they\'re added','<span class="v3ct">'+sc.length+'</span>',true)
+    +row('prove','check','Prove the Room','Runs every activity and reads the devices back','',true,committed?'openProve()':"toast('"+needSave+"')")
+    +row('recovery','shield','Device Recovery','What ProOS may power-cycle when a device stops answering','',true,committed?'openRecovery()':"toast('"+needSave+"')")
+    +((_systemAreas.has(_roomHubArea)||!v3HomeArea())?row('dashboard','grid','Dashboard','Which icons and widgets the homeowner sees')
+      // one bar on every page (register 572): a room has nothing of its own to set, so the row goes where the bar is set
+      :row('dashboard','grid','Dashboard','One bar for every room — set on Home','',false,"openRoomHub('"+esc(v3HomeArea().area_id)+"').then(()=>v3RoomView('dashboard'))"))
+    +row('evidence','diagnostics','Evidence','Device truth, environment, the room\'s timeline','',true)
+    +row('options','setup','Room Options','Name, icon, voice replies')
+    +'</div></div>');
+  const p=document.getElementById('panel-room'); if(p) p.setAttribute('data-v3view',_v3roomView);
+}
+if(typeof renderRoomHub==='function'){
+  const _v3rrh=renderRoomHub;
+  renderRoomHub=function(){ const r=_v3rrh.apply(this,arguments); try{ v3RoomDecorate(); }catch(e){} return r; };
+}
+if(typeof openRoomHub==='function'){
+  const _v3orh=openRoomHub;
+  openRoomHub=async function(areaId){ _v3roomView='overview'; const p=document.getElementById('panel-room'); if(p) p.setAttribute('data-v3view','overview'); const r=await _v3orh.apply(this,arguments); try{ v3Side('areas'); v3Title('room','areas'); }catch(e){} return r; };
+}
+// the Unassigned list and other plain room views show every card
+if(typeof openRoom==='function'){
+  const _v3or=openRoom;
+  openRoom=function(areaId){ if(areaId==='__none__'){ return v3Devices('__none__'); } const p=document.getElementById('panel-room'); if(p) p.setAttribute('data-v3view','none'); return _v3or.apply(this,arguments); };
+}
+// a page inside the room goes back to the room's overview first
+const _v3backOrig=v2Back;
+v2Back=function(){
+  if(_v2panel==='room'&&_v3roomView!=='overview'){ v3RoomView('overview'); return; }
+  return _v3backOrig.apply(this,arguments);
+};
+const _v3bsOrig=v2BackSync;
+v2BackSync=function(){ _v3bsOrig(); const b=document.getElementById('v2back'); if(b&&_v2panel==='room'&&_v3roomView!=='overview') b.hidden=false; };
+// ── DEVICES (DV-01 … DV-03): everything the house has, by integration, unplaced, by room ──
+function v3EnsurePanel(id){
+  let p=document.getElementById('panel-'+id);
+  if(!p){ p=document.createElement('div'); p.className='panel'; p.id='panel-'+id; p.innerHTML='<div class="panel-head"><div class="panel-title"></div></div><div class="v3page" id="'+id+'-body"></div>'; document.querySelector('#app .scroll').appendChild(p); }
+  return document.getElementById(id+'-body');
+}
+const V3CTRL=/^(light|switch|cover|media_player|climate|fan|lock|vacuum|valve|siren|humidifier|water_heater|camera|alarm_control_panel|remote|button|scene|script)\./;
+function v3AreaOfEnt(e){ if(e.area_id) return e.area_id; const d=e.device_id&&_devices.find(x=>x.id===e.device_id); return d?d.area_id:null; }
+function v3EntName(e){ return e.name||entName(e.entity_id); }
+function v3NameCheck(name,areaName,dupes){
+  const n=String(name||'').trim(); if(!n) return 'No name';
+  const low=n.toLowerCase();
+  if((_areas||[]).some(a=>(a.name||'').toLowerCase()===low)) return 'Same as a room\'s name — voice would act on the whole room';
+  if(/^(the )?(light|lights|lamp|switch|tv|television|fan|blind|blinds|shade|shades|speaker|plug|outlet|relay|socket|bulb)( ?\d+)?$/i.test(n)) return 'Just its type — say where and what';
+  if(/[0-9a-f]{6,}/i.test(n)||/^(shelly|sonoff|tasmota|esp|zb|tuya)[\w-]*\d/i.test(n)||/_/.test(n)) return 'Named like a serial number';
+  if(dupes&&dupes[low]>1) return 'Two devices share this name';
+  return null;
+}
+// How many things share a name, counted by DEVICE: a TV's player and its remote carrying the TV's name are one device,
+// not two (the rig walk flagged every Apple TV and Shield in the Bedroom, 16 Oct). Benched: pro_josh_flow_bench.js.
+function v3Dupes(ctrls){
+  const seen={}, dupes={};
+  (ctrls||[]).forEach(e=>{ const k=String(v3EntName(e)).toLowerCase(); (seen[k]=seen[k]||new Set()).add(e.device_id||e.entity_id); dupes[k]=seen[k].size; });
+  return dupes;
+}
+// All Devices, by integration. ONE MECHANISM for "not in a room": the Unassigned list itself (_unassignedEnts), grouped
+// the way that page groups it — the walk caught the page saying 0 at the top and "13 not in a room" in a row below.
+function v3DevGroups(){
+  const by={};
+  (_devices||[]).forEach(d=>{ const dom=_devIntg[d.id]||'other'; (by[dom]=by[dom]||{n:0,un:0,bad:0,dom}); by[dom].n++; });
+  (_unassignedEnts||[]).forEach(e=>{ const d=e.device_id&&(_devices||[]).find(x=>x.id===e.device_id); const dom=d?(_devIntg[d.id]||e.platform||'other'):(e.platform||'other'); if(!by[dom]) by[dom]={n:0,un:0,bad:0,dom}; by[dom].un++; });
+  return by;
+}
+async function v3Devices(sel){
+  _v3dev=sel||'all';
+  const body=v3EnsurePanel('v3devices');
+  show('v3devices');
+  if(!Array.isArray(_devices)||!_devices.length){ try{ await loadSite(); }catch(e){} }
+  const ch=V3ICONS.chev.replace('<svg','<svg class="cv"');
+  const ctrls=(_ents||[]).filter(e=>V3CTRL.test(e.entity_id)&&!e.disabled_by&&!e.hidden_by);
+  const dupes=v3Dupes(ctrls);
+  if(_v3dev==='all'){
+    const by=v3DevGroups();
+    ctrls.forEach(e=>{ const d=e.device_id&&_devices.find(x=>x.id===e.device_id); const dom=d?(_devIntg[d.id]||'other'):(e.platform||'other'); if(!by[dom]) by[dom]={n:0,un:0,bad:0,dom}; const a=_areas.find(x=>x.area_id===v3AreaOfEnt(e)); if(v3NameCheck(v3EntName(e),a&&a.name,dupes)) by[dom].bad++; });
+    const groups=Object.values(by).filter(g=>g.n||g.un).sort((a,b)=>b.n-a.n);
+    const bad=groups.reduce((s,g)=>s+g.bad,0);
+    setHTML(body,'<div class="v3card"><div class="v3dh2"><div class="t">All Devices</div><div class="s">Everything the house has, by integration — what still needs a room or a name</div></div>'
+      +'<div class="v3kp"><div><b>'+(_unassignedEnts||[]).length+'</b><span>not in a room</span></div><div><b>'+bad+'</b><span>names to fix</span></div><div><b>'+groups.length+'</b><span>integrations</span></div></div>'
+      +'<div class="v3sec"><div class="v3rows">'+groups.map(g=>{
+        const nm=(typeof SUPPORTED_INTEGRATIONS!=='undefined'&&SUPPORTED_INTEGRATIONS[g.dom])||g.dom.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
+        const chip=g.un?'<span class="v3chip amber">'+g.un+' not in a room</span>':(g.bad?'<span class="v3chip amber">'+g.bad+' to name</span>':'<span class="v3chip ok">All Placed</span>');
+        return '<div class="v3row" onclick="openIntegration(\''+esc(g.dom)+'\')"><div class="ri">'+V3ICONS.plug+'</div><div class="rt"><div class="t1">'+esc(nm)+'</div><div class="t2">'+g.n+' device'+(g.n===1?'':'s')+'</div></div><div class="rr">'+chip+ch+'</div></div>';
+      }).join('')+'</div></div></div>');
+  } else if(_v3dev==='__none__'){
+    const list=(_unassignedEnts||[]).slice().sort((a,b)=>entName(a.entity_id).localeCompare(entName(b.entity_id)));
+    const by={}; list.forEach(e=>{ const d=e.device_id&&_devices.find(x=>x.id===e.device_id); const k=d?(_devIntg[d.id]||e.platform||'other'):(e.platform||'other'); (by[k]=by[k]||[]).push(e); });
+    setHTML(body,'<div class="v3card"><div class="v3dh2"><div class="t">Unassigned</div><div class="s">'+list.length+' things the house has but no room holds — Assist can\'t use them until they\'re in a room</div></div>'
+      +(list.length?Object.keys(by).sort((a,b)=>by[b].length-by[a].length).map(k=>{
+        const nm=(typeof SUPPORTED_INTEGRATIONS!=='undefined'&&SUPPORTED_INTEGRATIONS[k])||k.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
+        return '<div class="v3sec"><div class="h"><span>'+esc(nm)+' · '+by[k].length+'</span></div><div class="v3rows">'+by[k].map(e=>'<div class="v3row" onclick="openRoomPicker(\'entity\',\''+esc(e.entity_id)+'\')"><div class="rt"><div class="t1">'+esc(entName(e.entity_id))+'</div><div class="t2">'+esc(e.entity_id)+'</div></div><div class="rr"><span class="v3chip btn">Assign</span></div></div>').join('')+'</div></div>';
+      }).join(''):'<div class="v3empty">Every device is in a room.</div>')+'</div>');
+  } else {
+    const a=_areas.find(x=>x.area_id===_v3dev);
+    const mine=ctrls.filter(e=>v3AreaOfEnt(e)===_v3dev).sort((x,y)=>v3EntName(x).localeCompare(v3EntName(y)));
+    const rows=mine.map(e=>{
+      const chk=v3NameCheck(v3EntName(e),a&&a.name,dupes);
+      const al=(e.aliases||[]);
+      const dev=e.device_id&&_devices.find(x=>x.id===e.device_id);
+      const kind=[e.entity_id.split('.')[0].replace(/_/g,' '),dev&&dev.model].filter(Boolean).join(' · ');
+      const open=dev?"openDeviceManage('"+esc(dev.id)+"')":"openEntityInfo('"+esc(e.entity_id)+"')";
+      return '<div class="v3row static"><div class="rt" style="cursor:pointer" onclick="'+open+'"><div class="t1">'+esc(v3EntName(e))+'</div><div class="t2">'+esc(kind)+'</div></div>'
+        +'<div style="flex:1.2;min-width:0">'+al.map((x,i)=>'<span class="v3al">'+esc(x)+'<button aria-label="Remove alias" onclick="v3AliasDel(\''+esc(e.entity_id)+'\','+i+')">×</button></span>').join('')+'<button class="v3add" onclick="v3AliasAdd(\''+esc(e.entity_id)+'\')">+ Alias</button></div>'
+        +'<div class="rr">'+(chk?'<span class="v3chip amber" title="'+esc(chk)+'" style="cursor:pointer" onclick="v3Rename(\''+esc(e.entity_id)+'\')">'+esc(chk.split(' — ')[0])+'</span>':'<span class="v3chip ok">Good Name</span>')+'</div></div>';
+    }).join('');
+    setHTML(body,'<div class="v3card"><div class="v3dh2"><div class="t">Devices &amp; Names</div><div class="s">Names and aliases are the platform\'s own — what you set here is what voice hears</div></div>'
+      +'<div class="v3sec"><div class="v3rows">'+(rows||'<div class="v3empty">Nothing in '+esc((a&&a.name)||'this room')+' can be controlled yet.</div>')+'</div></div>'
+      +'<div class="v3sec"><div class="h"><span>The Naming Checks</span></div><div class="v3rows">'
+      +'<div class="v3row static"><div class="ri">'+V3ICONS.check+'</div><div class="rt"><div class="t1">Room, then device</div><div class="t2">"Living Room Pendant", not "Pendant 2"</div></div></div>'
+      +'<div class="v3row static"><div class="ri">'+V3ICONS.check+'</div><div class="rt"><div class="t1">Never the room\'s own name</div><div class="t2">"Bedroom 1" would act on the whole room</div></div></div>'
+      +'<div class="v3row static"><div class="ri">'+V3ICONS.check+'</div><div class="rt"><div class="t1">Never just its type or a serial number</div><div class="t2">"Light", "SR5014" or "shelly1minig4-7c2c…" — say what and where</div></div></div>'
+      +'</div></div></div>');
+  }
+  v3Side('devices'); v3Title('v3devices','devices'); setTimeout(v2BackSync,0);
+}
+// aliases are the platform's own field (entity registry) — Pro keeps no copy
+function v3Popup(title,sub,inner,buttons){
+  const old=document.getElementById('v3pop'); if(old) old.remove();
+  const o=document.createElement('div'); o.id='v3pop'; o.style.cssText='position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.5);display:grid;place-items:center';
+  o.onclick=e=>{ if(e.target===o) o.remove(); };
+  o.innerHTML='<div class="v3card" style="width:min(520px,92vw);padding:26px;display:flex;flex-direction:column;gap:14px;background:rgba(30,30,34,.92)"><div style="font-size:21px;font-weight:600">'+esc(title)+'</div>'+(sub?'<div style="color:rgba(255,255,255,.62);font-size:14px">'+esc(sub)+'</div>':'')+inner
+    +'<div style="display:flex;justify-content:flex-end;gap:10px">'+buttons.map((b,i)=>'<button class="v3btn'+(i===buttons.length-1?' pri':'')+'" id="v3pop-b'+i+'">'+esc(b[0])+'</button>').join('')+'</div></div>';
+  document.body.appendChild(o);
+  buttons.forEach((b,i)=>{ document.getElementById('v3pop-b'+i).onclick=async()=>{ const keep=b[1]?await b[1]():false; if(!keep) o.remove(); }; });
+  const inp=o.querySelector('input'); if(inp) setTimeout(()=>inp.focus(),60);
+  return o;
+}
+function _v3input(id,label,val,hint){ return '<label style="display:block;background:rgba(255,255,255,.06);border-radius:14px;padding:10px 14px"><div style="font-size:12.5px;color:rgba(255,255,255,.55)">'+esc(label)+'</div><input id="'+id+'" value="'+esc(val||'')+'" style="width:100%;background:none;border:0;color:#fff;font:inherit;font-size:16px;padding:4px 0;outline:none" autocomplete="off"/>'+(hint?'<div id="'+id+'-h" style="font-size:12.5px;color:rgba(255,255,255,.45)">'+esc(hint)+'</div>':'')+'</label>'; }
+function v3AliasAdd(eid){
+  const e=(_ents||[]).find(x=>x.entity_id===eid); if(!e) return;
+  v3Popup('Add an Alias',v3EntName(e)+' · another name voice will answer to',_v3input('v3al-in','Alias','','Say it the way the household does — "lounge lights", "the big TV"'),[['Cancel'],['Add',async()=>{
+    const v=(document.getElementById('v3al-in').value||'').trim(); if(!v) return true;
+    const next=(e.aliases||[]).concat([v]);
+    try{ await snd({type:'config/entity_registry/update',entity_id:eid,aliases:next}); toast('Alias added — voice hears "'+v+'" now'); await loadSite(); v3Devices(_v3dev); }
+    catch(err){ toast('Couldn\'t add the alias'); return true; }
+  }]]);
+}
+async function v3AliasDel(eid,i){
+  const e=(_ents||[]).find(x=>x.entity_id===eid); if(!e) return;
+  const next=(e.aliases||[]).filter((_,n)=>n!==i);
+  try{ await snd({type:'config/entity_registry/update',entity_id:eid,aliases:next}); toast('Alias removed'); await loadSite(); v3Devices(_v3dev); }
+  catch(err){ toast('Couldn\'t remove the alias'); }
+}
+function v3Rename(eid){
+  const e=(_ents||[]).find(x=>x.entity_id===eid); if(!e) return;
+  const a=_areas.find(x=>x.area_id===v3AreaOfEnt(e));
+  const cur=v3EntName(e);
+  const o=v3Popup('Rename','',_v3input('v3rn-in','Name',cur,v3NameCheck(cur,a&&a.name,null)||'Good name — room then device'),[['Cancel'],['Save',async()=>{
+    const v=(document.getElementById('v3rn-in').value||'').trim(); if(!v) return true;
+    try{ await snd({type:'config/entity_registry/update',entity_id:eid,name:v}); toast('Renamed to '+v); await loadSite(); v3Devices(_v3dev); }
+    catch(err){ toast('Couldn\'t rename'); return true; }
+  }]]);
+  const inp=o.querySelector('#v3rn-in'), h=o.querySelector('#v3rn-in-h');
+  if(inp&&h) inp.oninput=()=>{ const c=v3NameCheck(inp.value,a&&a.name,null); h.textContent=c||'Good name — room then device'; h.style.color=c?'#ffc266':'#5fe07a'; };
+}
+// ── DIAGNOSTICS (DG-01 … DG-06) ───────────────────────────────────────────
+let _v3awT=null;
+async function v3Diag(k){
+  _v3diag=k||'sweep';
+  const body=v3EnsurePanel('v3diag');
+  show('v3diag');
+  clearInterval(_v3awT); _v3awT=null;
+  const card=(t,s,inner)=>'<div class="v3card"><div class="v3dh2"><div class="t">'+t+'</div>'+(s?'<div class="s">'+s+'</div>':'')+'</div>'+inner+'</div>';
+  if(_v3diag==='sweep'){
+    setHTML(body,card('Health Sweep','Every check ProOS Core runs on the house, and its own answer to each','<div class="v3sec"><div id="hlt-sweep"></div><div id="v3sw-items"></div></div>'));
+    await renderSweepCard(); v3SweepItems();
+  } else if(_v3diag==='awareness'){
+    setHTML(body,card('Awareness','Every device ProOS watches, and what it last said','<div class="v3seg"><button id="v3aw-l" class="on" onclick="v3AwSeg(\'live\')">Live</button><button id="v3aw-a" onclick="v3AwSeg(\'activity\')">Activity</button></div><div class="v3sec" id="v3aw-body"></div>'));
+    v3AwSeg('live');
+    _v3awT=setInterval(()=>{ if(_v2panel==='v3diag'&&_v3diag==='awareness'&&!document.hidden&&window._v3awSeg==='live'){ const b=document.getElementById('v3aw-body'); if(b) setHTML(b,_awRenderLive()); } },5000);
+  } else if(_v3diag==='incidents'){
+    setHTML(body,card('Incidents','Every fault ProOS Core holds right now, with its own fix','<div class="v3sec"><div id="hlt-incidents"></div><div id="v3inc-empty"></div></div>'));
+    try{ await renderHealth(); }catch(e){} v3IncidentsFill();
+  } else if(_v3diag==='heard'){
+    setHTML(body,card('Heard','Every sentence said to Assist today, and how it was understood','<div class="v3sec" id="v3heard"><div class="v3empty">Reading…</div></div>'));
+    v3Heard();
+  } else if(_v3diag==='noticed'){
+    setHTML(body,card('Assist Noticed','Things Assist picked up from how the house is used — offers only, the household says yes on their own screen','<div class="v3sec" id="v3noticed-host"></div>'));
+    const n=document.getElementById('as2-noticed'), h=document.getElementById('v3noticed-host'); if(n&&h){ h.appendChild(n); n.hidden=false; }
+    as2Noticed();
+  } else if(_v3diag==='log'){
+    setHTML(body,card('Master Log','Every room, every event, as it happens','<div class="v3sec" id="v3log-host"></div>'));
+    const ml=document.getElementById('ml-health'), h=document.getElementById('v3log-host');
+    const c=ml&&ml.closest('.rh-card'); if(c&&h) h.appendChild(c);
+    masterLog();
+  }
+  v3Side('diagnostics'); v3Title('v3diag','diagnostics'); setTimeout(v2BackSync,0);
+}
+function v3IncidentsFill(){ const ih=document.getElementById('hlt-incidents'), e=document.getElementById('v3inc-empty'); if(!e) return; setHTML(e,(ih&&ih.children.length)?'':'<div class="v3empty">No faults right now. Every alarm ProOS Core holds is clear.</div>'); }
+function v3AwSeg(k){
+  window._v3awSeg=k;
+  const l=document.getElementById('v3aw-l'), a=document.getElementById('v3aw-a'); if(l) l.classList.toggle('on',k==='live'); if(a) a.classList.toggle('on',k==='activity');
+  const b=document.getElementById('v3aw-body'); if(!b) return;
+  if(k==='live') setHTML(b,_awRenderLive());
+  else { setHTML(b,'<div class="v3empty">Loading history…</div>'); awLoadAudit().then(()=>{ if(window._v3awSeg==='activity') setHTML(b,_awRenderActivity()); }); }
+}
+function v3SweepItems(){
+  const host=document.getElementById('v3sw-items'); const j=_swLast||{}; if(!host) return;
+  const items=(j.items||[]).slice().sort((a,b)=>({problem:0,unknown:1,confirmed:2}[a.answer]-{problem:0,unknown:1,confirmed:2}[b.answer]));
+  if(!items.length){ setHTML(host,''); return; }
+  const chip={confirmed:['ok','Confirmed'],problem:['red','Problem'],unknown:['amber','Could Not Confirm']};
+  setHTML(host,'<div class="v3rows" style="margin-top:14px">'+items.map(i=>{ const c=chip[i.answer]||['','?']; return '<div class="v3row static"><div class="rt"><div class="t1" style="font-weight:400;font-size:14.5px;white-space:normal">'+esc(i.words||'')+'</div></div><div class="rr"><span class="v3chip '+c[0]+'">'+c[1]+'</span></div></div>'; }).join('')+'</div>');
+}
+if(typeof renderSweepCard==='function'){
+  const _v3rsc=renderSweepCard;
+  renderSweepCard=async function(){ const r=await _v3rsc.apply(this,arguments); try{ v3SweepItems(); }catch(e){} return r; };
+}
+async function v3Heard(){
+  const host=document.getElementById('v3heard'); if(!host) return;
+  let d=null;
+  try{ const r=await fetch(proCoreUrl()+'/assist/heard',{cache:'no-store'}); d=r.ok?await r.json():{error:r.status}; }catch(e){}
+  if(!d||d.error){ setHTML(host,'<div class="v3empty">'+(d&&d.error===403?'Heard is for installer accounts.':'ProOS Core couldn\'t be read — Heard needs Core 1.0.940 or later.')+'</div>'); return; }
+  const list=d.heard||[];
+  if(!list.length){ setHTML(host,'<div class="v3empty">Nothing has been said to Assist today.</div>'); return; }
+  const road={instant:['ok','Instant'],plan:['blue','Instant · plan'],ai:['amber','Sent to the AI'],'not recorded':['','Not recorded']};
+  setHTML(host,'<div class="v3rows">'+list.map(x=>{ const r=road[(x.how||{}).road]||['',(x.how||{}).road||'?']; const how=[x.how&&x.how.matched,(x.how&&x.how.tools||[]).join(', ')].filter(Boolean).join(' · ');
+    return '<div class="v3row static" style="align-items:flex-start"><div style="width:64px;flex:none;color:rgba(255,255,255,.36);font-size:13px;padding-top:2px;font-variant-numeric:tabular-nums">'+esc(x.when||'')+'</div>'
+      +'<div class="rt"><div class="t1" style="white-space:normal">"'+esc(x.said||'')+'"</div><div class="t2" style="white-space:normal">'+esc([x.reply,x.where,x.who].filter(Boolean).join(' · '))+'</div>'+(how?'<div class="t2" style="white-space:normal;color:rgba(255,255,255,.4)">'+esc(how)+'</div>':'')+'</div>'
+      +'<div class="rr"><span class="v3chip '+r[0]+'">'+esc(r[1])+'</span></div></div>'; }).join('')+'</div>');
+}
+// ── SYSTEM SETUP › SOFTWARE (SS-06) ───────────────────────────────────────
+async function v3Software(){
+  const body=v3EnsurePanel('v3software');
+  try{ const tb=document.getElementById('tech-body'); if(tb) setHTML(tb,''); }catch(e){}   // one Update card on the page, never two with the same ids
+  show('v3software');
+  await v3ReadCore();
+  const j=window._v3health||{}; const ap=j.apps||{};
+  const ch=V3ICONS.chev.replace('<svg','<svg class="cv"');
+  setHTML(body,'<div class="v3card"><div class="v3dh2"><div class="t">Software</div><div class="s">ProOS Core and the pages it serves, as the box reports them</div></div>'
+    +'<div class="v3kp"><div><b>'+esc(_v3coreVer||'?')+'</b><span>ProOS Core</span></div><div><b>'+esc(String((ap.pro&&ap.pro.served)||PROOS_BUILD))+'</b><span>Pro</span></div><div><b>'+esc(String((ap.dashboard&&ap.dashboard.served)||'?'))+'</b><span>Dashboard</span></div></div>'
+    +'<div class="v3sec"><div class="v3rows">'
+    +'<div class="v3row static"><div class="ri">'+V3ICONS.box+'</div><div class="rt"><div class="t1">Update ProOS Core</div><div class="t2">Checks the ProOS store and updates Core in place<span id="coreupd-res"></span></div></div><div class="rr"><button class="v3btn" onclick="coreUpdCheck()">Check Now</button><button class="v3btn pri" id="coreupd-go" style="display:none" onclick="coreUpdGo()">Update Core</button></div></div>'
+    +'<div class="v3row" onclick="openBackups()"><div class="ri">'+V3ICONS.clock+'</div><div class="rt"><div class="t1">Backups</div><div class="t2">Restore points, schedule, downloads</div></div><div class="rr">'+ch+'</div></div>'
+    +((_me.tech||_me.developer)?'<div class="v3row" onclick="v3ToolOpen(\'assist\')"><div class="ri">'+V3ICONS.assist+'</div><div class="rt"><div class="t1">Pro Assist</div><div class="t2">AI provider and model — set in Toolbox › Assist AI</div></div><div class="rr">'+ch+'</div></div>':'')
+    +'</div></div></div>');
+  v3Side('setup'); v3Title('v3software','setup');
+}
+// ── boot the v3 shell ─────────────────────────────────────────────────────
+(function(){
+  document.body.classList.add('v3');
+  document.getElementById('app').classList.add('v3');
+  try{ if(localStorage.getItem('proosRailMin')===null) document.body.classList.add('railmin'); }catch(e){ document.body.classList.add('railmin'); }
+  v3EnsureCmd();
+  setTimeout(()=>{ v3ReadCore().then(()=>{ try{ v3HomeTop(); }catch(e){} }); v3Backdrop(); },1500);
+})();
 
 // ── v2 boot: arm the shell once the app connects ──────────────────────────
 (function(){

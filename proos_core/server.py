@@ -6239,6 +6239,35 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, _assist.history_view(
                     who or u.get("id"), limit=lim, before=before,
                     query=(q.get("q") or [""])[0]))
+            if parts == ["assist", "heard"]:
+                # HEARD (stage 5 of the planned build, 16 Oct 2026). Josh's
+                # installer tunes by reading every sentence and how it was
+                # interpreted; Pro › Diagnostics › Heard reads this. Every
+                # login's turns since ?since= (default: the start of today),
+                # each with the road the engine recorded when it ran. The
+                # installer's door, as /assist/history?user= is.
+                if not _assist:
+                    return self._send(503, {"error": "assist module not loaded"})
+                u = getattr(self, "_user", None)
+                if not u:
+                    return self._send(401, {"error": "sign in required"})
+                if not (u.get("is_admin") or u.get("is_owner")
+                        or (users and users.is_tech(u.get("id")))):
+                    return self._send(403, {"error": "installer access required"})
+                q = parse_qs(urlparse(self.path).query)
+                try:
+                    since = float((q.get("since") or ["0"])[0] or 0)
+                except Exception:
+                    since = 0.0
+                if since <= 0:
+                    _now = datetime.datetime.now()
+                    since = _now.replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
+                _names = {}
+                try:
+                    _names = {x.get("id"): x.get("name") for x in (users.list_users(_ws_call) if users else [])}
+                except Exception:                                # noqa: BLE001
+                    _names = {}
+                return self._send(200, _assist.heard_view(since, names=_names))
             if parts == ["assist", "suggestions"]:
                 # PRO ASSIST NOTICED (register 431, stage H2). The offers the
                 # nightly habits file supports, minus what this person has

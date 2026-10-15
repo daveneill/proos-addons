@@ -117,8 +117,14 @@ def _hist_path(user_id) -> str:
 
 
 def _hist_append(user: dict, session: str, text: str, reply: str,
-                 where: dict | None = None) -> None:
-    """One line per turn. Never raises — the record must never break the reply."""
+                 where: dict | None = None, how: dict | None = None) -> None:
+    """One line per turn. Never raises — the record must never break the reply.
+
+    HOW IT WAS UNDERSTOOD (stage 5 of the planned build, 16 Oct 2026 — Pro's
+    Diagnostics › Heard, Josh's tuning loop). `how` is what the engine itself
+    did with the words, recorded at the moment it did it: the road
+    (instant / plan / ai), what it matched, and the tools that ran. Nothing is
+    inferred afterwards from the reply text."""
     try:
         os.makedirs(_HIST_DIR, exist_ok=True)
         path = _hist_path((user or {}).get("id"))
@@ -126,6 +132,8 @@ def _hist_append(user: dict, session: str, text: str, reply: str,
                "user": text, "assistant": reply}
         if where and where.get("area_name"):
             row["where"] = where.get("area_name")
+        if how:
+            row["how"] = how
         with open(path, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(row) + "\n")
         try:
@@ -229,6 +237,54 @@ def history_view(user_id, limit: int = 60, before=None, query: str = "") -> dict
     return {"turns": out, "total": total,
             "more": bool(out) and total > len(out),
             "next_before": (out[-1]["ts"] if out else None)}
+
+
+def _how_of(runner, road: str, matched: str = "") -> dict:
+    """The engine's own account of a turn: the road it took, what it matched,
+    and the tools that actually ran (their names only — never arguments)."""
+    tools = []
+    try:
+        for a in (getattr(runner, "actions", None) or []):
+            t = (a or {}).get("tool") if isinstance(a, dict) else None
+            if t and t not in tools:
+                tools.append(t)
+    except Exception:
+        pass
+    out = {"road": road}
+    if matched:
+        out["matched"] = str(matched)[:80]
+    if tools:
+        out["tools"] = tools[:8]
+    return out
+
+
+def heard_view(since: float = 0.0, limit: int = 200, names: dict | None = None) -> dict:
+    """HEARD — every sentence said to Assist since `since`, from every login,
+    newest first, each with how it was understood (stage 5, 16 Oct 2026).
+    Josh's installers tune by reading what was heard; this is that list. A
+    turn kept before `how` was recorded says so ("not recorded") rather than
+    a road being guessed for it."""
+    rows = []
+    for lg in history_logins():
+        uid = lg.get("id")
+        for r in _hist_read(uid):
+            try:
+                ts = float(r.get("ts") or 0)
+            except Exception:
+                continue
+            if ts < float(since or 0):
+                continue
+            rows.append({"ts": ts, "who": (names or {}).get(uid) or uid,
+                         "said": r.get("user") or "", "reply": r.get("assistant") or "",
+                         "where": r.get("where") or "", "how": r.get("how") or {"road": "not recorded"}})
+    rows.sort(key=lambda x: x["ts"], reverse=True)
+    lim = max(1, min(int(limit or 200), 500))
+    for x in rows[:lim]:
+        try:
+            x["when"] = datetime.datetime.fromtimestamp(x["ts"]).strftime("%-I:%M %p")
+        except Exception:
+            x["when"] = "?"
+    return {"heard": rows[:lim], "total": len(rows)}
 
 
 def history_logins() -> list:
@@ -6839,7 +6895,7 @@ def _plan_reply(runner, user, session, text, where, t0, reply, how, ai_ms):
         _hist.append({"role": "assistant", "content": reply})
         _SESSIONS[_k] = _safe_trim(_hist, _MAX_TURNS)
         _sess_save()
-    _hist_append(user, session, text, reply, where)
+    _hist_append(user, session, text, reply, where, _how_of(runner, "plan", how))
     _said = list(getattr(runner, "spoken", None) or [])
     return {"reply": reply, "actions": runner.actions, "trace": runner.trace, "timing": runner.timing,
             "provider": "plan", "speak_lead": None if _said else reply, "spoken_already": _said, "speak_suppress": bool(_said)}
@@ -7152,7 +7208,7 @@ def chat(client, ws_call, project_mod, user: dict, text: str,
             _hist.append({"role": "assistant", "content": reply})
             _SESSIONS[_k] = _safe_trim(_hist, _MAX_TURNS)
             _sess_save()
-        _hist_append(user, session, text, reply, where)
+        _hist_append(user, session, text, reply, where, _how_of(runner, "instant", _hit.get("matched")))
         # ── AND IT DOES NOT SAY IT TWICE (register 498) ─────────────────────
         # Dave, 19 Sep: "the words show darker, it says the office lights are
         # off, then the words turn white and it says the office lights are off
@@ -7225,7 +7281,7 @@ def chat(client, ws_call, project_mod, user: dict, text: str,
         print("  [assist] the platform's name was in a reply — reworded (register 348)",
               flush=True)
         reply = _said
-    _hist_append(user, session, text, reply, where)   # register 427: the record
+    _hist_append(user, session, text, reply, where, _how_of(runner, "ai"))   # register 427: the record
     # AND THE TURN SAYS HOW LONG IT TOOK (register 484). One line per turn in
     # the add-on log, so "everything is taking so long" can be answered with
     # numbers off this box instead of a guess. Never the words — the same law
