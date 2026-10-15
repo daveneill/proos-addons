@@ -6577,6 +6577,13 @@ _DIRECT_TTL = 120
 _direct_cache = {"rooms": (0.0, None), "scenes": (0.0, None)}
 
 
+_LAST_TARGET = {}        # register 890: (user, session) -> "the living room lights" — what "them" means next
+
+
+def _last_key(user, session):
+    return (str((user or {}).get("id") or ""), str(session or ""))
+
+
 def _direct_rooms(client, project_mod):
     """The COMMITTED rooms as (area_id, name). A room that was never
     commissioned is not a room ProOS will act on without thinking."""
@@ -7004,44 +7011,62 @@ def chat(client, ws_call, project_mod, user: dict, text: str,
     # REGISTER 731: anything else the platform recognised, its OWN agent does.
     _plat = None
     _t0 = time.time()
-    # REGISTER 879 (14 Oct 2026; Dave: "on the bedroom page it must never ask which room"; 9 Oct: "everything commissioned
-    # is an instant voice command, no AI"). THE PAGE SUPPLIES THE ROOM THE WORDS LEFT OUT. "tv off", "watch apple tv",
-    # "netflix" said on the Bedroom page are the room's own sentences minus the room; until now they went to the AI plan
-    # road (4–20 s, and nothing at all in a home without an AI key). The same words completed with the certain room
-    # ("tv off in the bedroom") are put to the platform's OWN recogniser; a sentence-trigger match is the room's own
-    # activity, app or favourite, and the platform's agent runs that completed sentence. One mechanism for all three,
-    # no grammar of ProOS's own; a miss is silent and the turn goes on exactly as before.
-    _completed = None
-    if not _hit and ws_call and where and where.get("area_id") and where.get("confidence") == "certain" \
-            and not (_rec and _rec.get("match") and _rec.get("source") == "trigger"):
+    # STAGE 2 OF THE PLANNED BUILD (register 890): ONE ORDER for what the first pass did not take — the words as said,
+    # the certain room added to words that name none (the room's own sentences AND the platform's built-in ones;
+    # register 879 did only the former), "them/it" from the last thing acted on in this conversation, and a compound
+    # sentence split into parts that must ALL resolve. Every step is the platform's own recogniser; a miss is silent
+    # and the turn goes on exactly as before (the app road, the plan road, the AI).
+    _steps = None
+    if not _hit and ws_call:
         try:
-            _rn = next((r[1] for r in _direct_rooms(client, project_mod) if r[0] == where.get("area_id")), None)
-            if _rn:
-                _cand = "%s in the %s" % (str(text or "").strip().rstrip(".!?"), _rn)
-                _rec2 = _direct.platform_recognize(ws_call, _cand)
-                if _rec2 and _rec2.get("match") and _rec2.get("source") == "trigger" \
-                        and "{" not in str(_rec2.get("sentence_template") or ""):
-                    _completed = _cand
+            _steps = _direct.plan_sentence(text, where, lambda s_: _direct.platform_recognize(ws_call, s_),
+                                           _direct_rooms(client, project_mod), lambda: _direct_scenes(runner),
+                                           last=_LAST_TARGET.get(_last_key(user, session)), first_rec=_rec)
         except Exception as e:                                   # noqa: BLE001
-            print("  [assist] page-room completion declined (%s)" % e, flush=True)
-    if _completed:
+            print("  [assist] one-order path declined (%s)" % e, flush=True)
+            _steps = None
+    if _steps and len(_steps) == 1 and _steps[0]["kind"] == "tool":
+        _hit = {k: _steps[0][k] for k in ("tool", "args", "say", "matched") if k in _steps[0]}
+        print("  [assist] DIRECT one-order: %r → %r" % (text, _steps[0]["text"]), flush=True)
+    elif _steps and len(_steps) == 1:
+        # one platform step: exactly the old hand-over — the platform's agent does it, and when it did nothing
+        # (no match / nothing it was told about) the turn goes on to Assist as before
         try:
-            _plat = runner.platform_command(_completed, "trigger")
-            print("  [assist] DIRECT page-room: %r → %r in %dms" % (text, _completed, int((time.time() - _t0) * 1000)), flush=True)
+            _plat = runner.platform_command(_steps[0]["text"], _steps[0]["intent"])
+            if _plat is not None and _steps[0]["text"] != text:
+                print("  [assist] DIRECT one-order: %r → %r in %dms" % (text, _steps[0]["text"], int((time.time() - _t0) * 1000)), flush=True)
         except Exception as e:                                   # noqa: BLE001
             print("  [assist] platform agent failed (%s)" % e, flush=True)
             _plat = {"say": "I couldn't do that just then.", "intent": "unknown", "error": True}
-    if not _hit and not _plat and _rec:
+    elif _steps:
         try:
-            _pi = _direct.platform_can_take(_rec, text, _direct_rooms(client, project_mod))
-            if _pi:
-                _plat = runner.platform_command(text, _pi)
+            _says, _err = [], False
+            for _st in _steps:
+                if _st["kind"] == "platform":
+                    _r = runner.platform_command(_st["text"], _st["intent"]) or {"say": "I couldn't do that just then.", "error": True}
+                    _says.append(_r.get("say") or "Done.")
+                    _err = _err or bool(_r.get("error"))
+                else:
+                    if _st.get("say"):
+                        runner.said_for_act[_say_key(_st["tool"], _st["args"])] = _st["say"]
+                    _o = runner.run(_st["tool"], _st["args"]) or {}
+                    _e = _o.get("error") if isinstance(_o, dict) else None
+                    _says.append(("I couldn't do that — %s." % str(_e).rstrip(".")) if _e else (_st.get("say") or _o.get("say") or "Done."))
+                    _err = _err or bool(_e)
+            _plat = {"say": " ".join(x.strip() for x in _says if x), "intent": "compound", "error": _err}
+            print("  [assist] DIRECT one-order: %r → %s in %dms" % (text, [x["text"] for x in _steps], int((time.time() - _t0) * 1000)), flush=True)
         except Exception as e:                                   # noqa: BLE001
-            # Whether it acted is unknown, so it is NOT handed on to the model
-            # to do a second time; the person is told, and the log has why.
+            # whether it acted is unknown, so it is NOT handed on to the model to do a second time
             print("  [assist] platform agent failed (%s)" % e, flush=True)
-            _plat = {"say": "I couldn't do that just then.",
-                     "intent": "unknown", "error": True}
+            _plat = {"say": "I couldn't do that just then.", "intent": "unknown", "error": True}
+    if _steps:
+        _ph = next((x.get("phrase") for x in reversed(_steps) if x.get("phrase")), None)
+        if _ph:
+            _LAST_TARGET[_last_key(user, session)] = _ph
+    elif _hit and _rec:
+        _ph = _direct.phrase_of(_rec)
+        if _ph:
+            _LAST_TARGET[_last_key(user, session)] = _ph
     # REGISTER 858 (build 6): nothing instant matched — the HOME CATALOGUE ROAD: one AI call with what the home has,
     # one plan from a closed set, done and said at once, learned as an instant sentence when it worked. It declines
     # (None) and the full assistant has the turn exactly as before when there is no AI, no plan, or the plan says assist.

@@ -260,6 +260,137 @@ def resolve_platform(rec, text, where=None, rooms=(), scenes=()):
     return None
 
 
+# ── STAGE 2 OF THE PLANNED BUILD: ONE ORDER FOR EVERY SENTENCE (register 890, 15 Oct 2026) ─────────────
+# Read on Dave's box (the platform's own recogniser, debug, never executes): "turn off the living room lights" and
+# "close the shades in the living room" match; "turn off the lights" (no room) does NOT; "lights off and shades down
+# in the living room" does NOT (one request per sentence); "raise them 25%" does NOT (no memory of "them"). Josh does
+# all three (room awareness, compound, anaphora — the Josh/Lutron programming paper). ProOS adds them as steps in ONE
+# order, each using the platform's recogniser and nothing of ProOS's own grammar:
+#   1 the words as said                         (resolve_platform / platform_can_take — as before)
+#   2 the room the person is certainly in, added to words that name no room — the room's own sentences AND the
+#     platform's built-in ones ("turn off the lights" on the Living Room page)
+#   3 compound: split on and/then; EVERY part must resolve (certainty or nothing); a room named once carries to the
+#     parts that name none
+#   4 "them / it / those": the last thing acted on in this conversation stands in for the pronoun
+# Anything still unresolved goes on exactly as before (the app road, the plan road, the AI).
+
+_SPLIT = (" and then ", ", then ", " then ", " and ", ", ")
+_PRONOUNS = ("them", "it", "those", "they", "these")
+
+
+def _room_named(text, rooms):
+    """(area_id, name) of the room the words name (longest name wins), or None."""
+    t = " " + _norm(text) + " "
+    best = None
+    for row in rooms or ():
+        aid, nm = row[0], row[1]
+        names = [nm] + list(row[2] if len(row) > 2 and row[2] else ())
+        for n in names:
+            if n and (" " + _norm(n) + " ") in t and (best is None or len(n) > len(best[1])):
+                best = (aid, nm)
+    return best
+
+
+def phrase_of(rec):
+    """What "them" would mean after this sentence: "the living room lights", "the living room shades"; None when the
+    platform's answer names no room and kind (a scene, a named device, a question)."""
+    if not rec or not rec.get("match"):
+        return None
+    area = ((rec.get("details") or {}).get("area") or {}).get("value")
+    dom = _slot(rec, "domain")
+    dc = ((rec.get("details") or {}).get("device_class") or {}).get("text")
+    kind = dc or {"light": "lights", "cover": "covers", "fan": "fans", "switch": "switches"}.get(dom if isinstance(dom, str) else "")
+    if not area or not kind:
+        return None
+    return "the %s %s" % (str(area).lower(), kind)
+
+
+def _with_pronoun(text, last):
+    """The words with the pronoun replaced by the last thing acted on, or None when there is no pronoun or no memory."""
+    if not last:
+        return None
+    words = str(text or "").split()
+    hit = [i for i, w in enumerate(words) if w.lower().strip(".,!?") in _PRONOUNS]
+    if len(hit) != 1:
+        return None
+    words[hit[0]] = last
+    return " ".join(words)
+
+
+def _one(text, room_hint, recognise, rooms, scenes, where):
+    """One sentence → one step, or None. room_hint: (area_id, name) to add when the words name no room."""
+    rec = recognise(text)
+    hit = resolve_platform(rec, text, where, rooms, scenes)
+    if hit:
+        return dict(hit, kind="tool", text=text, phrase=phrase_of(rec))
+    pi = platform_can_take(rec, text, rooms)
+    if pi:
+        return {"kind": "platform", "text": text, "intent": pi, "phrase": phrase_of(rec)}
+    if room_hint and not _room_named(text, rooms) and not (rec and rec.get("match")):
+        cand = "%s in the %s" % (str(text or "").strip().rstrip(".!?"), room_hint[1])
+        rec2 = recognise(cand)
+        if rec2 and rec2.get("match") and "{" in str(rec2.get("sentence_template") or "") and rec2.get("source") == "trigger":
+            return None                   # ProOS's own wildcard (music) is never "completed" — it is its own road
+        w2 = {"area_id": room_hint[0], "area_name": room_hint[1], "confidence": "certain"}
+        hit = resolve_platform(rec2, cand, w2, rooms, scenes)
+        if hit:
+            return dict(hit, kind="tool", text=cand, phrase=phrase_of(rec2))
+        pi = platform_can_take(rec2, cand, rooms)
+        if pi:
+            return {"kind": "platform", "text": cand, "intent": pi, "phrase": phrase_of(rec2)}
+    return None
+
+
+def plan_sentence(text, where, recognise, rooms=(), scenes=(), last=None, first_rec=None):
+    """The ordered steps (§ above) for a sentence the first pass did not take, or None. A step is
+    {kind: tool, tool, args, say, matched, text, phrase} or {kind: platform, text, intent, phrase}.
+    first_rec: the platform's answer for the words as said, already asked — never asked twice."""
+    _seen = {str(text or ""): first_rec} if first_rec is not None else {}
+    _ask = recognise
+
+    def recognise(s_):
+        if s_ not in _seen:
+            _seen[s_] = _ask(s_)
+        return _seen[s_]
+    certain = (where or {}).get("confidence") == "certain" and (where or {}).get("area_id")
+    page = None
+    if certain:
+        page = next(((r[0], r[1]) for r in rooms or () if r[0] == where.get("area_id")), None)
+    # 2 · the words as said, then with the page's room
+    step = _one(text, page, recognise, rooms, scenes, where)
+    if step:
+        return [step]
+    # 4 · a pronoun, with the last thing acted on
+    sub = _with_pronoun(text, last)
+    if sub:
+        step = _one(sub, page, recognise, rooms, scenes, where)
+        if step:
+            return [step]
+    # 3 · compound
+    padded = " " + str(text or "").strip().rstrip(".!?") + " "
+    parts = [padded]
+    for sep in _SPLIT:
+        nxt = []
+        for p in parts:
+            nxt += p.split(sep)
+        parts = nxt
+    parts = [p.strip() for p in parts if p.strip()]
+    if len(parts) < 2:
+        return None
+    hint = _room_named(text, rooms) or page
+    steps, prev = [], last
+    for p in parts:
+        st = _one(p, hint, recognise, rooms, scenes, where)
+        if not st:
+            sub = _with_pronoun(p, prev)
+            st = _one(sub, hint, recognise, rooms, scenes, where) if sub else None
+        if not st:
+            return None                   # certainty or nothing: one part unknown → the whole sentence goes on
+        steps.append(st)
+        prev = st.get("phrase") or prev
+    return steps
+
+
 # ── EVERYTHING ELSE THE PLATFORM UNDERSTOOD: ITS OWN AGENT DOES IT (register 731) ──
 # Dave, 9 Oct 2026 (design, stage A): "everything the installer commissions in Pro
 # automatically becomes an instant voice command, like Josh", and the law: never
