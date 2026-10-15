@@ -129,7 +129,9 @@ def warm_once(client, speakers, now=None):
         if now - _warm_failed.get(eid, 0) < WARM_RETRY_S:
             continue
         try:
-            speaker_services(client, eid, fresh=True)
+            from proos import speakermusic as _spm
+            with _spm.refreshing():          # register 882: the warmer is the one path that re-reads the speaker's accounts
+                speaker_services(client, eid, fresh=True)
             _warm_failed.pop(eid, None)
             done.append(eid)
         except Exception as e:                                   # noqa: BLE001

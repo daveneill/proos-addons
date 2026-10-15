@@ -90,6 +90,13 @@ def household_accounts(household_id, read, now=None):
     kept = _ACCOUNTS.get(household_id) if household_id else None
     if kept and now - kept[1] < ACCOUNTS_FRESH_S:
         return kept[0], "kept from %s" % time.strftime("%H:%M", time.localtime(kept[1]))
+    # REGISTER 882 (read on the box 15 Oct 10:4x from the dashboard: the first search after a quiet spell took 10.8–11.8 s on
+    # every speaker-side service, the next 0.9 s; Apple Music, which never reads the speaker, 0.7 s): the re-read of 828
+    # ran ON THE PERSON'S OWN REQUEST — six searches, six reads, each hanging the library's 10 s when the speaker didn't
+    # answer (745), and the retry 60 s later landed on the next request too. A person's request never reads the speaker
+    # again: it uses what is kept; the warmer (880), in the background, is the one that asks the speaker again.
+    if kept and not getattr(_REFRESH, "on", False):
+        return kept[0], "kept from %s (refreshed in the background)" % time.strftime("%H:%M", time.localtime(kept[1]))
     if kept:
         try:
             accounts = read()
@@ -178,6 +185,18 @@ def _apple(service_id):
 # register 843: whose Apple Music this request is for — the signed-in ProOS person, set by Core around one request
 # (as_person) so the speaker's other services and HEOS are untouched. None = nobody's own (charts and search only).
 _PERSON = threading.local()
+_REFRESH = threading.local()   # register 882: set by the warmer around its reads — the only path that re-reads the speaker's accounts
+
+
+class refreshing:
+    """Around a background re-read (the warmer): the speaker may be asked for its accounts again."""
+    def __enter__(self):
+        _REFRESH.on = True
+        return self
+
+    def __exit__(self, *a):
+        _REFRESH.on = False
+        return False
 
 
 class as_person:
