@@ -27,7 +27,7 @@ import time as _time
 
 
 def run_proof(plan, fire, read, *, now=_time.monotonic, sleep=_time.sleep,
-              timeout_s=45, settle_s=4, poll_s=1.0, progress=None) -> dict:
+              timeout_s=45, settle_s=4, poll_s=1.0, progress=None, launch=None) -> dict:
     """Execute a room proof. Pure given injected fire/read/clock.
 
     plan  -- [{script, alias, kind: watch_source|watch_tv|tv_off,
@@ -37,8 +37,14 @@ def run_proof(plan, fire, read, *, now=_time.monotonic, sleep=_time.sleep,
     """
     # tv_off always runs LAST whatever order the plan arrived in: it is both
     # the off-state test and the guarantee the proof leaves the room off.
-    steps = [s for s in (plan or []) if s.get("kind") != "tv_off"] + \
-            [s for s in (plan or []) if s.get("kind") == "tv_off"]
+    # REGISTER 916 (Dave 17 Oct: "Possibly add the App shortcuts to prove the room" — "yes to the app shortcuts"):
+    # the room's APP SHORTCUTS run after the activities and before Off. A shortcut passes by Dave's own rule for an app
+    # (14 Oct, register 871): the device was woken and took the command without error; what it says it shows is
+    # carried as information, never as the verdict.
+    _plan = plan or []
+    steps = [s for s in _plan if s.get("kind") not in ("tv_off", "shortcut")] + \
+            [s for s in _plan if s.get("kind") == "shortcut"] + \
+            [s for s in _plan if s.get("kind") == "tv_off"]
 
     results = []
     for step in steps:
@@ -48,6 +54,17 @@ def run_proof(plan, fire, read, *, now=_time.monotonic, sleep=_time.sleep,
             except Exception:
                 pass
         started = now()
+        if step.get("kind") == "shortcut":
+            try:
+                res = (launch(step) if launch else {"error": "no launcher"}) or {}
+            except Exception as e:                            # noqa: BLE001
+                res = {"error": str(e)}
+            results.append({"script": step.get("script"), "alias": step.get("alias"),
+                            "kind": "shortcut", "ok": bool(res.get("ok")),
+                            "seconds": round(now() - started, 1),
+                            "final": {"shows": res.get("shows"), "error": res.get("error")}})
+            sleep(settle_s)
+            continue
         try:
             fire(step["script"])
         except Exception as e:                                # noqa: BLE001

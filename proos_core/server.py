@@ -7183,6 +7183,21 @@ class Handler(BaseHTTPRequestHandler):
                 rec = project._resolve_rec(project.load(), room) or {}
                 slug = rec.get("area_id") or room.lower().replace(" ", "_")
                 sensor = "sensor.proos_activity_%s" % slug
+                # REGISTER 916: the room's app shortcuts are proved too — each launched the way the dashboard launches
+                # it (shortcuts.launch: wake, route, send), after the activities and before Off.
+                try:
+                    from proos import shortcuts as _sc_mod
+                    for _sc in (_sc_mod.room(slug) or []):
+                        try:
+                            _tn = ((_client._req("GET", "/api/states/%s" % _sc.get("target")) or {})
+                                   .get("attributes") or {}).get("friendly_name") or _sc.get("target")
+                        except Exception:                # noqa: BLE001
+                            _tn = _sc.get("target")
+                        plan.append({"script": "shortcut:%s@%s" % (_sc.get("app"), _sc.get("target")),
+                                     "alias": "%s on %s" % (_sc.get("name") or _sc.get("app"), _tn),
+                                     "kind": "shortcut", "sc": _sc})
+                except Exception:                        # noqa: BLE001
+                    pass
                 with _proof_lock:
                     cur = _proof_runs.get(room)
                     if cur and cur.get("state") == "running":
@@ -7191,6 +7206,9 @@ class Handler(BaseHTTPRequestHandler):
                     _proof_runs[room] = {"state": "running",
                                          "started": time.time(),
                                          "plan": [p["alias"] for p in plan]}
+
+                def _launch(step):
+                    return _sc_mod.launch(_client, project, slug, step["sc"], power=True)
 
                 def _fire(script_eid):
                     _client._req("POST", "/api/services/script/turn_on",
@@ -7216,7 +7234,7 @@ class Handler(BaseHTTPRequestHandler):
                     try:
                         out = _proof_mod.run_proof(
                             plan, _fire, _read, timeout_s=45, settle_s=6,
-                            poll_s=1.0, progress=_progress)
+                            poll_s=1.0, progress=_progress, launch=_launch)
                         out.update({"state": "done", "room": room,
                                     "finished": time.time()})
                     except Exception as e:               # noqa: BLE001

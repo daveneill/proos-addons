@@ -2842,7 +2842,7 @@ body.v3 .rh-card{border-radius:22px}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026101702';
+const PROOS_BUILD='2026101703';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -10330,7 +10330,7 @@ async function openProve(){
     if(j&&j.state==='running'){ _proveShow(j); _provePoll(_roomHubArea); return; } }catch(e){}
   const name=(typeof _rhName==='function'&&_rhName())||'this room';
   _recOverlay('<div style="font-size:15px;font-weight:600;margin-bottom:6px">Prove the Room</div>'
-    +'<div style="font-size:12px;color:#9aa8b8;margin-bottom:14px">Runs every activity in '+esc(name)+' one after another, checks that each one actually happened, then turns the room off. The equipment will turn on and off for a few minutes.</div>'
+    +'<div style="font-size:12px;color:#9aa8b8;margin-bottom:14px">Runs every activity in '+esc(name)+' one after another, checks that each one actually happened, opens each of the room’s app shortcuts on its device, then turns the room off. The equipment will turn on and off for a few minutes.</div>'
     +'<button class="btn-primary" style="width:100%" onclick="_proveRun()">Run It Now</button>'
     +'<button class="rp-cancel" style="margin-top:8px;width:100%" onclick="_proveClose()">Cancel</button>');
 }
@@ -10362,7 +10362,10 @@ function _proveShow(j){
     const steps=j.steps||[];
     body='<div style="font-size:13px;margin-bottom:10px;color:'+(j.passed===j.total?'#2fbf71':'#e0a33a')+'">'+j.passed+' of '+j.total+' Passed</div>'
       +steps.map(s=>'<div class="row"><div class="rl">'+(s.ok?'✓ ':'✗ ')+esc(s.alias||s.script)+'</div><div class="rr" style="color:#9aa8b8">'
-        +(s.ok?(s.seconds+' s'):('the room read '+esc(((s.final||{}).state)||'nothing')))+'</div></div>').join('');
+        +(s.kind==='shortcut'
+          // 916: an app shortcut passes when its device took the command (Dave's rule, 871); what it shows is information
+          ?(s.ok?(s.seconds+' s'+((s.final||{}).shows?' · shows '+esc(s.final.shows):'')):esc(((s.final||{}).error)||'the device did not take it'))
+          :(s.ok?(s.seconds+' s'):('the room read '+esc(((s.final||{}).state)||'nothing'))))+'</div></div>').join('');
   }
   _recOverlay('<div style="font-size:15px;font-weight:600;margin-bottom:10px">Prove the Room</div>'+body
     +'<button class="rp-cancel" style="margin-top:14px;width:100%" onclick="_proveClose()">'+(j.state==='running'?'Hide':'Close')+'</button>');
@@ -19448,7 +19451,7 @@ function v3RoomDecorate(){
     +row('devices','plug','Devices',n+' device'+(n===1?'':'s')+' — names, aliases, Shows As','', false,"v3Devices('"+esc(_roomHubArea)+"')")
     +row('activities','play','Activities',actNames.length?actNames.join(' · '):(committed?'None yet':needSave),'<span class="v3ct">'+actNames.length+'</span>',true)
     +row('shortcuts','grid','App Shortcuts',sc.length?sc.map(x=>x.name||x.app).join(' · '):'Tested on the device before they\'re added','<span class="v3ct">'+sc.length+'</span>',true)
-    +row('prove','check','Prove the Room','Runs every activity and reads the devices back','',true,committed?'openProve()':"toast('"+needSave+"')")
+    +row('prove','check','Prove the Room','Runs every activity and app shortcut, and reads the devices back','',true,committed?'openProve()':"toast('"+needSave+"')")
     +row('recovery','shield','Device Recovery','What ProOS may power-cycle when a device stops answering','',true,committed?'openRecovery()':"toast('"+needSave+"')")
     +((_systemAreas.has(_roomHubArea)||!v3HomeArea())?row('dashboard','grid','Dashboard','Which icons and widgets the homeowner sees')
       // one bar on every page (register 572): a room has nothing of its own to set, so the row goes where the bar is set
