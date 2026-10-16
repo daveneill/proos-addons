@@ -72,7 +72,9 @@ def saved_order():
 
 
 def save_order(names):
-    """Write the home's service order (names, first = preferred). [] clears it. Atomic."""
+    """Write the home's service order (names, first = preferred). Atomic. [] CLEARS it — the file is removed, so the
+    add-on option (if any) and then streaming-before-radio decide again (register 896b, seen on the box: Clear wrote an
+    empty order, which would have hidden an add-on option set on the box)."""
     clean, seen = [], set()
     for n in names or []:
         n = " ".join(str(n or "").split())
@@ -80,10 +82,16 @@ def save_order(names):
             seen.add(n.lower())
             clean.append(n)
     p = order_path()
-    tmp = p + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump({"order": clean, "at": int(time.time())}, f)
-    os.replace(tmp, p)
+    if not clean:
+        try:
+            os.remove(p)
+        except FileNotFoundError:
+            pass
+    else:
+        tmp = p + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump({"order": clean, "at": int(time.time())}, f)
+        os.replace(tmp, p)
     with _LOCK:
         _kept.clear()                     # a kept search was ordered the old way
     return clean

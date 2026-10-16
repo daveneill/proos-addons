@@ -3928,6 +3928,9 @@ def _music_order_read():
     except Exception:                                            # noqa: BLE001
         pass
     order = saved if saved is not None else [x for x in _msx.preferred_order()]
+    # register 896b (seen on the box 16 Oct): listed in the speaker's own order, the page showed Sonos Radio first while a
+    # spoken "play" would try Spotify first (streaming before radio). The list is the order voice actually uses.
+    have = [x[2] for x in _msx.order_services([(i, None, n) for i, n in enumerate(have)])]
     return {"order": order, "source": "pro" if saved is not None else ("option" if order else None), "services": have}
 
 
