@@ -2842,7 +2842,7 @@ body.v3 .rh-card{border-radius:22px}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026101617';
+const PROOS_BUILD='2026101618';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -4413,7 +4413,7 @@ function renderCertified(){
   const ahTile = ahPublished() ? ''
     : `<div class="itile cert" onclick="openAppleHome()"><div class="itile-ico">${AH_HOME_ICO}</div><div class="itile-foot"><div class="itile-body"><div class="itile-nm">Apple Home<span class="cert-pill">CERTIFIED</span></div><div class="itile-sub">${ahCertSub()}</div></div><div class="itile-act"><span class="itile-chev">&rsaquo;</span></div></div></div>`;
   const unifiTile = unifiActive() ? ''
-    : `<div class="itile cert" onclick="openUnifi()"><div class="itile-ico">${intgLogo('unifiprotect')}</div><div class="itile-foot"><div class="itile-body"><div class="itile-nm">UniFi Protect<span class="cert-pill">CERTIFIED</span></div><div class="itile-sub">Cameras, live, events &amp; clips</div></div><div class="itile-act"><span class="itile-chev">&rsaquo;</span></div></div></div>`;
+    : `<div class="itile cert" onclick="openUnifi()"><div class="itile-ico">${intgLogo('unifiprotect')}</div><div class="itile-foot"><div class="itile-body"><div class="itile-nm">UniFi Protect<span class="cert-pill">CERTIFIED</span></div><div class="itile-sub">${_foundFlow('unifiprotect')?'Found on your network: '+esc(_foundWords(_foundFlow('unifiprotect')))+' — Set Up':'Cameras, live, events &amp; clips'}</div></div><div class="itile-act"><span class="itile-chev">&rsaquo;</span></div></div></div>`;
   // Once a certified integration is actually installed it moves to the Configured
   // grid (with its pill), so drop it from the available-to-add list here — same as
   // Music / UniFi / Apple Home do above.
@@ -6684,6 +6684,17 @@ async function openOptions(deviceId){
 
 // ── owned config flow — set up supported discovered devices in-app ──
 let _flows=[], _flow=null;
+// REGISTER 906 (Dave 16 Oct, UniFi Protect "setup already in progress"): two different questions, two lists.
+// _flows answers "which discovered tiles does THIS login see" (the publish gate, 336). _flowsAll answers "is the
+// platform already setting this up" — every discovery flow it holds, ungated. A ProOS setup page asks the second
+// question; asking the first one is how Protect's page missed the console the platform had found and started a
+// second setup the platform then refused.
+let _flowsAll=[];
+// An integration whose setup ProOS owns on its own page (a PREFLIGHTS entry) shows what the platform found INSIDE its
+// certified tile and page — never as a second, separate Discovered tile.
+function _foldedIntoCert(dom){ return !!(typeof PREFLIGHTS!=='undefined' && PREFLIGHTS[dom]); }
+function _foundFlow(dom){ return (_flowsAll||[]).find(x=>x&&x.handler===dom)||null; }
+function _foundWords(f){ const p=(f&&f.context&&f.context.title_placeholders)||{}; return (p.name||flowName(f))+(p.ip_address?' ('+p.ip_address+')':''); }
 // Config entries HA has flagged for RE-AUTHORIZATION (lost pairing / revoked auth) or
 // reconfiguration. This is the universal "needs attention" signal for ANY integration —
 // HA raises a reauth flow whenever a device's credentials/pairing stop working. Populated
@@ -6827,7 +6838,8 @@ async function loadDiscoveredFlows(){
   // Developer's view. The ONLY filter is the publish gate, and it is for
   // installers: certified (Core's catalog) or published by Tech. Tech/owner
   // see all (unless previewing the installer view).
-  _flows=(list||[]).filter(f=> (!f.context||!f.context.source||DISCOVERY_SOURCES.has(f.context.source)) && _catVisible(f.handler) );
+  _flowsAll=(list||[]).filter(f=> !f.context||!f.context.source||DISCOVERY_SOURCES.has(f.context.source));
+  _flows=_flowsAll.filter(f=> _catVisible(f.handler) && !_foldedIntoCert(f.handler));
   return _flows;
 }
 // IGNORE IS THE PLATFORM'S IGNORE (register 336). Until 336 "Ignore" hid the
@@ -6853,7 +6865,7 @@ function renderDiscoveredFlows(){
   const host=document.getElementById('lib-flows'); if(!host) return;
   const visible=_flows;
   const hidden=_ignoredEntries();
-  const tile=f=>`<div class="itile"><div class="itile-ico">${intgLogo(f.handler)}</div><div class="itile-foot"><div class="itile-body"><div class="itile-nm">${esc(flowName(f))}</div><div class="itile-sub">${esc(integrationName(f.handler))}</div></div><div class="itile-act"><button class="itile-skip" onclick="skipFlow('${f.flow_id}')">Ignore</button><button class="itile-add" onclick="addFlow('${f.flow_id}')">Add</button></div></div></div>`;
+  const tile=f=>`<div class="itile"><div class="itile-ico">${intgLogo(f.handler)}</div><div class="itile-foot"><div class="itile-body"><div class="itile-nm">${esc(flowName(f))}${isCertified(f.handler)?'<span class="cert-pill">CERTIFIED</span>':''}</div><div class="itile-sub">${esc(integrationName(f.handler))}${isCertified(f.handler)?'':' · Platform integration — not ProOS certified'}</div></div><div class="itile-act"><button class="itile-skip" onclick="skipFlow('${f.flow_id}')">Ignore</button><button class="itile-add" onclick="addFlow('${f.flow_id}')">Add</button></div></div></div>`;
   const ignoredTile=e=>`<div class="itile"><div class="itile-ico">${intgLogo(e.domain)}</div><div class="itile-foot"><div class="itile-body"><div class="itile-nm">${esc(e.title||integrationName(e.domain))}</div><div class="itile-sub">${esc(integrationName(e.domain))} · ignored</div></div><div class="itile-act"><button class="itile-skip" onclick="restoreFlow('${esc(e.entry_id)}')">Stop ignoring</button></div></div></div>`;
   let h='';
   if(!visible.length && !hidden.length){ host.innerHTML='<div class="empty"><div class="et">No new devices</div><div class="es">Devices found on the network appear here to add.</div></div>'; try{ ilDiscApply(); }catch(e){} return; }
@@ -6886,7 +6898,7 @@ function openFlowSheet(name, title){
 }
 function closeFlow(){ document.getElementById('flow-sheet').classList.remove('open'); _flow=null; }
 async function addFlow(flowId){
-  const f=_flows.find(x=>x.flow_id===flowId); _flow={flowId, handler:f?f.handler:'', base:'config_entries/flow'};
+  const f=_flows.find(x=>x.flow_id===flowId)||(_flowsAll||[]).find(x=>x.flow_id===flowId); _flow={flowId, handler:f?f.handler:'', base:'config_entries/flow'};
   openFlowSheet(f?flowName(f):'');
   try{ renderFlowStep(await haRest('GET','/api/config/config_entries/flow/'+flowId)); }
   catch(e){ flowMessage("Couldn't start setup here — it may need advanced setup."); }
@@ -7232,6 +7244,7 @@ async function openLibrary(){
   try{ await loadConfigEntries(); }catch(e){}
   try{ await loadDiscoveredFlows(); }catch(e){}
   renderDiscoveredFlows();
+  renderCertified();    // 906: a console the platform found shows inside its certified tile
   renderConfigured();   // reflect any needs-attention now that entries + reauth flows are known
 }
 
@@ -13642,6 +13655,7 @@ async function renderUnifi(){
   try{ const r=await fetch(proCoreUrl()+'/unifi/status'); if(!r.ok) throw new Error('HTTP '+r.status); st=await r.json(); }
   catch(e){ body.innerHTML='<div class="empty"><div class="et">Couldn\'t reach ProOS Core</div><div class="es">Core (:8770) may be unreachable, or the Protect module isn\'t deployed.</div></div>'; return; }
   const native=st.native||{}, priv=st.private||{};
+  if(!priv.entry){ try{ await loadDiscoveredFlows(); }catch(e){} }   // 906: has the platform already found the console?
   const connected = !!(priv.private_ok || native.loaded);
   const configured = !!(priv.configured || native.configured);
   const step=(n,name,cls,pill,bodyHtml,hbtn)=>`<div class="mstep${cls==='locked'?' locked':(cls==='ok'?' done':'')}"><div class="mstep-head"><span class="mstep-num">${n}</span><span class="mstep-name">${name}</span>${hbtn||''}<span class="mstep-pill ${cls==='locked'?'':cls}">${pill}</span></div><div class="mstep-body">${bodyHtml}</div></div>`;
@@ -13680,7 +13694,9 @@ async function renderUnifi(){
     // to an API-key step ProOS never showed. Setup is now THE PLATFORM'S OWN FLOW,
     // drawn in Pro's flow sheet — its fields, its steps, its errors, as it asks them.
     // 695: ProOS keeps no copy of the login — events and clips are the platform's own media.
-    s1+=`<div class="wiz-hint" style="margin-bottom:12px">Nothing is set up yet. Setup asks for the console’s address, its API key and a local UniFi user, and says exactly what it needs if anything is wrong.</div>`;
+    const _ff=_foundFlow('unifiprotect');
+    s1+=_ff?`<div class="wiz-hint" style="margin-bottom:12px">Found on your network: <b>${esc(_foundWords(_ff))}</b>. Setup carries on from there — choose Full (a local UniFi user) or API key.</div>`
+      :`<div class="wiz-hint" style="margin-bottom:12px">Nothing is set up yet. Setup asks for the console’s address, its API key and a local UniFi user, and says exactly what it needs if anything is wrong.</div>`;
     s1+=`<button class="btn-primary" onclick="unifiProtectSetup()">Set Up UniFi Protect</button>`;
   }
   html+=step(1,'The console', connected?'ok':'', connected?'Connected':(priv.entry?'Set up — not answering':'Not set up'), s1);
@@ -13805,7 +13821,7 @@ async function unifiRemove(){
 // address); otherwise it starts the platform's own setup.
 async function unifiProtectSetup(){
   try{ await loadDiscoveredFlows(); }catch(e){}
-  const f=(_flows||[]).find(x=>x&&x.handler==='unifiprotect'&&!(x.context&&(x.context.source==='reauth'||x.context.source==='reconfigure')));
+  const f=(_flowsAll||[]).find(x=>x&&x.handler==='unifiprotect'&&!(x.context&&(x.context.source==='reauth'||x.context.source==='reconfigure')));
   if(f){ try{ await closeAddIntegration(); }catch(e){} return addFlow(f.flow_id); }
   return _beginFlow('unifiprotect');
 }

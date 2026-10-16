@@ -1,6 +1,6 @@
 {
-  "version": 2,
-  "updated": "2026-08-03",
+  "version": 3,
+  "updated": "2026-10-16",
   "notes": "ProOS master integration catalog. Protech-owned source of truth for which HA integrations installers may use and how they're supported. Synced down to every ProCore. Edit here, commit, and each site picks it up on next sync. Tiers: 'certified' (Protech add-on with awareness/monitoring layer), 'native' (stock HA integration, usable but NOT maintained by Protech), 'hidden' (not shown to installers). v2 (3 Aug 2026): every domain running on the bench box is now classified — platform plumbing is 'hidden' with a ships-standard note so Pro can tell shipped-standard from foreign.",
   "defaults": {
     "custom_component_hint": "certified",
@@ -16,7 +16,7 @@
     "heos": {"tier": "native", "label": "Denon HEOS", "notes": "Native HA integration. Not maintained by Protech."},
     "denonavr": {"tier": "native", "label": "Denon AVR", "notes": "Native HA integration. Not maintained by Protech."},
     "sonos": {"tier": "native", "label": "Sonos", "notes": "Native HA integration. Not maintained by Protech."},
-    "unifiprotect": {"tier": "native", "label": "UniFi Protect", "notes": "Native HA integration. Not maintained by Protech."},
+    "unifiprotect": {"tier": "certified", "label": "UniFi Protect", "addon": null, "monitoring": true, "notes": "ProOS build (v3, 16 Oct 2026, register 906): Core owns setup (its own page finishes the platform's discovered setup), events, thumbnails, clips and camera choices, on the platform's Protect connection. Part of the UniFi suite (Network, Protect; Access to follow)."},
     "cast": {"tier": "native", "label": "Google Cast", "notes": "Native HA integration. Not maintained by Protech."},
     "androidtv_remote": {"tier": "native", "label": "Android TV Remote", "notes": "Native HA integration. Not maintained by Protech."},
     "shelly": {"tier": "native", "label": "Shelly", "notes": "Native HA integration. Not maintained by Protech."},
