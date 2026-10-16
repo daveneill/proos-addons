@@ -1192,6 +1192,12 @@ def _one_answer(rep, home_only=False):
     # a calm watcher with open incidents is "1 Thing Needs Attention" / "N Things Need Attention", the watcher's own
     # words kept as `watcher_headline`. A device fault the watcher reads still leads in its own words.
     hero = dict(rep.get("hero") or {})
+    # REGISTER 914 (Dave 17 Oct: "card advises … need attention but then you click on it and everything reads normal"):
+    # the hero NAMES what it counts — each open incident's own title — so the card can say them and Pro can send the
+    # tap to the page that lists them. Empty when nothing is open; absent when the incident list could not be read.
+    if hero and incs is not None:
+        hero["things"] = [str(i.get("title")) for i in incs if isinstance(i, dict) and i.get("title")]
+        rep["hero"] = hero
     if incs and hero and hero.get("tone") in ("calm", None):
         hero["watcher_headline"] = hero.get("headline")
         hero["headline"] = ("1 Thing Needs Attention" if len(incs) == 1

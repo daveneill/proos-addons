@@ -1873,7 +1873,7 @@ body.v3 .rh-card{border-radius:22px}
   <div class="scroll">
     <!-- HOME -->
     <div class="panel active" id="panel-home">
-      <div class="aw-hero calm" id="aw-hero" onclick="openAwarenessScreen()" style="display:none">
+      <div class="aw-hero calm" id="aw-hero" onclick="v3AwCardOpen()" style="display:none">
         <div class="awh-orb"><span class="awh-ring"></span><span class="awh-core"></span></div>
         <div class="awh-mid">
           <div class="awh-lab">ProOS Awareness</div>
@@ -2842,7 +2842,7 @@ body.v3 .rh-card{border-radius:22px}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026101620';
+const PROOS_BUILD='2026101701';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -3445,13 +3445,17 @@ function _updateAwarenessHero(d){
   el.className='aw-hero '+t[0]; el.style.setProperty('--awc', t[1]);
   const S=(id,txt)=>{ const n=document.getElementById(id); if(n) n.textContent=txt; };
   S('awh-state', h.headline);
-  S('awh-sub', h.sub||'');
+  // REGISTER 914 (Dave 17 Oct: "card advises … need attention but then you click on it and everything reads normal"):
+  // when the headline counts things, the line under it NAMES them — Core's own incident titles — and the numbers on
+  // the right say they are DEVICES, a different count.
+  const _things=Array.isArray(h.things)?h.things.filter(Boolean):[];
+  S('awh-sub', _things.length?_things.join(' · '):(h.sub||''));
   const pin=document.getElementById('awh-pin');
   if(h.pin&&h.pin.text){ if(pin)pin.style.display=''; S('awh-pic', h.pin.kind==='restoring'?'⟳':'✓'); S('awh-ptxt', h.pin.text); S('awh-pago', h.pin.since?awAgo(h.pin.since):'now'); }
   else { if(pin)pin.style.display='none'; }
   const stats=document.getElementById('awh-stats');
   const TC={good:'#5FB98C',alert:'#E0564B',dim:'var(--t2)'};
-  if(stats) stats.innerHTML=(Array.isArray(h.stats)?h.stats:[]).map(s=>
+  if(stats) stats.innerHTML=((Array.isArray(h.stats)&&h.stats.length)?'<div class="awh-sl" style="align-self:center;margin-right:4px">Devices</div>':'')+(Array.isArray(h.stats)?h.stats:[]).map(s=>
      '<div class="awh-st"><div class="awh-sn" style="color:'+(TC[s.tone]||TC.dim)+'">'+(Number(s.n)||0)+'</div><div class="awh-sl">'+esc(String(s.label||''))+'</div></div>').join('');
   el.style.display='';
 }
@@ -3645,7 +3649,7 @@ function awPhysLine(it){
 function _awLiveRow(it){
   const c=awColor(it), kind=(it.kind?esc(it.kind):'')+awSigLabel(it);
   const since = (it.status==='ok'&&it.last_event!=='resolved') ? 'stable '+awAgo(it.since) : (it.status==='fault'?'since '+awAgo(it.since):awAgo(it.since));
-  return '<div class="awl-row" data-n="'+esc(it.name||'')+'" onclick="_awLiveTap(this.dataset.n)" style="--c:'+c+'"><div class="awl-ic">'+_awTypeIcon(it.kind)+'<span class="awl-dot"></span></div>'
+  return '<div class="awl-row" data-n="'+esc(it.name||'')+'" data-e="'+esc(it.entity||'')+'" onclick="_awLiveTap(this.dataset.n,this.dataset.e)" style="--c:'+c+'"><div class="awl-ic">'+_awTypeIcon(it.kind)+'<span class="awl-dot"></span></div>'
     +'<div class="awl-mid"><div class="awl-nm">'+esc(it.name||'')+'</div>'+(kind?'<div class="awl-kind">'+kind+'</div>':'')
       +(awPhysLine(it)?'<div class="awl-phys">'+awPhysLine(it)+'</div>':'')+'</div>'
     +'<div class="awl-state"><div class="awl-st">'+esc(awStateLabel(it))+'</div><div class="awl-since">'+esc(since)+'</div></div><div class="awl-chev">›</div></div>';
@@ -19665,7 +19669,10 @@ async function v3Diag(k){
     setHTML(body,card('Health Sweep','Every check ProOS Core runs on the house, and its own answer to each','<div class="v3sec"><div id="hlt-sweep"></div><div id="v3sw-items"></div></div>'));
     await renderSweepCard(); v3SweepItems();
   } else if(_v3diag==='awareness'){
-    setHTML(body,card('Awareness','Every device ProOS watches, and what it last said','<div class="v3seg"><button id="v3aw-l" class="on" onclick="v3AwSeg(\'live\')">Live</button><button id="v3aw-a" onclick="v3AwSeg(\'activity\')">Activity</button></div><div class="v3sec" id="v3aw-body"></div>'));
+    // 914: this page lists DEVICES; it never reads as all-normal while the card counts open things — it says so first.
+    const _th=(_awLast&&_awLast.hero&&Array.isArray(_awLast.hero.things))?_awLast.hero.things.filter(Boolean):[];
+    const _thLine=_th.length?'<div class="v3row" onclick="v3Diag(\'incidents\')" style="cursor:pointer"><div class="rt"><div class="t1">'+_th.length+(_th.length===1?' thing needs':' things need')+' attention</div><div class="t2">'+esc(_th.join(' · '))+'</div></div><div class="rr"><span class="v3chip amber">See Incidents</span></div></div>':'';
+    setHTML(body,card('Awareness','Every device ProOS watches, and what it last said — tap one for its page',_thLine+'<div class="v3seg"><button id="v3aw-l" class="on" onclick="v3AwSeg(\'live\')">Live</button><button id="v3aw-a" onclick="v3AwSeg(\'activity\')">Activity</button></div><div class="v3sec" id="v3aw-body"></div>'));
     v3AwSeg('live');
     _v3awT=setInterval(()=>{ if(_v2panel==='v3diag'&&_v3diag==='awareness'&&!document.hidden&&window._v3awSeg==='live'){ const b=document.getElementById('v3aw-body'); if(b) setHTML(b,_awRenderLive()); } },5000);
   } else if(_v3diag==='incidents'){
@@ -19694,6 +19701,25 @@ function v3AwSeg(k){
   if(k==='live') setHTML(b,_awRenderLive());
   else { setHTML(b,'<div class="v3empty">Loading history…</div>'); awLoadAudit().then(()=>{ if(window._v3awSeg==='activity') setHTML(b,_awRenderActivity()); }); }
 }
+// REGISTER 914 (Dave 17 Oct: the awareness card "advises … need attention but then you click on it and everything reads
+// normal"; "the awareness page does nothing when you press on a device it should take you to the device page if
+// normal or not"). ONE ROUTE: the card goes where its headline points — Diagnostics › Incidents when it counts open
+// things, Diagnostics › Awareness when it is calm. The old full-screen overlay is no longer a destination (it was a
+// second door to Diagnostics › Awareness — the doubling ruled out 16 Oct); every caller of it lands here.
+function v3AwCardOpen(){
+  const h=_awLast&&_awLast.hero;
+  const n=(h&&Array.isArray(h.things))?h.things.filter(Boolean).length:0;
+  _v2sec='diagnostics';
+  v3Diag(n?'incidents':'awareness');
+}
+openAwarenessScreen=function(){ v3AwCardOpen(); };
+// A watched device opens ITS page, normal or not — the device's own page, from the platform's device behind the entity
+// Core watches. Back returns to Diagnostics (openDeviceManage remembers where it came from).
+_awLiveTap=function(name,entity){
+  const ent=(_ents||[]).find(x=>x&&x.entity_id===entity);
+  if(ent&&ent.device_id){ openDeviceManage(ent.device_id); return; }
+  toast((name||'This device')+' has no device page — it is not a device on the platform');
+};
 function v3SweepItems(){
   const host=document.getElementById('v3sw-items'); const j=_swLast||{}; if(!host) return;
   const items=(j.items||[]).slice().sort((a,b)=>({problem:0,unknown:1,confirmed:2}[a.answer]-{problem:0,unknown:1,confirmed:2}[b.answer]));
