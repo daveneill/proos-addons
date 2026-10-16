@@ -1699,6 +1699,10 @@ body.railmin #app.v3 .v2item.v2collapse svg{transform:rotate(180deg)}
 #app.v3 .v2crumb .sep{margin:0 10px;opacity:.4}
 #app.v3 .v2back{width:40px;height:40px;padding:0;justify-content:center;border-radius:50%;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.075)}
 #app.v3 .v2back span{display:none}
+/* 917: on a sub-page the back button names where it goes */
+#app.v3 .v2back.lab{width:auto;padding:0 16px 0 10px;border-radius:20px;gap:6px}
+#app.v3 .v2back.lab span{display:inline;font-size:14px;font-weight:500;color:#fff;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#app.v3 .v3crumb-sec{cursor:pointer}
 #app.v3 .who-avw{order:9}
 /* section list */
 .v3side{position:fixed;z-index:50;display:none;flex-direction:column;left:calc(var(--v3r) + 2*var(--v3g));width:var(--v3s);top:86px;bottom:92px;
@@ -2842,7 +2846,7 @@ body.v3 .rh-card{border-radius:22px}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026101703';
+const PROOS_BUILD='2026101704';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -10361,10 +10365,13 @@ function _proveShow(j){
   }else{
     const steps=j.steps||[];
     body='<div style="font-size:13px;margin-bottom:10px;color:'+(j.passed===j.total?'#2fbf71':'#e0a33a')+'">'+j.passed+' of '+j.total+' Passed</div>'
-      +steps.map(s=>'<div class="row"><div class="rl">'+(s.ok?'✓ ':'✗ ')+esc(s.alias||s.script)+'</div><div class="rr" style="color:#9aa8b8">'
+      // 917 (Dave 17 Oct: "might need to allow second line if required as the channels on family room looks like it runs
+      // out of space"): the step's name wraps onto a second line; the time stays whole at the right, what a shortcut
+      // shows on a line of its own under it.
+      +steps.map(s=>'<div class="row" style="align-items:flex-start;gap:12px"><div class="rl" style="white-space:normal;min-width:0;flex:1;line-height:1.35">'+(s.ok?'✓ ':'✗ ')+esc(s.alias||s.script)+'</div><div class="rr" style="color:#9aa8b8;flex-shrink:0;text-align:right;white-space:normal;max-width:45%;line-height:1.35">'
         +(s.kind==='shortcut'
           // 916: an app shortcut passes when its device took the command (Dave's rule, 871); what it shows is information
-          ?(s.ok?(s.seconds+' s'+((s.final||{}).shows?' · shows '+esc(s.final.shows):'')):esc(((s.final||{}).error)||'the device did not take it'))
+          ?(s.ok?(s.seconds+' s'+((s.final||{}).shows?'<br>shows '+esc(s.final.shows):'')):esc(((s.final||{}).error)||'the device did not take it'))
           :(s.ok?(s.seconds+' s'):('the room read '+esc(((s.final||{}).state)||'nothing'))))+'</div></div>').join('');
   }
   _recOverlay('<div style="font-size:15px;font-weight:600;margin-bottom:10px">Prove the Room</div>'+body
@@ -19244,7 +19251,8 @@ function v3Title(panel,sec){
   const secLabel=(V2SECTIONS.find(s=>s[0]===sec)||['',''])[1];
   let page=(_V3SECROOT[sec]===panel)?'':v3PageName(panel);
   if(page===secLabel) page='';
-  setHTML(crumb,'<b>'+esc(secLabel)+'</b>'+(page?'<span class="sep">›</span>'+esc(page):''));
+  // 917: on a sub-page the section's name is a way back to the section
+  setHTML(crumb,(page?'<b class="v3crumb-sec" onclick="v2go(\''+esc(sec)+'\')" title="Back to '+esc(secLabel)+'">':'<b>')+esc(secLabel)+'</b>'+(page?'<span class="sep">›</span>'+esc(page):''));
 }
 // ── the list beside each section ──────────────────────────────────────────
 function _v3item(key,on,lead,name,right,act,cls){
@@ -19481,7 +19489,23 @@ v2Back=function(){
   return _v3backOrig.apply(this,arguments);
 };
 const _v3bsOrig=v2BackSync;
-v2BackSync=function(){ _v3bsOrig(); const b=document.getElementById('v2back'); if(b&&_v2panel==='room'&&_v3roomView!=='overview') b.hidden=false; };
+v2BackSync=function(){ _v3bsOrig(); const b=document.getElementById('v2back'); if(b&&_v2panel==='room'&&_v3roomView!=='overview') b.hidden=false;
+  // REGISTER 917 (Dave 17 Oct: the back button "makes sense for the main pages but when in the sub pages its not
+  // obvious"): on a sub-page it SAYS where it goes — "‹ Samsung TV", "‹ Living Room" — the same button, same place.
+  if(b){ const lab=b.hidden?'':v3BackLabel(); const sp=b.querySelector('span'); if(sp) sp.textContent=lab||'Back';
+    b.classList.toggle('lab', !!lab); b.setAttribute('aria-label', lab?('Back to '+lab):'Back'); } };
+// Where Back will land, in the words its page uses — worked out by the same rules v2Back follows, in the same order.
+function v3BackLabel(){
+  try{
+    if(_v2panel==='room' && _v3roomView!=='overview') return (typeof _rhName==='function'&&_rhName())||'';
+    if(typeof _v2InPageBack==='function' && _v2InPageBack()) return '';      // a step inside a page — plain Back
+    if(_v2panel==='device') return v3PageName(_devFrom||'integration')||'';
+    for(let i=_v2hist.length-1;i>=0;i--){ const p=_v2hist[i]; if(p && p!==_v2panel){
+      const n=v3PageName(p); if(n) return n;
+      const sec=v3SecOf(p); const s=(V2SECTIONS.find(x=>x[0]===sec)||['',''])[1]; return s||''; } }
+  }catch(e){}
+  return '';
+}
 // ── DEVICES (DV-01 … DV-03): everything the house has, by integration, unplaced, by room ──
 function v3EnsurePanel(id){
   let p=document.getElementById('panel-'+id);
