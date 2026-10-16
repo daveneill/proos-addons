@@ -2842,7 +2842,7 @@ body.v3 .rh-card{border-radius:22px}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026101618';
+const PROOS_BUILD='2026101619';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -9487,6 +9487,12 @@ function avOfferableRoles(rec,e,o){
   const inS=(c.sources||[]).indexOf(e)>=0;
   const audioOnly=(o.dc==='speaker')||(o.integration==='apple_tv'&&!o.hasRemote);
   const display=!audioOnly&&(inD||(o.dc==='tv'&&!inS));
+  // A RECEIVER IS NEVER A SOURCE (register 910, Dave 16 Oct, Living Room Marantz: "so what your saying is a reciever
+  // should never have a source as an option" — "Yes"). In a TV room a receiver is the box the sources plug into (AV
+  // switch) or the TV's sound (TV-audio); its own HEOS/tuner is its Speaker role. Source is the one role that demands a
+  // TV input, and a receiver never has one — offering it is how the Living Room could not be saved. The platform says
+  // what the device is (device_class "receiver"); brand never decides.
+  const receiver=(o.dc==='receiver');
   return {
     display:display,
     // A device committed as the room's AV SWITCH is never a watchable source —
@@ -9494,7 +9500,7 @@ function avOfferableRoles(rec,e,o){
     // 5 Aug). Switch and Source are mutually exclusive; don't offer both. An
     // already-committed Source still shows (roles filter keeps committed) so a
     // past mistake can be undone.
-    source:!audioOnly && !(rec&&rec.avswitch&&rec.avswitch.entity===e),
+    source:!audioOnly && !receiver && !(rec&&rec.avswitch&&rec.avswitch.entity===e),
     tvaudio:true,
     speaker:true,
     // A switch needs selectable inputs AND must not be an audio endpoint, a
@@ -9577,7 +9583,10 @@ function rhSeedRoles(rec,members){
     const m=(rec.meta&&rec.meta[e])||{};
     const st=(_states||[]).find(x=>x.entity_id===e);
     const dc=(st&&st.attributes&&st.attributes.device_class)||m.device_class||'';
-    return dc==='speaker' || (m.integration==='apple_tv' && !_hasPairedRemote(e));
+    // 910: a receiver, and anything Core's own scan filed as AUDIO, starts as audio — never as a source that would
+    // demand a TV input (the Living Room Marantz was seeded a Source although Core's candidates said audio).
+    return dc==='speaker' || dc==='receiver' || (c.audio||[]).indexOf(e)>=0
+      || (m.integration==='apple_tv' && !_hasPairedRemote(e));
   };
   const taken=()=>_rhMemberSet(rec);
   if(!rec.display){
