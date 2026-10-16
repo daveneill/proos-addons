@@ -4148,6 +4148,8 @@ class ToolRunner:
                     "service": "favourites", "proof": {"state": "taken", "checked_after": True},
                     "verify": {"kind": "play", "entity": o["data"].get("entity_id"), "name": o["title"]},
                     "say": ("%s, %s." % (room, o["title"])) if room else ("Playing %s." % o["title"])}
+        if o.get("platform"):
+            return self._platform_play(area, o["eid"], o["cand"], "chosen", o.get("asked") or o["title"])
         return self._play_pick(area, o["eid"], o["mod"], o["sp"], o["sid"], o["acct"], o["service"], o["tz"], o["cand"],
                                o["title"], "chosen", o.get("asked") or o["title"], {})
 
@@ -4275,6 +4277,89 @@ class ToolRunner:
                                                                            res.get("ms") or 0), flush=True)
         return {"error": _ms.nothing_found(res, words)}
 
+    def _room_audio_speakers(self, area):
+        """The commissioned room's own audio (its record's `audio`), media players only — the installer's answer to
+        "which speaker is this room's"."""
+        aid = self._resolve_area_id(area)
+        try:
+            areas = (self.project.load() or {}).get("areas") or {}
+        except Exception:  # noqa: BLE001
+            return []
+        rec = areas.get(aid) or next((r for r in areas.values() if (r or {}).get("area_id") == aid), None) or {}
+        if not rec.get("committed"):
+            return []
+        return [e for e in (rec.get("audio") or []) if isinstance(e, str) and e.startswith("media_player.")]
+
+    def _play_by_platform_search(self, area, asked):
+        """STAGE 6 (register 896): music by name on a speaker brand ProOS has no road of its own for — the platform's
+        own media_player.search_media on the room's commissioned speaker, chosen by the SAME rules as every other road
+        (musicsearch.rank), played with the platform's play_media. Returns None when no room speaker can search (the
+        next rung, or the honest answer, follows); {"unsupported": [names]} rides back so that answer can say which."""
+        from proos import musicsearch as _ms, platformsearch as _ps
+        spk = self._room_audio_speakers(area)
+        if not spk:
+            return None
+        try:
+            names = {s.get("entity_id"): (s.get("attributes") or {}).get("friendly_name")
+                     for s in (self.client._req("GET", "/api/states") or []) if s.get("entity_id") in spk}
+        except Exception:  # noqa: BLE001
+            names = {}
+        unsupported, failed, results = [], [], []
+        for eid in spk:
+            label = names.get(eid) or eid
+            res, why = _ps.search(self.client, eid, asked, label=label)
+            if why == _ps.UNSUPPORTED:
+                unsupported.append(label)
+            elif why:
+                failed.append("%s (%s)" % (label, why))
+            else:
+                results.append((eid, res))
+        if not results:
+            if failed:
+                return {"error": "the %s speaker didn't answer a search: %s" % (self._room_name(area) or "room", "; ".join(failed))}
+            self._platform_unsupported = unsupported
+            return None
+        fav_names = self._favourite_names(area)
+        for eid, res in results:
+            how, cards = _ms.rank(res, asked, fav_names)
+            if how == "exact":
+                if len(cards) > 1:
+                    return self._ask_which(area, [{"kind": c["kind"], "title": c["title"], "cand": c, "eid": eid,
+                                                   "platform": True, "asked": asked} for c in cards])
+                return self._platform_play(area, eid, cards[0], "platform search, exact", asked)
+        for eid, res in results:
+            how, cards = _ms.rank(res, asked, fav_names)
+            if how == "partial" and cards:
+                return self._platform_play(area, eid, cards[0], "platform search, carries the name", asked)
+        tried = [r["services"][0]["name"] for _e, r in results]
+        print("  [assist] music: %r → nothing on %s (platform search)" % (asked, ", ".join(tried)), flush=True)
+        return {"error": "nothing found for %s on %s" % (asked, " or ".join(tried))}
+
+    def _platform_play(self, area, eid, card, how, asked):
+        from proos import platformsearch as _ps
+        if self._music_busy(eid):
+            return {"error": "the last play for that room is still starting — I won't send another on top of it"}
+        try:
+            before = self.client._req("GET", "/api/states/%s" % eid) or {}
+        except Exception:  # noqa: BLE001
+            before = None
+        t0 = time.time()
+        try:
+            _ps.play(self.client, eid, card)
+        except Exception as e:  # noqa: BLE001
+            return {"error": "the speaker refused %s: %s" % (card["title"], str(e)[:120]), "picked": card["title"]}
+        self._audit("music_play", area=area, entity=eid, uri=card["id"], mode="replace", asked=asked, searched=asked,
+                    picked=card["title"], kind=card.get("kind"), chosen_by=how, service="platform search")
+        room = self._room_name(area)
+        print("  [assist] music: %r → %r (%s, %s) TAKEN — platform search on %s" % (asked, card["title"], card.get("kind"),
+                                                                                 how, eid), flush=True)
+        self._verify_play_later(eid, room, card["title"], before, kind=card.get("kind"))
+        return {"ok": True, "playing_on": eid, "picked": card["title"], "kind": card.get("kind"), "chosen_by": how,
+                "service": "platform search",
+                "proof": {"state": "taken", "seconds": round(time.time() - t0, 1), "checked_after": True},
+                "verify": {"kind": "play", "entity": eid, "name": card["title"]},
+                "say": ("%s, %s." % (room, card["title"])) if room else ("Playing %s." % card["title"])}
+
     def _verify_play_later(self, eid, room, title, before=None, kind=None):
         """The check after the reply (856): the speaker's own state, a correction to the dashboards if it never played
         (869: playing something other than it was, when `before` is known; 881: for an artist or a track, playing THAT)."""
@@ -4314,6 +4399,15 @@ class ToolRunner:
         if not eid:
             if self._room_sonos_speaker(area):
                 return {"error": "the %s speaker didn't answer" % (self._room_name(area) or "room")}
+            # STAGE 6 (register 896): any other brand — the platform's own search on the room's commissioned speaker
+            self._platform_unsupported = []
+            out = self._play_by_platform_search(area, asked)
+            if out is not None:
+                return out
+            if self._platform_unsupported:
+                return {"error": "the %s speaker (%s) can't search music by name — its integration doesn't offer search. "
+                                 "Ask for one of its favourites, or add ProOS Music in Pro"
+                                 % (self._room_name(area) or "room", ", ".join(self._platform_unsupported))}
             return {"error": "no music speaker in that room — commission one in Pro first"}
         if self._music_busy(eid):
             return {"error": "the last play for that room is still starting — I won't send another on top of it",

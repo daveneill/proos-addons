@@ -2127,6 +2127,9 @@ body.v3 .rh-card{border-radius:22px}
              one-off: title, what it does, and a live status line filled from
              its own source of truth. -->
         <div id="music-tiles" style="display:none;margin-top:18px"></div>
+        <!-- Stage 6 (register 896): what voice does with music is not ProOS Music's — a Sonos or HEOS home without the
+             engine still needs its service order — so this group shows whether or not ProOS Music is added. -->
+        <div id="music-voice-tiles" style="margin-top:18px"></div>
 
         <div id="music-mirror"></div>
 
@@ -2841,7 +2844,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026101608';
+const PROOS_BUILD='2026101612';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -3398,14 +3401,11 @@ function _awRefreshLiveIfOpen(){
     body.innerHTML=_awRenderLive(); _awScreenHead(); return true;
   }catch(e){ return false; }
 }
-if(!window._proosBus){ setTimeout(function(){
-  try{
-    const tok=localStorage.getItem('proos_pro_token')||'';
-    const es=new EventSource(proCoreUrl()+'/events/stream'+(tok?('?token='+encodeURIComponent(tok)):''));
-    es.onmessage=function(ev){ try{ _proosBusHandle(JSON.parse(ev.data)); }catch(e){} };
-    window._proosBus=es;
-  }catch(e){}
-}, 2500); }
+// ONE STREAM PER PAGE (16 Oct 2026, register 895). This used to open a SECOND EventSource on the same bus. A browser
+// opens at most six connections to one address, and every Pro page held two permanent streams — three Pro tabs on
+// one computer filled all six, every other call to Core waited forever, and Pro said "Reconnecting to Your Home"
+// with Core healthy (closing one page's two streams made /health answer in 44 ms). The bus's messages now arrive
+// on the page's one stream (v2Stream) and are handed to _proosBusHandle there.
 function stopWatchPoll(){ clearInterval(_watchTimer); _watchTimer=null; clearInterval(_awTick); _awTick=null; }
 async function loadWatchers(){
   const block=document.getElementById('sa-block'); if(!block) return;
@@ -14203,7 +14203,7 @@ async function toggleTechAccess(next){
 }
 
 // ── Music: headless link + room-speaker curation (allowlist in ProOS) ──
-function openMusic(){ show('music'); musicSectionBack(); loadMusicStatus();
+function openMusic(){ show('music'); musicSectionBack(); loadMusicStatus(); renderMusicVoiceTiles();
   // The mirror needs the entry list and the registries; the panel may be opened
   // before anything has read them, so refresh and paint again when they land.
   try{ loadConfigEntries().then(()=>{ if(panelActive('music')) certMirror('music-mirror','music_assistant',{label:true,name:'Devices &amp; entities'}); }).catch(()=>{}); }catch(e){} }
@@ -14222,16 +14222,18 @@ const MUSIC_SECTIONS=[
   {k:'plugin',   n:'Extensions',        s:'Party mode and integrations',     hint:'Optional extras the engine can run, such as party mode.'},
   {k:'genres',   n:'Genres',            s:'Genre library and mapping scan',  hint:'The genre list residents browse. Genres stay empty until the mapping scan has run at least once — it reads every item in the library and files it under its genres.'},
   {k:'accounts', n:'Accounts',          s:'Engine logins and their roles',   hint:'Logins the music engine itself holds. An admin here can reconfigure the music engine, so keep it to the accounts that need it. ProOS creates and maintains its own pairing account automatically — leave that one as admin.'},
-  {k:'about',    n:'About',             s:'Version and connection',          hint:'What the music engine reports about itself.'}
+  {k:'about',    n:'About',             s:'Version and connection',          hint:'What the music engine reports about itself.'},
+  // STAGE 6 (register 896): before this the order could only be set in the add-on's options, which Pro had no field for (885)
+  {k:'order',    n:'Service Order',     s:'Which service “play …” tries first', hint:'When someone asks for music by name, the services are searched in this order and the first one that has it plays. Unlisted services follow, streaming before radio — unless the words ask for radio or a station.'}
 ];
 const _MUSIC_PROV_TYPES={player:1,metadata:1,audio_analysis:1,plugin:1};
 let _genres=[];   // the engine's genre library, cached for the curator views
 let _genrePicks=null;  // genres shown to residents (null = never curated → all)
 // Rendered with the Systems board's own card, in its own groups, so the two
 // pages are the same object at two depths — not a lookalike.
-function renderMusicTiles(){
-  const host=document.getElementById('music-tiles'); if(!host) return;
-  const groups=[['Library',['services','speakers','genres']],
+function renderMusicTiles(hostId, only){
+  const host=document.getElementById(hostId||'music-tiles'); if(!host) return;
+  const groups=only||[['Library',['services','speakers','genres']],
                 ['Hardware',['player']],
                 ['Presentation',['metadata','audio_analysis','plugin']],
                 ['System',['accounts','about']]];
@@ -14243,7 +14245,7 @@ function renderMusicTiles(){
           +'<div class="sys-bd"><div class="t">'+esc(s.n)+'</div><div class="d">'+esc(s.s)+'</div>'
           +'<div class="s" id="mtile-st-'+s.k+'">…</div></div></div>'; }).join('')
     +'</div></div>').join('');
-  musicTileStatus();
+  if(!only) musicTileStatus();
 }
 // Every tile's status line is READ from the engine — never assumed, and never
 // a bare zero where "none chosen yet" is the honest answer.
@@ -14273,6 +14275,45 @@ function musicTileStatus(){
                                      : '<span class="bad">scan never run</span>');
   }).catch(()=>_mtSt('genres',''));
 }
+// The Voice group (stage 6, register 896): the same Systems-board tile, drawn whatever ProOS Music's state.
+function renderMusicVoiceTiles(){
+  renderMusicTiles('music-voice-tiles',[['Voice',['order']]]);     // the same tiles, one drawer
+  fetch(proCoreUrl()+'/music/order').then(r=>r.json()).then(o=>{
+    const ord=(o&&o.order)||[];
+    _mtSt('order', ord.length? ('First: '+esc(ord[0])+(o.source==='option'?' · from the add-on options':'')) : 'Streaming before radio');
+  }).catch(()=>_mtSt('order',''));
+}
+// ── Service Order (stage 6, register 896): Core's /music/order — the list is the services the home's speakers report,
+// never a list typed into the page. Up/down moves one; Save writes it; Clear goes back to streaming before radio.
+let _svcOrder=[];
+function renderServiceOrder(){
+  const host=document.getElementById('sec-generic'); if(!host) return;
+  host.innerHTML='<div class="es" style="color:var(--t3)">Loading…</div>';
+  fetch(proCoreUrl()+'/music/order').then(r=>r.json()).then(o=>{
+    const ord=(o&&o.order)||[], have=(o&&o.services)||[];
+    _svcOrder=ord.concat(have.filter(n=>!ord.some(x=>x.toLowerCase()===String(n).toLowerCase())));
+    _paintServiceOrder(o&&o.source);
+  }).catch(()=>{ host.innerHTML='<div class="empty"><div class="et">Couldn’t Reach ProOS Core</div></div>'; });
+}
+function _paintServiceOrder(source){
+  const host=document.getElementById('sec-generic'); if(!host) return;
+  if(!_svcOrder.length){ host.innerHTML='<div class="empty"><div class="et">No Services Found</div><div class="es">None of this home’s speakers reported a music service. Add one on the speaker, then come back.</div></div>'; return; }
+  host.innerHTML=_svcOrder.map((n,i)=>'<div class="row"><div class="rl">'+(i+1)+'. '+esc(n)+'</div><div class="rr" style="display:flex;gap:8px">'
+      +'<button class="mlink" '+(i?'':'disabled ')+'onclick="moveServiceOrder('+i+',-1)">Up</button>'
+      +'<button class="mlink" '+(i<_svcOrder.length-1?'':'disabled ')+'onclick="moveServiceOrder('+i+',1)">Down</button></div></div>').join('')
+    +'<div style="display:flex;gap:10px;margin-top:14px"><button class="btn-primary" onclick="saveServiceOrder(false)">Save Order</button>'
+    +'<button class="btn-ghost" onclick="saveServiceOrder(true)">Clear</button></div>'
+    +(source==='option'?'<div class="es" style="margin-top:8px;color:var(--t3)">This order came from the add-on’s options. Saving here replaces it.</div>':'');
+}
+function moveServiceOrder(i,d){ const j=i+d; if(j<0||j>=_svcOrder.length) return; const t=_svcOrder[i]; _svcOrder[i]=_svcOrder[j]; _svcOrder[j]=t; _paintServiceOrder(); }
+async function saveServiceOrder(clear){
+  try{
+    const r=await fetch(proCoreUrl()+'/music/order',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({order:clear?[]:_svcOrder})});
+    let d={}; try{ d=await r.json(); }catch(e){}
+    if(!r.ok){ toast(d.error||'Not saved'); return; }
+    toast(clear?'Order Cleared':'Order Saved'); renderServiceOrder();
+  }catch(e){ toast(_coreFailWords('',e)); }
+}
 function musicSectionBack(){
   const h=document.getElementById('music-home'), s=document.getElementById('music-section');
   if(h) h.style.display='block'; if(s) s.style.display='none';
@@ -14295,6 +14336,7 @@ function openMusicSection(key){
   if(key==='genres') return renderGenreSection();
   if(key==='accounts') return renderAccountsSection();
   if(key==='about') return renderAboutSection();
+  if(key==='order') return renderServiceOrder();
   renderProviderSection(key);
 }
 // One renderer for every provider-type section. The engine exposes music
@@ -17276,6 +17318,7 @@ function v2Stream(){
   // suspends the PWA, the stream dies with NO error event, and every live
   // surface silently froze — Dave turned on the Family Room Apple TV and the
   // Master Log showed nothing. Liveness is now checked, never assumed.
+  if(document.hidden) return;                        // a hidden page holds no stream (register 895)
   if(_v2sse&&_v2sse.readyState!==2) return;          // open or connecting
   if(_v2sse){ try{_v2sse.close();}catch(e){} _v2sse=null; }
   try{
@@ -17288,6 +17331,7 @@ function v2Stream(){
     _v2sse.onmessage=(m)=>{
       _v2sseLast=Date.now();
       let d; try{ d=JSON.parse(m.data); }catch(e){ return; }
+      try{ _proosBusHandle(d); }catch(e){}   // the awareness screens' handler — the same bus, the one stream (register 895)
       if(d.kind==='presence') v2Presence(d.devices||[]);
       if(d.kind==='hello'&&typeof d.incidents==='number') v2Badge(d.incidents);
       if(d.kind==='incidents'){ v2Badge(d.count||0); if(_v2panel==='home') renderHealth(); }
@@ -17305,7 +17349,9 @@ function v2Stream(){
 // the log most likely stale: reconnect AND resync from the source of truth.
 // A resync is one GET — cheaper than being wrong on the glass.
 document.addEventListener('visibilitychange',function(){
-  if(document.hidden) return;
+  // A HIDDEN PAGE GIVES ITS STREAM BACK (register 895): a tab in the background holding a connection is one of the
+  // six the visible page needs. It is remade, and the log resynced, the moment the page is looked at again.
+  if(document.hidden){ if(_v2sse){ try{_v2sse.close();}catch(e){} _v2sse=null; } return; }
   v2Stream(); masterLog();
 });
 // Watchdog (its OWN timer handle — register 107): a stream that has heard
@@ -18710,6 +18756,7 @@ const SYS_ICO={
   metadata:      ()=>_sv('<rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="8.5" cy="9.5" r="1.8"/><path d="M3 16.5l5-4 4 3 3.5-2.5L21 17"/>'),
   audio_analysis:()=>_sv('<path d="M3 12h2M7 8v8M11 4.5v15M15 8v8M19 11h2"/>'),
   plugin:        ()=>_sv('<path d="M10 3h4a1 1 0 0 1 1 1v2.2a2.3 2.3 0 1 0 4 1.6V10a1 1 0 0 1-1 1h-2.2a2.3 2.3 0 1 0-1.6 4H17a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-4"/><path d="M10 3v3.2a2.3 2.3 0 1 1-4 1.6V10H4a1 1 0 0 0-1 1v3a1 1 0 0 0 1 1h2.2a2.3 2.3 0 1 1 1.6 4H6v1a1 1 0 0 0 1 1h3"/>'),
+  order:         ()=>_sv('<path d="M10 6h10M10 12h10M10 18h10"/><path d="M4 6h1.5M4 12h1.5M4 18h1.5"/>'),
   genres:        ()=>_sv('<path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0l-7.2-7.2a2 2 0 0 1-.6-1.4V4.5A1.5 1.5 0 0 1 4.3 3H12a2 2 0 0 1 1.4.6l7.2 7.2a2 2 0 0 1 0 2.6z"/><circle cx="7.5" cy="7.5" r="1.4"/>'),
   accounts:      ()=>_sv('<circle cx="12" cy="8" r="4"/><path d="M4.5 21v-1.5A5.5 5.5 0 0 1 10 14h4a5.5 5.5 0 0 1 5.5 5.5V21"/>'),
   about:         ()=>_sv('<circle cx="12" cy="12" r="9.2"/><path d="M12 11v5.5"/><circle cx="12" cy="7.8" r="1.05" fill="currentColor" stroke="none"/>'),

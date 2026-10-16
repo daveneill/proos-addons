@@ -57,8 +57,44 @@ def is_radio(name):
     return any(w in n for w in RADIO_WORDS)
 
 
+def order_path():
+    return os.path.join(os.environ.get("PROOS_DATA_DIR") or "/data", "music_order.json")
+
+
+def saved_order():
+    """The order set in Pro (Music Services › Service Order, register 896); None when Pro never set one."""
+    try:
+        with open(order_path(), encoding="utf-8") as f:
+            v = (json.load(f) or {}).get("order")
+        return [str(x).strip() for x in v if str(x).strip()] if isinstance(v, list) else None
+    except Exception:                                            # noqa: BLE001
+        return None
+
+
+def save_order(names):
+    """Write the home's service order (names, first = preferred). [] clears it. Atomic."""
+    clean, seen = [], set()
+    for n in names or []:
+        n = " ".join(str(n or "").split())
+        if n and n.lower() not in seen:
+            seen.add(n.lower())
+            clean.append(n)
+    p = order_path()
+    tmp = p + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump({"order": clean, "at": int(time.time())}, f)
+    os.replace(tmp, p)
+    with _LOCK:
+        _kept.clear()                     # a kept search was ordered the old way
+    return clean
+
+
 def preferred_order(option=None):
-    """The names the home put first (the add-on option), in order; [] when none."""
+    """The names the home put first, in order; [] when none. Pro's Service Order wins (register 896 — before it, the
+    order could only be set in the add-on's options, which Pro has no field for: register 885); the option is the
+    fallback for a box set up that way."""
+    if option is None:
+        option = saved_order()
     if option is None:
         try:
             with open(OPTIONS_PATH, encoding="utf-8") as f:

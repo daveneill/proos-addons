@@ -3576,6 +3576,8 @@ def factory_reset(clear_proos_data=False, keep_auth=False):
                    "provisioned.json", "terminal_audit.log",
                    # the old home's last full sweep and its schedule (register 663)
                    "sweep_last.json", "sweep_config.json", "sweep_acted.json", "port_history.json", "push_status.json",
+                   # the home's music service order, set in Pro (register 896) — this home's services; a reset home chooses afresh
+                   "music_order.json",
                    # the installer-pasted Apple Music token (register 759) — like the AI key, placed
                    # per box by the installer; a reset home is set up afresh
                    "apple_music_token.json",
@@ -3903,6 +3905,30 @@ def _voice_after_shortcuts(res):
     except Exception as e:                                       # noqa: BLE001
         res["voice"] = {"error": str(e)[:160]}
     return res
+
+
+def _music_order_read():
+    """STAGE 6 (register 896): the home's music service order, as Pro shows it — what is saved (Pro's, else the add-on
+    option) and the services the home's speakers actually have, read from the speakers themselves (never a list typed
+    into code)."""
+    from proos import musicsearch as _msx, speakermusic as _spm
+    saved = _msx.saved_order()
+    have = []
+    try:
+        for e in (_client.entity_registry() or []):
+            if not _spm.can_speak(e):
+                continue
+            try:
+                had = _msx.speaker_services(_client, e.get("entity_id"))
+            except Exception:                                    # noqa: BLE001
+                had = None
+            for _sid, _acct, name in ((had or (None, None, None, []))[3] or []):
+                if name and name not in have:
+                    have.append(name)
+    except Exception:                                            # noqa: BLE001
+        pass
+    order = saved if saved is not None else [x for x in _msx.preferred_order()]
+    return {"order": order, "source": "pro" if saved is not None else ("option" if order else None), "services": have}
 
 
 def _voice_phrases_set(entity_id=None, phrases=None):
@@ -5985,6 +6011,9 @@ class Handler(BaseHTTPRequestHandler):
                         **_music_filters(self.path))})
                 except Exception as e:                           # noqa: BLE001
                     return self._send(502, {"items": [], "error": str(e)})
+            if parts == ["music", "order"]:
+                # STAGE 6 (register 896): the home's service order and the services its speakers have
+                return self._send(200, _music_order_read())
             if parts == ["music", "search"]:
                 # Cross-provider search, the engine's own music/search. GET
                 # /music/search?q=...&limit=...&types=artist,album,track,...
@@ -6784,6 +6813,24 @@ class Handler(BaseHTTPRequestHandler):
                 out = _healthmon_mod.resolve_action(
                     _client, _iid_, b.get("action"))
                 return self._send(200 if not out.get("error") else 400, out)
+            if parts == ["music", "order"]:
+                # STAGE 6 (register 896): Music Services › Service Order — which service a spoken "play X" tries first.
+                # {order:[names…]}; [] clears it (then the add-on option, else streaming before radio). Installer access.
+                u = getattr(self, "_user", None)
+                if not (users and u and (u.get("is_admin") or u.get("is_owner")
+                                         or users.is_tech(u.get("id")))):
+                    return self._send(403, {"error": "installer access required"})
+                b = self._body() or {}
+                if not isinstance(b.get("order"), list):
+                    return self._send(400, {"error": "order must be a list of service names"})
+                from proos import musicsearch as _msx
+                saved = _msx.save_order(b.get("order"))
+                if _journal_mod is not None:
+                    try:
+                        _journal_mod.emit("site", "music_order", {"order": saved})
+                    except Exception:                            # noqa: BLE001
+                        pass
+                return self._send(200, dict(_music_order_read(), ok=True))
             if parts == ["voice", "phrases"]:
                 # STAGE 4 (register 894): a scene's or activity's trigger phrases. {entity_id, phrases:[…]} sets them —
                 # written to the platform's own alias field (ProOS keeps no copy), every NEW phrase checked first (a room's
