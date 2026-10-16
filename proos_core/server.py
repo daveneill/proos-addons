@@ -2182,6 +2182,10 @@ def _controller_gear():
         st = {x.get("entity_id"): x for x in (_all_states(_client) or [])}
     except Exception:                                            # noqa: BLE001
         return None
+    try:
+        devname = {d.get("id"): (d.get("name_by_user") or d.get("name")) for d in (_client.device_registry() or [])}
+    except Exception:                                            # noqa: BLE001
+        devname = {}
     gear = {}
     for e in reg:
         eid = e.get("entity_id") or ""
@@ -2193,8 +2197,11 @@ def _controller_gear():
         s_ = st.get(eid) or {}
         state = s_.get("state")
         online = True if state == "home" else (False if state == "not_home" else None)
-        name = (s_.get("attributes") or {}).get("friendly_name") or e.get("name") \
-            or e.get("original_name") or uid
+        # REGISTER 899 (seen on the box 16 Oct, Dave 13:25 "fix the switches name"): the UniFi integration names its
+        # tracker after the device, so the platform's friendly name is the device name twice ("Bedroom - TV Bedroom - TV").
+        # The gear is named once: the installer's own name for the entity, else the device's name, else the tracker's.
+        name = e.get("name") or devname.get(e.get("device_id")) or e.get("original_name") \
+            or (s_.get("attributes") or {}).get("friendly_name") or uid
         gear[uid.lower()] = {"name": name, "type": "", "online": online, "entity": eid}
     return gear or None
 
