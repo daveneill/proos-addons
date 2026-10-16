@@ -2844,7 +2844,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026101612';
+const PROOS_BUILD='2026101613';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -9283,7 +9283,11 @@ function avToggleRole(e,role){
   rec.warnings=(rec.sources.length&&!rec.display)?['missing_display']:[];
   renderRoomHub();
 }
-function avSetInputRoom(e,val){ const rec=_rhRec(); if(!rec) return; rec.inputs=rec.inputs||{}; if(val) rec.inputs[e]=val; else delete rec.inputs[e]; }
+// REGISTER 898 (seen on the box 16 Oct, Dave 13:03: "says it does not have input assigned when it does but won't let us
+// save"): the No Input warning and the disabled Save Room are decided when the room is DRAWN; picking an input changed
+// the record but never redrew, so both stayed as they were. Now an input change redraws the room — the warning goes and
+// Save Room is enabled the moment the last source has its input (and come back if one is cleared).
+function avSetInputRoom(e,val){ const rec=_rhRec(); if(!rec) return; rec.inputs=rec.inputs||{}; if(val) rec.inputs[e]=val; else delete rec.inputs[e]; _rhDirty(); renderRoomHub(); }
 
 // ── STRICT OPT-IN membership ────────────────────────────────────────────────
 // Discovery offers CANDIDATES (devices HA placed in this area). None is a room member
@@ -9694,7 +9698,7 @@ function avToggleAvSwitch(e){
   }
   renderRoomHub();
 }
-function avSetAvrInput(src,val){ const rec=_rhRec(); if(!rec||!rec.avswitch) return; rec.avswitch.inputs=rec.avswitch.inputs||{}; if(val) rec.avswitch.inputs[src]=val; else delete rec.avswitch.inputs[src]; }
+function avSetAvrInput(src,val){ const rec=_rhRec(); if(!rec||!rec.avswitch) return; rec.avswitch.inputs=rec.avswitch.inputs||{}; if(val) rec.avswitch.inputs[src]=val; else delete rec.avswitch.inputs[src]; _rhDirty(); renderRoomHub(); }   // 898: an AV-switch input counts too, so it redraws as well
 function avSetAvrOut(val){ const rec=_rhRec(); if(!rec||!rec.avswitch) return; rec.avswitch.output=val||''; }
 function avSetAvrBroadcast(val){ const rec=_rhRec(); if(!rec||!rec.avswitch) return; rec.avswitch.broadcast=val||''; }
 // ── Hold-and-drag reorder of the room's device rows ──
