@@ -4530,7 +4530,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101701';
+const PROOS_BUILD='2026101702';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -19794,6 +19794,12 @@ async function saveService(){
 .appc-ov,#all-lights-overlay,#light-overlay,#climate-all-overlay,#climate-overlay,#device-chooser,.pa-dbmsg{
   align-items:center!important;justify-content:center!important;padding:0!important}
 #light-overlay,#climate-all-overlay,#climate-overlay,#all-lights-overlay,#assist-overlay,.appc-ov,#widget-picker,#proos-sheet{z-index:9400!important}
+/* REGISTER 919 (Dave, 17 Oct 10:04, screenshot: Bedroom Apple TV's Apps sheet): press-and-hold an app to add it to the room
+   page and the "Add … to the … page?" box opened BEHIND the apps. The device's Apps sheet sits at 9999; the line above
+   puts every .appc-ov at 9400, so a box raised FROM the sheet drew under it. That box only ever opens over the Apps sheet,
+   so it sits above it — and the "added" toast that follows (9000) would have been hidden the same way, so it goes on top. */
+#appfav-confirm{z-index:10002!important}
+#app-toast{z-index:10003}
 /* the scrims stop being the part of the column that pushed the sheet down — they cover the whole screen behind the card */
 .widget-picker-scrim,.scene-edit-scrim,.proos-scrim,#music-act-sheet .scrim,#player-apps-sheet>div:first-child,#player-group-sheet>div:first-child{
   position:absolute!important;inset:0!important;flex:none!important;background:rgba(0,0,0,0.55)!important}

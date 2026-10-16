@@ -356,6 +356,13 @@ def _ready(client, target: str, method: str):
     return bool(rb.get("confirmed"))
 
 
+class _RoomHandled(Exception):
+    """The room's committed Watch activity took care of power and input (register 920)."""
+
+
+ACTIVITY_DONE_WAIT_S = 60.0   # plumbing: how long a room's Watch activity is given to finish (Bedroom read 26 s, 920)
+
+
 def _rec_for_area(project, area_id: str) -> dict:
     try:
         for key, rec in (project.load() or {}).get("areas", {}).items():
@@ -401,11 +408,18 @@ def launch(client, project, area_id: str, sc: dict, power: bool = True) -> dict:
                 fire, wait = appctl.launch_power_plan(dst.get("state"), vs, act.get("key"))
                 if fire:
                     client.call_service("script", "turn_on", act["entity_id"])
-                    # REGISTER 447: bounded poll for the display, not a sleep.
+                    # REGISTER 920 (Dave 17 Oct 10:11: "with tv off it turns the TV on then off again then on again then
+                    # launches app"). Read on the box: the Watch Apple TV activity started 10:07:41 and ran 26 s; the TV
+                    # came on at 10:07:49; at 10:07:52 THIS launch sent its own select_source to the still-booting Samsung,
+                    # which took it as power and went OFF (logbook context: media_player.select_source); the activity
+                    # put it back on at 10:07:59. Two things drove one TV at once. The activity IS the room's power and
+                    # input (that is what it was commissioned to do), so when it fired, the launch waits for it to
+                    # FINISH — the script's own state, bounded — and sends no power or input of its own.
                     from . import readback as _rb
-                    _rb.confirm(client, disp, lambda r: str(r.get("state") or "").lower()
-                                not in ("off", "standby", "unavailable", "unknown", ""),
-                                wait=wait)
+                    _rb.confirm(client, act["entity_id"],
+                                lambda r: str(r.get("state") or "").lower() == "off", wait=ACTIVITY_DONE_WAIT_S)
+                # Fired (and finished) or already watching this source: the room is already on the box. Nothing more.
+                raise _RoomHandled()
             dst = _state(client, disp)
             if str(dst.get("state") or "") in ("off", "standby", "unavailable", ""):
                 # REGISTER 867: a room with no committed watch activity for the target still gets its display ON —
@@ -419,6 +433,8 @@ def launch(client, project, area_id: str, sc: dict, power: bool = True) -> dict:
                 if inp:
                     client._req("POST", "/api/services/media_player/select_source",
                                 {"entity_id": disp, "source": inp})
+        except _RoomHandled:                                # the room's activity owns power and input (920)
+            pass
         except Exception:                                   # power/route is best-effort
             pass
     # REGISTER 869 (seen on the box 14 Oct 13:41: "Entity media_player.bedroom_bedroom_apple_tv does not support action
