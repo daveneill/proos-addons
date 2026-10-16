@@ -2842,7 +2842,7 @@ body.v3 .rh-card{border-radius:22px}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026101701';
+const PROOS_BUILD='2026101702';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -4639,6 +4639,16 @@ async function openUniNet(){
   try{ const r=await fetch(proCoreUrl()+'/unifi/net/status'); _unifiNetStatus=r.ok?await r.json():null; }catch(e){ _unifiNetStatus=null; }
   renderUniNet();
 }
+// REGISTER 915 (Dave 17 Oct: "UniFi network sets up fine but after hitting connect we need to refresh page for it to show
+// connected"). rerenderConfig redrew this panel from the status read when the panel OPENED — before the integration
+// existed — so it still said Not Set Up. It now asks Core again, and once more a few seconds later while the new
+// integration finishes loading.
+async function _uniNetRefresh(again){
+  try{ const r=await fetch(proCoreUrl()+'/unifi/net/status'); if(r.ok) _unifiNetStatus=await r.json(); }catch(e){}
+  if(panelActive('unifi-net')) renderUniNet();
+  const s=_unifiNetStatus||{};
+  if(!again && !(s.configured && s.reachable!==false)) setTimeout(()=>{ if(panelActive('unifi-net')) _uniNetRefresh(true); },4000);
+}
 function renderUniNet(){
   const body=document.getElementById('uninet-body'); if(!body) return;
   // ONE DEVICE LIST, NOT TWO (register 415). This panel carried its own
@@ -5201,7 +5211,7 @@ async function _afterAssist(data){
 function rerenderConfig(){
   if(panelActive('library')) renderLibrary();
   if(panelActive('integration')) renderIntegration(_curIntegration);
-  if(panelActive('unifi-net')){ const _ae=document.activeElement; if(!(_ae && /^(unet-|net-)/.test(_ae.id||''))) renderUniNet(); }  // refresh the dedicated panel, but never wipe a login field mid-type
+  if(panelActive('unifi-net')){ const _ae=document.activeElement; if(!(_ae && /^(unet-|net-)/.test(_ae.id||''))) _uniNetRefresh(); }  // refresh the dedicated panel, but never wipe a login field mid-type
   // ── THE PANELS THIS DISPATCHER KEEPS MISSING (register 418) ──────────────
   // Dave: "when you tap add to room once you choose a room and it closes but
   // does not update the room untill a full refresh of page." The room picker
@@ -7239,6 +7249,7 @@ async function _samsungFindEntryThenPair(){
 // Detected from the flow's abort reason, never from a brand table.
 function abortText(reason){ const m={already_configured:'This device is already set up.',single_instance_allowed:'This system runs as one connection that finds all of its devices itself. To add another, use the maker’s own app to join the new device to this network — it will be discovered and appear here automatically (Re-scan if it hasn’t after a couple of minutes).',no_devices_found:'No device was found to set up.',already_in_progress:'Setup is already in progress.',unsupported_version:'This Samsung driver needs a newer system version than what\'s installed.',host_unique_id:'This TV needs a one-time cleanup in advanced setup before it can be reconnected here.'}; return m[reason]||('Setup stopped: '+String(reason||'').replace(/_/g,' ')); }
 async function openLibrary(){
+  _ilChip='all';   // 915 (Dave 17 Oct: "Devices/integrations page needs to default at all when opened") — replaces 720's Your Systems default
   show('library'); renderLibrary();
   try{ await loadCatalogTiers(); }catch(e){}   // load publish state before gating discovered + configured
   renderLibrary();
@@ -9859,6 +9870,8 @@ function _rhDragEnd(){
   const rec=_rhRec(); if(!rec) return;
   const pos=e=>{ const i=order.indexOf(e); return i<0?1e9:i; };
   ['sources','audio','speakers'].forEach(k=>{ if(Array.isArray(rec[k])) rec[k]=[...rec[k]].sort((a,b)=>pos(a)-pos(b)); });
+  // 915: the drag IS the order — the rows stay where they were put until dragged again.
+  rec.order=order.concat((rec.order||[]).filter(e=>order.indexOf(e)<0));
   renderRoomHub();
   toast('Order updated — commit the room to save');
 }
@@ -10579,9 +10592,20 @@ function renderRoomHub(){
   // sequence so a drag SURVIVES the re-render — with the display leading
   // unless it holds a source slot (then its slot is its place, and Watch TV
   // follows it onto the navbars). Stable sort: untracked rows keep registry order.
-  if(rec){ const _seq=[...(rec.sources||[]),...(rec.audio||[]),...(rec.speakers||[])];
-    const _rp=e=>{ const i=_seq.indexOf(e); return i<0?((rec.display===e)?-1:1e9):i; };
-    members.sort((a,b)=>_rp(a)-_rp(b)); }
+  // REGISTER 915 (Dave 17 Oct: "as you enable source, tv audio, speaker option they rearrange by themselves they need to
+  // stay in the order that are placed in unless rearranged"). The rows were sorted by sources-then-audio, so a role
+  // change moved a row between lists and the row jumped. The room's row order is now its OWN list (rec.order): seeded
+  // once from the old order, a new device added at the end, changed only by dragging. Roles never move a row.
+  if(rec){
+    if(!Array.isArray(rec.order) || !rec.order.length){
+      const _seq=[...(rec.sources||[]),...(rec.audio||[]),...(rec.speakers||[])];
+      const _rp=e=>{ const i=_seq.indexOf(e); return i<0?((rec.display===e)?-1:1e9):i; };
+      rec.order=members.slice().sort((a,b)=>_rp(a)-_rp(b));
+    }
+    members.forEach(e=>{ if(rec.order.indexOf(e)<0) rec.order.push(e); });
+    const _op=e=>{ const i=rec.order.indexOf(e); return i<0?1e9:i; };
+    members.sort((a,b)=>_op(a)-_op(b));
+  }
   // Input options = the display's FULL selectable input list (HDMI 1‑4, Live TV / tuner,
   // built‑in apps), read live from HA — so an external source picks its HDMI and the TV‑as‑
   // source picks its own TV/tuner input. Falls back to the certified discrete HDMI list.
@@ -19268,7 +19292,9 @@ function v3Side(sec){
   let h='';
   const p=_v2panel;
   if(sec==='areas'){
-    h='<div class="v3sh"><span>Areas</span><button onclick="v3AreasEdit()">Edit</button></div><div class="v3sl">'
+    // 915 (Dave 17 Oct: "Where it says edit seems to do exactly the same as add room so remove edit"): the list's Edit
+    // opened Add Room on the Areas page; a room is edited from its own page (the Edit on its photo, Room Options).
+    h='<div class="v3sh"><span>Areas</span></div><div class="v3sl">'
       +_v3item('building',p==='hub','<span class="v3ic">'+V3ICONS.home+'</span>',v3SiteName(),'',"v2go('areas')")
       +_v3homeAreas().map(a=>_v3item(a.area_id,p==='room'&&_roomHubArea===a.area_id,_v3thumb(a),a.name||'Room','<span class="v3ct">'+(_perAreaDev[a.area_id]||0)+'</span>',"openRoomHub('"+esc(a.area_id)+"')",'l1')).join('')
       +'</div><div class="v3sf"><button onclick="openRoomEdit(null)">+ Add Room</button></div>';
@@ -19311,7 +19337,6 @@ function v3ToolOpen(k){
   openTech(); techTab(k);
 }
 function v3SiteName(){ const n=(document.getElementById('hero-name')||{}).textContent||''; return (n&&n!=='—')?n:'Home'; }
-function v3AreasEdit(){ if(_v2panel==='room'&&_roomHubArea) openRoomEdit(_roomHubArea); else openRoomEdit(null); }
 // re-draw the list whenever the site data changes (rooms renamed, devices placed)
 if(typeof loadSite==='function'){
   const _v3ls=loadSite;
