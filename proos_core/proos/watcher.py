@@ -1463,19 +1463,9 @@ def discover_watches(storage_dir=None, client=None):
     # a MAC match, or one device's serial appearing inside the other's
     # hardware id. Serials are long and distinctive, so an 8-character floor
     # makes a coincidental match implausible; anything shorter is ignored.
+    # ONE DEFINITION (register 912): the room setup's twin match reads the same hardware keys — discovery.hw_keys.
     def _hw_keys(d):
-        macs, ids = set(), set()
-        for pair in (d.get("connections") or []):
-            if (isinstance(pair, (list, tuple)) and len(pair) > 1
-                    and str(pair[0]).lower() in ("mac", "mac_address")):
-                macs.add(str(pair[1]).lower().replace("-", ":"))
-        for pair in (d.get("identifiers") or []):
-            if isinstance(pair, (list, tuple)) and len(pair) > 1:
-                ids.add(str(pair[1]).lower())
-        sn = str(d.get("serial_number") or "").strip().lower()
-        if len(sn) >= 8:
-            ids.add(sn)
-        return macs, ids, (sn if len(sn) >= 8 else None)
+        return discovery.hw_keys(d)
 
     dev_mac, dev_ids, dev_sn = {}, {}, {}
     for d in devices:

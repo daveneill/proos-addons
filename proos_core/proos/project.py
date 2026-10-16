@@ -382,6 +382,9 @@ def _area_record(client, cluster) -> dict:
         # One box seen twice (register 315): the half discovery folded away,
         # so the UI can say "seen twice as …" instead of offering it.
         "folded": dict(getattr(cluster, "folded", None) or {}),
+        # A receiver's music half (register 912): {music half: receiver} — the room's music speaker, drawn inside the
+        # receiver's row in Pro and bound as an audio endpoint; never offered as a second device, never folded away.
+        "paired": dict(getattr(cluster, "paired", None) or {}),
         "kind": kind,
         "warnings": [],
         "committed": False,
@@ -726,6 +729,11 @@ def merge(existing: dict, suggestion: dict) -> dict:
             _fold = dict(rec.get("folded") or {})
             drop_twins(merged, _fold)
             merged["folded"] = {**(merged.get("folded") or {}), **_fold}
+            # 912: the pairing is a discovery fact like the fold — refreshed every scan; a half now paired is not
+            # left hidden by an older fold.
+            merged["paired"] = dict(rec.get("paired") or {})
+            for _pe in merged["paired"]:
+                merged["folded"].pop(_pe, None)
             # Fresh meta wins for rediscovered devices (keeps discrete_inputs current);
             # prior meta is retained for a committed member that wasn't rediscovered.
             merged["meta"] = {**(prior.get("meta") or {}), **(rec.get("meta") or {})}

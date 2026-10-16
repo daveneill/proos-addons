@@ -244,6 +244,39 @@ def _norm(s) -> str:
     return " ".join(str(s or "").lower().replace("_", " ").split())
 
 
+# ONE BOX, BY ITS HARDWARE (register 912, 16 Oct 2026). The name rule above misses a receiver whose two halves
+# describe their model differently — read on Dave's box: the Denon driver says "Marantz SR5014", HEOS says "SR5014",
+# and both carry serial BHL36191003541. Register 315 said to measure such a box before loosening; this is that box.
+# The hardware rule is the one awareness already uses for the same pair (watcher, 4 Aug): a MAC in common, or one
+# device's SERIAL (8+ characters) inside the other's hardware ids. Ids only — never a name or a model.
+def hw_keys(d) -> tuple:
+    """(macs, ids, serial) for a device-registry entry. One definition — the watcher's twin collapse reads it too."""
+    macs, ids = set(), set()
+    for pair in (d.get("connections") or []):
+        if (isinstance(pair, (list, tuple)) and len(pair) > 1
+                and str(pair[0]).lower() in ("mac", "mac_address")):
+            macs.add(str(pair[1]).lower().replace("-", ":"))
+    for pair in (d.get("identifiers") or []):
+        if isinstance(pair, (list, tuple)) and len(pair) > 1:
+            ids.add(str(pair[1]).lower())
+    sn = str(d.get("serial_number") or "").strip().lower()
+    if len(sn) >= 8:
+        ids.add(sn)
+    return macs, ids, (sn if len(sn) >= 8 else None)
+
+
+def same_hardware(fa: dict, fb: dict) -> bool:
+    """Two devices' facts name one piece of hardware: a shared MAC, or one's serial inside the other's ids."""
+    ma, mb = set(fa.get("macs") or ()), set(fb.get("macs") or ())
+    if ma and mb:
+        return bool(ma & mb)
+    for x, y in ((fa, fb), (fb, fa)):
+        sn = x.get("serial")
+        if sn and any(sn in i for i in (y.get("ids") or ())):
+            return True
+    return False
+
+
 def device_facts(client, entities) -> dict:
     """entity_id -> the device-reported facts the fold keys on, from the LIVE
     registries: manufacturer, model, dev_name (the device's own name — the
@@ -279,6 +312,21 @@ def device_facts(client, entities) -> dict:
             "n_entities": len(mine),
             "has_remote": any(str(x).startswith("remote.") for x in mine),
         }
+        _m, _i, _s = hw_keys(d)
+        out[eid].update({"macs": sorted(_m), "ids": sorted(_i), "serial": _s})
+    # 912: what each player SAYS it is (device_class — "receiver", "tv", "speaker"), read once for the lot. Unread
+    # = None: a pairing never happens on a missing class (no facts, no pair).
+    _read = False
+    try:
+        _dc = json.loads(client.render_template(
+            "{% set ns = namespace(o={}) %}{% for e in " + json.dumps(sorted(out)) + " %}"
+            "{% set ns.o = dict(ns.o, **{e: state_attr(e, 'device_class')}) %}{% endfor %}{{ ns.o | to_json }}") or "{}")
+        _read = isinstance(_dc, dict)
+    except Exception:                                        # noqa: BLE001
+        _dc = {}
+    for eid in out:
+        out[eid]["dc"] = _dc.get(eid) if _read else None
+        out[eid]["dc_read"] = bool(_read and eid in _dc)
     return out
 
 
@@ -296,32 +344,81 @@ def _twin_score(f: dict) -> int:
 
 
 def fold_twins(facts: dict, entities: list) -> tuple[list, dict]:
-    """Pure. (kept entities in their original order, {folded: kept_for})."""
+    """Pure. (kept entities in their original order, {folded: kept_for}). A receiver's MUSIC half is never folded
+    (register 912 — it is the room's music speaker); match_twins reports it as paired instead."""
+    kept, folded, _paired = match_twins(facts, entities)
+    return kept, folded
+
+
+def _music_half(f: dict) -> bool:
+    """A player that streams music and is not itself a receiver or a screen (a receiver's streaming half).
+    Only when the class was actually READ — a half whose class could not be read is never paired (no facts, no pair);
+    a class read and genuinely empty (a streaming half often reports none) is a music half."""
+    return bool(f.get("dc_read")) and (f.get("dc") or "") in ("", "speaker")
+
+
+def match_twins(facts: dict, entities: list) -> tuple[list, dict, dict]:
+    """Pure. (kept, {folded: kept_for}, {paired music half: its receiver}).
+
+    One box is two media players reached through DIFFERENT integrations that either agree on manufacturer, model
+    and device name with no contradicting MAC (register 315), or name the same HARDWARE (register 912: a shared MAC,
+    or one's serial inside the other's ids). The same driver twice is two boxes (an AVR's zones) — never matched.
+
+    Inside one box: when one half SAYS it is a receiver (device_class "receiver") and another is a music player
+    (device_class speaker or none — never a receiver or a TV), the music half is PAIRED to the receiver, not folded:
+    it is the room's music speaker, the receiver keeps the video jobs (Dave 16 Oct: "one is audio and one is video",
+    any brand). Every other twin folds into the richer control path exactly as before."""
     ents = [e for e in (entities or []) if e]
+    parent = {e: e for e in ents}
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def same_box(a, b):
+        fa, fb = facts.get(a) or {}, facts.get(b) or {}
+        if not fa or not fb:
+            return False                     # no facts, no fold
+        if (fa.get("integration") or "") == (fb.get("integration") or ""):
+            return False                     # same driver twice = two boxes (zones)
+        key_a = (_norm(fa.get("manufacturer")), _norm(fa.get("model")), _norm(fa.get("dev_name")))
+        key_b = (_norm(fb.get("manufacturer")), _norm(fb.get("model")), _norm(fb.get("dev_name")))
+        if all(key_a) and key_a == key_b:
+            if fa.get("hw_ids") and fb.get("hw_ids") and not (set(fa["hw_ids"]) & set(fb["hw_ids"])):
+                return False                 # two hardware addresses = two boxes
+            return True
+        return same_hardware(fa, fb)
+
+    for i, a in enumerate(ents):
+        for b in ents[i + 1:]:
+            if same_box(a, b):
+                parent[find(b)] = find(a)
     groups: dict = {}
     for e in ents:
-        f = facts.get(e) or {}
-        key = (_norm(f.get("manufacturer")), _norm(f.get("model")),
-               _norm(f.get("dev_name")))
-        if not all(key):
-            continue                         # no facts, no fold
-        groups.setdefault(key, []).append(e)
+        groups.setdefault(find(e), []).append(e)
     folded: dict = {}
-    for key, members in groups.items():
+    paired: dict = {}
+    for members in groups.values():
         if len(members) < 2:
             continue
-        ranked = sorted(members, key=lambda e: (-_twin_score(facts[e]), e))
+        receivers = [e for e in members if (facts[e].get("dc") or "") == "receiver"]
+        rest = members
+        if len(receivers) == 1:
+            rx = receivers[0]
+            music = [e for e in members if e != rx and _music_half(facts[e])]
+            if music:
+                mwin = sorted(music, key=lambda e: (-_twin_score(facts[e]), e))[0]
+                paired[mwin] = rx
+                rest = [e for e in members if e != mwin]
+        if len(rest) < 2:
+            continue
+        ranked = sorted(rest, key=lambda e: (-_twin_score(facts[e]), e))
         win = ranked[0]
-        wf = facts[win]
         for e in ranked[1:]:
-            f = facts[e]
-            if (f.get("integration") or "") == (wf.get("integration") or ""):
-                continue                     # same driver twice = two boxes (zones)
-            if f.get("hw_ids") and wf.get("hw_ids") and \
-                    not (set(f["hw_ids"]) & set(wf["hw_ids"])):
-                continue                     # two hardware addresses = two boxes
             folded[e] = win
-    return [e for e in ents if e not in folded], folded
+    return [e for e in ents if e not in folded], folded, paired
 
 
 @dataclass
@@ -363,6 +460,9 @@ class AVCluster:
     # One box seen twice (register 315): {folded entity: the entity kept}.
     # Folded entities never reach sources/audio/display.
     folded: dict = field(default_factory=dict)
+    # A receiver's music half (register 912): {music half: its receiver}. NOT folded — it is the room's music
+    # speaker; Pro draws it inside the receiver's row and binds it as the room's audio endpoint.
+    paired: dict = field(default_factory=dict)
 
     def label_for(self, dev: Device) -> str:
         """A clean activity label, e.g. 'Family Room Shield TV' -> 'Shield TV'.
@@ -453,9 +553,12 @@ def discover_av(client, area_id: str) -> AVCluster:
     cluster = AVCluster(area=(name or area_id), area_id=area_id, display=None)
     # One box seen twice is offered once (register 315): fold BEFORE roles, so
     # the folded half is never a candidate for any slot.
-    _kept, cluster.folded = fold_twins(
+    _kept, cluster.folded, cluster.paired = match_twins(
         device_facts(client, [r.get("entity") for r in rows]),
         [r.get("entity") for r in rows])
+    if cluster.paired:
+        print("  [discovery] %s a receiver's music half, paired: %s"
+              % (cluster.area, ", ".join("%s → %s" % kv for kv in sorted(cluster.paired.items()))), flush=True)
     if cluster.folded:
         print("  [discovery] %s one device seen twice, folded: %s"
               % (cluster.area, ", ".join("%s → %s" % kv

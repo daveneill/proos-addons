@@ -2842,7 +2842,7 @@ body.v3 .rh-card{border-radius:22px}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026101619';
+const PROOS_BUILD='2026101620';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -9104,7 +9104,7 @@ function avInput(area,e,val){ const r=(_avProj.areas||{})[area]; if(!r) return; 
 function _avAreaCandidates(r){
   if(!r) return [];
   const c=r.candidates||{}; const mem=new Set(); if(r.display)mem.add(r.display);(r.sources||[]).forEach(x=>mem.add(x));(r.audio||[]).forEach(x=>mem.add(x));
-  const out=[],seen=new Set(); const push=e=>{ if(e&&!mem.has(e)&&!seen.has(e)&&!_rhIsFolded(e)){seen.add(e);out.push(e);} };
+  const out=[],seen=new Set(); const push=e=>{ if(e&&!mem.has(e)&&!seen.has(e)&&!_rhTwinHidden(e)&&!_catHidden(_rhPlatform(e))){seen.add(e);out.push(e);} };   // 912: the same rule as the list
   push(c.display);(c.sources||[]).forEach(push);(c.audio||[]).forEach(push); return out;
 }
 function avAddArea(area,e){
@@ -9317,6 +9317,42 @@ function _rhFoldedAll(){
   return m;
 }
 function _rhIsFolded(e){ return !!e && Object.prototype.hasOwnProperty.call(_rhFoldedAll(),e); }
+// A RECEIVER'S MUSIC HALF (register 912, Dave 16 Oct: "needs to support all receiver integrations that present this
+// way any brand as one is audio and one is video"). Core's record carries `paired` = {music half: its receiver} —
+// one box by its hardware (a shared serial or MAC). The music half is the room's MUSIC SPEAKER (the endpoint model's
+// audio endpoint), drawn INSIDE the receiver's row as "Music via …", bound into the room while the receiver is in it,
+// and never a row or a tray item of its own.
+function _rhPairedAll(){
+  const m={}; const areas=(_avProj&&_avProj.areas)||{};
+  Object.values(areas).forEach(r=>{ const f=(r&&r.paired)||{}; Object.keys(f).forEach(k=>{ if(k) m[k]=f[k]; }); });
+  return m;
+}
+function _rhIsPaired(e){ return !!e && Object.prototype.hasOwnProperty.call(_rhPairedAll(),e); }
+// One question for every list and tray: is this the second half of a box already shown? (folded or paired)
+function _rhTwinHidden(e){ return _rhIsFolded(e) || _rhIsPaired(e); }
+function _rhPairedInto(rec,e){ const f=(rec&&rec.paired)||{}; return Object.keys(f).filter(k=>f[k]===e); }
+// Bind each paired music half while its receiver is in the room; unbind it when the receiver leaves (it has no row of
+// its own, so nothing else could take it out). Returns true when the record changed.
+function rhBindPaired(rec){
+  if(!rec) return false;
+  const pr=rec.paired||{}; let changed=false;
+  rec.audio=rec.audio||[]; rec.speakers=rec.speakers||[];
+  const mem=_rhMemberSet(rec);
+  Object.keys(pr).forEach(m=>{
+    const rx=pr[m];
+    const rxIn=rx!==m && mem.has(rx);   // the receiver holds a role in this room
+    if(rxIn){
+      if(rec.audio.indexOf(m)<0){ rec.audio.push(m); changed=true; }
+      if(rec.speakers.indexOf(m)<0){ rec.speakers.push(m); changed=true; }
+    } else {
+      const a=rec.audio.length, sp=rec.speakers.length;
+      rec.audio=rec.audio.filter(x=>x!==m); rec.speakers=rec.speakers.filter(x=>x!==m);
+      if(rec.tvaudio===m) rec.tvaudio=null;
+      if(a!==rec.audio.length||sp!==rec.speakers.length) changed=true;
+    }
+  });
+  return changed;
+}
 function _rhFoldedInto(rec,e){ const f=(rec&&rec.folded)||{}; return Object.keys(f).filter(k=>f[k]===e); }
 function _rhCandidates(rec){
   if(!rec) return [];
@@ -9325,7 +9361,9 @@ function _rhCandidates(rec){
   // the room yet: unassigned, elsewhere, or freshly discovered.
   const c=rec.candidates||{}; const mem=new Set([..._rhMemberSet(rec), ...rhRoomAV(rec)]);
   const out=[]; const seen=new Set();
-  const push=e=>{ if(e && !mem.has(e) && !seen.has(e) && !_rhIsFolded(e)){ seen.add(e); out.push(e); } };
+  // 912: offered only what the list above would SHOW once added — the same publish gate and the same twin rule —
+  // so Add can never put a device in the record and draw nothing (Dave 17:47, the Marantz's HEOS half: "it vanishes").
+  const push=e=>{ if(e && !mem.has(e) && !seen.has(e) && !_rhTwinHidden(e) && !_catHidden(_rhPlatform(e))){ seen.add(e); out.push(e); } };
   push(c.display); (c.sources||[]).forEach(push); (c.audio||[]).forEach(push);
   return out;
 }
@@ -9563,13 +9601,13 @@ function rhRoomAV(rec){
     const eid=e&&e.entity_id;
     if(!eid || eid.indexOf('media_player.')!==0) return;
     if(_rhEntArea(e)!==aid) return;
-    if(_rhIsFolded(eid)) return;          // Core folded it — not a second row
+    if(_rhTwinHidden(eid)) return;        // Core folded it, or it is a receiver's music half (912) — not a second row
     if(_catHidden(e.platform||'')) return; // the publish gate, as on Integrations (register 338)
     if(out.indexOf(eid)<0) out.push(eid);
   });
   // anything the record already names stays listed even if HA moved it —
   // the record is the truth about membership once committed.
-  _rhMemberSet(rec).forEach(x=>{ if(out.indexOf(x)<0 && !_rhIsFolded(x) && !_catHidden(_rhPlatform(x))) out.push(x); });
+  _rhMemberSet(rec).forEach(x=>{ if(out.indexOf(x)<0 && !_rhTwinHidden(x) && !_catHidden(_rhPlatform(x))) out.push(x); });
   return rhCollapseTwins(out,rec);
 }
 // SUGGEST the roles, so a room full of AV gear is never one press from
@@ -9646,6 +9684,12 @@ function rhDeviceRow(e,rec,inputs,first){
   // Core folded the other half into this row. Say so — in names — so the
   // installer is never left hunting for the "missing" second device.
   // (register 339: a Developer's diagnostic — an installer never reads it.)
+  // 912: this receiver's music half — said to EVERY tier, because it is a job the room does, not a diagnostic.
+  const _pin=_rhPairedInto(rec,e);
+  if(_pin.length){
+    const via=_pin.map(t=>{ const tm=(rec.meta&&rec.meta[t])||{}; return esc((typeof integrationName==='function'&&tm.integration&&integrationName(tm.integration))||tm.integration||avName(t)); }).join(', ');
+    lines.push(`<div class="rh-note"><span>♪</span> Music via ${via} — the same box's music half plays this room's music</div>`);
+  }
   const twins=(_me.tech||_me.developer)?_rhFoldedInto(rec,e):[];
   if(twins.length){
     const tw=twins.map(t=>{ const tm=(rec.meta&&rec.meta[t])||{}; const ti=(typeof integrationName==='function'&&tm.integration&&integrationName(tm.integration))||tm.integration||''; return esc(avName(t))+(ti?' ('+esc(ti)+')':''); }).join(', ');
@@ -9851,7 +9895,7 @@ function rhAddBlock(){
   // _avUnassigned, yet the record already names it — without this filter it showed
   // in the room AND in Available at once ("Sonos twice"). Membership is the truth.
   const _memHere=new Set([..._rhMemberSet(rec), ...rhRoomAV(rec)]);
-  const unrows=(_avUnassigned||[]).filter(d=>d&&!_memHere.has(d.entity)&&!_rhIsFolded(d.entity)).map(d=>addRow(esc(d.name||d.entity),d.tier,`${esc(integrationName(d.integration||'')||prettyIntg(d.integration||''))} · available`,`avAssignRoom('${esc(d.entity)}')`,esc(d.entity))).join('');
+  const unrows=(_avUnassigned||[]).filter(d=>d&&!_memHere.has(d.entity)&&!_rhTwinHidden(d.entity)).map(d=>addRow(esc(d.name||d.entity),d.tier,`${esc(integrationName(d.integration||'')||prettyIntg(d.integration||''))} · available`,`avAssignRoom('${esc(d.entity)}')`,esc(d.entity))).join('');
   // UNCLAIMED entities sitting in OTHER committed rooms. An AVR's Zone 2 entity
   // inherits the AVR device's room from HA, so it never looks "available" —
   // but HA's inherited placement is NOT membership. Any candidate of another
@@ -9870,7 +9914,7 @@ function rhAddBlock(){
       if(r===rec||!r.committed) return;
       const cand=r.candidates||{};
       [].concat(cand.display||[],cand.sources||[],cand.audio||[]).forEach(e=>{
-        if(!e||members.has(e)||here.has(e)||_rhIsFolded(e)) return;
+        if(!e||members.has(e)||here.has(e)||_rhTwinHidden(e)) return;
         here.add(e);
         const meta=(r.meta&&r.meta[e])||{}; const tier=meta.tier||'compatible';
         const integ=(typeof integrationName==='function'&&meta.integration&&integrationName(meta.integration))||meta.integration||edom(e);
@@ -10526,6 +10570,7 @@ function renderRoomHub(){
   // to nothing; the installer confirms by pressing Commit.
   const members=rec?rhRoomAV(rec):[];
   if(rec) rhSeedRoles(rec,members);
+  if(rec && rhBindPaired(rec)) _rhDirty();   // 912: a receiver's music half rides with its receiver
   // RECORD ORDER IS THE ORDER (Dave, 9 Aug): rows render in the record's own
   // sequence so a drag SURVIVES the re-render — with the display leading
   // unless it holds a source slot (then its slot is its place, and Watch TV
