@@ -6675,7 +6675,7 @@ class Handler(BaseHTTPRequestHandler):
     # shipping: both PWAs attach their tokens to every :8770 call, and the
     # dashboard's homeowner writes (music, providers/oauth, scenes/photo,
     # room_order, navcaps, areas, assist) are all HOUSEHOLD class.
-    _POST_OPEN = ("auth/login", "auth/claim", "dashboard/ack")   # auth/claim: reg 438
+    _POST_OPEN = ("auth/login", "dashboard/ack")   # auth/claim left 16 Oct 2026 (register 902 — the sign-in QR is gone)
     _POST_INSTALLER = (
         "dashboard/publish", "sync", "provision/claim", "credentials/",
         "auth/qr",               # minting a homeowner sign-in code — reg 438
@@ -7123,34 +7123,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, {"ok": True, "switch": sw})
                 except Exception as e:
                     return self._send(502, {"ok": False, "error": str(e)})
-            if parts == ["auth", "qr"]:
-                # Register 438: Pro asks for a sign-in CODE for a homeowner; the
-                # QR carries the code, never the login. Installer tier and up.
-                if not proauth:
-                    return self._send(503, {"error": "auth module not loaded"})
-                u = getattr(self, "_user", None)
-                if not (u and (u.get("is_admin") or u.get("is_owner"))):
-                    return self._send(403, {"error": "installer access required"})
-                b = self._body() or {}
-                try:
-                    return self._send(200, proauth.mint_code(b.get("username") or "",
-                                                             b.get("password") or "",
-                                                             b.get("name") or ""))
-                except proauth.AuthError as e:
-                    return self._send(400, {"error": str(e), "kind": e.kind})
-            if parts == ["auth", "claim"]:
-                # Register 438: the Dashboard hands back the code from the QR
-                # (PUBLIC — no token yet) and gets this device's own token.
-                if not proauth:
-                    return self._send(503, {"error": "auth module not loaded"})
-                b = self._body() or {}
-                try:
-                    return self._send(200, proauth.claim_code(b.get("code") or ""))
-                except proauth.AuthError as e:
-                    status = 502 if e.kind == "unreachable" else 401
-                    return self._send(status, {"error": str(e), "kind": e.kind})
-                except Exception as e:
-                    return self._send(500, {"error": str(e)})
+            # REGISTER 902 (Dave 16 Oct): POST /auth/qr and the public /auth/claim (register 438) are gone with the
+            # sign-in QR — they now answer as any unknown route. Every login is a username and password.
             if parts == ["auth", "login"]:
                 # Installer app front door (PUBLIC — you have no token yet).
                 # Validates credentials against HA and enforces installer/tech/

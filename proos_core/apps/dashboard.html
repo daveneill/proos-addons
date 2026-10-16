@@ -4246,45 +4246,8 @@ function _setupLocalUI(){
 // The address a sign-in goes to: the page's own origin, else the last home
 // address the platform gave us. Never typed.
 function _signinOrigin(){ const c=homeCandidates(); return (_originUrl()||c[0]||'').replace(/\/$/,''); }
-// ── QR sign-in ───────────────────────────────────────────────────────────────
-// The installer's QR carries a sign-in CODE minted by Core (register 438) —
-// never the login itself. We hand the code back to Core; Core runs the
-// platform's own sign-in for it and returns this device's token.
-function _getSignin(){
-  try{
-    const c=new URLSearchParams(location.search).get('c');
-    return c?{c:String(c)}:null;
-  }catch(e){ return null; }
-}
-function _stripSigninParam(){
-  try{ const u=new URL(location.href); u.searchParams.delete('c'); u.searchParams.delete('s'); history.replaceState(null,'',u.pathname+u.search+u.hash); }catch(e){}
-}
-async function _claimCode(code){
-  try{
-    const base=proosCoreBase();
-    if(!base) return {ok:false, error:'Open ProOS from your home\u2019s own address to sign in.'};
-    const r=await fetch(base+'/auth/claim',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code})});
-    let d={}; try{ d=await r.json(); }catch(e){}
-    if(!r.ok||!d.token) return {ok:false, error:(d&&d.error)||'That sign-in code is no longer valid. Ask your installer for a new one.'};
-    localStorage.setItem('ha_token',d.token);
-    return {ok:true};
-  }catch(e){ return {ok:false, error:'Could not reach ProOS to sign in.'}; }
-}
-async function _signinBoot(sig){
-  const load=document.getElementById('loading'), setup=document.getElementById('setup');
-  const msg=document.getElementById('load-name');
-  if(load) load.style.display='';
-  if(setup) setup.style.display='none';
-  if(msg) msg.textContent='Signing you in\u2026';
-  const res=await _claimCode(sig.c);
-  _stripSigninParam();
-  if(res.ok){ location.reload(); return; }
-  if(load) load.style.display='none';
-  if(setup) setup.style.display='flex';
-  _setupLocalUI();
-  const err=document.getElementById('setup-error');
-  if(err){ err.textContent=res.error||'That sign-in code is no longer valid. Ask your installer for a new one.'; err.style.display='block'; }
-}
+// REGISTER 902 (Dave 16 Oct 14:22): the sign-in QR (?c=<code> → Core's /auth/claim, register 438) is gone — every
+// login is a username and password.
 function setupRevealToken(){ const w=document.getElementById('setup-token-wrap'),l=document.getElementById('setup-token-link'); if(w)w.style.display='flex'; if(l)l.style.display='none'; const t=document.getElementById('setup-token'); if(t)t.focus(); }
 
 function _setupBusy(on){ const t=document.getElementById('setup-btn-text'),s=document.getElementById('setup-btn-spin'); if(t)t.textContent=on?'Signing in…':'Sign In'; if(s)s.style.display=on?'block':'none'; }
@@ -4567,7 +4530,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101403';
+const PROOS_BUILD='2026101601';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -6273,10 +6236,6 @@ async function connect(){
   await _proosDoorReady;
   // If no token stored, show setup screen and stop
   if(!CONFIG.ha.token){
-    // QR handover: the installer's QR opened us with ?c=<code> (register
-    // 438). Core turns the code into this device's token.
-    const _sig=_getSignin();
-    if(_sig){ _signinBoot(_sig); return; }
     document.getElementById('loading').style.display='none';
     document.getElementById('setup').style.display='flex';
     _tellApp('load:done');   // 696c: the app shows the sign-in, not its loading screen

@@ -70,7 +70,7 @@ def _follow_platform():
         _SEEN_USER_GEN = g
         _CACHE.clear()
 
-PUBLIC_PATHS = {"health", "auth/login", "auth/claim", "dashboard/ack"}  # "events" left 5 Oct 2026: the dashboard stream carries ?token=  # reachable without a token even when armed (auth/claim: reg 438)
+PUBLIC_PATHS = {"health", "auth/login", "dashboard/ack"}  # "events" left 5 Oct 2026: the dashboard stream carries ?token=  # reachable without a token even when armed (auth/claim left 16 Oct 2026, register 902 — the sign-in QR is gone)
 
 
 def bearer(headers) -> str | None:
