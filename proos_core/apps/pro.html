@@ -2842,7 +2842,7 @@ body.v3 .rh-card{border-radius:22px}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026101615';
+const PROOS_BUILD='2026101616';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -11000,6 +11000,13 @@ async function obState(){
 // the DEVICE's screen that decides (its short side under 600 points: every iPhone, either way up), never the window —
 // so an iPad in split view or slide-over, or a narrow Mac window, is never turned away.
 function _proOnPhone(){ try{ return Math.min(screen.width, screen.height) < 600; }catch(e){ return false; } }
+async function _lgNewBox(){
+  try{
+    const r=await fetch(proCoreUrl()+'/setup/state',{cache:'no-store'}); if(!r.ok) return;
+    const d=await r.json(); const el=document.getElementById('lg-sub');
+    if(el&&d&&d.new_box) el.textContent="This is a new box. Sign in with the installer login it came with — you'll set your own password next.";
+  }catch(e){}
+}
 function renderGate(view, err){
   const g=document.getElementById('gate'); if(!g) return;
   // 686: detect and provisioning are the standard loading look; the rest centred.
@@ -11036,7 +11043,9 @@ function renderGate(view, err){
   if(view==='login'){
     setHTML(g, '<div class="landing-eyebrow">Installer console</div>'
       +'<div class="landing-heading">Installer Sign In</div>'
-      +"<div class=\"landing-sub\">A new box ships with a default installer login. You'll set your own password on first sign-in.</div>"
+      // REGISTER 903 (Dave 16 Oct 14:11): "a new box" only when it is one — Core's public /setup/state says whether this
+      // box still has its starter login; the app's own sign-in reads the same answer.
+      +'<div class="landing-sub" id="lg-sub">Sign in with your installer login.</div>'
       +_gateWhere()
       +'<div class="field"><div class="field-label">Username</div><input id="lg-user" type="text" oninput="_lc(this)" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false"/></div>'
       +'<div class="field"><div class="field-label">Password</div><input id="lg-pass" type="password" autocomplete="current-password" onkeydown="if(event.key===\'Enter\')loginUserPass()"/></div>'
@@ -11044,6 +11053,7 @@ function renderGate(view, err){
       +'<div id="gate-error">'+(err?esc(err):'')+'</div>'
       +'<button class="gate-link std-hide" onclick="renderGate(\'manual\')">Use an Access Token Instead</button>');
     setTimeout(()=>{ const i=document.getElementById('lg-user'); if(i) i.focus(); },60);
+    _lgNewBox();
     return;
   }
   // manual (token) — original path, preserved as a fallback for remote/odd setups

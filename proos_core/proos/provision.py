@@ -584,6 +584,16 @@ def installer_must_change(user_id) -> bool:
         return False
 
 
+def starter_login_pending() -> bool:
+    """REGISTER 903: does this box still have its starter installer login (the one it shipped with, not yet replaced)?
+    A yes/no with nothing secret in it — what both sign-in screens need to say "a new box" only when it is one."""
+    try:
+        with open(INSTALLER_STATE, encoding="utf-8") as fh:
+            return bool((json.load(fh) or {}).get("must_change"))
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def clear_installer_must_change(user_id):
     _set_installer_must_change(user_id, False)
 

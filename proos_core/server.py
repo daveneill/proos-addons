@@ -5385,6 +5385,11 @@ class Handler(BaseHTTPRequestHandler):
                     from proos import protecttalk as _pt
                     return self._send(200, {"sessions": _pt.log(), "encoder": _pt.available()})
                 return self._send(404, {"error": "unknown camera route"})
+            if parts == ["setup", "state"]:
+                # REGISTER 903 (Dave 16 Oct 14:11: the browser and the app sign-in screens differ): PUBLIC, nothing secret —
+                # whether this box still has its starter installer login. Pro's page and the app's own sign-in both read it,
+                # and say "a new box" only when it is one.
+                return self._send(200, {"new_box": bool(provision and provision.starter_login_pending())})
             if parts == ["health"]:
                 # awareness rides along (3 Aug): the posture is a per-site
                 # option — surfaces must show it, never assume it.
