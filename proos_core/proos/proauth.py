@@ -175,6 +175,47 @@ def login(username: str, password: str) -> dict:
     raise AuthError("could not reach the system to sign in: %s" % last, "unreachable")
 
 
+def first_password(user_id: str, username: str, starter: str, new_password: str) -> dict:
+    """REGISTER 901 (Dave 16 Oct 14:17, the app: "Please sign out and log in again, then set your password"): the
+    first-sign-in password change, ONE road for the app and the browser. The page used to change it with the starter
+    password it had kept from its own sign-in form; the app signs in natively, so the page never had it. Core set the
+    starter password, so Core changes it: the platform's own login flow with the starter password gives THAT user's
+    session, and the platform's own self-service change_password runs on it (no owner rights, nothing kept — the new
+    password passes through and is never stored). Refused unless the starter login IS the caller."""
+    if not new_password or len(new_password) < 6:
+        raise AuthError("use at least 6 characters", "bad_input")
+    last = None
+    for base, sv in _bases():
+        cid = base.rstrip("/") + "/"
+        try:
+            flow = _http(base, "/auth/login_flow", {"client_id": cid, "handler": ["homeassistant", None],
+                                                     "redirect_uri": cid}, token=sv)
+            fid = flow.get("flow_id")
+            if not fid:
+                raise RuntimeError("login flow did not start")
+            step = _http(base, "/auth/login_flow/" + fid, {"client_id": cid, "username": username,
+                                                            "password": starter}, token=sv)
+            if step.get("type") != "create_entry":
+                raise AuthError("the starter password no longer signs this login in", "bad_credentials")
+            tokens = _http(base, "/auth/token", {"grant_type": "authorization_code", "code": step["result"],
+                                                  "client_id": cid}, token=sv, form=True)
+            access = tokens.get("access_token")
+            if not access:
+                raise RuntimeError("no access token from auth/token")
+            if _resolve(base, access).get("id") != user_id:
+                raise AuthError("this is not your login", "not_you")
+            from proos.ha_ws import ws_command
+            ws_command(base, access, "config/auth_provider/homeassistant/change_password",
+                       current_password=starter, new_password=new_password)
+            return {"ok": True}
+        except AuthError:
+            raise
+        except Exception as exc:        # noqa: BLE001 - transport: try the next base
+            last = exc
+            continue
+    raise AuthError("could not reach the system to set the password: %s" % last, "unreachable")
+
+
 # --------------------------------------------------------------------------
 # homeowner sign-in codes (register 438)
 # --------------------------------------------------------------------------

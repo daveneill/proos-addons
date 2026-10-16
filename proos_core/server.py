@@ -8164,6 +8164,30 @@ class Handler(BaseHTTPRequestHandler):
                         password=(b.get("password") or None), caller_id=u.get("id")))
                 except Exception as e:
                     return self._send(400, {"error": str(e)})
+            if parts == ["users", "first-password"]:
+                # REGISTER 901: the first sign-in's password, set from the app or the browser alike. Only the login
+                # Core gave the starter password, only while its flag says it must change; then the SAME confirmation
+                # as change-password (the starter must be refused) before the flag is cleared.
+                u = getattr(self, "_user", None)
+                if not (users and u and provision and proauth is not None):
+                    return self._send(403, {"error": "authentication required"})
+                if not provision.installer_must_change(u.get("id")):
+                    return self._send(409, {"error": "this login has no starter password to replace"})
+                b = self._body() or {}
+                try:
+                    proauth.first_password(u.get("id"), provision.INSTALLER_USERNAME, provision.INSTALLER_DEFAULT_PW,
+                                           str(b.get("new_password") or ""))
+                except proauth.AuthError as _ae:
+                    _k = getattr(_ae, "kind", "")
+                    return self._send(400 if _k in ("bad_input", "bad_credentials", "not_you") else 503, {"error": str(_ae)})
+                try:
+                    proauth.login(provision.INSTALLER_USERNAME, provision.INSTALLER_DEFAULT_PW)
+                    return self._send(500, {"error": "the starter password still signs this login in — not changed"})
+                except proauth.AuthError as _ae2:
+                    if getattr(_ae2, "kind", "") != "bad_credentials":
+                        return self._send(503, {"error": "password set, but it can't be confirmed right now — sign in with the new one"})
+                provision.clear_installer_must_change(u.get("id"))
+                return self._send(200, {"ok": True})
             if parts == ["users", "change-password"]:
                 # The password itself is changed client-side via HA's self-service
                 # flow (the caller's OWN session — ProCore's admin connection can't

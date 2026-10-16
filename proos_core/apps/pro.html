@@ -2844,7 +2844,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026101613';
+const PROOS_BUILD='2026101614';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -11311,8 +11311,22 @@ async function doChangePassword(){
   if(er) er.textContent='';
   if(p1.length<6){ if(er) er.textContent='Use at least 6 characters.'; return; }
   if(p1!==p2){ if(er) er.textContent="The passwords don't match."; return; }
-  if(!_sessionPw){ if(er) er.textContent='Please sign out and log in again, then set your password.'; return; }
   if(go){ go.disabled=true; go.textContent='Setting…'; }
+  if(!_sessionPw){
+    // REGISTER 901 (Dave 16 Oct, the app: "Please sign out and log in again…"): signed in by the app, the page never
+    // held the starter password. Core set it, so Core replaces it — one road for the app and the browser.
+    try{
+      const r=await fetch(proCoreUrl()+'/users/first-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({new_password:p1})});
+      let d={}; try{ d=await r.json(); }catch(e){}
+      if(!r.ok) throw new Error(d.error||'Could not set the password.');
+      _sessionPw=p1;
+      try{ localStorage.removeItem('proos_pw_lock'); }catch(e){}
+      _me.must_change=false;
+      const o=document.getElementById('pwchange-overlay'); if(o) o.style.display='none';
+      toast('Password set — you can commission now.');
+    }catch(e){ if(er) er.textContent=(e&&e.message)||'Could not set the password.'; if(go){ go.disabled=false; go.textContent='Set Password & Continue'; } }
+    return;
+  }
   try{
     // Change the password via HA's self-service flow on the installer's OWN
     // session — ProCore's admin connection can't call the owner-only
@@ -11330,7 +11344,7 @@ async function doChangePassword(){
     _me.must_change=false;
     const o=document.getElementById('pwchange-overlay'); if(o) o.style.display='none';
     toast('Password set — you can commission now.');
-  }catch(e){ if(er) er.textContent=(e&&e.message)||'Could not set the password.'; if(go){ go.disabled=false; go.textContent='Set password & continue'; } }
+  }catch(e){ if(er) er.textContent=(e&&e.message)||'Could not set the password.'; if(go){ go.disabled=false; go.textContent='Set Password & Continue'; } }
 }
 function openFactoryConfirm(){
   _factoryTarget=(homeName()||'').trim()||'RESET';
