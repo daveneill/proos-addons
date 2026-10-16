@@ -270,6 +270,34 @@ def can_take(row: dict, method: str) -> bool:
         return False
 
 
+# REGISTER 918: which devices say what app they opened. An Android TV box (both platform paths) reports the package it
+# is on as app_id — the same id a play_media "app" launch sends — so the two can be compared. Nothing else is assumed.
+OPENS_REPORTED = ("androidtv_remote", "androidtv")
+OPEN_WAIT_S = 10.0         # plumbing: how long an Android box is given to bring the app up after the command
+
+
+def reports_open(sc: dict) -> bool:
+    return (sc or {}).get("method") == "play_media_app" and (sc or {}).get("platform") in OPENS_REPORTED
+
+
+def opened(row: dict, sc: dict):
+    """True: the device says it is on the app launched. False: it says it is on something else. None: it doesn't say."""
+    if not reports_open(sc):
+        return None
+    on = str(((row or {}).get("attributes") or {}).get("app_id") or "")
+    if not on:
+        return None
+    return on == str(sc.get("token") or "")
+
+
+def still_on(attrs: dict) -> str:
+    """What the device says it is showing, in words a person reads."""
+    a = str((attrs or {}).get("app_name") or (attrs or {}).get("app_id") or "")
+    if not a:
+        return "what it was showing"
+    return "its home screen" if "launcher" in a.lower() else a
+
+
 def _ready(client, target: str, method: str):
     """Wake the target when it is asleep and wait until it can take the command (its own features), bounded."""
     from . import appctl, readback as _rb
@@ -369,16 +397,37 @@ def launch(client, project, area_id: str, sc: dict, power: bool = True) -> dict:
             break
     if err is not None:
         return {"error": "couldn't launch %s: %s" % (sc.get("name") or sc.get("app"), err)}
+    # REGISTER 918 (17 Oct, seen on the box): Foxtel "launched" on the Bedroom Shield — ok, taken — while the Shield sat
+    # on its home screen (app_id com.google.android.tvlauncher): the token was the app's name, which an Android box
+    # cannot open. A device that REPORTS the app it is on (an Android TV box: app_id = the package it launched) is
+    # read back, bounded, and a launch it says did not open is a FAILED launch — the test, the proof and the tap all
+    # say so. A device that does not report (Apple TV) stays on Dave's ruling below: awake + taken = done.
+    from . import readback as _rb
+    if reports_open(sc):
+        rbo = _rb.confirm(client, target, lambda row: opened(row, sc),
+                          attrs=("app_id", "app_name", "friendly_name"), wait=OPEN_WAIT_S)
+        if rbo.get("confirmed") is False:
+            at = rbo.get("attributes") or {}
+            return {"ok": False, "taken": True, "opened": False, "app": sc.get("app"), "target": target,
+                    "method": sc["method"], "fired": cmd["data"], "shows": still_on(at), "read_back": rbo,
+                    "error": "%s didn't open %s — it is still on %s. ProOS hasn't got the right Android code for "
+                             "%s on this device yet." % (at.get("friendly_name") or target, sc.get("name") or sc.get("app"),
+                                                         still_on(at), sc.get("name") or sc.get("app"))}
     # DAVE'S RULING, 14 Oct 14:11 (register 871): "Apple TV will never be correct with saying what's on, so it just needs
     # to confirm it's on then send the command. There is no need to confirm if a device is on an app if the command
     # works." So: the device awake (above), the command taken by the platform without error = DONE. What the device
     # says it shows is read once and carried as information, never as the verdict.
-    from . import readback as _rb
     rb = _rb.confirm(client, target, lambda row: None, attrs=("source", "app_id", "app_name"), wait=0)
     shown = ((rb.get("attributes") or {}).get("app_name") or (rb.get("attributes") or {}).get("source") or None)
     return {"ok": True, "app": sc.get("app"), "target": target,
             "method": sc["method"], "fired": cmd["data"],
-            "confirmed": True, "taken": True, "shows": shown, "read_back": rb}
+            "confirmed": True, "taken": True, "opened": True if reports_open(sc) and rbo_ok(rb, sc) else None,
+            "shows": shown, "read_back": rb}
+
+
+def rbo_ok(rb: dict, sc: dict) -> bool:
+    """The final read says the app the shortcut launched (only for a device that reports it)."""
+    return opened({"attributes": (rb or {}).get("attributes") or {}}, sc) is True
 
 
 # ── REGISTER 867: the shortcuts ARE the room's apps for Assist and voice (Dave 14 Oct 12:32: "we confirmed ages ago that
@@ -439,6 +488,99 @@ def build_tested(client, project, area_id: str, app: str, target: str, test=None
     if added.get("error"):
         return {"error": added["error"], "launch": res, "shortcut": sc}
     return {"ok": True, "added": True, "shortcut": sc, "launch": res, "count": added.get("count")}
+
+
+# ── REGISTER 918: WHAT THIS DEVICE CAN RUN (the add list) ────────────────────
+# Dave, 17 Oct: "the add a shortcut list needs to be the apps that are synced to the device … Foxtel is an app on a
+# shield but is not on Apple TV but the way the list is done you can add a foxtel app to apple tv it just wont do
+# anything". And: "having the devices sync their app lists again". The list was every library app for every device.
+# It is now the DEVICE'S OWN list, from the platform's own mechanism for that brand:
+#   Apple TV / LG / Roku  — the source_list the device publishes (its app names; select_source takes them verbatim),
+#                           remembered once seen (appctl's ledger — the attribute comes and goes, register 30 Jul).
+#   Samsung               — the apps the TV publishes that ProOS holds a Tizen id for; a panel that publishes no list
+#                           (the 2020 Frame) gets the ids ProOS ships, said as such.
+#   Android TV (Shield)   — the platform entry's own app list ({package: name}, register 442), taught by watching an
+#                           app open on the box or by Learn from Device. The package IS the launch token.
+# The tile is always ours (the canonical icon) — the device decides only WHAT is offered, never how it looks.
+ANDROID = ("androidtv_remote", "androidtv")
+
+
+def device_apps(client, target: str, platform: str = None, android_held: dict = None) -> dict:
+    """{target, platform, method, source, apps:[{app, name, word, token, tile}], unlaunchable:[word], note}."""
+    from . import appctl
+    plat = (platform or platform_of(client, target) or "").strip()
+    method = method_for(plat)
+    st = _state(client, target)
+    name = ((st.get("attributes") or {}).get("friendly_name") or target)
+    # An Apple TV's list is ALL apps — it has no inputs — so nothing is filtered (its "TV" is Apple's TV app, which
+    # the input filter would drop). A TV's list mixes apps with HDMI/tuner inputs, which are never apps.
+    keep_all = plat == "apple_tv"
+    full = appctl._source_list(st)                                      # noqa: SLF001
+    live = full if keep_all else appctl._source_list(st, apps_only=True)   # noqa: SLF001
+    source = "published"
+    if live:
+        appctl._remember_list(target, full)                             # noqa: SLF001
+    else:
+        prev = appctl._remembered_list(target)                          # noqa: SLF001
+        live = [x for x in prev if isinstance(x, str)
+                and (keep_all or not appctl._INPUT_RE.match(x.strip()))]   # noqa: SLF001
+        source = "remembered" if live else "none"
+    apps, seen, unl = [], set(), []
+
+    def put(word, token, slug=None, nm=None):
+        sl = slug or canonical_slug(word)
+        if not sl or sl in seen:
+            return
+        seen.add(sl)
+        apps.append({"app": sl, "name": nm or display_name(word), "word": word, "token": token,
+                     "tile": bool(appart.tile_path(sl))})
+
+    if plat in ANDROID:
+        source = "learned" if android_held else "none"
+        for pkg, nm in sorted((android_held or {}).items(), key=lambda kv: str(kv[1]).lower()):
+            c = appart.canonical(nm, pkg) or {}
+            put(nm, pkg, slug=c.get("slug") or appart.slug(nm), nm=c.get("name") or nm)
+        note = ("" if apps else
+                "%s hasn't told ProOS any of its apps yet. Open an app on it with its remote, then press "
+                "Learn from Device." % name)
+    elif plat == "samsungtv_smart":
+        if live:
+            for w in live:
+                tok = (REGISTRY.get(canonical_slug(w)) or {}).get("samsung")
+                if tok:
+                    put(w, tok)
+                else:
+                    unl.append(w)
+        else:
+            source = "library"
+            for sl, row in REGISTRY.items():
+                if row.get("samsung"):
+                    put(sl, row["samsung"])
+        note = ("" if live else "This TV doesn't publish its apps — these are the Samsung apps ProOS can open by id.")
+    else:
+        for w in live:
+            put(w, w)                                       # select_source takes the device's own word, verbatim
+        note = ("" if apps else
+                "%s hasn't published its app list yet. Turn it on and its apps will appear here." % name)
+    apps.sort(key=lambda a: (appart._canon_index().get(a["app"], (0, 0, 10 ** 6))[2], a["name"].lower()))   # noqa: SLF001
+    return {"target": target, "name": name, "platform": plat, "method": method, "source": source,
+            "apps": apps, "unlaunchable": unl, "note": note}
+
+
+def offered(dapps: dict, app: str):
+    """(entry, error). The device's own entry for this app, or why it can't be added. A device that has never
+    published a list (an Apple TV not yet seen on) is not refused — it launches by name, as before."""
+    for e in (dapps or {}).get("apps") or []:
+        if e["app"] == app or _same(e["word"], app) or _same(e["name"], app) or e["app"] == canonical_slug(app):
+            return (e, None)
+    nm = display_name(app)
+    dev = (dapps or {}).get("name") or "This device"
+    if (dapps or {}).get("platform") in ANDROID:
+        return (None, "%s doesn't have %s yet. Open %s on it with its remote, then press Learn from Device."
+                % (dev, nm, nm))
+    if (dapps or {}).get("source") in ("published", "remembered", "library"):
+        return (None, "%s doesn't have %s." % (dev, nm))
+    return (None, None)
 
 
 # ── setup helpers (the Pro API leans on these) ───────────────────────────────

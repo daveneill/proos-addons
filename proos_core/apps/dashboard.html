@@ -4530,7 +4530,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101602';
+const PROOS_BUILD='2026101701';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -16817,25 +16817,8 @@ function _appTileHTML(app, cls, pkg){
   return "<span class='awt "+(cls||'')+"' data-app=\""+_appEscA(app)+"\" style='background:#20232c'><span class='awt-wm'>"+_appEscA(c.n)+"</span></span>";
 }
 // ── APP SHORTCUT: launch + favourite-to-room ────────────────────────────────
-// Is the room's display actually off? Uses the committed proos_display label,
-// never a name. Unknown -> false, so we never interfere with a room we can't
-// reason about.
-function _awDisplayOff(area){
-  try{
-    const l=(typeof labelledEntities!=='undefined'&&labelledEntities['proos_display'])||[];
-    const d=l.filter(e=>entityAreaMap[e]===area);
-    if(!d.length) return false;
-    return d.every(e=>{ const s=(states[e]||{}).state;
-      return s==='off'||s==='standby'||s==='unavailable'; });
-  }catch(e){ return false; }
-}
-// Tapping an app shortcut means "watch this" — not "send a command into the
-// void". With the TV off, launching an app on a box nobody can see does
-// nothing useful, so run the room's own Watch activity first (TV on, correct
-// input, per Core's fire plan), then launch. Already watching = no activity
-// fired, so the common case stays instant.
-// Launch feedback (step 4): a progress ring rides the tile while the watch
-// activity fires and settles — the tile itself says "working on it".
+// Launch feedback: a progress ring rides the tile until Core answers the launch (register 918) — the tile
+// itself says "working on it".
 function _awRing(el,on){
   if(!el) return;
   let r=el.querySelector('.aw-ring');
@@ -16848,31 +16831,24 @@ function _awRing(el,on){
 async function _awTap(el){
   if(_widgetEditMode) return;
   const dev=el.dataset.dev, app=el.dataset.app, id=el.dataset.appid;
-  showToast(_appCanon(app,id||'').n);
+  const nm=_appCanon(app,id||'').n;
+  // ONE LAUNCH ROAD (register 918, 17 Oct). This tile used to run its own launch: fire the Watch activity, sleep
+  // a fixed 1.8 s, then send the app straight from here. An Apple TV takes ~20 s to wake (register 872), so the
+  // app was sent to a box that wasn't up and simply lost — Dave: "it doesn't allow the device to turn on". It now
+  // asks Core, exactly like the room's app sheet, Assist and Prove the Room: the TV on, the right input, the
+  // player woken and waited for until it can take the command, the app sent (once more if refused), and — on a
+  // box that reports what it opened — checked. The ring stays on until Core answers; the answer is what's said.
+  const area=entityAreaMap[dev]||(curRoom>=0&&CONFIG.rooms[curRoom]?CONFIG.rooms[curRoom].id:null);
+  if(!area||!dev){ showToast('This app isn\u2019t linked to a room\u2019s device'); return; }
+  showToast('Opening '+nm+'\u2026');
   _awRing(el,true);
   try{
-  // A shortcut is pinned to ONE device, so tapping it means "watch that device,
-  // then open this app". Firing the room's Watch activity only when the display
-  // was off wasn't enough: with the TV already on but showing another source,
-  // the app launched on a box that wasn't on screen. So the activity runs
-  // whenever the room isn't already watching this device — it selects the input
-  // as well as powering up, and re-asserting an input that's already correct is
-  // invisible.
-  const area=entityAreaMap[dev]||(curRoom>=0&&CONFIG.rooms[curRoom]?CONFIG.rooms[curRoom].id:null);
-  if(area){
-    const act=(window._proosActs||[]).find(a=>a.source_eid===dev);
-    if(act && act.script){
-      const wasOff=_awDisplayOff(area);
-      try{ await window.proosFireActivity(area, act.script); }catch(e){}
-      // A box waking from standby drops commands sent before it's up; an input
-      // change on a live TV needs only a moment.
-      await new Promise(r=>setTimeout(r, wasOff?1800:700));
-    }
-  }
-  if(id) svc('media_player','play_media',{entity_id:dev,media_content_type:'app',media_content_id:id});
-  else   svc('media_player','select_source',{entity_id:dev,source:app});
-  } finally {
-    // brief tail so the ring visibly completes even on a warm launch
+    const r=await fetch(proosCoreBase()+'/shortcuts/'+encodeURIComponent(area)+'/launch',
+      {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({app:app, target:dev, token:id||undefined})});
+    const d=await r.json().catch(()=>({}));
+    if(d&&d.ok){ showToast(nm); return; }
+    showToast((d&&d.error)||('Couldn\u2019t open '+nm));
+  }catch(e){ showToast(_coreFailWords('/shortcuts/\u2026/launch',e)); } finally {
     setTimeout(()=>_awRing(el,false), 400);
   }
 }

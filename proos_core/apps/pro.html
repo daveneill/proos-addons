@@ -2325,6 +2325,7 @@ body.v3 .rh-card{border-radius:22px}
     .rh-act-new{border:0.5px dashed var(--line);color:var(--accent);background:none}
     /* App Shortcuts — matched to the room-hub card vocabulary */
     .sc-grid{display:flex;flex-wrap:wrap;gap:12px;margin:8px 0 2px}
+    .sc-tile.sc-added{opacity:.5;cursor:default}
     .sc-tile{position:relative;width:136px;background:rgba(255,255,255,0.03);border:0.5px solid var(--line-soft);border-radius:14px;padding:12px 12px 12px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s}
     .sc-tile:hover{border-color:var(--accent);background:rgba(255,255,255,0.05)}
     .sc-x{position:absolute;top:7px;right:7px;width:20px;height:20px;border-radius:50%;border:none;background:rgba(0,0,0,0.45);color:var(--t2);font-size:13px;line-height:1;cursor:pointer;opacity:.55;transition:opacity .15s;z-index:2}
@@ -2846,7 +2847,7 @@ body.v3 .rh-card{border-radius:22px}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026101704';
+const PROOS_BUILD='2026101705';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -10724,29 +10725,115 @@ function scTileHTML(area, sc, tgtName){
     +'<div class="sc-test">Tap to test</div></div>';
 }
 function shortcutsCardHTML(area, list, cat, devices){
-  list=list||[]; cat=cat||[]; devices=devices||[];
+  list=list||[]; devices=devices||[];
   const nameOf={}; devices.forEach(d=>{ nameOf[d.entity_id]=d.name; });
   const tiles=list.length ? '<div class="sc-grid">'+list.map(sc=>scTileHTML(area,sc,nameOf[sc.target])).join('')+'</div>'
-    : '<div class="rh-empty">No app shortcuts yet — add the apps this room uses below. Each shows the ProOS icon and launches on the device you choose.</div>';
-  const appOpts=cat.map(a=>'<option value="'+esc(a.slug)+'">'+esc(a.name)+'</option>').join('');
-  const devOpts=devices.map(d=>'<option value="'+esc(d.entity_id)+'">'+esc(d.name)+(d.is_display?' (display)':'')+'</option>').join('');
-  const add=devices.length ? '<div class="rh-sec-lbl">Add a shortcut</div>'
+    : '<div class="rh-empty">No app shortcuts yet — pick a device below and tap the apps this room uses.</div>';
+  // REGISTER 918 (Dave, 17 Oct): "the add a shortcut list needs to be the apps that are synced to the device". The
+  // list was every library app for every device — Foxtel was offered for an Apple TV that doesn't have it. Now: pick
+  // the device, and what is offered is THAT device's own app list (Core: /shortcuts/<area>/apps?target=), each app
+  // on its ProOS tile. Tap a tile to add it.
+  const sel=scSelDev(area,devices);
+  // Painted after the card is in the page, never inside its markup: the device's list arriving must not change the
+  // hub's markup, or the whole room page rebuilds (the flash, register 330-era) and an open "App not listed?" closes.
+  setTimeout(()=>_scPaintDevApps(area),0);
+  const devOpts=devices.map(d=>'<option value="'+esc(d.entity_id)+'"'+(d.entity_id===sel?' selected':'')+'>'+esc(d.name)+(d.is_display?' (display)':'')+'</option>').join('');
+  const add=devices.length ? '<div class="rh-sec-lbl">Add a Shortcut</div>'
       +'<div class="sc-add" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
-      +'<select id="sc-app" class="sc-sel">'+appOpts+'</select>'
-      +'<select id="sc-dev" class="sc-sel">'+devOpts+'</select>'
-      +'<button class="rh-act-pill rh-act-new" onclick="scAdd(\''+esc(area)+'\')">+ Add shortcut</button></div>'
+      +'<select id="sc-dev" class="sc-sel" onchange="scPickDev(\''+esc(area)+'\',this.value)">'+devOpts+'</select></div>'
+      +'<div id="sc-devapps" style="margin-top:10px"></div>'
       +'<div style="margin-top:8px"><button class="rh-link" onclick="scNewApp(\''+esc(area)+'\')">App not listed?</button></div>'
       +'<div id="scb-wrap" style="display:none;margin-top:10px;border:0.5px solid var(--line);border-radius:12px;padding:14px">'
-      +'<div class="wiz-hint" style="margin-bottom:8px">Teach ProOS this app now — it stays on this system and the artwork is fetched automatically. No need to leave the job.</div>'
+      +'<div class="wiz-hint" style="margin-bottom:8px">Teach ProOS this app now — it stays on this system and its artwork is fetched and shown here. No need to leave the job.</div>'
       +(typeof brandPickerHtml==='function'?brandPickerHtml('scb'):'')
-      +'<div style="margin-top:10px"><button class="rh-act-pill rh-act-new" onclick="brandAdd(\'scb\',\''+esc(area)+'\')">Add app</button></div>'
+      +'<div style="margin-top:10px"><button class="rh-act-pill rh-act-new" onclick="brandAdd(\'scb\',\''+esc(area)+'\')">Add App</button></div>'
       +'<div id="scb-out" class="wiz-hint" style="margin-top:8px;display:none"></div></div>'
     : '<div class="rh-empty">Save the room\'s display first, then add shortcuts.</div>';
   return '<div class="rh-card"><div class="rh-hd"><span class="rh-hd-t">App Shortcuts</span>'
-    +'<button class="rh-link" onclick="scSupport()">Supported brands</button></div>'
+    +'<button class="rh-link" onclick="scSupport()">Supported Brands</button></div>'
     +'<div class="wiz-hint">The apps this room uses — each a tile with the ProOS icon that launches on the device you pick. The TV turns on and switches to it automatically. Tap a tile to test it.</div>'
     +tiles+add
     +'</div>';
+}
+// ── what one device can run (register 918) ──
+let _scDevApps={};        // target -> Core's answer (its own synced list), or {loading:true}
+let _scDevSel={};         // area -> the device picked in the add list
+function scSelDev(area,devices){
+  const cur=_scDevSel[area];
+  if(cur && devices.some(d=>d.entity_id===cur)) return cur;
+  return _scDevSel[area]=(devices[0]||{}).entity_id;
+}
+function scPickDev(area,target){ _scDevSel[area]=target; _scPaintDevApps(area); }
+function _scPaintDevApps(area){
+  const box=document.getElementById('sc-devapps'); if(!box) return;
+  setHTML(box, scDevAppsHTML(area,_scDevSel[area],_rhShortcuts[area]||[]));
+}
+async function scLoadDevApps(area,target,force){
+  if(!target) return;
+  if(!force && _scDevApps[target] && !_scDevApps[target].err) return;
+  _scDevApps[target]={loading:true};
+  try{
+    const r=await fetch(proCoreUrl()+'/shortcuts/'+encodeURIComponent(area)+'/apps?target='+encodeURIComponent(target));
+    _scDevApps[target]=r.ok?await r.json():{err:true,apps:[]};
+  }catch(e){ _scDevApps[target]={err:true,apps:[]}; }
+  if(_roomHubArea===area && _scDevSel[area]===target) _scPaintDevApps(area);
+}
+function _scArt(slug){ return proCoreUrl()+'/apps/art/tile/'+encodeURIComponent(slug)+'.png?v='+(window._tileV||0); }
+function scDevAppsHTML(area,target,list){
+  if(!target) return '';
+  const d=_scDevApps[target];
+  if(!d){ setTimeout(()=>scLoadDevApps(area,target),0); return '<div class="rh-load">Reading what this device has…</div>'; }
+  if(d.loading) return '<div class="rh-load">Reading what this device has…</div>';
+  if(d.err) return '<div class="rh-empty">Couldn\'t read this device\'s apps. <button class="rh-link" onclick="scLoadDevApps(\''+esc(area)+'\',\''+esc(target)+'\',true)">Try Again</button></div>';
+  const a=esc(area), t=esc(target);
+  const android=(d.platform==='androidtv_remote'||d.platform==='androidtv');
+  const have={}; (list||[]).forEach(x=>{ if(x.target===target) have[x.app]=1; });
+  const from={published:'From the device',remembered:'From the device (last time it said)',learned:'Learned from the device',library:'ProOS Samsung ids (this TV doesn\'t list its apps)'}[d.source]||'';
+  let h='';
+  if(from && (d.apps||[]).length) h+='<div class="wiz-hint" style="margin-bottom:6px">'+esc(from)+' · '+(d.apps||[]).length+' app'+((d.apps||[]).length===1?'':'s')+'</div>';
+  if(d.note) h+='<div class="wiz-hint" style="margin-bottom:8px">'+esc(d.note)+'</div>';
+  if((d.apps||[]).length){
+    h+='<div class="sc-grid">'+d.apps.map(x=>{
+      const added=!!have[x.app];
+      const ico=x.tile ? '<div class="sc-ico" style="background-image:url(\''+_scArt(x.app)+'\')"></div>'
+        : '<div class="sc-ico" style="display:flex;align-items:center;justify-content:center;background:#20232c;font-size:12px;color:var(--t2)">'+esc(x.name)+'</div>';
+      return '<div class="sc-tile'+(added?' sc-added':'')+'" '+(added?'':'onclick="scAddApp(\''+a+'\',\''+t+'\',\''+esc(x.app)+'\',\''+esc(x.token).replace(/'/g,"\\'")+'\')"')+' title="'+esc(x.word)+'">'
+        +ico+'<div class="sc-nm">'+esc(x.name)+'</div>'
+        +(added?'<div class="sc-test">Added</div>':(x.tile?'<div class="sc-test">Tap to add</div>'
+          :'<div class="sc-test"><button class="rh-link" onclick="event.stopPropagation();scGetArt(\''+a+'\',\''+esc(x.word).replace(/'/g,"\\'")+'\')">Get Artwork</button></div>'))
+        +'</div>';
+    }).join('')+'</div>';
+  }
+  if((d.unlaunchable||[]).length) h+='<div class="wiz-hint" style="margin-top:8px">On the TV, but ProOS has no Samsung id to open them yet: '+esc(d.unlaunchable.join(' · '))+'</div>';
+  if(android) h+='<div style="margin-top:10px"><button class="rh-act-pill rh-act-new" onclick="scLearn(\''+a+'\',\''+t+'\')">Learn from Device</button>'
+    +'<div class="wiz-hint" style="margin-top:6px">Open the app on the box with its remote, then press Learn from Device — ProOS reads the app straight off the box.</div></div>';
+  return h;
+}
+async function scAddApp(area,target,app,token){
+  toast('Adding…');
+  try{
+    const r=await fetch(proCoreUrl()+'/shortcuts/'+encodeURIComponent(area)+'/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({app,target,token})});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok){ toast(j&&j.error?j.error:(r.status===403?'Tech access required':'Add failed')); return; }
+  }catch(e){ toast('Add failed'); return; }
+  _rhShortcuts[area]=undefined; await loadRoomShortcuts(area); toast('Added — tap its tile to test it');
+}
+async function scLearn(area,target){
+  toast('Reading the app off the device…');
+  let j=null;
+  try{ const r=await fetch(proCoreUrl()+'/shortcuts/'+encodeURIComponent(area)+'/learn',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({target})}); j=await r.json().catch(()=>({})); }catch(e){}
+  toast(j&&j.ok?j.said:((j&&j.error)||'Couldn\'t read the device'));
+  if(j&&j.ok) scLoadDevApps(area,target,true);
+}
+function scGetArt(area,word){
+  const w=document.getElementById('scb-wrap'); if(!w) return;
+  w.style.display='';
+  window._scbAlias=word;
+  const q=document.getElementById('scb-q'), n=document.getElementById('scb-name');
+  const clean=String(word).split(':')[0].trim();
+  if(q){ q.value=clean; brandSearch('scb'); q.focus(); }
+  if(n) n.value=clean;
+  w.scrollIntoView({block:'center'});
 }
 async function scSupport(){
   let m=null;
@@ -10782,12 +10869,6 @@ function scNewApp(area){
   const w=document.getElementById('scb-wrap'); if(!w) return;
   w.style.display = (w.style.display==='none') ? '' : 'none';
   if(w.style.display===''){ const q=document.getElementById('scb-q'); if(q) q.focus(); }
-}
-async function scAdd(area){
-  const app=(document.getElementById('sc-app')||{}).value, target=(document.getElementById('sc-dev')||{}).value;
-  if(!app||!target){ toast('Pick an app and a device'); return; }
-  try{ const r=await fetch(proCoreUrl()+'/shortcuts/'+encodeURIComponent(area)+'/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({app,target})}); if(!r.ok){ toast(r.status===403?'Tech access required':'Add failed'); return; } }catch(e){ toast('Add failed'); return; }
-  _rhShortcuts[area]=undefined; await loadRoomShortcuts(area); toast('Added');
 }
 async function scRemove(area,app,target){
   try{ const r=await fetch(proCoreUrl()+'/shortcuts/'+encodeURIComponent(area)+'/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({app:app,target:target})}); if(!r.ok){ toast('Remove failed'); return; } }catch(e){ toast('Remove failed'); return; }
@@ -12806,32 +12887,47 @@ async function brandAdd(pfx,area){
   let res=null;
   try{
     const r=await fetch(proCoreUrl()+'/apps/brands/add',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({name:nm,domain:dom,ids:ids})});
+      body:JSON.stringify({name:nm,domain:dom,ids:ids,aliases:(window._scbAlias?[window._scbAlias]:[])})});
     res=await r.json();
   }catch(e){ say('Couldn\'t reach ProOS Core.'); return; }
   if(!res||res.error){ say(esc((res&&res.error)||'Could not add it.')); return; }
   const slug=res.slug;
-  let art='';
+  let art='', shown=false;
   const f=(document.getElementById('brand-art')||{}).files;
   try{
     if(f&&f.length){
       const png=await _tileToPng(f[0]);
       await fetch(proCoreUrl()+'/apps/art/upload',{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({name:slug,image:png})});
-      art=' Artwork uploaded.';
+      art=' Artwork uploaded:'; shown=true;
     }else{
-      const fr=await fetch(proCoreUrl()+'/apps/art/fetch',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({slug:slug})});
-      const fd=await fr.json();
-      art=(fd&&!fd.error)?' Artwork fetched from '+esc(dom)+'.':' No artwork yet — upload a PNG for it.';
+      // REGISTER 918: this asked /apps/art/fetch, which never existed on the box — so every app taught here said
+      // "No artwork yet". It now takes the Toolbox's own road: the brand's logo by domain (/apps/art/source),
+      // built into a tile here (_tileFromDataUrl), stored on the box (/apps/art/upload) — and the tile is SHOWN.
+      const fr=await fetch(proCoreUrl()+'/apps/art/source',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({app:slug, domain:dom})});
+      const fd=await fr.json().catch(()=>({}));
+      if(fr.ok&&fd&&fd.ok){
+        const png=await _tileFromDataUrl(fd.image);
+        const up=await fetch(proCoreUrl()+'/apps/art/upload',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({name:slug,image:png,origin:'fetched'})});
+        const ud=await up.json().catch(()=>({}));
+        art=(up.ok&&ud.ok)?' Artwork fetched from '+esc(dom)+':':' The artwork was found but not stored'+(ud&&ud.error?' — '+esc(ud.error):'')+'.';
+        if(up.ok&&ud.ok) shown=true;
+      }else{
+        art=' No artwork found for '+esc(dom)+(fd&&fd.error?' ('+esc(fd.error)+')':'')+' — check the brand, or upload a picture.';
+      }
     }
   }catch(e){ art=' Added, but the artwork step didn\'t finish.'; }
   window._tileV=Date.now();
-  say('<b>'+esc(nm)+'</b> added.'+art);
+  say('<b>'+esc(nm)+'</b> added.'+art+(shown?'<div style="margin-top:8px"><img alt="" src="'+proCoreUrl()+'/apps/art/tile/'+encodeURIComponent(slug)+'.png?v='+window._tileV+'" style="width:150px;height:90px;border-radius:10px;object-fit:cover;display:block"></div>':''));
+  if(area) window._scbAlias='';
   // Called from a room page (installer, mid-commission): refresh that room's
   // app list so the new app is immediately pickable — the whole point is that
   // they never leave the job.
-  if(area){ try{ _rhShortcuts[area]=undefined; await loadRoomShortcuts(area); }catch(e){} return; }
+  // Called from a room page: refresh THAT device's list in place, so the new tile shows there at once — without
+  // rebuilding the page (which would close this panel and lose the tile shown above).
+  if(area){ const t=_scDevSel[area]; if(t) scLoadDevApps(area,t,true); return; }
   if(typeof techOpenTiles==='function') setTimeout(()=>techOpenTiles(),700);
 }
 // REMOVAL IS TOOLBOX-ONLY (Dave, 8 Aug): retiring an app is curation, not

@@ -4199,6 +4199,42 @@ def _site_app_names():
     return sorted(names)
 
 
+def _atv_held(entity_id):
+    """{package: name} the platform's entry holds for this Android TV box; {} for anything else (register 918)."""
+    try:
+        entry, _ = _atv_entry_for(entity_id)
+        return _atv_apps_of(entry) if entry else {}
+    except Exception:                                        # noqa: BLE001
+        return {}
+
+
+def _atv_learn_now(entity_id):
+    """Learn from Device (register 918): teach the box's entry the app it is on right now, and say what happened."""
+    entry_id, _ = _atv_entry_for(entity_id)
+    if not entry_id:
+        return {"error": "Learn from Device is for Android TV boxes like the Shield — an Apple TV or a TV "
+                         "publishes its own app list."}
+    st = _client._req("GET", "/api/states/%s" % entity_id) or {}
+    at = st.get("attributes") or {}
+    nm_dev = at.get("friendly_name") or entity_id
+    if str(st.get("state") or "") in ("off", "standby", "unavailable", "unknown", ""):
+        return {"error": "%s is off. Turn it on, open the app with its remote, then press Learn from Device." % nm_dev}
+    pkg = (at.get("app_id") or "").strip()
+    if not (pkg and "." in pkg) or _ATV_SKIP.search(pkg):
+        return {"error": "%s is on its home screen. Open the app on it with its remote, then press Learn from "
+                         "Device." % nm_dev}
+    name = _atv_pretty(pkg, at.get("app_name"))
+    if pkg in _atv_apps_of(entry_id):
+        return {"ok": True, "package": pkg, "name": name, "added": False,
+                "said": "%s already knows %s." % (nm_dev, name)}
+    res = _atv_write_apps(entity_id, [{"id": pkg, "name": name}])
+    if not res.get("ok"):
+        return {"error": "%s is on %s, but the integration wouldn't hold it: %s"
+                         % (nm_dev, name, res.get("error") or "refused"), "package": pkg}
+    return {"ok": True, "package": pkg, "name": name, "added": True,
+            "said": "Learned %s from %s." % (name, nm_dev)}
+
+
 def _atv_learn_pass():
     """One sweep per Android TV media_player (register 442).
 
@@ -6636,6 +6672,15 @@ class Handler(BaseHTTPRequestHandler):
                 res = _avrzones.zones_of(_client, ent)
                 res["has_zone"] = any(z.get("likely_zone") for z in res.get("zones", []))
                 return self._send(200, res)
+            if len(parts) == 3 and parts[0] == "shortcuts" and parts[2] == "apps":
+                # REGISTER 918: what ONE device in the room can run — its own synced list (see shortcuts.device_apps).
+                # The add-a-shortcut list in Pro is this, per device, never the whole library.
+                if not _shortcuts:
+                    return self._send(200, {"apps": [], "note": "shortcuts unavailable"})
+                tgt = ((parse_qs(urlparse(self.path).query).get("target") or [""])[0]).strip()
+                if not tgt.startswith("media_player."):
+                    return self._send(400, {"error": "target must be a media_player"})
+                return self._send(200, _shortcuts.device_apps(_client, tgt, android_held=_atv_held(tgt)))
             if len(parts) == 2 and parts[0] == "shortcuts":
                 # A room's app shortcuts, in order. Homeowner surface — the
                 # dashboard renders the widgets from this; any signed-in user.
@@ -8355,8 +8400,10 @@ class Handler(BaseHTTPRequestHandler):
                 # finished tile is stored locally and served from the box, so
                 # dashboards never depend on an internet connection.
                 u = self._user
-                if not (u and (u.get("is_owner") or (users and users.is_tech(u.get("id"))))):
-                    return self._send(403, {"error": "tech access required"})
+                # REGISTER 918: getting an app's artwork is commissioning (an installer teaches an app on the room page
+                # mid-job) — the same tier as /apps/brands/add. Deleting and clearing artwork stay tech/owner.
+                if not (u and (u.get("is_admin") or u.get("is_owner") or (users and users.is_tech(u.get("id"))))):
+                    return self._send(403, {"error": "installer access required"})
                 if not _appart:
                     return self._send(503, {"error": "artwork unavailable"})
                 b = self._body() or {}
@@ -8389,8 +8436,10 @@ class Handler(BaseHTTPRequestHandler):
             if parts == ["apps", "art", "upload"]:
                 # Tile manager upload. Body {name, image:<data-url|b64>}.
                 u = self._user
-                if not (u and (u.get("is_owner") or (users and users.is_tech(u.get("id"))))):
-                    return self._send(403, {"error": "tech access required"})
+                # REGISTER 918: getting an app's artwork is commissioning (an installer teaches an app on the room page
+                # mid-job) — the same tier as /apps/brands/add. Deleting and clearing artwork stay tech/owner.
+                if not (u and (u.get("is_admin") or u.get("is_owner") or (users and users.is_tech(u.get("id"))))):
+                    return self._send(403, {"error": "installer access required"})
                 if not _appart:
                     return self._send(503, {"error": "artwork unavailable"})
                 b = self._body() or {}
@@ -8493,11 +8542,25 @@ class Handler(BaseHTTPRequestHandler):
                 target = (b.get("target") or "").strip()
                 sc = next((x for x in _shortcuts.room(area)
                            if x.get("app") == app and x.get("target") == target), None)
+                # REGISTER 918: an app tile pinned to a room page carries the app's NAME ("Netflix"), not its slug — find
+                # the room's stored shortcut by name too, so the tile launches exactly what the installer set up and tested.
+                if not sc and app and target:
+                    sc = _shortcuts.find(area, app, target)
                 if not sc:
                     sc, err = _shortcuts.from_request(_client, b)
                     if err:
                         return self._send(400, {"error": err})
                 return self._send(200, _shortcuts.launch(_client, project, area, sc))
+            if len(parts) == 3 and parts[0] == "shortcuts" and parts[2] == "learn":
+                # REGISTER 918: Learn from Device. The installer opens the app on an Android TV box with its remote;
+                # this reads what the box says it is on (app_id = the package) and teaches the platform's own entry,
+                # exactly as the watching loop does (register 442) — only now, on demand, with the answer said.
+                u = self._user
+                if not (u and (u.get("is_admin") or u.get("is_owner")
+                               or (users and users.is_tech(u.get("id"))))):
+                    return self._send(403, {"error": "installer access required"})
+                tgt = ((self._body() or {}).get("target") or "").strip()
+                return self._send(200, _atv_learn_now(tgt))
             if len(parts) == 3 and parts[0] == "shortcuts" \
                     and parts[2] in ("add", "remove", "reorder", "test"):
                 # Room app-shortcut setup (Pro). Tech/owner only. 'test' fires the
@@ -8519,6 +8582,15 @@ class Handler(BaseHTTPRequestHandler):
                 sc, err = _shortcuts.from_request(_client, b)   # add / test build a shortcut
                 if err:
                     return self._send(400, {"error": err})
+                # REGISTER 918: only what the device itself has. Its own entry supplies the launch token (the Apple
+                # TV's exact app name, the Shield's package) — a library guess never reaches the device.
+                _ent, _why = _shortcuts.offered(
+                    _shortcuts.device_apps(_client, sc["target"], platform=sc.get("platform"),
+                                           android_held=_atv_held(sc["target"])), sc["app"])
+                if _why:
+                    return self._send(400, {"error": _why})
+                if _ent and not (b.get("token") or "").strip():
+                    sc["token"] = _ent["token"]
                 if action == "test":
                     return self._send(200, _shortcuts.launch(_client, project, area, sc))
                 res = _shortcuts.add(area, sc)
