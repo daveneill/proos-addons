@@ -2847,7 +2847,7 @@ body.v3 .rh-card{border-radius:22px}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026101705';
+const PROOS_BUILD='2026101706';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -10799,12 +10799,15 @@ function scDevAppsHTML(area,target,list){
         : '<div class="sc-ico" style="display:flex;align-items:center;justify-content:center;background:#20232c;font-size:12px;color:var(--t2)">'+esc(x.name)+'</div>';
       return '<div class="sc-tile'+(added?' sc-added':'')+'" '+(added?'':'onclick="scAddApp(\''+a+'\',\''+t+'\',\''+esc(x.app)+'\',\''+esc(x.token).replace(/'/g,"\\'")+'\')"')+' title="'+esc(x.word)+'">'
         +ico+'<div class="sc-nm">'+esc(x.name)+'</div>'
+        +(x.method==='manual'?'<div class="sc-test" title="No proven link opens this app on Android TV yet — the tile turns the room on and says to use the box\'s remote">Room only</div>':'')
         +(added?'<div class="sc-test">Added</div>':(x.tile?'<div class="sc-test">Tap to add</div>'
           :'<div class="sc-test"><button class="rh-link" onclick="event.stopPropagation();scGetArt(\''+a+'\',\''+esc(x.word).replace(/'/g,"\\'")+'\')">Get Artwork</button></div>'))
         +'</div>';
     }).join('')+'</div>';
   }
   if((d.unlaunchable||[]).length) h+='<div class="wiz-hint" style="margin-top:8px">On the TV, but ProOS has no Samsung id to open them yet: '+esc(d.unlaunchable.join(' · '))+'</div>';
+  // REGISTER 918j: an Android TV box opens an app only by the app's own link; ProOS holds the ones seen working.
+  if(android && (d.apps||[]).some(x=>x.method==='manual')) h+='<div class="wiz-hint" style="margin-top:8px">\u201cRoom only\u201d apps have no proven link on Android TV yet \u2014 their tile turns the room on and says to open the app with the box\u2019s remote. The first time an app opens, the box may ask which app to use: choose the app, then Always.</div>';
   if(android) h+='<div style="margin-top:10px"><button class="rh-act-pill rh-act-new" onclick="scLearn(\''+a+'\',\''+t+'\')">Learn from Device</button>'
     +'<div class="wiz-hint" style="margin-top:6px">Open the app on the box with its remote, then press Learn from Device — ProOS reads the app straight off the box.</div></div>';
   return h;

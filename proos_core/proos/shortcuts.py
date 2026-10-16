@@ -74,7 +74,31 @@ _PLATFORM_COLUMN = {
     "androidtv_remote": "android",
     "androidtv":        "android",
 }
-METHODS = ("play_media_app", "select_source", "play_media_url")
+METHODS = ("play_media_app", "select_source", "play_media_url", "manual")
+
+# ── REGISTER 918j: HOW AN ANDROID TV BOX OPENS AN APP ────────────────────────
+# Seen on the box (918e–918i): a Shield REFUSES the platform's launch-by-package (market://launch?id=…) — the Play Store
+# change the platform's own page names — and the connection drops. What it DOES open is the link the app itself
+# declares in its manifest, through the platform's documented road (play_media, type url). Each row below was read
+# from the app's own manifest or the platform's page AND seen opening the app on Dave's Shield; nothing is guessed.
+#   link    — what is sent (the app's own declared link)
+#   package — what the box must then say it is on (app_id), so the launch is checked
+# An Android TV app with no row has no proven way in: its tile powers the room and says so ("manual").
+ANDROID_LINKS = {
+    "netflix": {"link": "netflix://", "package": "com.netflix.ninja"},              # platform page; seen 918g
+    "foxtel":  {"link": "https://open.foxtel.com.au", "package": "au.com.foxtel.atv"},  # manifest 4.7.0; seen 918i
+}
+
+
+def android_recipe(app: str, package: str = ""):
+    """The proven {link, package} for an Android TV app (by slug, or by the package the box reported), or None."""
+    sl = canonical_slug(app) if app else ""
+    if sl in ANDROID_LINKS:
+        return ANDROID_LINKS[sl]
+    for row in ANDROID_LINKS.values():
+        if package and row["package"] == package:
+            return row
+    return None
 
 
 def method_for(platform: str) -> str:
@@ -111,6 +135,10 @@ def make_shortcut(app: str, target: str, platform: str,
     """Build a shortcut, auto-filling the canonical icon, the launch method for
     the platform, and the default token — any of which an installer can override."""
     slug = canonical_slug(app)
+    if (platform or "").strip() in ("androidtv_remote", "androidtv") and not method:
+        return android_shortcut({"app": slug, "name": display_name(app), "target": target,
+                                 "platform": (platform or "").strip(), "token": token or "",
+                                 "icon": "/apps/art/tile/%s.png" % slug})
     return {
         "app": slug,
         "name": display_name(app),
@@ -120,6 +148,20 @@ def make_shortcut(app: str, target: str, platform: str,
         "token": token if token not in (None, "") else default_token(app, platform),
         "icon": "/apps/art/tile/%s.png" % slug,
     }
+
+
+def android_shortcut(sc: dict) -> dict:
+    """An Android TV shortcut on the one road that works (918j): its proven link, read back by its package — or, with
+    no proven link, 'manual' (the room is powered and routed, and the tile says to use the box's remote). A shortcut
+    saved before 918j (method play_media_app, token = a name or package) is healed the same way at launch."""
+    out = dict(sc or {})
+    tok = str(out.get("token") or "")
+    r = android_recipe(out.get("app") or out.get("name") or "", package=tok if "." in tok and "://" not in tok else "")
+    if r:
+        out.update({"method": "play_media_url", "token": r["link"], "package": r["package"]})
+    elif out.get("method") != "play_media_url":
+        out.update({"method": "manual", "token": out.get("token") or out.get("name") or out.get("app") or "manual"})
+    return out
 
 
 def validate(sc) -> tuple:
@@ -277,7 +319,11 @@ OPEN_WAIT_S = 10.0         # plumbing: how long an Android box is given to bring
 
 
 def reports_open(sc: dict) -> bool:
-    return (sc or {}).get("method") == "play_media_app" and (sc or {}).get("platform") in OPENS_REPORTED
+    return ((sc or {}).get("method") in ("play_media_app", "play_media_url")
+            and (sc or {}).get("platform") in OPENS_REPORTED)
+
+
+CHOOSER = "android"        # what an Android box reports while its "Open with…" box is up (seen 918i)
 
 
 def opened(row: dict, sc: dict):
@@ -287,7 +333,7 @@ def opened(row: dict, sc: dict):
     on = str(((row or {}).get("attributes") or {}).get("app_id") or "")
     if not on:
         return None
-    return on == str(sc.get("token") or "")
+    return on == str(sc.get("package") or sc.get("token") or "")
 
 
 def still_on(attrs: dict) -> str:
@@ -331,6 +377,8 @@ def launch(client, project, area_id: str, sc: dict, power: bool = True) -> dict:
     """Power on + route the target (via the room's watch activity), then fire the
     shortcut's app command. Returns a structured result. `power=False` fires the
     app command alone (the device is assumed already up on the right input)."""
+    if (sc or {}).get("platform") in ANDROID:
+        sc = android_shortcut(sc)                          # REGISTER 918j: the one road an Android box opens
     ok, why = validate(sc)
     if not ok:
         return {"error": why}
@@ -382,6 +430,14 @@ def launch(client, project, area_id: str, sc: dict, power: bool = True) -> dict:
             _ready(client, target, sc.get("method"))
         except Exception:                                   # noqa: BLE001
             pass
+    if sc.get("method") == "manual":
+        # REGISTER 918j: no proven way to open this app on this box. The room is on and on the box (above); nothing is
+        # sent, and the tile says exactly that — never a launch that did nothing reported as done.
+        nm = sc.get("name") or sc.get("app")
+        return {"ok": False, "taken": False, "opened": False, "manual": True, "app": sc.get("app"), "target": target,
+                "method": "manual",
+                "error": "The TV is on the box — open %s with its remote. %s can't be opened directly on Android TV "
+                         "yet." % (nm, nm)}
     cmd = command_for(sc)
     err = None
     for attempt in (1, 2):
@@ -408,11 +464,17 @@ def launch(client, project, area_id: str, sc: dict, power: bool = True) -> dict:
                           attrs=("app_id", "app_name", "friendly_name"), wait=OPEN_WAIT_S)
         if rbo.get("confirmed") is False:
             at = rbo.get("attributes") or {}
+            nm = sc.get("name") or sc.get("app")
+            if str(at.get("app_id") or "") == CHOOSER:
+                # REGISTER 918i: the box's "Open with…" box is up — asked once per app per box, answered on the TV.
+                return {"ok": False, "taken": True, "opened": False, "chooser": True, "app": sc.get("app"),
+                        "target": target, "method": sc["method"], "fired": cmd["data"], "read_back": rbo,
+                        "error": "%s is asking which app opens %s — choose %s, then Always, and tap again."
+                                 % (at.get("friendly_name") or target, nm, nm)}
             return {"ok": False, "taken": True, "opened": False, "app": sc.get("app"), "target": target,
                     "method": sc["method"], "fired": cmd["data"], "shows": still_on(at), "read_back": rbo,
-                    "error": "%s didn't open %s — it is still on %s. ProOS hasn't got the right Android code for "
-                             "%s on this device yet." % (at.get("friendly_name") or target, sc.get("name") or sc.get("app"),
-                                                         still_on(at), sc.get("name") or sc.get("app"))}
+                    "error": "%s didn't open %s — it is still on %s." % (at.get("friendly_name") or target, nm,
+                                                                           still_on(at))}
     # DAVE'S RULING, 14 Oct 14:11 (register 871): "Apple TV will never be correct with saying what's on, so it just needs
     # to confirm it's on then send the command. There is no need to confirm if a device is on an app if the command
     # works." So: the device awake (above), the command taken by the platform without error = DONE. What the device
@@ -527,19 +589,26 @@ def device_apps(client, target: str, platform: str = None, android_held: dict = 
         source = "remembered" if live else "none"
     apps, seen, unl = [], set(), []
 
-    def put(word, token, slug=None, nm=None):
+    def put(word, token, slug=None, nm=None, extra=None):
         sl = slug or canonical_slug(word)
         if not sl or sl in seen:
             return
         seen.add(sl)
-        apps.append({"app": sl, "name": nm or display_name(word), "word": word, "token": token,
-                     "tile": bool(appart.tile_path(sl))})
+        row = {"app": sl, "name": nm or display_name(word), "word": word, "token": token,
+               "tile": bool(appart.tile_path(sl))}
+        row.update(extra or {})
+        apps.append(row)
 
     if plat in ANDROID:
         source = "learned" if android_held else "none"
         for pkg, nm in sorted((android_held or {}).items(), key=lambda kv: str(kv[1]).lower()):
             c = appart.canonical(nm, pkg) or {}
-            put(nm, pkg, slug=c.get("slug") or appart.slug(nm), nm=c.get("name") or nm)
+            sl = c.get("slug") or appart.slug(nm)
+            r = android_recipe(sl, package=pkg)
+            # 918j: the app's proven link if ProOS has one (Foxtel, Netflix); otherwise offered as "manual" — it powers
+            # the room and says to use the box's remote, and Pro shows that before it is added.
+            put(nm, r["link"] if r else pkg, slug=sl, nm=c.get("name") or nm,
+                extra={"method": "play_media_url" if r else "manual", "package": pkg, "opens": bool(r)})
         note = ("" if apps else
                 "%s hasn't told ProOS any of its apps yet. Open an app on it with its remote, then press "
                 "Learn from Device." % name)
