@@ -4530,7 +4530,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101702';
+const PROOS_BUILD='2026101703';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -16659,6 +16659,8 @@ async function openPlayerApps(){
   if(!sheet||!list) return;
   const _t=document.getElementById('player-sheet-title'); if(_t) _t.textContent='Apps';
   list.innerHTML=playerAppsHTML(_area, _scs);
+  // REGISTER 921: tiles fill the card's width in even columns (pa-tiles); a message keeps the whole width.
+  list.classList.toggle('pa-tiles', !!list.querySelector('.awt-btn'));
   // Tap = launch; press & hold = pin this app to the room page (like before).
   list.querySelectorAll('.awt-btn').forEach(function(btn){
     let t=null, held=false;
@@ -16855,6 +16857,7 @@ async function _awTap(el){
 function openKeypad(){
   const list=document.getElementById('player-apps-list'), sheet=document.getElementById('player-apps-sheet'), title=document.getElementById('player-sheet-title');
   if(!list||!sheet) return; if(title) title.textContent='Keypad';
+  list.classList.remove('pa-tiles');                  // register 921: the keypad lays itself out
   const k=n=>`<button onclick="kpSend('${n}')" style="height:54px;background:rgba(255,255,255,0.08);border:0.5px solid rgba(255,255,255,0.12);border-radius:12px;color:rgba(255,255,255,0.8);font-size:20px;font-weight:300;cursor:pointer">${n}</button>`;
   list.innerHTML='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:100%;max-width:280px;margin:0 auto">'+[1,2,3,4,5,6,7,8,9].map(k).join('')+'<span></span>'+k(0)+'<span></span></div>';
   sheet.style.display='flex';
@@ -19799,6 +19802,13 @@ async function saveService(){
    puts every .appc-ov at 9400, so a box raised FROM the sheet drew under it. That box only ever opens over the Apps sheet,
    so it sits above it — and the "added" toast that follows (9000) would have been hidden the same way, so it goes on top. */
 #appfav-confirm{z-index:10002!important}
+/* REGISTER 921 (Dave, 17 Oct 10:36, iPhone screenshot of the Bedroom Apple TV's Apps: "mobile needs a look"). The tiles
+   were a fixed 112×67 in a wrapping row: on a phone the card's inside is ~318pt, two fit (232) and a third doesn't
+   (352), so a third of the card stood empty down the right. The tiles now fill the card in even columns — three on a
+   phone, four on an iPad or Mac, as before — and keep the Apple TV shape (5:3), scaled to the column. */
+#player-apps-list.pa-tiles{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:10px!important}
+#player-apps-list.pa-tiles .awt-btn{width:100%}
+#player-apps-list.pa-tiles .awt-md{width:100%;height:auto;aspect-ratio:5/3}
 #app-toast{z-index:10003}
 /* the scrims stop being the part of the column that pushed the sheet down — they cover the whole screen behind the card */
 .widget-picker-scrim,.scene-edit-scrim,.proos-scrim,#music-act-sheet .scrim,#player-apps-sheet>div:first-child,#player-group-sheet>div:first-child{
