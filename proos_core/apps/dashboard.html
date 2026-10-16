@@ -3047,7 +3047,7 @@ html[data-link="remote"]{--m-tap:90ms;--m-move:200ms;--m-page:300ms}
 :root{
   --proos-art-r:10px;
   /* register 522 — the nav button and its glyph, one place each */
-  --nb-glyph:26px; --nb-label:10px; --nb-per:10; --nb-tab:calc(100vw / var(--nb-per));
+  --nb-glyph:26px; --nb-label:10px; --nb-per:8; --nb-tab:calc(100vw / var(--nb-per));   /* a Mac: eight (908) */
   --proos-art-r-s:calc(var(--proos-art-r) * 0.6);   /* rows: 6 */
   --proos-art-r-l:calc(var(--proos-art-r) * 1.6);   /* the big surfaces: 16 */
   --proos-art-bg:rgba(255,255,255,0.06);
@@ -4530,7 +4530,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101601';
+const PROOS_BUILD='2026101602';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -8384,7 +8384,11 @@ const NAV_ALL = ['lights','climate','access','security','irrigation','cameras','
 // hole. Proved against Dave's own box before shipping: lights, cameras and
 // media are capable there, climate is not, so his bar is Rooms · Lights ·
 // Cameras · Media.
-const NAV_SLOTS = 3;                      // + Rooms, inserted at the front = four
+// REGISTER 908 (Dave, 16 Oct 2026) — THE CAP IS GONE. "That was back when we had the old island navbar the mobile
+// scrolls left and right so so should the ipad and Mac 4 x mobile, 6 ipad, 8 mac anything over that scrolls like the
+// mobile." Three slots made sense for a bar that could not scroll; this one does (569). Every page the home can do is
+// in the bar, in the order below; how many are VISIBLE is the glass's --nb-per (phone 4, iPad 6, Mac 8) and the rest
+// are a swipe away. Found because connecting UniFi Protect made Cameras capable and pushed Music off the end.
 const NAV_DEFAULT = {
   home: ['lights','cameras','media','climate','music','security','access','irrigation'],
   area: ['lights','cameras','media','climate','music','security','access','irrigation']
@@ -8829,10 +8833,9 @@ function renderBottomNav(){
   // room editor) are no longer read here; Pro's room page says so.
   const list = cfg.home;
   _orderNav(list);
-  // REGISTER 523 — the slots are filled from what this home can do, in the order
-  // above, and the bar stops at NAV_SLOTS. An installer who has SAVED a layout
-  // still gets exactly what they chose (register 440 — their intent is sacred);
-  // only the default is capped, because only the default is a guess.
+  // REGISTER 523, as 908 left it — the bar holds what this home can do, in the order
+  // above, with no cap (908: it scrolls; --nb-per decides how many are visible). An
+  // installer who has SAVED a layout still gets exactly what they chose (register 440).
   // THE CANDIDATES ARE THE LIST PLUS ANYTHING THE EDITOR NEVER OFFERED, in that
   // order — filtering `list` alone would have quietly killed register 440's
   // other half (Dave, 9 Aug: "if it's the first light it should add the Light
@@ -8843,7 +8846,8 @@ function renderBottomNav(){
   // saved anywhere" would let one saved area lift the cap off every screen.
   // Home is capped unless HOME was saved; an area is capped unless THAT AREA
   // was saved. Their intent is sacred exactly where they expressed it.
-  const _saved = Array.isArray((_navSite||{}).home);   // one bar (572): Home's save is the save
+  // (908: the cap is gone, so whether Home's layout was SAVED no longer changes how many show — navConfig() above
+  //  already hands a saved layout to the bar exactly as the installer left it.)
   const _cands = list.concat(NAV_ALL.filter(p => !list.includes(p)));
   // ASKED OF THE ROOM, NOT THE HOUSE (register 552). This passed null, so every
   // area page answered "does the HOUSE have any of those?" — and the Family
@@ -8854,7 +8858,6 @@ function renderBottomNav(){
   // unaffected because _hasCap ignores the room for those by design.
   // Masked until 1.0.722 by the !important that drew every tab regardless.
   let _show = _cands.filter(p => (list.includes(p) || _navNeverOffered(p)) && _hasCap(p, null));   // the house's capability (572)
-  if(!_saved) _show = _show.slice(0, NAV_SLOTS);
   NAV_ALL.forEach(p=> _setNav(p, _show.includes(p)));
   try{ updateNavLive(); }catch(e){}
   try{ _compactNav(); }catch(e){}            // placement, after the chain has decided (register 559)
@@ -20516,19 +20519,23 @@ body:has(#widget-picker.open) #widget-add-pill{display:none!important}   /* regi
    actually changed, rather than about a width that stands in for it.
    A PHONE IS PORTRAIT ONLY — the app does not rotate there — so the phone rule
    needs no orientation and states none. */
-@media(min-width:769px) and (orientation:portrait){ :root{ --nb-per:8 } }
 /* FOUR ACROSS ON A PHONE (register 573, 22 Sep 2026). Dave, with the one bar
    and Home in his hand: "I only want 4 icons wide on mobile, 5 is too busy on
    navbar." The bar still scrolls (569); the fifth and later tabs are one swipe
    away. One number per glass, as before. */
 @media(max-width:768px){ :root{ --nb-glyph:26px; --nb-label:10px; --nb-per:4 } }
 @media(max-width:379px){ :root{ --nb-glyph:24px; --nb-label:10px; --nb-per:4 } }
+/* AN iPAD SHOWS SIX, EITHER WAY UP (register 908, Dave 16 Oct: "4 x mobile, 6 ipad, 8 mac anything over that scrolls").
+   An iPad and a Mac can be the same width, so width cannot tell them apart; a TOUCH screen can (pointer:coarse). 600 is
+   above the widest phone (440) and below the smallest iPad held upright (744, which the phone rule above would
+   otherwise take), and it comes after the phone rules so it wins on an iPad. */
+@media(min-width:600px) and (pointer:coarse){ :root{ --nb-per:6 } }
 /* A PHONE ON ITS SIDE IS STILL A PHONE. The app is portrait-locked on a
    phone, so this should never fire — but a rotated iPhone is 844 across,
    which is wider than the 768 above, and it would quietly fall through to the
    desktop's ten. A SHORT LANDSCAPE SCREEN IS A PHONE is a statement about the
    screen, not a special case for a device, so it belongs in the same list. */
-@media(orientation:landscape) and (max-height:500px){ :root{ --nb-glyph:24px; --nb-label:10px; --nb-per:8 } }
+@media(orientation:landscape) and (max-height:500px){ :root{ --nb-glyph:24px; --nb-label:10px; --nb-per:4 } }
 
 /* ── SUPERSEDED BY REGISTER 528 BELOW. Kept because it records why the width
    arithmetic existed, and 528 is the answer to it. ──────────────────────────
