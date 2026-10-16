@@ -44,6 +44,28 @@ def phrase_said(name: str) -> str:
     return ("%s." % n) if n else "Done."
 
 
+def _extended(client, eids) -> dict:
+    """{entity_id: extended registry entry} — the platform's LIST command leaves aliases out (its partial form), so
+    aliases are read with config/entity_registry/get_entries (found on Dave's box 16 Oct: the list said no phrases
+    while the registry held one). Empty when it cannot be asked; callers then fall back to what the list carried."""
+    eids = [e for e in (eids or []) if e]
+    if not eids:
+        return {}
+    try:
+        from .ha_ws import ws_command
+        out = ws_command(client.base_url, client._token, "config/entity_registry/get_entries",
+                         timeout=max(10.0, float(getattr(client, "_timeout", 10) or 10)), entity_ids=eids)
+        return out if isinstance(out, dict) else {}
+    except Exception:                                            # noqa: BLE001
+        return {}
+
+
+def _aliases_of(e: dict, ext: dict) -> list:
+    x = ext.get(e.get("entity_id")) if ext else None
+    al = (x or {}).get("aliases") if x else e.get("aliases")
+    return list(al or [])
+
+
 def collect(client) -> list:
     """[(entity_id, name, [phrases])] for every scene and script that has phrases (aliases) on the platform."""
     try:
@@ -57,11 +79,11 @@ def collect(client) -> list:
     except Exception:                                            # noqa: BLE001
         pass
     out = []
-    for e in ents:
+    cands = [e for e in ents if (e.get("entity_id") or "").split(".")[0] in ("scene", "script") and not e.get("disabled_by")]
+    ext = _extended(client, [e.get("entity_id") for e in cands])
+    for e in cands:
         eid = e.get("entity_id") or ""
-        if eid.split(".")[0] not in ("scene", "script") or e.get("disabled_by"):
-            continue
-        al = [a for a in (e.get("aliases") or []) if isinstance(a, str) and a.strip()]
+        al = [a for a in _aliases_of(e, ext) if isinstance(a, str) and a.strip()]
         if not al:
             continue
         out.append((eid, e.get("name") or names.get(eid) or e.get("original_name") or eid, sorted(al, key=str.lower)))
@@ -133,12 +155,14 @@ def clash(client, phrase: str, entity_id: str):
     except Exception:                                            # noqa: BLE001
         pass
     try:
-        for e in client.entity_registry() or []:
+        ents = client.entity_registry() or []
+        ext = _extended(client, [e.get("entity_id") for e in ents])
+        for e in ents:
             if e.get("entity_id") == entity_id:
                 continue
-            if key in [_project._speakable(x) for x in (e.get("aliases") or [])] or \
+            if key in [_project._speakable(x) for x in _aliases_of(e, ext) if isinstance(x, str)] or \
                     (e.get("name") and _project._speakable(e.get("name")) == key):
-                return "%s already answers to \"%s\"" % (e.get("name") or e.get("entity_id"), key)
+                return "%s already answers to \"%s\"" % (e.get("name") or e.get("original_name") or e.get("entity_id"), key)
     except Exception:                                            # noqa: BLE001
         pass
     return None
@@ -160,7 +184,8 @@ def set_phrases(client, ws_call, entity_id=None, phrases=None):
             cur = {}
         if not cur:
             return 404, {"error": "%s is not on this box" % eid}
-        have = {_project._speakable(a) for a in (cur.get("aliases") or [])}
+        cur_al = _aliases_of(cur, _extended(client, [eid]))
+        have = {_project._speakable(a) for a in cur_al if isinstance(a, str)}
         clean, seen = [], set()
         for ph in phrases:
             k = _project._speakable(ph)
@@ -173,9 +198,16 @@ def set_phrases(client, ws_call, entity_id=None, phrases=None):
             seen.add(k)
             clean.append(" ".join(str(ph).split()))
         try:
-            ws_call("config/entity_registry/update", entity_id=eid, aliases=clean)
+            # a null entry is the platform's own "the entity's name" marker — kept where it was, never dropped
+            ws_call("config/entity_registry/update", entity_id=eid,
+                    aliases=[a for a in cur_al if a is None] + clean)
         except Exception as e:                                   # noqa: BLE001
             return 502, {"error": "the platform did not take the phrases: %s" % e}
+        try:
+            from . import live_ha as _lh
+            _lh.registry_written()        # Core's registry cache must not serve the old list to the rewrite below
+        except Exception:                                        # noqa: BLE001
+            pass
     try:
         res = voice_phrases(client)
     except Exception as e:                                       # noqa: BLE001

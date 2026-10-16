@@ -2841,7 +2841,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026101607';
+const PROOS_BUILD='2026101608';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -19436,9 +19436,10 @@ async function v3Devices(sel){
   } else {
     const a=_areas.find(x=>x.area_id===_v3dev);
     const mine=ctrls.filter(e=>v3AreaOfEnt(e)===_v3dev).sort((x,y)=>v3EntName(x).localeCompare(v3EntName(y)));
+    await v3EnsureAliases(mine.map(e=>e.entity_id));
     const rows=mine.map(e=>{
       const chk=v3NameCheck(v3EntName(e),a&&a.name,dupes);
-      const al=(e.aliases||[]);
+      const al=v3Words(e.aliases); (window._v3alWords=window._v3alWords||{})[e.entity_id]=al;   // the words as drawn — a later site reload can't change what × removes
       const dev=e.device_id&&_devices.find(x=>x.id===e.device_id);
       const kind=[e.entity_id.split('.')[0].replace(/_/g,' '),dev&&dev.model].filter(Boolean).join(' · ');
       const open=dev?"openDeviceManage('"+esc(dev.id)+"')":"openEntityInfo('"+esc(e.entity_id)+"')";
@@ -19469,18 +19470,34 @@ function v3Popup(title,sub,inner,buttons){
   return o;
 }
 function _v3input(id,label,val,hint){ return '<label style="display:block;background:rgba(255,255,255,.06);border-radius:14px;padding:10px 14px"><div style="font-size:12.5px;color:rgba(255,255,255,.55)">'+esc(label)+'</div><input id="'+id+'" value="'+esc(val||'')+'" style="width:100%;background:none;border:0;color:#fff;font:inherit;font-size:16px;padding:4px 0;outline:none" autocomplete="off"/>'+(hint?'<div id="'+id+'-h" style="font-size:12.5px;color:rgba(255,255,255,.45)">'+esc(hint)+'</div>':'')+'</label>'; }
+// THE PLATFORM'S LIST LEAVES ALIASES OUT (found on Dave's box, 16 Oct): config/entity_registry/list sends each entry's
+// partial form, so _ents never held an alias — Devices & Names showed none, and adding one would have WRITTEN OVER the
+// ones already there. Aliases are read from the extended entries (config/entity_registry/get_entries) and every write
+// starts from that fresh read, keeping the platform's null entry (its "the entity's own name" marker).
+async function v3EnsureAliases(eids){
+  eids=(eids||[]).filter(Boolean); if(!eids.length) return {};
+  let got={};
+  try{ const r=await snd({type:'config/entity_registry/get_entries',entity_ids:eids}); got=(r&&r.result)||r||{}; }catch(e){ return {}; }
+  (_ents||[]).forEach(e=>{ const x=got[e.entity_id]; if(x&&'aliases' in x) e.aliases=x.aliases||[]; });
+  return got;
+}
+function v3Words(al){ return (al||[]).filter(a=>typeof a==='string'&&a.trim()); }
+async function v3AliasesFresh(eid){ const g=await v3EnsureAliases([eid]); return ((g[eid]||{}).aliases)||[]; }
 function v3AliasAdd(eid){
   const e=(_ents||[]).find(x=>x.entity_id===eid); if(!e) return;
   v3Popup('Add an Alias',v3EntName(e)+' · another name voice will answer to',_v3input('v3al-in','Alias','','Say it the way the household does — "lounge lights", "the big TV"'),[['Cancel'],['Add',async()=>{
     const v=(document.getElementById('v3al-in').value||'').trim(); if(!v) return true;
-    const next=(e.aliases||[]).concat([v]);
+    let next;
+    try{ const cur=await v3AliasesFresh(eid); if(v3Words(cur).map(x=>x.toLowerCase()).indexOf(v.toLowerCase())>=0){ toast('Already an alias'); return true; } next=cur.concat([v]); }
+    catch(err){ toast('Couldn\'t read the aliases first — nothing changed'); return true; }
     try{ await snd({type:'config/entity_registry/update',entity_id:eid,aliases:next}); toast('Alias added — voice hears "'+v+'" now'); await loadSite(); v3Devices(_v3dev); }
     catch(err){ toast('Couldn\'t add the alias'); return true; }
   }]]);
 }
 async function v3AliasDel(eid,i){
   const e=(_ents||[]).find(x=>x.entity_id===eid); if(!e) return;
-  const next=(e.aliases||[]).filter((_,n)=>n!==i);
+  const word=((window._v3alWords||{})[eid]||v3Words(e.aliases))[i]; if(!word) return;
+  let next; try{ next=(await v3AliasesFresh(eid)).filter(a=>a!==word); }catch(err){ toast('Couldn\'t read the aliases first — nothing changed'); return; }
   try{ await snd({type:'config/entity_registry/update',entity_id:eid,aliases:next}); toast('Alias removed'); await loadSite(); v3Devices(_v3dev); }
   catch(err){ toast('Couldn\'t remove the alias'); }
 }
@@ -19488,8 +19505,15 @@ async function v3AliasDel(eid,i){
 // A scene's or activity's phrases are the platform's own aliases; Core writes them (one setter, shared with Assist),
 // checks each new one (a room's name or something else's phrase is refused) and rewrites the one sentence
 // automation, so "movie time" works on its own from every voice door.
-function v3PhraseList(eid){ const e=(_ents||[]).find(x=>x.entity_id===eid); return ((e&&e.aliases)||[]).slice(); }
+function v3PhraseList(eid){ const e=(_ents||[]).find(x=>x.entity_id===eid); return v3Words(e&&e.aliases).slice(); }
 function v3PhrasesDecorate(name){
+  const host=document.getElementById(name+'-body'); if(!host) return;
+  // the phrases are aliases, and the platform's list carries none — read them, then draw the rows again
+  const ids=(_ents||[]).filter(e=>/^(scene|script)\./.test(e.entity_id)).map(e=>e.entity_id);
+  if(!host._v3phRead){ host._v3phRead=true; v3EnsureAliases(ids).then(()=>{ host._v3phRead=false; host.querySelectorAll('.v3ph').forEach(x=>x.remove()); v3PhrasesPaint(name); }); }
+  v3PhrasesPaint(name);
+}
+function v3PhrasesPaint(name){
   const host=document.getElementById(name+'-body'); if(!host) return;
   if(name==='activities'){
     host.querySelectorAll('.scene-card[data-scene-bg]').forEach(c=>{ v3PhraseRow(c,c.getAttribute('data-scene-bg')); });
@@ -19514,8 +19538,9 @@ function v3PhraseRow(card,eid){
   d.addEventListener('click',ev=>ev.stopPropagation());
   card.appendChild(d);
 }
-function v3PhrasesOpen(eid){
-  const name=entName(eid); let list=v3PhraseList(eid);
+async function v3PhrasesOpen(eid){
+  await v3EnsureAliases([eid]);
+  const name=entName(eid).split('\u00b7').map(x=>x.trim()).filter(x=>x&&x.toLowerCase()!=='proos').join(' \u00b7 '); let list=v3PhraseList(eid);
   const paint=()=>{ const b=document.getElementById('v3ph-list'); if(b) setHTML(b, list.length?list.map((p,i)=>'<span class="v3al">'+esc(p)+'<button aria-label="Remove phrase" onclick="v3PhraseDrop('+i+')">×</button></span>').join(''):'<span class="t2" style="color:rgba(255,255,255,.5)">No phrases yet — the name still works with “activate”.</span>'); };
   window.v3PhraseDrop=(i)=>{ list.splice(i,1); paint(); };
   const o=v3Popup('Phrases',name+' · what starts it on its own, from any voice door',
