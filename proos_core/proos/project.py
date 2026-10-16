@@ -1141,7 +1141,85 @@ def voice_activities(client, project: dict) -> dict:
     out = voice_write(client, VOICE_ACTIVITIES_ID, want)
     if out.get("action") == "written":
         out["activities"] = sorted(t["id"] for t in want["triggers"])
+    try:
+        taken = {c for t in ((want or {}).get("triggers") or []) for c in t["command"]}
+        out["not_set_up"] = voice_missing(client, project, names, taken)
+    except Exception as e:  # noqa: BLE001
+        out["not_set_up"] = {"ok": False, "error": str(e)[:160]}
     return out
+
+
+# REGISTER 897 (seen on the box 16 Oct; Dave 12:31 "D"): "watch apple tv in the family room" was answered by the
+# platform's own "Sorry, I am not aware of any device called watch apple tv in the family room area" — the Family Room's
+# Apple TV is IN the room but not one of its commissioned sources, so ProOS wrote no sentence and the platform's generic
+# error spoke. ProOS knows exactly why it can't, so it says so: one automation, ProOS's own (proos_voice_not_set_up),
+# with a sentence for every video source that sits in a committed display room without being one of its sources, which
+# does NOTHING but answer: "The Family Room's Apple TV isn't set up as a source — add it to the room in Pro." Never a
+# sentence an activity already has (that one acts). Same writer, same rules (an installer's edit kept, nothing removes it).
+VOICE_MISSING_ID = "proos_voice_not_set_up"
+VIDEO_SOURCE_PLATFORMS = ("apple_tv", "androidtv", "androidtv_remote", "roku", "cast", "kodi", "plex", "fire_tv")
+
+
+def missing_sources(client, project: dict, names: dict) -> list:
+    """[(room name, the source's short name, entity_id)] — video sources in a committed display room that are not among
+    its display/sources. The short name is the platform's own name with the room's name taken off the front."""
+    try:
+        devs = {d.get("id"): d.get("area_id") for d in (client.device_registry() or [])}
+        ents = client.entity_registry() or []
+    except Exception:  # noqa: BLE001
+        return []
+    try:
+        fn = {r.get("entity_id"): (r.get("attributes") or {}).get("friendly_name") for r in (client._req("GET", "/api/states") or [])}
+    except Exception:  # noqa: BLE001
+        fn = {}
+    out = []
+    for area, rec in sorted(((project or {}).get("areas") or {}).items()):
+        if not (rec and rec.get("committed") and rec.get("display")):
+            continue
+        aid = rec.get("area_id") or area
+        room = names.get(aid) or rec.get("name") or area
+        have = {rec.get("display")} | set(rec.get("sources") or []) | set(rec.get("audio") or [])
+        for e in ents:
+            eid = e.get("entity_id") or ""
+            if (not eid.startswith("media_player.") or eid in have or e.get("disabled_by")
+                    or e.get("platform") not in VIDEO_SOURCE_PLATFORMS or area_of(e, devs) != aid):
+                continue
+            nm = " ".join(str(e.get("name") or fn.get(eid) or e.get("original_name") or "").split())
+            if nm.lower().startswith(room.lower()):
+                nm = nm[len(room):].strip()
+            if nm:
+                out.append((room, nm, eid))
+    return out
+
+
+def voice_missing_config(items: list, taken=()):
+    triggers, said, seen = [], {}, set(taken or ())
+    for room, short, eid in items or []:
+        s, r = _speakable(short), _speakable(room)
+        if not s or not r:
+            continue
+        cmds = [c for c in ("watch %s in [the] %s" % (s, r), "[the] %s watch %s" % (r, s),
+                            "%s in [the] %s" % (s, r)) if c not in seen]
+        if not cmds:
+            continue
+        seen.update(cmds)
+        tid = "%s|%s" % (eid, r)
+        triggers.append({"trigger": "conversation", "command": cmds, "id": tid})
+        said[tid] = "The %s's %s isn't set up as a source — add it to the room in Pro." % (room, short)
+    if not triggers:
+        return None
+    cfg = {"id": VOICE_MISSING_ID, "alias": "ProOS · Voice · Not Set Up",
+           "description": "Written by ProOS Core: what a room has but isn't set up to use, said as it is. Edit it and "
+                          "Core leaves it alone.",
+           "mode": "parallel", "max": 10, "triggers": triggers, "conditions": [],
+           "actions": [{"set_conversation_response": "{{ said[trigger.id] }}"}],
+           "variables": {"said": said}}
+    cfg["variables"]["proos_hash"] = _voice_hash(cfg)
+    return cfg
+
+
+def voice_missing(client, project: dict, names: dict, taken=()) -> dict:
+    return voice_write(client, VOICE_MISSING_ID, voice_missing_config(missing_sources(client, project, names), taken))
 
 
 def voice_write(client, automation_id: str, want) -> dict:

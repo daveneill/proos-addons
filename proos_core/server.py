@@ -1170,7 +1170,7 @@ def _reload_integration(entity, action, rec=None):
     print("[watcher] recovery: reload of %s — %s" % (
         entity, _rb.words(rb, "device back")), flush=True)
     return bool(rb.get("confirmed"))
-def _one_answer(rep):
+def _one_answer(rep, home_only=False):
     """REGISTER 689 (Dave, 6 Oct 2026): "can the incident cards for everything … it even
     says 1 Open Alarm then you go to it and it says all is okay". The header is the
     WATCHER'S OWN answer — each watched device's state, read from the platform — and
@@ -1181,9 +1181,25 @@ def _one_answer(rep):
     rep = dict(rep or {})
     try:
         incs = _healthmon_mod.incidents() if _healthmon_mod is not None else None
+        if incs is not None and home_only:
+            incs = _healthmon_mod.for_audience(incs, _healthmon_mod.AUD_HOME)
     except Exception:                                            # noqa: BLE001
         incs = None
     rep["open_alarms"] = None if incs is None else len(incs)
+    # REGISTER 897 (seen on the box 16 Oct; Dave 12:31 "A"): Pro's Home now lists these same incidents under Needs
+    # Attention (stage 3, the approved catalogue), and the headline above them read "All Systems Normal" over a critical
+    # card. 689's complaint was the header and the page disagreeing; so is this. The header now says what the page lists:
+    # a calm watcher with open incidents is "1 Thing Needs Attention" / "N Things Need Attention", the watcher's own
+    # words kept as `watcher_headline`. A device fault the watcher reads still leads in its own words.
+    hero = dict(rep.get("hero") or {})
+    if incs and hero and hero.get("tone") in ("calm", None):
+        hero["watcher_headline"] = hero.get("headline")
+        hero["headline"] = ("1 Thing Needs Attention" if len(incs) == 1
+                            else "%d Things Need Attention" % len(incs))
+        hero["tone"] = "attention"
+        rep["hero"] = hero
+        if rep.get("summary") == "All Systems Normal":
+            rep["summary"] = hero["headline"]
     return rep
 
 
@@ -4401,6 +4417,16 @@ def _apns_cred(env=None):
     return None
 
 
+def _no_key_words(env):
+    """What a phone's alert record says when its Apple server has no key (register 897): the missing server named when
+    the other one has a key; the plain words only when no key is loaded at all."""
+    if _apns_cred("production" if env == "sandbox" else "sandbox"):
+        return ("no key for Apple's %s is loaded — %s need one (Pro › System Setup › Notifications)"
+                % (("test server", "developer builds of the app") if env == "sandbox"
+                   else ("live server", "TestFlight and App Store builds")))
+    return "no Apple push key is loaded in ProOS Core (Pro › System Setup › Notifications)"
+
+
 def _apns_config_status():
     keys = {}
     for server, slot in _APNS_SLOTS.items():
@@ -5619,7 +5645,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, {"rooms": _monitor.all() if _monitor else {}})
             if parts == ["watchers"]:
                 return self._send(200, _one_answer(_watcher.report() if _watcher else
-                                                   {"status": "ok", "summary": "Watcher not started", "items": []}))
+                                                   {"status": "ok", "summary": "Watcher not started", "items": []},
+                                                   home_only=_project_caller(getattr(self, "_user", None)) is None))
             if parts == ["watchers", "recovery"]:
                 # Current installer-assigned recovery overrides (smart-plug power-cycle
                 # per device). pro.html reads this to render the recovery config UI.
@@ -7553,8 +7580,11 @@ class Handler(BaseHTTPRequestHandler):
                 _env = "sandbox" if reg["app_id"].endswith(".dev") else "production"
                 cred = _apns_cred(_env)
                 if not cred:
-                    print(f"  push · {who} → no Apple push key loaded in Core", flush=True)
-                    _push_note(reg, False, "no Apple push key is loaded in ProOS Core (Pro › System Setup › Notifications)")
+                    # REGISTER 897 (read on the box 16 Oct, Dave 12:31 "B"): with a live-server key loaded, the developer
+                    # builds were told "no Apple push key is loaded" — untrue; what is missing is THIS server's key.
+                    _words = _no_key_words(_env)
+                    print(f"  push · {who} → no Apple push key loaded in Core for {_env} ({_words})", flush=True)
+                    _push_note(reg, False, _words)
                     return self._send(500, {"errorMessage": "Apple push key not loaded in ProOS Core"})
                 # The app names its own bundle id at registration; that IS the
                 # Apple topic. A development build (…ProOS.dev, signed for the

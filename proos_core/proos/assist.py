@@ -6895,13 +6895,39 @@ def try_it(client, ws_call, project_mod, user: dict, text: str, where=None) -> d
 _APP_VERBS = re.compile(r"^(?:please\s+)?(?:can you\s+|could you\s+)?(open|launch|start|put on|turn on|play|watch|switch to|go to)\s+(.+?)[.!?]*$", re.I)
 
 
-def _app_turn(runner, user, text, where, session, t0):
-    """An app by name, instantly: "watch netflix", "open kayo in the office". None when the words don't name an app in
-    the room (the room from the words, else the page's room)."""
-    m = _APP_VERBS.match(" ".join(str(text or "").split()))
-    if not m:
+def _known_app(words):
+    """The app's own display name when the words ARE an app ProOS knows — a shortcut in any room of this home, or the
+    app catalogue ProOS ships (appart) — else None. Never a guess: the whole words must be the app's name."""
+    w = " ".join(str(words or "").split()).strip(" .!?")
+    if not w:
         return None
-    rest = m.group(2).strip()
+    try:
+        from . import shortcuts as _sc
+        for scs in (_sc._all() or {}).values():                # noqa: SLF001
+            for sc in scs or []:
+                if _sc._same(sc.get("name"), w) or _sc._same(sc.get("app"), w):   # noqa: SLF001
+                    return sc.get("name") or sc.get("app")
+        from . import appart as _ap
+        c = _ap.canonical(w)
+        return c.get("name") if c else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _app_turn(runner, user, text, where, session, t0):
+    """An app by name, instantly: "watch netflix", "open kayo in the office", or the app's name alone ("netflix") on a
+    room's page. None when the words don't name an app (the room from the words, else the page's room).
+    REGISTER 897 (seen on the box 16 Oct: "netflix" typed on the Family Room page took 19.8 s through the AI to say
+    Netflix isn't set up there): an app ProOS knows that the room has no shortcut for is answered at once, with the
+    same offer t_app_launch makes — no AI for a fact Core already holds."""
+    t = " ".join(str(text or "").split())
+    m = _APP_VERBS.match(t)
+    if m:
+        rest = m.group(2).strip()
+    elif (where or {}).get("area_id") and _known_app(t):
+        rest = t.strip(" .!?")                                  # the app's name alone, on a room's page
+    else:
+        return None
     aid, nm = _area_from_text(runner, rest)
     if aid and nm:
         rest = re.sub(r"\s+(in|on)\s+(the\s+|my\s+)?" + re.escape(nm) + r"(\s+tv)?\s*$", "", rest, flags=re.I).strip()
@@ -6909,7 +6935,10 @@ def _app_turn(runner, user, text, where, session, t0):
         aid = (where or {}).get("area_id")
     if not aid or not rest:
         return None
-    app = runner._app_in_room(aid, rest)
+    # "play spotify" is music as often as it is an app: a known app the room lacks answers at once only when the words
+    # are an app's — the name alone, or a verb that is never music ("open", "launch") — never "play"
+    _verb = (m.group(1).lower() if m else "")
+    app = runner._app_in_room(aid, rest) or (_known_app(rest) if _verb != "play" else None)
     if not app:
         return None
     res = runner.t_app_launch({"area_id": aid, "app": app}) or {}
