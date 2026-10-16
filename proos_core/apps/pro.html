@@ -1954,7 +1954,7 @@ body.v3 .rh-card{border-radius:22px}
            Integration, one search across integrations, devices and entities, chips by group, then the
            groups — Your Systems, Phones & Tablets, Platform Services (folded) — with Discovered and the
            certified ones still to add exactly where they were. -->
-      <div class="il-head"><div><div class="rsub">System Setup</div><div class="ip-title">Integrations</div></div>
+      <div class="il-head"><div><div class="rsub">Devices</div><div class="ip-title">Integrations</div></div>
         <button type="button" class="ip-btn p" onclick="openAddIntegration()">Add Integration</button></div>
       <div class="ip-tools"><label class="ip-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4-4"/></svg>
         <input id="il-q" type="search" placeholder="Search integrations, devices, entities" aria-label="Search everything" oninput="ilSearch(this.value)" autocomplete="off"></label>
@@ -2842,7 +2842,7 @@ body.v3 .rh-card{border-radius:22px}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026101616';
+const PROOS_BUILD='2026101617';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -4992,7 +4992,7 @@ function _ipHeadHTML(dom, rows){
     + (faulted.length?`<button type="button" class="ip-btn" onclick="fixEntrySetup('${esc(faulted[0].entry_id)}','${esc(dom)}','Reconnect')">Reconnect</button>`:'')
     + (canAdd===false?'':`<button type="button" class="ip-btn p" onclick="addIntegration('${esc(dom)}')">${esc(intgAddLabel(dom).replace(/^\+ /,''))}</button>`);
   return `<div class="ip-headcard"><div class="ip-logo">${intgLogo(dom)}</div>`
-    + `<div class="ip-hbody"><div class="rsub">System Setup › Integrations</div><div class="ip-title">${esc(integrationName(dom)||'Integration')}</div><div class="rsub">${esc(sub)}</div></div>`
+    + `<div class="ip-hbody"><div class="rsub">Devices › Integrations</div><div class="ip-title">${esc(integrationName(dom)||'Integration')}</div><div class="rsub">${esc(sub)}</div></div>`
     + `<span class="ip-pill ${st[1]} ip-state">${st[0]}</span><div class="ip-acts">${acts}</div></div>`;
 }
 function intgPageHTML(dom){
@@ -19058,13 +19058,15 @@ PANELS.push('v3devices','v3diag','v3software');
 function v3SecOf(p){
   if(p==='home') return 'home';
   if(p==='hub'||p==='room'||p==='rooms') return 'areas';
-  if(p==='v3devices'||p==='device') return 'devices';
+  // Integrations live in Devices (Dave 16 Oct: "devices and integrations is under system setup I think that should be the one
+  // section combined as devices") — register 904
+  if(p==='v3devices'||p==='device'||p==='library'||p==='integration') return 'devices';
   if(p==='activities'||p==='scripts'||p==='automations') return 'scenes';
   if(p==='v3diag'||p==='manage') return 'diagnostics';
   if(p==='tech') return (_techView==='net'||_techView==='notify')?'setup':'toolbox';
   if(p==='toolbox'||p==='helpers'||p==='blueprints'||p==='labels') return 'toolbox';
   if(p==='assist2') return _v2sec||'home';
-  return 'setup';   // site users history v3software backups library integration music dashremote navlayout credentials maintenance applehome unifi unifi-net savant irrigation systems
+  return 'setup';   // site users history v3software backups music dashremote navlayout credentials maintenance applehome unifi unifi-net savant irrigation systems
 }
 let _v3dev='all', _v3diag='sweep', _v3roomView='overview';
 // ── the rail ──────────────────────────────────────────────────────────────
@@ -19120,6 +19122,7 @@ function v3PageName(panel){
   if(panel==='v3devices'){ if(_v3dev==='all') return 'All Devices'; if(_v3dev==='__none__') return 'Unassigned'; const a=_areas.find(x=>x.area_id===_v3dev); return a?a.name:'Devices'; }
   if(panel==='v3diag'){ const d=V3DIAG.find(x=>x[0]===_v3diag); return d?d[1]:''; }
   if(panel==='v3software') return 'Software';
+  if(panel==='library') return 'Integrations';
   if(panel==='site') return 'Building Settings';
   if(panel==='activities') return 'Scenes';
   if(panel==='scripts') return 'Activities';
@@ -19154,7 +19157,7 @@ function _v3thumb(a){
 function _v3homeAreas(){ return (_areas||[]).filter(a=>!_systemAreas.has(a.area_id)).sort((a,b)=>(a.name||'').localeCompare(b.name||'')); }
 const V3DIAG=[['sweep','Health Sweep','health'],['awareness','Awareness','spark'],['incidents','Incidents','bolt'],['heard','Heard','ear'],['noticed','Assist Noticed','assist'],['log','Master Log','log']];
 const V3SETUP=[['site','Building Settings','home',()=>openSite()],['users','Manage Users','user',()=>openUsers()],['software','Software','box',()=>v3Software()],
-  ['backups','Backups','clock',()=>openBackups()],['library','Integrations','plug',()=>openBay('library')],['music','Music Services','music',()=>openMusic()],
+  ['backups','Backups','clock',()=>openBackups()],['music','Music Services','music',()=>openMusic()],
   ['dashremote','Dashboards','grid',()=>openDashRemote()],['notify','Notifications','bolt',()=>openTech('notify')],['net','Network','map',()=>openTech('net')],
   ['credentials','Credentials','shield',()=>openCredentials()],['maintenance','Maintenance','setup',()=>openMaintenance()]];
 const V3SYSTEMS=[['applehome','Apple Home','home',()=>openAppleHome()],['unifi','UniFi Protect','cam',()=>openUnifi()],['unifi-net','UniFi Network','map',()=>openUniNet()],
@@ -19201,8 +19204,9 @@ function v3Side(sec){
     h='<div class="v3sh"><span>Devices</span></div><div class="v3sl">'
       +_v3item('all',p==='v3devices'&&_v3dev==='all',_v3ic('list'),'All Devices','<span class="v3ct">'+(_devices||[]).length+'</span>',"v3Devices('all')")
       +_v3item('__none__',p==='v3devices'&&_v3dev==='__none__',_v3ic('grid'),'Unassigned',un?'<span class="v3bdg">'+un+'</span>':'<span class="v3ct">0</span>',"v3Devices('__none__')")
+      +_v3item('library',p==='library'||p==='integration',_v3ic('plug'),'Integrations','',"openBay('library')")
       +_v3homeAreas().map(a=>_v3item(a.area_id,devSel===a.area_id,_v3thumb(a),a.name||'Room','<span class="v3ct">'+(_perAreaDev[a.area_id]||0)+'</span>',"v3Devices('"+esc(a.area_id)+"')",'l1')).join('')
-      +'</div>';
+      +'</div><div class="v3sf"><button onclick="openAddIntegration()">+ Add Device</button></div>';
   } else if(sec==='scenes'){
     h='<div class="v3sh"><span>Scenes</span></div><div class="v3sl">'
       +_v3item('activities',p==='activities',_v3ic('spark'),'Scenes','',"openSection('activities')")
