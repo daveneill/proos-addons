@@ -140,9 +140,37 @@ SPEAKER_IP_TEMPLATE = (
 )
 
 
+# REGISTER 931 (Dave 17 Oct 22:29: "Yes"): the speaker's OWN integration records where the speaker is — the
+# platform's Sonos integration writes each speaker's device configuration_url as http://<its address>:1400/…
+# (read on the G-Flip master: Study http://192.168.8.13:1400/support/review, five of five). A home with no
+# network controller in the platform has no device tracker at all, so the controller read alone left every
+# such home's speaker music unreachable ("the network doesn't report an address for this speaker").
+SPEAKER_URL_TEMPLATE = "{{ device_attr(device_id(eid), 'configuration_url') or '' }}"
+
+
+def _integration_address(client, entity_id):
+    """The address in the speaker's own integration record (its device's configuration_url), or None."""
+    try:
+        from urllib.parse import urlparse as _up
+        tpl = "{% set eid = '" + str(entity_id).replace("'", "") + "' %}" + SPEAKER_URL_TEMPLATE
+        url = str(client.render_template(tpl) or "").strip()
+        if not url.lower().startswith(("http://", "https://")):
+            return None
+        host = _up(url).hostname or ""
+        return host or None
+    except Exception:                                            # noqa: BLE001
+        return None
+
+
 def speaker_address(client, entity_id):
-    """The speaker's address: its device's MAC (the platform) → the address the network controller
-    reports for that MAC (the platform's own device tracker). None when either is unknown."""
+    """The speaker's address, READ — never discovered by Core (register 741):
+    1. the speaker's own integration record (its device's configuration_url — register 931);
+    2. the network controller's record (the device tracker whose MAC is the speaker's — register 741).
+    None when neither knows; the caller then tries the last confirmed address (799). Whatever is used,
+    connect() knocks on it and _confirmed() checks the speaker's own id before anything is asked."""
+    ip = _integration_address(client, entity_id)
+    if ip:
+        return ip
     try:
         tpl = "{% set eid = '" + str(entity_id).replace("'", "") + "' %}" + SPEAKER_IP_TEMPLATE
         ip = str(client.render_template(tpl) or "").strip()
