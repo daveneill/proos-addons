@@ -27,6 +27,7 @@
   try{
     var q=new URLSearchParams(location.search).get('panel');
     if(q==='1') localStorage.setItem('proos_panel','1');
+    var sat=new URLSearchParams(location.search).get('sat'); if(sat) localStorage.setItem('proos_panel_sat', sat);
     else if(q==='0') localStorage.removeItem('proos_panel');
     if(localStorage.getItem('proos_panel')==='1') document.documentElement.classList.add('proos-panel');
   }catch(e){}
@@ -4540,7 +4541,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101708';
+const PROOS_BUILD='2026101709';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -6967,6 +6968,7 @@ function applyPendingCommand(){
   }catch(e){}
 }
 function onStateChange(eid){
+  try{ if(typeof _isPanel==='function' && _isPanel() && eid && eid===_panelSat()) panelVoiceSat(); }catch(e){}   // 932
   if(eid===DASH_GOTO_ENTITY){
     const v=(states[eid]&&states[eid].state)||'';
     if(v && v!=='unknown' && v!=='unavailable') dashGoto(v);
@@ -18472,6 +18474,7 @@ async function _voiceSend(buf){
 // control that never moves, never swaps for another, and never hands over to
 // something built for a different job.
 function homeMicTap(){
+  if(typeof _isPanel==='function' && _isPanel()){ panelVoiceShow(); return; }   // 932: a panel talks through its own microphone
   if(_vcap) return _voiceStop();
   if(!voiceConsentGiven()){ try{ openAssist(); }catch(e){} return _voiceAsk(); }
   return toggleDictation('mic');
@@ -18479,7 +18482,71 @@ function homeMicTap(){
 // Typing is the fallback, and it is asked for. The keyboard sits above the
 // microphone at rest; tapping it brings the text bar - which is the only place
 // a send arrow and a close cross mean anything.
-function homeKbdTap(){ try{ abOpen(); }catch(e){} }
+function homeKbdTap(){ if(typeof _isPanel==='function' && _isPanel()) return; try{ abOpen(); }catch(e){} }   // 932: no typing on a wall
+// ── THE PANEL'S VOICE (register 932, panel build 3) ───────────────────────────────────────────────────────────
+// A wall panel has its own microphone (the G-Flip's, through the platform's satellite and ProOS Assist — 928). The
+// screen does not open a browser microphone and asks for no typing: it SHOWS what the panel's microphone is doing
+// (the satellite's own state — listening, processing, responding) and, from Core's own record of the turn (the
+// panel_said event, 932), what it heard and what was answered, and on which speaker. The wake word is the way in
+// (opening the microphone from the screen hung this satellite — register 932f). Every word on this card is read.
+function _panelSat(){
+  try{ const k=localStorage.getItem('proos_panel_sat'); if(k && states[k]) return k; }catch(e){}
+  try{ return Object.keys(states).find(e=>e.indexOf('assist_satellite.')===0)||''; }catch(e){ return ''; }
+}
+function _panelWake(){
+  try{ const sat=_panelSat(); const pfx=sat.split('.')[1].replace(/_assist_satellite$/,'');
+       const w=states['select.'+pfx+'_wake_word']; if(w && w.state && w.state!=='unknown' && w.state!=='unavailable') return w.state; }catch(e){}
+  return 'Okay Nabu';
+}
+let _pvLast=null, _pvHideT=null, _pvState='';
+function _pvEl(){
+  let o=document.getElementById('panel-voice');
+  if(o) return o;
+  const sc=document.createElement('div'); sc.id='panel-voice-scrim'; sc.addEventListener('click',()=>panelVoiceHide());
+  o=document.createElement('div'); o.id='panel-voice';
+  o.innerHTML='<div class="pv-orb"><i></i><i></i></div><div class="pv-title"></div><div class="pv-heard"></div><div class="pv-reply"></div><div class="pv-sub"></div>';
+  o.addEventListener('click',()=>panelVoiceHide());
+  document.body.appendChild(sc); document.body.appendChild(o);
+  return o;
+}
+function _pvSet(state, title, heard, reply, sub){
+  const o=_pvEl(), sc=document.getElementById('panel-voice-scrim');
+  _pvState=state; o.dataset.state=state;
+  o.querySelector('.pv-title').textContent=title||'';
+  o.querySelector('.pv-heard').textContent=heard?('\u201C'+heard+'\u201D'):'';
+  o.querySelector('.pv-reply').textContent=reply||'';
+  o.querySelector('.pv-sub').textContent=sub||'';
+  o.classList.add('on'); if(sc) sc.classList.add('on');
+}
+function panelVoiceHide(){
+  clearTimeout(_pvHideT); _pvState='';
+  const o=document.getElementById('panel-voice'), sc=document.getElementById('panel-voice-scrim');
+  if(o) o.classList.remove('on'); if(sc) sc.classList.remove('on');
+}
+function _pvAutoHide(ms){ clearTimeout(_pvHideT); _pvHideT=setTimeout(panelVoiceHide, ms); }
+// The Assist tab (and the Assist widget's mic) on a panel: say how to talk to it, and show the last answer.
+function panelVoiceShow(){
+  const recent=_pvLast && (Date.now()/1000-(_pvLast.at||0) < 600);
+  _pvSet('ready','Say \u201C'+_panelWake()+'\u201D', recent?_pvLast.heard:'', recent?_pvLast.reply:'',
+         recent?_pvSaidOn(_pvLast):'Then ask for anything \u2014 the answer comes from this room\u2019s speaker.');
+  _pvAutoHide(20000);
+}
+function _pvSaidOn(t){ return (t&&t.spoke) ? ('Answered on the '+(t.room?(t.room+' '):'')+'speaker') : ''; }
+// The satellite's own state, as the platform reports it.
+function panelVoiceSat(){
+  const s=(states[_panelSat()]||{}).state||'';
+  if(s==='listening'){ _pvSet('listening','Listening\u2026','','',''); _pvAutoHide(15000); }
+  else if(s==='processing'){ _pvSet('thinking','Thinking\u2026','','',''); _pvAutoHide(30000); }
+  else if(s==='idle' && (_pvState==='listening'||_pvState==='thinking')){ _pvAutoHide(3000); }   // nothing came of it
+}
+// Core's own record of a panel turn (server.py, 932): what was heard, what was answered, where it was said.
+function panelVoiceSaid(t){
+  if(!t) return;
+  const mine=_panelSat(); if(t.entity && mine && t.entity!==mine) return;   // another room's microphone
+  _pvLast=t;
+  _pvSet('answer','', t.heard||'', t.reply||'', _pvSaidOn(t));
+  _pvAutoHide(9000);
+}
 // THE ASSISTANT WIDGET'S MIC: A TAP TALKS, A HOLD TYPES (register 604) — the
 // same split the Assist tab has. The hold is swallowed so its click does not
 // also talk, and the press never arms the grid's own edit hold.
@@ -19253,6 +19320,7 @@ document.addEventListener('click', function(e){
       // and refetch now — the 30s poll becomes the fallback, not the path
       // (Dave, 2 Aug: add/remove should appear straight away).
       // REGISTER 856: an instant voice reply that proved wrong — the device's own state, said once.
+      _dashES.addEventListener('panel_said', function(ev){ try{ if(typeof _isPanel==='function' && _isPanel()) panelVoiceSaid(JSON.parse(ev.data||'{}')); }catch(e){} });   // 932
       _dashES.addEventListener('voice', function(ev){ try{ var w=String(ev.data||'').trim(); if(w) showToast(w); }catch(e){} });
       _dashES.addEventListener('appfavs', function(ev){
         try{
@@ -20647,6 +20715,37 @@ html.proos-panel #page-home .home-identity{padding-top:20px!important;padding-bo
 html.proos-panel #page-home .home-title{font-size:40px!important;line-height:1.1!important}
 html.proos-panel #page-home .home-eyebrow{margin-bottom:2px!important}
 html.proos-panel #page-home .home-rule{margin-top:14px!important;margin-bottom:14px!important}
+/* THE PANEL'S VOICE CARD (panel build 3). One calm card in the middle of the glass (the centred-popup ruling, 12 Oct):
+   an orb that breathes when ready, pulses while listening and turns while thinking; your words small, the answer large;
+   where it was said, quietly. Never above the bar's buttons — the bar stays live under the scrim. */
+#panel-voice-scrim{position:fixed;inset:0;z-index:230;background:rgba(0,0,0,.55);opacity:0;pointer-events:none;transition:opacity var(--m-move) var(--e-standard);
+  -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+#panel-voice-scrim.on{opacity:1;pointer-events:auto}
+#panel-voice{position:fixed;left:50%;top:46%;z-index:231;width:min(620px,86vw);transform:translate(-50%,-46%) scale(.96);opacity:0;pointer-events:none;
+  transition:opacity var(--m-move) var(--e-standard),transform var(--m-move) var(--e-sheet);box-sizing:border-box;padding:34px 40px 30px;border-radius:30px;text-align:center;
+  background:linear-gradient(180deg,rgba(40,42,48,.92),rgba(22,23,27,.94));border:1px solid rgba(255,255,255,.10);box-shadow:0 30px 80px rgba(0,0,0,.6);color:#fff}
+#panel-voice.on{opacity:1;pointer-events:auto;transform:translate(-50%,-46%) scale(1)}
+#panel-voice .pv-orb{position:relative;width:76px;height:76px;margin:0 auto 18px}
+#panel-voice .pv-orb i{position:absolute;inset:0;border-radius:999px}
+#panel-voice .pv-orb i:first-child{background:radial-gradient(circle at 35% 30%,#9db0ff,#3446f0 60%,#1b2490);box-shadow:0 0 40px rgba(64,90,255,.55)}
+#panel-voice .pv-orb i:last-child{inset:-10px;border:2px solid rgba(143,160,255,.0)}
+#panel-voice[data-state="ready"] .pv-orb i:first-child{animation:pv-breathe calc(var(--m-listen) * 3) ease-in-out infinite}
+#panel-voice[data-state="listening"] .pv-orb i:first-child{animation:pv-pulse var(--m-listen) ease-in-out infinite}
+#panel-voice[data-state="listening"] .pv-orb i:last-child{border-color:rgba(143,160,255,.55);animation:pv-ring var(--m-listen) ease-out infinite}
+#panel-voice[data-state="thinking"] .pv-orb i:last-child{border-color:rgba(143,160,255,.15);border-top-color:rgba(190,200,255,.95);animation:pv-spin var(--m-listen) linear infinite}
+#panel-voice[data-state="answer"] .pv-orb{width:52px;height:52px;margin-bottom:14px}
+#panel-voice .pv-title{font-size:30px;font-weight:300;letter-spacing:.01em;line-height:1.2}
+#panel-voice .pv-title:empty{display:none}
+#panel-voice .pv-heard{margin-top:10px;font-size:16px;color:rgba(255,255,255,.55);line-height:1.35}
+#panel-voice .pv-heard:empty{display:none}
+#panel-voice .pv-reply{margin-top:12px;font-size:26px;font-weight:300;line-height:1.3;color:#fff;max-height:7.8em;overflow:hidden}
+#panel-voice .pv-reply:empty{display:none}
+#panel-voice .pv-sub{margin-top:16px;font-size:15px;color:rgba(255,255,255,.5);line-height:1.35}
+#panel-voice .pv-sub:empty{display:none}
+@keyframes pv-breathe{0%,100%{transform:scale(.94);opacity:.85}50%{transform:scale(1);opacity:1}}
+@keyframes pv-pulse{0%,100%{transform:scale(.92)}50%{transform:scale(1.06)}}
+@keyframes pv-ring{0%{transform:scale(.9);opacity:1}100%{transform:scale(1.35);opacity:0}}
+@keyframes pv-spin{to{transform:rotate(360deg)}}
 </style>
 
 <script>

@@ -9076,6 +9076,29 @@ class Handler(BaseHTTPRequestHandler):
                     # not) — the room toggle and every capability gap answer
                     # honestly inside `spoke`.
                     _res["spoke"] = _assist_speak(where, _res.get("reply"))
+                    # THE PANEL'S SCREEN SHOWS WHAT IT HEARD AND WHAT WAS SAID (register 932, panel build 3).
+                    # A turn from a room's own microphone arrives through ProOS Assist with session
+                    # "panel-<the satellite's device id>" (928). Every open dashboard is told, over the live
+                    # wire it already holds (_dash_ping); a wall panel shows it if the microphone is its own.
+                    try:
+                        if str(_sess).startswith("panel-"):
+                            _pdev = str(_sess)[6:]
+                            _pent = ""
+                            try:
+                                _pent = next((e.get("entity_id") for e in (_client.entity_registry() or [])
+                                              if e.get("device_id") == _pdev
+                                              and str(e.get("entity_id", "")).startswith("assist_satellite.")), "") or ""
+                            except Exception:                    # noqa: BLE001
+                                _pent = ""
+                            _dash_ping("panel_said", json.dumps({
+                                "device": _pdev, "entity": _pent, "heard": _text,
+                                "reply": _res.get("reply") or _res.get("error") or "",
+                                "spoke": bool((_res.get("spoke") or {}).get("sent")),
+                                "via": (_res.get("spoke") or {}).get("via") or "",
+                                "room": (_res.get("spoke") or {}).get("room") or where.get("area_name") or "",
+                                "at": time.time()}))
+                    except Exception:                            # noqa: BLE001
+                        pass
                     if not (uinfo.get("is_owner") or uinfo.get("tech")):
                         _res.pop("provider", None)
                     return _res
