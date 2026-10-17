@@ -273,22 +273,8 @@ img,video,.widget-cell,.pa-cam,.pw,.pw-door,.pa-eg-cell,.pa-strip-cell,.pa-tl-it
 /* HOME-CLASS FAULT CARD. Deliberately quiet: a resident is told once, plainly,
    with the one button they can actually press. No severity colours screaming at
    someone eating dinner, no counts, no entity ids. */
-/* THE CARD MUST BE TAPPABLE (Dave, 13 Sep 2026, register 432): "none of the
-   yes/not now/never button do anything". .home-identity is pointer-events:none
-   so the picture behind it stays touchable; every child that has a control
-   re-enables itself (the title, the state line) — and the notice card never
-   had. Its Fix button was dead too, since register 347: found by the first
-   card anyone tapped. One rule for the family, not one per card. */
-.home-notice{margin-top:16px;max-width:640px;display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:14px;background:rgba(224,169,60,0.10);border:0.5px solid rgba(224,169,60,0.32);pointer-events:auto}
-.home-notice-txt{flex:1;min-width:0}
-.home-notice-t{font-size:15px;font-weight:400;color:rgba(255,255,255,0.95)}
-.home-notice-s{font-size:13px;font-weight:300;color:rgba(255,255,255,0.62);margin-top:3px;line-height:1.45}
-.home-notice-btn{flex:none;padding:9px 15px;border-radius:10px;border:0.5px solid rgba(255,255,255,0.22);background:rgba(255,255,255,0.09);color:#fff;font-size:13px;font-weight:400;cursor:pointer;-webkit-tap-highlight-color:transparent}
-.home-notice-btn:disabled{opacity:.5}
-.home-suggest{background:rgba(255,255,255,0.06);border-color:rgba(255,255,255,0.16);flex-wrap:wrap}
-.home-suggest .home-notice-txt{flex:1 1 260px}
-.home-suggest-acts{display:flex;gap:8px;flex:none}
-.home-suggest .home-notice-btn.pri{background:rgba(255,255,255,0.18)}
+/* REGISTER 926 (Dave, 17 Oct 2026): the Home page carries no notice cards — the fault card and the
+   "Pro Assist noticed" offer card are gone with their styles. Faults live on Pro's Incidents. */
 /* Mobile carries the SAME full summary as iPad (Dave, 3 Aug, superseding
    the earlier one-line rule: "needs to be same as iPad") — segment-wrapped
    lines break at joints on every width, so nothing is cut down. */
@@ -3276,17 +3262,8 @@ try{var _sb=localStorage.getItem('proos_std_bg');if(_sb){document.documentElemen
                needs to say about it. -->
           <div class="home-aware">
             <div class="home-state" id="home-state-line" onclick="openAwareness()"><span class="home-state-dot"></span><span class="home-state-txt" id="home-state-txt"></span><span class="home-state-go" id="home-state-go">›</span></div>
-            <!-- HOME-CLASS FAULTS ONLY (Dave, 16 Aug). Core decides what may
-                 appear here: this reads /health/incidents?audience=home, and the
-                 server never sends an installer card to that query. Nothing about
-                 commissioning, integrations, witnesses or sign-ins can reach a
-                 resident, even by mistake. -->
-            <div class="home-notice" id="home-notice" style="display:none"></div>
-            <!-- PRO ASSIST NOTICED (register 431, stage H2). One offer at a
-                 time, from the nightly habits file, in plain words. Yes hands
-                 the offer to Pro Assist to build; Not now snoozes a week;
-                 Never sticks. A habit earns an offer, never an act. -->
-            <div class="home-notice home-suggest" id="home-suggest" style="display:none"></div>
+            <!-- REGISTER 926 (Dave, 17 Oct 2026: "remove these prompts on the dashboard as they are
+                 useless"): no fault card and no offer card here any more. -->
           </div>
         </div>
         <div class="status-bar" id="status-bar"></div>
@@ -4530,7 +4507,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101704';
+const PROOS_BUILD='2026101705';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -7897,178 +7874,11 @@ function _renderAwareBody(){
       : '<div class="aw-empty">Everything\u2019s running normally.</div>';
   body.innerHTML=html;
 }
-// ── HOME-CLASS FAULTS (Dave, 16 Aug 2026) ──────────────────────────────────
-// "I think we are going to have classes of faults, as this would be something
-// that would flag in Pro but not on the Dashboard for the homeowner."
-//
-// The rule is enforced in CORE, not here: this asks for `audience=home` and the
-// server never sends an installer card to that query. So commissioning posture,
-// integration plumbing, witness coverage, provider sign-ins and the new
-// witness-blackout card cannot reach a resident even if this function were
-// rewritten carelessly. What arrives here is, by construction, already theirs.
-//
-// Today that is exactly one card: "Music is not responding". It earns it —
-// they pressed play and waited 30 seconds, the words carry no trade language,
-// and the repair is one button they can press themselves.
-let _homeNotice=null, _homeNoticeBusy=false;
-async function homeFaultsTick(){
-  const el=document.getElementById('home-notice'); if(!el) return;
-  let incs=[];
-  try{
-    const r=await fetch(proosCoreBase()+'/health/incidents?audience=home',{cache:'no-store'});
-    if(!r.ok) throw 0;
-    incs=((await r.json())||{}).incidents||[];
-  }catch(e){
-    // Core unreachable is NOT a fault to announce to a homeowner — the house
-    // still works. Leave whatever is on screen and try again next tick.
-    return;
-  }
-  // Oldest-first would bury a fresh problem; newest wins, and only ONE shows.
-  // A resident gets told once, not given a list to triage.
-  incs.sort((a,b)=>(b.since||0)-(a.since||0));
-  _homeNotice=incs[0]||null;
-  renderHomeNotice();
-}
-function renderHomeNotice(){
-  const el=document.getElementById('home-notice'); if(!el) return;
-  const n=_homeNotice;
-  if(!n){ el.style.display='none'; el.innerHTML=''; return; }
-  // The homeowner sentence is the FIRST sentence of Core's cause — Core owns
-  // the words (one speaker), the dashboard never writes its own.
-  let sub=String(n.cause||'').split(/(?<=\.)\s/)[0]||'';
-  let act=(n.actions||[]).find(a=>a.kind==='restart_music'||a.kind==='reload');
-  // PROOS IS ALREADY ON IT (register 347): when Core's auto-heal has just
-  // asked for the repair itself, the card says so and offers no button — a
-  // second restart on top of the first only stretches the outage.
-  if(n.healing_at && (Date.now()/1000-Number(n.healing_at))<120){
-    sub='ProOS is restarting Music now — it takes about a minute to come back.'; act=null;
-  }
-  // CAN'T BE CONFIRMED (plan A3, Dave's ruling L-18): the household is asked, and the
-  // answer is the confirmation and the consent — Core does the test or the hand-off.
-  const cfm=(n.actions||[]).filter(a=>a.kind==='confirm');
-  if(cfm.length) sub=String(n.cause||'').split(/(?<=\.)\s/).slice(0,2).join(' ');
-  el.innerHTML='<div class="home-notice-txt"><div class="home-notice-t">'+esc(n.title||'')+'</div>'
-    +(sub?'<div class="home-notice-s">'+esc(sub)+'</div>':'')+'</div>'
-    +(cfm.length?cfm.map(a=>'<button class="home-notice-btn" onclick="homeNoticeConfirm(this,\''+esc(a.entity)+'\',\''+esc(a.answer)+'\')">'+esc(a.label||'')+'</button>').join('')
-      :(act?'<button class="home-notice-btn" id="home-notice-btn" onclick="homeNoticeFix()">'+esc(act.label||'Fix')+'</button>':''));
-  el.style.display='';
-}
-async function homeNoticeConfirm(btn,entity,answer){
-  if(_homeNoticeBusy) return; _homeNoticeBusy=true;
-  if(btn){ btn.disabled=true; btn.textContent=answer==='test'?'Testing…':'Saving…'; }
-  try{
-    const r=await fetch(proosCoreBase()+'/devices/confirm',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({entity:entity,answer:answer})});
-    const s=document.querySelector('#home-notice .home-notice-s');
-    if(s) s.textContent = !r.ok ? 'ProOS couldn\u2019t take that just now \u2014 try again.'
-      : answer==='test' ? 'Testing \u2014 ProOS sends it one command and reads its answer back.'
-      : answer==='normal' ? 'Thanks \u2014 ProOS won\u2019t ask about this again.'
-      : 'Thanks \u2014 ProOS is working on it now.';
-  }catch(e){ if(btn){ btn.disabled=false; btn.textContent='Try again'; } }
-  _homeNoticeBusy=false;
-  _homeTickSoon(4000);
-}
-async function homeNoticeFix(){
-  if(!_homeNotice||_homeNoticeBusy) return;
-  _homeNoticeBusy=true;
-  const b=document.getElementById('home-notice-btn');
-  if(b){ b.disabled=true; b.textContent='Working…'; }
-  try{
-    const r=await fetch(proosCoreBase()+'/health/fix',{method:'POST',
-      headers:{'Content-Type':'application/json'},
-      // Declares WHICH surface is asking. Core refuses to repair an installer
-      // card for a caller claiming to be the home surface.
-      body:JSON.stringify({id:_homeNotice.id, audience:'home'})});
-    const j=await r.json().catch(()=>({}));
-    // CONFIRM, DON'T ASSUME (register 126): the card clears only when Core says
-    // the condition is actually gone. An unverified repair leaves it on screen.
-    if(j&&j.cleared){ _homeNotice=null; renderHomeNotice(); }
-    else if(j&&j.ok&&!j.error){
-      // The repair was ACCEPTED but recovery is not yet observed — a music
-      // restart takes about a minute, and claiming success before the next
-      // scan has seen it is precisely the unconfirmed promise register 126
-      // abolished. (Deliberately not quoting the banned phrase itself: the
-      // spelling pin in pro_fix_verify_bench.js scans this file for it, and it
-      // is right to — a comment naming the lie still puts the words in the
-      // build.) Say what is actually happening; leave the card until it goes.
-      const s=document.querySelector('#home-notice .home-notice-s');
-      if(s&&j.note) s.textContent=j.note;
-      if(b){ b.textContent='Restarting…'; }
-    }
-    else if(b){ b.disabled=false; b.textContent='Try again'; }
-  }catch(e){ if(b){ b.disabled=false; b.textContent='Try again'; } }
-  _homeNoticeBusy=false;
-  _homeTickSoon(4000);
-}
-// ── PRO ASSIST NOTICED (register 431, stage H2) ────────────────────────────
-// Dave: "I want it to learn habits from all the logs etc and suggest
-// automations and scenes." Core's nightly habits pass (register 430) says
-// what each room is usually used for; Core turns the ones that clear the
-// three-day bar into OFFERS, and this card shows the first one that nobody
-// has answered. Core owns the words (one speaker). The three answers:
-//   Yes      — the offer's `ask` sentence goes to Pro Assist as if the person
-//              typed it; Assist builds it the way it builds anything. The
-//              Yes IS the yes (consent law unchanged).
-//   Not now  — Core snoozes it a week.
-//   Never    — Core records it in this person's declines; a no sticks.
-// Nothing on this card changes the home. A habit earns an offer, never an act.
-let _homeSuggest=null, _homeSuggestBusy=false;
-async function homeSuggestTick(){
-  const el=document.getElementById('home-suggest'); if(!el) return;
-  let list=[];
-  try{
-    const r=await fetch(proosCoreBase()+'/assist/suggestions',{cache:'no-store'});
-    if(!r.ok) throw 0;
-    list=((await r.json())||{}).suggestions||[];
-  }catch(e){ return; }        // Core unreachable: leave the screen as it is
-  _homeSuggest=list[0]||null;
-  renderHomeSuggest();
-}
-function renderHomeSuggest(){
-  const el=document.getElementById('home-suggest'); if(!el) return;
-  const s=_homeSuggest;
-  if(!s){ el.style.display='none'; el.innerHTML=''; return; }
-  el.innerHTML='<div class="home-notice-txt"><div class="home-notice-t">'+esc(s.title||'Pro Assist noticed')+'</div>'
-    +'<div class="home-notice-s">'+esc(s.text||'')+'</div></div>'
-    +'<div class="home-suggest-acts">'
-    +'<button class="home-notice-btn pri" onclick="homeSuggestAnswer(\'yes\')">Yes</button>'
-    +'<button class="home-notice-btn" onclick="homeSuggestAnswer(\'later\')">Not now</button>'
-    +'<button class="home-notice-btn" onclick="homeSuggestAnswer(\'never\')">Never</button></div>';
-  el.style.display='';
-}
-async function homeSuggestAnswer(ans){
-  const s=_homeSuggest; if(!s||_homeSuggestBusy) return;
-  _homeSuggestBusy=true;
-  try{
-    await fetch(proosCoreBase()+'/assist/suggestions/answer',{method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({id:s.id, answer:ans, text:s.text||''})});
-  }catch(e){}
-  _homeSuggestBusy=false;
-  _homeSuggest=null; renderHomeSuggest();
-  if(ans==='yes' && s.ask){
-    // hand the build to Pro Assist exactly as a typed message — same door,
-    // same tools, same record
-    try{
-      if(typeof openAssist==='function') openAssist();
-      setTimeout(function(){
-        var ai=document.getElementById('assist-input');
-        if(ai){ ai.value=s.ask; if(typeof submitAssist==='function') submitAssist(); }
-      }, 220);
-    }catch(e){}
-  }
-  setTimeout(homeSuggestTick, 1500);
-}
-setTimeout(homeSuggestTick, 6000);
-setInterval(homeSuggestTick, 15*60*1000);
-
-// ONE timer, two paces (register 347): a minute between looks when all is
-// well; 15 seconds while a card is up, so a card that Core has since cleared
-// does not sit in front of a resident for most of a minute inviting a tap.
-let _homeTickT=null;
-function _homeTickSoon(ms){ clearTimeout(_homeTickT); _homeTickT=setTimeout(_homeTickRun, ms); }
-async function _homeTickRun(){ try{ await homeFaultsTick(); }catch(e){} _homeTickSoon(_homeNotice?15000:60000); }
-_homeTickSoon(4000);
+// REGISTER 926 (Dave, 17 Oct 2026): THE HOME PAGE'S TWO NOTICE CARDS ARE GONE.
+// The fault card (/health/incidents?audience=home) showed a false "Bedroom TV never came on" for
+// half an hour on Dave's box, and the "Pro Assist noticed" offer card had never once had an offer
+// to show (7 rooms read, 0 with habits). Faults are the installer's, on Pro's Incidents; Assist
+// still reads the nightly habits file itself. Nothing here polls Core for either any more.
 
 function openAwareness(){
   const ov=_ensureAwarenessOverlay();
