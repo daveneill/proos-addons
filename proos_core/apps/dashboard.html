@@ -4541,7 +4541,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101711';
+const PROOS_BUILD='2026101712';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -18474,6 +18474,8 @@ async function _voiceSend(buf){
 // control that never moves, never swaps for another, and never hands over to
 // something built for a different job.
 function homeMicTap(){
+  // 934a: a wall panel listens through its own room microphone — the wake word, not the browser (Dave, 18 Oct)
+  if(typeof _isPanel==='function' && _isPanel()){ _panelOpenAssist(); _panelHint(''); return; }
   if(_vcap) return _voiceStop();
   if(!voiceConsentGiven()){ try{ openAssist(); }catch(e){} return _voiceAsk(); }
   return toggleDictation('mic');
@@ -18492,6 +18494,20 @@ function _panelSat(){
   try{ return Object.keys(states).find(e=>e.indexOf('assist_satellite.')===0)||''; }catch(e){ return ''; }
 }
 let _psListening=false;
+// the panel's own wake word, read from its satellite — never assumed
+function _panelWake(){
+  try{ const pfx=_panelSat().split('.')[1].replace(/_assist_satellite$/,'');
+       const w=states['select.'+pfx+'_wake_word']; if(w && w.state && w.state!=='unknown' && w.state!=='unavailable' && w.state!=='no_wake_word') return w.state; }catch(e){}
+  return '';
+}
+// WHAT THE ROOM'S MICROPHONE IS DOING, IN THE ASSIST BOX ITSELF (934a). Dave, 07:17: "Hey Jarvis would be okay by
+// itself if it shows its listening and reads back what you said and the chat". Ready → how to talk to it.
+function _panelHint(state){
+  try{ const i=document.getElementById('assist-input'); if(!i) return;
+       const w=_panelWake();
+       i.placeholder = state==='listening' ? 'Listening\u2026' : state==='thinking' ? 'Thinking\u2026'
+                     : (w ? ('Say \u201C'+w+'\u201D and ask') : 'Type a message'); }catch(e){}
+}
 // open Assist for a spoken turn — and leave the input unfocused, so no on-screen keyboard rises for nobody
 function _panelOpenAssist(){
   try{ if(!assistOpen) openAssist(); }catch(e){}
@@ -18500,8 +18516,9 @@ function _panelOpenAssist(){
 function panelSatState(){
   if(!(typeof _isPanel==='function' && _isPanel())) return;
   const s=(states[_panelSat()]||{}).state||'';
-  if(s==='listening'){ _panelOpenAssist(); _psListening=true; _micRec(true); }
-  else if(_psListening){ _psListening=false; _micRec(false); }
+  if(s==='listening'){ _panelOpenAssist(); _psListening=true; _micRec(true); _panelHint('listening'); }
+  else if(s==='processing'){ if(_psListening){ _psListening=false; _micRec(false); } _panelHint('thinking'); }
+  else { if(_psListening){ _psListening=false; _micRec(false); } _panelHint(''); }
 }
 function panelSaid(t){
   if(!t) return;
