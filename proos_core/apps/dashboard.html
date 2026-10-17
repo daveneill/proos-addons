@@ -4541,7 +4541,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101709';
+const PROOS_BUILD='2026101710';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -20711,10 +20711,10 @@ html.proos-panel body.proos-editing #widget-add-pill{display:flex!important;posi
    540-px glass the phone-scaled identity took 300 px and left ONE row of widgets above the bar (measured in a
    960×540 frame on the G-Flip master). Tighter, not smaller to read: the title 40 px, the paddings and the rule's
    margins brought in — two full rows of widgets now stand above the bar (the frame: grid at y 228, rows 244/352). */
-html.proos-panel #page-home .home-identity{padding-top:20px!important;padding-bottom:12px!important}
+html.proos-panel #page-home .home-identity{padding-top:14px!important;padding-bottom:4px!important}
 html.proos-panel #page-home .home-title{font-size:40px!important;line-height:1.1!important}
 html.proos-panel #page-home .home-eyebrow{margin-bottom:2px!important}
-html.proos-panel #page-home .home-rule{margin-top:14px!important;margin-bottom:14px!important}
+html.proos-panel #page-home .home-rule{margin-top:10px!important;margin-bottom:10px!important}
 /* THE PANEL'S VOICE CARD (panel build 3). One calm card in the middle of the glass (the centred-popup ruling, 12 Oct):
    an orb that breathes when ready, pulses while listening and turns while thinking; your words small, the answer large;
    where it was said, quietly. Never above the bar's buttons — the bar stays live under the scrim. */
@@ -20746,6 +20746,28 @@ html.proos-panel #page-home .home-rule{margin-top:14px!important;margin-bottom:1
 @keyframes pv-pulse{0%,100%{transform:scale(.92)}50%{transform:scale(1.06)}}
 @keyframes pv-ring{0%{transform:scale(.9);opacity:1}100%{transform:scale(1.35);opacity:0}}
 @keyframes pv-spin{to{transform:rotate(360deg)}}
+/* PANEL BUILD 4 — EVERY PAGE STANDS IN 540 (register 932). Measured in a 960×540 frame on the G-Flip master with these
+   rules applied: Rooms 3 across at 172 px — every room above the bar (it was 2 across at 300, two rooms visible); the
+   player's transport 52 px and play 76 px (22 / 50); Home's rows 112 px — the Lights 1×1 face had 76 px of content in
+   63 px of room at 100-px rows and printed its value over its label; the tile's own power button off its percentage;
+   the small controls on tiles and lists brought to a finger. */
+html.proos-panel #widget-grid{grid-auto-rows:112px!important}
+html.proos-panel #page-home .home-aware{min-height:0!important}
+html.proos-panel #ctrl-grid .lw-qa{top:8px!important;right:8px!important;width:36px!important;height:36px!important}
+html.proos-panel #ctrl-grid .lw-pct{margin-right:40px!important}
+html.proos-panel .wqa::after,html.proos-panel .mwc-pp::after{content:'';position:absolute;inset:-10px}
+html.proos-panel .mwc-pp{width:44px!important;height:44px!important}
+html.proos-panel #lights-on-filter{width:44px!important;height:44px!important}
+html.proos-panel .rooms-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+html.proos-panel .room-card{height:172px!important;min-height:0!important}
+html.proos-panel .ptb{width:52px!important;height:52px!important}
+html.proos-panel .ptb svg{width:26px!important;height:26px!important}
+html.proos-panel .ptb.play-main{width:76px!important;height:76px!important}
+html.proos-panel .ptb.play-main svg{width:30px!important;height:30px!important}
+html.proos-panel .player-extra-btn{min-height:48px!important;padding:0 20px!important;font-size:15px!important}
+html.proos-panel #player-header-row button{min-width:56px!important;min-height:56px!important}
+/* the climate dial was the desktop's 400×400 on a 540-px glass */
+html.proos-panel .cp-dial-wrap,html.proos-panel .cp-dial-svg{width:300px!important;height:300px!important}
 </style>
 
 <script>
