@@ -3015,11 +3015,14 @@ class ToolRunner:
             targets = None                                       # unknown, not zero
         if targets is not None and not targets:
             # Say the true thing, and say it in the words a person would use.
+            # REGISTER 933b: "error" is SPOKEN to the homeowner on the fast road
+            # (no AI rewrites it) -- so it holds only the homeowner's words; the
+            # instruction for the AI rides in "note", as everywhere else here.
             return {"ok": False, "affected": 0, "area_id": aid,
                     "area_name": area_name, "domain": domain,
                     "error": "there are no %ss in the %s, so there was nothing "
-                             "to %s — tell them that rather than reporting it done"
-                             % (domain, area_name, action.replace("_", " "))}
+                             "to %s" % (domain, area_name, action.replace("_", " ")),
+                    "note": "tell them that rather than reporting it done"}
         payload = {"area_id": aid}
         payload.update({k: v for k, v in data.items() if k not in ("entity_id", "area_id")})
         self.client._req("POST", "/api/services/%s/%s" % (domain, action), payload)
