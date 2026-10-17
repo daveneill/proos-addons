@@ -370,8 +370,27 @@ def check_witnesses(r, now):
     except Exception as e:                                       # noqa: BLE001
         return [_item("5", "Witness coverage", UNKNOWN, "could not read Health: %s" % e)]
     if not incs:
-        return [_item("5", "Witness coverage", CONFIRMED, "every bound witness has testified (no binding fault on Health)",
-                      _iso(now))]
+        # REGISTER 931a (audit, Dave 22:45 "Okay go"): "every bound witness has testified" was CONFIRMED with NO
+        # witness bound at all — a home with no network controller passed only because nothing could fail. The
+        # watch list says which devices have a second signal (watcher item "witness_sensor"); count them first.
+        try:
+            items = (r.watchers() or {}).get("items") or []
+        except Exception as e:                                   # noqa: BLE001
+            return [_item("5", "Witness coverage", UNKNOWN, "could not read the device watch: %s" % e)]
+        bound = [i for i in items if i.get("witness_sensor")]
+        if not items:
+            return [_item("5", "Witness coverage", UNKNOWN, "no devices are watched yet, so nothing can testify")]
+        if not bound:
+            return [_item("5", "Witness coverage", UNKNOWN,
+                          "none of the %d watched devices has a second signal bound (no network controller, or none "
+                          "of them seen by it), so ProOS can only go by what each device says about itself"
+                          % len(items))]
+        alone = len(items) - len(bound)
+        words = "every bound witness has testified (no binding fault on Health) — %d of %d devices have a second signal" % (
+            len(bound), len(items))
+        if alone:
+            words += "; %d on state alone" % alone
+        return [_item("5", "Witness coverage", CONFIRMED, words, _iso(now))]
     return [_item("5", i.get("subject") or "witness", PROBLEM, "already on Health: %s" % i.get("title"),
                   _iso(now), ref=i.get("kind")) for i in incs]
 
