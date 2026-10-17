@@ -4540,7 +4540,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101706';
+const PROOS_BUILD='2026101708';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -7582,6 +7582,7 @@ function showPage(p){
   closePlayer();
   try{ closeMusicAct(); _proosHoistPopups(); }catch(e){}     // register 788: no popup outlives its page
   try{ _closeMore(); }catch(e){}
+  try{ if(_widgetEditMode && typeof _isPanel==='function' && _isPanel()) exitWidgetEditMode(); }catch(e){}   // 932: leaving the page ends a panel's editing
   try{ const _det=document.getElementById('pa-detail'); if(_det && _det.style.display!=='none' && typeof closeProtectCamera==='function') closeProtectCamera(); }catch(e){}
   curPage=p;
   // THE BODY SAYS WHICH PAGE IS ON THE GLASS (register 521). Chrome that lives
@@ -9291,9 +9292,26 @@ function removeWidget(uid){
       }
     }
   }catch(e){}
+  // THE TILE GOES WHEN THE × IS TAPPED (register 932, Dave 22:36: "the X to remove a widget the word remove just comes
+  // up"). The redraw below is deferred while a finger is down (renderWidgetGrid, the 6 Aug tap rule) and edit mode is
+  // re-entered at once, so the deferred redraw then returned on `if(_widgetEditMode)` and the tile stayed until Done.
+  // The cell is taken out of the grid here, directly, whatever the redraw does.
+  try{ document.querySelectorAll('.widget-cell[data-uid="'+String(uid).replace(/"/g,'')+'"]').forEach(c=>c.remove()); }catch(e){}
   _widgetEditMode=false;
   renderWidgetGrid();
   enterWidgetEditMode();
+  if(typeof _isPanel==='function' && _isPanel() && _gone) _panelUndo(_all);
+}
+
+// A panel's remove can be taken back for a few seconds — one large Undo, never a confirm-by-second-tap (register 932).
+function _panelUndo(before){
+  let u=document.getElementById('panel-undo');
+  if(!u){ u=document.createElement('button'); u.id='panel-undo'; document.body.appendChild(u); }
+  u.textContent='Removed · Undo';
+  u.classList.add('on');
+  clearTimeout(u._t);
+  u.onclick=()=>{ clearTimeout(u._t); u.classList.remove('on'); saveWidgetLayout(before); _widgetEditMode=false; renderWidgetGrid(); enterWidgetEditMode(); };
+  u._t=setTimeout(()=>u.classList.remove('on'), 5000);
 }
 
 function toggleWidgetSize(uid){
@@ -9337,8 +9355,20 @@ function enterWidgetEditMode(){
   if(cg) cg.classList.add('widgets-editing');
   const doneBtn=document.getElementById('widget-done-btn');
   if(doneBtn) doneBtn.style.display='inline-block';
-
+  if(typeof _isPanel==='function' && _isPanel()) _panelEditIdle();
+  try{ document.body.classList.add('proos-editing'); }catch(e){}
 }
+// A panel never stays in edit mode by accident: 60 s with no touch ends it (register 932); leaving the page ends it too
+// (showPage, below). The clock restarts on every touch while editing.
+let _panelEditT=null;
+function _panelEditIdle(){
+  clearTimeout(_panelEditT);
+  _panelEditT=setTimeout(()=>{ if(_widgetEditMode) exitWidgetEditMode(); }, 60000);
+  if(!_panelEditIdle._armed){ _panelEditIdle._armed=true;
+    document.addEventListener('pointerdown',()=>{ if(_widgetEditMode && _isPanel()) _panelEditIdle(); }, true); }
+}
+// Settings › Edit Home Screen on a panel: go to the page and open editing on purpose.
+function panelEditHome(){ try{ showPage('home'); }catch(e){} setTimeout(()=>{ try{ enterWidgetEditMode(); }catch(e){} }, 350); }
 
 function exitWidgetEditMode(){
   _widgetEditMode=false;
@@ -9348,6 +9378,7 @@ function exitWidgetEditMode(){
   if(cg) cg.classList.remove('widgets-editing');
   const doneBtn=document.getElementById('widget-done-btn');
   if(doneBtn) doneBtn.style.display='none';
+  try{ document.body.classList.remove('proos-editing'); clearTimeout(_panelEditT); }catch(e){}
   try{ renderWidgetGrid(); }catch(e){}
 }
 
@@ -11311,6 +11342,8 @@ function renderWidgetGrid(){
     let _holdTimer=null, _hx=0, _hy=0;
     const startHold=(e)=>{
       if(_widgetEditMode) return;
+      // 932 (panel build 2): a wall panel is never edited by a hold — Settings › Edit Home Screen opens it on purpose
+      if(typeof _isPanel==='function' && _isPanel()) return;
       _hx=e.clientX; _hy=e.clientY;
       clearTimeout(_holdTimer);
       _holdTimer=setTimeout(()=>{
@@ -13539,6 +13572,11 @@ function renderSettings(){
       </div>
       <div class="set-row" style="cursor:pointer" onclick="exitInstaller()"><div class="set-label" style="color:#e0564b">Exit Pro Mode</div><div class="set-value"></div></div>
     </div>` : ''}
+    ${(typeof _isPanel==='function'&&_isPanel())?`
+    <div class="set-section">
+      <div class="set-section-title">Wall Panel</div>
+      <div class="set-row" style="cursor:pointer" onclick="panelEditHome()"><div><div class="set-label">Edit Home Screen</div><div class="set-field-hint" style="margin-top:2px">Add, remove or resize what this panel shows. Editing ends by itself after a minute.</div></div><div class="set-value">&rsaquo;</div></div>
+    </div>`:''}
     <div class="set-section">
       <div class="set-section-title">Profile</div>
       <div class="set-row" style="align-items:center;gap:12px">
@@ -20581,6 +20619,34 @@ html.proos-panel .mus-play{opacity:1!important}
 /* room chips: a finger's height, the words centred */
 html.proos-panel .rtab{display:inline-flex; align-items:center; padding:0 24px}
 html.proos-panel #bottom-nav .nav-btn span{font-size:12px}
+/* PANEL BUILD 2 — editing on purpose, by touch (register 932). Done is large and never scrolls away; the × and ⤢ are
+   finger targets; a removed tile can be taken back once, for five seconds, with one large Undo. */
+html.proos-panel #widget-done-btn{position:fixed!important;top:18px!important;right:18px!important;z-index:210!important;
+  min-height:60px!important;padding:0 32px!important;border-radius:30px!important;font-size:17px!important;font-weight:500!important;
+  letter-spacing:.02em!important;background:#fff!important;color:#000!important;border:none!important;
+  align-items:center!important;justify-content:center!important;box-shadow:0 10px 30px rgba(0,0,0,.45)!important}
+html.proos-panel .widget-edit-x,html.proos-panel .widget-size-btn{width:44px!important;height:44px!important;font-size:22px!important;line-height:44px!important}
+html.proos-panel .widget-edit-x::after,html.proos-panel .widget-size-btn::after{content:''!important;position:absolute!important;inset:-12px!important}
+/* no wobble on a wall — a quiet outline says which tiles are being edited */
+html.proos-panel .widget-grid.edit-mode .widget-cell{animation:none!important;outline:1.5px dashed rgba(255,255,255,.38);outline-offset:-1.5px}
+#panel-undo{position:fixed;left:50%;bottom:calc(var(--proos-floor) + var(--proos-dock-h) + 16px);transform:translate(-50%,24px);
+  z-index:220;min-height:60px;padding:0 30px;border-radius:30px;border:none;background:rgba(28,28,30,.96);color:#fff;
+  font-size:16px;letter-spacing:.02em;opacity:0;pointer-events:none;transition:opacity var(--m-move) var(--e-standard),transform var(--m-move) var(--e-standard);
+  -webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);box-shadow:0 12px 32px rgba(0,0,0,.5)}
+#panel-undo.on{opacity:1;pointer-events:auto;transform:translate(-50%,0)}
+/* Adding is part of editing on a panel: the + appears only while editing, large, beside Done */
+html.proos-panel #widget-add-pill{display:none!important}
+html.proos-panel body.proos-editing #widget-add-pill{display:flex!important;position:fixed!important;top:18px!important;right:170px!important;left:auto!important;bottom:auto!important;
+  z-index:210!important;width:60px!important;height:60px!important;min-height:60px!important;border-radius:30px!important;align-items:center!important;justify-content:center!important;
+  background:rgba(255,255,255,.14)!important;border:1px solid rgba(255,255,255,.28)!important;-webkit-backdrop-filter:blur(16px)!important;backdrop-filter:blur(16px)!important}
+/* HOME ON A WALL (panel build 2). The identity is pinned and the widgets scroll beneath it (register 367); on a
+   540-px glass the phone-scaled identity took 300 px and left ONE row of widgets above the bar (measured in a
+   960×540 frame on the G-Flip master). Tighter, not smaller to read: the title 40 px, the paddings and the rule's
+   margins brought in — two full rows of widgets now stand above the bar (the frame: grid at y 228, rows 244/352). */
+html.proos-panel #page-home .home-identity{padding-top:20px!important;padding-bottom:12px!important}
+html.proos-panel #page-home .home-title{font-size:40px!important;line-height:1.1!important}
+html.proos-panel #page-home .home-eyebrow{margin-bottom:2px!important}
+html.proos-panel #page-home .home-rule{margin-top:14px!important;margin-bottom:14px!important}
 </style>
 
 <script>
