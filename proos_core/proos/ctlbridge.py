@@ -1450,6 +1450,15 @@ class ActivityPublisher:
                             and not d["confirmed_dark"])
                 cs = _dc(area_slug, snapall, _cmds, _disp_on,
                          self._mem(area_slug))
+                # REGISTER 925: a commanded activity is VERIFIED only when the TV agrees on its input (where it reports
+                # one); contradicted → the room reads on, unconfirmed, with what the TV reports.
+                try:
+                    from .cmdstate import input_verdict as _iv
+                    _src_of = {getattr(_a, "key", None): getattr(_a, "source_eid", None) for _a in acts.values()}
+                    _drow = dict(snapall.get(d.get("disp_eid")) or {}, entity_id=d.get("disp_eid"))
+                    cs = _iv(cs, _src_of, rec.get("inputs") or {}, _drow)
+                except Exception:                            # noqa: BLE001
+                    pass
                 # MONITOR MODE (Dave, 2 Aug: "add the standard monitor so I
                 # can test what the system will be like with no activities
                 # and just monitoring"): rooms publish ONLY on/off + device
@@ -1492,8 +1501,11 @@ class ActivityPublisher:
                          # what stops a screen reading it as "we watched
                          # the source come up on the input", which nothing
                          # here did.
-                         "verified_by": ("commanded, and the display "
-                                         "confirms power"
+                         "verified_by": ((("commanded; the TV confirms power and is on %s" % cs.get("tv_reports"))
+                                          if cs.get("input_check") == "agrees" else
+                                          "commanded, and the display confirms power — the TV doesn't report its input"
+                                          if cs.get("input_check") == "unreported" else
+                                          "commanded, and the display confirms power")
                                          if cs["confirmed"] else None),
                          "held": False,
                          "external": cs["external"],
@@ -1503,6 +1515,11 @@ class ActivityPublisher:
                          "icon": ("mdi:television-play"
                                   if cs["state"] != "off"
                                   else "mdi:television-off")}
+                if cs.get("input_check") == "contradicted":         # register 925
+                    attrs["unconfirmed"] = ("%s was asked, but the TV reports %s%s"
+                                            % (cs.get("asked"), cs.get("tv_reports"),
+                                               (" — not %s" % cs["expected"]) if cs.get("expected") else ""))
+                    attrs["asked"] = cs.get("asked")
                 # PLAN A2 (3 Oct 2026; L-6/L-16, T1e/T2g on Dave's box). The room
                 # said "Off — verified: commanded, and the display confirms power"
                 # while the Bedroom TV sat behind a dead switch: the Samsung

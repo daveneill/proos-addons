@@ -129,3 +129,42 @@ def decide_cmd(area_slug, snap, commands, disp_on, mem, now=None):
             out["missed"] = {"key": latest[0], "label": latest[1],
                              "fired_at": latest[2]}
     return out
+
+
+# ── REGISTER 925: THE TV'S OWN INPUT DECIDES "VERIFIED" ──────────────────────
+# Dave, 17 Oct 2026 (approving the change to his 2 Aug "commanded + power" ruling): "Yes both" — verified only when the
+# TV is on that activity's input where the TV reports one; otherwise unconfirmed with the reason. And the standing rule:
+# "this system is all about confirmation not assuming … otherwise its not actual state based awareness its virtual".
+# Read on the box (923a): after the TV was switched to its own Foxtel app with its remote, the Bedroom kept publishing
+# "watch_apple_tv — verified: commanded, and the display confirms power" while the Samsung reported source "Foxtel".
+def input_verdict(cs, source_of, inputs, disp_row):
+    """Check a commanded, power-confirmed activity against the input the TV reports.
+
+    cs        — decide_cmd's answer.
+    source_of — {activity_key: source entity or None} (None = the TV's own activity, Watch TV).
+    inputs    — the room record's committed {entity: input name}.
+    disp_row  — the display's own state row.
+    Returns cs, extended with input_check: "agrees" | "unreported" | "contradicted" (+ the readings). A contradicted
+    activity is NOT claimed: the room reads on (the TV is on), unconfirmed, and says what the TV reports — the same
+    shape decide_cmd already publishes for a room lit by other means."""
+    key = cs.get("commanded_key")
+    if not (cs.get("confirmed") and key and key != "tv_off" and cs.get("state") not in ("on", "off")):
+        return cs
+    src = str(((disp_row or {}).get("attributes") or {}).get("source") or "").strip()
+    if not src:
+        return dict(cs, input_check="unreported")
+    box_inputs = {str(v).strip() for e, v in (inputs or {}).items() if v}
+    se = (source_of or {}).get(key)
+    want = str((inputs or {}).get(se) or "").strip() if se else ""
+    if se and want:
+        ok = (src == want)
+    elif se:
+        return dict(cs, input_check="unreported", tv_reports=src)   # no committed input for that box — can't check
+    else:
+        own = str((inputs or {}).get((disp_row or {}).get("entity_id")) or "").strip()
+        ok = src not in (box_inputs - ({own} if own else set()))    # the TV's own: on none of the boxes' inputs
+    if ok:
+        return dict(cs, input_check="agrees", tv_reports=src)
+    return {"state": "on", "label": "On", "confirmed": False, "commanded_key": key, "external": True,
+            "input_check": "contradicted", "tv_reports": src, "expected": want or None,
+            "asked": cs.get("label") or key}
