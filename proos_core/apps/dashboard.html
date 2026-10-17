@@ -4541,7 +4541,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101712';
+const PROOS_BUILD='2026101713';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -18361,6 +18361,9 @@ function _micRec(on){
   try{ document.body.classList.toggle('proos-listening', !!on); }catch(e){}
 }
 async function toggleDictation(from){
+  // 934b: a wall panel never starts the browser microphone (its browser gives none — read 18 Oct); every mic on it —
+  // the Assist tab, the round mic inside Assist — says the room's wake word instead
+  if(typeof _isPanel==='function' && _isPanel()){ try{ _panelOpenAssist(); _panelHint(''); }catch(e){} return; }
   if(_vcap) return _voiceStop();
   if(!voiceConsentGiven()) return _voiceAsk();
   _voiceHush();                              // the microphone never hears ProOS
