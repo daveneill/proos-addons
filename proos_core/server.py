@@ -2208,6 +2208,7 @@ def _controller_gear():
     except Exception:                                            # noqa: BLE001
         devname = {}
     gear = {}
+    _loaded = None          # 926l: the UniFi entries' states, read once and only if a tracker is a restored placeholder
     for e in reg:
         eid = e.get("entity_id") or ""
         uid = str(e.get("unique_id") or "")
@@ -2217,6 +2218,22 @@ def _controller_gear():
             continue                       # a client of the network, not its gear
         s_ = st.get(eid) or {}
         state = s_.get("state")
+        # REGISTER 926l (Dave, 17 Oct 19:10: "I have removed the US 24 PoE 250W from the controller and done a reload and
+        # incident is still there"). Read on the box: after the reload the tracker reads "unavailable" with the platform's
+        # own `restored: true` — the mark for an entity NO integration is providing, written from the registry (the UniFi
+        # integration does not purge a deleted device's entities) — while the UniFi entry reads "loaded". A reload's own
+        # one-second blip carries the same mark, but then the entry is not loaded. So: restored while its integration is
+        # loaded = the controller no longer lists it — not gear, no card (Dave's ruling: deleted from the controller → no
+        # incident). Restored while the integration is reloading = unknown, as before. The entries are read only when a
+        # tracker carries the mark, never on every sweep.
+        if (s_.get("attributes") or {}).get("restored"):
+            if _loaded is None:
+                try:
+                    _loaded = {x.get("entry_id"): x.get("state") for x in (_client.config_entries("unifi") or [])}
+                except Exception:                                # noqa: BLE001
+                    _loaded = {}
+            if _loaded.get(e.get("config_entry_id")) == "loaded":
+                continue
         online = True if state == "home" else (False if state == "not_home" else None)
         # REGISTER 899 (seen on the box 16 Oct, Dave 13:25 "fix the switches name"): the UniFi integration names its
         # tracker after the device, so the platform's friendly name is the device name twice ("Bedroom - TV Bedroom - TV").
