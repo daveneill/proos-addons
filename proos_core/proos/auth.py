@@ -35,7 +35,19 @@ _LOG = logging.getLogger("proos.auth")
 REQUIRE = os.environ.get("PROOS_REQUIRE_AUTH", "0") == "1"
 # register 439: the platform is beside Core on the Supervisor network, by the
 # Supervisor's own name. Nothing on the box is told where the platform is.
+# REGISTER 929: and its PORT is asked of the Supervisor (/core/info), never
+# assumed — new installs since the platform's 2026.8 serve on 80, and the
+# written 8123 rejected every sign-in on the G-Flip master. _HA stays only as
+# the last-resort address platformaddr itself falls back to.
 _HA = "http://homeassistant:8123"
+
+
+def _platform():
+    try:
+        from proos import platformaddr
+        return platformaddr.base()
+    except Exception:  # noqa: BLE001 — never lose sign-in over the address helper
+        return _HA
 _TTL = 900.0  # 15 min: verify is an HA websocket round-trip; a 60s cache re-verified
               # every minute, and a cold token (dashboard-only device) stalled/401'd on it
 _CACHE = {}  # token -> (user, expiry)
@@ -93,7 +105,7 @@ def verify(token):
         return hit[0]
     try:
         from proos.ha_ws import ws_command
-        u = ws_command(_HA, token, "auth/current_user") or {}
+        u = ws_command(_platform(), token, "auth/current_user") or {}
     except Exception as exc:
         # ws_command RAISES on a real auth failure AND on any transient blip (HA busy, socket
         # timeout, momentary disconnect). Distinguish them: a genuine auth failure is a hard

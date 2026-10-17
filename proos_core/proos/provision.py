@@ -524,8 +524,14 @@ def _onboard_bases():
     # needs no token and dodges the Supervisor→Core proxy, which doesn't
     # cleanly serve onboarding on a fresh box. The proxy is the last-resort
     # fallback. (Register 439: the typed ha_direct override is gone.)
+    # REGISTER 929: the platform's port is asked of the Supervisor, never assumed.
+    try:
+        from proos import platformaddr
+        direct = platformaddr.base()
+    except Exception:  # noqa: BLE001
+        direct = "http://homeassistant:8123"
     bases = []
-    bases.append(("http://homeassistant:8123", None))
+    bases.append((direct, None))
     bases.append(("http://supervisor/core", SUPERVISOR_TOKEN))
     return bases
 

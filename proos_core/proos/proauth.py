@@ -43,8 +43,14 @@ class AuthError(Exception):
 # --------------------------------------------------------------------------
 def _bases():
     # register 439: the platform is reached by the Supervisor's own names only
+    # REGISTER 929: the platform's port is asked of the Supervisor, never assumed.
+    try:
+        from proos import platformaddr
+        direct = platformaddr.base()
+    except Exception:  # noqa: BLE001
+        direct = "http://homeassistant:8123"
     bases = []
-    bases.append(("http://homeassistant:8123", None))
+    bases.append((direct, None))
     bases.append(("http://supervisor/core", SUPERVISOR_TOKEN))
     return bases
 
