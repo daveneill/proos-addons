@@ -1842,6 +1842,10 @@ body.v3 .rh-card{border-radius:22px}
 #app.v3 .itile:has(.v3ph){position:relative;padding-bottom:40px}
 #app.v3 .itile .v3ph{position:absolute;left:16px;right:16px;bottom:10px;margin:0;flex-wrap:nowrap;overflow:hidden}
 #app.v3 .scene-card .v3ph{position:absolute;top:10px;left:12px;right:150px;margin:0;flex-wrap:nowrap;overflow:hidden}
+/* REGISTER 926 item 5: acknowledged incidents — listed, quieter, under Seen */
+.hlt-inc.seen{opacity:.62}
+.hlt-seen-h{margin:18px 2px 8px;font-size:12px;font-weight:500;letter-spacing:.04em;color:var(--t2,rgba(255,255,255,.55))}
+.hlt-ack{font-size:12px;color:var(--t2,rgba(255,255,255,.55));align-self:center}
 
 </style>
 </head>
@@ -2847,7 +2851,7 @@ body.v3 .rh-card{border-radius:22px}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026101708';
+const PROOS_BUILD='2026101709';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -17639,7 +17643,9 @@ async function renderHealth(){
                                  state:'',attributes:{area:x.name||'Room'},
                                  _noreading:true});
   }catch(e){}
-  const crit=inc.filter(i=>i.severity==='critical').length, warn=inc.filter(i=>i.severity==='warning').length;
+  // REGISTER 926 item 5: an acknowledged card is still listed, but it no longer counts as needing attention
+  const _attn=inc.filter(i=>!i.acknowledged);
+  const crit=_attn.filter(i=>i.severity==='critical').length, warn=_attn.filter(i=>i.severity==='warning').length;
   // Active counts rooms actually IN USE — idle is awake-but-nothing-running
   // and no longer inflates the number (spec decision, 1 Aug).
   const live=rooms.filter(r=>roomStateClass(r.state)==='active').length;
@@ -17659,7 +17665,7 @@ async function renderHealth(){
   // 689: incident cards are not drawn (the elements are gone; this is a no-op kept so
   // the card code below stays readable until it is deleted outright).
   const ih=document.getElementById('hlt-incidents');
-  if(ih) ih.innerHTML=inc.map(i=>{
+  const _hltCard=(i)=>{
     const fix=(i.actions||[]).find(a=>a.kind==='reload');
     const rec=(i.actions||[]).find(a=>a.kind==='recommit');
     // RECORD FAULT repair (4 Aug): the labels ARE the commission, so Core can
@@ -17687,7 +17693,7 @@ async function renderHealth(){
     // [an empty Areas page]"): a card opens a page that EXISTS — hltDest() — or it is not tappable at all.
     const _dest=hltDest(i);
     const nav=_dest?' style="cursor:pointer" onclick="'+_dest+'"':'';
-    return '<div class="hlt-inc '+esc(i.severity||'warning')+'"'+nav+'>'
+    return '<div class="hlt-inc '+esc(i.severity||'warning')+(i.acknowledged?' seen':'')+'"'+nav+'>'
       +'<div class="t">'+esc(i.title||'')+'</div><div class="c">'+esc(i.cause||'')+'</div>'
       +'<div class="acts">'
       +(fix?'<button class="btn-primary" style="padding:6px 14px;font-size:12px" onclick="event.stopPropagation();hltFix(\''+esc(i.id)+'\')">Fix now</button>':'')
@@ -17701,9 +17707,17 @@ async function renderHealth(){
       +(adopt?'<button class="btn-primary" style="padding:6px 14px;font-size:12px" onclick="event.stopPropagation();hltAdoptHome()">Adopt Its New Home</button>':'')
       +'<button class="btn-ghost" style="padding:6px 14px;font-size:12px" onclick="event.stopPropagation();hltAskAssist(\''+esc(i.id)+'\')">Ask Assist</button>'
       +(rec?'<button class="btn-ghost" style="padding:6px 14px;font-size:12px" onclick="event.stopPropagation();openRoomHub(\''+esc(rec.room)+'\')">Save Room</button>':'')
-      +'<button class="btn-ghost" style="padding:6px 14px;font-size:12px;margin-left:auto;opacity:.8" onclick="event.stopPropagation();hltDismiss(\''+esc(i.id)+'\')">Dismiss</button>'
+      // REGISTER 926 item 5 (Dave: "dismiss should mean acknowledged"): Acknowledge keeps the card, quiet, under Seen
+      +(i.acknowledged
+        ?'<span class="hlt-ack" style="margin-left:auto">Acknowledged '+esc(new Date(Number(i.acknowledged.at||0)*1000).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}))+'</span>'
+        :'<button class="btn-ghost" style="padding:6px 14px;font-size:12px;margin-left:auto;opacity:.8" onclick="event.stopPropagation();hltDismiss(\''+esc(i.id)+'\')">Acknowledge</button>')
       +'</div></div>';
-  }).join('');
+  };
+  if(ih){
+    const _seen=inc.filter(i=>i.acknowledged);
+    ih.innerHTML=_attn.map(_hltCard).join('')
+      +(_seen.length?'<div class="hlt-seen-h">Seen — Quiet Until Something Changes</div>'+_seen.map(_hltCard).join(''):'');
+  }
   // same card the room page shows — one design for room state everywhere.
   // Each row now carries the SAME environment line as the room page's Live
   // mirror (shared envLineText, so the two surfaces cannot drift), and Home
@@ -17945,13 +17959,14 @@ async function hltCopyApplist(){
     toast('App list copied — paste in Configure › Show Advanced Options › Configure Applications');
   }catch(e){ toast(_coreFailWords('',e)); }
 }
-// Manual clear (2 Aug): removes the card now; if the condition still exists
-// the next scan re-detects and the card returns — nothing stays hidden.
+// REGISTER 926 item 5 (Dave, 17 Oct 2026): DISMISS = ACKNOWLEDGED. The card stays — listed under Seen, still a fault —
+// and stops asking for attention until its reading changes; it clears only when the fault is gone. (Until 2026101709 a
+// dismissed card was removed and re-opened by the next scan within seconds: to Dave it "does nothing".)
 async function hltDismiss(id){
   try{
     const r=await fetch(proCoreUrl()+'/health/dismiss',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:id})});
-    if(r.ok){ toast('Dismissed — re-opens automatically if it persists'); renderHealth(); }
-    else toast('Dismiss failed');
+    if(r.ok){ toast('Acknowledged — it stays quiet until something changes'); renderHealth(); }
+    else toast('Couldn\u2019t acknowledge that one');
   }catch(e){ toast(_coreFailWords('',e)); }
 }
 async function hltFix(id){
@@ -19526,7 +19541,7 @@ function v3HomeTop(){
   const lbl=p.querySelector(':scope>.section-label'); if(lbl) lbl.textContent='Happening Now';
   let na=document.getElementById('v3home-attn');
   if(!na){ na=document.createElement('div'); na.id='v3home-attn'; na.className='v3card'; na.style.marginTop='16px'; const rooms_=document.getElementById('hlt-rooms'); if(rooms_&&rooms_.parentElement===p) p.insertBefore(na,rooms_.nextSibling); else p.appendChild(na); }
-  const inc=(_hltInc||[]), un=(_unassignedEnts||[]).length;
+  const inc=(_hltInc||[]).filter(i=>!i.acknowledged), un=(_unassignedEnts||[]).length;   // 926 item 5: acknowledged cards don't ask
   let rows='';
   inc.slice(0,4).forEach(i=>{ rows+='<div class="v3row" onclick="v3Diag(\'incidents\')"><div class="ri">'+V3ICONS.bolt+'</div><div class="rt"><div class="t1">'+esc(i.title||'')+'</div><div class="t2">'+esc(i.cause||'')+'</div></div><div class="rr"><span class="v3chip '+(i.severity==='critical'?'red':'amber')+'">'+(i.severity==='critical'?'Needs a Fix':'Check')+'</span>'+V3ICONS.chev.replace('<svg','<svg class="cv"')+'</div></div>'; });
   if(un) rows+='<div class="v3row" onclick="v3Devices(\'__none__\')"><div class="ri">'+V3ICONS.plug+'</div><div class="rt"><div class="t1">'+un+' device'+(un===1?'':'s')+' not in a room</div><div class="t2">Assist can\'t use them until they\'re in a room</div></div><div class="rr"><span class="v3chip btn">Place Them</span>'+V3ICONS.chev.replace('<svg','<svg class="cv"')+'</div></div>';
@@ -19875,8 +19890,9 @@ function v3AwSeg(k){
 function v3AwCardOpen(){
   const h=_awLast&&_awLast.hero;
   const n=(h&&Array.isArray(h.things))?h.things.filter(Boolean).length:0;
+  const _ack=(h&&Array.isArray(h.acknowledged))?h.acknowledged.filter(Boolean).length:0;   // 926 item 5: Seen lives on Incidents
   _v2sec='diagnostics';
-  v3Diag(n?'incidents':'awareness');
+  v3Diag((n||_ack)?'incidents':'awareness');
 }
 openAwarenessScreen=function(){ v3AwCardOpen(); };
 // A watched device opens ITS page, normal or not — the device's own page, from the platform's device behind the entity

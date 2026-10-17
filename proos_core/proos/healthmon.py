@@ -300,22 +300,30 @@ def get(iid):
 
 
 def dismiss(iid):
-    """Manual clear (Dave, 2 Aug): the installer closes an incident by hand.
-    Honest by construction — nothing is suppressed: if the condition still
-    exists, the very next scan re-detects and re-opens it. Journaled, so the
-    dismissal itself is on the record."""
+    """DISMISS = ACKNOWLEDGED (register 926 item 5; Dave, 17 Oct 2026: "if a home was having a unit replaced or something
+    then dismiss should mean acknowledged … if it was going to be removed permanently then it would be deleted from
+    UniFi Controller and then there should be no incidents"). Read on the box before: dismiss popped the card and the
+    next scan re-opened it within 35 s — to the installer it did nothing. Now the card STAYS open and is marked
+    acknowledged: nothing is hidden (it is still listed, under Seen, and still counted as a fault), it simply stops
+    asking for attention. The acknowledgement lasts while the card's own reading is unchanged — its title and severity;
+    a change (see _ensure) or the condition clearing and returning makes it a fresh card again. Journaled."""
     with _lock:
         _load()
-        inc = _open.pop(iid, None)
+        inc = _open.get(iid)
         if inc is None:
             return None
-        _first_bad.pop(iid, None)
+        inc["acknowledged"] = {"at": time.time(), "title": inc.get("title"), "severity": inc.get("severity")}
         _save()
-    journal.emit(inc.get("slug", "site"), "incident_dismissed",
+    journal.emit(inc.get("slug", "site"), "incident_acknowledged",
                  {"id": iid, "kind": inc.get("kind"),
                   "title": inc.get("title")})
     journal.broadcast("incidents", {"count": len(_open)})
     return inc
+
+
+def needs_attention(incs):
+    """The open incidents nobody has acknowledged — what "Needs Attention" counts (register 926 item 5)."""
+    return [i for i in (incs or []) if isinstance(i, dict) and not i.get("acknowledged")]
 
 
 # ── 6 · infrastructure down: the network gear ITSELF (Dave, 9 Aug 2026) ─────
@@ -2369,7 +2377,17 @@ def _ensure(cid, inc, quiet=False):
                       "slug", "subject", "kind", "audience", "fired", "read_back"):
                 if k in inc:
                     cur[k] = inc[k]
+            # REGISTER 926 item 5: an acknowledgement lasts while the card's own reading is the one acknowledged —
+            # a new title or severity is something new, and it asks for attention again.
+            _ack = cur.get("acknowledged")
+            _reask = bool(_ack) and (cur.get("title") != _ack.get("title") or cur.get("severity") != _ack.get("severity"))
+            if _reask:
+                cur.pop("acknowledged", None)
             _save()
+            if _reask:
+                print("  [healthmon] CHANGED (acknowledgement lifted) %s: %s" % (cur.get("kind"), cur.get("title")), flush=True)
+                journal.emit(cur.get("slug", "site"), "incident_changed",
+                             {"id": cid, "kind": cur.get("kind"), "title": cur.get("title")})
             return
         inc["id"] = cid
         inc["since"] = time.time()

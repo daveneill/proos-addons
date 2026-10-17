@@ -1186,6 +1186,11 @@ def _one_answer(rep, home_only=False):
     except Exception:                                            # noqa: BLE001
         incs = None
     rep["open_alarms"] = None if incs is None else len(incs)
+    # REGISTER 926 item 5: an ACKNOWLEDGED card is still a fault, listed and counted, but it no longer asks for
+    # attention — the headline counts only what nobody has acknowledged, and names the acknowledged ones separately.
+    acked = [] if incs is None else [i for i in incs if isinstance(i, dict) and i.get("acknowledged")]
+    if incs is not None:
+        incs = [i for i in incs if not (isinstance(i, dict) and i.get("acknowledged"))]
     # REGISTER 897 (seen on the box 16 Oct; Dave 12:31 "A"): Pro's Home now lists these same incidents under Needs
     # Attention (stage 3, the approved catalogue), and the headline above them read "All Systems Normal" over a critical
     # card. 689's complaint was the header and the page disagreeing; so is this. The header now says what the page lists:
@@ -1197,7 +1202,17 @@ def _one_answer(rep, home_only=False):
     # tap to the page that lists them. Empty when nothing is open; absent when the incident list could not be read.
     if hero and incs is not None:
         hero["things"] = [str(i.get("title")) for i in incs if isinstance(i, dict) and i.get("title")]
+        hero["acknowledged"] = [str(i.get("title")) for i in acked if i.get("title")]
         rep["hero"] = hero
+    if acked and not incs and hero and hero.get("tone") in ("calm", None):
+        # nothing new to look at, but the house is not "normal": it carries faults someone has acknowledged
+        hero["watcher_headline"] = hero.get("headline")
+        hero["headline"] = ("1 Acknowledged Fault" if len(acked) == 1 else "%d Acknowledged Faults" % len(acked))
+        hero["sub"] = "Seen: " + " · ".join(hero["acknowledged"])
+        hero["tone"] = "noticing"
+        rep["hero"] = hero
+        if rep.get("summary") == "All Systems Normal":
+            rep["summary"] = hero["headline"]
     if incs and hero and hero.get("tone") in ("calm", None):
         hero["watcher_headline"] = hero.get("headline")
         hero["headline"] = ("1 Thing Needs Attention" if len(incs) == 1
@@ -6883,12 +6898,14 @@ class Handler(BaseHTTPRequestHandler):
                 if _healthmon_mod is None:
                     return self._send(503, {"error": "healthmon unavailable"})
                 b = self._body() or {}
+                # REGISTER 926 item 5: dismiss = ACKNOWLEDGED — the card stays, listed under Seen, quiet until its
+                # reading changes; it clears only when its condition is gone.
                 inc = _healthmon_mod.dismiss((b.get("id") or "").strip())
                 if inc is None:
                     return self._send(404, {"error": "no such incident"})
-                return self._send(200, {"ok": True, "dismissed": inc.get("id"),
-                                        "note": "re-opens automatically if "
-                                                "the condition persists"})
+                return self._send(200, {"ok": True, "acknowledged": inc.get("id"),
+                                        "note": "acknowledged — it stays quiet until something changes, "
+                                                "and clears when the fault is gone"})
             if parts == ["health", "fix"]:
                 # One-tap mechanical repair for an incident (reload only —
                 # recommit/witness actions are navigation, handled by Pro).
