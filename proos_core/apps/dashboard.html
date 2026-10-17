@@ -4530,7 +4530,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101703';
+const PROOS_BUILD='2026101704';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -16633,7 +16633,7 @@ async function launchShortcut(area, app, target){
     const r=await fetch(proosCoreBase()+'/shortcuts/'+encodeURIComponent(area)+'/launch',
       {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({app:app, target:target})});
     const d=await r.json().catch(()=>({}));
-    if(d&&d.ok){ showToast('Launched'); return; }
+    if(d&&d.ok){ showToast(d.note||'Launched'); return; }   // register 924
     let msg=(d&&d.error)||'Could not launch';
     if(/display is (off|unavailable|standby)/i.test(msg)) msg='Turn the TV on in this room first, then tap the app';
     showToast(msg);
@@ -16848,7 +16848,7 @@ async function _awTap(el){
     const r=await fetch(proosCoreBase()+'/shortcuts/'+encodeURIComponent(area)+'/launch',
       {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({app:app, target:dev, token:id||undefined})});
     const d=await r.json().catch(()=>({}));
-    if(d&&d.ok){ showToast(nm); return; }
+    if(d&&d.ok){ showToast(d.note||nm); return; }       // register 924: an unconfirmed device is said, never hidden
     showToast((d&&d.error)||('Couldn\u2019t open '+nm));
   }catch(e){ showToast(_coreFailWords('/shortcuts/\u2026/launch',e)); } finally {
     setTimeout(()=>_awRing(el,false), 400);

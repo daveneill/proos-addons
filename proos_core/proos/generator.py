@@ -381,6 +381,13 @@ def _live_expr(client, disp):
     return "is_state('%s','on')" % disp
 
 
+# REGISTER 924: the readings a step is decided by. A device that reads one of _CONFIRMED_ON / _CONFIRMED_OFF has said
+# what it is; one that reads _UNREADABLE (or nothing the platform recognises) has said nothing, and gets the backup.
+_CONFIRMED_ON = ("on", "playing", "paused", "idle", "buffering")
+_CONFIRMED_OFF = ("off", "standby")
+_UNREADABLE = ("unavailable", "unknown")
+
+
 def build_room_scripts(client, cluster, commissioning=None) -> dict:
     """Return {object_id: script_config} for a room, using ONLY standard HA actions an
     installer finds in the script builder -- media_player / remote turn_on|turn_off|
@@ -430,14 +437,35 @@ def build_room_scripts(client, cluster, commissioning=None) -> dict:
         "description": "Turns the display on only if it is off, and waits until it is on. "
                        "Watch activities run this first.",
         "variables": _marker("display_on", None, cluster.area, room_slug(cluster)),
+        # REGISTER 924 — STATE FIRST, COMMAND AS BACKUP (Dave, 17 Oct 2026: "the state based is quick reliable and the
+        # standard … the other control system still needs to be there but is the backup not the main"). Three cases,
+        # each decided by the display's OWN reading:
+        #   confirmed on       → nothing to do (instant);
+        #   confirmed off      → turn it on, then confirm it came on (state first);
+        #   can't be read      → (unavailable / unknown — the integration lost it) send turn_on anyway and carry on,
+        #                        the way a Control4/RTI driver would (command as backup). Never a stop: the step is
+        #                        UNCONFIRMED, and Core reports it as such. It used to do NOTHING here (only an exact
+        #                        "off" acted), i.e. it assumed the TV was on.
         "sequence": [{
-            "alias": "If the display is off, turn it on and wait until it is on",
-            "if": [{"condition": "state", "entity_id": disp, "state": "off"}],
-            "then": [
-                {"alias": "Turn on the TV", "action": "media_player.turn_on",
-                 "target": {"entity_id": disp}},
-                wait_step,
+            "alias": "Turn the TV on only if it isn't confirmed on",
+            "choose": [
+                {"alias": "Confirmed off — turn it on and wait until it is on",
+                 "conditions": [{"condition": "state", "entity_id": disp, "state": list(_CONFIRMED_OFF)}],
+                 "sequence": [
+                     {"alias": "Turn on the TV", "action": "media_player.turn_on",
+                      "target": {"entity_id": disp}},
+                     wait_step,
+                 ]},
+                {"alias": "Can't confirm the TV is on — send turn on anyway (backup)",
+                 "conditions": [{"condition": "not", "conditions": [
+                     {"condition": "state", "entity_id": disp, "state": list(_CONFIRMED_ON)}]}],
+                 "sequence": [
+                     {"alias": "Turn on the TV (unconfirmed)", "action": "media_player.turn_on",
+                      "target": {"entity_id": disp}, "continue_on_error": True},
+                     dict(wait_step, alias="Wait for the TV (unconfirmed)"),
+                 ]},
             ],
+            # confirmed on: neither option matches — nothing to do (instant)
         }],
     }
     display_on_step = {"alias": "Turn the TV on (if it isn't already)",
@@ -497,8 +525,18 @@ def build_room_scripts(client, cluster, commissioning=None) -> dict:
             retry = [{"action": "media_player.turn_on",
                       "target": {"entity_id": src.entity},
                       "continue_on_error": True}]
+        # REGISTER 924: confirmed awake → nothing; confirmed asleep → wake, confirm, retry once (state first);
+        # can't be read (unavailable/unknown) → send the wake anyway and carry on (command as backup, unconfirmed).
+        # It used to skip a box it couldn't read — assuming it was awake.
         return [{
             "alias": f"Wake {label} if it is asleep",
+            "if": [{"condition": "state", "entity_id": src.entity, "state": list(_UNREADABLE)}],
+            # every backup step carries continue_on_error: a box that can't be read must never stop the activity
+            "then": [dict(w, continue_on_error=True, alias="Can't read %s — send the wake anyway (backup)" % label)
+                     if i == 0 else (dict(w, continue_on_error=True) if "action" in w else w)
+                     for i, w in enumerate(wake)],
+            "else": [{
+            "alias": f"Wake {label} if it is confirmed asleep",
             "if": [{"condition": "state", "entity_id": src.entity, "state": asleep}],
             "then": wake + [
                 {"alias": f"Confirm {label} is awake", "wait_template":
@@ -508,6 +546,7 @@ def build_room_scripts(client, cluster, commissioning=None) -> dict:
                  "if": [{"condition": "template", "value_template": "{{ %s }}" % still}],
                  "then": retry},
             ],
+            }],
         }]
 
     def _audio_fire_steps(*, source_eid=None, broadcast=False):

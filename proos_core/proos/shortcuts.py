@@ -364,7 +364,7 @@ def tv_agrees(dst: dict, rec: dict, target: str, disp: str) -> bool:
       - the TV must read on (turned off by its own remote → the activity runs and turns it back on);
       - and when the TV reports its input (`source`): for a box, it must be on that box's committed input; for the TV
         itself, it must NOT be on any box's input (it is on its tuner or one of its own apps).
-    A TV that does not report its input keeps the marker's word (today's behaviour). The generated activities already
+    A TV that does not report its input can't confirm — the activity runs (register 924). The generated activities already
     check before they act (TV on only if off, box woken only if asleep), so running one in a room that is already right
     costs a moment (Watch Apple TV read 0.1 s warm, ~20 s cold on the Bedroom)."""
     st = str((dst or {}).get("state") or "").lower()
@@ -372,12 +372,30 @@ def tv_agrees(dst: dict, rec: dict, target: str, disp: str) -> bool:
         return False
     src = str(((dst or {}).get("attributes") or {}).get("source") or "").strip()
     if not src:
-        return True
+        # REGISTER 924 (state first): a TV that doesn't report its input can't confirm the room is right — the activity
+        # runs (it is quick when the room already is right). The marker alone is never the answer.
+        return False
     inputs = {k: str(v).strip() for k, v in ((rec or {}).get("inputs") or {}).items() if v}
     if target == disp:
         return src not in set(inputs.values())
     want = inputs.get(target)
     return (src == want) if want else True
+
+
+UNREADABLE = ("unavailable", "unknown", "")
+
+
+def unconfirmed_devices(client, eids) -> list:
+    """Names of the devices (in order, once each) the platform cannot read right now (register 924)."""
+    out, seen = [], set()
+    for e in eids:
+        if not e or e in seen:
+            continue
+        seen.add(e)
+        row = _state(client, e) or {}
+        if str(row.get("state") or "").lower() in UNREADABLE:
+            out.append(((row.get("attributes") or {}).get("friendly_name")) or e)
+    return out
 
 
 class _RoomHandled(Exception):
@@ -535,7 +553,13 @@ def launch(client, project, area_id: str, sc: dict, power: bool = True) -> dict:
     # says it shows is read once and carried as information, never as the verdict.
     rb = _rb.confirm(client, target, lambda row: None, attrs=("source", "app_id", "app_name"), wait=0)
     shown = ((rb.get("attributes") or {}).get("app_name") or (rb.get("attributes") or {}).get("source") or None)
+    # REGISTER 924 — never a stop, never a false "done": a device the platform can't read after the launch (unavailable /
+    # unknown) was commanded as the backup; the launch says which, in words.
+    unc = unconfirmed_devices(client, [disp if isinstance(disp, str) and disp.startswith("media_player.") else None, target])
     return {"ok": True, "app": sc.get("app"), "target": target,
+            "unconfirmed": unc,
+            "note": ("%s sent — %s couldn't be confirmed." % (sc.get("name") or sc.get("app"), " and ".join(unc))
+                     if unc else None),
             "method": sc["method"], "fired": cmd["data"],
             "confirmed": True, "taken": True, "opened": True if reports_open(sc) and rbo_ok(rb, sc) else None,
             "shows": shown, "read_back": rb}

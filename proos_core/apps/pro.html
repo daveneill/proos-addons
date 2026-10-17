@@ -2847,7 +2847,7 @@ body.v3 .rh-card{border-radius:22px}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026101706';
+const PROOS_BUILD='2026101707';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -10879,7 +10879,7 @@ async function scRemove(area,app,target){
 }
 async function scTest(area,app,target){
   toast('Testing…');
-  try{ const r=await fetch(proCoreUrl()+'/shortcuts/'+encodeURIComponent(area)+'/test',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({app:app,target:target})}); const j=r.ok?await r.json():null; toast(j&&j.ok?'Launched — check the screen':((j&&j.error)?j.error:'Test failed')); }catch(e){ toast('Test failed'); }
+  try{ const r=await fetch(proCoreUrl()+'/shortcuts/'+encodeURIComponent(area)+'/test',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({app:app,target:target})}); const j=r.ok?await r.json():null; toast(j&&j.ok?(j.note||'Launched — check the screen'):((j&&j.error)?j.error:'Test failed')); }catch(e){ toast('Test failed'); }
 }
 
 // ── Room devices (non-AV: lights / shades / climate / fans / switches) ──
