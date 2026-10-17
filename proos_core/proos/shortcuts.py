@@ -356,6 +356,30 @@ def _ready(client, target: str, method: str):
     return bool(rb.get("confirmed"))
 
 
+def tv_agrees(dst: dict, rec: dict, target: str, disp: str) -> bool:
+    """REGISTER 923 (Dave 17 Oct 11:26: "support the use case of any of these devices being turned on using the native
+    remote controls … the activities created dont rely on confirming the TV or device is on but if it is on activity is
+    quicker"). The room's activity marker says what ProOS last ran — not what the room is doing if someone has since used
+    the TV's own remote. So "already watching" is believed only when the TV itself agrees:
+      - the TV must read on (turned off by its own remote → the activity runs and turns it back on);
+      - and when the TV reports its input (`source`): for a box, it must be on that box's committed input; for the TV
+        itself, it must NOT be on any box's input (it is on its tuner or one of its own apps).
+    A TV that does not report its input keeps the marker's word (today's behaviour). The generated activities already
+    check before they act (TV on only if off, box woken only if asleep), so running one in a room that is already right
+    costs a moment (Watch Apple TV read 0.1 s warm, ~20 s cold on the Bedroom)."""
+    st = str((dst or {}).get("state") or "").lower()
+    if st in ("off", "standby", "unavailable", "unknown", ""):
+        return False
+    src = str(((dst or {}).get("attributes") or {}).get("source") or "").strip()
+    if not src:
+        return True
+    inputs = {k: str(v).strip() for k, v in ((rec or {}).get("inputs") or {}).items() if v}
+    if target == disp:
+        return src not in set(inputs.values())
+    want = inputs.get(target)
+    return (src == want) if want else True
+
+
 class _RoomHandled(Exception):
     """The room's committed Watch activity took care of power and input (register 920)."""
 
@@ -418,6 +442,8 @@ def launch(client, project, area_id: str, sc: dict, power: bool = True) -> dict:
                 vs = (_state(client, "sensor.proos_activity_%s"
                              % (rec.get("area_id") or area_id)) or {}).get("state")
                 fire, wait = appctl.launch_power_plan(dst.get("state"), vs, act.get("key"))
+                if not fire and not tv_agrees(dst, rec, target, disp):
+                    fire = "fire"                          # REGISTER 923: the TV itself says otherwise — run it
                 if fire:
                     client.call_service("script", "turn_on", act["entity_id"])
                     # REGISTER 920 (Dave 17 Oct 10:11: "with tv off it turns the TV on then off again then on again then
