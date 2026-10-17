@@ -44,7 +44,7 @@ import time
 
 # Bumped ONLY when the integration's own code below changes — a Core
 # update that leaves the door alone must not ask for a restart.
-DOOR_BUILD = "3"
+DOOR_BUILD = "4"
 DOMAIN = "proos"
 # REGISTER 928 (door build 3): conversation.py — "ProOS Assist", the platform's
 # own way of plugging an assistant into its voice pipeline, so a room's own
@@ -230,6 +230,8 @@ said here a second time.
 """
 from __future__ import annotations
 
+import asyncio
+
 import aiohttp
 from homeassistant.components import conversation
 from homeassistant.const import MATCH_ALL
@@ -242,6 +244,15 @@ PANEL_NAME = "ProOS Panel"
 PANEL_GROUP = "system-users"          # not an administrator, not the owner
 NOT_ANSWERING = "ProOS isn't answering right now."
 TURN_S = 90                           # Core's slowest turn (an AI plan) fits
+# A QUESTION KEEPS THE MICROPHONE OPEN (register 936). Dave, 18 Oct: "it would make sense to have mic open after
+# a question … All needs to be done so go". The platform's own rule for its assistants: a reply that ends in a
+# question continues the conversation, and the room's microphone listens again without the wake word. When Core
+# spoke the question through the room's speaker, the platform cannot hear when that speaker finishes, so the
+# turn is held for about as long as the question takes to say -- otherwise the microphone would open while the
+# speaker is still asking and hear the question as the answer. TIMINGS (plumbing, not facts about the house):
+SAY_START_S = 1.5                     # the speaker starting to talk
+SAY_WORD_S = 0.4                      # one spoken word, at the local voice's pace
+SAY_MAX_S = 15                        # never hold a turn longer than this
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
@@ -304,6 +315,8 @@ class ProOSAssist(conversation.ConversationEntity):
                     res = await r.json(content_type=None)
         except Exception:  # noqa: BLE001 — Core's silence, said in words
             res = None
+        reply = str(res.get("reply") or "") if isinstance(res, dict) else ""
+        asks = reply.rstrip().endswith("?")
         if not isinstance(res, dict):
             resp.async_set_speech(NOT_ANSWERING)
         elif (res.get("spoke") or {}).get("sent"):
@@ -313,8 +326,11 @@ class ProOSAssist(conversation.ConversationEntity):
             # (register 928, read on the G-Flip: {"error": "Pro Assist AI is
             # not configured …"}), Core's own words for it. Never silence.
             resp.async_set_speech(res.get("reply") or res.get("error") or NOT_ANSWERING)
+        if asks and isinstance(res, dict) and (res.get("spoke") or {}).get("sent"):
+            await asyncio.sleep(min(SAY_MAX_S, SAY_START_S + SAY_WORD_S * len(reply.split())))
         return conversation.ConversationResult(
-            response=resp, conversation_id=user_input.conversation_id)
+            response=resp, conversation_id=user_input.conversation_id,
+            continue_conversation=asks)
 '''
 
 
