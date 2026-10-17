@@ -641,6 +641,29 @@ class ActivityPublisher:
         # feed weighs nothing of its own. None = no Savant profile in the home.
         self.feed = None
 
+    def _display_rows(self, eid, fired_at):
+        """REGISTER 926 item 2: the display's own recorder rows from one second before a command fired until now —
+        [(ts, state), ...], the first row being the state it was in at that moment. None when it can't be read."""
+        if not eid or fired_at is None:
+            return None
+        from datetime import datetime, timezone
+        from urllib.parse import quote
+        start = datetime.fromtimestamp(float(fired_at) - 1, timezone.utc).isoformat()
+        path = ("/api/history/period/%s?filter_entity_id=%s&minimal_response&no_attributes"
+                % (quote(start), quote(eid, safe="._")))
+        try:
+            data = self.client._req("GET", path)
+        except Exception:                                        # noqa: BLE001
+            return None
+        if not isinstance(data, list):
+            return None
+        rows = []
+        for series in data:
+            for row in (series or []):
+                if isinstance(row, dict):
+                    rows.append((row.get("last_changed") or row.get("last_updated"), row.get("state")))
+        return rows
+
     @property
     def witnesses(self) -> dict:
         w = self._witnesses
@@ -1430,7 +1453,7 @@ class ActivityPublisher:
                 # we control it — then we can confirm if it switched."
                 # decide()'s inference survives below as DIAGNOSTIC attrs
                 # (Pro / journal); it no longer speaks to the homeowner.
-                from .cmdstate import decide_cmd as _dc
+                from .cmdstate import decide_cmd as _dc, confirm_miss as _confirm_miss
                 _cmds = []
                 try:
                     for _a in acts.values():
@@ -1549,6 +1572,11 @@ class ActivityPublisher:
                 # was asked, when, and which display never answered — a fact
                 # Health reads off this sensor. Journaled once per fire.
                 _miss = cs.get("missed")
+                # REGISTER 926 item 2: the miss stands only when the display's own recorder history shows it never
+                # reported power from the fire onwards (cmdstate.confirm_miss; asked once per fire).
+                if _miss:
+                    _miss = _confirm_miss(_miss, self._mem(area_slug),
+                                          lambda _f, _e=d.get("disp_eid"): self._display_rows(_e, _f))
                 if _miss:
                     attrs["missed_activity"] = dict(_miss, display=d.get("disp_eid"))
                     _mm = self._mem(area_slug)

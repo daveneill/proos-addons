@@ -168,3 +168,43 @@ def input_verdict(cs, source_of, inputs, disp_row):
     return {"state": "on", "label": "On", "confirmed": False, "commanded_key": key, "external": True,
             "input_check": "contradicted", "tv_reports": src, "expected": want or None,
             "asked": cs.get("label") or key}
+
+
+# ── REGISTER 926 ITEM 2: "NEVER CAME ON" IS READ FROM THE DISPLAY'S OWN HISTORY ─────────────────────────────────────
+# Dave, 17 Oct 2026: "I am all for incidents being reported but not when they are fake … any incident reported needs to
+# be actual and not virtual". Read on the box: the Bedroom TV was on from 12:47; Watch Apple TV fired at 12:52:31 with the
+# TV on; the TV was switched off outside ProOS at 12:52:55 — and Health said "Bedroom TV never came on". decide_cmd's miss
+# compares the CURRENT on-session's start with the fire time, so a display that was already on when asked, then turned
+# off, reads as never having come on; and that memory is lost on every Core restart, so the same false card returned.
+# The measurement is the platform's own recorder: did the display report power at any moment from the fire onwards?
+def display_came_on(rows):
+    """rows — the display's recorder rows from (just before) the fire until now, as [(ts, state), ...]; the first row is
+    the state it was in at that moment. True: it reported power at some point (on/playing/paused — the same power
+    signals the room's verdict uses). False: it never did. None: no rows — nothing was read, so nothing is claimed."""
+    if not rows:
+        return None
+    return any(str(s or "").lower() in ("on", "playing", "paused") for _ts, s in rows)
+
+
+def confirm_miss(miss, mem, read_rows):
+    """decide_cmd's `missed` stands only when the display's own history shows it never came on.
+
+    miss      — {key, label, fired_at} or None.
+    mem       — the room's memory; the answer is kept per fire (key miss_read), so the recorder is asked once per command.
+    read_rows — fired_at -> rows for display_came_on, or None when the recorder could not be read.
+    Returns the miss when measured as never-on; None when it came on, or when the history could not be read (an
+    unmeasured fault is not raised — it is asked again on the next sweep)."""
+    if not miss:
+        return None
+    fired = miss.get("fired_at")
+    kept = mem.get("miss_read")
+    if not (isinstance(kept, (list, tuple)) and len(kept) == 2 and kept[0] == fired):
+        try:
+            came = display_came_on(read_rows(fired))
+        except Exception:                                        # noqa: BLE001
+            came = None
+        if came is None:
+            return None
+        mem["miss_read"] = (fired, came)
+        kept = mem["miss_read"]
+    return None if kept[1] else miss
