@@ -4541,7 +4541,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101714';
+const PROOS_BUILD='2026101715';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -18512,7 +18512,40 @@ function _panelHint(state){
   try{ const i=document.getElementById('assist-input'); if(!i) return;
        const w=_panelWake();
        i.placeholder = state==='listening' ? 'Listening\u2026' : state==='thinking' ? 'Thinking\u2026'
-                     : (w ? ('Say \u201C'+w+'\u201D and ask') : 'Type a message'); }catch(e){}
+                     : (w ? ('Say \u201C'+w+'\u201D and ask') : 'Type a message');
+       // 938: the full-screen Assist says it large, and the glass's edge glows while the room's microphone listens
+       // (body.proos-listening, set by _micRec) and breathes while it thinks
+       if(typeof _isPanel==='function' && _isPanel()){
+         const st=_panelStatusEl();
+         if(st) st.textContent = state==='listening' ? 'Listening\u2026' : state==='thinking' ? 'Thinking\u2026' : (w ? ('Say \u201C'+w+'\u201D') : '');
+         document.body.classList.toggle('proos-thinking', state==='thinking');
+         if(!state) _panelAssistIdle();
+       } }catch(e){}
+}
+// The full-screen Assist's own large status line and its close — made once, inside the panel's Assist (938)
+function _panelStatusEl(){
+  const p=document.getElementById('assist-panel'); if(!p) return null;
+  let st=document.getElementById('panel-assist-status');
+  if(!st){
+    st=document.createElement('div'); st.id='panel-assist-status'; p.insertBefore(st, p.firstChild);
+    const x=document.createElement('button'); x.id='panel-assist-close'; x.setAttribute('aria-label','Close');
+    x.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+    x.addEventListener('click', function(){ try{ closeAssist(); }catch(e){} });
+    p.appendChild(x);
+  }
+  return st;
+}
+// A wall never stays in Assist by accident: 30 s after a turn, with nothing being said or typed, it closes (938)
+let _paIdleT=null;
+function _panelAssistIdle(){
+  clearTimeout(_paIdleT);
+  _paIdleT=setTimeout(function(){
+    try{
+      const i=document.getElementById('assist-input'), b=document.body.classList;
+      if(b.contains('proos-listening') || b.contains('proos-thinking') || (i && (i.value || document.activeElement===i))) return _panelAssistIdle();
+      if(assistOpen) closeAssist();
+    }catch(e){}
+  }, 30000);
 }
 // open Assist for a spoken turn — and leave the input unfocused, so no on-screen keyboard rises for nobody
 function _panelOpenAssist(){
@@ -20741,6 +20774,31 @@ html.proos-panel{--rail:92px;--proos-dock-h:0px;--proos-floor:0px;
   --nb-ox:hidden;--nb-oy:hidden;--nb-snap:none;--nb-tab:58px}
 html.proos-panel .page{left:var(--rail)!important}
 html.proos-panel #page-home #room-tabs{display:none!important}
+
+/* PANEL BUILD 6 — ASSIST FILLS THE GLASS, AND THE EDGE GLOWS WHILE IT LISTENS (register 938). Dave, 18 Oct 09:42:
+   "can you make the chat popup full screen as then its like it is in listen mode with (a) on screen Hey Jarvis with the
+   screen edge glows etc". On a panel the Assist is the whole glass: a large status line ("Say “Hey Jarvis”",
+   "Listening…", "Thinking…"), the conversation at a size read from across a room, the box at the bottom, and a large
+   close. While the room's microphone listens the edge of the glass glows; while it thinks, the glow breathes. */
+html.proos-panel #assist-overlay{justify-content:stretch!important;align-items:stretch!important}
+html.proos-panel #assist-panel{width:100vw!important;max-width:none!important;height:100dvh!important;max-height:none!important;
+  border-radius:0!important;border:0!important;box-shadow:none!important;display:flex!important;flex-direction:column!important;
+  padding:22px 40px 18px!important;background:rgba(8,9,13,.96)!important;overflow:hidden!important}
+html.proos-panel #panel-assist-status{flex-shrink:0;min-height:44px;padding-right:72px;font-size:30px;font-weight:200;letter-spacing:.01em;color:#fff}
+html.proos-panel #panel-assist-close{position:absolute;top:14px;right:16px;width:60px;height:60px;border-radius:30px;border:0;
+  background:rgba(255,255,255,.10);color:#fff;display:flex;align-items:center;justify-content:center}
+html.proos-panel #panel-assist-close svg{width:26px;height:26px}
+html.proos-panel #assist-history{max-height:none!important;flex:1!important;padding:14px 0!important;gap:14px!important}
+html.proos-panel .assist-bubble{max-width:72%!important;font-size:19px!important;line-height:1.45!important;padding:12px 18px!important}
+html.proos-panel #assist-input-row{padding:0!important}
+html.proos-panel #assist-input{font-size:18px!important}
+html.proos-panel #assist-mic,html.proos-panel #assist-send{min-width:52px!important;min-height:52px!important}
+html.proos-panel #assist-panel::after{content:'';position:absolute;inset:0;pointer-events:none;border-radius:0;opacity:0;
+  box-shadow:inset 0 0 0 2px rgba(130,150,255,.95),inset 0 0 60px 10px rgba(70,100,255,.55);
+  transition:opacity var(--m-move) var(--e-standard)}
+html.proos-panel body.proos-listening #assist-panel::after{opacity:1;animation:panel-glow var(--m-listen) ease-in-out infinite}
+html.proos-panel body.proos-thinking #assist-panel::after{opacity:.55;animation:panel-glow calc(var(--m-listen) * 2) ease-in-out infinite}
+@keyframes panel-glow{0%,100%{filter:brightness(.85)}50%{filter:brightness(1.25)}}
 </style>
 
 <script>
