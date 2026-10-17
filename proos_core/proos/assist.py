@@ -5839,6 +5839,16 @@ def _where_prompt(where: dict) -> str:
         % (name, aid, name, name)) + inv
 
 
+_NOW = time.time            # swapped in benches
+
+
+def _home_now() -> str:
+    """The home's date and time, read from this box's clock in the box's own timezone."""
+    dt = datetime.datetime.fromtimestamp(_NOW()).astimezone()
+    # short on purpose: the per-turn half has a size budget (assist_cost_model_bench, < 600 chars)
+    return "It is now %s at the home (%s)." % (dt.strftime("%A %-d %B %Y, %-I:%M %p"), dt.tzname() or "local time")
+
+
 def _system_context(user: dict, where: dict | None = None) -> str:
     """The DYNAMIC half of the prompt (A5): who, role, memory, where. Kept small
     and SEPARATE from the doctrine so the big doctrine can be prompt-cached across
@@ -5850,6 +5860,10 @@ def _system_context(user: dict, where: dict | None = None) -> str:
     learned = [l.get("text") for l in (rec.get("learned") or []) if l.get("text")]
     declines = [d.get("text") for d in (rec.get("declines") or []) if d.get("text")]
     ctx = "\n\nYou are speaking with %s (role: %s)." % (who, tier)
+    # THE CLOCK (register 935). Asked the time on the AI road ("What time is it? What time is it?",
+    # the G-Flip, 18 Oct) the model said "Sorry, I can't read the current time right now" -- it had
+    # never been told. The home's own clock, read now, every turn, in the dynamic half.
+    ctx += " " + _home_now()
     if facts:
         ctx += " What you remember about %s (they told you): %s." % (who, "; ".join(facts))
     if learned:
