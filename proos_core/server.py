@@ -611,6 +611,24 @@ _VOICE_PATH = os.path.join(os.environ.get("PROOS_DATA_DIR", "/data"),
 PROOS_VOICE_ENGINE = "tts.home_assistant_cloud"
 PROOS_VOICE = "RyanNeural||chat"       # British male, conversational, not newsreader
 PROOS_VOICE_LANG = "en-GB"
+# LOCAL BRITISH FIRST, RYAN WHEN THE CLOUD IS THERE (register 933). Dave, 9 Oct
+# (register 729, answer 5): "local British first, Ryan fallback". Only the Ryan
+# half had been built: on the G-Flip, with no cloud, Core took the first engine
+# it found -- Google Translate -- and Dave heard it on 18 Oct ("its not the voice
+# I was using on the home unit"). He chose the local voice that morning from
+# three played through the Office speaker: Piper's Northern English Male. Our
+# own voice, the same local and cloud, is a later decision (Dave, 18 Oct).
+PROOS_LOCAL_VOICE_ENGINE = "tts.piper"
+PROOS_LOCAL_VOICE = "en_GB-northern_english_male-medium"
+PROOS_LOCAL_VOICE_LANG = "en_GB"
+PROOS_VOICES = ((PROOS_LOCAL_VOICE_ENGINE, PROOS_LOCAL_VOICE, PROOS_LOCAL_VOICE_LANG),
+                (PROOS_VOICE_ENGINE, PROOS_VOICE, PROOS_VOICE_LANG))
+# A free translation engine is never the product's voice, on any box, chosen or not.
+NEVER_SPEAKS = ("tts.google_translate",)
+
+
+def _speakable(engines):
+    return [e for e in (engines or []) if not str(e).startswith(NEVER_SPEAKS)]
 
 
 def _voice_load():
@@ -648,16 +666,16 @@ def _tts_engine():
     """The engine that SPEAKS: the installer's chosen engine when the box
     still has it, else the first found (the old behaviour, kept as the
     honest fallback — reported by /voice/status, never silent)."""
-    engines = _tts_engines()
+    engines = _speakable(_tts_engines())        # register 933: Google Translate never
     chosen = _voice_load().get("engine")
     if chosen and chosen in engines:
         return chosen
-    # THE PRODUCT'S OWN ENGINE BEFORE WHATEVER ENUMERATED FIRST. "First found"
-    # is alphabetical in practice, which on a box with Google Translate on it
-    # means the product could start speaking through a free fallback because of
-    # a letter. It is still the last resort, and /voice/status still says so.
-    if PROOS_VOICE_ENGINE in engines:
-        return PROOS_VOICE_ENGINE
+    # THE PRODUCT'S OWN ENGINES BEFORE WHATEVER ENUMERATED FIRST -- the local
+    # voice, then the cloud's Ryan (register 933). Anything else is still the
+    # last resort, and /voice/status still says so.
+    for _pe, _pv, _pl in PROOS_VOICES:
+        if _pe in engines:
+            return _pe
     return engines[0] if engines else None
 
 
@@ -709,8 +727,9 @@ def _voice_choice():
         # register 514 exists for. The product has a voice; when its engine is
         # the one speaking, that is the voice, and no site has to have been set
         # up correctly for a ProOS to sound like a ProOS.
-        if eng == PROOS_VOICE_ENGINE:
-            return eng, PROOS_VOICE, PROOS_VOICE_LANG
+        for _pe, _pv, _pl in PROOS_VOICES:      # register 933: the local voice or Ryan
+            if eng == _pe:
+                return eng, _pv, _pl
         return eng, None, None
     lang = vs.get("language")
     if not lang:
@@ -5197,8 +5216,9 @@ class Handler(BaseHTTPRequestHandler):
                        "product_voice": PROOS_VOICE,
                        "product_language": PROOS_VOICE_LANG,
                        "speaking_voice": _svoice, "speaking_language": _sl,
-                       "product_voice_in_force": bool(_svoice == PROOS_VOICE
-                                                      and _sl == PROOS_VOICE_LANG),
+                       "product_voice_in_force": bool((_se, _svoice, _sl) in PROOS_VOICES),
+                       "product_voices": [list(_p) for _p in PROOS_VOICES],
+                       "never_speaks": list(NEVER_SPEAKS),
                        "engine_default_speaking": bool(_svoice is None),
                        "voices": [], "voices_language": None}
                 if eng:
@@ -7011,6 +7031,9 @@ class Handler(BaseHTTPRequestHandler):
                 if b.get("engine") and b.get("engine") not in engines:
                     return self._send(400, {"error": "that engine is not on "
                                             "the box"})
+                if b.get("engine") and str(b.get("engine")).startswith(NEVER_SPEAKS):
+                    return self._send(400, {"error": "that engine never speaks "
+                                            "for ProOS"})          # register 933
                 vs = _voice_load()
                 if "engine" in b:
                     if vs.get("engine") != (b.get("engine") or None):
