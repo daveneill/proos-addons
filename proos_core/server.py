@@ -2216,9 +2216,12 @@ def _gear_history(entity):
     """REGISTER 926 item 4: one gear tracker's recorder history, oldest first, as [(epoch, state), ...] — whatever the
     box keeps (asked from 30 days back). None when the recorder can't be read: the gear card then says it could not
     read how long, never a number of its own."""
-    start = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=30)).isoformat()
-    path = ("/api/history/period/%s?filter_entity_id=%s&minimal_response&no_attributes"
-            % (quote(start), quote(entity, safe="._")))
+    # 926g: the platform's history answers ONE DAY from the start unless an end is given (read on the box: 30 days back
+    # with no end → [] ; with end_time=now → every row). The end is always now.
+    _now = datetime.datetime.now(datetime.timezone.utc)
+    start = (_now - datetime.timedelta(days=30)).isoformat()
+    path = ("/api/history/period/%s?filter_entity_id=%s&end_time=%s&minimal_response&no_attributes"
+            % (quote(start), quote(entity, safe="._"), quote(_now.isoformat())))
     try:
         data = _client._req("GET", path)
     except Exception:                                            # noqa: BLE001
