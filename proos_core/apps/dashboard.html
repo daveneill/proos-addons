@@ -4541,7 +4541,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101713';
+const PROOS_BUILD='2026101714';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -9022,6 +9022,9 @@ function widgetPageKey(){
 // · panel above (Mac / wall panel). Each class curates its OWN layout per page
 // — a 4-slot phone set and a rich panel set can serve the same home.
 function _wFF(){
+  // 937: a wall panel keeps the tablet's layout — its larger, real-size view (kiosk zoom 240 → 800 px wide) would
+  // otherwise read as a phone and open an empty phone layout in place of the home screen the installer set up
+  if(typeof _isPanel==='function' && _isPanel()) return 'tablet';
   const long=Math.max(window.innerWidth||0, window.innerHeight||0)||1366;
   return long<=940?'phone':(long<=1400?'tablet':'panel');
 }
@@ -20502,15 +20505,18 @@ body:has(#widget-picker.open) #widget-add-pill{display:none!important}   /* regi
      microphone and the media card cannot drift apart from a number none of them
      owns (register 389). A literal bottom is a second copy of that number. */
   bottom:var(--proos-floor)!important;
-  height:var(--proos-dock-h)!important;
-  width:auto!important; max-width:none!important; min-width:0!important;
+  /* THE WALL PANEL'S RAIL (register 937) is this same rule with five variables set — top, width, height,
+     direction and where the tabs gather; every other glass reads the defaults, which are the values it had. */
+  top:var(--nb-top,auto)!important;
+  height:var(--nb-h,var(--proos-dock-h))!important;
+  width:var(--nb-w,auto)!important; max-width:none!important; min-width:0!important;
   transform:none!important; margin:0!important;
-  padding:0 4px!important;
+  padding:var(--nb-pad,0 4px)!important;
   border-radius:0!important;
-  display:flex!important; align-items:center!important;
+  display:flex!important; align-items:center!important; flex-direction:var(--nb-dir,row)!important;
   /* flex-start, NOT space-around: with more tabs than fit, space-around pushes
      the first one half off the left edge and it can never be scrolled back. */
-  justify-content:flex-start!important;
+  justify-content:var(--nb-justify,flex-start)!important;
   gap:0!important;
   box-sizing:border-box!important;
   /* AND IT SCROLLS. Five is the most a phone shows at a readable size; the
@@ -20721,6 +20727,20 @@ html.proos-panel .player-extra-btn{min-height:48px!important;padding:0 20px!impo
 html.proos-panel #player-header-row button{min-width:56px!important;min-height:56px!important}
 /* the climate dial was the desktop's 400×400 on a 540-px glass */
 html.proos-panel .cp-dial-wrap,html.proos-panel .cp-dial-svg{width:300px!important;height:300px!important}
+
+/* PANEL BUILD 5 — REAL SIZE AND THE TABS DOWN THE SIDE (register 937). Dave, 18 Oct 09:34: "the dashboard still needs to
+   be better on a small screen its not natural feels cheap and an afterthought"; 09:42 "Yes". Read: the 5" glass is
+   ~441 px per inch; at the kiosk's 2× a CSS pixel was ~0.115 mm — a third smaller than on a phone. The panel is now
+   shown at 2.4× (800 × 450 CSS px — wide enough to stay clear of every phone rule at 768) and the tabs stand in a rail
+   down the left, like a car's screen or a wall keypad, so the full height is the page's. The room chips leave Home —
+   Rooms is one tap away in the rail. Measured in an 800 × 450 frame on the G-Flip master: every page lays out beside
+   the rail; Home's two rows of widgets stand in view. */
+/* The bar is still stated by ONE rule (register 510/522): the panel only sets the variables that rule reads. */
+html.proos-panel{--rail:92px;--proos-dock-h:0px;--proos-floor:0px;
+  --nb-top:0px;--nb-w:var(--rail);--nb-h:auto;--nb-dir:column;--nb-justify:center;--nb-pad:10px 0;
+  --nb-ox:hidden;--nb-oy:hidden;--nb-snap:none;--nb-tab:58px}
+html.proos-panel .page{left:var(--rail)!important}
+html.proos-panel #page-home #room-tabs{display:none!important}
 </style>
 
 <script>
