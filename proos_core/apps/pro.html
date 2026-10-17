@@ -2847,7 +2847,7 @@ body.v3 .rh-card{border-radius:22px}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026101707';
+const PROOS_BUILD='2026101708';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -17682,12 +17682,11 @@ async function renderHealth(){
     // CAN'T BE CONFIRMED (plan A3, Dave's ruling L-18): the answer is the confirmation
     // and the consent — Test It / It's Fine / It's Not Working, each posted to Core.
     const cfm=(i.actions||[]).filter(a=>a.kind==='confirm');
-    // The WHOLE card is the link to the offending room (Dave, 2 Aug) —
-    // every room incident carries its slug, so tapping anywhere on the card
-    // opens the room; the buttons stop propagation and do their own thing.
-    const rm=(i.actions||[]).find(a=>a.kind==='room');
-    const slug=i.slug||(rm&&rm.room)||null;
-    const nav=slug&&slug!=='site'?' style="cursor:pointer" onclick="openRoomHub(\''+esc(slug)+'\')"':'';
+    // The WHOLE card is the link to where the fault is (Dave, 2 Aug); the buttons stop propagation and do their own
+    // thing. REGISTER 926 item 3 (Dave, 17 Oct: "if i press on the incident for the network gear offline then it goes to
+    // [an empty Areas page]"): a card opens a page that EXISTS — hltDest() — or it is not tappable at all.
+    const _dest=hltDest(i);
+    const nav=_dest?' style="cursor:pointer" onclick="'+_dest+'"':'';
     return '<div class="hlt-inc '+esc(i.severity||'warning')+'"'+nav+'>'
       +'<div class="t">'+esc(i.title||'')+'</div><div class="c">'+esc(i.cause||'')+'</div>'
       +'<div class="acts">'
@@ -17986,16 +17985,32 @@ function hltAssistSaid(d){
   host.innerHTML='<b>'+esc(head)+'</b><br>'+esc(words);
   toast(d&&d.cleared?'Fixed':'Not fixed yet — see what Assist found');
 }
+// REGISTER 926 item 3: where a card goes when tapped — a real page or nothing. A room card goes to its room only when
+// that room is one of the home's areas (openRoomHub falls back to an empty list for anything else); network-gear cards
+// go to the UniFi Network page; Phone Alerts goes to System Setup › Notifications. Anything else: no tap.
+function hltDest(i){
+  const rm=(i.actions||[]).find(a=>a.kind==='room');
+  const slug=i.slug||(rm&&rm.room)||null;
+  if(slug==='network') return 'openUniNet()';
+  if(i.kind==='push_failing') return "openTech('notify')";
+  if(slug && (_areas||[]).some(a=>a.area_id===slug)) return "openRoomHub('"+esc(slug)+"')";
+  return null;
+}
+// REGISTER 926 item 3 (Dave, 17 Oct: "the dismiss or ask assist does nothing"). Read on the box: Ask Assist opened the
+// panel and typed a sentence, then waited for Send — no answer ever came. It now SENDS the question, carrying the card's
+// own readings (title and what Core read), so Assist starts from the facts on the card. Asking is not acting: Assist's
+// tools still refuse to change anything without consent.
 function hltAskAssist(id){
   const inc=_hltInc.find(i=>i.id===id);
   v2go('assist2');
   if(inc){ setTimeout(()=>{
     const inp=document.getElementById('assist-input');
-    // Assist reads health_incidents itself now — the prompt asks for help
-    // with the named issue rather than pasting a diagnosis request.
-    if(inp){ inp.value='Help me resolve this open incident: "'+inc.title+'". Walk me through the fix step by step.'; inp.focus(); }
+    if(!inp) return;
+    inp.value='Help me with this open incident: "'+inc.title+'". What ProOS read: '+String(inc.cause||'').trim()
+      +' What should I check, and can you confirm any of it from here?';
     fetch(proCoreUrl()+'/journal/note',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({room:'service',type:'assist_action',data:{tool:'read_incidents',incident:id,title:inc.title,by:(_me&&_me.name)||'installer'}})}).catch(()=>{});
+    submitAssist();
   },400); }
 }
 
