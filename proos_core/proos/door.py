@@ -44,9 +44,12 @@ import time
 
 # Bumped ONLY when the integration's own code below changes — a Core
 # update that leaves the door alone must not ask for a restart.
-DOOR_BUILD = "2"
+DOOR_BUILD = "3"
 DOMAIN = "proos"
-DOOR_FILES = ("manifest.json", "__init__.py", "config_flow.py")
+# REGISTER 928 (door build 3): conversation.py — "ProOS Assist", the platform's
+# own way of plugging an assistant into its voice pipeline, so a room's own
+# microphone (the G-Flip panel) reaches Core's Assist with its room.
+DOOR_FILES = ("manifest.json", "__init__.py", "config_flow.py", "conversation.py")
 
 # How long a non-live answer is trusted before the door is asked again
 # (PATIENCE, ledger): after Dave's one restart, /health flips to "open"
@@ -77,7 +80,7 @@ _MANIFEST = {
     "version": "1.0." + DOOR_BUILD,
     "codeowners": ["@protechsystems"],
     "config_flow": True,
-    "dependencies": ["http"],
+    "dependencies": ["http", "conversation"],
     "documentation": "https://protechsystems.com.au",
     "integration_type": "service",
     "iot_class": "local_push",
@@ -127,13 +130,16 @@ async def async_setup_entry(hass, entry):
     if not hass.data.get(DOMAIN):
         hass.http.register_view(ProOSDoor(hass))
         hass.data[DOMAIN] = True
+    # Door build 3 (register 928): "ProOS Assist" — a room's own microphone
+    # reaches Core's Assist through the platform's voice pipeline.
+    await hass.config_entries.async_forward_entry_setups(entry, ["conversation"])
     return True
 
 
 async def async_unload_entry(hass, entry):
     # A registered route cannot be taken back until the next start; the
-    # door simply stays. Nothing else was set up.
-    return True
+    # door simply stays. The assistant is unloaded with the entry.
+    return await hass.config_entries.async_unload_platforms(entry, ["conversation"])
 
 
 class ProOSDoor(HomeAssistantView):
@@ -208,13 +214,118 @@ class ProOSConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 '''
 
 
+# ── REGISTER 928: ProOS Assist — a room's own microphone reaches Core ──────
+# The platform's mechanism for plugging an assistant into its voice pipeline
+# is a conversation agent. This one adds nothing Core does not already do:
+# it hands the words to Core's /assist/chat with the asking device's own
+# room (a microphone knows its room — register 103) and lets Core answer,
+# act, and speak through that room's speaker exactly as for the apps.
+_CONV = '''"""ProOS Assist — what is said to a room's own microphone goes to ProOS Core.
+
+Written by ProOS Core (proos/door.py, register 928). The words, the room the
+asking device is in, and a short-lived sign-in for the panel go to Core's
+Assist inside the box; Core answers and acts as it does for the apps, and
+speaks the answer through the room's own speaker. When it did, nothing is
+said here a second time.
+"""
+from __future__ import annotations
+
+import aiohttp
+from homeassistant.components import conversation
+from homeassistant.const import MATCH_ALL
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import intent
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
+
+CORE = "%(core)s"
+PANEL_NAME = "ProOS Panel"
+PANEL_GROUP = "system-users"          # not an administrator, not the owner
+NOT_ANSWERING = "ProOS isn't answering right now."
+TURN_S = 90                           # Core's slowest turn (an AI plan) fits
+
+
+async def async_setup_entry(hass, entry, async_add_entities):
+    async_add_entities([ProOSAssist(hass, entry)])
+
+
+class ProOSAssist(conversation.ConversationEntity):
+    _attr_has_entity_name = False
+    _attr_name = "ProOS Assist"
+    _attr_unique_id = "proos_assist"
+
+    def __init__(self, hass, entry):
+        self.hass = hass
+        self._entry = entry
+
+    @property
+    def supported_languages(self):
+        return MATCH_ALL
+
+    async def _panel_token(self):
+        """A short-lived sign-in for the panel's own platform user. The user is
+        a system user: it cannot sign in anywhere by itself; it is made once
+        and remembered in this entry."""
+        auth = self.hass.auth
+        uid = self._entry.data.get("panel_user")
+        user = await auth.async_get_user(uid) if uid else None
+        if user is None:
+            user = await auth.async_create_system_user(PANEL_NAME, group_ids=[PANEL_GROUP])
+            self.hass.config_entries.async_update_entry(
+                self._entry, data={**self._entry.data, "panel_user": user.id})
+        rt = next(iter(user.refresh_tokens.values()), None)
+        if rt is None:
+            rt = await auth.async_create_refresh_token(user)
+        return auth.async_create_access_token(rt)
+
+    def _room(self, device_id):
+        """The asking device's own room in the platform's device registry."""
+        if not device_id:
+            return None
+        dev = dr.async_get(self.hass).async_get(device_id)
+        return (dev.area_id or None) if dev else None
+
+    async def async_process(self, user_input):
+        resp = intent.IntentResponse(language=user_input.language)
+        body = {"text": user_input.text,
+                "session": "panel-" + (user_input.device_id or user_input.conversation_id or "voice")}
+        room = self._room(user_input.device_id)
+        if room:
+            body["area_id"] = room
+            body["area_confidence"] = "certain"
+        res = None
+        try:
+            token = await self._panel_token()
+            session = async_get_clientsession(self.hass)
+            async with session.post(
+                    CORE + "/assist/chat", json=body,
+                    headers={"Authorization": "Bearer " + token},
+                    timeout=aiohttp.ClientTimeout(total=TURN_S)) as r:
+                if r.status == 200:
+                    res = await r.json(content_type=None)
+        except Exception:  # noqa: BLE001 — Core's silence, said in words
+            res = None
+        if not isinstance(res, dict):
+            resp.async_set_speech(NOT_ANSWERING)
+        elif (res.get("spoke") or {}).get("sent"):
+            resp.async_set_speech("")     # said once, through the room's speaker
+        else:
+            # Core's reply — or, when it answered with a problem instead
+            # (register 928, read on the G-Flip: {"error": "Pro Assist AI is
+            # not configured …"}), Core's own words for it. Never silence.
+            resp.async_set_speech(res.get("reply") or res.get("error") or NOT_ANSWERING)
+        return conversation.ConversationResult(
+            response=resp, conversation_id=user_input.conversation_id)
+'''
+
+
 def files(core_url: str | None = None) -> dict:
-    """The three files, as bytes, for THIS box (Core's own address inside)."""
+    """The door's files, as bytes, for THIS box (Core's own address inside)."""
     core = core_url or core_address()
     return {
         "manifest.json": (json.dumps(_MANIFEST, indent=2) + "\n").encode("utf-8"),
         "__init__.py": (_INIT % {"build": DOOR_BUILD, "core": core}).encode("utf-8"),
         "config_flow.py": _FLOW.encode("utf-8"),
+        "conversation.py": (_CONV % {"core": core}).encode("utf-8"),
     }
 
 
