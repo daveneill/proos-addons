@@ -353,6 +353,49 @@ GEAR_FN = None
 # consciously uncovered (register 181), never an incident.
 GEAR_CONFIGURED_FN = None
 
+# REGISTER 926 item 4 (Dave, 17 Oct 2026: "any incident reported needs to be actual and not virtual"). The gear card said
+# "offline for 31 minutes" / "97 minutes" for a switch UniFi has reported offline since 13 Oct: the age came from Core's
+# own memory, restarted every time the integration's reload made the tracker read "unavailable" for a second (that
+# unknown reading also CLEARED the card, which then reopened and re-alerted the phones). The age is now the platform's
+# own record. entity -> [(epoch, state), ...] oldest first from the recorder, or None when it can't be read.
+GEAR_HISTORY_FN = None
+_gear_since: dict = {}     # card id -> gear_down_since() answer, kept while the card is open (asked once per card)
+
+
+def gear_down_since(rows):
+    """When the gear went offline, read from its tracker's own history (oldest first).
+    ("since", ts)  — the first "not_home" after the last "home": when the controller stopped seeing it.
+    ("before", ts) — never "home" in the history the box keeps: offline at least since its oldest row.
+    ("online", None) — its newest reading is "home".
+    None — no rows (nothing read, nothing claimed). "unavailable"/"unknown" rows are the integration not answering —
+    they say nothing either way and are skipped."""
+    seen = [(t, s) for t, s in (rows or []) if s in ("home", "not_home")]
+    if not seen:
+        return None
+    if seen[-1][1] == "home":
+        return ("online", None)
+    last_home = max((i for i, (_t, st) in enumerate(seen) if st == "home"), default=None)
+    if last_home is None:
+        return ("before", seen[0][0])
+    return ("since", seen[last_home + 1][0])
+
+
+def _when_day(ts):
+    try:
+        return _dt.datetime.fromtimestamp(float(ts)).strftime("%-I:%M %p %a %-d %b").replace("AM", "am").replace("PM", "pm")
+    except Exception:                                            # noqa: BLE001
+        return "earlier"
+
+
+def _span(secs):
+    secs = max(0, int(secs))
+    d, h, m = secs // 86400, (secs % 86400) // 3600, (secs % 3600) // 60
+    if d:
+        return "%d day%s%s" % (d, "" if d == 1 else "s", (", %d hour%s" % (h, "" if h == 1 else "s")) if h else "")
+    if h:
+        return "%d hour%s" % (h, "" if h == 1 else "s")
+    return "%d minute%s" % (m, "" if m == 1 else "s")
+
 # Gear currently OFF the network, by display name — the live answer, rewritten
 # every scan. The watcher reads this (A-8, Dave's switch test 16 Aug): while a
 # switch or access point is down, ProOS may no longer assume a panel that has
@@ -520,9 +563,10 @@ def gear_pass(snapall):
     for cid, inc in list(_open.items()):
         if inc.get("kind") == "infra_down" and cid not in seen:
             _clear(cid)
+            _gear_since.pop(cid, None)
 
 
-def _infra_check(now, snapall, seen):
+def _infra_check(now, snapall, seen, full=False):
     """STAGE 3 BUILD 4 (16 Aug 2026): the gear question is ANSWERED, not
     guessed. GEAR_FN serves the controller's own device list — what its gear
     IS and whether each piece is online, first-hand from the thing the cables
@@ -581,8 +625,18 @@ def _infra_check(now, snapall, seen):
             "actions": []})
         return
     for mac, g in sorted(gear.items()):
+        if g.get("online") is None:
+            # UNKNOWN (the integration reloading reads "unavailable" for a second) is no claim either way: a card
+            # already open STAYS — nothing was read that says the gear came back (register 926 item 4; the same rule as
+            # the blind controller above). Only the controller saying it is online clears it.
+            _ucid = _iid("infra_down", "network", "gear_" + mac)
+            if _ucid in _open:
+                seen.add(_ucid)
+                _down.append(g.get("name") or mac)
+            continue
         if g.get("online") is not False:
-            continue              # online, or UNKNOWN — neither is a claim
+            _gear_since.pop(_iid("infra_down", "network", "gear_" + mac), None)
+            continue              # online
         name = g.get("name") or mac
         # A-8: recorded the moment it is SEEN down, before the sustain gate.
         # The watcher's own debounce (45s for a panel) is the patience here —
@@ -603,7 +657,6 @@ def _infra_check(now, snapall, seen):
         # reading was never wrong, only late (switch_speed_bench.py; the
         # old sustain pins in the infra benches rewritten with this reason).
         took, confirmed = _downstream_of(snapall, mac, first)
-        mins = int((now - first) / 60)
         # A-9: the sentence now matches the strength of the evidence behind it.
         # Confirmed membership is stated as fact and says who confirmed it; no
         # topology means ProOS says it cannot tell, and names nobody. It never
@@ -621,21 +674,40 @@ def _infra_check(now, snapall, seen):
         else:
             took_txt = (" The network controller has no device placed behind "
                         "it.")
-        # Fresh vs aged wording: the same reading, said at the age it has.
-        _age_txt = (("just went offline to the network controller"
-                     if mins < 1 else
-                     "has been offline to the network controller for "
-                     "%d minute%s" % (mins, "" if mins == 1 else "s")))
+        # REGISTER 926 item 4: the age is the platform's own record — asked once per card (and retried on the full
+        # scan while it could not be read), never Core's memory.
+        _ent = g.get("entity")
+        if (cid not in _gear_since or (_gear_since.get(cid) is None and full)) and GEAR_HISTORY_FN and _ent:
+            try:
+                _gear_since[cid] = gear_down_since(GEAR_HISTORY_FN(_ent))
+            except Exception:                                    # noqa: BLE001
+                _gear_since[cid] = None
+        _gs = _gear_since.get(cid)
+        _adv = ("Check its power, PoE port or uplink cable — or, if it has been taken out, delete it in the UniFi "
+                "controller and this card clears.")
+        if _gs and _gs[0] == "since" and int((now - _gs[1]) / 60) < 1:
+            # the fresh case keeps Dave's 16 Aug wording (switch_speed): said at once, with the reboot honesty
+            _age_txt = ("just went offline to the network controller (%s, from the platform's own history)"
+                        % _when_day(_gs[1]))
+            _adv = ("Check its power, PoE port or uplink cable. A deliberate reboot or firmware update clears itself "
+                    "in a few minutes.")
+        elif _gs and _gs[0] == "since":
+            _age_txt = ("has been offline to the network controller since %s (%s, from the platform's own history)"
+                        % (_when_day(_gs[1]), _span(now - _gs[1])))
+        elif _gs and _gs[0] == "before":
+            _age_txt = ("has been offline to the network controller for as long as this box's history goes back — "
+                        "since at least %s (%s)" % (_when_day(_gs[1]), _span(now - _gs[1])))
+        else:
+            _age_txt = ("is offline to the network controller now (how long could not be read from the platform's "
+                        "history)")
         _ensure(cid, {
             "kind": "infra_down", "room": "Network", "slug": "network",
             "severity": "critical",
             "title": "Network gear offline — %s" % name,
             "cause": ("%s — the network switch/access point itself, not a "
                       "device on it — %s.%s Everything wired through "
-                      "it has no network path. Check its power, PoE port or "
-                      "uplink cable. A deliberate reboot or firmware update "
-                      "clears itself in a few minutes."
-                      % (name, _age_txt, took_txt)),
+                      "it has no network path. %s"
+                      % (name, _age_txt, took_txt, _adv)),
             "subject": "gear_" + mac,
             "actions": []})
         # The card's words follow its age: refresh the cause on later passes
@@ -645,11 +717,8 @@ def _infra_check(now, snapall, seen):
                 _open[cid]["cause"] = ("%s — the network switch/access point "
                                        "itself, not a device on it — %s.%s "
                                        "Everything wired through it has no "
-                                       "network path. Check its power, PoE "
-                                       "port or uplink cable. A deliberate "
-                                       "reboot or firmware update clears "
-                                       "itself in a few minutes."
-                                       % (name, _age_txt, took_txt))
+                                       "network path. %s"
+                                       % (name, _age_txt, took_txt, _adv))
         except Exception:                                        # noqa: BLE001
             pass
     _gear_down = _down
@@ -1645,7 +1714,7 @@ def _scan(snapall, project_mod, get_controller, witnesses):
     _uni_clients = None   # certified UniFi Network clients, fetched at most once
 
     # 6 · infrastructure first: a dead switch/AP explains everything below it.
-    _infra_check(now, snapall, seen)
+    _infra_check(now, snapall, seen, full=True)
 
     # plan B1 · phone alerts that are not getting through are said, not logged
     try:

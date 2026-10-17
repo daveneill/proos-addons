@@ -2212,6 +2212,31 @@ def _controller_gear():
     return gear or None
 
 
+def _gear_history(entity):
+    """REGISTER 926 item 4: one gear tracker's recorder history, oldest first, as [(epoch, state), ...] — whatever the
+    box keeps (asked from 30 days back). None when the recorder can't be read: the gear card then says it could not
+    read how long, never a number of its own."""
+    start = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=30)).isoformat()
+    path = ("/api/history/period/%s?filter_entity_id=%s&minimal_response&no_attributes"
+            % (quote(start), quote(entity, safe="._")))
+    try:
+        data = _client._req("GET", path)
+    except Exception:                                            # noqa: BLE001
+        return None
+    if not isinstance(data, list):
+        return None
+    rows = []
+    for series in data:
+        for r in (series or []):
+            lc = (r or {}).get("last_changed") or (r or {}).get("last_updated")
+            try:
+                rows.append((datetime.datetime.fromisoformat(str(lc).replace("Z", "+00:00")).timestamp(), r.get("state")))
+            except Exception:                                    # noqa: BLE001
+                continue
+    rows.sort()
+    return rows
+
+
 def _network_integration_present():
     """691: does this home have a UniFi Network integration at all? The platform's own
     entries, read every call."""
@@ -10145,6 +10170,7 @@ def main():
                 # check claims nothing — consciously uncovered, never guessed.
                 try:
                     _healthmon_mod.GEAR_FN = _controller_gear
+                    _healthmon_mod.GEAR_HISTORY_FN = _gear_history          # register 926 item 4
                     # 688: is there a network controller integration at all? Read
                     # from the platform's own entries on every scan (unifinet._conf).
                     _healthmon_mod.GEAR_CONFIGURED_FN = _network_integration_present   # 691
