@@ -402,6 +402,18 @@ def launch(client, project, area_id: str, sc: dict, power: bool = True) -> dict:
                         if a.get("source_eid") == target
                         and "off" not in str(a.get("key") or "")
                         and a.get("entity_id")), None)
+            if act is None and target == disp:
+                # REGISTER 922 (Dave 17 Oct 11:05: a Samsung TV app "works but its not triggering the watch TV activity
+                # … so when I then try and use Apple TV shortcuts it stays on the TV app … as it thinks it is still in
+                # watch Apple TV"). Read on the box: the Bedroom's watch_tv has source_eid null — the display's OWN
+                # activity names no separate source — so a shortcut targeting the display matched nothing, fired
+                # nothing, and the room's activity sensor stayed on watch_apple_tv; the next Apple TV tap read "already
+                # watching" and skipped its activity. An app on the display is the room watching the TV: its Watch TV
+                # activity (no source, or the display itself, and not an off) runs first, exactly as for a source.
+                act = next((a for a in acts
+                            if a.get("source_eid") in (None, "", disp)
+                            and "off" not in str(a.get("key") or "")
+                            and a.get("entity_id")), None)
             if act:
                 vs = (_state(client, "sensor.proos_activity_%s"
                              % (rec.get("area_id") or area_id)) or {}).get("state")
