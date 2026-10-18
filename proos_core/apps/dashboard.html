@@ -4615,7 +4615,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101825';
+const PROOS_BUILD='2026101826';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -21882,9 +21882,24 @@ function _ppPoke(){
 function ppState(eid){
   if(!_ppOn) return;
   clearTimeout(_pp.upd); _pp.upd=setTimeout(function(){ if(_pp.drag) return;
-    var sig=_ppRooms().map(function(r){ return r.id+':'+(r.lights||[]).length+':'+(_ppPlayer(r)||''); }).join('|');
+    // what a screen is BUILT from: the rooms, their lights, which of those can dim, and their players. A light added
+    // to a room arrives before its first reading (register 958) — once the reading says it dims, the cards are redrawn.
+    var sig=_ppRooms().map(function(r){ return r.id+':'+(r.lights||[]).map(function(e){ return e+(states[e]?(_ppDim(e)?'d':'s'):'?'); }).join(',')+':'+(_ppPlayer(r)||''); }).join('|');
+    if(sig.indexOf('?')>=0) _ppFetchMissing();
     if(sig!==_pp.sig){ var first=!_pp.sig; _pp.sig=sig; if(!first && _pp.scr!=='assist'){ _ppBuild(_pp.scr); return; } }
     _ppUpdate(_pp.scr); }, 120);
+}
+/* A DEVICE ADDED TO A ROOM WHILE THE PANEL IS OPEN (register 958). The page's live feed follows the entities it had
+   readings for when it opened, so a light allocated afterwards had no reading — it showed as a plain switch with no
+   slider, and its state never arrived until the page reloaded. The platform is asked once for the readings that are
+   missing, and the live feed is widened to carry them (_subscribeStates, the page's own). */
+function _ppFetchMissing(){
+  if(_pp.fetching || (Date.now()-(_pp.fetchedAt||0))<15000) return;
+  _pp.fetching=true; _pp.fetchedAt=Date.now();
+  snd({type:'get_states'}).then(function(m){
+    var got=0; ((m&&m.result)||[]).forEach(function(s){ if(s && s.entity_id && !states[s.entity_id]){ states[s.entity_id]=s; got++; } });
+    if(got){ try{ if(typeof _subscribeStates==='function') _subscribeStates(); }catch(e){} ppState(); }
+  }).catch(function(){}).then(function(){ _pp.fetching=false; });
 }
 function _ppTick(){
   if(!_ppOn) return;
@@ -21977,7 +21992,7 @@ function _ppBRoom(){
   var p=_ppPlayer(r), cards='';
   (r.lights||[]).forEach(function(e){
     var dim=_ppDim(e);
-    cards+='<div class="pp-card pp-glass'+(dim?'':' nosl')+'" data-light="'+_ppE(e)+'"><div class="hd"><div><div class="a">'+_ppE(_ppLabel(e,r))+'</div><div class="b">'+(dim?'Dimmer':'Switch')+'</div></div><button class="pp-pw" data-cmd="lt">'+_ppIc('power')+'</button></div>'
+    cards+='<div class="pp-card pp-glass'+(dim?'':' nosl')+'" data-light="'+_ppE(e)+'"><div class="hd"><div><div class="a">'+_ppE(_ppLabel(e,r))+'</div><div class="b">'+(dim?'Dimmer':(states[e]?'Switch':''))+'</div></div><button class="pp-pw" data-cmd="lt">'+_ppIc('power')+'</button></div>'
       +(dim?_ppSL('bri','Brightness','bulb'):'')+'</div>';
   });
   if(p) cards+='<div class="pp-card pp-glass" data-player="'+_ppE(p)+'"><div class="pp-mini" data-cmd="ropen"><div class="art" data-part>'+_ppIc('music')+'</div><div class="tx"><div class="tt">'+_ppE(r.name)+'</div><div class="ar" data-pline></div></div><button class="pp-rb" data-cmd="rpp"></button></div>'
