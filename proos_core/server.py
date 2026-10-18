@@ -9332,6 +9332,10 @@ class Handler(BaseHTTPRequestHandler):
                 if not _layouts:
                     return self._send(503, {"error": "layouts unavailable"})
                 b = self._body() or {}
+                if b.get("register"):
+                    return self._send(200, _layouts.register(b.get("kind"), b.get("screen"), b.get("name") or ""))
+                if b.get("rename"):
+                    return self._send(200, _layouts.rename(b.get("screen"), b.get("name") or ""))
                 if isinstance(b.get("adopt"), dict):
                     return self._send(200, _layouts.adopt(b.get("kind"), b.get("screen"), b.get("adopt"), b.get("name") or ""))
                 if b.get("clear"):

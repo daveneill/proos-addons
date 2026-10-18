@@ -4615,7 +4615,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101828';
+const PROOS_BUILD='2026101829';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -21292,6 +21292,14 @@ html.pp-on #app{visibility:hidden}
 .pp-fav .art .go svg{width:15px;height:15px;margin-left:2px}
 .pp-fav .t{font-size:13px;font-weight:600;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 #pp svg{shape-rendering:geometricPrecision}
+.pp-ppl{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.pp-pp{display:flex;align-items:center;gap:10px;font-size:13px}
+.pp-pp .av{width:32px;height:32px;border-radius:50%;background:#2a2a33 center/cover;display:grid;place-items:center;font-weight:600;font-size:13px}
+.pp-pp b{font-weight:600;flex:1}
+.pp-pp i{font-style:normal;color:rgba(255,255,255,.6)}
+.pp-pp.home i{color:#7CF0C5}
+.pp-askc{width:100%;text-align:left}
+.pp-askc svg{width:24px;height:24px}
 .pp-hbtns{display:flex;gap:8px;align-items:center;flex:none}
 .pp-chip{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.12)}
 .pp-chip i{width:20px;height:20px;border-radius:50%;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.55);background:transparent}
@@ -22056,7 +22064,9 @@ function _ppSL(kind, label, icon){
    (its lights, its speaker, its blinds, its climate, its cameras, its activities) — the same composition as before. */
 function _ppLayoutLoad(){
   try{
-    fetch(proosCoreBase()+'/layouts?kind='+encodeURIComponent(typeof _wFF==='function'?_wFF():'tablet')+'&screen='+encodeURIComponent(proosDeviceId()))
+    if(!_pp.registered){ _pp.registered=true;   // 962: a wall panel says what it is, so the app and Pro can list it to edit
+      fetch(proosCoreBase()+'/layouts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({register:true, kind:'wall', screen:proosDeviceId(), name:'Wall Panel'})}).catch(function(){}); }
+    fetch(proosCoreBase()+'/layouts?kind=wall&screen='+encodeURIComponent(proosDeviceId()))
       .then(function(r){ return r.ok?r.json():null; }).then(function(j){ if(!j||!j.pages) return;
         var sig=JSON.stringify(j.pages); if(sig===_pp.laySig) return; _pp.laySig=sig; _pp.layout=j.pages;
         if(_pp.scr==='room') _ppBuild('room'); }).catch(function(){});
@@ -22128,6 +22138,17 @@ function _ppCardSecurity(){
   var a=CONFIG.security&&CONFIG.security.alarm; if(!a) return '';
   return '<div class="pp-card pp-glass nosl" data-alarm="'+_ppE(a)+'"><div class="hd"><div><div class="a">Security</div><div class="b" data-alst></div></div>'+_ppIc('shield').replace('<svg','<svg class="pp-shield"')+'</div></div>';
 }
+function _ppCardPeople(){
+  var pl=(typeof _peopleList==='function')?_peopleList():[]; if(!pl.length) return '';
+  return '<div class="pp-card pp-glass nosl"><div class="hd"><div><div class="a">People</div></div></div><div class="pp-ppl">'
+    +pl.map(function(x){ return '<div class="pp-pp'+(x.zone==='Home'?' home':'')+'"><span class="av"'+(x.pic?' style="background-image:url(\''+x.pic.replace(/'/g,'%27')+'\')"':'')+'>'+(x.pic?'':_ppE(x.ini))+'</span><b>'+_ppE(x.name)+'</b><i>'+_ppE(x.zone)+'</i></div>'; }).join('')+'</div></div>';
+}
+function _ppCardSun(){
+  var s=states['sun.sun']; if(!s) return '';
+  var t=function(iso){ var d=new Date(iso); return isNaN(d)?'\u2014':d.toLocaleTimeString('en-AU',{hour:'numeric',minute:'2-digit'}); };
+  return '<div class="pp-card pp-glass nosl"><div class="hd"><div><div class="a">Sun</div><div class="b">'+(s.state==='above_horizon'?'Up':'Down')+'</div></div>'+_ppIc('sun')+'</div>'
+    +'<div class="pp-kv"><span>Sunrise</span><b>'+t(att('sun.sun','next_rising'))+'</b></div><div class="pp-kv"><span>Sunset</span><b>'+t(att('sun.sun','next_setting'))+'</b></div></div>';
+}
 function _ppBRoom(){
   var r=_ppRoom(_pp.room); if(!r) return '';
   var ws=_ppRoomWidgets(r), cards='', acts=false, act1=[], done={};
@@ -22142,6 +22163,10 @@ function _ppBRoom(){
       case 'scene': cards+=_ppCardScenes(r); break;
       case 'weather': cards+=_ppCardWeather(); break;
       case 'security': cards+=_ppCardSecurity(); break;
+      case 'people': cards+=_ppCardPeople(); break;
+      case 'sun': cards+=_ppCardSun(); break;
+      case 'irrigation': (CONFIG.irrigation||[]).forEach(function(z){ if(!done[z.entity]){ done[z.entity]=1; cards+=_ppCardDevice(z.entity, r); } }); break;
+      case 'assist': cards+='<button class="pp-card pp-glass nosl pp-askc" data-go="assist"><div class="hd"><div><div class="a">Ask ProOS</div><div class="b">Tap, or say the wake word</div></div>'+_ppIc('mic')+'</div></button>'; break;
       case 'activities': acts=true; break;
       case 'act1': if(w.key) act1.push(w.key); break;
       default: break;   // drawn on the panel in step 3 (awareness, sun, people, energy, irrigation, detections, doorbell)

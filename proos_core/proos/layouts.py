@@ -26,7 +26,10 @@ import re
 
 _LOG = logging.getLogger("proos.layouts")
 STORE = os.path.join(os.environ.get("PROOS_DATA_DIR", "/data"), "layouts.json")
-KINDS = ("phone", "tablet", "panel")
+KINDS = ("phone", "tablet", "panel", "wall")
+# register 962: wall panels (the G-Flip, ProOS's own PoE screens) are their own kind, edited from the app or Pro; a page
+# no wall layout holds yet falls back to the iPad's — the layout the installer set up for a tablet-sized screen (937).
+FALLBACK = {"wall": "tablet"}
 MAX_WIDGETS = 48          # the dashboard caps a page at 24; twice that is room to grow, not a hole
 MAX_WIDGET_BYTES = 4096   # one widget's record; a camera or device widget is well under 1 KB
 _PAGE = re.compile(r"^(home|room_[A-Za-z0-9_\-]{1,80})$")
@@ -106,6 +109,8 @@ def resolve(kind: str = "", screen: str = "") -> dict:
         kind = s.get("kind") or ""
     dflt = doc["default"].get(kind, {}) if kind else {}
     pages, scopes = {}, {}
+    for p, ws in doc["default"].get(FALLBACK.get(kind, ""), {}).items():
+        pages[p], scopes[p] = ws, "fallback"
     for p, ws in dflt.items():
         pages[p], scopes[p] = ws, "default"
     for p, ws in ((s or {}).get("pages") or {}).items():
@@ -186,6 +191,39 @@ def adopt(kind: str, screen: str, pages, name: str = "") -> dict:
         return out
     except Exception as exc:  # noqa: BLE001
         _LOG.warning("layout adopt failed: %s", exc)
+        return {"error": str(exc)}
+
+
+def register(kind: str, screen: str, name: str = "") -> dict:
+    """A screen says what it is (a wall panel names itself once), so the app and Pro can list it to edit. Its pages are
+    untouched; its kind is what it says; a name given by a person is never replaced by a screen's own default."""
+    try:
+        kind, screen = _kind(kind), str(screen or "")[:120]
+        if not kind or not screen:
+            return {"error": "kind and screen required"}
+        doc = load()
+        s = doc["screens"].setdefault(screen, {"kind": kind, "name": "", "pages": {}})
+        s["kind"] = kind
+        if name and not s.get("name"):
+            s["name"] = str(name)[:60]
+        _write(doc)
+        return resolve(kind, screen)
+    except Exception as exc:  # noqa: BLE001
+        _LOG.warning("layout register failed: %s", exc)
+        return {"error": str(exc)}
+
+
+def rename(screen: str, name: str) -> dict:
+    try:
+        screen = str(screen or "")[:120]
+        doc = load()
+        s = doc["screens"].get(screen)
+        if not s:
+            return {"error": "unknown screen"}
+        s["name"] = str(name or "")[:60]
+        _write(doc)
+        return resolve(s.get("kind", ""), screen)
+    except Exception as exc:  # noqa: BLE001
         return {"error": str(exc)}
 
 
