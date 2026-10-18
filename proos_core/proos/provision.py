@@ -721,8 +721,9 @@ def mark_claimed(site_name: str | None = None) -> dict:
 # --------------------------------------------------------------------------
 def _hardware_id() -> str:
     """A value stable for this physical box and, ideally, unique to it - so a
-    cloned /data on new hardware re-triggers provisioning. Falls back to a
-    persisted random id when no hardware serial is legible."""
+    cloned /data on new hardware re-triggers provisioning. Order: the cpuinfo
+    serial (a Pi) → the id already kept → the built-in network port's factory
+    MAC (a PC, register 943) → a random id, kept."""
     try:
         with open("/proc/cpuinfo", "r", encoding="utf-8") as handle:
             for line in handle:
@@ -734,12 +735,50 @@ def _hardware_id() -> str:
         pass
     try:
         if os.path.exists(HWID_PATH):
-            return open(HWID_PATH, encoding="utf-8").read().strip()
-        val = "rnd:" + uuid.uuid4().hex
+            kept = open(HWID_PATH, encoding="utf-8").read().strip()
+            if kept:
+                return kept
+        # REGISTER 943 (Dave, 18 Oct 2026: "go with the MAC"): a PC has no cpuinfo serial, and the G-Flip's firmware
+        # holds "Default string" in every serial field (read on the box) — so the box is known by the factory MAC of
+        # its built-in network port, the lowest when it has two. It never changes, differs on every unit, and the
+        # servicing page derives the same Developer login from it. Kept once read, so a card added later never moves it.
+        mac = _builtin_mac()
+        val = ("mac:" + mac) if mac else ("rnd:" + uuid.uuid4().hex)
         _atomic_write(HWID_PATH, val)
         return val
     except Exception:
         return "rnd:" + uuid.uuid4().hex
+
+
+def _norm_mac(raw) -> str:
+    """'C8:FF:BF:0D:C9:00' / 'c8-ff-bf-0d-c9-00' / 'c8ffbf0dc900' → 'c8ffbf0dc900'; '' for anything that is not a
+    factory address (wrong length, all zeros, broadcast, or locally administered — a virtual adapter's)."""
+    h = re.sub(r"[^0-9a-f]", "", str(raw or "").lower())
+    if len(h) != 12 or h in ("000000000000", "ffffffffffff"):
+        return ""
+    if int(h[:2], 16) & 0x03:          # multicast or locally administered: not burnt in at a factory
+        return ""
+    return h
+
+
+def _builtin_mac(tries: int = 3, wait_s: float = 5.0) -> str:
+    """The lowest factory MAC among the box's wired network ports, as the Supervisor reports them. Asked a few times
+    (the Supervisor may still be starting); '' when it never answers or the box has no wired port."""
+    import time
+    for i in range(max(1, tries)):
+        try:
+            data = (_sup("GET", "/network/info") or {}).get("data") or {}
+            macs = sorted(m for m in (_norm_mac(it.get("mac")) for it in data.get("interfaces") or []
+                                      if it.get("type") == "ethernet") if m)
+            if macs:
+                return macs[0]
+            if data.get("interfaces") is not None:
+                return ""
+        except Exception as exc:  # noqa: BLE001
+            _LOG.info("provision - network info not ready (%s), try %d", exc, i + 1)
+        if i + 1 < tries:
+            time.sleep(wait_s)
+    return ""
 
 
 # --------------------------------------------------------------------------
