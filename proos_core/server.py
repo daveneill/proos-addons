@@ -3686,6 +3686,9 @@ def factory_reset(clear_proos_data=False, keep_auth=False):
                    "sweep_last.json", "sweep_config.json", "sweep_acted.json", "port_history.json", "push_status.json",
                    # the home's music service order, set in Pro (register 896) — this home's services; a reset home chooses afresh
                    "music_order.json",
+                   # the wall panel's set-up record and the screen login it made (register 940) — the reset deletes the
+                   # platform's users, so the login it names is gone; the panel's next pass makes a new one
+                   "panel_setup.json", "panel_login.json",
                    # the installer-pasted Apple Music token (register 759) — like the AI key, placed
                    # per box by the installer; a reset home is set up afresh
                    "apple_music_token.json",
@@ -6388,6 +6391,13 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, {"users": [], "can_manage": False, "error": str(e)})
             if parts == ["provision"]:
                 return self._send(200, provision.provision_status() if provision else {"provisioned": False})
+            if parts == ["panel", "setup"]:
+                # register 940: where the wall panel's own set-up has got to — each step ok or its error, in words
+                try:
+                    from proos import panelsetup as _panelsetup
+                    return self._send(200, dict(_panelsetup.status(), panel=bool(_opt("panel", False))))
+                except Exception as e:  # noqa: BLE001
+                    return self._send(200, {"panel": bool(_opt("panel", False)), "error": str(e)})
             if parts == ["navconfig"]:
                 # install_id rides along so clients can detect the factory-reset
                 # boundary (see _install_id). navconfig.save() whitelists keys,
@@ -9993,6 +10003,30 @@ def main():
                     print(f"  door \u00b7 errors: {_nd['errors']}")
             except Exception as _ne:
                 print(f"  door \u00b7 skipped: {_ne}")
+            # THE WALL PANEL SETS ITSELF UP (register 940). Only on a box whose `panel` option is on — the ProOS
+            # image's first boot turns it on; a panel is said, never guessed. A pass a minute until everything is
+            # in place, then one every half hour (converge, don't clobber: a right box gets no writes).
+            if bool(_opt("panel", False)):
+                try:
+                    from proos import panelsetup as _panelsetup
+
+                    def _panel_loop():
+                        while True:
+                            try:
+                                _ps = _panelsetup.run(
+                                    _sv, _ws_call, _client._req,
+                                    door_state=lambda: _door.state(_client, _door_installed or None, force=True),
+                                    restart_core=lambda: _sv("POST", "/core/restart", None, 300))
+                                print(f"  panel · set-up pass: done={_ps.get('done')} errors={_ps.get('errors') or []}",
+                                      flush=True)
+                                time.sleep(1800 if _ps.get("done") else 60)
+                            except Exception as _pe:  # noqa: BLE001
+                                print(f"  panel · set-up pass failed: {_pe}", flush=True)
+                                time.sleep(60)
+                    threading.Thread(target=_panel_loop, name="panel-setup", daemon=True).start()
+                    print("  panel · this box is a wall panel: setting itself up (register 940)")
+                except Exception as _pse:  # noqa: BLE001
+                    print(f"  panel · set-up not started: {_pse}")
         except Exception as _e:
             print(f"  provision skipped: {_e}")
     if catalog:

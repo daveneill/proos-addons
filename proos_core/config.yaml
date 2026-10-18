@@ -1,5 +1,5 @@
 name: ProOS Core
-version: "1.0.995"
+version: "1.0.996"
 slug: proos_core
 description: >-
   The operational layer above Home Assistant — state-based room control,
@@ -167,6 +167,10 @@ options:
   # MUSIC SERVICE ORDER (register 863, 14 Oct 2026): the home's preferred services for a spoken name, first wins —
   # e.g. "Apple Music, Spotify". Empty = streaming services before radio, radio first when the words say radio or station.
   music_service_order: ""
+  # THE WALL PANEL (register 940): on, Core sets the box up as a wall panel — the kiosk screen, the room microphone,
+  # speech-to-text, the local voice, the pipeline, a screen login the box makes itself. The ProOS image's first boot
+  # turns it on; a panel is said, never guessed. Off on every other box.
+  panel: false
 schema:
   home_id: str
   area: str?
@@ -197,3 +201,4 @@ schema:
   auto_home_weather: bool?
   assist_open: bool?
   music_service_order: str?
+  panel: bool?
