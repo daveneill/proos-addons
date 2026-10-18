@@ -163,11 +163,17 @@ def manage_check(ws_call) -> dict:
 # --------------------------------------------------------------------------
 # user CRUD
 # --------------------------------------------------------------------------
+# REGISTER 950 (Dave, 18 Oct: "dont think we need to see ProOS Panel Screen as a user"): the wall panel's own login is
+# made, kept and repaired by Core (panelsetup, register 940) — a screen, not a person — so it is not listed for people
+# to edit, re-role or remove. It still exists on the platform; panelsetup.PANEL_USERNAME is the same name.
+SCREEN_LOGINS = ("proos-panel",)
+
+
 def list_users(ws_call) -> list:
-    """Normalised user list for the Users panel."""
+    """Normalised user list for the Users panel — people only (the panel's screen login is left out, 950)."""
     raw = ws_call("config/auth/list") or []
     tech = _load_tech()
-    return [_normalise(u, tech) for u in raw]
+    return [_normalise(u, tech) for u in raw if (u.get("username") or "") not in SCREEN_LOGINS]
 
 
 def create_user(ws_call, name: str, role: str = "user",

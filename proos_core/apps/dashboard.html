@@ -4615,7 +4615,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101818';
+const PROOS_BUILD='2026101819';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -6441,22 +6441,21 @@ async function connect(){
 // page never left), recovery on a NEW address reloads so everything rebinds.
 let _pcWsUp=true, _pcHealthFails=0, _pcShown=false, _pcDownAt=0, _pcMonTimer=null, _pcWsDownAt=0, _pcShownAt='', _pcRestartAt=0;
 // the title follows what the page knows: a restart the platform ANNOUNCED (within 10 min), or simply looking
-function _pcRestarting(){ return _pcRestartAt && (Date.now()-_pcRestartAt) < 600000; }
-function _pcTitle(){ try{ const t=document.getElementById('pcr-title'); if(t) t.textContent=_pcRestarting()?'Your Home Is Restarting':'Reconnecting to Your Home';
-  const s=document.getElementById('pcr-sub'); if(s&&_pcRestarting()) s.textContent='It said so before it went quiet \u2014 this usually takes a minute or two. Your rooms keep working.'; }catch(e){} }
+// REGISTER 948 (Dave, 18 Oct: "when we do a reboot I have asked before we dont need all the explanations just
+// Reconnecting to your home"): one line, the same whatever the reason, and nothing under it.
+function _pcTitle(){ try{ const t=document.getElementById('pcr-title'); if(t) t.textContent='Reconnecting to Your Home'; }catch(e){} }
 function _pcInitOverlay(){
   if(document.getElementById('proos-reboot')) return;
   let logo=''; try{ logo=(document.querySelector('#loading img')||{}).src||''; }catch(e){}
   const o=document.createElement('div'); o.id='proos-reboot';
   o.innerHTML=`<div class="pcr-logo">${logo?`<img src="${logo}" alt="ProOS"/>`:''}</div>`
     +`<div class="pcr-title" id="pcr-title">Reconnecting to Your Home</div>`
-    +`<div class="pcr-sub" id="pcr-sub">Looking for it on this network…</div>`
     +`<div class="pcr-dots"><i></i><i></i><i></i></div>`
     +`<button type="button" class="pcr-out" id="pcr-out">Sign in to a different home</button>`;
   document.body.appendChild(o);
   try{ document.getElementById('pcr-out').onclick=_pcWayOut; }catch(e){}
 }
-function _pcSay(t){ if(_pcRestarting()) return _pcTitle(); try{ const s=document.getElementById('pcr-sub'); if(s&&t) s.textContent=t; }catch(e){} }
+function _pcSay(t){ /* 948: the waiting screen explains nothing — one line, "Reconnecting to Your Home" */ }
 function _pcWayOut(){
   // the only thing a person may need to do by hand: start again at a
   // different home. Everything else is found.

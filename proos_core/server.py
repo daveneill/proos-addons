@@ -4995,6 +4995,17 @@ class Handler(BaseHTTPRequestHandler):
             from proos import sysadmin as _sa
             _fd.passthrough(self, _fd.platform_address(_sa._info))
             return True
+        if method == "GET" and self.path.split("?")[0].strip("/") == "auth/authorize":
+            # REGISTER 949: the apps' sign-in machinery first opens the platform's sign-in address only to check the
+            # box answers (a 2xx after redirects — read in the app's OnboardingAuthStepConnectivity), then signs in
+            # through /auth/login_flow (passed). Through ProOS's door that address is never the platform's page: it
+            # leads to ProOS's own page at the box's address, which answers.
+            self.send_response(302)
+            self.send_header("Location", "/")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return True
         if method == "GET":
             page = {"": "dashboard", "pro": "pro"}.get(self.path.split("?")[0].strip("/"))
             if page:
