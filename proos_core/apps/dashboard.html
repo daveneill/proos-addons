@@ -4615,7 +4615,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101827';
+const PROOS_BUILD='2026101828';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -21292,6 +21292,33 @@ html.pp-on #app{visibility:hidden}
 .pp-fav .art .go svg{width:15px;height:15px;margin-left:2px}
 .pp-fav .t{font-size:13px;font-weight:600;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 #pp svg{shape-rendering:geometricPrecision}
+.pp-hbtns{display:flex;gap:8px;align-items:center;flex:none}
+.pp-chip{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.12)}
+.pp-chip i{width:20px;height:20px;border-radius:50%;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.55);background:transparent}
+.pp-chip.lit i{box-shadow:0 0 12px currentColor,inset 0 0 0 1px rgba(0,0,0,.15)}
+.pp-trio{display:flex;gap:8px;margin-top:12px}
+.pp-trio button{flex:1;height:48px;border-radius:14px;background:rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;gap:6px;font-size:12.5px;font-weight:600}
+.pp-trio button svg{width:16px;height:16px}
+.pp-clim{display:flex;align-items:center;justify-content:space-between;margin-top:10px}
+.pp-clim .t{text-align:center}
+.pp-clim .t b{display:block;font-size:30px;font-weight:200;letter-spacing:-.03em}
+.pp-clim .t span{font-size:11.5px;color:rgba(255,255,255,.66)}
+.pp-clim .pp-rb{width:50px;height:50px}
+.pp-camc{display:block;padding:0;overflow:hidden;height:150px;position:relative;text-align:left;width:100%}
+.pp-camc .img{position:absolute;inset:0;background:#111 center/cover}
+.pp-camc .lbl{position:absolute;left:10px;bottom:10px;display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:5px 10px;border-radius:999px;background:rgba(0,0,0,.5)}
+.pp-camc .lbl svg{width:14px;height:14px}
+.pp-scn{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.pp-scn button{height:44px;border-radius:12px;background:rgba(255,255,255,.08);font-size:12.5px;font-weight:600;padding:0 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pp-big{font-size:28px;font-weight:200;letter-spacing:-.03em}
+.pp-shield{width:26px;height:26px;color:rgba(255,255,255,.7)}
+.pp-card.alert{box-shadow:inset 0 0 0 1.5px #ff6b6b,0 0 24px rgba(255,80,80,.35)}
+.pp-sw{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin:4px 0 14px}
+.pp-sw button{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:11px;color:rgba(255,255,255,.75)}
+.pp-sw button i{width:46px;height:46px;border-radius:50%;box-shadow:inset 0 0 0 1px rgba(255,255,255,.2)}
+.pp-sw button.on i{box-shadow:0 0 0 3px #fff}
+.pp-pop .card.cam{width:720px;max-height:420px}
+.pp-camlg{width:100%;aspect-ratio:16/9;max-height:340px;border-radius:12px;background:#111 center/contain no-repeat}
 #pp-bar button{color:rgba(255,255,255,.55)}
 #pp-bar button.on{color:rgba(255,255,255,.92)}
 </style>
@@ -21798,6 +21825,10 @@ var PP_I={
   cloud:'<path d="M7 18h10a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.2 11.1 3.5 3.5 0 0 0 7 18z"/>',
   list:'<path d="M4 6h16M4 12h16M4 18h10"/>', x:'<path d="M6 6l12 12M18 6 6 18"/>', search:'<circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/>',
   star:'<path d="m12 3.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/>',
+  up:'<path d="m6 15 6-6 6 6"/>', stop:'<rect x="7" y="7" width="10" height="10" rx="2"/>', minus:'<path d="M6 12h12"/>', plus:'<path d="M12 6v12M6 12h12"/>',
+  lock:'<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>', cam:'<rect x="3" y="6.5" width="13" height="11" rx="2"/><path d="m16 10.5 5-3v9l-5-3z"/>',
+  sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>',
+  shield:'<path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.4 7.5 9.5 4.3-1.1 7.5-4.9 7.5-9.5V6z"/>',
   grp:'<rect x="2.5" y="6" width="8" height="13" rx="2"/><rect x="13.5" y="6" width="8" height="13" rx="2"/><circle cx="6.5" cy="14.5" r="2"/><circle cx="17.5" cy="14.5" r="2"/><path d="M6.5 9.5h0M17.5 9.5h0"/>'
 };
 function _ppIc(k){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">'+(PP_I[k]||'')+'</svg>'; }
@@ -21872,6 +21903,8 @@ function ppStart(){
     setInterval(_ppTick, 1000);
     try{ var h=document.getElementById('assist-history'); if(h) new MutationObserver(_ppAssistSeen).observe(h,{childList:true,subtree:true,characterData:true}); }catch(e){}
   }
+  _ppLayoutLoad();
+  if(!_pp.layT) _pp.layT=setInterval(_ppLayoutLoad, 60000);   // 961: a layout changed from the app or Pro reaches the panel within a minute
   _ppOn=true; document.documentElement.classList.add('pp-on');
   ppGo(_pp.scr||'home', true);
   _ppPoke();
@@ -21940,6 +21973,9 @@ function _ppTick(){
   var g=d.getHours()<12?'Good morning':d.getHours()<18?'Good afternoon':'Good evening';
   document.querySelectorAll('#pp [data-greet]').forEach(function(e){ if(e.textContent!==g) e.textContent=g; });
   _ppProgress();
+  _pp.tk=(_pp.tk||0)+1;
+  if(_pp.tk%10===0){ if(_pp.scr==='room') _ppCamPaint(document.getElementById('pp-room')); }
+  if(_pp.tk%2===0){ var pc=document.querySelector('#pp-pop.on .card.cam'); if(pc) _ppCamPaint(pc, true); }
 }
 function _ppPos(p){
   var dur=parseFloat(att(p,'media_duration')), pos=parseFloat(att(p,'media_position')); if(!(dur>0) || !isFinite(pos)) return null;
@@ -21971,7 +22007,7 @@ function _ppBuild(scr){
   var f={rest:_ppBRest, home:_ppBHome, rooms:_ppBRooms, room:_ppBRoom, lights:_ppBLights, music:_ppBMusic, assist:_ppBAssist, settings:_ppBSettings, favs:_ppBFavs}[scr];
   if(f){ el.innerHTML=f(); }
   if(scr==='home') _ppSite();
-  if(scr==='room') _ppLoadActs();
+  if(scr==='room'){ _ppLoadActs(); setTimeout(function(){ _ppCamPaint(document.getElementById('pp-room')); }, 50); }
   if(scr==='assist') _ppAssistIdle();
   if(scr==='settings') _ppAbout();
   if(scr==='favs') _ppFavsLoad();
@@ -22014,21 +22050,146 @@ function _ppBRooms(){
 function _ppSL(kind, label, icon){
   return '<div class="pp-sl'+((kind==='vol'||kind==='mvol')?' vol':'')+'" data-sl="'+kind+'"><div class="fill"></div><div class="lab">'+_ppIc(icon)+_ppE(label)+'</div><div class="lab in">'+_ppIc(icon)+_ppE(label)+'</div><div class="val"></div></div>';
 }
+/* ══ A ROOM IS ITS WIDGETS (register 961, step 2 of 959) ══════════════════════════════════════════════════════════
+   The room page draws the layout the box holds for this screen (Core /layouts — this screen's own page, else its kind's
+   home default), widget by widget, in the panel's style. A room the box has no layout for draws what the room has
+   (its lights, its speaker, its blinds, its climate, its cameras, its activities) — the same composition as before. */
+function _ppLayoutLoad(){
+  try{
+    fetch(proosCoreBase()+'/layouts?kind='+encodeURIComponent(typeof _wFF==='function'?_wFF():'tablet')+'&screen='+encodeURIComponent(proosDeviceId()))
+      .then(function(r){ return r.ok?r.json():null; }).then(function(j){ if(!j||!j.pages) return;
+        var sig=JSON.stringify(j.pages); if(sig===_pp.laySig) return; _pp.laySig=sig; _pp.layout=j.pages;
+        if(_pp.scr==='room') _ppBuild('room'); }).catch(function(){});
+  }catch(e){}
+}
+function _ppRoomWidgets(r){
+  var lay=_pp.layout && _pp.layout['room_'+r.id];
+  if(Array.isArray(lay)) return lay;
+  var out=[];
+  if((r.lights||[]).length) out.push({id:'lights'});
+  if(_ppPlayer(r)) out.push({id:'media'});
+  if(r.climate) out.push({id:'climate'});
+  if((r.covers||[]).length) out.push({id:'covers'});
+  (r.cameras||[]).forEach(function(c){ var i=(CONFIG.cameras||[]).findIndex(function(x){ return x.entity===c; }); if(i>=0) out.push({id:'camera', cam:i}); });
+  if(typeof _roomHasActivities==='function' && _roomHasActivities(r)) out.unshift({id:'activities'});
+  return out;
+}
+function _ppColour(e){ var m=att(e,'supported_color_modes'); return Array.isArray(m) && m.some(function(x){ return /^(hs|xy|rgb|rgbw|rgbww)$/.test(x); }); }
+function _ppTemp(e){ var m=att(e,'supported_color_modes'); return Array.isArray(m) && m.indexOf('color_temp')>=0; }
+function _ppLightKind(e){ return !states[e]?'':(_ppColour(e)?'Colour':(_ppTemp(e)?'White Tones':(_ppDim(e)?'Dimmer':'Switch'))); }
+function _ppLightCss(e){
+  if(!_ppOnL(e)) return '';
+  var rgb=att(e,'rgb_color'); if(Array.isArray(rgb) && att(e,'color_mode')!=='color_temp') return 'rgb('+rgb.join(',')+')';
+  var k=parseFloat(att(e,'color_temp_kelvin')); if(isFinite(k)){ var w=Math.max(0,Math.min(1,(k-2000)/4500)); return 'rgb(255,'+Math.round(190+55*w)+','+Math.round(120+135*w)+')'; }
+  return '#FFC46B';
+}
+function _ppCardLight(e, r){
+  var dim=_ppDim(e), col=_ppColour(e)||_ppTemp(e);
+  return '<div class="pp-card pp-glass'+(dim?'':' nosl')+'" data-light="'+_ppE(e)+'"><div class="hd"><div><div class="a">'+_ppE(_ppLabel(e,r))+'</div><div class="b">'+_ppLightKind(e)+'</div></div>'
+    +'<div class="pp-hbtns">'+(col?'<button class="pp-chip" data-cmd="colour" aria-label="Colour"><i></i></button>':'')+'<button class="pp-pw" data-cmd="lt">'+_ppIc('power')+'</button></div></div>'
+    +(dim?_ppSL('bri','Brightness','bulb'):'')+'</div>';
+}
+function _ppCardPlayer(p, r){
+  return '<div class="pp-card pp-glass" data-player="'+_ppE(p)+'"><div class="pp-mini" data-cmd="ropen"><div class="art" data-part>'+_ppIc('music')+'</div><div class="tx"><div class="tt">'+_ppE(r.name)+'</div><div class="ar" data-pline></div></div><button class="pp-rb" data-cmd="rpp"></button></div>'
+    +_ppSL('vol','Volume','spk')+'</div>';
+}
+function _ppCardCover(c, r){
+  return '<div class="pp-card pp-glass nosl" data-cover="'+_ppE(c)+'"><div class="hd"><div><div class="a">'+_ppE(_ppLabel(c,r))+'</div><div class="b" data-cvst></div></div></div>'
+    +'<div class="pp-trio"><button data-cmd="cv-open">'+_ppIc('up')+'Open</button><button data-cmd="cv-stop">'+_ppIc('stop')+'Stop</button><button data-cmd="cv-close">'+_ppIc('down')+'Close</button></div></div>';
+}
+function _ppCardClimate(c, r){
+  return '<div class="pp-card pp-glass nosl" data-climate="'+_ppE(c)+'"><div class="hd"><div><div class="a">'+_ppE(_ppLabel(c,r))+'</div><div class="b" data-clst></div></div></div>'
+    +'<div class="pp-clim"><button class="pp-rb" data-cmd="cl-down">'+_ppIc('minus')+'</button><div class="t"><b data-clset></b><span data-clnow></span></div><button class="pp-rb" data-cmd="cl-up">'+_ppIc('plus')+'</button></div></div>';
+}
+function _ppCardDevice(e, r){
+  var d=e.split('.')[0];
+  if(d==='light') return _ppCardLight(e, r);
+  if(d==='media_player') return _ppCardPlayer(e, r);
+  if(d==='cover') return _ppCardCover(e, r);
+  if(d==='climate') return _ppCardClimate(e, r);
+  var verb=(d==='scene'||d==='script')?'Run':(d==='lock'?'':'');
+  return '<div class="pp-card pp-glass nosl" data-dev="'+_ppE(e)+'"><div class="hd"><div><div class="a">'+_ppE(_ppLabel(e,r))+'</div><div class="b" data-dvst></div></div>'
+    +'<button class="pp-pw" data-cmd="dev">'+_ppIc(d==='lock'?'lock':((d==='scene'||d==='script')?'play':'power'))+'</button></div></div>';
+}
+function _ppCardCamera(i){
+  var c=(CONFIG.cameras||[])[i]; if(!c) return '';
+  return '<button class="pp-card pp-glass pp-camc" data-cam="'+i+'" data-cmd="cam"><div class="img" data-camimg></div><div class="lbl">'+_ppIc('cam')+_ppE(c.name||_ppLabel(c.entity))+'</div></button>';
+}
+function _ppCardScenes(r){
+  var sc=(CONFIG.scenes||[]).slice(0,8); if(!sc.length) return '';
+  return '<div class="pp-card pp-glass nosl"><div class="hd"><div><div class="a">Scenes</div></div></div><div class="pp-scn">'
+    +sc.map(function(s){ return '<button data-cmd="scene" data-ent="'+_ppE(s.entity)+'">'+_ppE(s.name)+'</button>'; }).join('')+'</div></div>';
+}
+function _ppCardWeather(){
+  var w=CONFIG.weather; if(!w||!states[w]) return '';
+  return '<div class="pp-card pp-glass nosl" data-wxcard><div class="hd"><div><div class="a">Weather</div><div class="b" data-wxst></div></div><div class="pp-big" data-wxt></div></div></div>';
+}
+function _ppCardSecurity(){
+  var a=CONFIG.security&&CONFIG.security.alarm; if(!a) return '';
+  return '<div class="pp-card pp-glass nosl" data-alarm="'+_ppE(a)+'"><div class="hd"><div><div class="a">Security</div><div class="b" data-alst></div></div>'+_ppIc('shield').replace('<svg','<svg class="pp-shield"')+'</div></div>';
+}
 function _ppBRoom(){
   var r=_ppRoom(_pp.room); if(!r) return '';
-  var p=_ppPlayer(r), cards='';
-  (r.lights||[]).forEach(function(e){
-    var dim=_ppDim(e);
-    cards+='<div class="pp-card pp-glass'+(dim?'':' nosl')+'" data-light="'+_ppE(e)+'"><div class="hd"><div><div class="a">'+_ppE(_ppLabel(e,r))+'</div><div class="b">'+(dim?'Dimmer':(states[e]?'Switch':''))+'</div></div><button class="pp-pw" data-cmd="lt">'+_ppIc('power')+'</button></div>'
-      +(dim?_ppSL('bri','Brightness','bulb'):'')+'</div>';
+  var ws=_ppRoomWidgets(r), cards='', acts=false, act1=[], done={};
+  ws.forEach(function(w){ if(!w||!w.id) return;
+    switch(w.id){
+      case 'lights': (r.lights||[]).forEach(function(e){ if(!done[e]){ done[e]=1; cards+=_ppCardLight(e, r); } }); break;
+      case 'media': { var p=_ppPlayer(r); if(p && !done[p]){ done[p]=1; cards+=_ppCardPlayer(p, r); } break; }
+      case 'covers': (r.covers||[]).forEach(function(c){ if(!done[c]){ done[c]=1; cards+=_ppCardCover(c, r); } }); break;
+      case 'climate': if(r.climate && !done[r.climate]){ done[r.climate]=1; cards+=_ppCardClimate(r.climate, r); } break;
+      case 'device': if(w.entity && !done[w.entity]){ done[w.entity]=1; cards+=_ppCardDevice(w.entity, r); } break;
+      case 'camera': cards+=_ppCardCamera(Math.min(parseInt(w.cam)||0, (CONFIG.cameras||[]).length-1)); break;
+      case 'scene': cards+=_ppCardScenes(r); break;
+      case 'weather': cards+=_ppCardWeather(); break;
+      case 'security': cards+=_ppCardSecurity(); break;
+      case 'activities': acts=true; break;
+      case 'act1': if(w.key) act1.push(w.key); break;
+      default: break;   // drawn on the panel in step 3 (awareness, sun, people, energy, irrigation, detections, doorbell)
+    }
   });
-  if(p) cards+='<div class="pp-card pp-glass" data-player="'+_ppE(p)+'"><div class="pp-mini" data-cmd="ropen"><div class="art" data-part>'+_ppIc('music')+'</div><div class="tx"><div class="tt">'+_ppE(r.name)+'</div><div class="ar" data-pline></div></div><button class="pp-rb" data-cmd="rpp"></button></div>'
-    +_ppSL('vol','Volume','spk')+'</div>';
+  _pp.roomActs={all:acts, keys:act1};
   return '<div class="pp-bg" style="'+_ppBg(r.photo)+'"></div><div class="pp-shade"></div>'
     +'<button class="pp-back pp-glass" data-go="rooms">'+_ppIc('back')+'Rooms</button>'
     +'<div class="pp-rname low" id="pp-rname"><div class="n">'+_ppE(r.name)+'</div><div class="s" data-rline></div></div>'
     +'<div class="pp-acts" id="pp-acts"></div>'
-    +'<div class="pp-ctl pp-scroll">'+cards+'</div>';
+    +'<div class="pp-ctl pp-scroll">'+(cards||'<div class="pp-card pp-glass nosl"><div class="hd"><div><div class="a">Nothing to control here yet</div></div></div></div>')+'</div>';
+}
+/* the colour of a light — a centred card (12 Oct ruling): swatches for colour, a warm-to-cool slide for white tones */
+var PP_SWATCH=[[0,0,'Warm White',2700],[0,0,'Cool White',5000],[0,100,'Red'],[25,100,'Orange'],[48,100,'Yellow'],[120,90,'Green'],[190,90,'Aqua'],[225,100,'Blue'],[275,85,'Purple'],[320,80,'Pink']];
+function _ppColourCard(e){
+  var pop=document.getElementById('pp-pop'), card=pop.querySelector('.card');
+  var col=_ppColour(e), tmp=_ppTemp(e);
+  var sw=PP_SWATCH.filter(function(s){ return s[3]?tmp||col:col; });
+  card.innerHTML='<div class="hd"><b>'+_ppE(_ppLabel(e, _ppRoom(_pp.room)))+'</b><button class="x" data-x>'+_ppIc('x')+'</button></div>'
+    +'<div class="pp-sw">'+sw.map(function(s,i){ var css=s[3]?(s[3]<4000?'#FFD6A0':'#EAF2FF'):('hsl('+s[0]+','+s[1]+'%,55%)');
+      return '<button data-sw="'+i+'"><i style="background:'+css+'"></i><span>'+s[2]+'</span></button>'; }).join('')+'</div>'
+    +(tmp?'<div class="pp-sl pp-ct" data-sl="ct"><div class="fill"></div><div class="lab">'+_ppIc('sun')+'Warm ↔ Cool</div><div class="lab in">'+_ppIc('sun')+'Warm ↔ Cool</div><div class="val"></div></div>':'');
+  card.querySelector('[data-x]').onclick=_ppClosePop;
+  card.querySelectorAll('[data-sw]').forEach(function(b){ b.onclick=function(){ var s=sw[+b.getAttribute('data-sw')];
+    if(s[3]) svc('light','turn_on',{entity_id:e, color_temp_kelvin:s[3]}); else svc('light','turn_on',{entity_id:e, hs_color:[s[0],s[1]]});
+    card.querySelectorAll('[data-sw]').forEach(function(x){ x.classList.toggle('on', x===b); }); }; });
+  var ct=card.querySelector('[data-sl="ct"]');
+  if(ct){ var lo=parseFloat(att(e,'min_color_temp_kelvin'))||2000, hi=parseFloat(att(e,'max_color_temp_kelvin'))||6500, k=parseFloat(att(e,'color_temp_kelvin'));
+    _ppSetSL(ct, isFinite(k)?(k-lo)/(hi-lo)*100:50, isFinite(k)?(Math.round(k/100)*100+'K'):'');
+    _ppSlider(ct, function(v){ _ppSetSL(ct, v, (Math.round((lo+(hi-lo)*v/100)/100)*100)+'K'); }, function(v){ svc('light','turn_on',{entity_id:e, color_temp_kelvin:Math.round(lo+(hi-lo)*v/100)}); }); }
+  pop.onclick=function(ev){ if(ev.target===pop) _ppClosePop(); };
+  pop.classList.add('on');
+}
+/* a camera, larger — refreshed while it is open */
+function _ppCamOpen(i){
+  var c=(CONFIG.cameras||[])[i]; if(!c) return;
+  var pop=document.getElementById('pp-pop'), card=pop.querySelector('.card'); card.classList.add('wide','cam');
+  card.innerHTML='<div class="hd"><b>'+_ppE(c.name||'Camera')+'</b><button class="x" data-x>'+_ppIc('x')+'</button></div><div class="pp-camlg" data-camimg data-ent="'+_ppE(c.entity)+'"></div>';
+  card.querySelector('[data-x]').onclick=_ppClosePop;
+  pop.onclick=function(ev){ if(ev.target===pop) _ppClosePop(); };
+  pop.classList.add('on'); _ppCamPaint(card, true);
+}
+function _ppCamSrc(e){ var pic=att(e,'entity_picture'); if(!pic) return ''; return artSrc(pic)+(pic.indexOf('?')>=0?'&':'?')+'_t='+Date.now(); }
+function _ppCamPaint(root, big){
+  (root||document).querySelectorAll('[data-camimg]').forEach(function(d){
+    var e=d.getAttribute('data-ent'); if(!e){ var h=d.closest('[data-cam]'); var cc=h?(CONFIG.cameras||[])[+h.getAttribute('data-cam')]:null; e=cc&&cc.entity; }
+    if(!e) return; var src=_ppCamSrc(e); if(!src) return;
+    var im=new Image(); im.onload=function(){ d.style.backgroundImage="url('"+src.replace(/'/g,'%27')+"')"; }; im.src=src; });
 }
 function _ppBLights(){
   var rs=_ppRooms().filter(function(r){ return (r.lights||[]).length; });
@@ -22176,6 +22337,7 @@ function _ppUpdate(scr){
       pc.querySelector('[data-pline]').textContent=(s2==='playing'||s2==='paused')?((att(p,'media_title')||'')+(att(p,'media_artist')?(' · '+att(p,'media_artist')):'')||'Playing'):'Not playing';
       pc.querySelector('[data-cmd="rpp"]').innerHTML=_ppIc(s2==='playing'?'pause':'play');
       var vl=parseFloat(att(_ppVolE(p),'volume_level')); _ppSetSL(pc.querySelector('.pp-sl'), isFinite(vl)?vl*100:0); }
+    _ppRoomPatch(el);
     _ppActsPaint();
   }
   if(scr==='lights'){
@@ -22212,6 +22374,23 @@ function _ppPaintLC(c, on, pct, what){
   c.querySelector('.st').textContent=on?(what+' · on'):'Off';
 }
 
+function _ppRoomPatch(el){
+  el.querySelectorAll('[data-light]').forEach(function(c){ var e=c.getAttribute('data-light'), ch=c.querySelector('.pp-chip i');
+    if(ch){ var css=_ppLightCss(e); ch.style.background=css||'transparent'; ch.parentNode.classList.toggle('lit', !!css); }
+    var b=c.querySelector('.hd .b'); if(b) b.textContent=_ppLightKind(e); });
+  el.querySelectorAll('[data-cover]').forEach(function(c){ var e=c.getAttribute('data-cover'), s=st(e), pos=att(e,'current_position');
+    c.querySelector('[data-cvst]').textContent=(s==='opening'?'Opening':s==='closing'?'Closing':s==='open'?'Open':s==='closed'?'Closed':'')+(isFinite(parseFloat(pos))&&s!=='closed'?(' \u00b7 '+pos+'%'):''); });
+  el.querySelectorAll('[data-climate]').forEach(function(c){ var e=c.getAttribute('data-climate'), set=parseFloat(att(e,'temperature')), now=parseFloat(att(e,'current_temperature')), act=att(e,'hvac_action')||st(e);
+    c.querySelector('[data-clset]').textContent=isFinite(set)?(set+'\u00b0'):'\u2014'; c.querySelector('[data-clnow]').textContent=isFinite(now)?('Now '+now+'\u00b0'):'';
+    c.querySelector('[data-clst]').textContent=String(act||'').replace(/_/g,' ').replace(/^./,function(x){ return x.toUpperCase(); }); });
+  el.querySelectorAll('[data-dev]').forEach(function(c){ var e=c.getAttribute('data-dev'), s=st(e), d=e.split('.')[0];
+    var on=(s==='on'||s==='open'||s==='unlocked'||s==='playing'), w=(d==='lock')?(s==='locked'?'Locked':s==='unlocked'?'Unlocked':s):((d==='scene'||d==='script'||d==='button')?'Tap to run':(s==='on'?'On':s==='off'?'Off':s));
+    c.querySelector('[data-dvst]').textContent=w; c.querySelector('.pp-pw').classList.toggle('on', on && d!=='lock'); });
+  var wx=el.querySelector('[data-wxcard]'); if(wx){ var we=CONFIG.weather; wx.querySelector('[data-wxt]').textContent=_ppWx(); wx.querySelector('[data-wxst]').textContent=(typeof wxLabel==='function')?wxLabel(st(we)):st(we); }
+  el.querySelectorAll('[data-alarm]').forEach(function(c){ var s=st(c.getAttribute('data-alarm'));
+    c.querySelector('[data-alst]').textContent=({disarmed:'Disarmed',armed_home:'Armed \u00b7 Home',armed_away:'Armed \u00b7 Away',armed_night:'Armed \u00b7 Night',arming:'Arming\u2026',pending:'Entry Delay',triggered:'Alarm!'})[s]||s;
+    c.classList.toggle('alert', s==='triggered'); });
+}
 /* ── activities: the room's committed ones, from Core, fired through the one door every activity uses ── */
 function _ppLoadActs(){
   var r=_ppRoom(_pp.room); if(!r) return;
@@ -22222,7 +22401,8 @@ function _ppLoadActs(){
 }
 function _ppActsPaint(){
   var box=document.getElementById('pp-acts'), r=_ppRoom(_pp.room); if(!box||!r) return;
-  var acts=_pp.acts[r.id]||[], cur=st('sensor.proos_activity_'+r.id);
+  var acts=_pp.acts[r.id]||[], cur=st('sensor.proos_activity_'+r.id), ra=_pp.roomActs||{all:true,keys:[]};
+  if(!ra.all) acts=acts.filter(function(a){ return ra.keys.indexOf(a.key)>=0; });   // 961: only what the layout holds
   var sig=acts.map(function(a){ return a.key; }).join('|')+'#'+cur;
   if(box._sig===sig) return; box._sig=sig;
   var nm=document.getElementById('pp-rname'); if(nm) nm.classList.toggle('low', !acts.length);
@@ -22318,6 +22498,21 @@ function _ppCmd(c, b){
     if(c==='pp') togglePlayPause(p); else svc('media_player', c==='prev'?'media_previous_track':'media_next_track', {entity_id:p}); return; }
   if(c==='mpp'||c==='mprev'||c==='mnext'){ var m=_ppMusicE(); if(!m) return;
     if(c==='mpp') togglePlayPause(m); else svc('media_player', c==='mprev'?'media_previous_track':'media_next_track', {entity_id:m}); return; }
+  if(c==='colour'){ return _ppColourCard(b.closest('[data-light]').getAttribute('data-light')); }
+  if(c==='cam'){ return _ppCamOpen(+b.getAttribute('data-cam')); }
+  if(c==='scene'){ svc('scene','turn_on',{entity_id:b.getAttribute('data-ent')}); _ppToast(b.textContent); return; }
+  if(c==='cv-open'||c==='cv-stop'||c==='cv-close'){ var cv=b.closest('[data-cover]').getAttribute('data-cover');
+    svc('cover', c==='cv-open'?'open_cover':(c==='cv-stop'?'stop_cover':'close_cover'), {entity_id:cv}); return; }
+  if(c==='cl-up'||c==='cl-down'){ var ce=b.closest('[data-climate]').getAttribute('data-climate'), cur=parseFloat(att(ce,'temperature')), step=parseFloat(att(ce,'target_temp_step'))||0.5;
+    if(!isFinite(cur)) return; var nv=Math.round((cur+(c==='cl-up'?step:-step))*10)/10;
+    var mn=parseFloat(att(ce,'min_temp')), mx=parseFloat(att(ce,'max_temp')); if(isFinite(mn)) nv=Math.max(mn,nv); if(isFinite(mx)) nv=Math.min(mx,nv);
+    var lb=b.closest('[data-climate]').querySelector('[data-clset]'); if(lb) lb.textContent=nv+'\u00b0';
+    svc('climate','set_temperature',{entity_id:ce, temperature:nv}); return; }
+  if(c==='dev'){ var de=b.closest('[data-dev]').getAttribute('data-dev'), dd=de.split('.')[0];
+    if(dd==='scene'||dd==='script'){ svc(dd,'turn_on',{entity_id:de}); _ppToast('Running '+_ppLabel(de)); return; }
+    if(dd==='lock'){ svc('lock', st(de)==='locked'?'unlock':'lock', {entity_id:de}); return; }
+    if(dd==='button'||dd==='input_button'){ svc(dd,'press',{entity_id:de}); return; }
+    svc('homeassistant','toggle',{entity_id:de}); return; }
   if(c==='ropen'){ var ro=_ppRoom(_pp.room); _pp.music=ro&&ro.id; ppGo('music'); return; }
   if(c==='rpp'){ var rp=b.closest('[data-player]').getAttribute('data-player'); var rs=st(rp);
     if(rs==='playing'||rs==='paused') togglePlayPause(rp); else { var rr=_ppRoom(_pp.room); _pp.music=rr&&rr.id; ppGo('music'); } return; }
@@ -22351,7 +22546,7 @@ function _ppPick(){
   pop.onclick=function(ev){ if(ev.target===pop) _ppClosePop(); };
   pop.classList.add('on');
 }
-function _ppClosePop(){ var p=document.getElementById('pp-pop'); if(p){ p.classList.remove('on'); var c=p.querySelector('.card'); if(c) c.classList.remove('wide'); } }
+function _ppClosePop(){ var p=document.getElementById('pp-pop'); if(p){ p.classList.remove('on'); var c=p.querySelector('.card'); if(c){ c.classList.remove('wide'); c.classList.remove('cam'); } } }
 
 /* ── Assist: the room's own microphone (the wake word), and the suggestions — the app's own Assist underneath ── */
 function ppAssistState(state){
