@@ -2509,6 +2509,33 @@ def _enc(payload):
     return payload
 
 
+class _DualStackServer(ThreadingHTTPServer):
+    """REGISTER 947 — Core answers on IPv6 as well as IPv4. Dave, 18 Oct: http://proos.local/pro "dropped the connection"
+    in Safari while the same page by the box's number (192.168.8.120) opened. A name on the home network is found by
+    multicast DNS, which gives the box's IPv6 address too, and Safari connects over IPv6 first; the Supervisor publishes
+    an add-on's ports on IPv6 and hands those connections to the add-on's own IPv6 address — where Core, bound to IPv4
+    only (0.0.0.0), was not listening, so the connection was taken and dropped. Chrome reached it over IPv4. One socket
+    for both (IPV6_V6ONLY off) — the standard way a server answers by name on any browser."""
+    address_family = socket.AF_INET6
+
+    def server_bind(self):
+        try:
+            self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+        except Exception:  # noqa: BLE001
+            pass
+        super().server_bind()
+
+
+def _proos_server(port, handler):
+    """Core's listener on `port`: IPv6 and IPv4 together; IPv4 alone only where the box has no IPv6 at all."""
+    try:
+        return _DualStackServer(("::", port), handler)
+    except OSError as e:
+        if e.errno in (48, 98):          # the port is taken — the caller says so; never hidden behind a fallback
+            raise
+        return ThreadingHTTPServer(("0.0.0.0", port), handler)
+
+
 def _sv(method, path, payload=None, timeout=120):
     data = json.dumps(payload).encode() if payload is not None else None
     req = urllib.request.Request(SUPERVISOR + path, data=data, method=method)
@@ -10367,12 +10394,12 @@ def main():
     if port != 80:
         def _door80():
             try:
-                ThreadingHTTPServer(("0.0.0.0", 80), Handler).serve_forever()
+                _proos_server(80, Handler).serve_forever()
             except Exception as _e80:  # noqa: BLE001
                 print(f"  door · port 80 not served: {_e80}", flush=True)
         threading.Thread(target=_door80, name="door-80", daemon=True).start()
     try:
-        ThreadingHTTPServer(("0.0.0.0", port), Handler).serve_forever()
+        _proos_server(port, Handler).serve_forever()
     except OSError as e:
         if e.errno in (48, 98):  # macOS / Linux "address already in use"
             sys.exit(f"\nPort {port} is already in use — is Core already running?\n"
