@@ -33,6 +33,40 @@
   }catch(e){}
 })();
 function _isPanel(){ return document.documentElement.classList.contains('proos-panel'); }
+/* THE PANEL SIGNS ITSELF IN (register 941). Dave, 18 Oct: "I have needed to sign in evertime you rebooted so that needs
+   to be sorted". The kiosk signs itself in to the platform on every start with the screen login Core made for it
+   (register 940) — the platform's own sign-in, which leaves its tokens in this origin's storage (hassTokens). A restart
+   empties the dashboard's own saved sign-in, so on a panel with none, the dashboard takes the kiosk's session: it
+   refreshes the platform's token and makes its own long-lived one from it, exactly as its sign-in screen does after a
+   password. Never on a phone, iPad or Mac; never over a sign-in the dashboard already has. */
+(function(){
+  try{
+    if(!_isPanel() || localStorage.getItem('ha_token')) return;
+    // the platform keeps them in local storage when the sign-in is remembered, in the tab's session storage otherwise
+    var raw=localStorage.getItem('hassTokens')||sessionStorage.getItem('hassTokens'); if(!raw) return;
+    var t=JSON.parse(raw)||{}; if(!t.refresh_token) return;
+    var origin=location.origin;
+    document.documentElement.classList.add('proos-adopting');
+    var done=function(){ document.documentElement.classList.remove('proos-adopting'); };
+    fetch(origin+'/auth/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body:new URLSearchParams({grant_type:'refresh_token',refresh_token:t.refresh_token,client_id:t.clientId||(origin+'/')})})
+    .then(function(r){ if(!r.ok) throw new Error('refresh '+r.status); return r.json(); })
+    .then(function(j){
+      return new Promise(function(resolve,reject){
+        var s=new WebSocket((origin.indexOf('https:')===0?'wss:':'ws:')+'//'+location.host+'/api/websocket');
+        var to=setTimeout(function(){ try{s.close();}catch(e){} reject(new Error('timeout')); },12000);
+        s.onmessage=function(ev){ var m; try{ m=JSON.parse(ev.data); }catch(e){ return; }
+          if(m.type==='auth_required') s.send(JSON.stringify({type:'auth',access_token:j.access_token}));
+          else if(m.type==='auth_ok') s.send(JSON.stringify({id:7,type:'auth/long_lived_access_token',client_name:'ProOS Panel '+Date.now(),lifespan:3650}));
+          else if(m.type==='auth_invalid'){ clearTimeout(to); try{s.close();}catch(e){} reject(new Error('auth_invalid')); }
+          else if(m.id===7){ clearTimeout(to); try{s.close();}catch(e){} if(m.success&&m.result) resolve(m.result); else reject(new Error('no token')); } };
+        s.onerror=function(){ clearTimeout(to); reject(new Error('socket')); };
+      });
+    })
+    .then(function(llt){ localStorage.setItem('ha_url',origin); localStorage.setItem('ha_token',llt); location.reload(); })
+    .catch(function(){ done(); });   // nothing taken: the sign-in screen stands, as before
+  }catch(e){ try{ document.documentElement.classList.remove('proos-adopting'); }catch(_){} }
+})();
 /* No tooltips and no long-press menu on a wall: a resting finger made the browser draw a title= as a word under it
    (the "Remove" Dave saw on the widget ×, 22:36), and a long press can open the browser's own menu. On a panel every
    title becomes the element's spoken label instead (meaning kept for screen readers), and the menu is refused. */
@@ -4541,7 +4575,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101716';
+const PROOS_BUILD='2026101717';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -20897,6 +20931,7 @@ html.proos-panel body.proos-thinking #assist-panel::after{opacity:.55;animation:
 /* PANEL BUILD 7 — PROOS'S OWN KEYBOARD, THE FULL WIDTH OF THE GLASS (register 939). Dave, 18 Oct 09:34: "can we make the
    keyboard look better and full width". Large keys in the product's glass; it rises under the tapped box and the page
    makes room above it (body.panel-kbd-open), so the box is never under the keys. */
+html.proos-adopting #setup{visibility:hidden!important}
 #panel-kbd{display:none}
 html.proos-panel #panel-kbd{display:flex;flex-direction:column;gap:7px;position:fixed;left:0;right:0;bottom:0;z-index:9600;
   padding:10px 10px 12px;background:rgba(14,15,20,.97);border-top:1px solid rgba(255,255,255,.10);
