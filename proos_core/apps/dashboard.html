@@ -4615,7 +4615,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101823';
+const PROOS_BUILD='2026101824';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -21166,14 +21166,23 @@ html.pp-on #app{visibility:hidden}
 #pp-music .pp-bgart{position:absolute;inset:-60px;background:#1a1a22 center/cover;filter:blur(50px) saturate(170%) brightness(.6);transform:scale(1.2);animation:ppDrift calc(var(--m-page)*35) ease-in-out infinite alternate}
 @keyframes ppDrift{from{transform:scale(1.2) rotate(0)}to{transform:scale(1.35) rotate(6deg)}}
 #pp-music .pp-shade{background:linear-gradient(to top,rgba(0,0,0,.78),rgba(0,0,0,.15) 50%,rgba(0,0,0,.28))}
-.pp-bigart{position:absolute;left:36px;top:30px;width:270px;height:270px;border-radius:20px;background:#1d1d24 center/cover;box-shadow:0 30px 60px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.06);transition:transform var(--m-page) var(--e-spring);display:grid;place-items:center;color:rgba(255,255,255,.5)}
+.pp-bigart{position:absolute;left:36px;top:72px;width:228px;height:228px;border-radius:18px;background:#1d1d24 center/cover;box-shadow:0 30px 60px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.06);transition:transform var(--m-page) var(--e-spring);display:grid;place-items:center;color:rgba(255,255,255,.5)}
 .pp-bigart svg{width:70px;height:70px}
 #pp-music.paused .pp-bigart{transform:scale(.93)}
-.pp-mr{position:absolute;left:336px;right:36px;top:28px}
+.pp-mr{position:absolute;left:292px;right:36px;top:66px}
+.pp-mchips{position:absolute;left:36px;right:150px;top:16px;height:44px;display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.pp-mchips::-webkit-scrollbar{display:none}
+.pp-mchips button{flex:none;height:42px;padding:0 16px;border-radius:999px;font-size:13.5px;font-weight:600;display:flex;align-items:center;gap:8px;white-space:nowrap}
+.pp-mchips button i{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.25)}
+.pp-mchips button.play i{background:#7CF0C5;box-shadow:0 0 8px #7CF0C5}
+.pp-mchips button.on{background:#fff;color:#000}
+.pp-mgrp{position:absolute;right:36px;top:16px;height:42px;padding:0 16px 0 12px;border-radius:999px;display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600}
+.pp-mgrp svg{width:18px;height:18px}
+.pp-mini[data-cmd="ropen"]{cursor:pointer}
 .pp-pick{display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 14px 0 12px;border-radius:999px;font-size:13px;font-weight:600;max-width:100%}
 .pp-pick svg{width:16px;height:16px;flex:none}
 .pp-pick .g{color:rgba(255,255,255,.66);font-weight:500;white-space:nowrap}
-.pp-mr .src{margin-top:18px}
+.pp-mr .src{margin-top:4px}
 .pp-mr .tt{font-size:30px;font-weight:600;letter-spacing:-.025em;margin-top:6px;line-height:1.12;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .pp-mr .ar{font-size:15px;color:rgba(255,255,255,.66);margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pp-scrub{margin-top:16px}
@@ -21188,9 +21197,9 @@ html.pp-on #app{visibility:hidden}
 .pp-trans .sm{margin-left:auto;display:flex;gap:6px}
 .pp-trans .sm .pp-rb{width:40px;height:40px;background:rgba(255,255,255,.1)}
 .pp-trans .sm .pp-rb svg{width:18px;height:18px}
-.pp-mvol{position:absolute;left:336px;right:36px;top:314px}
+.pp-mvol{position:absolute;left:292px;right:36px;top:310px}
 .pp-mvol .pp-sl{height:50px}
-.pp-svc{position:absolute;left:36px;top:318px;width:270px;display:flex;gap:8px}
+.pp-svc{position:absolute;left:36px;top:312px;width:228px;display:flex;gap:8px}
 .pp-svc button{flex:1;height:44px;border-radius:14px;display:flex;align-items:center;justify-content:center;gap:7px;font-size:12.5px;font-weight:600}
 .pp-svc button svg{width:16px;height:16px}
 /* assist */
@@ -21247,9 +21256,9 @@ html.pp-on #app{visibility:hidden}
 .pp-tabs{display:flex;gap:6px}
 .pp-tabs button{height:38px;padding:0 16px;border-radius:999px;background:rgba(255,255,255,.08);font-size:13px;font-weight:600}
 .pp-tabs button.on{background:#fff;color:#000}
-.pp-favs{position:absolute;left:32px;right:32px;top:124px;bottom:62px;display:grid;grid-template-columns:repeat(4,1fr);gap:16px 14px;align-content:start;padding-bottom:18px}
+.pp-favs{position:absolute;left:32px;right:32px;top:124px;bottom:62px;display:grid;grid-template-columns:repeat(3,1fr);gap:16px 14px;align-content:start;padding-bottom:18px}
 .pp-fav{display:flex;flex-direction:column;gap:8px;min-width:0;text-align:left}
-.pp-fav .art{position:relative;aspect-ratio:1;border-radius:14px;background:#24242c;display:grid;place-items:center;color:rgba(255,255,255,.5);overflow:hidden;box-shadow:0 10px 24px rgba(0,0,0,.35)}
+.pp-fav .art{position:relative;aspect-ratio:1;border-radius:4px;background:#24242c;display:grid;place-items:center;color:rgba(255,255,255,.5);overflow:hidden;box-shadow:0 10px 24px rgba(0,0,0,.35)}
 .pp-fav .art img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:1}
 .pp-fav .art svg{width:30px;height:30px}
 .pp-fav .art .go{position:absolute;right:8px;bottom:8px;z-index:2;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.92);color:#000;display:grid;place-items:center;box-shadow:0 4px 12px rgba(0,0,0,.35)}
@@ -21761,7 +21770,8 @@ var PP_I={
   spk:'<path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/>',
   cloud:'<path d="M7 18h10a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.2 11.1 3.5 3.5 0 0 0 7 18z"/>',
   list:'<path d="M4 6h16M4 12h16M4 18h10"/>', x:'<path d="M6 6l12 12M18 6 6 18"/>', search:'<circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/>',
-  star:'<path d="m12 3.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/>'
+  star:'<path d="m12 3.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/>',
+  grp:'<rect x="2.5" y="6" width="8" height="13" rx="2"/><rect x="13.5" y="6" width="8" height="13" rx="2"/><circle cx="6.5" cy="14.5" r="2"/><circle cx="17.5" cy="14.5" r="2"/><path d="M6.5 9.5h0M17.5 9.5h0"/>'
 };
 function _ppIc(k){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">'+(PP_I[k]||'')+'</svg>'; }
 function _ppE(s){ return (typeof esc==='function')?esc(s):String(s==null?'':s); }
@@ -21970,7 +21980,7 @@ function _ppBRoom(){
     cards+='<div class="pp-card pp-glass'+(dim?'':' nosl')+'" data-light="'+_ppE(e)+'"><div class="hd"><div><div class="a">'+_ppE(_ppLabel(e,r))+'</div><div class="b">'+(dim?'Dimmer':'Switch')+'</div></div><button class="pp-pw" data-cmd="lt">'+_ppIc('power')+'</button></div>'
       +(dim?_ppSL('bri','Brightness','bulb'):'')+'</div>';
   });
-  if(p) cards+='<div class="pp-card pp-glass" data-player="'+_ppE(p)+'"><div class="pp-mini"><div class="art" data-part>'+_ppIc('music')+'</div><div class="tx"><div class="tt">'+_ppE(r.name)+'</div><div class="ar" data-pline></div></div><button class="pp-rb" data-cmd="rpp"></button></div>'
+  if(p) cards+='<div class="pp-card pp-glass" data-player="'+_ppE(p)+'"><div class="pp-mini" data-cmd="ropen"><div class="art" data-part>'+_ppIc('music')+'</div><div class="tx"><div class="tt">'+_ppE(r.name)+'</div><div class="ar" data-pline></div></div><button class="pp-rb" data-cmd="rpp"></button></div>'
     +_ppSL('vol','Volume','spk')+'</div>';
   return '<div class="pp-bg" style="'+_ppBg(r.photo)+'"></div><div class="pp-shade"></div>'
     +'<button class="pp-back pp-glass" data-go="rooms">'+_ppIc('back')+'Rooms</button>'
@@ -21992,8 +22002,10 @@ function _ppBMusic(){
   var r=_ppMusicRoom();
   if(!r) return '<div class="pp-bgart"></div><div class="pp-shade"></div><div class="pp-empty">No speakers have been set up yet.</div>';
   return '<div class="pp-bgart" data-nart></div><div class="pp-shade"></div>'
+    +'<div class="pp-mchips">'+_ppRooms().filter(_ppPlayer).map(function(x){ return '<button class="pp-glass'+(x.id===r.id?' on':'')+'" data-mroom="'+_ppE(x.id)+'"><i></i>'+_ppE(x.name)+'</button>'; }).join('')+'</div>'
+    +'<button class="pp-mgrp pp-glass" data-cmd="pick">'+_ppIc('grp')+'<span data-mgrp>Group</span></button>'
     +'<div class="pp-bigart" data-nart>'+_ppIc('music')+'</div>'
-    +'<div class="pp-mr"><button class="pp-pick pp-glass" data-cmd="pick">'+_ppIc('spk')+'<span data-mroom style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></span><span class="g" data-mgrp></span>'+_ppIc('down')+'</button>'
+    +'<div class="pp-mr">'
       +'<div class="src pp-eyebrow"><span class="pp-eq"><i></i><i></i><i></i><i></i></span><span data-msrc></span></div>'
       +'<div class="tt" data-nt></div><div class="ar" data-na></div>'
       +'<div class="pp-scrub"><div class="tr"><i data-prog></i></div><div class="tm"><span id="pp-tpos"></span><span id="pp-tdur"></span></div></div>'
@@ -22103,7 +22115,7 @@ function _ppUpdate(scr){
         np.querySelector('[data-nroom]').textContent=show.r.name+(_ppSrc(show.p)?(' · '+_ppSrc(show.p)):'');
         np.querySelector('.pp-eq').classList.toggle('still', st(show.p)!=='playing');
         np.querySelector('[data-cmd="pp"]').innerHTML=_ppIc(st(show.p)==='playing'?'pause':'play');
-        np._p=show.p;
+        np._p=show.p; np._room=show.r.id;
       }
     }
     var on=_ppRooms().filter(function(r){ return _ppLit(r).length; }), ls=el.querySelector('[data-lsum]');
@@ -22139,8 +22151,8 @@ function _ppUpdate(scr){
     el.querySelectorAll('[data-nart]').forEach(function(x){ x.style.backgroundImage=art2?"url('"+art2.replace(/'/g,'%27')+"')":''; var s=x.querySelector('svg'); if(s) s.style.display=art2?'none':''; });
     el.querySelector('[data-nt]').textContent=(s3==='playing'||s3==='paused')?(att(p2,'media_title')||'Playing'):'Nothing playing';
     el.querySelector('[data-na]').textContent=(s3==='playing'||s3==='paused')?(att(p2,'media_artist')||att(p2,'media_album_name')||''):'Browse, or ask by voice';
-    el.querySelector('[data-mroom]').textContent=mr2.name;
-    var gm=att(p2,'group_members'); el.querySelector('[data-mgrp]').textContent=(Array.isArray(gm)&&gm.length>1)?('+ '+(gm.length-1)):'+ group';
+    var gm=att(p2,'group_members'); el.querySelector('[data-mgrp]').textContent=(Array.isArray(gm)&&gm.length>1)?('Grouped \u00b7 '+gm.length):'Group';
+    el.querySelectorAll('.pp-mchips [data-mroom]').forEach(function(c){ var rr=_ppRoom(c.getAttribute('data-mroom')); c.classList.toggle('on', rr&&rr.id===mr2.id); c.classList.toggle('play', !!(rr&&_ppPlaying(rr))); });
     el.querySelector('[data-msrc]').textContent=_ppSrc(p2)||(s3==='playing'?'Playing':'');
     el.querySelector('.pp-eq').classList.toggle('still', s3!=='playing');
     el.querySelector('[data-cmd="mpp"]').innerHTML=_ppIc(s3==='playing'?'pause':'play');
@@ -22219,6 +22231,8 @@ function _ppWire(el){
   el.querySelectorAll('.pp-rc[data-room]').forEach(function(b){ b.addEventListener('click', function(){ _pp.room=b.getAttribute('data-room'); ppGo('room'); }); });
   el.querySelectorAll('[data-cmd]').forEach(function(b){ b.addEventListener('click', function(ev){ ev.stopPropagation(); _ppCmd(b.getAttribute('data-cmd'), b); }); });
   el.querySelectorAll('[data-say]').forEach(function(b){ b.addEventListener('click', function(){ _ppAsk(b.getAttribute('data-say')); }); });
+  el.querySelectorAll('.pp-mchips [data-mroom]').forEach(function(b){ b.addEventListener('click', function(){ _pp.music=b.getAttribute('data-mroom'); _ppBuild('music'); }); });
+  var hnp=el.querySelector('.pp-np[data-go="music"]'); if(hnp) hnp.addEventListener('click', function(ev){ if(ev.target.closest('[data-cmd]')) return; if(hnp._room) _pp.music=hnp._room; }, true);
   el.querySelectorAll('[data-act]').forEach(function(){});
   var acts=el.querySelector('#pp-acts'); if(acts) acts.addEventListener('click', function(ev){ var b=ev.target.closest('[data-act]'); if(!b) return;
     var r=_ppRoom(_pp.room); if(!r||!window.proosFireActivity) return;
@@ -22262,6 +22276,7 @@ function _ppCmd(c, b){
     if(c==='pp') togglePlayPause(p); else svc('media_player', c==='prev'?'media_previous_track':'media_next_track', {entity_id:p}); return; }
   if(c==='mpp'||c==='mprev'||c==='mnext'){ var m=_ppMusicE(); if(!m) return;
     if(c==='mpp') togglePlayPause(m); else svc('media_player', c==='mprev'?'media_previous_track':'media_next_track', {entity_id:m}); return; }
+  if(c==='ropen'){ var ro=_ppRoom(_pp.room); _pp.music=ro&&ro.id; ppGo('music'); return; }
   if(c==='rpp'){ var rp=b.closest('[data-player]').getAttribute('data-player'); var rs=st(rp);
     if(rs==='playing'||rs==='paused') togglePlayPause(rp); else { var rr=_ppRoom(_pp.room); _pp.music=rr&&rr.id; ppGo('music'); } return; }
   if(c==='lt'){ var e=b.closest('[data-light]').getAttribute('data-light'), on=!_ppOnL(e); b.classList.toggle('on',on); svc('light', on?'turn_on':'turn_off', {entity_id:e}); return; }
@@ -22282,12 +22297,12 @@ function _ppPick(){
   var pop=document.getElementById('pp-pop'), card=pop.querySelector('.card'), cur=_ppMusicRoom(); if(!cur) return;
   var host=_ppPlayer(cur), gm=att(host,'group_members'); gm=Array.isArray(gm)?gm:[host];
   var canJoin=(att(host,'supported_features')||0)&524288;
-  var rows=_ppRooms().filter(_ppPlayer).map(function(r){ var p=_ppPlayer(r), s=st(p), isCur=r.id===cur.id, inG=gm.indexOf(p)>=0&&!isCur;
-    return '<div class="pp-prow'+(isCur?' cur':'')+'"><button class="nm" data-pick="'+_ppE(r.id)+'" style="text-align:left">'+_ppE(r.name)+'</button><span class="st">'+(s==='playing'?'Playing':s==='paused'?'Paused':'')+'</span>'
-      +((canJoin&&!isCur)?'<button class="grp'+(inG?' on':'')+'" data-grp="'+_ppE(p)+'">'+(inG?'Joined':'Join')+'</button>':'')+'</div>'; }).join('');
-  card.innerHTML='<div class="hd"><b>Play In</b><button class="x" data-x>'+_ppIc('x')+'</button></div><div class="list">'+rows+'</div>';
+  var rows=_ppRooms().filter(function(r){ return _ppPlayer(r) && r.id!==cur.id; }).map(function(r){ var p=_ppPlayer(r), s=st(p), inG=gm.indexOf(p)>=0;
+    return '<div class="pp-prow"><span class="nm">'+_ppE(r.name)+'</span><span class="st">'+(s==='playing'?'Playing':s==='paused'?'Paused':'')+'</span>'
+      +(canJoin?'<button class="grp'+(inG?' on':'')+'" data-grp="'+_ppE(p)+'">'+(inG?'Joined':'Join')+'</button>':'')+'</div>'; }).join('');
+  card.innerHTML='<div class="hd"><b>Play '+_ppE(cur.name)+' In More Rooms</b><button class="x" data-x>'+_ppIc('x')+'</button></div>'
+    +'<div class="list">'+(canJoin?rows:'<div class="pp-favnone">This speaker can\u2019t be grouped with others.</div>')+'</div>';
   card.querySelector('[data-x]').onclick=_ppClosePop;
-  card.querySelectorAll('[data-pick]').forEach(function(b){ b.onclick=function(){ _pp.music=b.getAttribute('data-pick'); _ppClosePop(); _ppBuild('music'); }; });
   card.querySelectorAll('[data-grp]').forEach(function(b){ b.onclick=function(){ var e=b.getAttribute('data-grp'), on=b.classList.contains('on');
     if(on) svc('media_player','unjoin',{entity_id:e}); else svc('media_player','join',{entity_id:host, group_members:[e]});
     b.classList.toggle('on',!on); b.textContent=on?'Join':'Joined'; }; });
