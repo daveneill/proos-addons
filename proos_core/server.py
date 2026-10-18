@@ -3720,6 +3720,9 @@ def factory_reset(clear_proos_data=False, keep_auth=False):
                    # the wall panel's set-up record and the screen login it made (register 940) — the reset deletes the
                    # platform's users, so the login it names is gone; the panel's next pass makes a new one
                    "panel_setup.json", "panel_login.json",
+                   # the key to the kiosk screen app's internal door (register 963) — the next pass makes a new one and
+                   # gives it to the kiosk
+                   "kiosk_rest.json",
                    # the installer-pasted Apple Music token (register 759) — like the AI key, placed
                    # per box by the installer; a reset home is set up afresh
                    "apple_music_token.json",
@@ -6458,6 +6461,22 @@ class Handler(BaseHTTPRequestHandler):
                 if (_q.get("summary") or [""])[0]:
                     return self._send(200, _layouts.summary())
                 return self._send(200, _layouts.resolve((_q.get("kind") or [""])[0], (_q.get("screen") or [""])[0]))
+            if parts == ["panels", "shot"]:
+                # REGISTER 963: a NEW picture of one wall panel's screen, taken now (Pro asks each time its page opens).
+                # Installer only. Answers the JPEG, or JSON {why} saying why there is no picture - never an old one.
+                _u = getattr(self, "_user", None)
+                if not (_u and _u.get("is_admin")):
+                    return self._send(403, {"error": "installer access required"})
+                _q = parse_qs(urlparse(self.path).query)
+                try:
+                    from proos import panelshot as _pshot
+                    _rec = _layouts.screen((_q.get("screen") or [""])[0]) if _layouts else {}
+                    _r = _pshot.take(_rec)
+                except Exception as e:  # noqa: BLE001
+                    _r = {"why": "picture failed: %s" % str(e)[:160]}
+                if _r.get("jpeg"):
+                    return self._send_bytes(200, "image/jpeg", _r["jpeg"])
+                return self._send(200, {"why": _r.get("why") or "no picture"})
             if parts == ["room_order"]:
                 # Dashboard room order for THIS screen: its device override if any,
                 # else the home default, else nothing (natural order). Homeowner
@@ -9333,7 +9352,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(503, {"error": "layouts unavailable"})
                 b = self._body() or {}
                 if b.get("register"):
-                    return self._send(200, _layouts.register(b.get("kind"), b.get("screen"), b.get("name") or ""))
+                    return self._send(200, _layouts.register(b.get("kind"), b.get("screen"), b.get("name") or "",
+                                                             b.get("shot") or ""))
                 if b.get("rename"):
                     return self._send(200, _layouts.rename(b.get("screen"), b.get("name") or ""))
                 if isinstance(b.get("adopt"), dict):

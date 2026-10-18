@@ -74,6 +74,11 @@ def _pages(v) -> dict:
     return out
 
 
+def screen(sid: str) -> dict:
+    """One screen's record as the box holds it, or {}."""
+    return load()["screens"].get(str(sid or "")[:120]) or {}
+
+
 def load() -> dict:
     try:
         with open(STORE, encoding="utf-8") as fh:
@@ -87,7 +92,8 @@ def load() -> dict:
     for sid, s in (d.get("screens") or {}).items() if isinstance(d.get("screens"), dict) else []:
         if isinstance(s, dict) and str(sid):
             out["screens"][str(sid)[:120]] = {"kind": _kind(s.get("kind")), "name": str(s.get("name") or "")[:60],
-                                               "pages": _pages(s.get("pages"))}
+                                               "pages": _pages(s.get("pages")),
+                                               "shot": s.get("shot") if s.get("shot") in SHOTS else ""}
     return out
 
 
@@ -194,7 +200,13 @@ def adopt(kind: str, screen: str, pages, name: str = "") -> dict:
         return {"error": str(exc)}
 
 
-def register(kind: str, screen: str, name: str = "") -> dict:
+# register 963: how Core can take a real picture of a screen, said by the screen itself. "kiosk" = the box's own kiosk
+# screen app (the G-Flip), reached on the box's internal network; ProOS's own PoE screens will add theirs. A screen that
+# says none has no picture, and Pro says so.
+SHOTS = ("kiosk",)
+
+
+def register(kind: str, screen: str, name: str = "", shot: str = "") -> dict:
     """A screen says what it is (a wall panel names itself once), so the app and Pro can list it to edit. Its pages are
     untouched; its kind is what it says; a name given by a person is never replaced by a screen's own default."""
     try:
@@ -206,6 +218,7 @@ def register(kind: str, screen: str, name: str = "") -> dict:
         s["kind"] = kind
         if name and not s.get("name"):
             s["name"] = str(name)[:60]
+        s["shot"] = shot if shot in SHOTS else ""
         _write(doc)
         return resolve(kind, screen)
     except Exception as exc:  # noqa: BLE001
@@ -231,5 +244,5 @@ def summary() -> dict:
     """For Pro and for the reading on the box: how many pages each level holds."""
     doc = load()
     return {"default": {k: sorted(v.keys()) for k, v in doc["default"].items()},
-            "screens": {sid: {"kind": s["kind"], "name": s["name"], "pages": sorted(s["pages"].keys())}
+            "screens": {sid: {"kind": s["kind"], "name": s["name"], "pages": sorted(s["pages"].keys()), "shot": s.get("shot", "")}
                         for sid, s in doc["screens"].items()}}

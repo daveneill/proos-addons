@@ -4615,7 +4615,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101829';
+const PROOS_BUILD='2026101901';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -22065,7 +22065,8 @@ function _ppSL(kind, label, icon){
 function _ppLayoutLoad(){
   try{
     if(!_pp.registered){ _pp.registered=true;   // 962: a wall panel says what it is, so the app and Pro can list it to edit
-      fetch(proosCoreBase()+'/layouts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({register:true, kind:'wall', screen:proosDeviceId(), name:'Wall Panel'})}).catch(function(){}); }
+      fetch(proosCoreBase()+'/layouts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({register:true, kind:'wall', screen:proosDeviceId(), name:'Wall Panel',
+        shot:(location.hostname==='127.0.0.1'?'kiosk':'')})}).catch(function(){}); }   // 963: the box's own kiosk can send a picture of itself
     fetch(proosCoreBase()+'/layouts?kind=wall&screen='+encodeURIComponent(proosDeviceId()))
       .then(function(r){ return r.ok?r.json():null; }).then(function(j){ if(!j||!j.pages) return;
         var sig=JSON.stringify(j.pages); if(sig===_pp.laySig) return; _pp.laySig=sig; _pp.layout=j.pages;

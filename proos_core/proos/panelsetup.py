@@ -239,14 +239,66 @@ KIOSK_GESTURES = [
 ]
 
 
+# A REAL PICTURE OF THE SCREEN (register 963). Dave, 19 Oct 10:16–10:31: Pro shows "a real picture of the screen that just
+# updates when you navigate to the page", and chose (option 1) the kiosk's own command door opened on the box's INTERNAL
+# network only, locked with a key Core makes and never shows. The kiosk's REST server listens on 127.0.0.1 by default —
+# inside the kiosk alone; Core is in its own compartment. The kiosk runs on the host's network, so it can listen on the
+# box's internal address (the gateway Core's own compartment routes through — READ from Core's routing table, never
+# assumed); that address is not on the home's network. Every request then needs the key (the kiosk's rest_bearer_token).
+ROUTE_PATH = "/proc/net/route"
+KIOSK_REST_PATH = os.path.join(DATA_DIR, "kiosk_rest.json")
+KIOSK_REST_PORT = 8080
+
+
+def internal_ip(route_path: str | None = None) -> str:
+    """The box's internal address as Core's compartment sees it: its default gateway, read from the routing table.
+    "" when it cannot be read — then nothing about the kiosk's door is changed."""
+    try:
+        with open(route_path or ROUTE_PATH, encoding="utf-8") as fh:
+            for line in fh.readlines()[1:]:
+                f = line.split()
+                if len(f) > 3 and f[1] == "00000000" and int(f[3], 16) & 2:
+                    g = int(f[2], 16)
+                    ip = ".".join(str((g >> (8 * i)) & 0xFF) for i in range(4))
+                    return ip if ip != "0.0.0.0" else ""
+    except Exception:  # noqa: BLE001
+        pass
+    return ""
+
+
+def kiosk_rest() -> dict:
+    """The kiosk door Core uses: {ip, port, token}. The key is made once, kept only in Core's own store (never logged,
+    never shown, never returned by any route). {} when the internal address cannot be read."""
+    ip = internal_ip()
+    if not ip:
+        return {}
+    try:
+        with open(KIOSK_REST_PATH, encoding="utf-8") as fh:
+            kept = json.load(fh) or {}
+    except Exception:  # noqa: BLE001
+        kept = {}
+    if not kept.get("token"):
+        kept = {"token": secrets.token_urlsafe(32)}
+        tmp = KIOSK_REST_PATH + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(kept, fh)
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, KIOSK_REST_PATH)
+    return {"ip": ip, "port": KIOSK_REST_PORT, "token": kept["token"]}
+
+
 def kiosk_options(sat_entity: str | None, port: int = 80) -> dict:
     login = _read_login()
     dash = "local/dashboard.html?panel=1" + (("&sat=" + sat_entity) if sat_entity else "")
     url = "http://127.0.0.1" + ("" if int(port or 80) == 80 else ":%d" % int(port))
-    return {"ha_url": url, "ha_dashboard": dash, "zoom_level": KIOSK_ZOOM,
-            "onscreen_keyboard": False, "ha_sidebar": "none", "dark_mode": True, "screen_timeout": 0,
-            "ha_username": login.get("username") or PANEL_USERNAME, "ha_password": login.get("password") or "",
-            "gestures": list(KIOSK_GESTURES)}
+    out = {"ha_url": url, "ha_dashboard": dash, "zoom_level": KIOSK_ZOOM,
+           "onscreen_keyboard": False, "ha_sidebar": "none", "dark_mode": True, "screen_timeout": 0,
+           "ha_username": login.get("username") or PANEL_USERNAME, "ha_password": login.get("password") or "",
+           "gestures": list(KIOSK_GESTURES)}
+    door = kiosk_rest()
+    if door:
+        out.update({"rest_ip": door["ip"], "rest_port": door["port"], "rest_bearer_token": door["token"]})
+    return out
 
 
 def satellite_entity(ws):
