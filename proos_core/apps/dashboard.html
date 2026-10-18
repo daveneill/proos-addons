@@ -4615,7 +4615,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101820';
+const PROOS_BUILD='2026101821';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -21001,15 +21001,15 @@ html.proos-panel body.panel-kbd-open .page.active .proos-scroller,html.proos-pan
    even if you need to redesign as its a small screen"; 22:01 "Needs to blow me away"; 22:12, on the redesign
    (docs/mockups/ProOS_Panel_Premium_Mockups_2026-10-18.html): "That's better !! go on that just the Gflip for now".
    On a panel only (html.proos-panel), once signed in. Every phone, iPad and Mac keeps today's dashboard untouched. */
-#pp{position:fixed;inset:0;z-index:70;background:#000;color:#fff;overflow:hidden;display:none;font-family:'Inter',-apple-system,'Helvetica Neue',sans-serif;-webkit-user-select:none;user-select:none}
+#pp{position:fixed;inset:0;z-index:9000;background:#000;color:#fff;overflow:hidden;display:none;font-family:'Inter',-apple-system,'Helvetica Neue',sans-serif;-webkit-user-select:none;user-select:none}
 html.pp-on #pp{display:block}
-html.pp-on.pp-away #pp{display:none}
+html.pp-on #app{visibility:hidden}
 #pp *{box-sizing:border-box}
 :where(#pp) button{font:inherit;color:inherit;background:none;border:0;padding:0;margin:0;cursor:pointer;-webkit-tap-highlight-color:transparent;text-align:inherit}
-#pp-stage{position:absolute;left:0;top:0;height:450px;transform-origin:0 0}
+#pp-stage{position:absolute;left:0;top:0;height:452px;transform-origin:0 0;background:#000;overflow:hidden}
 .pp-scr{position:absolute;inset:0;opacity:0;pointer-events:none;transition:opacity var(--m-page) var(--e-standard)}
 .pp-scr.on{opacity:1;pointer-events:auto}
-.pp-bg{position:absolute;inset:-2px;background-size:cover;background-position:center;background-color:#0b0b10}
+.pp-bg{position:absolute;inset:-6px;background-size:cover;background-position:center;background-color:#0b0b10}
 .pp-shade{position:absolute;inset:0}
 .pp-glass{background:rgba(22,22,28,.42);-webkit-backdrop-filter:blur(26px) saturate(150%);backdrop-filter:blur(26px) saturate(150%);border-radius:20px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.10),0 10px 30px rgba(0,0,0,.25)}
 .pp-eyebrow{font-size:10.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.66)}
@@ -21097,7 +21097,7 @@ html.pp-on.pp-away #pp{display:none}
 .pp-rc.lit .chips .l,.pp-rc.play .chips .m{display:grid}
 .pp-rc.idle .ph{filter:grayscale(.85) brightness(.5)}
 /* rooms */
-#pp-rooms .pp-bg,#pp-lights .pp-bg,#pp-assist .pp-bg{filter:blur(28px) brightness(.32);transform:scale(1.2)}
+#pp-rooms .pp-bg,#pp-lights .pp-bg,#pp-assist .pp-bg,#pp-settings .pp-bg{inset:-80px;filter:blur(28px) brightness(.32)}
 .pp-grid{position:absolute;left:32px;right:32px;top:78px;bottom:62px;display:grid;grid-template-columns:repeat(4,1fr);gap:12px;align-content:start;padding-bottom:16px}
 .pp-grid .pp-rc{width:auto;height:136px}
 /* a room */
@@ -21227,11 +21227,29 @@ html.pp-on.pp-away #pp{display:none}
 .pp-prow .grp.on{background:#fff;color:#000}
 .pp-prow.cur .nm::after{content:" · Now";color:#7CF0C5;font-weight:500}
 /* the way back from a page the panel borrows (Settings, Browse Music) */
-#pp-ret{position:fixed;left:16px;top:14px;z-index:90;height:40px;padding:0 16px 0 10px;border-radius:999px;display:none;align-items:center;gap:4px;font:500 13px 'Inter',-apple-system,sans-serif;color:#fff;background:rgba(22,22,28,.6);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);box-shadow:inset 0 0 0 1px rgba(255,255,255,.14);border:0}
-#pp-ret svg{width:20px;height:20px}
-html.pp-on.pp-away #pp-ret{display:flex}
 #pp-toast{position:absolute;left:50%;bottom:80px;transform:translateX(-50%) translateY(10px);padding:10px 18px;border-radius:999px;font-size:13px;font-weight:500;opacity:0;transition:all var(--m-move) var(--e-standard);z-index:45;pointer-events:none;white-space:nowrap}
 #pp-toast.on{opacity:1;transform:translateX(-50%)}
+.pp-set{position:absolute;left:32px;right:32px;top:78px;bottom:62px;display:grid;grid-template-columns:1fr 1fr;gap:12px;align-content:start;padding-bottom:16px}
+.pp-sh{font-size:15px;font-weight:600}
+.pp-sd{font-size:12px;color:rgba(255,255,255,.66);margin-top:3px;line-height:1.4}
+.pp-seg{display:flex;gap:6px;margin-top:14px;flex-wrap:wrap}
+.pp-seg button{flex:1 0 auto;height:44px;padding:0 12px;border-radius:12px;background:rgba(255,255,255,.08);font-size:12.5px;font-weight:600;text-align:center}
+.pp-seg button.on{background:#fff;color:#000}
+.pp-kv{display:flex;justify-content:space-between;align-items:center;height:36px;font-size:13px;border-bottom:1px solid rgba(255,255,255,.06)}
+.pp-kv span{color:rgba(255,255,255,.66)}
+.pp-kv b{font-weight:600}
+.pp-wide{width:100%;height:46px;margin-top:12px;border-radius:14px;background:rgba(255,255,255,.1);font-size:13px;font-weight:600;text-align:center}
+.pp-pop .card.wide{width:600px;max-height:400px}
+.pp-favnone{padding:30px 0;text-align:center;font-size:14px;color:rgba(255,255,255,.66)}
+.pp-tabs{display:flex;gap:6px;margin-bottom:10px}
+.pp-tabs button{height:36px;padding:0 14px;border-radius:999px;background:rgba(255,255,255,.08);font-size:12.5px;font-weight:600}
+.pp-tabs button.on{background:#fff;color:#000}
+.pp-favs{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+.pp-fav{display:flex;flex-direction:column;gap:6px;min-width:0}
+.pp-fav .art{position:relative;aspect-ratio:1;border-radius:12px;background:#24242c;display:grid;place-items:center;color:rgba(255,255,255,.5);overflow:hidden}
+.pp-fav .art img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:1}
+.pp-fav .art svg{width:24px;height:24px}
+.pp-fav .t{font-size:11.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 </style>
 
 <script>
@@ -21789,18 +21807,19 @@ function ppStart(){
       +'<section class="pp-scr" id="pp-rest"></section><section class="pp-scr" id="pp-home"></section>'
       +'<section class="pp-scr" id="pp-rooms"></section><section class="pp-scr" id="pp-room"></section>'
       +'<section class="pp-scr" id="pp-lights"></section><section class="pp-scr" id="pp-music"></section>'
-      +'<section class="pp-scr" id="pp-assist"></section>'
+      +'<section class="pp-scr" id="pp-assist"></section><section class="pp-scr" id="pp-settings"></section>'
       +'<nav id="pp-bar">'+[['home','home','Home'],['rooms','grid','Rooms'],['lights','bulb','Lights'],['music','music','Music'],['assist','mic','Assist'],['settings','gear','Settings']]
         .map(function(t){ return '<button data-tab="'+t[0]+'">'+_ppIc(t[1])+'<span>'+t[2]+'</span></button>'; }).join('')+'</nav>'
       +'<div class="pp-pop" id="pp-pop"><div class="card pp-glass"></div></div><div id="pp-toast" class="pp-glass"></div></div>';
     document.body.appendChild(d);
-    var ret=document.createElement('button'); ret.id='pp-ret'; ret.type='button'; ret.innerHTML=_ppIc('back')+'<span>Back</span>';
-    ret.addEventListener('click', ppReturn); document.body.appendChild(ret);
     d.querySelector('#pp-bar').addEventListener('click', function(ev){
       var b=ev.target.closest('[data-tab]'); if(!b) return; var t=b.getAttribute('data-tab');
-      if(t==='settings') return ppAway('settings'); ppGo(t); });
-    d.addEventListener('pointerdown', _ppPoke, true);
-    document.addEventListener('pointerdown', function(){ if(document.documentElement.classList.contains('pp-away')) _ppPoke(); }, true);
+      ppGo(t); });
+    // resting: the first touch only wakes the panel — it never also presses what is under the finger
+    d.addEventListener('pointerdown', function(ev){
+      if(_pp.scr==='rest'){ ev.preventDefault(); ev.stopPropagation(); _pp.woke=Date.now(); ppGo(_pp.prev||'home'); }
+      _ppPoke(); }, true);
+    d.addEventListener('click', function(ev){ if(_pp.woke && Date.now()-_pp.woke<700){ ev.preventDefault(); ev.stopPropagation(); } }, true);
     window.addEventListener('resize', _ppFit); _ppFit();
     setInterval(_ppTick, 1000);
     try{ var h=document.getElementById('assist-history'); if(h) new MutationObserver(_ppAssistSeen).observe(h,{childList:true,subtree:true,characterData:true}); }catch(e){}
@@ -21811,13 +21830,12 @@ function ppStart(){
 }
 function _ppFit(){ var s=document.getElementById('pp-stage'); if(!s) return; var k=(window.innerHeight||450)/450;
   s.style.width=((window.innerWidth||800)/k)+'px'; s.style.transform='scale('+k+')'; }
-function _ppBar(){ var map={rest:'',home:'home',rooms:'rooms',room:'rooms',lights:'lights',music:'music',assist:'assist'};
+function _ppBar(){ var map={rest:'',home:'home',rooms:'rooms',room:'rooms',lights:'lights',music:'music',assist:'assist',settings:'settings'};
   document.querySelectorAll('#pp-bar [data-tab]').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-tab')===map[_pp.scr]); }); }
 function ppGo(scr, force){
   if(!_ppOn) return;
   if(scr!=='rest' && scr!=='assist') _pp.prev=scr;
   var was=_pp.scr; _pp.scr=scr;
-  document.documentElement.classList.remove('pp-away');
   var root=document.getElementById('pp'); root.classList.toggle('pp-resting', scr==='rest');
   _ppClosePop();
   var el=document.getElementById('pp-'+scr); if(!el) return;
@@ -21826,22 +21844,14 @@ function ppGo(scr, force){
   _ppBar();
 }
 /* Settings and the full music browser are today's pages, borrowed — with one way back */
-function ppAway(page, arg){
-  document.documentElement.classList.add('pp-away');
-  try{ if(page==='settings') showPage('settings'); else if(page==='browse' && arg) openMusicForPlayer(arg); else showPage(page); }catch(e){}
-  var r=document.getElementById('pp-ret'); if(r) r.lastChild.textContent=page==='browse'?'Music':'Home';
-  _pp.awayFrom=page==='browse'?'music':'home';
-}
-function ppReturn(){ try{ showPage('home'); }catch(e){} ppGo(_pp.awayFrom||'home'); }
 function _ppPoke(){
-  if(_pp.scr==='rest' && !document.documentElement.classList.contains('pp-away')){ /* a tap only wakes */ }
   clearTimeout(_pp.idleT);
+  var secs=_ppRestSecs(); if(!secs) return;
   _pp.idleT=setTimeout(function(){
     if(!_ppOn || _pp.drag) return _ppPoke();
     if(document.body.classList.contains('proos-listening')||document.body.classList.contains('proos-thinking')) return _ppPoke();
-    if(document.documentElement.classList.contains('pp-away')){ try{ showPage('home'); }catch(e){} }
     ppGo('rest');
-  }, 60000);
+  }, secs*1000);
 }
 
 /* ── state arrives → the screen on the glass is patched in place (never rebuilt under a finger) ── */
@@ -21892,11 +21902,12 @@ function _ppNow(){
 
 function _ppBuild(scr){
   var el=document.getElementById('pp-'+scr); if(!el) return;
-  var f={rest:_ppBRest, home:_ppBHome, rooms:_ppBRooms, room:_ppBRoom, lights:_ppBLights, music:_ppBMusic, assist:_ppBAssist}[scr];
+  var f={rest:_ppBRest, home:_ppBHome, rooms:_ppBRooms, room:_ppBRoom, lights:_ppBLights, music:_ppBMusic, assist:_ppBAssist, settings:_ppBSettings}[scr];
   if(f){ el.innerHTML=f(); }
   if(scr==='home') _ppSite();
   if(scr==='room') _ppLoadActs();
   if(scr==='assist') _ppAssistIdle();
+  if(scr==='settings') _ppAbout();
   _ppWire(el); _ppUpdate(scr); _ppTick();
 }
 
@@ -21972,9 +21983,9 @@ function _ppBMusic(){
       +'<div class="tt" data-nt></div><div class="ar" data-na></div>'
       +'<div class="pp-scrub"><div class="tr"><i data-prog></i></div><div class="tm"><span id="pp-tpos"></span><span id="pp-tdur"></span></div></div>'
       +'<div class="pp-trans"><button class="pp-rb" data-cmd="mprev">'+_ppIc('prev')+'</button><button class="pp-rb big" data-cmd="mpp"></button><button class="pp-rb" data-cmd="mnext">'+_ppIc('next')+'</button>'
-        +'<div class="sm"><button class="pp-rb" data-cmd="browse">'+_ppIc('list')+'</button><button class="pp-rb" data-go="assist">'+_ppIc('mic')+'</button></div></div></div>'
+        +'<div class="sm"><button class="pp-rb" data-cmd="favs">'+_ppIc('star')+'</button><button class="pp-rb" data-go="assist">'+_ppIc('mic')+'</button></div></div></div>'
     +'<div class="pp-mvol">'+_ppSL('mvol',r.name,'spk')+'</div>'
-    +'<div class="pp-svc"><button class="pp-glass" data-cmd="browse">'+_ppIc('search')+'Browse</button><button class="pp-glass" data-cmd="browse">'+_ppIc('star')+'Favourites</button></div>';
+    +'<div class="pp-svc"><button class="pp-glass" data-cmd="favs">'+_ppIc('star')+'Favourites</button><button class="pp-glass" data-go="assist">'+_ppIc('mic')+'Ask by Voice</button></div>';
 }
 function _ppSuggest(){
   var out=[], lit=_ppRooms().find(function(r){ return _ppLit(r).length; }), mr=_ppMusicRoom();
@@ -21988,6 +21999,57 @@ function _ppBAssist(){
     +'<div class="pp-orbw idle" id="pp-orb"><div class="pp-ring"></div><div class="pp-ring"></div><div class="pp-ring"></div><button class="pp-orb" data-cmd="orb">'+_ppIc('mic')+'</button></div>'
     +'<div class="pp-astate"><div class="a" id="pp-aa"></div><div class="b" id="pp-ab"></div></div>'
     +'<div class="pp-sugg">'+_ppSuggest().map(function(s){ return '<button class="pp-glass" data-say="'+_ppE(s)+'">'+_ppE(s)+'</button>'; }).join('')+'</div>';
+}
+
+/* ── Settings: the panel's own, never the app's pages (register 953) ── */
+function _ppRestSecs(){ var v=60; try{ var s=localStorage.getItem('proos_pp_rest'); if(s!=null && s!=='') v=parseInt(s,10); }catch(e){} return isFinite(v)?v:60; }
+function _ppBSettings(){
+  var cur=_ppRestSecs(), opts=[[30,'30 Sec'],[60,'1 Min'],[120,'2 Min'],[300,'5 Min'],[0,'Never']];
+  return '<div class="pp-bg" style="'+_ppBg(_ppHomePhoto())+'"></div>'
+    +'<div class="pp-head"><div class="n">Settings</div></div>'
+    +'<div class="pp-set pp-scroll">'
+      +'<div class="pp-card pp-glass"><div class="pp-sh">Resting Screen</div><div class="pp-sd">The photo and clock, after the panel is left untouched</div>'
+        +'<div class="pp-seg">'+opts.map(function(o){ return '<button data-cmd="rest" data-v="'+o[0]+'"'+(o[0]===cur?' class="on"':'')+'>'+o[1]+'</button>'; }).join('')+'</div></div>'
+      +'<div class="pp-card pp-glass"><div class="pp-sh">This Panel</div>'
+        +'<div class="pp-kv"><span>Home</span><b id="pp-ab-home">—</b></div><div class="pp-kv"><span>ProOS</span><b id="pp-ab-ver">—</b></div><div class="pp-kv"><span>Screen</span><b>'+_ppE(typeof PROOS_BUILD!=='undefined'?PROOS_BUILD:'')+'</b></div>'
+        +'<button class="pp-wide" data-cmd="reload">Restart Screen</button></div>'
+    +'</div>';
+}
+function _ppAbout(){
+  try{ fetch(proosCoreBase()+'/health').then(function(r){ return r.ok?r.json():null; }).then(function(j){ if(!j) return;
+    var h=document.getElementById('pp-ab-home'), v=document.getElementById('pp-ab-ver');
+    var id=String(j.home_id||'').replace(/[_-]+/g,' ').trim();
+    if(h && id) h.textContent=id.replace(/\b\w/g,function(c){ return c.toUpperCase(); }); if(v && j.version) v.textContent=j.version; }).catch(function(){}); }catch(e){}
+}
+/* ── Favourites: the speaker's own, in a centred card, played through the app's one door (musicPlay) ── */
+function _ppFavs(){
+  var p=_ppMusicE(), r=_ppMusicRoom(); if(!p) return;
+  var pop=document.getElementById('pp-pop'), card=pop.querySelector('.card');
+  card.classList.add('wide');
+  card.innerHTML='<div class="hd"><b>Favourites · '+_ppE(r?r.name:'')+'</b><button class="x" data-x>'+_ppIc('x')+'</button></div><div class="list"><div class="pp-favnone">Loading…</div></div>';
+  card.querySelector('[data-x]').onclick=_ppClosePop;
+  pop.onclick=function(ev){ if(ev.target===pop) _ppClosePop(); };
+  pop.classList.add('on');
+  var load=(typeof _browseFavourites==='function')?_browseFavourites(p):Promise.resolve([]);
+  load.then(function(items){
+    if(!pop.classList.contains('on')) return;
+    items=(items||[]).filter(function(x){ return x && x.media_content_id; });
+    var list=card.querySelector('.list');
+    if(!items.length){ list.innerHTML='<div class="pp-favnone">No favourites are saved on this speaker yet.</div>'; return; }
+    var tabs=[]; items.forEach(function(x){ var k=x._tab||'Favourites'; if(tabs.indexOf(k)<0) tabs.push(k); });
+    var draw=function(tab){
+      var view=items.filter(function(x){ return (x._tab||'Favourites')===tab; });
+      list.innerHTML=(tabs.length>1?'<div class="pp-tabs">'+tabs.map(function(k){ return '<button data-tab="'+_ppE(k)+'"'+(k===tab?' class="on"':'')+'>'+_ppE(k)+'</button>'; }).join('')+'</div>':'')
+        +'<div class="pp-favs">'+view.map(function(x){ var i=items.indexOf(x), th=x.thumbnail?artSrc(x.thumbnail):'';
+          return '<button class="pp-fav" data-i="'+i+'"><div class="art">'+(th?'<img '+((typeof _artAttr==='function')?_artAttr(th):('src="'+_ppE(th)+'"'))+' onerror="this.remove()">':'')+_ppIc('music')+'</div><div class="t">'+_ppE(x.title||'')+'</div></button>'; }).join('')+'</div>';
+      try{ if(typeof _scanAuthImgs==='function') _scanAuthImgs(list); }catch(e){}
+      list.querySelectorAll('[data-tab]').forEach(function(b){ b.onclick=function(){ draw(b.getAttribute('data-tab')); }; });
+      list.querySelectorAll('.pp-fav').forEach(function(b){ b.onclick=function(){ var it=items[+b.getAttribute('data-i')];
+        try{ _musicSpeaker=p; musicPlay(it); }catch(e){}
+        _ppClosePop(); _ppToast('Starting '+(it.title||'')); }; });
+    };
+    draw(tabs[0]);
+  }).catch(function(){ var list=card.querySelector('.list'); if(list) list.innerHTML='<div class="pp-favnone">The favourites could not be read just now.</div>'; });
 }
 
 /* ── patching in place ── */
@@ -22164,7 +22226,9 @@ function _ppCmd(c, b){
     if(c==='alloff') _ppRooms().forEach(function(r){ var p=_ppPlayer(r); if(p && st(p)==='playing') svc('media_player','media_pause',{entity_id:p}); });
     document.querySelectorAll('#pp-lights .pp-lc').forEach(function(x){ x._pend=Date.now(); _ppPaintLC(x,false,0,''); });
     _ppToast(c==='alloff'?'Everything off':'All lights off'); return; }
-  if(c==='browse'){ var bm=_ppMusicE(); if(bm) ppAway('browse', bm); return; }
+  if(c==='favs') return _ppFavs();
+  if(c==='rest'){ try{ localStorage.setItem('proos_pp_rest', b.getAttribute('data-v')); }catch(e){} b.parentNode.querySelectorAll('button').forEach(function(x){ x.classList.toggle('on', x===b); }); _ppPoke(); return; }
+  if(c==='reload'){ location.reload(); return; }
   if(c==='pick') return _ppPick();
   if(c==='orb'){ var w=(typeof _panelWake==='function')?_panelWake():''; var B=document.getElementById('pp-ab'); if(B) B.textContent=w?('Say “'+w+'” and ask'):'Tap a suggestion below'; return; }
 }
@@ -22185,7 +22249,7 @@ function _ppPick(){
   pop.onclick=function(ev){ if(ev.target===pop) _ppClosePop(); };
   pop.classList.add('on');
 }
-function _ppClosePop(){ var p=document.getElementById('pp-pop'); if(p) p.classList.remove('on'); }
+function _ppClosePop(){ var p=document.getElementById('pp-pop'); if(p){ p.classList.remove('on'); var c=p.querySelector('.card'); if(c) c.classList.remove('wide'); } }
 
 /* ── Assist: the room's own microphone (the wake word), and the suggestions — the app's own Assist underneath ── */
 function ppAssistState(state){
