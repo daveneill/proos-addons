@@ -4615,7 +4615,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101826';
+const PROOS_BUILD='2026101827';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -6886,6 +6886,7 @@ function onReady(){
   renderSettings();
   updateNavClimateTemp();
   try{ if(typeof ppStart==='function') ppStart(); }catch(e){}   // 952: the wall panel's own screens
+  try{ _layoutsAdopt(); }catch(e){}   // 960: this device's layouts, copied up to the box once per load
 
   if(!_readyOnce){
     // ── one-time init: only on the FIRST successful connect ──
@@ -9177,6 +9178,32 @@ function _roomHasActivities(r){
 // Save widget layout (to this form factor's key)
 function saveWidgetLayout(widgets){
   localStorage.setItem(`widgets_${widgetPageKey()}_${_wFF()}`, JSON.stringify(widgets));
+  if(typeof _layoutToBox==='function') _layoutToBox(widgetPageKey(), widgets);   // 960: and on the box, as this screen's own
+}
+/* LAYOUTS ON THE BOX (register 960). Dave, 19 Oct: the wall panel is edited from the app or Pro, and ProOS's own PoE
+   touchscreens are coming — so a layout can no longer live only in the device that made it. Step 1 of 4: every layout
+   this device saves is also written to the box as THIS screen's own (Core /layouts, scope "screen"), and the layouts
+   it already had are copied up once per load — copy up, never overwrite: what the box already holds is never
+   replaced. Nothing on the glass reads from the box yet (step 2); this device keeps drawing from its own copy. */
+function _layoutToBox(page, widgets){
+  try{ fetch(proosCoreBase()+'/layouts',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({kind:_wFF(), screen:proosDeviceId(), page:page, widgets:widgets||[], scope:'screen'})}).catch(function(){}); }catch(e){}
+}
+let _layoutsAdopted=false;
+function _layoutsAdopt(){
+  if(_layoutsAdopted) return; _layoutsAdopted=true;
+  try{
+    const byKind={};
+    for(let i=0;i<localStorage.length;i++){
+      const k=localStorage.key(i), m=k&&k.match(/^widgets_(home|room_.+)_(phone|tablet|panel)$/); if(!m) continue;
+      let ws=null; try{ ws=JSON.parse(localStorage.getItem(k)||'null'); }catch(e){}
+      if(Array.isArray(ws)) (byKind[m[2]]=byKind[m[2]]||{})[m[1]]=ws;
+    }
+    Object.keys(byKind).forEach(function(kind){
+      fetch(proosCoreBase()+'/layouts',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({kind:kind, screen:proosDeviceId(), adopt:byKind[kind]})}).catch(function(){});
+    });
+  }catch(e){}
 }
 
 // Pick the first camera not already shown by another camera widget (nicer default when adding a 2nd feed)

@@ -211,6 +211,10 @@ except Exception:  # optional - missing modules must not stop boot
     _door = None
     roomorder = None
 try:
+    from proos import layouts as _layouts        # dashboard layouts on the box (register 960)
+except Exception:  # noqa: BLE001
+    _layouts = None
+try:
     from proos import assist as _assist          # Pro Assist AI gateway (optional)
 except Exception:  # noqa: BLE001
     _assist = None
@@ -3702,7 +3706,7 @@ def factory_reset(clear_proos_data=False, keep_auth=False):
                    "device_ports.json",
                    # the fourteen that used to survive
                    "music_genres.json", "consent.json", "shortcuts.json",
-                   "room_order.json", "channels.json", "atv_apps.json",
+                   "room_order.json", "layouts.json", "channels.json", "atv_apps.json",
                    "display_apps.json", "assist_scene_music.json",
                    "appart_brands.json", "appart_hidden.json",
                    "appart_origin.json", "appart_removed.json",
@@ -6445,6 +6449,15 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, _nc)
             if parts == ["navcaps"]:
                 return self._send(200, navconfig.load_caps(_live_areas()) if navconfig else {})
+            if parts == ["layouts"]:
+                # REGISTER 960: a screen's dashboard layout, page by page — its own if it has one, else its kind's
+                # home default. ?kind=phone|tablet|panel&screen=<device id>. ?summary=1 lists what the box holds.
+                if not _layouts:
+                    return self._send(200, {"kind": "", "screen": "", "pages": {}, "scopes": {}, "default": {}})
+                _q = parse_qs(urlparse(self.path).query)
+                if (_q.get("summary") or [""])[0]:
+                    return self._send(200, _layouts.summary())
+                return self._send(200, _layouts.resolve((_q.get("kind") or [""])[0], (_q.get("screen") or [""])[0]))
             if parts == ["room_order"]:
                 # Dashboard room order for THIS screen: its device override if any,
                 # else the home default, else nothing (natural order). Homeowner
@@ -9311,6 +9324,21 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, navconfig.save(self._body() or {}, _live_areas()))
             if parts == ["navcaps"]:
                 return self._send(200, navconfig.save_caps(self._body() or {}, _live_areas()) if navconfig else {})
+            if parts == ["layouts"]:
+                # REGISTER 960. Body: {kind, screen, page, widgets, scope:"screen"|"default", name}
+                #   adopt:{page: widgets}  -> copy a device's own layouts up (never overwrites anything on the box)
+                #   clear:true (+ page)    -> drop this screen's own layout so it follows its kind's default
+                # Household class, like room order: a person signed in to this home arranges its screens.
+                if not _layouts:
+                    return self._send(503, {"error": "layouts unavailable"})
+                b = self._body() or {}
+                if isinstance(b.get("adopt"), dict):
+                    return self._send(200, _layouts.adopt(b.get("kind"), b.get("screen"), b.get("adopt"), b.get("name") or ""))
+                if b.get("clear"):
+                    return self._send(200, _layouts.clear(b.get("screen"), b.get("page") or ""))
+                return self._send(200, _layouts.save(b.get("kind"), b.get("screen"), b.get("page"), b.get("widgets"),
+                                                     "default" if b.get("scope") == "default" else "screen",
+                                                     b.get("name") or ""))
             if parts == ["room_order"]:
                 # Save dashboard room order. Body: {device, order, scope, clear}.
                 #   scope "device" (default) -> this screen's override
