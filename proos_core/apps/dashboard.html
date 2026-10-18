@@ -4615,7 +4615,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101821';
+const PROOS_BUILD='2026101822';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -21006,7 +21006,7 @@ html.pp-on #pp{display:block}
 html.pp-on #app{visibility:hidden}
 #pp *{box-sizing:border-box}
 :where(#pp) button{font:inherit;color:inherit;background:none;border:0;padding:0;margin:0;cursor:pointer;-webkit-tap-highlight-color:transparent;text-align:inherit}
-#pp-stage{position:absolute;left:0;top:0;height:452px;transform-origin:0 0;background:#000;overflow:hidden}
+#pp-stage{position:absolute;left:0;top:0;height:450px;transform-origin:0 0;background:#000;overflow:hidden}
 .pp-scr{position:absolute;inset:0;opacity:0;pointer-events:none;transition:opacity var(--m-page) var(--e-standard)}
 .pp-scr.on{opacity:1;pointer-events:auto}
 .pp-bg{position:absolute;inset:-6px;background-size:cover;background-position:center;background-color:#0b0b10}
@@ -21815,11 +21815,14 @@ function ppStart(){
     d.querySelector('#pp-bar').addEventListener('click', function(ev){
       var b=ev.target.closest('[data-tab]'); if(!b) return; var t=b.getAttribute('data-tab');
       ppGo(t); });
-    // resting: the first touch only wakes the panel — it never also presses what is under the finger
-    d.addEventListener('pointerdown', function(ev){
-      if(_pp.scr==='rest'){ ev.preventDefault(); ev.stopPropagation(); _pp.woke=Date.now(); ppGo(_pp.prev||'home'); }
-      _ppPoke(); }, true);
-    d.addEventListener('click', function(ev){ if(_pp.woke && Date.now()-_pp.woke<700){ ev.preventDefault(); ev.stopPropagation(); } }, true);
+    // resting: the first touch only wakes the panel — it never also presses what is under the finger. The G-Flip's
+    // browser (the kiosk's WebKit) gives a finger TOUCH and MOUSE events, not pointer events (register 954), so every
+    // family is listened for, and whichever comes first wakes it.
+    var wake=function(ev){
+      if(_pp.scr==='rest'){ if(ev.cancelable) ev.preventDefault(); ev.stopPropagation(); _pp.woke=Date.now(); ppGo(_pp.prev||'home'); }
+      _ppPoke(); };
+    ['touchstart','pointerdown','mousedown'].forEach(function(n){ d.addEventListener(n, wake, {capture:true, passive:false}); });
+    ['click','mouseup','touchend','pointerup'].forEach(function(n){ d.addEventListener(n, function(ev){ if(_pp.woke && Date.now()-_pp.woke<700){ if(ev.cancelable) ev.preventDefault(); ev.stopPropagation(); } }, {capture:true, passive:false}); });
     window.addEventListener('resize', _ppFit); _ppFit();
     setInterval(_ppTick, 1000);
     try{ var h=document.getElementById('assist-history'); if(h) new MutationObserver(_ppAssistSeen).observe(h,{childList:true,subtree:true,characterData:true}); }catch(e){}
@@ -22161,14 +22164,39 @@ function _ppActsPaint(){
 
 /* ── touch ── */
 function _ppToast(t){ var e=document.getElementById('pp-toast'); if(!e) return; e.textContent=t; e.classList.add('on'); clearTimeout(e._t); e._t=setTimeout(function(){ e.classList.remove('on'); },2200); }
+/* ONE FINGER, ANY BROWSER (register 954). The kiosk's WebKit sends a finger as touch events (and a synthesized mouse
+   click), never pointer events; Chrome and Safari send pointer events too. One press is followed whichever family
+   starts it, the others are ignored until it ends, and the mouse events a browser makes up after a touch are dropped. */
+function _ppPress(el, h){
+  var kind='', lastTouch=0;
+  var xy=function(ev){ var p=(ev.touches&&ev.touches[0])||(ev.changedTouches&&ev.changedTouches[0])||ev; return {x:p.clientX, y:p.clientY}; };
+  var start=function(k){ return function(ev){
+    if(kind) return; if(k!=='touch' && Date.now()-lastTouch<800) return;
+    if(k==='pointer' && ev.pointerType==='touch' && 'ontouchstart' in window) return;   // the touch events carry this press
+    kind=k; if(k==='touch') lastTouch=Date.now();
+    var go=h.down(xy(ev), ev); if(go===false){ kind=''; } }; };
+  var move=function(k){ return function(ev){ if(kind!==k) return; if(h.move){ var keep=h.move(xy(ev), ev); if(keep!==false && ev.cancelable && k==='touch') ev.preventDefault(); } }; };
+  var end=function(k){ return function(ev){ if(kind!==k) return; kind=''; if(k==='touch') lastTouch=Date.now(); if(h.up) h.up(xy(ev), ev); }; };
+  el.addEventListener('touchstart', start('touch'), {passive:true});
+  el.addEventListener('touchmove', move('touch'), {passive:false});
+  el.addEventListener('touchend', end('touch')); el.addEventListener('touchcancel', function(){ if(kind==='touch'){ kind=''; if(h.cancel) h.cancel(); } });
+  el.addEventListener('pointerdown', start('pointer'));
+  el.addEventListener('pointermove', move('pointer'));
+  el.addEventListener('pointerup', end('pointer')); el.addEventListener('pointercancel', function(){ if(kind==='pointer'){ kind=''; if(h.cancel) h.cancel(); } });
+  el.addEventListener('mousedown', start('mouse'));
+  document.addEventListener('mousemove', move('mouse'));
+  document.addEventListener('mouseup', end('mouse'));
+}
 function _ppSlider(el, onMove, onDone){
   var r=null, last=0, v=0;
-  function at(ev){ v=Math.max(0,Math.min(100,(ev.clientX-r.left)/r.width*100)); onMove(v,false);
+  function at(p){ v=Math.max(0,Math.min(100,(p.x-r.left)/r.width*100)); onMove(v,false);
     if(Date.now()-last>220){ last=Date.now(); onDone(v,true); } }
-  el.addEventListener('pointerdown', function(ev){ ev.stopPropagation(); r=el.getBoundingClientRect(); _pp.drag=true; try{ el.setPointerCapture(ev.pointerId); }catch(x){} at(ev); });
-  el.addEventListener('pointermove', function(ev){ if(r && el.hasPointerCapture && el.hasPointerCapture(ev.pointerId)) at(ev); });
-  var end=function(){ if(!r) return; r=null; _pp.drag=false; onDone(v,false); };
-  el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
+  _ppPress(el, {
+    down:function(p, ev){ ev.stopPropagation(); r=el.getBoundingClientRect(); _pp.drag=true; at(p); },
+    move:function(p){ if(r) at(p); },
+    up:function(){ if(!r) return; r=null; _pp.drag=false; onDone(v,false); },
+    cancel:function(){ if(!r) return; r=null; _pp.drag=false; onDone(v,false); }
+  });
 }
 function _ppWire(el){
   el.querySelectorAll('[data-go]').forEach(function(b){ b.addEventListener('click', function(ev){
@@ -22192,17 +22220,19 @@ function _ppWire(el){
   // light tiles: a tap switches the room, a slide across dims it
   el.querySelectorAll('.pp-lc[data-lroom]').forEach(function(c){
     var r=_ppRoom(c.getAttribute('data-lroom')), sx=0, sy=0, mode='', rect=null, v=0, last=0;
-    c.addEventListener('pointerdown', function(ev){ sx=ev.clientX; sy=ev.clientY; mode='?'; rect=c.getBoundingClientRect(); });
-    c.addEventListener('pointermove', function(ev){ if(!mode) return;
-      if(mode==='?'){ if(Math.abs(ev.clientX-sx)>10 && Math.abs(ev.clientX-sx)>Math.abs(ev.clientY-sy)){ mode='dim'; _pp.drag=true; try{ c.setPointerCapture(ev.pointerId); }catch(x){} } else if(Math.abs(ev.clientY-sy)>10){ mode=''; return; } else return; }
-      v=Math.max(1,Math.min(100,Math.round((ev.clientX-rect.left)/rect.width*100))); c._pend=Date.now(); _ppPaintLC(c,true,v,(r.lights||[]).length===1?_ppLabel(r.lights[0],r):((r.lights||[]).length+' lights'));
-      if(Date.now()-last>250){ last=Date.now(); _ppDimRoom(r,v); } });
     var up=function(){ if(!mode){ return; } var m=mode; mode=''; _pp.drag=false;
       if(m==='dim'){ _ppDimRoom(r,v); return; }
       var on=!c.classList.contains('on'); c._pend=Date.now();
       _ppPaintLC(c, on, on?(_ppRoomPct(r)||100):0, (r.lights||[]).length===1?_ppLabel(r.lights[0],r):((r.lights||[]).length+' lights'));
       svc('light', on?'turn_on':'turn_off', {entity_id:(r.lights||[]).slice()}); };
-    c.addEventListener('pointerup', up); c.addEventListener('pointercancel', function(){ mode=''; _pp.drag=false; });
+    _ppPress(c, {
+      down:function(p){ sx=p.x; sy=p.y; mode='?'; rect=c.getBoundingClientRect(); },
+      move:function(p){ if(!mode) return false;
+        if(mode==='?'){ if(Math.abs(p.x-sx)>10 && Math.abs(p.x-sx)>Math.abs(p.y-sy)){ mode='dim'; _pp.drag=true; } else if(Math.abs(p.y-sy)>10){ mode=''; return false; } else return false; }
+        v=Math.max(1,Math.min(100,Math.round((p.x-rect.left)/rect.width*100))); c._pend=Date.now(); _ppPaintLC(c,true,v,(r.lights||[]).length===1?_ppLabel(r.lights[0],r):((r.lights||[]).length+' lights'));
+        if(Date.now()-last>250){ last=Date.now(); _ppDimRoom(r,v); } },
+      up:up, cancel:function(){ mode=''; _pp.drag=false; }
+    });
   });
 }
 function _ppRoomPct(r){ var d=(r.lights||[]).filter(_ppDim); if(!d.length) return 100; var on=d.filter(_ppOnL); return on.length?Math.round(on.reduce(function(a,e){ return a+_ppPct(e); },0)/on.length):0; }

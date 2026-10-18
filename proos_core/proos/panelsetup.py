@@ -228,13 +228,25 @@ def platform_port(sup) -> int:
         return 80
 
 
+# THE KIOSK'S OWN FINGER GESTURES (register 954). Dave, 19 Oct 06:37, photo: the G-Flip showing google.com — "somehow it
+# ended up in google". The kiosk ships with gestures that leave ProOS: two fingers tapped four times opens Google, three
+# fingers swipe back/forward through the browser's history, three-finger taps refresh, mute or toggle its keyboard, and
+# a tap in the top-right corner toggles the keyboard. A wall panel keeps only the two that cannot leave: two fingers
+# tapped three times brings back ProOS's own page, and three fingers tapped four times saves a screenshot.
+KIOSK_GESTURES = [
+    '"2_TOUCH_3_TAP": {"cmds": "kiosk.launch_url", "msg": "Restore the ProOS panel page"}',
+    '"3_TOUCH_4_TAP": {"cmds": "kiosk.screenshot", "msg": "Save screenshot"}',
+]
+
+
 def kiosk_options(sat_entity: str | None, port: int = 80) -> dict:
     login = _read_login()
     dash = "local/dashboard.html?panel=1" + (("&sat=" + sat_entity) if sat_entity else "")
     url = "http://127.0.0.1" + ("" if int(port or 80) == 80 else ":%d" % int(port))
     return {"ha_url": url, "ha_dashboard": dash, "zoom_level": KIOSK_ZOOM,
             "onscreen_keyboard": False, "ha_sidebar": "none", "dark_mode": True, "screen_timeout": 0,
-            "ha_username": login.get("username") or PANEL_USERNAME, "ha_password": login.get("password") or ""}
+            "ha_username": login.get("username") or PANEL_USERNAME, "ha_password": login.get("password") or "",
+            "gestures": list(KIOSK_GESTURES)}
 
 
 def satellite_entity(ws):
