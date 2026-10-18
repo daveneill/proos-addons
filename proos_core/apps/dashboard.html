@@ -4541,7 +4541,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101715';
+const PROOS_BUILD='2026101716';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -18547,6 +18547,100 @@ function _panelAssistIdle(){
     }catch(e){}
   }, 30000);
 }
+// ── THE PANEL'S OWN KEYBOARD (register 939, panel build 7) ───────────────────────────────────────────────────────
+// Dave, 18 Oct: "can we make the keyboard look better and full width". The kiosk's own on-screen keyboard was a small
+// floating window that matched nothing. On a wall panel ProOS draws its own: the full width of the glass, large keys in
+// the product's glass, rising under whatever text box is tapped and leaving when it is done. It types into the box the
+// way a keyboard does (the box's own input event, its own Enter), so every box in the product works unchanged.
+const _KBD_ROWS = {
+  abc: [['q','w','e','r','t','y','u','i','o','p'],['a','s','d','f','g','h','j','k','l'],['shift','z','x','c','v','b','n','m','back'],['123',',','space','.','enter']],
+  num: [['1','2','3','4','5','6','7','8','9','0'],['-','/',':',';','(',')','$','&','@'],['#','%','\'','"','?','!','+','=','back'],['abc',',','space','.','enter']]
+};
+let _kbdLayer='abc', _kbdShift=false, _kbdTarget=null;
+function _kbdField(el){
+  if(!el || !el.tagName) return false;
+  if(el.tagName==='TEXTAREA') return true;
+  if(el.tagName!=='INPUT') return false;
+  return ['text','search','password','email','url','tel','number',''].indexOf((el.getAttribute('type')||'').toLowerCase())>=0;
+}
+// what one key does to a box: the text at the caret, or a backspace, or the box's own Enter
+function _kbdApply(el, key){
+  if(!el) return;
+  if(key==='enter'){
+    const opts={key:'Enter',code:'Enter',keyCode:13,which:13,bubbles:true,cancelable:true};
+    el.dispatchEvent(new KeyboardEvent('keydown',opts)); el.dispatchEvent(new KeyboardEvent('keyup',opts));
+    if(el.form && typeof el.form.requestSubmit==='function' && el.tagName==='INPUT') { try{ el.form.requestSubmit(); }catch(e){} }
+    return;
+  }
+  const v=el.value||'';
+  let s=(typeof el.selectionStart==='number')?el.selectionStart:v.length, e=(typeof el.selectionEnd==='number')?el.selectionEnd:v.length;
+  if(key==='back'){
+    if(s===e && s>0) s=s-1;
+    el.value=v.slice(0,s)+v.slice(e);
+    try{ el.setSelectionRange(s,s); }catch(_){}
+  } else {
+    const ch=(key==='space')?' ':key;
+    el.value=v.slice(0,s)+ch+v.slice(e);
+    try{ el.setSelectionRange(s+ch.length,s+ch.length); }catch(_){}
+  }
+  el.dispatchEvent(new Event('input',{bubbles:true}));
+}
+function _kbdEl(){
+  let k=document.getElementById('panel-kbd'); if(k) return k;
+  k=document.createElement('div'); k.id='panel-kbd'; k.setAttribute('aria-hidden','true');
+  // a key never takes the focus from the box it types into
+  k.addEventListener('pointerdown', function(ev){ ev.preventDefault(); }, true);
+  k.addEventListener('mousedown', function(ev){ ev.preventDefault(); }, true);
+  k.addEventListener('click', function(ev){
+    const b=ev.target.closest && ev.target.closest('[data-k]'); if(!b) return;
+    _kbdPress(b.getAttribute('data-k'));
+  });
+  document.body.appendChild(k);
+  return k;
+}
+function _kbdPress(key){
+  if(key==='shift'){ _kbdShift=!_kbdShift; return _kbdDraw(); }
+  if(key==='123'){ _kbdLayer='num'; return _kbdDraw(); }
+  if(key==='abc'){ _kbdLayer='abc'; return _kbdDraw(); }
+  if(key==='hide'){ try{ if(_kbdTarget) _kbdTarget.blur(); }catch(e){} return _kbdHide(); }
+  const el=_kbdTarget; if(!el) return;
+  const ch=(_kbdShift && key.length===1)?key.toUpperCase():key;
+  _kbdApply(el, ch);
+  if(_kbdShift && key.length===1){ _kbdShift=false; _kbdDraw(); }
+}
+function _kbdLabel(k){
+  if(k==='shift') return '⇧'; if(k==='back') return '⌫'; if(k==='space') return 'space';
+  if(k==='enter') return (_kbdTarget && _kbdTarget.id==='assist-input')?'Send':'Return';
+  if(k==='123') return '123'; if(k==='abc') return 'ABC';
+  return _kbdShift?k.toUpperCase():k;
+}
+function _kbdDraw(){
+  const k=_kbdEl();
+  const rows=_KBD_ROWS[_kbdLayer];
+  k.innerHTML=rows.map(function(r){
+    return '<div class="kb-row">'+r.map(function(key){
+      const cls='kb-key'+(key.length>1?' kb-'+key:'')+((key==='shift'&&_kbdShift)?' on':'');
+      return '<button type="button" class="'+cls+'" data-k="'+key.replace(/"/g,'&quot;')+'">'+_kbdLabel(key).replace(/</g,'&lt;')+'</button>';
+    }).join('')+'</div>';
+  }).join('')+'<button type="button" class="kb-hide" data-k="hide" aria-label="Hide keyboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>';
+}
+function _kbdShow(el){
+  _kbdTarget=el; _kbdLayer=(el.getAttribute('type')==='number'||el.getAttribute('type')==='tel')?'num':'abc'; _kbdShift=false;
+  _kbdDraw(); _kbdEl().classList.add('on'); document.body.classList.add('panel-kbd-open');
+  try{ setTimeout(function(){ el.scrollIntoView({block:'nearest'}); }, 50); }catch(e){}
+}
+function _kbdHide(){
+  const k=document.getElementById('panel-kbd'); if(k) k.classList.remove('on');
+  document.body.classList.remove('panel-kbd-open'); _kbdTarget=null;
+}
+(function(){
+  if(!(typeof _isPanel==='function' && _isPanel())) return;
+  document.addEventListener('focusin', function(ev){ if(_kbdField(ev.target)) _kbdShow(ev.target); });
+  document.addEventListener('focusout', function(ev){
+    if(ev.target!==_kbdTarget) return;
+    setTimeout(function(){ if(!_kbdField(document.activeElement)) _kbdHide(); }, 0);
+  });
+})();
 // open Assist for a spoken turn — and leave the input unfocused, so no on-screen keyboard rises for nobody
 function _panelOpenAssist(){
   try{ if(!assistOpen) openAssist(); }catch(e){}
@@ -20799,6 +20893,30 @@ html.proos-panel #assist-panel::after{content:'';position:absolute;inset:0;point
 html.proos-panel body.proos-listening #assist-panel::after{opacity:1;animation:panel-glow var(--m-listen) ease-in-out infinite}
 html.proos-panel body.proos-thinking #assist-panel::after{opacity:.55;animation:panel-glow calc(var(--m-listen) * 2) ease-in-out infinite}
 @keyframes panel-glow{0%,100%{filter:brightness(.85)}50%{filter:brightness(1.25)}}
+
+/* PANEL BUILD 7 — PROOS'S OWN KEYBOARD, THE FULL WIDTH OF THE GLASS (register 939). Dave, 18 Oct 09:34: "can we make the
+   keyboard look better and full width". Large keys in the product's glass; it rises under the tapped box and the page
+   makes room above it (body.panel-kbd-open), so the box is never under the keys. */
+#panel-kbd{display:none}
+html.proos-panel #panel-kbd{display:flex;flex-direction:column;gap:7px;position:fixed;left:0;right:0;bottom:0;z-index:9600;
+  padding:10px 10px 12px;background:rgba(14,15,20,.97);border-top:1px solid rgba(255,255,255,.10);
+  -webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px);box-shadow:0 -18px 40px rgba(0,0,0,.45);
+  transform:translateY(105%);transition:transform var(--m-move) var(--e-sheet)}
+html.proos-panel #panel-kbd.on{transform:none}
+html.proos-panel #panel-kbd .kb-row{display:flex;gap:7px;justify-content:center}
+html.proos-panel #panel-kbd .kb-key{flex:1 1 0;max-width:76px;height:46px;border:0;border-radius:10px;background:rgba(255,255,255,.12);
+  color:#fff;font-family:inherit;font-size:20px;font-weight:300;display:flex;align-items:center;justify-content:center}
+html.proos-panel #panel-kbd .kb-key:active{background:rgba(255,255,255,.30)}
+html.proos-panel #panel-kbd .kb-shift,html.proos-panel #panel-kbd .kb-back,html.proos-panel #panel-kbd .kb-123,html.proos-panel #panel-kbd .kb-abc{max-width:110px;flex-grow:1.5;background:rgba(255,255,255,.07);font-size:17px}
+html.proos-panel #panel-kbd .kb-shift.on{background:#fff;color:#000}
+html.proos-panel #panel-kbd .kb-space{max-width:none;flex-grow:5;font-size:15px;letter-spacing:.06em;color:rgba(255,255,255,.7)}
+html.proos-panel #panel-kbd .kb-enter{max-width:150px;flex-grow:2;background:#2139f0;font-size:17px;font-weight:400}
+html.proos-panel #panel-kbd .kb-hide{position:absolute;top:-46px;left:10px;width:56px;height:38px;border:0;border-radius:12px 12px 0 0;
+  background:rgba(14,15,20,.97);color:rgba(255,255,255,.8);display:flex;align-items:center;justify-content:center}
+html.proos-panel #panel-kbd .kb-hide svg{width:24px;height:24px}
+html.proos-panel body.panel-kbd-open #assist-panel{padding-bottom:calc(var(--panel-kbd-h,236px) + 14px)!important}
+html.proos-panel body.panel-kbd-open #panel-assist-status{display:none}
+html.proos-panel body.panel-kbd-open .page.active .proos-scroller,html.proos-panel body.panel-kbd-open .page.active{padding-bottom:var(--panel-kbd-h,236px)!important}
 </style>
 
 <script>
