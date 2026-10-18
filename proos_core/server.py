@@ -10027,6 +10027,26 @@ def main():
                     print("  panel · this box is a wall panel: setting itself up (register 940)")
                 except Exception as _pse:  # noqa: BLE001
                     print(f"  panel · set-up not started: {_pse}")
+            # THE BOX'S ADDRESS IS ProOS'S (register 945). On a box whose platform is bound inside the box (the ProOS
+            # image), the address the platform gives out for itself is kept at the box's own address — ProOS's door —
+            # and moved when the box's address moves. A box whose platform listens on the home's network is untouched.
+            try:
+                from proos import platformdoor as _pdoor
+
+                def _pdoor_loop():
+                    last = None
+                    while True:
+                        try:
+                            _pd = _pdoor.ensure(_sv, _ws_call)
+                            if _pd.get("changed") or (_pd.get("error") and _pd.get("error") != last):
+                                print(f"  door · the platform's address: {_pd}", flush=True)
+                            last = _pd.get("error")
+                        except Exception as _pde:  # noqa: BLE001
+                            print(f"  door · address pass failed: {_pde}", flush=True)
+                        time.sleep(60)
+                threading.Thread(target=_pdoor_loop, name="platform-door", daemon=True).start()
+            except Exception as _pdse:  # noqa: BLE001
+                print(f"  door · address keeper not started: {_pdse}")
         except Exception as _e:
             print(f"  provision skipped: {_e}")
     if catalog:
@@ -10341,6 +10361,16 @@ def main():
     print(f"  serving on http://0.0.0.0:{port}  (room: {area})")
     print(f"  try: curl http://localhost:{port}/rooms/{area.replace(' ', '%20')}/activities")
     ThreadingHTTPServer.allow_reuse_address = True
+    # THE BOX'S OWN ADDRESS (register 945): Core also answers inside its container on port 80. The add-on's "80/tcp"
+    # mapping is OFF on every box (config.yaml); the ProOS image turns it on, after the image has moved the platform
+    # inside the box — so only there does the box's plain address open ProOS's front door. Best effort, never fatal.
+    if port != 80:
+        def _door80():
+            try:
+                ThreadingHTTPServer(("0.0.0.0", 80), Handler).serve_forever()
+            except Exception as _e80:  # noqa: BLE001
+                print(f"  door · port 80 not served: {_e80}", flush=True)
+        threading.Thread(target=_door80, name="door-80", daemon=True).start()
     try:
         ThreadingHTTPServer(("0.0.0.0", port), Handler).serve_forever()
     except OSError as e:

@@ -219,10 +219,20 @@ def ensure_panel_login(ws) -> dict:
     return {"made": True, "user_id": user_id}
 
 
-def kiosk_options(sat_entity: str | None) -> dict:
+def platform_port(sup) -> int:
+    """The platform's own port, asked of the Supervisor (/core/info) — 80 on a new box, 8123 on an older one, and 8123
+    on a ProOS image box, where the platform is kept inside the box and ProOS answers the box's address (register 945)."""
+    try:
+        return int((sup("GET", "/core/info") or {}).get("port") or 80)
+    except Exception:  # noqa: BLE001
+        return 80
+
+
+def kiosk_options(sat_entity: str | None, port: int = 80) -> dict:
     login = _read_login()
     dash = "local/dashboard.html?panel=1" + (("&sat=" + sat_entity) if sat_entity else "")
-    return {"ha_url": "http://127.0.0.1", "ha_dashboard": dash, "zoom_level": KIOSK_ZOOM,
+    url = "http://127.0.0.1" + ("" if int(port or 80) == 80 else ":%d" % int(port))
+    return {"ha_url": url, "ha_dashboard": dash, "zoom_level": KIOSK_ZOOM,
             "onscreen_keyboard": False, "ha_sidebar": "none", "dark_mode": True, "screen_timeout": 0,
             "ha_username": login.get("username") or PANEL_USERNAME, "ha_password": login.get("password") or ""}
 
@@ -284,7 +294,7 @@ def run(sup, ws, req, door_state=None, restart_core=None) -> dict:
     except Exception:  # noqa: BLE001
         sat = None
     if slugs.get("kiosk"):
-        step("kiosk", lambda: ensure_addon(sup, slugs["kiosk"], kiosk_options(sat)))
+        step("kiosk", lambda: ensure_addon(sup, slugs["kiosk"], kiosk_options(sat, platform_port(sup))))
     errs = [k for k, v in st["steps"].items() if isinstance(v, dict) and v.get("error")]
     st["errors"] = errs
     st["done"] = not errs and bool(sat) and (ds is None or ds.get("state") == "open")

@@ -1,5 +1,5 @@
 name: ProOS Core
-version: "1.0.999"
+version: "1.0.1000"
 slug: proos_core
 description: >-
   The operational layer above Home Assistant — state-based room control,
@@ -58,10 +58,14 @@ ports:
   # REGISTER 741: a speaker hands Core the household's music accounts by sending a message
   # back; this is where it arrives (the platform forwards it into Core).
   "1410/tcp": 1410
+  # REGISTER 945: the box's own address. OFF on every box; the ProOS image turns it on (host port 80) after it has
+  # moved the platform inside the box, so the box's plain address opens ProOS's front door and nothing else.
+  "80/tcp": null
 ports_description:
   "8770/tcp": ProOS Core API (the dashboard connects here)
   "25804/tcp": ProOS Savant feed (a Savant profile connects here; switched on in Pro > Systems > Savant)
   "1410/tcp": ProOS speaker events (a Sonos speaker hands Core the home's music accounts here)
+  "80/tcp": ProOS at the box's own address (ProOS image boxes, where the platform is kept inside the box)
 options:
   # Shipped defaults contain NO home (Stage 5 build 1, 16 Aug 2026):
   # home_id names THIS box and is set at commissioning; the old default
