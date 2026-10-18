@@ -4615,7 +4615,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101822';
+const PROOS_BUILD='2026101823';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -21097,7 +21097,7 @@ html.pp-on #app{visibility:hidden}
 .pp-rc.lit .chips .l,.pp-rc.play .chips .m{display:grid}
 .pp-rc.idle .ph{filter:grayscale(.85) brightness(.5)}
 /* rooms */
-#pp-rooms .pp-bg,#pp-lights .pp-bg,#pp-assist .pp-bg,#pp-settings .pp-bg{inset:-80px;filter:blur(28px) brightness(.32)}
+#pp-rooms .pp-bg,#pp-lights .pp-bg,#pp-assist .pp-bg,#pp-settings .pp-bg,#pp-favs .pp-bg{inset:-80px;filter:blur(28px) brightness(.32)}
 .pp-grid{position:absolute;left:32px;right:32px;top:78px;bottom:62px;display:grid;grid-template-columns:repeat(4,1fr);gap:12px;align-content:start;padding-bottom:16px}
 .pp-grid .pp-rc{width:auto;height:136px}
 /* a room */
@@ -21239,17 +21239,25 @@ html.pp-on #app{visibility:hidden}
 .pp-kv span{color:rgba(255,255,255,.66)}
 .pp-kv b{font-weight:600}
 .pp-wide{width:100%;height:46px;margin-top:12px;border-radius:14px;background:rgba(255,255,255,.1);font-size:13px;font-weight:600;text-align:center}
-.pp-pop .card.wide{width:600px;max-height:400px}
-.pp-favnone{padding:30px 0;text-align:center;font-size:14px;color:rgba(255,255,255,.66)}
-.pp-tabs{display:flex;gap:6px;margin-bottom:10px}
-.pp-tabs button{height:36px;padding:0 14px;border-radius:999px;background:rgba(255,255,255,.08);font-size:12.5px;font-weight:600}
+.pp-fhead{position:absolute;left:32px;right:32px;top:70px;display:flex;align-items:baseline;gap:12px}
+.pp-fhead .n{font-size:30px;font-weight:300;letter-spacing:-.03em}
+.pp-fhead .s{font-size:12.5px;color:rgba(255,255,255,.66)}
+.pp-fhead .pp-tabs{margin-left:auto;align-self:center}
+.pp-favnone{grid-column:1/-1;padding:40px 0;text-align:center;font-size:15px;color:rgba(255,255,255,.66)}
+.pp-tabs{display:flex;gap:6px}
+.pp-tabs button{height:38px;padding:0 16px;border-radius:999px;background:rgba(255,255,255,.08);font-size:13px;font-weight:600}
 .pp-tabs button.on{background:#fff;color:#000}
-.pp-favs{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
-.pp-fav{display:flex;flex-direction:column;gap:6px;min-width:0}
-.pp-fav .art{position:relative;aspect-ratio:1;border-radius:12px;background:#24242c;display:grid;place-items:center;color:rgba(255,255,255,.5);overflow:hidden}
+.pp-favs{position:absolute;left:32px;right:32px;top:124px;bottom:62px;display:grid;grid-template-columns:repeat(4,1fr);gap:16px 14px;align-content:start;padding-bottom:18px}
+.pp-fav{display:flex;flex-direction:column;gap:8px;min-width:0;text-align:left}
+.pp-fav .art{position:relative;aspect-ratio:1;border-radius:14px;background:#24242c;display:grid;place-items:center;color:rgba(255,255,255,.5);overflow:hidden;box-shadow:0 10px 24px rgba(0,0,0,.35)}
 .pp-fav .art img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:1}
-.pp-fav .art svg{width:24px;height:24px}
-.pp-fav .t{font-size:11.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pp-fav .art svg{width:30px;height:30px}
+.pp-fav .art .go{position:absolute;right:8px;bottom:8px;z-index:2;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.92);color:#000;display:grid;place-items:center;box-shadow:0 4px 12px rgba(0,0,0,.35)}
+.pp-fav .art .go svg{width:15px;height:15px;margin-left:2px}
+.pp-fav .t{font-size:13px;font-weight:600;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+#pp svg{shape-rendering:geometricPrecision}
+#pp-bar button{color:rgba(255,255,255,.55)}
+#pp-bar button.on{color:rgba(255,255,255,.92)}
 </style>
 
 <script>
@@ -21755,7 +21763,7 @@ var PP_I={
   list:'<path d="M4 6h16M4 12h16M4 18h10"/>', x:'<path d="M6 6l12 12M18 6 6 18"/>', search:'<circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/>',
   star:'<path d="m12 3.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/>'
 };
-function _ppIc(k){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+(PP_I[k]||'')+'</svg>'; }
+function _ppIc(k){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">'+(PP_I[k]||'')+'</svg>'; }
 function _ppE(s){ return (typeof esc==='function')?esc(s):String(s==null?'':s); }
 function _ppRooms(){ return (typeof CONFIG!=='undefined' && Array.isArray(CONFIG.rooms))?CONFIG.rooms:[]; }
 function _ppRoom(id){ return _ppRooms().find(function(r){ return r.id===id; })||null; }
@@ -21807,7 +21815,7 @@ function ppStart(){
       +'<section class="pp-scr" id="pp-rest"></section><section class="pp-scr" id="pp-home"></section>'
       +'<section class="pp-scr" id="pp-rooms"></section><section class="pp-scr" id="pp-room"></section>'
       +'<section class="pp-scr" id="pp-lights"></section><section class="pp-scr" id="pp-music"></section>'
-      +'<section class="pp-scr" id="pp-assist"></section><section class="pp-scr" id="pp-settings"></section>'
+      +'<section class="pp-scr" id="pp-assist"></section><section class="pp-scr" id="pp-settings"></section><section class="pp-scr" id="pp-favs"></section>'
       +'<nav id="pp-bar">'+[['home','home','Home'],['rooms','grid','Rooms'],['lights','bulb','Lights'],['music','music','Music'],['assist','mic','Assist'],['settings','gear','Settings']]
         .map(function(t){ return '<button data-tab="'+t[0]+'">'+_ppIc(t[1])+'<span>'+t[2]+'</span></button>'; }).join('')+'</nav>'
       +'<div class="pp-pop" id="pp-pop"><div class="card pp-glass"></div></div><div id="pp-toast" class="pp-glass"></div></div>';
@@ -21832,8 +21840,11 @@ function ppStart(){
   _ppPoke();
 }
 function _ppFit(){ var s=document.getElementById('pp-stage'); if(!s) return; var k=(window.innerHeight||450)/450;
-  s.style.width=((window.innerWidth||800)/k)+'px'; s.style.transform='scale('+k+')'; }
-function _ppBar(){ var map={rest:'',home:'home',rooms:'rooms',room:'rooms',lights:'lights',music:'music',assist:'assist',settings:'settings'};
+  // a transform paints the layer once and stretches it (soft icons on the kiosk's WebKit — register 955); zoom lays it out
+  // again at the size, so every line stays sharp. At the panel's own 800×450 nothing is scaled at all.
+  s.style.width=((window.innerWidth||800)/k)+'px'; s.style.transform='';
+  if(Math.abs(k-1)<0.01){ s.style.zoom=''; } else { s.style.zoom=String(k); } }
+function _ppBar(){ var map={rest:'',home:'home',rooms:'rooms',room:'rooms',lights:'lights',music:'music',favs:'music',assist:'assist',settings:'settings'};
   document.querySelectorAll('#pp-bar [data-tab]').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-tab')===map[_pp.scr]); }); }
 function ppGo(scr, force){
   if(!_ppOn) return;
@@ -21905,12 +21916,13 @@ function _ppNow(){
 
 function _ppBuild(scr){
   var el=document.getElementById('pp-'+scr); if(!el) return;
-  var f={rest:_ppBRest, home:_ppBHome, rooms:_ppBRooms, room:_ppBRoom, lights:_ppBLights, music:_ppBMusic, assist:_ppBAssist, settings:_ppBSettings}[scr];
+  var f={rest:_ppBRest, home:_ppBHome, rooms:_ppBRooms, room:_ppBRoom, lights:_ppBLights, music:_ppBMusic, assist:_ppBAssist, settings:_ppBSettings, favs:_ppBFavs}[scr];
   if(f){ el.innerHTML=f(); }
   if(scr==='home') _ppSite();
   if(scr==='room') _ppLoadActs();
   if(scr==='assist') _ppAssistIdle();
   if(scr==='settings') _ppAbout();
+  if(scr==='favs') _ppFavsLoad();
   _ppWire(el); _ppUpdate(scr); _ppTick();
 }
 
@@ -22025,34 +22037,37 @@ function _ppAbout(){
     if(h && id) h.textContent=id.replace(/\b\w/g,function(c){ return c.toUpperCase(); }); if(v && j.version) v.textContent=j.version; }).catch(function(){}); }catch(e){}
 }
 /* ── Favourites: the speaker's own, in a centred card, played through the app's one door (musicPlay) ── */
-function _ppFavs(){
-  var p=_ppMusicE(), r=_ppMusicRoom(); if(!p) return;
-  var pop=document.getElementById('pp-pop'), card=pop.querySelector('.card');
-  card.classList.add('wide');
-  card.innerHTML='<div class="hd"><b>Favourites · '+_ppE(r?r.name:'')+'</b><button class="x" data-x>'+_ppIc('x')+'</button></div><div class="list"><div class="pp-favnone">Loading…</div></div>';
-  card.querySelector('[data-x]').onclick=_ppClosePop;
-  pop.onclick=function(ev){ if(ev.target===pop) _ppClosePop(); };
-  pop.classList.add('on');
+function _ppFavs(){ if(_ppMusicE()) ppGo('favs'); }
+function _ppBFavs(){
+  var r=_ppMusicRoom();
+  return '<div class="pp-bg" style="'+_ppBg(_ppHomePhoto())+'"></div>'
+    +'<button class="pp-back pp-glass" data-go="music">'+_ppIc('back')+'Music</button>'
+    +'<div class="pp-fhead"><div class="n">Favourites</div><div class="s">'+_ppE(r?r.name:'')+'</div><div class="pp-tabs" id="pp-ftabs"></div></div>'
+    +'<div class="pp-favs pp-scroll" id="pp-fgrid"><div class="pp-favnone">Loading\u2026</div></div>';
+}
+function _ppFavsLoad(){
+  var p=_ppMusicE(); if(!p) return;
+  var grid=document.getElementById('pp-fgrid'), tabsEl=document.getElementById('pp-ftabs');
   var load=(typeof _browseFavourites==='function')?_browseFavourites(p):Promise.resolve([]);
   load.then(function(items){
-    if(!pop.classList.contains('on')) return;
+    if(_pp.scr!=='favs') return;
     items=(items||[]).filter(function(x){ return x && x.media_content_id; });
-    var list=card.querySelector('.list');
-    if(!items.length){ list.innerHTML='<div class="pp-favnone">No favourites are saved on this speaker yet.</div>'; return; }
+    if(!items.length){ grid.innerHTML='<div class="pp-favnone">No favourites are saved on this speaker yet.</div>'; return; }
     var tabs=[]; items.forEach(function(x){ var k=x._tab||'Favourites'; if(tabs.indexOf(k)<0) tabs.push(k); });
     var draw=function(tab){
+      tabsEl.innerHTML=tabs.length>1?tabs.map(function(k){ return '<button data-tab="'+_ppE(k)+'"'+(k===tab?' class="on"':'')+'>'+_ppE(k)+'</button>'; }).join(''):'';
       var view=items.filter(function(x){ return (x._tab||'Favourites')===tab; });
-      list.innerHTML=(tabs.length>1?'<div class="pp-tabs">'+tabs.map(function(k){ return '<button data-tab="'+_ppE(k)+'"'+(k===tab?' class="on"':'')+'>'+_ppE(k)+'</button>'; }).join('')+'</div>':'')
-        +'<div class="pp-favs">'+view.map(function(x){ var i=items.indexOf(x), th=x.thumbnail?artSrc(x.thumbnail):'';
-          return '<button class="pp-fav" data-i="'+i+'"><div class="art">'+(th?'<img '+((typeof _artAttr==='function')?_artAttr(th):('src="'+_ppE(th)+'"'))+' onerror="this.remove()">':'')+_ppIc('music')+'</div><div class="t">'+_ppE(x.title||'')+'</div></button>'; }).join('')+'</div>';
-      try{ if(typeof _scanAuthImgs==='function') _scanAuthImgs(list); }catch(e){}
-      list.querySelectorAll('[data-tab]').forEach(function(b){ b.onclick=function(){ draw(b.getAttribute('data-tab')); }; });
-      list.querySelectorAll('.pp-fav').forEach(function(b){ b.onclick=function(){ var it=items[+b.getAttribute('data-i')];
+      grid.innerHTML=view.map(function(x){ var i=items.indexOf(x), th=x.thumbnail?artSrc(x.thumbnail):'';
+        return '<button class="pp-fav" data-i="'+i+'"><div class="art">'+(th?'<img '+((typeof _artAttr==='function')?_artAttr(th):('src="'+_ppE(th)+'"'))+' onerror="this.remove()">':'')+_ppIc('music')+'<span class="go">'+_ppIc('play')+'</span></div><div class="t">'+_ppE(x.title||'')+'</div></button>'; }).join('');
+      grid.scrollTop=0;
+      try{ if(typeof _scanAuthImgs==='function') _scanAuthImgs(grid); }catch(e){}
+      tabsEl.querySelectorAll('[data-tab]').forEach(function(b){ b.onclick=function(){ draw(b.getAttribute('data-tab')); }; });
+      grid.querySelectorAll('.pp-fav').forEach(function(b){ b.onclick=function(){ var it=items[+b.getAttribute('data-i')];
         try{ _musicSpeaker=p; musicPlay(it); }catch(e){}
-        _ppClosePop(); _ppToast('Starting '+(it.title||'')); }; });
+        _ppToast('Starting '+(it.title||'')); ppGo('music'); }; });
     };
     draw(tabs[0]);
-  }).catch(function(){ var list=card.querySelector('.list'); if(list) list.innerHTML='<div class="pp-favnone">The favourites could not be read just now.</div>'; });
+  }).catch(function(){ if(grid) grid.innerHTML='<div class="pp-favnone">The favourites could not be read just now.</div>'; });
 }
 
 /* ── patching in place ── */
