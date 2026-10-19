@@ -4615,7 +4615,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101909';
+const PROOS_BUILD='2026101910';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -9102,7 +9102,7 @@ const WIDGET_LIBRARY = [
    requires:()=>_deviceCandidates(curRoom===-1?null:CONFIG.rooms[curRoom]).length>0,
    desc:'Any one light, switch, fan, lock, blind, scene or script'},
   // A SMALL LIVE THUMBNAIL (register 607): large stays; small is added.
-  {id:'camera',    name:'Camera Feed', size:'full', phone:['L','S'], sizes:[[2,2],[1,1]], requires:()=>CONFIG.cameras&&CONFIG.cameras.length>0, desc:'A camera, live'},
+  {id:'camera',    name:'Camera Feed', size:'full', phone:['L','S','M'], sizes:[[2,2],[1,1],[2,1],[3,2]], requires:()=>CONFIG.cameras&&CONFIG.cameras.length>0, desc:'A camera, live'},
 ];
 
 // Get page key for widget storage
@@ -9573,7 +9573,7 @@ function _wlPreview(def, sz){
   } else {
     inner=`<div class="widget-ic">${data.icon||''}</div><div class="widget-lbl">${_hEsc(data.label||def.name)}</div><div class="widget-val">${_hEsc(data.value||'')}</div><div class="widget-sub">${_hEsc(data.sub||'')}</div>`;
   }
-  const cls=`widget-cell${sz[0]===2?' w-span2':''}${sz[0]>=3?' w-span3':''}${sz[1]===2?' w-rows2':''}${data.on?' w-on':''}${data._mediaTile?' w-media':''}${data._camWidget?(sz[0]===1&&sz[1]===1?' w-cam-s':' w-full'):''}`;
+  const cls=`widget-cell${sz[0]===2?' w-span2':''}${sz[0]>=3?' w-span3':''}${sz[1]===2?' w-rows2':''}${data.on?' w-on':''}${data._mediaTile?' w-media':''}${data._camWidget?((sz[0]===2&&sz[1]===2)?' w-full':' w-cam-s'+(sz[0]>1?' w-cam-w':'')):''}`;
   return `<div class="wl-pv-in" data-w="${W}" data-h="${H}" style="width:${W}px;height:${H}px">`
     +`<div class="widget-grid" style="--wl-gap:${U.gap}px;grid-template-columns:repeat(${sz[0]},${U.u}px);grid-auto-rows:${U.h}px">`
     +`<div class="${cls}" data-wid="${def.id}"${data.mo?` data-mo="${data.mo}"`:''} style="grid-column:span ${sz[0]};grid-row:span ${sz[1]}">${inner}</div></div></div>`;
@@ -9735,7 +9735,9 @@ async function _pcRefreshLatest(){
   window._pcLatest={
     detect: det?{ kind:det.kind, cam:det.cam, when:det.when, event_id:det.event_id, ent:det.eid||undefined }:null,
     doorbell: ring?{ cam:ring.cam, when:ring.when, ent:ring.eid||undefined }:null,
-    sig:(det&&det.event_id||'')+'|'+(ring&&ring.event_id||'')
+    // 968i: what the cameras saw in the same six hours — the platform's own events, by kind and time
+    recent: evs.filter(e=>SMART.has(e.kind)).map(e=>({k:e.kind, t:Date.parse(e.when)})).filter(x=>!isNaN(x.t)),
+    sig:(det&&det.event_id||'')+'|'+(ring&&ring.event_id||'')+'|'+evs.length
   };
   if(window._pcLatest.sig!==prev && typeof renderWidgetGrid==='function'){ try{ renderWidgetGrid(); }catch(e){} }
 }
@@ -10939,12 +10941,31 @@ function renderWidgetContent(w){
       // Animal) as a chip, the camera and '57 min ago' over a soft shade." It
       // was a big glass box with a 64px thumbnail tucked in its corner. The
       // frame is the same art frame (.pw-art), now filling the tile.
-      const html=`<div class="pw pwf" onclick="_paOpenAndPlay(${_ci},'${_cid}',${_wms})">`
+      const frame=`<div class="pw pwf" onclick="_paOpenAndPlay(${_ci},'${_cid}',${_wms})">`
         +`<div class="pw-art"${art?` style="background-image:url('${art}')"`:''}>${art?'':(W_SVG.camera||'')}</div>`
         +`<div class="pwf-sh"></div>`
         +`<div class="pwf-in"><span class="pw-badge">${_hEsc(d.kind)}</span><div class="pwf-sp"></div>`
         +`<div class="pw-t">${_hEsc(d.cam)}</div><div class="pw-s">${_hEsc(when||'\u2014')}</div></div></div>`;
-      return {icon, label:'Latest Detection', on:true, html, hsig:'det:'+_wms};
+      // THE ANALYTICS, NOT THE COLUMNS (968i, Dave on the widget page: "Latest Detection like the anylitics but
+      // not the columns"). Beside the frame: what the cameras saw in the last six hours, counted by kind, and
+      // each one as a dot on a line from six hours ago to now. The events are the platform's own Protect media
+      // through Core (_pcRefreshLatest, the same read the frame comes from); with no such list there are no
+      // counts and the frame fills the tile as before — nothing is counted that was not read.
+      const rec=(window._pcLatest&&Array.isArray(window._pcLatest.recent))?window._pcLatest.recent:null;
+      let html=frame;
+      if(rec&&rec.length){
+        const KC={Person:'#FFC46B',Vehicle:'#9CC4FF',Animal:'#7CF0C5',Package:'#C9A7FF',Face:'#FF9FD0','License Plate':'#9CC4FF'};
+        const now=Date.now(), span=6*3600e3;
+        const by={}; rec.forEach(x=>{ by[x.k]=(by[x.k]||0)+1; });
+        const kinds=Object.keys(by).sort((a,b)=>by[b]-by[a]);
+        const counts=kinds.map(k=>`<span><i style="background:${KC[k]||'#fff'}"></i>${_hEsc(k)} <b>${by[k]}</b></span>`).join('');
+        const dots=rec.filter(x=>now-x.t<=span).map(x=>`<i style="left:${(100-(now-x.t)/span*100).toFixed(1)}%;background:${KC[x.k]||'#fff'}"></i>`).join('');
+        html=`<div class="wv-det"><div class="wv-detf">${frame}</div><div class="wv-dett">`
+          +`<div class="wv-t">${rec.length} detection${rec.length!==1?'s':''}</div><div class="wv-s">The last six hours \u00b7 newest ${_hEsc(when||'')}</div>`
+          +`<div class="wv-detc">${counts}</div>`
+          +`<div class="wv-mt"><div class="wv-tl">${dots}</div><div class="wv-tlx"><span>6 h ago</span><span>Now</span></div></div></div></div>`;
+      }
+      return {icon, label:'Latest Detection', on:true, html, hsig:'det:'+_wms+':'+(rec?rec.length:0)};
     }
     case 'protect_doorbell': {
       let d=window._pcLatest&&window._pcLatest.doorbell;
@@ -11742,7 +11763,12 @@ function renderWidgetGrid(){
       // the same tap, with the name small and no chooser (the choice is made
       // when it is added, or on the large face).
       const _camSmall=dims.w===1&&dims.h===1;
-      cell.className='widget-cell '+(_camSmall?'w-cam-s':'w-full');
+      // WIDESCREEN FACES (968i, Dave: "camera feeds are mostly widescreen"). 2×1 and 3×2 join the small
+      // thumbnail and the 2×2: the same live picture, filling a wide tile, its name and LIVE on the picture.
+      // The camera chooser stays on the 2×2 (the choice is made when a camera is added).
+      const _camFull=dims.w===2&&dims.h===2&&!(typeof w.size==='number');
+      cell.className='widget-cell '+(_camFull?'w-full':('w-cam-s'+(dims.w===2?' w-span2':'')+(dims.w>=3?' w-span3':'')+(dims.h===2?' w-rows2':'')));
+      if(!_camSmall&&!_camFull) cell.classList.add('w-cam-w');
       const uid=w.uid;
       let camEntity=data._cam?.entity;
       let camIdx=data._camIdx;
@@ -11812,7 +11838,7 @@ function renderWidgetGrid(){
 
       cell.appendChild(camBg);
       cell.appendChild(lbl);
-      if(!_camSmall) cell.appendChild(sel);
+      if(_camFull) cell.appendChild(sel);
       cell.appendChild(xBtn2);
       grid.appendChild(cell);
       continue;
@@ -21323,6 +21349,21 @@ body:has(#widget-picker.open) #widget-add-pill{display:none!important}   /* regi
 .w-media.w-rows2 .mwc.tv .mwc-bg{display:block}
 .w-media .mwc-bg{opacity:.4;filter:blur(30px) saturate(1.7) brightness(.6)}
 .w-media .mw-dots{top:10px;right:14px;z-index:3}
+/* cameras: the wide faces (968i) */
+.widget-cell.w-cam-w::before{content:'LIVE';position:absolute;left:12px;top:12px;z-index:2;font-size:10px;font-weight:800;letter-spacing:.08em;background:#FF3B30;color:#fff;border-radius:6px;padding:3px 7px;pointer-events:none}
+.widget-cell.w-cam-w .cam-label{font-size:13px;font-weight:600;padding:22px 14px 11px;background:linear-gradient(transparent,rgba(0,0,0,.75))}
+/* latest detection: the frame and the six hours beside it (968i) */
+.wv-det{display:flex;gap:14px;height:100%;position:relative}
+.wv-detf{position:relative;flex:0 0 42%;border-radius:14px;overflow:hidden}
+.widget-cell.w-span3 .wv-detf{flex-basis:46%}
+.wv-dett{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+.wv-detc{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:rgba(255,255,255,.66)}
+.wv-detc span{display:inline-flex;align-items:center;gap:5px}
+.wv-detc i{width:7px;height:7px;border-radius:50%;flex:none}
+.wv-detc b{color:#fff;font-weight:600}
+.wv-tl{position:relative;height:16px;border-radius:8px;background:rgba(255,255,255,.07)}
+.wv-tl i{position:absolute;top:50%;width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;box-shadow:0 0 8px currentColor}
+.wv-tlx{display:flex;justify-content:space-between;font-size:10.5px;color:rgba(255,255,255,.5);margin-top:3px}
 /* ── batch 2 (968h) ── */
 /* scenes: each its own picture, or plain glass */
 .wv-scg{display:grid;grid-template-columns:1fr 1fr;gap:6px;position:relative;z-index:1}
