@@ -4615,7 +4615,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101906';
+const PROOS_BUILD='2026101907';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -21307,14 +21307,16 @@ html.pp-on #app{visibility:hidden}
    screen". On the glass each cover drew about 30 px with the play badge over it: the cover's height came from
    aspect-ratio and the tile was a flex <button> — the kiosk's browser drew neither as the page asked. The cover is now a
    plain block squared by padding (works in every browser), four big covers to a row, the title under it in 15 px. */
-.pp-favs{position:absolute;left:28px;right:28px;top:118px;bottom:62px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px 14px;align-content:start;padding-bottom:18px}
+/* 967a: Dave, 13:12, photo: "heaps better but could we maybe reduce the size to maybe six wide and hopefully see two rows".
+   Six across (≈114 px covers on the 800-wide page), one-line titles, so two full rows fit above the bar. */
+.pp-favs{position:absolute;left:28px;right:28px;top:110px;bottom:56px;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px 12px;align-content:start;padding-bottom:14px}
 .pp-fav{display:block;width:100%;min-width:0;text-align:left;padding:0;align-self:start}
 .pp-fav .art{position:relative;display:block;width:100%;height:0;padding-top:100%;border-radius:4px;background:#24242c;color:rgba(255,255,255,.5);overflow:hidden;box-shadow:0 10px 24px rgba(0,0,0,.35)}
 .pp-fav .art img{position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover;z-index:1}
-.pp-fav .art>svg{position:absolute;left:50%;top:50%;width:36px;height:36px;margin:-18px 0 0 -18px}
-.pp-fav .art .go{position:absolute;right:8px;bottom:8px;z-index:2;width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.92);color:#000;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(0,0,0,.35)}
-.pp-fav .art .go svg{width:13px;height:13px;margin-left:2px}
-.pp-fav .t{display:block;margin-top:8px;font-size:15px;font-weight:600;line-height:1.25;max-height:2.5em;overflow:hidden}
+.pp-fav .art>svg{position:absolute;left:50%;top:50%;width:30px;height:30px;margin:-15px 0 0 -15px}
+.pp-fav .art .go{position:absolute;right:6px;bottom:6px;z-index:2;width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,.92);color:#000;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(0,0,0,.35)}
+.pp-fav .art .go svg{width:11px;height:11px;margin-left:2px}
+.pp-fav .t{display:block;margin-top:6px;font-size:13px;font-weight:600;line-height:16px;height:16px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 #pp svg{shape-rendering:geometricPrecision}
 .pp-ppl{display:flex;flex-direction:column;gap:8px;margin-top:10px}
 .pp-pp{display:flex;align-items:center;gap:10px;font-size:13px}
