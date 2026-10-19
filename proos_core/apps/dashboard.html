@@ -4615,7 +4615,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101907';
+const PROOS_BUILD='2026101908';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -6020,40 +6020,57 @@ function makeMediaWidgetCard(ctrl, volEnt, art, title, artist, roomLabel, vol, h
   const artUrl=artSrc(art);
   const shape=_npShape(ctrl);
   const tv=shape==='wide'&&!!artUrl;
-  return `<div class="mwc${tv?' tv':''}" onclick="openPlayer('${ctrl}','${volEnt}')">`
-    // blurred album-art backdrop (step 4): the card rebuilds only when its
-    // content changes, so the backdrop's fade-in IS the track crossfade
+  // AUDIO AND VIDEO, ONE LAYOUT (968g, Dave 19 Oct: "Audio need to be more like
+  // the video and have transport controls above progress bar so volume slider
+  // can go up and everything centred better"). The art takes the shape of what
+  // plays (square album, 16:9 show — _npShape, unchanged); what is playing
+  // beside it; then back · play/pause · forward centred over the progress line,
+  // the clock under it, and the volume under that on the two-row faces. Back
+  // and forward are drawn only when the player says it can (features 16 / 32);
+  // the volume only when it can be set (hasVol). The clock is the player's own
+  // reported position — the card carries the reading and _npTick moves it.
+  const sf=att(ctrl,'supported_features')|0;
+  const dur=parseFloat(att(ctrl,'media_duration')), pos=parseFloat(att(ctrl,'media_position'));
+  const ser=att(ctrl,'media_series_title'), sea=att(ctrl,'media_season'), epi=att(ctrl,'media_episode');
+  const epTxt=(sea!=null&&sea!==''&&epi!=null&&epi!=='')?`Season ${sea} · Episode ${epi}`:'';
+  const app=att(ctrl,'app_name');
+  const B=(cls,lbl,on,ic)=>`<button class="${cls}" aria-label="${lbl}" onclick="event.stopPropagation();if(!_widgetEditMode)${on}" onpointerdown="event.stopPropagation()" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()">${ic}</button>`;
+  return `<div class="mwc${tv?' tv':''}" data-shape="${shape||''}" onclick="openPlayer('${ctrl}','${volEnt}')">`
+    // blurred art backdrop: the card rebuilds only when its content changes,
+    // so the backdrop's fade-in IS the track crossfade
     +(artUrl?`<div class="mwc-bg" style="background-image:url('${artUrl}')"></div>`:'')
-    // video art is widescreen, album art square (Dave, 3 Aug; 24 Sep):
-    // the player said what it is playing → that shape, from the first paint;
-    // it said nothing → the frame's own shape, measured on load (the old way)
-    +`<div class="mwc-art${shape==='wide'?' wide':''}">${artUrl?`<img src="${artUrl}"${shape?'':` onload="if(this.naturalWidth>this.naturalHeight*1.25)this.parentElement.classList.add('wide')"`} onerror="this.style.display='none';this.nextElementSibling.style.display=''"/>`:''}<div class="mwc-art-ph"${artUrl?' style="display:none"':''}>${W_SVG.media}</div></div>`
-    +`<div class="mwc-tx"><div class="mwc-room">${playing?'<span class="mw-eq"><i></i><i></i><i></i></span>':''}${_hEsc(roomLabel||'')}</div>`
-    +`<div class="mwc-title">${_hEsc(title||'')}</div>${artist?`<div class="mwc-artist">${_hEsc(artist)}</div>`:''}</div>`
-    // transport ON the tile (widget step 2): the one most-wanted control without
-    // leaving the grid — full controls stay one tap away behind the card itself
-    // THE PROGRESS LINE RUNS (register 618). The player's own position,
-    // duration and the moment it reported them (media_position,
-    // media_duration, media_position_updated_at — the same three attributes
-    // for every brand). The card carries the READING, which only changes when
-    // the player reports, so the card is not rebuilt every second (that would
-    // reload the art); _npTick moves the line between reports.
-    +(()=>{ const dur=parseFloat(att(ctrl,'media_duration')), pos=parseFloat(att(ctrl,'media_position'));
-        if(!(dur>0)||!isFinite(pos)) return '';
-        return `<div class="mwc-prog" data-pos="${pos}" data-dur="${dur}" data-at="${_hEsc(att(ctrl,'media_position_updated_at')||'')}" data-run="${playing?1:0}"><i style="width:${Math.min(100,Math.max(0,pos/dur*100)).toFixed(1)}%"></i></div>`; })()
-    +`<button class="mwc-pp" aria-label="${playing?'Pause':'Play'}" onclick="event.stopPropagation();if(!_widgetEditMode)togglePlayPause('${ctrl}')" onpointerdown="event.stopPropagation()" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()">`
-    +(playing?'<svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>'
-             :'<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>')
-    +`</button>`
+    +`<div class="wv-mtop">`
+    +`<div class="mwc-art${shape==='wide'?' wide':''}">${artUrl?`<img src="${artUrl}"${shape?'':` onload="if(this.naturalWidth>this.naturalHeight*1.25)this.parentElement.classList.add('wide'),this.closest('.mwc').dataset.shape='wide'"`} onerror="this.style.display='none';this.nextElementSibling.style.display=''"/>`:''}<div class="mwc-art-ph"${artUrl?' style="display:none"':''}>${W_SVG.media}</div></div>`
+    +`<div class="mwc-tx"><div class="mwc-room">${playing?'<span class="mw-eq"><i></i><i></i><i></i></span>':''}${_hEsc(roomLabel||'')}${app&&!String(roomLabel||'').includes(app)?' · '+_hEsc(app):''}</div>`
+    +`<div class="mwc-title">${_hEsc(title||'')}</div>${artist?`<div class="mwc-artist">${_hEsc(artist)}</div>`:''}`
+    +((epTxt&&ser&&ser!==title)||(epTxt&&!artist)?`<div class="mwc-artist wv-ep">${_hEsc(epTxt)}</div>`:'')+`</div>`
+    +`</div>`
+    +`<div class="wv-mbot">`
+    +`<div class="wv-tr">`
+      +((sf&16)?B('wv-rb wv-tb','Back',`_wvSkip('${ctrl}',-1)`,_wvSvg('prev')):'')
+      +`<button class="mwc-pp" aria-label="${playing?'Pause':'Play'}" onclick="event.stopPropagation();if(!_widgetEditMode)togglePlayPause('${ctrl}')" onpointerdown="event.stopPropagation()" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()">`
+      +(playing?'<svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>':'<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>')+`</button>`
+      +((sf&32)?B('wv-rb wv-tb','Forward',`_wvSkip('${ctrl}',1)`,_wvSvg('next')):'')
+    +`</div>`
+    // THE PROGRESS LINE RUNS (register 618): position, duration and when the
+    // player reported them — the same three attributes for every brand.
+    +(()=>{ if(!(dur>0)||!isFinite(pos)) return '';
+        return `<div class="wv-pg"><div class="mwc-prog" data-pos="${pos}" data-dur="${dur}" data-at="${_hEsc(att(ctrl,'media_position_updated_at')||'')}" data-run="${playing?1:0}"><i style="width:${Math.min(100,Math.max(0,pos/dur*100)).toFixed(1)}%"></i></div>`
+          +`<div class="wv-tm"><span>${_wvClock(pos)}</span><span>${_wvClock(dur)}</span></div></div>`; })()
+    +((hasVol&&volEnt&&vol!=null&&isFinite(+vol))?`<div class="wv-vol">${_wvRange('wv-vl',Math.round((+vol)*100),'Volume','vol',`_wvVol('${volEnt}',this.value)`,'')}</div>`:'')
+    +`</div>`
   +`</div>`;
 }
-// moves every Now Playing progress line between the player's reports (618)
+// moves every Now Playing progress line — and its clock — between the
+// player's reports (618)
 function _npTick(){
   try{ document.querySelectorAll('.mwc-prog').forEach(el=>{
     const dur=+el.dataset.dur; if(!(dur>0)) return;
     let p=+el.dataset.pos; const at=Date.parse(el.dataset.at||'');
     if(el.dataset.run==='1'&&!isNaN(at)) p+=(Date.now()-at)/1000;
-    const i=el.firstElementChild; if(i) i.style.width=Math.min(100,Math.max(0,p/dur*100)).toFixed(1)+'%';
+    p=Math.min(dur,Math.max(0,p));
+    const i=el.firstElementChild; if(i) i.style.width=(p/dur*100).toFixed(1)+'%';
+    const tm=el.nextElementSibling; if(tm&&tm.classList.contains('wv-tm')&&tm.firstElementChild) tm.firstElementChild.textContent=_wvClock(p);
   }); }catch(e){}
 }
 setInterval(_npTick,1000);
@@ -9050,7 +9067,7 @@ const CAMERA_SOFT_LIMIT = 4; // adding beyond this many camera feeds on one page
 // 2x2 for a renderer that has no 2x2). The iPad grammar (sizes) is unchanged.
 const PHONE_FACE={S:[1,1],M:[2,1],L:[2,2]};
 const WIDGET_LIBRARY = [
-  {id:'lights',    name:'Lights',      size:1, phone:['S','M'], requires:r=>r&&r.lights&&r.lights.length>0,  desc:'Each light by what it can do'},
+  {id:'lights',    name:'Lights',      size:1, phone:['S','M','L'], sizes:[[1,1],[2,1],[2,2]], requires:r=>r&&r.lights&&r.lights.length>0,  desc:'Each light by what it can do'},
   {id:'climate',   name:'Climate',     size:1, phone:['S','M'], sizes:[[1,1],[2,1]], requires:r=>r?!!r.climate:CONFIG.rooms.some(x=>x.climate),                    desc:'The temperature and the thermostat'},
   {id:'awareness', name:'Awareness',   size:2, phone:['M'], min:2, sizes:[[2,1],[3,1]], requires:()=>true,      desc:'How the house is, live'},
   {id:'weather',   name:'Weather',     size:1, phone:['S','M'], sizes:[[1,1],[2,1],[3,1]], requires:()=>!!CONFIG.weather, desc:'Outside, now and next'},
@@ -10127,16 +10144,18 @@ function renderWidgetContent(w){
       const _glyph=_dvGlyph(eid, dom, on);
       const _dimmer=dom==='light'&&on&&_wLightDims(eid);
       const _bp=_dimmer?Math.max(1,Math.round((parseFloat(att(eid,'brightness'))||0)/2.55)):null;
+      // medium: a dimmer's brightness as the filled bar, under the name now
+      // that the row is 150px (968g; 606 put it in the row at 100px)
       const _ctl=!_dWide?'':(_dimmer&&_bp!=null
-        ? `<input type="range" class="lw-slide dvw-slide" min="1" max="100" value="${_bp}" aria-label="Brightness"`
-          +` oninput="_dvBri('${eid}',this.value)" onclick="event.stopPropagation()" onpointerdown="event.stopPropagation();window._wBriDrag=true"`
-          +` onchange="window._wBriDrag=false" onpointerup="window._wBriDrag=false"/>`
+        ? _wvRange('wv-bri',_bp,'Brightness','bulb',`_dvBri('${eid}',Math.max(1,this.value))`)
         : '');
+      // since when it has been as it is — the platform's own last_changed (968g)
+      const _dAt=_wvAt(eid);
       const html=`<div class="wc dvw${_dWide?' dvw-m':''}${on?' on':''}">`+
         // medium: the control sits in the row — under it, the slider's 40pt
         // touch height overflowed a 100px row (measured 80 in 74)
-        `<div class="dvw-top">${_glyph}${_dWide?`<div class="dvw-tx"><div class="dvw-n">${esc(_deviceLabel(eid))}</div><div class="dvw-s${acts?'':' wc-read'}">${esc(_deviceWords(eid))}</div></div>${_ctl}`:''}</div>`+
-        (_dWide?'':`<div class="dvw-sp"></div><div class="dvw-n">${esc(_deviceLabel(eid))}</div><div class="dvw-s${acts?'':' wc-read'}">${esc(_deviceWords(eid))}</div>`)+
+        `<div class="dvw-top">${_glyph}${_dWide?`<div class="dvw-tx"><div class="dvw-n">${esc(_deviceLabel(eid))}</div><div class="dvw-s${acts?'':' wc-read'}">${esc(_deviceWords(eid))}${_dAt?' \u00b7 since '+esc(_dAt):''}</div></div>`:''}</div>${_ctl}`+
+        (_dWide?'':`<div class="dvw-sp"></div><div class="dvw-n">${esc(_deviceLabel(eid))}</div><div class="dvw-s${acts?'':' wc-read'}">${esc(_deviceWords(eid))}</div>${_dAt?`<div class="dvw-f">Since ${esc(_dAt)}</div>`:''}`)+
         `</div>`;
       // A READING GETS NO LISTENER AT ALL, not a listener that declines. The
       // cell only binds a tap when onclickFn is given, so "a reading is not a
@@ -10156,40 +10175,72 @@ function renderWidgetContent(w){
       // An unreadable bulb is not an off bulb (register 235).
       const lUnread=lights.filter(l=>{const v=st(l);
         return !v||v==='unavailable'||v==='unknown';});
-      // Honest read: how many on, and the average dim level of the on lights. No fake colour.
-      // EACH LIGHT BY WHAT IT CAN DO (register 596, 24 Sep 2026). Dave:
-      // "Lights needs to know if a dimmer, switch or RGB." The Lights page
-      // always did — it asks each light's own supported_color_modes (brand-
-      // agnostic). This tile did not: it drew a brightness slider whenever
-      // ANY light was on, and averaged a switch in as 100%. On his box the
-      // Kitchen had only switches on and a slider that dimmed nothing. The
-      // tile now asks the same question: the slider is for lights that can
-      // dim, its value is theirs alone, and every light gets a dot — lit in
-      // its own colour when it is a colour light.
+      // EACH LIGHT BY WHAT IT CAN DO (register 596): the slider and the level
+      // are for lights that can dim (_wLightDims, the Lights page's question);
+      // a switch is On or Off and never averaged in as 100%.
       const onDim=on.filter(_wLightDims);
       let briPct=null;
       if(onDim.length){
         const vals=onDim.map(l=>{const b=att(l,'brightness'); return (b!=null&&b!=='')?(b/255):null;}).filter(v=>v!=null);
         briPct=vals.length?Math.round(vals.reduce((a,b)=>a+b,0)/vals.length*100):null;
       }
-      const _dots=lights.slice(0,14).map(l=>{ const v=st(l); const lit=v==='on';
+      // EVERY LIGHT ON THE TILE (968g, Dave's approved widget page): the tile
+      // was a count and a row of dots. Each light now says itself — its name,
+      // its own level or On/Off, lit in its own colour when it is a colour
+      // light — and on the bigger faces each one is a control.
+      const _dot=l=>{ const v=st(l); const lit=v==='on';
         const c=(lit&&isColorLight(l))?_wLightRGB(l):null;
-        return `<i class="lw-dot${lit?' on':''}${(!v||v==='unavailable'||v==='unknown')?' nr':''}"${c?` style="--lc:${c}"`:''}></i>`; }).join('');
-      // Quick actions ON the tile (step 2): power toggle top-right, brightness
-      // slider replaces the read-only bar when lights are on. Full control
-      // stays behind the tile tap (openLightOverlay).
-      const _pw='<svg viewBox="0 0 24 24"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>';
-      const html=`<div class="wc"><button class="wqa lw-qa" aria-label="Toggle lights" onclick="event.stopPropagation();_wLightsQA(${curRoom})" onpointerdown="event.stopPropagation()" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()">${_pw}</button>`+
-        `<div class="wc-head"><span class="wc-lbl">Lights</span></div>`+
-        `<div class="lw-body"><div class="lw-val">${on.length?'On':(lUnread.length===lights.length&&lights.length?'No reading':'Off')}<span class="lw-of"> · ${on.length} of ${lights.length}${lUnread.length&&lUnread.length<lights.length?' · '+lUnread.length+' not reporting':''}</span>${(on.length&&briPct!=null)?`<span class="lw-pct" style="float:right">${briPct}%</span>`:''}</div>`+
-        `<div class="lw-dots">${_dots}</div>`+
-        (onDim.length&&briPct!=null?`<input type="range" class="lw-slide" min="1" max="100" value="${briPct}" aria-label="Brightness"
-           oninput="_wLightsBri(${curRoom},this.value)"
-           onclick="event.stopPropagation()" onpointerdown="event.stopPropagation();window._wBriDrag=true" onmousedown="event.stopPropagation();window._wBriDrag=true" ontouchstart="event.stopPropagation();window._wBriDrag=true"
-           onchange="window._wBriDrag=false" onmouseup="window._wBriDrag=false" ontouchend="window._wBriDrag=false"/>`:'')+
-        `</div></div>`;
-      return {icon, label:'Lights',
-        value:on.length?'On':(lUnread.length===lights.length&&lights.length?'No reading':'Off'),
+        return `<i class="lw-dot${lit?' on':''}${(!v||v==='unavailable'||v==='unknown')?' nr':''}"${c?` style="--lc:${c}"`:''}></i>`; };
+      const _lvl=l=>{ if(st(l)!=='on') return 0; if(!_wLightDims(l)) return 100;
+        const b=att(l,'brightness'); return (b!=null&&b!=='')?Math.max(1,Math.round(b/2.55)):100; };
+      const _words=l=>{ const v=st(l); if(!v||v==='unavailable'||v==='unknown') return 'No signal';
+        if(v!=='on') return 'Off'; if(!_wLightDims(l)) return 'On';
+        const b=att(l,'brightness'); return (b!=null&&b!=='')?Math.max(1,Math.round(b/2.55))+'%':'On'; };
+      // the room's own name is not repeated on every row ("Living Room Pendant" → "Pendant")
+      const _nm=l=>{ let n=_deviceLabel(l); const rn=r&&r.name?String(r.name):'';
+        if(rn&&n.toLowerCase().indexOf(rn.toLowerCase()+' ')===0&&n.length>rn.length+1) n=cap(n.slice(rn.length+1)); return _hEsc(n); };
+      const _sorted=lights.slice().sort((a,b)=>(st(b)==='on')-(st(a)==='on'));
+      const _ld=(typeof _widgetDims==='function')?_widgetDims(w):{w:1,h:1};
+      const _val=on.length?'On':(lUnread.length===lights.length&&lights.length?'No reading':'Off');
+      const _cnt=(lights.length&&lUnread.length===lights.length)?'No reading'
+        :`${on.length} of ${lights.length} on${lUnread.length?' · '+lUnread.length+' not reporting':''}`;
+      const _lit1=on.find(l=>isColorLight(l));
+      const _glow=on.length?`<div class="wv-glow" style="background:${(_lit1&&_wLightRGB(_lit1))||'#FFC46B'}"></div>`:'';
+      const _pw=`<button class="wv-pw lw-qa${on.length?' on':''}" aria-label="Toggle lights" onclick="event.stopPropagation();_wLightsQA(${curRoom})" onpointerdown="event.stopPropagation()" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()">${_wvSvg('power')}</button>`;
+      const _hd=`<div class="wv-hd"><div class="wv-tx"><div class="wv-t">Lights</div><div class="wv-s">${_ld.w>=2?_hEsc(r?r.name:'Whole House')+' · ':''}<b>${_hEsc(_cnt)}</b></div></div>${_pw}</div>`;
+      let _body='';
+      if(_ld.h>=2){
+        // LARGE: each light a row — its control, and its own slider when it dims
+        let used=0, shown=0; const budget=212;
+        for(const l of _sorted){
+          const dim=st(l)==='on'&&_wLightDims(l); const h=dim?64:34;
+          if(shown&&used+h>budget) break; used+=h; shown++;
+          _body+=`<div class="wv-lr${st(l)==='on'?' on':''}">`
+            +`<div class="wv-lrt">${_dot(l)}<span class="wv-ln">${_nm(l)}</span><span class="wv-lp">${_words(l)}</span>`
+            +`<button class="wv-pw sm${st(l)==='on'?' on':''}" aria-label="${_nm(l)}" onclick="event.stopPropagation();_wvLightTap('${l}')"${_WVSTOP}>${_wvSvg('power')}</button></div>`
+            +(dim?_wvRange('wv-bri',_lvl(l),'Brightness','bulb',`_dvBri('${l}',Math.max(1,this.value))`):'')+`</div>`;
+        }
+        const more=lights.length-shown;
+        const last=_wvLatest(lights), at=last?_wvAt(last):'';
+        _body=`<div class="wv-lrs">${_body}</div><div class="wv-facts wv-mt">`
+          +(briPct!=null?`<span>Average <b>${briPct}%</b></span>`:'')
+          +(at?`<span>Last change <b>${_hEsc(at)}</b></span>`:'')
+          +(more>0?`<span><b>+${more}</b> more</span>`:'')+`</div>`;
+      } else if(_ld.w>=2){
+        // MEDIUM: every light a button — tap one, that light alone
+        const cap4=lights.length>4?3:4;
+        _body=`<div class="wv-lg">`+_sorted.slice(0,cap4).map(l=>
+          `<button class="wv-lb${st(l)==='on'?' on':''}" onclick="event.stopPropagation();_wvLightTap('${l}')"${_WVSTOP}>${_dot(l)}<span class="wv-ln">${_nm(l)}</span><span class="wv-lp">${_words(l)}</span></button>`).join('')
+          +(lights.length>cap4?`<span class="wv-lb wv-lbm">+${lights.length-cap4} more</span>`:'')+`</div>`;
+      } else {
+        // SMALL: the lights, each with its level as a line
+        const n=lights.length>3?2:3;
+        _body=`<div class="wv-ll wv-mt">`+_sorted.slice(0,n).map(l=>{ const c=(st(l)==='on'&&isColorLight(l))?_wLightRGB(l):null;
+          return `<div class="wv-l">${_dot(l)}<span class="wv-ln">${_nm(l)}</span><span class="wv-lm"><i style="width:${_lvl(l)}%${c?';background:'+c:''}"></i></span><span class="wv-lp">${_words(l)}</span></div>`; }).join('')
+          +(lights.length>n?`<div class="wv-more">+${lights.length-n} more</div>`:'')+`</div>`;
+      }
+      const html=`<div class="wc wv wv-lights${on.length?' lit':''}">${_glow}${_hd}${_body}</div>`;
+      return {icon, label:'Lights', value:_val,
         sub:`${on.length} of ${lights.length} on${lUnread.length?' · '+lUnread.length+' not reporting':''}`, on:on.length>0, html, onclickFn:(function(_cr){return ()=>openLightOverlay(_cr);})(curRoom)};
     }
     case 'apps': {
@@ -10256,12 +10307,15 @@ function renderWidgetContent(w){
       const curTxt = cur!=null ? cur+'°' : '–°';
       const tgtTxt = tgt!=null ? tgt+'°' : '–';
 
-      // THE TEMPERATURE BIG, THE TARGET ON A HALF-DIAL (register 611, 24 Sep
-      // 2026). The v2 mockup: "The room temperature big, the target on a
-      // half-dial with − / +, the mode as a colour (warm = heating, blue =
-      // cooling). On Home, you choose the room." The tile was a label, a chip
-      // and a thin comfort track. The phase words above are unchanged — what
-      // it is DOING when the thermostat says so, what it is SET TO when not.
+      // THE GAUGE AND WHAT IT IS DOING (968g, Dave's approved widget page;
+      // supersedes 611's half-dial). The target on a three-quarter gauge across
+      // the thermostat's OWN range (min_temp/max_temp), the room's reading
+      // under it, − / + beside it, and the phase words above are unchanged —
+      // what it is DOING when the thermostat says so (hvac_action), what it is
+      // SET TO when not. The chevrons move only when it is genuinely heating or
+      // cooling. Medium adds what the thermostat itself reports — humidity, fan,
+      // and the outside reading from the weather the house already has — and
+      // the modes it lists, as buttons.
       const _room=r||CONFIG.rooms.find(x=>x.climate===clim);
       const _rn=_hEsc((_room&&_room.name)||'Climate');
       const _cw=phase==='heating'?('Heating to '+tgtTxt)
@@ -10269,27 +10323,37 @@ function renderWidgetContent(w){
         :phase==='idle'?('Idle · set '+tgtTxt)
         :phase==='off'?'Off':(PH.lbl+(tgt!=null?' · '+tgt+'°':''));
       const _cm=(typeof _widgetDims==='function')?_widgetDims(w):{w:1,h:1};
-      const _therm='<svg class="clw-th" viewBox="0 0 24 24"><path d="M14 14.8V5a2 2 0 0 0-4 0v9.8a4 4 0 1 0 4 0z"/></svg>';
+      const mn=parseFloat(att(clim,'min_temp')), mx=parseFloat(att(clim,'max_temp'));
+      const lo2=isFinite(mn)?mn:7, hi2=(isFinite(mx)&&mx>lo2)?mx:35;
+      const t=tgt!=null?Math.max(0,Math.min(1,(tgt-lo2)/(hi2-lo2))):0;
+      const _arc=(170*(1-t)).toFixed(1);
+      const _off=phase==='off';
+      const _gc=_off?'rgba(255,255,255,0.3)':PH.c;
+      const gauge=`<div class="clw-g"><svg class="clw-dial" viewBox="0 0 84 84"><circle cx="42" cy="42" r="36" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="6" stroke-dasharray="170 400" stroke-linecap="round"/>`
+        +(tgt!=null&&!_off?`<circle cx="42" cy="42" r="36" fill="none" stroke="${_gc}" stroke-width="6" stroke-dasharray="170 400" stroke-dashoffset="${_arc}" stroke-linecap="round" class="clw-arc"/>`:'')
+        +`</svg><div class="clw-gt"><b>${(!_off&&tgt!=null)?tgtTxt:curTxt}</b><span>${(!_off&&tgt!=null)?'Now '+curTxt:'Room'}</span></div></div>`;
+      const stepB=(d,lbl,ic)=>`<button class="wv-rb clw-b" aria-label="${lbl}" onclick="event.stopPropagation();_wClimStep('${clim}',${d})"${_WVSTOP}>${_wvSvg(ic)}</button>`;
+      const steps=(!_off&&tgt!=null)?`<div class="clw-bs">${stepB(-0.5,'Cooler','minus')}${stepB(0.5,'Warmer','plus')}</div>`:'';
+      const flow=(phase==='heating'||phase==='cooling')?`<span class="wv-flow" style="color:${PH.c}"><i></i><i></i><i></i></span>`:'';
+      const head=`<div class="wv-hd"><div class="wv-tx"><div class="wv-t">${_rn}</div><div class="wv-s clw-w" style="color:${_off?'rgba(255,255,255,0.58)':PH.c}">${_hEsc(_cw)}${flow}</div></div>${_cm.w>=2?steps:''}</div>`;
       let html;
       if(_cm.w>=2){
-        // the dial runs across the thermostat's own range (min_temp/max_temp)
-        const mn=parseFloat(att(clim,'min_temp')), mx=parseFloat(att(clim,'max_temp'));
-        const lo2=isFinite(mn)?mn:7, hi2=(isFinite(mx)&&mx>lo2)?mx:35;
-        const t=tgt!=null?Math.max(0,Math.min(1,(tgt-lo2)/(hi2-lo2))):0;
-        const px=(56-46*Math.cos(Math.PI*t)).toFixed(1), py=(64-46*Math.sin(Math.PI*t)).toFixed(1);
-        const dial=`<svg class="clw-dial" viewBox="0 0 112 70"><path d="M10 64a46 46 0 0 1 92 0" fill="none" stroke="rgba(255,255,255,0.14)" stroke-width="8" stroke-linecap="round"/>`
-          +(tgt!=null&&phase!=='off'?`<path d="M10 64A46 46 0 0 1 ${px} ${py}" fill="none" stroke="${PH.c}" stroke-width="8" stroke-linecap="round"/><circle cx="${px}" cy="${py}" r="6" fill="#fff"/>`:'')
-          +`<text x="56" y="60" text-anchor="middle" fill="#fff" font-size="22" font-weight="300">${curTxt}</text></svg>`;
-        const stepB=(d,lbl,path)=>`<button class="clw-b" aria-label="${lbl}" onclick="event.stopPropagation();_wClimStep('${clim}',${d})" onpointerdown="event.stopPropagation()" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()"><svg viewBox="0 0 24 24">${path}</svg></button>`;
-        html=`<div class="wc clw clw-m">${dial}<div class="clw-tx"><div class="clw-k">${_rn}</div><div class="clw-w" style="color:${PH.c}">${_hEsc(_cw)}</div></div>`
-          +(phase!=='off'&&tgt!=null?`<div class="clw-bs">${stepB(-0.5,'Cooler','<line x1="5" y1="12" x2="19" y2="12"/>')}${stepB(0.5,'Warmer','<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>')}</div>`:'')
-          +`</div>`;
+        const hum=att(clim,'current_humidity'), fan=att(clim,'fan_mode');
+        const ot=CONFIG.weather?att(CONFIG.weather,'temperature'):null;
+        const facts=[(hum!=null&&hum!=='')?`<span><b>${Math.round(hum)}%</b> humidity</span>`:'',
+                     fan?`<span>Fan <b>${_hEsc(cap(String(fan).replace(/_/g,' ')))}</b></span>`:'',
+                     (ot!=null&&ot!=='')?`<span>Outside <b>${Math.round(ot)}°</b></span>`:''].join('');
+        const ORDER=['heat','cool','heat_cool','auto','dry','fan_only','off'];
+        const WORD={heat:'Heat',cool:'Cool',heat_cool:'Auto',auto:'Auto',dry:'Dry',fan_only:'Fan',off:'Off'};
+        const modes=(att(clim,'hvac_modes')||[]).filter(m=>WORD[m]).sort((a,b)=>ORDER.indexOf(a)-ORDER.indexOf(b));
+        const pick=modes.filter(m=>m!=='off').slice(0,3).concat(modes.includes('off')?['off']:[]);
+        const pills=pick.length?`<div class="wv-pills">${pick.map(m=>`<button class="wv-pill${mode===m?' on':''}" onclick="event.stopPropagation();_wvClimMode('${clim}','${m}')"${_WVSTOP}>${WORD[m]}</button>`).join('')}</div>`:'';
+        html=`<div class="wc wv clw clw-m"><div class="clw-row">${gauge}<div class="clw-tx">${head}${facts?`<div class="wv-facts">${facts}</div>`:''}<div class="wv-mt">${pills}</div></div></div></div>`;
       } else {
-        html=`<div class="wc clw"><div class="clw-k">${_therm}${_rn}</div><div class="clw-sp"></div>`
-          +`<div class="clw-big">${curTxt}</div><div class="clw-w" style="color:${phase==='off'?'rgba(255,255,255,0.58)':PH.c}">${_hEsc(_cw)}</div></div>`;
+        html=`<div class="wc wv clw">${head}<div class="clw-row wv-mt">${gauge}${steps}</div></div>`;
       }
 
-      return {icon, label:'Climate', value:curTxt, sub:`Target ${tgtTxt} · ${mode}`, html,
+      return {icon, label:'Climate', value:curTxt, sub:`Target ${tgtTxt} · ${mode}`, html, on:phase==='heating'||phase==='cooling',
               onclickFn:(function(_ce){return ()=>selectClimateRoomByEntity(_ce);})(clim)};
     }
     case 'people': {
@@ -10486,15 +10550,36 @@ function renderWidgetContent(w){
       const _shut=_pct==null?0:Math.round((100-_pct)/20);   // slats down, of five
       let _slats=''; for(let k=0;k<5;k++) _slats+=`<rect x="7" y="${9+k*7}" width="32" height="5" rx="1.5" fill="rgba(255,255,255,${k<_shut?'0.4':'0.12'})"/>`;
       const _glyph=`<svg class="cvw-blind" viewBox="0 0 46 46"><rect x="4" y="3" width="38" height="4" rx="2" fill="rgba(255,255,255,0.55)"/><g class="cvw-slats">${_slats}</g></svg>`;
-      const _cName=r?((r.name||'')+(covers.length>1?` \u00b7 ${covers.length} blinds`:' blind')):`${covers.length} cover${covers.length!==1?'s':''}`;
+      const _cName=r?((r.name||'')+(covers.length>1?` · ${covers.length} blinds`:' blind')):`${covers.length} cover${covers.length!==1?'s':''}`;
       const _cWide=_widgetDims(w).w>=2;
       const _stop=covers.some(c=>(att(c,'supported_features')|0)&8);   // the cover says it can stop
-      const _cb=(svcName,path)=>`<button class="cvw-b" type="button" aria-label="${svcName.split('_')[0]}" onclick="event.stopPropagation();if(!_widgetEditMode)_wCoverAll('${svcName}',${JSON.stringify(covers).replace(/"/g,'&quot;')})" onpointerdown="event.stopPropagation()">${path}</button>`;
-      const _cHtml=_cWide
-        ? `<div class="cvw cvw-m">${_glyph}<div class="cvw-tx"><div class="cvw-n">${_hEsc(_cName)}</div><div class="cvw-v">${_hEsc(_cWord)}</div></div>`
-          +`<div class="cvw-bs">${_cb('open_cover','<svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg>')}${_stop?_cb('stop_cover','<svg viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="1.5" class="f"/></svg>'):''}${_cb('close_cover','<svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>')}</div></div>`
-        : `<div class="cvw">${_glyph}<div class="cvw-tx"><div class="cvw-v">${_hEsc(_cWord)}</div><div class="cvw-n">${_hEsc(_cName)}</div></div></div>`;
-      return {icon, label:'Covers', value:coverValue, sub:`${covers.length} cover${covers.length!==1?'s':''}`, on:openC.length>0, mo:_cMo, html:_cHtml, hsig:'cv:'+_cWide+'|'+_cWord+'|'+_shut+'|'+_stop,
+      const _list=JSON.stringify(covers).replace(/"/g,'&quot;');
+      const _cb=(svcName,ic)=>`<button class="wv-rb cvw-b" type="button" aria-label="${svcName.split('_')[0]}" onclick="event.stopPropagation();if(!_widgetEditMode)_wCoverAll('${svcName}',${_list})"${_WVSTOP}>${_wvSvg(ic)}</button>`;
+      // POSITION, MOVED, AND EACH BLIND (968g, Dave's approved widget page).
+      // The blind's position is its own current_position, as a bar you can
+      // drag — only when a cover says it can be set to a position (feature 4).
+      // "Moved" is the platform's own last_changed of the cover that moved last.
+      // Medium shows each blind with its own position when there are several.
+      const _canPos=_pct!=null&&covers.some(c=>(att(c,'supported_features')|0)&4);
+      const _bar=_canPos?_wvRange('wv-pos',_pct,'Position','shade',`_wvCoverPos(${_list},this.value)`):'';
+      const _btns=`<div class="cvw-bs">${_cb('open_cover','up')}${_stop?_cb('stop_cover','stop'):''}${_cb('close_cover','down')}</div>`;
+      const _last=_wvLatest(covers), _at=_last?_wvAt(_last):'';
+      const _one=covers.length===1?_hEsc((()=>{ let n=_deviceLabel(covers[0]); const rn=r&&r.name?String(r.name):''; return (rn&&n.toLowerCase().indexOf(rn.toLowerCase()+' ')===0)?cap(n.slice(rn.length+1)):n; })()):'';
+      const _title=covers.length===1?_one:_hEsc(r?(r.name||'Blinds'):'Covers');
+      const _sub=covers.length===1?_hEsc(_cWord):`${covers.length} ${r?'blinds':'covers'} · ${_hEsc(_cWord)}`;
+      const _hd=`<div class="wv-hd"><div class="wv-tx"><div class="wv-t">${_title}</div><div class="wv-s">${_sub}</div></div>${_cWide?_btns:_glyph}</div>`;
+      let _cHtml;
+      if(_cWide){
+        const each=covers.length>1?`<div class="wv-cov" style="--n:${Math.min(4,covers.length)}">`+covers.slice(0,4).map(c=>{
+            const v=st(c), p=parseFloat(att(c,'current_position')), dead=!v||v==='unavailable'||v==='unknown';
+            const pp=isFinite(p)?Math.round(p):(v==='open'?100:0);
+            let n=_deviceLabel(c); const rn=r&&r.name?String(r.name):''; if(rn&&n.toLowerCase().indexOf(rn.toLowerCase()+' ')===0) n=cap(n.slice(rn.length+1));
+            return `<div class="wv-cv"><b>${_hEsc(n)}</b><span class="wv-cvm"><i style="width:${dead?0:pp}%"></i></span>${dead?'No signal':(isFinite(p)?pp+'% open':cap(v))}</div>`; }).join('')+`</div>`:'';
+        _cHtml=`<div class="wc wv cvw cvw-m">${_hd}${_bar}${each}${(!each&&_at)?`<div class="wv-facts wv-mt"><span>Last moved <b>${_hEsc(_at)}</b></span></div>`:''}</div>`;
+      } else {
+        _cHtml=`<div class="wc wv cvw">${_hd}${_bar}${(_at&&!_bar)?`<div class="wv-facts"><span>Moved <b>${_hEsc(_at)}</b></span></div>`:''}<div class="wv-mt">${_btns}</div></div>`;
+      }
+      return {icon, label:'Covers', value:coverValue, sub:`${covers.length} cover${covers.length!==1?'s':''}`, on:openC.length>0, mo:_cMo, html:_cHtml,
         onclickFn:(function(_cv){return ()=>{ if(!_cv.length) return;
           const anyOpen=_cv.some(c=>st(c)==='open');
           _cv.forEach(c=>svc('cover',anyOpen?'close_cover':'open_cover',{entity_id:c}));
@@ -11116,6 +11201,94 @@ function _domSig(grid){
 // stops propagation at the call site so the cell tap / long-press-edit never
 // double-fires. All device commands go through the same svc()/Core paths as
 // the full pages — the widgets add no second mechanism.
+// ═══ WIDGETS V2 — the shared pieces (register 968g, 19 Oct 2026) ═══════════
+// Dave approved the widget page (artifact "ProOS Widget Library", v3): every
+// widget fuller with the state the box already reads, and moving. These are
+// the pieces every redrawn widget shares. Nothing here invents a reading: a
+// time is the platform's own last_changed, a level is the device's own
+// attribute, and a control is only drawn when the device says it can do it.
+const _WVI={
+  power:'<path d="M12 3v8"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/>',
+  prev:'<path d="M6 5v14"/><path d="M19 5.5 9 12l10 6.5z" class="f"/>',
+  next:'<path d="M18 5v14"/><path d="M5 5.5 15 12 5 18.5z" class="f"/>',
+  play:'<path d="M8 5.5v13l10.5-6.5z" class="f"/>',
+  pause:'<rect x="6.5" y="5" width="3.6" height="14" rx="1" class="f"/><rect x="13.9" y="5" width="3.6" height="14" rx="1" class="f"/>',
+  up:'<path d="M6 15l6-6 6 6"/>', down:'<path d="M6 9l6 6 6-6"/>',
+  stop:'<rect x="7" y="7" width="10" height="10" rx="1.5" class="f"/>',
+  minus:'<path d="M5 12h14"/>', plus:'<path d="M12 5v14M5 12h14"/>',
+  bulb:'<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z"/>',
+  vol:'<path d="M4 10v4h4l5 4V6L8 10z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/>',
+  shade:'<path d="M4 4h16M5 4v10h14V4M12 14v4"/>',
+  drop:'<path d="M12 3s6 6.4 6 11a6 6 0 0 1-12 0c0-4.6 6-11 6-11z"/>'
+};
+function _wvSvg(k){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+(_WVI[k]||'')+'</svg>'; }
+// a control on a tile never arms the tile's own hold (edit mode) or its tap
+const _WVSTOP=' onpointerdown="event.stopPropagation()" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()"';
+// WHEN, AS THE PLATFORM RECORDED IT: the state's own last_changed, said the way
+// a person says it — "7:41 pm", "yesterday 9:02 pm", "Sat 6:30 am". No reading,
+// no words: a tile never prints a time it was not given.
+function _wvAt(eid){
+  const o=(typeof states!=='undefined')&&states[eid]; const t=o&&o.last_changed?Date.parse(o.last_changed):NaN;
+  if(isNaN(t)) return '';
+  const d=new Date(t), now=new Date();
+  const hm=d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}).toLowerCase().replace(/ |\s+/g,' ');
+  if(d.toDateString()===now.toDateString()) return hm;
+  const y=new Date(now.getTime()-864e5); if(d.toDateString()===y.toDateString()) return 'yesterday '+hm;
+  return d.toLocaleDateString([], {weekday:'short'})+' '+hm;
+}
+// the one of these that changed last (for "Last change 7:41 pm" over a group)
+function _wvLatest(list){
+  let best='', bt=-1;
+  (list||[]).forEach(e=>{ const o=(typeof states!=='undefined')&&states[e]; const t=o&&o.last_changed?Date.parse(o.last_changed):NaN; if(!isNaN(t)&&t>bt){ bt=t; best=e; } });
+  return best;
+}
+// A SLIDER THAT DRAWS ITS OWN FILL. The value is the device's own reading; the
+// label and number sit inside the bar (the panel's slider, at tile size). A drag
+// holds every repaint (_wBriDrag) so the bar is never rebuilt under a finger.
+function _wvRange(kind, pct, label, icon, oninput, unit){
+  const p=Math.max(0,Math.min(100,Math.round(pct)));
+  const u=unit==null?'%':unit;
+  return `<div class="wv-sl ${kind}" style="--v:${p}%"><div class="wv-slf"></div>`
+    +`<span class="wv-sll">${_wvSvg(icon)}${_hEsc(label)}</span><span class="wv-slv">${p}${u}</span>`
+    +`<input type="range" min="0" max="100" value="${p}" aria-label="${_hEsc(label)}"`
+    +` oninput="var b=this.parentNode;b.style.setProperty('--v',this.value+'%');b.querySelector('.wv-slv').textContent=this.value+'${u}';${oninput}"`
+    +` onclick="event.stopPropagation()" onpointerdown="event.stopPropagation();window._wBriDrag=true" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation();window._wBriDrag=true"`
+    +` onchange="window._wBriDrag=false" onpointerup="window._wBriDrag=false" ontouchend="window._wBriDrag=false"/></div>`;
+}
+// ONE LIGHT, BY ITS OWN DOMAIN. A switch entity on the Lights tile is toggled
+// as a switch (the platform's light service does not move a switch). A light
+// nobody can read is said to be so — never toggled blind.
+function _wvLightTap(eid){
+  if(_widgetEditMode) return;
+  const v=st(eid);
+  if(!v||v==='unavailable'||v==='unknown'){ try{ showToast('No signal from '+_deviceLabel(eid)); }catch(e){} return; }
+  svc(String(eid).startsWith('switch.')?'switch':'light','toggle',{entity_id:eid});
+}
+// A BLIND TO A POSITION — only the covers that say they can (set-position,
+// feature 4); the others keep Open · Stop · Close.
+let _wvCovT=null;
+function _wvCoverPos(list,val){
+  if(_widgetEditMode||!Array.isArray(list)) return;
+  clearTimeout(_wvCovT);
+  _wvCovT=setTimeout(()=>list.filter(c=>(att(c,'supported_features')|0)&4)
+    .forEach(c=>svc('cover','set_cover_position',{entity_id:c,position:parseInt(val,10)||0})),250);
+}
+// the thermostat's mode, through the climate domain — only modes it lists
+function _wvClimMode(eid,m){ if(_widgetEditMode) return; svc('climate','set_hvac_mode',{entity_id:eid,hvac_mode:m}); }
+// back / forward, asked of whoever holds the queue (as play/pause is)
+function _wvSkip(ctrl,dir){
+  if(_widgetEditMode) return;
+  const q=(typeof _queueOwner==='function')?_queueOwner(ctrl):ctrl;
+  svc('media_player',dir<0?'media_previous_track':'media_next_track',{entity_id:q});
+}
+function _wvClock(s){ s=Math.max(0,Math.floor(+s||0)); const h=Math.floor(s/3600), m=Math.floor(s%3600/60), x=String(s%60).padStart(2,'0'); return h?h+':'+String(m).padStart(2,'0')+':'+x:m+':'+x; }
+// the volume a tile's slider sends — the media_player domain's own volume_set
+const _wvVolT={};
+function _wvVol(eid,val){
+  if(_widgetEditMode||!eid) return;
+  clearTimeout(_wvVolT[eid]);
+  _wvVolT[eid]=setTimeout(()=>svc('media_player','volume_set',{entity_id:eid,volume_level:Math.max(0,Math.min(1,(parseInt(val,10)||0)/100))}),150);
+}
 function _wLightsScope(ri){
   const r=(ri>=0&&CONFIG.rooms[ri])?CONFIG.rooms[ri]:null;
   return r?(r.lights||[]):CONFIG.rooms.flatMap(x=>x.lights||[]);
@@ -11138,17 +11311,8 @@ function _wLightsQA(ri){
       try{ showToast(anyOn?'Turning lights off':'Turning lights on'); }catch(e){}
 }
 let _wBriT=null;
-function _wLightsBri(ri,val){
-  if(_widgetEditMode) return;
-  clearTimeout(_wBriT);
-  _wBriT=setTimeout(()=>{
-    const lights=_wLightsScope(ri);
-    // dim the lit ones; if none are lit the slider isn't rendered
-    // only the lit lights that CAN dim (596) — a switch has no brightness
-    lights.filter(l=>st(l)==='on'&&_wLightDims(l))
-          .forEach(l=>svc('light','turn_on',{entity_id:l,brightness_pct:parseInt(val,10)||1}));
-  },150);
-}
+// (968g) _wLightsBri — the old tile's one slider for every lit dimmer — went with that slider: each light
+// that dims now has its own bar (_dvBri, the light domain's brightness, one light at a time).
 let _wClimPend={};
 function _wClimStep(eid,d){
   if(_widgetEditMode) return;
@@ -11428,6 +11592,7 @@ function renderWidgetGrid(){
     if(data._mediaTile) cell.classList.add('w-media'); // full-bleed media cards (backdrop fills)
     cell.dataset.wid=w.id;
     cell.dataset.uid=w.uid;
+    cell.style.setProperty('--wv-i', String(widgets.indexOf(w)));   // 968g: tiles rise in turn
     _wMotion(cell, data);   // register 599
     if(data._hide) cell.style.display='none';   // live widget: no content → no tile
 
@@ -20893,6 +21058,175 @@ body:has(#widget-picker.open) #widget-add-pill{display:none!important}   /* regi
    The nav bar's labels are the one deliberate exception (10px, Apple's own
    tab-bar size; five uppercase words at 393 do not fit at 13). The wind
    dial's numbers are SVG text and scale with the dial. */
+/* ═══ WIDGETS V2 (register 968g, 19 Oct 2026) ═════════════════════════════
+   Dave approved the widget page ("ProOS Widget Library", v3) and asked for the
+   app's dashboards — iPad, phone and Mac — refreshed to it. This block is the
+   shared look, last in the page so it is the one that applies: frosted glass
+   at 22px corners, a row tall enough for a widget to say what it knows
+   (150px, was 100 — "a lot of wasted space"), the panel's type and controls,
+   and motion: tiles rise in turn, lit things glow, controls give under a
+   finger. Under reduced motion all of it stops. */
+#widget-grid,.widget-grid,.wl-pv{--wv-ink2:rgba(255,255,255,.66);--wv-ink3:rgba(255,255,255,.42);--wv-hair:rgba(255,255,255,.10);--wv-amber:#FFC46B;--wv-amber-d:#E9963A;--wv-sky:#9CC4FF;--wv-mint:#7CF0C5;--wv-ok:#32D74B;--wv-warn:#FFB340;--wv-ease:var(--e-standard)}
+.widget-grid{grid-auto-rows:150px;gap:12px}
+/* THE TILE KEEPS DAVE'S GLASS (register 623, 26 Sep: "all tiles are to change to the old tile colour and
+   transparency.. accross the board") — 8% white, a 15% hairline, a plain 16px blur; on, 13% / 25%. The widget
+   page drew a darker glass; the standing ruling wins until Dave says otherwise (968g). What changes is the
+   corner (22px), the room inside and the motion. */
+.widget-cell{background:rgba(255,255,255,0.08)!important;border:.5px solid rgba(255,255,255,0.15)!important;border-radius:22px!important;box-shadow:none!important;-webkit-backdrop-filter:blur(16px)!important;backdrop-filter:blur(16px)!important;transition:transform var(--m-move) var(--e-standard),background var(--m-move) var(--e-standard)!important}
+.widget-cell:not(.w-app):not(.w-full):not(.w-cam-s):not(.w-media){padding:14px 15px}
+.widget-cell.w-on{background:rgba(255,255,255,0.13)!important;border:.5px solid rgba(255,255,255,0.25)!important}
+.widget-cell.w-full,.widget-cell.w-cam-s,.widget-cell.w-app,.widget-cell.w-media{border-radius:22px!important}
+@media (hover:hover){.widget-grid:not(.edit-mode) .widget-cell:hover{transform:translateY(-3px)}}
+.widget-cell:active{transform:scale(.97)!important}
+.widget-grid:not(.edit-mode) .widget-cell:not([data-mo="ring"]){animation:wv-rise var(--m-page) var(--e-standard) both;animation-delay:calc(var(--wv-i,0)*45ms)}
+@keyframes wv-rise{from{opacity:.35;transform:translateY(12px) scale(.985)}to{opacity:1;transform:none}}
+@media(max-width:768px){
+  #widget-grid{grid-auto-rows:minmax(150px,auto)!important;gap:10px!important}
+  .widget-cell{min-height:150px}
+}
+/* the pieces */
+.wv{position:relative;gap:8px;justify-content:flex-start!important;min-height:0}
+.wv-hd{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;position:relative;z-index:1}
+.wv-tx{min-width:0;flex:1}
+.wv-t{font-size:15.5px;font-weight:600;line-height:1.2;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wv-s{font-size:12px;color:var(--wv-ink2);margin-top:2px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:6px}
+.wv-s b{color:#fff;font-weight:600}
+.wv-mt{margin-top:auto}
+.wv-facts{display:flex;flex-wrap:wrap;gap:3px 12px;font-size:11.5px;color:var(--wv-ink2);position:relative;z-index:1}
+.wv-facts b{color:#fff;font-weight:600;font-variant-numeric:tabular-nums}
+.wv-pw{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.12);color:#fff;border:0;padding:0;flex:none;cursor:pointer;transition:background var(--m-move) var(--e-standard),color var(--m-move) var(--e-standard),box-shadow var(--m-move) var(--e-standard),transform var(--m-tap) var(--e-spring);position:relative}
+.wv-pw svg,.wv-rb svg{width:18px;height:18px}
+.wv-pw:active,.wv-rb:active,.wv-pill:active,.wv-lb:active{transform:scale(.9)}
+.wv-pw.on{background:var(--wv-amber);color:#1a1200;box-shadow:0 0 0 6px rgba(255,196,107,.12),0 0 26px rgba(255,196,107,.5)}
+.wv-pw.sm{width:30px;height:30px}.wv-pw.sm svg{width:15px;height:15px}.wv-pw.sm.on{box-shadow:0 0 14px rgba(255,196,107,.45)}
+.wv-pw::after,.wv-rb::after{content:'';position:absolute;inset:-6px}
+.wv-rb{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.1);box-shadow:inset 0 0 0 1px rgba(255,255,255,.06);color:#fff;border:0;padding:0;flex:none;cursor:pointer;transition:transform var(--m-tap) var(--e-spring),background var(--m-move) var(--e-standard);position:relative}
+.wv-rb .f,.wv-pw .f{fill:currentColor;stroke:none}
+.wv-pills{display:flex;gap:6px;flex-wrap:wrap}
+.wv-pill{height:30px;padding:0 11px;border-radius:10px;background:rgba(255,255,255,.08);color:#fff;border:0;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;transition:background var(--m-move) var(--e-standard),color var(--m-move) var(--e-standard),transform var(--m-tap) var(--e-spring)}
+.wv-pill.on{background:#fff;color:#000}
+.wv-glow{position:absolute;width:170px;height:170px;border-radius:50%;filter:blur(42px);opacity:.3;right:-50px;top:-60px;pointer-events:none;z-index:0;animation:wv-breathe calc(var(--m-page)*8) ease-in-out infinite}
+@keyframes wv-breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
+/* the slider: the reading as a filled bar, its label and number inside */
+.wv-sl{position:relative;height:36px;border-radius:12px;background:rgba(255,255,255,.08);overflow:hidden;flex:none;z-index:1}
+.wv-slf{position:absolute;left:0;top:0;bottom:0;width:var(--v,50%);background:linear-gradient(90deg,var(--wv-amber-d),var(--wv-amber));transition:width var(--m-move) var(--e-standard);pointer-events:none}
+.wv-sl.wv-pos .wv-slf{background:linear-gradient(90deg,#6d8fd6,var(--wv-sky))}
+.wv-sl.wv-vl .wv-slf{background:linear-gradient(90deg,rgba(255,255,255,.26),rgba(255,255,255,.5))}
+.wv-sll{position:absolute;left:11px;top:0;bottom:0;display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;pointer-events:none;color:#fff}
+.wv-sll svg{width:15px;height:15px}
+.wv-slv{position:absolute;right:11px;top:0;bottom:0;display:flex;align-items:center;font-size:12.5px;font-weight:600;font-variant-numeric:tabular-nums;pointer-events:none}
+.wv-sl input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:ew-resize;touch-action:none}
+/* lights */
+.wv-ll{display:flex;flex-direction:column;gap:7px;position:relative;z-index:1}
+.wv-l{display:flex;align-items:center;gap:8px;font-size:12.5px;min-width:0}
+.wv-ln{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#fff;font-weight:500}
+.wv-lm{width:44px;height:5px;border-radius:3px;background:rgba(255,255,255,.12);overflow:hidden;flex:none}
+.wv-lm i{display:block;height:100%;border-radius:3px;background:var(--wv-amber);transition:width var(--m-page) var(--e-standard)}
+.wv-lp{font-size:12px;color:var(--wv-ink2);font-variant-numeric:tabular-nums;flex:none;min-width:30px;text-align:right}
+.wv-more{font-size:11.5px;color:var(--wv-ink3)}
+.widget-cell:not(.w-app):not(.w-full):not(.w-cam-s){container-type:inline-size}
+@container (max-width:230px){.wv-lm{display:none}}
+.wv .lw-dot{width:8px;height:8px;margin:0;flex:none}
+.wv-lg{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:auto;position:relative;z-index:1}
+.wv-lb{display:flex;align-items:center;gap:8px;height:32px;padding:0 10px;border-radius:11px;background:rgba(255,255,255,.07);border:0;color:#fff;font:inherit;font-size:12.5px;text-align:left;cursor:pointer;min-width:0;transition:background var(--m-move) var(--e-standard),transform var(--m-tap) var(--e-spring)}
+.wv-lb.on{background:rgba(255,196,107,.16)}
+.wv-lbm{color:var(--wv-ink3);cursor:default;justify-content:center}
+.wv-lrs{display:flex;flex-direction:column;gap:6px;position:relative;z-index:1;min-height:0}
+.wv-lr{display:flex;flex-direction:column;gap:6px}
+.wv-lrt{display:flex;align-items:center;gap:8px;font-size:13px;min-width:0}
+.wv-lr .wv-sl{height:28px}
+/* climate */
+.clw-row{display:flex;align-items:center;gap:12px;position:relative;z-index:1}
+.clw-m .clw-row{height:100%}
+.clw-tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px;height:100%}
+.clw-g{width:84px;height:84px;flex:none;position:relative}
+.clw-g svg{width:84px;height:84px;transform:rotate(135deg)}
+.clw-arc{transition:stroke-dashoffset var(--m-page) var(--e-standard)}
+.clw-gt{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.clw-gt b{font-size:23px;font-weight:300;line-height:1;font-variant-numeric:tabular-nums}
+.clw-gt span{font-size:10px;color:var(--wv-ink2);margin-top:3px}
+.clw-bs{display:flex;flex-direction:column;gap:7px}
+.clw-m .clw-bs{flex-direction:row;gap:6px}
+.wv-flow{display:inline-flex;gap:2px;flex:none}
+.wv-flow i{width:6px;height:6px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(-45deg);animation:wv-chev calc(var(--m-page)*2.7) infinite;opacity:.25}
+.wv-flow i:nth-child(2){animation-delay:.2s}.wv-flow i:nth-child(3){animation-delay:.4s}
+@keyframes wv-chev{40%{opacity:1}}
+/* the older one-row covers/climate wrappers lay out as a column now */
+.wv.cvw-m,.wv.clw-m{flex-direction:column;align-items:stretch;gap:8px}
+/* covers */
+.cvw .cvw-bs{display:flex;gap:6px}
+.cvw .cvw-blind{width:36px;height:36px;flex:none}
+.wv-cov{display:grid;grid-template-columns:repeat(var(--n,3),1fr);gap:8px;margin-top:auto}
+.wv-cv{display:flex;flex-direction:column;gap:4px;font-size:10.5px;color:var(--wv-ink2);min-width:0}
+.wv-cv b{color:#fff;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wv-cvm{height:4px;border-radius:2px;background:rgba(255,255,255,.12);overflow:hidden}
+.wv-cvm i{display:block;height:100%;background:var(--wv-sky);transition:width var(--m-page) var(--e-standard)}
+.cvw .wv-sl{height:30px}
+/* device */
+.dvw-f{font-size:11px;color:var(--wv-ink3);margin-top:2px}
+/* activities */
+.widget-cell[data-wid="activities"] .acw{gap:8px;justify-content:space-between}
+.widget-cell[data-wid="activities"] .acw-body{justify-content:flex-start}
+.widget-cell[data-wid="activities"] .acw-val{font-size:17px;font-weight:600;letter-spacing:-.01em;line-height:1.2}
+.widget-cell[data-wid="activities"] .acw-sub{font-size:12px;font-weight:400;color:var(--wv-ink2);margin-top:3px}
+.widget-cell[data-wid="activities"] .acw-chain{gap:0;margin-top:auto}
+.widget-cell[data-wid="activities"] .acw-leg{gap:5px;padding:5px 8px;border-radius:9px;background:rgba(255,255,255,.07)}
+.widget-cell[data-wid="activities"] .acw-leg.on{background:rgba(124,240,197,.12)}
+.widget-cell[data-wid="activities"] .acw-leg.on .acw-ic{stroke:var(--wv-mint);filter:drop-shadow(0 0 5px rgba(124,240,197,.5))}
+.widget-cell[data-wid="activities"] .acw-leg+.acw-leg::before{content:'';width:12px;height:2px;margin:0 2px 0 -7px;background:linear-gradient(90deg,transparent,var(--wv-mint),transparent);background-size:200% 100%;animation:wv-pulse calc(var(--m-page)*3) linear infinite;opacity:.8}
+.widget-cell[data-wid="activities"] .acw-leg+.acw-leg{margin-left:10px}
+@keyframes wv-pulse{from{background-position:100% 0}to{background-position:-100% 0}}
+.widget-cell[data-wid="activities"] .acw-again{height:34px;border-radius:11px;border:0;background:#fff;color:#000;font-weight:600;padding:0 13px 0 10px}
+.widget-cell[data-wid="activities"] .acw-again svg{fill:#000}
+/* device: the one control under the name, at full width */
+.dvw-m{gap:10px}
+.dvw-m .wv-sl{height:32px}
+/* NOW PLAYING — audio and video, one layout */
+.w-media .mwc{flex-direction:column!important;align-items:stretch!important;justify-content:space-between;gap:8px;padding:14px 15px!important;border-radius:22px}
+.w-media .wv-mtop{display:flex;align-items:center;gap:12px;min-height:0;flex:1;position:relative;z-index:1}
+.w-media .wv-mbot{display:flex;flex-direction:column;gap:6px;position:relative;z-index:1}
+.w-media .mwc-art{align-self:stretch;height:auto!important;width:auto!important;aspect-ratio:1/1;max-height:100%;border-radius:var(--proos-art-r);box-shadow:0 10px 24px rgba(0,0,0,.45)}
+.w-media .mwc-art.wide{aspect-ratio:16/9;align-self:center}
+.w-media .mwc-tx{display:flex;flex-direction:column;gap:3px;min-width:0}
+.w-media .mwc-room{color:var(--wv-mint);font-size:9.5px;letter-spacing:.08em;margin:0}
+.w-media .mw-eq i{background:var(--wv-mint)}
+.w-media .mwc-title{font-size:16px;font-weight:600}
+.wv-tr{display:flex;align-items:center;justify-content:center;gap:12px}
+.w-media .wv-tr .mwc-pp{width:40px!important;height:40px!important;background:#fff!important;color:#000!important;border:0!important}
+.w-media .wv-tr .mwc-pp svg{width:16px;height:16px;fill:#000}
+.wv-tb{width:32px;height:32px;background:transparent;box-shadow:none}
+.wv-tb svg{width:17px;height:17px}
+.wv-pg{display:flex;flex-direction:column;gap:3px}
+.w-media .mwc-prog{position:relative!important;left:auto!important;right:auto!important;bottom:auto!important;height:4px;border-radius:2px}
+.w-media .mwc-prog i{background:#fff}
+.wv-tm{display:flex;justify-content:space-between;font-size:10.5px;color:var(--wv-ink3);font-variant-numeric:tabular-nums}
+.w-media .wv-vol{display:none}
+/* one-row faces: the art at full height; beside it the words, then the transport and the line */
+.w-media:not(.w-rows2) .mwc{display:grid!important;grid-template-columns:auto minmax(0,1fr);grid-template-rows:auto 1fr;column-gap:12px;row-gap:4px}
+.w-media:not(.w-rows2) .wv-mtop{display:contents}
+.w-media:not(.w-rows2) .mwc-art{grid-row:1 / span 2;grid-column:1;width:122px!important;height:122px!important;max-width:none;max-height:none;align-self:center}
+.w-media:not(.w-rows2) .mwc-art.wide{align-self:center;height:auto!important;width:100%!important;max-width:none;aspect-ratio:16/9}
+.w-media:not(.w-rows2) .mwc[data-shape="wide"]{grid-template-columns:42% minmax(0,1fr)}
+.w-media:not(.w-rows2) .mwc-tx{grid-column:2;grid-row:1}
+.w-media:not(.w-rows2) .wv-mbot{grid-column:2;grid-row:2;justify-content:flex-end}
+/* two-row faces: art and words on top, transport, line and volume under */
+.w-media.w-rows2 .wv-vol{display:block}
+.w-media.w-rows2 .wv-mtop{align-items:flex-start}
+.w-media.w-rows2 .mwc-art{align-self:flex-start;width:132px!important;height:132px!important;flex:none}
+.w-media.w-rows2.w-span3 .mwc-art{width:150px!important;height:150px!important}
+.w-media.w-rows2 .mwc-art.wide{width:236px!important;height:auto!important}
+.w-media.w-rows2.w-span3 .mwc-art.wide{width:268px!important}
+.w-media.w-rows2 .mwc-title{font-size:19px;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+/* a two-wide two-row SHOW: the widescreen picture across the top, the words under it */
+.w-media.w-rows2:not(.w-span3) .mwc[data-shape="wide"] .wv-mtop{flex-direction:column;align-items:stretch;gap:8px}
+.w-media.w-rows2:not(.w-span3) .mwc[data-shape="wide"] .mwc-art.wide{width:100%!important;height:110px!important;aspect-ratio:auto;max-height:none}
+.w-media.w-rows2:not(.w-span3) .mwc[data-shape="wide"] .mwc-title{font-size:17px;-webkit-line-clamp:1}
+.w-media.w-rows2 .mwc.tv .mwc-art{position:relative;inset:auto;border-radius:var(--proos-art-r-l)}
+.w-media.w-rows2 .mwc.tv::after{content:none}
+.w-media.w-rows2 .mwc.tv .mwc-bg{display:block}
+.w-media .mwc-bg{opacity:.4;filter:blur(30px) saturate(1.7) brightness(.6)}
+.w-media .mw-dots{top:10px;right:14px;z-index:3}
+@media (prefers-reduced-motion:reduce){.widget-cell,.wv-glow,.wv-flow i{animation:none!important;transition:none!important}}
 :root{ --t-floor:13px; --tap:44px; }
 .page-title,.ll-room-name,.ll-pct,.set-section-title,.set-field-label,.set-field-hint,.set-value,
 .mp-room,.mp-artist,.mp-vol-pct,.aw-sb,.ctrl-sub,.top-bar-btn,
