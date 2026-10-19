@@ -3191,7 +3191,7 @@ html[data-link="remote"]{--m-tap:90ms;--m-move:200ms;--m-page:300ms}
 #proos-inst-overlay,#awareness-overlay,#proos-req-overlay,.pe-ov,.pa-fs,
 #widget-picker,#music-act-sheet,#music-queue-overlay,#scene-edit,.appc-ov,#setup,#pin-overlay,
 #assist-overlay,#all-lights-overlay,#loading,#proos-reboot,#proos-dashupd,#light-overlay,
-#climate-all-overlay,#climate-overlay,#rotate-overlay,#svc-sheet,#proos-sheet,#proos-tv-wait,#pp,
+#climate-all-overlay,#climate-overlay,#rotate-overlay,#svc-sheet,#proos-sheet,#proos-tv-wait,#pp,.sg-pop,
 #device-chooser{padding-top:var(--proos-sat)}
 /* THE CLEARANCE IS A FLOOR, NOT AN ADDITION (7 Sep 2026, register 362).
    Dave: "Mobile needs to be looked at every page on the dashboard for layout
@@ -4606,7 +4606,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101919';
+const PROOS_BUILD='2026101920';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -14036,6 +14036,8 @@ async function assistMemLoad(){
   }
   b.innerHTML=h||'<div class="set-row"><div class="set-label" style="color:rgba(255,255,255,0.50)">Nothing remembered yet.</div></div>';
 }
+function openAssistMem(){ const p=document.getElementById('set-assist-mem-pop'); if(p) p.classList.add('open'); }
+function closeAssistMem(){ const p=document.getElementById('set-assist-mem-pop'); if(p) p.classList.remove('open'); }
 async function assistMemForget(body){
   try{ const r=await fetch(proosCoreBase()+'/assist/memory/forget',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
        if(!r.ok) throw new Error(); }catch(e){ if(typeof toast==='function') toast('Couldn’t forget that'); return; }
@@ -14066,7 +14068,7 @@ function renderSettings(){
   // ids, what each does and what the app owns (data-app-owned, register 333) are unchanged — only the order and the
   // shape. Wall Panel and Pro appear only where they apply, as before.
   c.innerHTML=`
-    <div class="set-section" data-ic="installer">
+    <div class="set-section">
       <div class="set-section-title">Your Installer</div>
       <div class="set-row">
         <div class="sg-tx"><div class="set-label">Allow Installer Access</div><div class="set-field-hint sg-in">Your installer can manage this home. Turn off to revoke their access — and any tech support they enabled — at any time.</div></div>
@@ -14081,7 +14083,7 @@ function renderSettings(){
         <button id="set-voice-btn" onclick="setVoiceConsent(!voiceConsentGiven())" style="background:none;border:0.5px solid rgba(255,255,255,0.15);border-radius:8px;padding:6px 18px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;color:${voiceConsentGiven()?'#84d9b4':'rgba(255,255,255,0.45)'}">${voiceConsentGiven()?'On':'Off'}</button>
       </div>
     </div>
-    <div class="set-section" data-ic="device">
+    <div class="set-section">
       <div class="set-section-title">This Device</div>
       <div class="set-row">
         <div class="sg-tx"><div class="set-label">Open App to</div><div class="set-field-hint sg-in">Which screen the app opens to. Default is Home.</div></div>
@@ -14094,7 +14096,7 @@ function renderSettings(){
       ${retSettingRow()}
     </div>
     ${_installerMode ? `
-    <div class="set-section" data-ic="pro">
+    <div class="set-section">
       <div class="set-section-title">Pro</div>
       <div class="set-row"><div class="set-label">Mode</div><div class="set-value" style="color:#e3a23c">Pro · ${esc(_proName||'active')}</div></div>
       <div class="set-row" style="cursor:pointer" onclick="openRequests()"><div class="set-label">Homeowner Requests</div><div class="set-value"><span id="set-req-count">…</span> &rsaquo;</div></div>
@@ -14105,16 +14107,19 @@ function renderSettings(){
       <div class="set-row" style="cursor:pointer" onclick="exitInstaller()"><div class="set-label" style="color:#e0564b">Exit Pro Mode</div><div class="set-value"></div></div>
     </div>` : ''}
     ${(typeof _isPanel==='function'&&_isPanel())?`
-    <div class="set-section" data-ic="panel">
+    <div class="set-section">
       <div class="set-section-title">Wall Panel</div>
       <div class="set-row" style="cursor:pointer" onclick="panelEditHome()"><div><div class="set-label">Edit Home Screen</div><div class="set-field-hint" style="margin-top:2px">Add, remove or resize what this panel shows. Editing ends by itself after a minute.</div></div><div class="set-value">&rsaquo;</div></div>
     </div>`:''}
-    <div class="set-section" id="set-assist-mem" data-ic="assist">
+    <div class="set-section" id="set-assist-mem">
       <div class="set-section-title">Pro Assist Remembers</div>
-      <div class="set-field-hint" style="padding:0 4px 8px">Things you have told it, what it has noticed about how you use the home, and your recent conversations. Forget anything here and it is gone.</div>
-      <div id="set-assist-mem-body"><div class="set-row"><div class="set-label" style="color:rgba(255,255,255,0.50)">Reading…</div></div></div>
+      <!-- 968t (Dave, 20 Oct 06:41: "it should all show on one page without scrolling"): what it remembers grows to ten
+           conversations and more, so the card holds ONE row and the list opens in a centred card — every line still
+           there, every line still forgettable. -->
+      <div class="set-row" style="cursor:pointer" onclick="openAssistMem()"><div class="sg-tx"><div class="set-label">What It Remembers</div><div class="set-field-hint sg-in">Things you have told it, what it has noticed and your recent conversations. Forget anything and it is gone.</div></div><div class="set-value" id="set-assist-mem-n">&rsaquo;</div></div>
+      <div id="set-assist-mem-pop" class="sg-pop" onclick="if(event.target===this)closeAssistMem()"><div class="sg-pop-card"><div class="sg-pop-hd"><b>Pro Assist Remembers</b><button type="button" onclick="closeAssistMem()">Done</button></div><div class="sg-pop-body"><div id="set-assist-mem-body"><div class="set-row"><div class="set-label" style="color:rgba(255,255,255,0.50)">Reading…</div></div></div></div></div></div>
     </div>
-    <div class="set-section" data-ic="account">
+    <div class="set-section">
       <div class="set-section-title">Account</div>
       ${_haUser?`<div class="set-row" data-app-owned="connection"><div class="set-label">Signed in as</div><div class="set-value">${esc(_haUser.name||'—')} ${tierBadge(_haUser)}</div></div>`:''}
       <div class="set-row" data-app-owned="connection"><div class="set-label">Home</div><div class="set-value">${esc(_haLocationName||'—')}</div></div>
@@ -14164,7 +14169,6 @@ function renderSettings(){
    chosen one on the right — one page, not pages linked; and a drawn switch where a row is on or off. The rows, their
    words and what each does are this page's own, unchanged (registers 333, 428, 438, 567): only the layout is new. A
    switch is drawn only where its reading is On or Off — "Can't check" stays words. */
-let _setSel=0;
 function _settingsLayout(c){
   const page=document.getElementById('page-settings'); if(!page) return;
   const t=page.querySelector('.page-title'), h=page.querySelector('.page-heading');
@@ -14175,21 +14179,19 @@ function _settingsLayout(c){
     const hd=page.querySelector('.page-header'); if(hd) hd.appendChild(av); }
   const a=window._proosAvatar||{};
   if(a.url){ av.style.backgroundImage="url('"+a.url+"')"; av.textContent=''; } else { av.style.backgroundImage=''; av.textContent=(a.initial||((_haUser&&_haUser.name&&_haUser.name.trim()[0]||'').toUpperCase())||''); }
+  // 968t (Dave, 20 Oct 06:37): "I dont think the icons fit with the look and fonts seem wrong and we dont have a side bar
+  // anywhere else" — no sidebar and no icons: Settings is a page of cards like every other page.
+  c.classList.add('sg');
+  // the cards between the first (Your Installer) and the last (Account) stand in one middle column on a wide screen;
+  // under 900px the column is display:contents, so a phone and an upright iPad read one list in the same order
   const secs=[...c.querySelectorAll(':scope > .set-section')];
-  if(_setSel>=secs.length) _setSel=0;
-  const side=document.createElement('div'); side.className='sg-side';
-  // 968t: the mockup's sidebar — each section with its own coloured icon
-  const IC={installer:['#2139F0','<path d="M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6z"/>'],device:['#5E5CE6','<rect x="5" y="2.5" width="14" height="19" rx="2.5"/><path d="M10 18.5h4"/>'],
-    pro:['#E3A23C','<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/>'],panel:['#30B0C7','<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>'],
-    assist:['#AF52DE','<path d="M12 3l1.8 4.6L18.5 9l-4.7 1.6L12 15l-1.8-4.4L5.5 9l4.7-1.4z"/><path d="M18 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/>'],account:['#8E8E93','<circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/>']};
-  side.innerHTML=secs.map((sec,i)=>{ const tt=sec.querySelector('.set-section-title'); const ic=IC[sec.dataset.ic]||IC.account;
-    return `<button type="button" class="sg-item${i===_setSel?' on':''}" data-i="${i}"><span class="sg-ic" style="--ic:${ic[0]}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${ic[1]}</svg></span>${_hEsc(tt?tt.textContent:'')}</button>`; }).join('');
-  const main=document.createElement('div'); main.className='sg-main';
-  secs.forEach((sec,i)=>{ sec.classList.toggle('sg-on', i===_setSel); main.appendChild(sec); });
-  c.innerHTML=''; c.appendChild(side); c.appendChild(main); c.classList.add('sg');
-  side.addEventListener('click',function(ev){ const b=ev.target.closest('.sg-item'); if(!b) return; _setSel=+b.dataset.i;
-    side.querySelectorAll('.sg-item').forEach(x=>x.classList.toggle('on', x===b));
-    secs.forEach((sec,i)=>sec.classList.toggle('sg-on', i===_setSel)); main.scrollTop=0; });
+  if(secs.length>2){ const mid=document.createElement('div'); mid.className='sg-col'; c.insertBefore(mid, secs[1]); secs.slice(1,-1).forEach(x=>mid.appendChild(x)); }
+  // the memory list's card lives on the body (a card inside the glass would be trapped by its blur); its row counts it
+  const old=document.querySelectorAll('body > #set-assist-mem-pop'); const pop=c.querySelector('#set-assist-mem-pop');
+  if(pop){ old.forEach(x=>x.remove()); document.body.appendChild(pop);
+    const body=pop.querySelector('#set-assist-mem-body'), n=document.getElementById('set-assist-mem-n');
+    const cnt=function(){ if(!n||!body) return; const k=body.querySelectorAll('.set-btn-danger').length; n.textContent=k?(k+' \u203a'):(/Reading/.test(body.textContent)?'\u203a':'Nothing yet \u203a'); };
+    cnt(); new MutationObserver(cnt).observe(body,{childList:true,subtree:true}); }
   // the on/off rows draw a switch from their own reading
   ['set-installer-btn','set-loc-btn','set-voice-btn'].forEach(function(id){ const b=document.getElementById(id); if(!b) return;
     const sync=function(){ const v=(b.textContent||'').trim(); const sw=(v==='On'||v==='Off'); b.classList.toggle('sg-sw', sw); b.classList.toggle('on', v==='On'); b.setAttribute('aria-pressed', v==='On'?'true':'false'); };
@@ -21470,8 +21472,20 @@ body.proos-popup:has(#page-home.page.active) #widget-add-pill,body:has(#widget-p
 #page-settings .page-header{position:relative}
 .sg-av{position:absolute;right:var(--proos-edge,16px);top:calc(var(--proos-sat,0px) + 12px);width:56px;height:56px;border-radius:50%;border:0;padding:0;background:linear-gradient(135deg,#3a4bdd,#8a5cf0) center/cover;color:#fff;font:inherit;font-size:24px;font-weight:600;box-shadow:0 10px 30px rgba(58,75,221,.35);cursor:pointer}
 #settings-content.sg{max-width:none!important;display:block}
-#settings-content.sg .sg-side{display:none}
-#settings-content.sg .sg-main{max-width:820px;margin:0 auto}
+#settings-content .sg-col{display:contents}
+.sg-pop{position:fixed;inset:0;z-index:9000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);opacity:0;pointer-events:none;transition:opacity var(--m-move) var(--e-standard)}
+.sg-pop.open{opacity:1;pointer-events:auto}
+.sg-pop-card{width:min(560px,calc(100% - 32px));max-height:min(80dvh,720px);display:flex;flex-direction:column;background:rgba(24,24,30,.92);-webkit-backdrop-filter:blur(40px);backdrop-filter:blur(40px);border-radius:24px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12),0 30px 80px rgba(0,0,0,.5);overflow:hidden}
+.sg-pop-hd{display:flex;align-items:center;justify-content:space-between;padding:16px 18px 10px}
+.sg-pop-hd b{font-size:17px;font-weight:600;color:#fff}
+.sg-pop-hd button{background:rgba(255,255,255,.10);border:0;border-radius:999px;color:#fff;font:inherit;font-size:var(--t-floor);font-weight:600;padding:8px 16px;cursor:pointer;min-height:36px}
+.sg-pop-body{overflow-y:auto;padding:0 12px 14px}
+.sg-pop-body .set-row{background:transparent!important;border:0!important;border-top:1px solid rgba(255,255,255,.07)!important;border-radius:0!important;margin:0!important;padding:10px 6px!important}
+.sg-pop-body .set-label{font-size:15px;font-weight:400}
+.sg-pop-body .set-field-label{font-size:var(--t-floor)!important;font-weight:600!important;letter-spacing:0!important;text-transform:none!important;color:rgba(255,255,255,.62)!important;padding:14px 6px 6px!important}
+.sg-pop-body .set-row{box-shadow:none!important;outline:0!important}
+.sg-pop-body .set-btn-danger{background:rgba(255,255,255,.10)!important;border:0!important;color:#ff6b61!important;border-radius:999px!important;font-size:var(--t-floor)!important;font-weight:600;padding:7px 14px!important}
+#set-assist-mem-n{white-space:nowrap}
 #settings-content .set-section .set-row{min-height:54px}
 #settings-content select{-webkit-appearance:none;appearance:none;background:transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff99' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='m9 6 6 6-6 6'/%3E%3C/svg%3E") no-repeat right 0 center/16px!important;border:0!important;padding:6px 22px 6px 6px!important;color:rgba(255,255,255,.66)!important;font-size:15px!important;text-align:right;text-align-last:right;cursor:pointer}
 #settings-content select option{color:#000}
@@ -21479,14 +21493,26 @@ body.proos-popup:has(#page-home.page.active) #widget-add-pill,body:has(#widget-p
 .sg-sw::after{content:'';position:absolute;left:2px;top:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.3);transition:transform var(--m-move) var(--e-spring)}
 .sg-sw.on{background:#34C759!important}
 .sg-sw.on::after{transform:translateX(20px)}
-@media (min-width:760px){
-  #settings-content.sg{display:grid!important;grid-template-columns:minmax(220px,280px) minmax(0,1fr);gap:24px;align-items:start;padding-right:var(--proos-edge,32px)}
-  #settings-content.sg .sg-side{display:flex;flex-direction:column;gap:4px;padding:8px;border-radius:20px;background:rgba(22,22,28,.42);-webkit-backdrop-filter:blur(26px) saturate(150%);backdrop-filter:blur(26px) saturate(150%);box-shadow:inset 0 0 0 1px rgba(255,255,255,.10);position:sticky;top:0}
-  .sg-item{text-align:left;border:0;background:transparent;color:#fff;font:inherit;font-size:15px;padding:12px 14px;border-radius:12px;cursor:pointer;min-height:44px;transition:background var(--m-move) var(--e-standard)}
-  .sg-item.on{background:rgba(255,255,255,.14);font-weight:600}
-  #settings-content.sg .sg-main{max-width:none;margin:0}
-  #settings-content.sg .sg-main>.set-section{display:none!important}
-  #settings-content.sg .sg-main>.set-section.sg-on{display:block!important}
+/* 968t: no sidebar (Dave, 20 Oct 06:37) — the cards in two columns where there is room, one on a phone; the words in the
+   widgets' type: a card's title as a widget's title (15.5px semibold, Title Case — not small capitals), rows at 15px */
+/* 968t, 06:41: "it should all show on one page without scrolling … sits behind the navbar on ipad landscape" — the
+   cards in columns and tighter rows, so the whole page fits above the bar on an iPad in landscape and on a Mac */
+@media (min-width:900px){
+  /* three columns: Your Installer | This Device, (Pro), (Wall Panel), Pro Assist Remembers | Account — two balanced
+     columns still ran 7px under the bar on an iPad in landscape and 85px on a 1024×760 Mac (measured on the rig) */
+  #settings-content.sg{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));column-gap:14px;row-gap:14px;align-items:start;align-content:start;padding-right:var(--proos-edge,32px)}
+  #settings-content.sg>.set-section{margin:0!important}
+  #settings-content .sg-col{display:flex;flex-direction:column;gap:12px}
+  #settings-content .sg-col>.set-section{margin:0!important}
+  #settings-content .set-row:has(#set-avatar-preview) .sg-in{display:none}
+  #settings-content .set-section .set-row{min-height:44px!important;padding:7px 16px!important}
+  #settings-content .set-section-title{padding:11px 16px 3px!important}
+  #settings-content #set-avatar-preview{width:36px!important;height:36px!important;font-size:14px!important}
+  #settings-content .set-row:has(#set-avatar-preview) button{padding:6px 12px!important}
+  #settings-content #set-avatar-msg:empty{display:none}
+}
+#settings-content .set-section-title{font-size:15.5px!important;font-weight:600!important;letter-spacing:0!important;text-transform:none!important;color:#fff!important;padding:14px 16px 6px!important}
+#settings-content .set-section .set-label{font-size:15px;font-weight:400}
 }
 /* 968s: Home's clock column leaves the top-right corner to the + */
 /* (968t: the clock no longer gives way to the + — it moved to the bottom right) */
@@ -21584,9 +21610,6 @@ html.pv-room #page-home .room-acts{display:block;margin-top:4px}
 #settings-content .set-row .sg-tx{flex:1 1 auto;min-width:0;padding-right:16px}
 #settings-content .set-section .set-field-hint.sg-in{padding:3px 0 0!important;margin:0;font-size:var(--t-floor);line-height:1.35;color:rgba(255,255,255,.55)}
 #settings-content .set-row:has(.sg-in){align-items:center}
-.sg-ic{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:9px;background:var(--ic,#2139F0);color:#fff;margin-right:12px;flex:none;vertical-align:middle}
-.sg-ic svg{width:17px;height:17px}
-.sg-item{display:flex;align-items:center}
 #settings-content .set-row:has(#set-avatar-preview) button{background:rgba(255,255,255,.10)!important;border:0!important;color:#fff!important;border-radius:999px!important;font-size:var(--t-floor)!important;font-weight:600}
 #settings-content .set-row:has(#set-avatar-preview) .set-btn-danger{color:#ff6b61!important}
 /* CLIMATE (968q): every thermostat as the panel's climate card — the setpoint large between − and +, the room's reading
