@@ -8309,6 +8309,11 @@ class Handler(BaseHTTPRequestHandler):
                 # customer pairs with 'ProOS', not 'HASS Bridge'. Renames in the
                 # config-entries store, then restarts HA so the change loads.
                 body = self._body()
+                # 968w: let the platform's own pending save land first. Publish creates the bridge and retitles it a
+                # moment before this call; the platform saves its entries a beat later and again as it stops, from
+                # memory — a write made inside that beat was overwritten and the bridge kept "HASS Bridge" (seen on
+                # Dave's box, 20 Oct: the first brand did not stick, the second did).
+                time.sleep(3)
                 try:
                     res = _homekit_brand(
                         name=(body.get("name") or "ProOS"),
@@ -8344,6 +8349,7 @@ class Handler(BaseHTTPRequestHandler):
                 ents = body.get("entities")
                 if not isinstance(ents, list):
                     return self._send(400, {"error": "entities must be a list"})
+                time.sleep(3)   # 968w: the platform's pending save lands first (see homekit/brand)
                 try:
                     updated = _homekit_expose(ents, entry_id=body.get("entry_id"))
                 except FileNotFoundError:

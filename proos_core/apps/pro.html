@@ -2869,7 +2869,7 @@ body.v3 .rh-card{border-radius:22px}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026101903';
+const PROOS_BUILD='2026102001';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -3059,6 +3059,12 @@ let _endpointFrom=0;
 async function pickEndpoint(){
   const c=homeCandidates();
   if(!c.length) return HA||location.origin;
+  // 968w: the address this page was loaded from is asked FIRST on every pass. After a restart the rotation had moved
+  // on (the origin was briefly silent), so Pro reconnected at the platform's internal address — its socket worked
+  // but every setup step (fetch) to that other address was refused by the browser as cross-origin: "Failed to
+  // fetch" on Apple Home's Publish, seen on Dave's box 20 Oct, until the page was reloaded.
+  const own=_originUrl();
+  if(own && c.indexOf(own.replace(/\/$/,''))>=0 && await probeUrl(own, 2500)){ _endpointFrom=c.indexOf(own.replace(/\/$/,'')); return own.replace(/\/$/,''); }
   // The first candidate that answers the platform's own handshake wins. Start
   // where the last successful one was; if nothing answers, the NEXT attempt
   // starts one further along — a moved box is found on a later pass.
@@ -16765,34 +16771,26 @@ function ahBridgeableEntities(){
 }
 
 // ── apply the exposure filter ──
-// Both "expose exactly these" and "expose nothing" go through ProOS Core, which
-// writes the filter and does a FULL HA restart. We deliberately do NOT use HA's
-// options flow: completing it reloads the HomeKit entry in-process, and on this
-// class of setup HomeKit's stop doesn't release its port (21064) before the
-// reload rebinds — the bind fails (OSError 98) and the update errors out,
-// snapping the installer's toggles back. A full restart releases the port
-// cleanly. The options flow remains only as a fallback for older Core that
-// lacks /homekit/expose. Returns a result whose .restarting drives the notice.
+// 968w (Dave, 20 Oct 07:39: "it seemed to have to reboot after each change"). Measured on his box (HA 2026.10.2,
+// 20 Oct): HA's own options flow saved and reloaded the bridge four times running in ~5 s each, the entry stayed
+// loaded, and the log held no port fault — the OSError 98 that made us restart the whole home on every save
+// (register 442/695) no longer happens. So "expose exactly these" goes through HA's own Configure steps: no restart.
+// "Expose NOTHING" is the one thing those steps cannot say and keep: their only way is "exclude every device",
+// which would publish any device added later. That case (and a refusal from the flow) still goes through ProOS
+// Core's filter write and one restart, and the screen says so before it happens.
 async function ahApplyFilter(entryId, enabledIds){
   const ids=(enabledIds||[]).slice();
-  const exp=await ahExpose(entryId, ids, {restart:true});
-  if(exp.supported){
-    if(!exp.ok) throw new Error(exp.error||'expose failed');
-    return {type:'create_entry', restarting:exp.restarting};
-  }
-  // Fallback: older Core without /homekit/expose — drive the options flow.
-  let answers;
   if(ids.length){
-    const domains=Array.from(new Set(ids.map(id=>String(id).split('.')[0])));
-    answers={ mode:'bridge', include_exclude_mode:'include', domains:domains, entities:ids, devices:[] };
-  } else {
-    const all=ahBridgeableEntities().map(e=>e.entity_id);
-    const domains=Array.from(new Set(all.map(id=>String(id).split('.')[0])));
-    answers={ mode:'bridge', include_exclude_mode:'exclude', domains:domains, entities:all, devices:[] };
+    try{
+      const domains=Array.from(new Set(ids.map(id=>String(id).split('.')[0])));
+      const res=await ahWalk('config_entries/options/flow', {handler:entryId}, { mode:'bridge', include_exclude_mode:'include', domains:domains, entities:ids, devices:[] });
+      if(res && res.type==='create_entry') return {type:'create_entry', restarting:false};
+    }catch(e){}
   }
-  const res=await ahWalk('config_entries/options/flow', {handler:entryId}, answers);
-  if(!res || (res.type!=='create_entry' && res.type!=='abort')) throw new Error('options flow ended at '+(res&&res.type));
-  return res;
+  const exp=await ahExpose(entryId, ids, {restart:true});
+  if(!exp.supported) throw new Error('Apple Home could not be updated');
+  if(!exp.ok) throw new Error(exp.error||'expose failed');
+  return {type:'create_entry', restarting:exp.restarting};
 }
 // read the currently-published entity set (include mode), then cancel the flow
 async function ahReadEnabled(entryId){
@@ -16985,7 +16983,7 @@ async function ahSaveInventory(){
     const res=await ahApplyFilter(_ahBridge.entry_id, ids);
     if(res && res.restarting){
       _ahRestarting=true; ahStartReconnectPoll();
-      toast(ids.length ? ('Publishing '+ids.length+' to Apple Home · restarting…') : 'Apple Home cleared · restarting…');
+      toast(ids.length ? ('Publishing '+ids.length+' to Apple Home · the home restarts (about a minute)') : 'Apple Home cleared · the home restarts (about a minute)');
     } else {
       toast('Apple Home updated · '+ids.length+' published');
     }
