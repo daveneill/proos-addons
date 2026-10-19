@@ -4615,7 +4615,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101908';
+const PROOS_BUILD='2026101909';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -9360,6 +9360,19 @@ function addWidget(widgetId, sz){
     }
     if(cr.length===1) inst.room=cr[0].id;
   }
+  // A SCENES WIDGET IS POINTED AT ITS SCENES (968h): the ones this widget links
+  // to are picked before it is added — one for a small tile, up to what the
+  // size holds otherwise.
+  if(widgetId==='scene' && (CONFIG.scenes||[]).length){
+    const dm=_widgetDims(inst), max=(dm.w===1&&dm.h===1)?1:(dm.h>=2?6:4);
+    _openSceneChooser(max, list=>{
+      if(!list||!list.length) return;
+      inst.scenes=list;
+      const l2=loadWidgetLayout(); l2.push(inst); saveWidgetLayout(l2);
+      closeWidgetPicker(); renderWidgetGrid();
+    });
+    return;
+  }
   // an activity button is pointed at one activity before it is added (619)
   if(widgetId==='act1'){
     _openActChooser(a=>{
@@ -10442,7 +10455,16 @@ function renderWidgetContent(w){
       // not is "No signal" / "not reporting" — and "All closed" may only
       // be said when every sensor actually reported closed
       // (dashboard_security_honesty_bench.js drives all of it).
-      const open=CONFIG.security.sensors.filter(s=>{const sv=st(s.entity);
+      // THE PANEL'S OWN ZONES ARE SENSORS TOO (968h). With one panel that owns its
+      // doors (UniFi's Alarm Manager), those doors are its zones and the house
+      // list leaves them out (they are drawn under the panel on the Security
+      // page) — so this tile counted none of them, and its words were said over
+      // sensors it had never read. The tile now reads one list: the house's
+      // sensors and the panel's zones, each once.
+      const _hs=CONFIG.security.sensors||[];
+      const _secList=_hs.concat(((typeof _alarmZones==='function'&&CONFIG.security.alarm)?_alarmZones(CONFIG.security.alarm):[])
+        .filter(z=>!_hs.some(s2=>s2.entity===z)).map(z=>({name:att(z,'friendly_name')||String(z).split('.')[1].replace(/_/g,' '),entity:z})));
+      const open=_secList.filter(s=>{const sv=st(s.entity);
         // AN OPEN DOOR READ AS CLOSED (19 Aug 2026, register 235).
         // Discovery fills these from binary_sensors, and a binary_sensor
         // reports 'on' for OPEN — which was in neither the open filter nor
@@ -10450,7 +10472,7 @@ function renderWidgetContent(w){
         // remainder and the tile read "All closed", in green. The status
         // bar in this same file already had the rule right.
         return sv==='Violated'||sv==='open'||sv==='on';});
-      const dead=CONFIG.security.sensors.filter(s=>{const sv=st(s.entity);return sv==null||sv===''||sv==='unavailable'||sv==='unknown';});
+      const dead=_secList.filter(s=>{const sv=st(s.entity);return sv==null||sv===''||sv==='unavailable'||sv==='unknown';});
       const armed=alarm.startsWith('armed'), trig=alarm==='triggered';
       const subTxt=open.length
         ?`${open.length} zone${open.length>1?'s':''} open`+(dead.length?` · ${dead.length} not reporting`:'')
@@ -10466,20 +10488,6 @@ function renderWidgetContent(w){
       const _hIco=armed||trig
         ?'<svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>'
         :'<svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
-      // 2×2 (step-3 grammar): the zone list rides the tile — open zones first
-      let zones='';
-      if(w.rows===2&&(CONFIG.security.sensors||[]).length){
-        // Open first (act now), then No signal (cannot tell), then Closed.
-        const zs=CONFIG.security.sensors.slice().sort((a,b)=>{
-          const rank=s2=>open.includes(s2)?0:(dead.includes(s2)?1:2);
-          return rank(a)-rank(b); });
-        zones=`<div class="secz">`+zs.slice(0,7).map(s2=>{
-          const isOpen=open.includes(s2), isDead=dead.includes(s2);
-          const lbl=isOpen?'Open':(isDead?'No signal':'Closed');
-          const col=isOpen?'#e8a04b':(isDead?'rgba(255,255,255,0.38)':'rgba(111,191,143,0.8)');
-          return `<div class="secz-row"><span>${_hEsc(s2.name||'')}</span><span class="secz-st" style="color:${col}">${lbl}</span></div>`;
-        }).join('')+`</div>`;
-      }
       // THE SHIELD SAYS THE STATE IN ONE WORD (register 603, 24 Sep 2026). The
       // v2 mockup: "The shield says the state in one word. The sensors are
       // counted in plain words, and Hold to arm is a proper 44pt control that
@@ -10495,27 +10503,48 @@ function renderWidgetContent(w){
         :(alarm==='arming'||alarm==='pending')?'#e8a04b':open.length?'#e8a04b':'#6fbf8f';
       const _shield=`<svg class="sew-sh" viewBox="0 0 24 24" style="color:${_sCol}"><path d="M12 2.5l7.5 3v5.8c0 4.7-3.2 8.9-7.5 10.2-4.3-1.3-7.5-5.5-7.5-10.2V5.5z"/></svg>`;
       // the sensors counted by what they are, in plain words
-      const _sens=CONFIG.security.sensors||[];
+      const _sens=_secList;
       const _kind=s2=>{ const dc=att(s2.entity,'device_class')||''; return /door|garage/.test(dc)?'door':(dc==='window'?'window':'sensor'); };
       const _cnt={door:0,window:0,sensor:0}; _sens.forEach(s2=>{ _cnt[_kind(s2)]++; });
       const _plural=(n,wd)=>n+' '+wd+(n!==1?'s':'');
-      const _kinds=['door','window','sensor'].filter(k=>_cnt[k]).map(k=>_plural(_cnt[k],k)).join(' \u00b7 ');
+      const _kinds=['door','window','sensor'].filter(k=>_cnt[k]).map(k=>_plural(_cnt[k],k)).join(' · ');
       const _closedN=_sens.length-open.length-dead.length;
-      const _countTxt=_panelDead?'The panel isn\u2019t answering'
-        :(open.length||dead.length)?[open.length?open.length+' open':'',dead.length?dead.length+' not reporting':'',_closedN>0?_closedN+' closed':''].filter(Boolean).join(' \u00b7 ')
-        :(_kinds?_kinds+' \u00b7 all closed':'All closed');
+      const _countTxt=_panelDead?'The panel isn’t answering'
+        :(open.length||dead.length)?[open.length?open.length+' open':'',dead.length?dead.length+' not reporting':'',_closedN>0?_closedN+' closed':''].filter(Boolean).join(' · ')
+        :(_kinds?_kinds+' · all closed':'All closed');
       const _hold=_panelDead?'':`<button class="sec-hold" onpointerdown="_wSecHold(event,this,'${_hSvc}','${_hLbl}')" onpointerup="_wSecHoldEnd(this)" onpointercancel="_wSecHoldEnd(this)" onpointerleave="_wSecHoldEnd(this)"`+
         ` onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()" onclick="event.stopPropagation()">${_hIco}<span>Hold to ${_hLbl==='Disarm'?'disarm':'arm'}</span></button>`;
-      const html=`<div class="wc secw sew${_sBig||_sMid?' sew-m':''}${_sMid?' sew-mid':''}${trig?' secw-trig':(armed?' secw-armed':'')}"><div class="secw-wash"></div>`+
-        (_sBig
-          ? `<div class="sew-row">${_shield}<div class="sew-tx"><div class="sew-v${_panelDead?' dead':''}">${_hEsc(_word)}</div><div class="sew-s">${_hEsc(_countTxt)}</div></div></div>`+zones+`<div class="sew-sp"></div>`+_hold
-          // medium is one row high on iPad/Mac (measured: a hold under the
-          // words overflowed a 100px row by 8px), so the hold sits beside them
-          : _sMid
-          ? `<div class="sew-row">${_shield}<div class="sew-tx"><div class="sew-v${_panelDead?' dead':''}">${_hEsc(_word)}</div><div class="sew-s">${_hEsc(_countTxt)}</div></div>${_hold}</div>`
-          : `<div class="sew-k">${_shield}<span>Security</span></div><div class="sew-sp"></div><div class="sew-v${_panelDead?' dead':''}">${_hEsc(_word)}</div><div class="sew-s">${_hEsc(_panelDead?'The panel isn\u2019t answering':subTxt)}</div>`)+
-        `</div>`;
-      return {icon, label:'Security', value:_panelDead?'No signal':cap(alarm.replace(/_/g,' ')), sub:_panelDead?'The panel isn\u2019t answering':subTxt, on:!_panelDead&&(alarm!=='disarmed'||open.length>0), html, onclickFn:()=>showPage('security')};
+      // EVERY SENSOR, AND WHEN (968h, Dave's approved widget page: "Security 2 x 2
+      // … make better use of the free space"). The words above are unchanged and
+      // still driven by dashboard_security_honesty_bench; what is added is each
+      // sensor by name in a grid — open first, then No signal, then closed —
+      // and when the panel last changed, by whom when the panel says so
+      // (changed_by, the alarm domain's own attribute). The hold is full width.
+      const _zs=_sens.slice().sort((a,b)=>{ const rk=s2=>open.includes(s2)?0:(dead.includes(s2)?1:2); return rk(a)-rk(b); });
+      const _grid=k=>(!_panelDead&&_zs.length)?`<div class="wv-sg">`+_zs.slice(0,k).map(s2=>{
+          const isOpen=open.includes(s2), isDead=dead.includes(s2);
+          const lbl=isOpen?'Open':(isDead?'No signal':'Closed');
+          return `<div class="wv-sn${isOpen?' open':''}${isDead?' dead':''}"><b>${_hEsc(s2.name||'')}</b><i>${lbl}</i></div>`; }).join('')+`</div>`:'';
+      const _at=_panelDead?'':_wvAt(CONFIG.security.alarm);
+      const _who=_panelDead?'':(att(CONFIG.security.alarm,'changed_by')||'');
+      const _since=_at?`<div class="wv-facts"><span>${_hEsc(_word)} since <b>${_hEsc(_at)}</b>${_who?` · by <b>${_hEsc(_who)}</b>`:''}</span></div>`:'';
+      const _badge=`<span class="wv-shield" style="--sc:${_sCol}">${_shield}</span>`;
+      let html;
+      if(_sBig){
+        html=`<div class="wc wv secw sew sew-m${trig?' secw-trig':(armed?' secw-armed':'')}"><div class="secw-wash"></div>`
+          +`<div class="wv-hd"><div class="wv-tx"><div class="wv-t sew-v big${_panelDead?' dead':''}">${_hEsc(_word)}</div><div class="wv-s sew-s">${_hEsc(_countTxt)}</div></div>${_badge}</div>`
+          +_grid(8)+_since+`<div class="wv-mt">${_hold}</div></div>`;
+      } else if(_sMid){
+        html=`<div class="wc wv secw sew sew-m sew-mid${trig?' secw-trig':(armed?' secw-armed':'')}"><div class="secw-wash"></div>`
+          +`<div class="wv-hd"><div class="wv-tx"><div class="wv-t sew-v${_panelDead?' dead':''}">${_hEsc(_word)}</div><div class="wv-s sew-s">${_hEsc(_countTxt)}</div></div>${_badge}</div>`
+          +_grid(4)+`<div class="wv-mt">${_hold}</div></div>`;
+      } else {
+        html=`<div class="wc wv secw sew${trig?' secw-trig':(armed?' secw-armed':'')}"><div class="secw-wash"></div>`
+          +`<div class="wv-hd"><div class="wv-tx"><div class="wv-t">Security</div><div class="wv-s"><b class="sew-v${_panelDead?' dead':''}">${_hEsc(_word)}</b></div></div>${_badge}</div>`
+          +`<div class="wv-s sew-s">${_hEsc(_panelDead?'The panel isn’t answering':subTxt)}</div>`
+          +`<div class="wv-mt">${_hold}</div></div>`;
+      }
+      return {icon, label:'Security', value:_panelDead?'No signal':cap(alarm.replace(/_/g,' ')), sub:_panelDead?'The panel isn’t answering':subTxt, on:!_panelDead&&(alarm!=='disarmed'||open.length>0), html, onclickFn:()=>showPage('security')};
     }
     case 'covers': {
       const covers=r?.covers||[];
@@ -10626,36 +10655,49 @@ function renderWidgetContent(w){
       html:_iHtml, hsig:'irw:'+_iWide+'|'+_iWord+'|'+_zones.map(z=>st(z)).join(',')};
     }
     case 'scene': {
-      // Rebuilt from a count into artwork tiles (step 2, review: "the count
-      // tile teaches nothing") — each scene is a mini artwork tile using its
-      // scene photo, tap = run. The tile background taps through to the page.
-      const scenes=CONFIG.scenes||[];
-      if(!scenes.length) return {icon, label:'Scenes', value:'0 Scenes', sub:'Tap to open', onclickFn:()=>showPage('scenes')};
-      // SMALL · A STRIP · FOUR AT A GLANCE (register 615, 24 Sep 2026). The v2
-      // mockup: "Small: your favourite scene. Medium: a strip you swipe.
-      // Large: four at a glance. The one running wears a thin ring." Today one
-      // scene stretched into a wide strip and the tile was capped at six.
-      // A scene's state is the moment it was last set — the platform's own
-      // reading — so "the one running" is honestly THE LAST ONE SET, and it
-      // wears the ring; the small face shows that one (the scene this house
-      // reaches for), else the first.
+      const all=CONFIG.scenes||[];
+      if(!all.length) return {icon, label:'Scenes', value:'0 Scenes', sub:'Tap to open', onclickFn:()=>showPage('scenes')};
+      // QUICK LINKS TO THE SCENES CHOSEN FOR IT (968h, Dave 19 Oct: "widgets
+      // were more for a quick link to a scene not all of them"; "Only scenes you
+      // can add an image … if you build in support this then go ahead").
+      // The widget carries the scenes picked when it was added (w.scenes); an
+      // older widget with no choice shows the house's scenes as before. Each
+      // scene wears ITS OWN picture — the one set in Pro (Art) or here (press
+      // and hold, upload or Generate), stored by Core — and plain glass when it
+      // has none. Holding a scene opens that same editor, so a scene's picture
+      // is set in one place. A scene's state is the moment it was last set
+      // (the platform's own reading), so "last set" and the ring on the latest
+      // are read, never guessed.
+      const chosen=Array.isArray(w.scenes)?w.scenes.map(e=>all.find(s=>s.entity===e)).filter(Boolean):[];
+      const list=chosen.length?chosen:all;
       const _sd=(typeof _widgetDims==='function')?_widgetDims(w):{w:(typeof w.size==='number'?w.size:1),h:w.rows===2?2:1};
       const _when=x=>{ const t=Date.parse(st(x.entity)||''); return isNaN(t)?0:t; };
-      const _last=scenes.reduce((b,x)=>(_when(x)>(b?_when(b):0)?x:b),null);
-      const tile=(s,cls)=>{ const idx=scenes.indexOf(s);
-        return `<div class="scw-t${cls||''}${s===_last?' scw-last':''}"${s.photo?` style="background-image:url('${s.photo}')"`:''} onclick="event.stopPropagation();_wSceneRun('${s.entity}',${idx},this)" onpointerdown="event.stopPropagation()" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()"><span>${_hEsc(s.name||'')}</span></div>`; };
+      const _last=list.reduce((b,x)=>(_when(x)>(b?_when(b):0)?x:b),null);
+      const _short=t=>{ if(!t) return ''; const d=new Date(t), n=new Date(); if(d.toDateString()===n.toDateString()) return _wvWhen(t);
+        if(d.toDateString()===new Date(n.getTime()-864e5).toDateString()) return 'Yesterday'; return d.toLocaleDateString([], {weekday:'short'}); };
+      // its OWN picture only — the one somebody set (Core's store); the Scenes page's name-matched stock
+      // photo is not this scene's picture, so the widget shows plain glass instead of it
+      const _own=s=>{ const o=(typeof _scenePhotos!=='undefined'&&_scenePhotos&&_scenePhotos[s.entity])||{}; return o.photo||''; };
+      const btn=(s,cls)=>{ const idx=all.indexOf(s), at=cls===' one'?_wvWhen(_when(s)):_short(_when(s)); const ph=_own(s);
+        return `<button class="wv-sc${cls||''}${ph?' ph':''}${s===_last&&_when(s)&&cls!==' one'?' last':''}"${ph?` style="--ph:url('${_hEsc(String(ph).replace(/'/g,'%27'))}')"`:''}`
+          +` onclick="if(this.dataset.held){delete this.dataset.held;event.stopPropagation();return;}event.stopPropagation();_wSceneRun('${s.entity}',${idx},this)" onpointerdown="event.stopPropagation();_wvSceneHold(this,'${s.entity}')"`
+          +` onpointerup="_wvSceneHoldEnd()" onpointercancel="_wvSceneHoldEnd()" onpointerleave="_wvSceneHoldEnd()" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()">`
+          +(cls===' one'?`<span class="wv-sck">Scene</span>`:'')
+          +`<span class="wv-scn">${_hEsc(s.name||'')}</span>${at?`<em>${cls===' one'?'Last set ':''}${_hEsc(at)}</em>`:''}</button>`; };
       let html;
-      if(_sd.h===2){
-        const four=scenes.slice(0,4), more=scenes.length-four.length;
-        html=`<div class="scw"><div class="wc-head"><span class="wc-lbl">Scenes${more>0?` \u00b7 ${more} more`:''}</span></div><div class="scw-grid scw-2col">${four.map(x=>tile(x)).join('')}</div></div>`;
+      if(_sd.h>=2){
+        const six=list.slice(0,6);
+        html=`<div class="wc wv wv-scenes"><div class="wv-hd"><div class="wv-tx"><div class="wv-t">Scenes</div><div class="wv-s">Tap to run · hold to change picture</div></div></div>`
+          +`<div class="wv-scg tall">${six.map(x=>btn(x)).join('')}</div>`
+          +`<div class="wv-facts wv-mt"><span>${chosen.length?`Chosen for this widget: <b>${chosen.length} of ${all.length}</b>`:`Showing <b>${six.length} of ${all.length}</b>`}</span></div></div>`;
       } else if(_sd.w>=2){
-        // every scene, in a strip you swipe — no cap
-        html=`<div class="scw scw-strip" onpointerdown="event.stopPropagation()">${scenes.map(x=>tile(x,' scw-s')).join('')}</div>`;
+        const four=list.slice(0,4);
+        html=`<div class="wc wv wv-scenes"><div class="wv-hd"><div class="wv-t">Scenes</div>${list.length>4?`<span class="wv-s">+${list.length-4} more</span>`:''}</div><div class="wv-scg wv-mt">${four.map(x=>btn(x)).join('')}</div></div>`;
       } else {
-        const one=_last||scenes[0];
-        html=`<div class="scw scw-one">${tile(one,' scw-full')}</div>`;
+        const one=chosen[0]||_last||all[0];
+        html=`<div class="wc wv wv-scenes wv-scene1">${btn(one,' one')}</div>`;
       }
-      return {icon, label:'Scenes', value:`${scenes.length} Scenes`, sub:'Tap to open', html, onclickFn:()=>showPage('scenes')};
+      return {icon, label:'Scenes', value:`${list.length} Scenes`, sub:'Tap to open', html, onclickFn:()=>showPage('scenes')};
     }
 
     case 'activities': {
@@ -10825,18 +10867,32 @@ function renderWidgetContent(w){
         onclickFn:gone?null:(function(r_,s_,l_){return ()=>_act1Fire(r_,s_,l_);})(w.room,script,label)};
     }
     case 'assist': {
-      // TWO THINGS: THE MIC AND THE LAST THING SAID (register 604, 24 Sep 2026).
-      // The v2 mockup: "Two things: the mic, and the last thing said. Tap the
-      // mic to talk, hold it to type. Tap the words to carry on the
-      // conversation." The tile held five: a label, a headline, a sub-line,
-      // a playing line and a "Type instead…" field. Typing is not lost — it is
-      // the mic's long press (the same homeKbdTap the Assist tab's long press
-      // calls, register 1.0.702); what is playing is the Now Playing widget's.
+      // TWO THINGS: THE MIC AND THE LAST THING SAID (register 604): tap the mic
+      // to talk, hold it to type; tap the words to carry on.
+      // USE THE WIDTH (968h, Dave: "Assistant 3x1 make use of the width of the
+      // card"). The wide face adds what was asked recently — this session's own
+      // conversation (assistHistory), nothing remembered or invented — and,
+      // when nothing has been asked yet, things to ask built from the house as
+      // it is now (a room whose lights are on, something playing, the alarm).
       const last=(window._assistLast||'').replace(/\s+/g,' ').trim();
       const MIC='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"'
         +' stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/>'
         +'<path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg>';
-      const html='<div class="aw" onclick="openAssist()">'
+      const _ad=(typeof _widgetDims==='function')?_widgetDims(w):{w:2,h:1};
+      const asked=(typeof assistHistory!=='undefined'&&Array.isArray(assistHistory)?assistHistory:[])
+        .filter(m=>m&&m.role==='user'&&typeof m.content==='string').map(m=>m.content.replace(/\s+/g,' ').trim()).filter(Boolean).slice(-3).reverse();
+      const sug=[];
+      try{ const lit=(CONFIG.rooms||[]).find(x=>(x.lights||[]).some(l=>st(l)==='on')); if(lit) sug.push('Turn off the '+lit.name+' lights'); }catch(e){}
+      try{ if(Object.keys(states).some(e=>e.startsWith('media_player.')&&st(e)==='playing')) sug.push('What’s playing?'); }catch(e){}
+      try{ if(CONFIG.security&&CONFIG.security.alarm) sug.push('Is the house secure?'); }catch(e){}
+      if(sug.length<3) sug.push('What’s on in the house?');
+      const chip=t=>`<button class="wv-chip" onclick="event.stopPropagation();if(!_widgetEditMode)proosAsk(this.textContent)" onpointerdown="event.stopPropagation()">${_hEsc(t)}</button>`;
+      const right=_ad.w>=3
+        ? (asked.length
+            ? `<div class="aw-col"><div class="wv-k">Recent</div>${asked.map(t=>`<button class="aw-rec" onclick="event.stopPropagation();if(!_widgetEditMode)proosAsk(this.dataset.q)" onpointerdown="event.stopPropagation()" data-q="${_hEsc(t)}"><span>${_hEsc(t)}</span></button>`).join('')}</div>`
+            : `<div class="aw-col"><div class="wv-k">Try</div><div class="wv-chips">${sug.slice(0,3).map(chip).join('')}</div></div>`)
+        : '';
+      const html='<div class="aw" onclick="openAssist()"'+(_ad.w>=3?' data-wide="1"':'')+'>'
         +'<div class="aw-aura"></div>'
         +'<div class="aw-top">'
           +'<button class="aw-mic" type="button" aria-label="Talk to Pro Assist — hold to type"'
@@ -10845,10 +10901,12 @@ function renderWidgetContent(w){
           +'<div class="aw-tx">'
             +'<div class="aw-hd'+(last?' said':'')+'">'+_hEsc(last||'Ask anything')+'</div>'
             +(last?'':'<div class="aw-sb">Tap to talk · hold to type</div>')
+            +(_ad.w<3&&!last?`<div class="wv-chips">${sug.slice(0,2).map(chip).join('')}</div>`:'')
           +'</div>'
+          +right
         +'</div>'
       +'</div>';
-      return {icon, label:'Assistant', on:!!last, html, hsig:'aw:'+last};
+      return {icon, label:'Assistant', on:!!last, html, hsig:'aw:'+_ad.w+':'+last+':'+asked.join('|')+':'+sug.join('|')};
     }
 
     case 'media': {
@@ -11229,12 +11287,7 @@ const _WVSTOP=' onpointerdown="event.stopPropagation()" onmousedown="event.stopP
 // no words: a tile never prints a time it was not given.
 function _wvAt(eid){
   const o=(typeof states!=='undefined')&&states[eid]; const t=o&&o.last_changed?Date.parse(o.last_changed):NaN;
-  if(isNaN(t)) return '';
-  const d=new Date(t), now=new Date();
-  const hm=d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}).toLowerCase().replace(/ |\s+/g,' ');
-  if(d.toDateString()===now.toDateString()) return hm;
-  const y=new Date(now.getTime()-864e5); if(d.toDateString()===y.toDateString()) return 'yesterday '+hm;
-  return d.toLocaleDateString([], {weekday:'short'})+' '+hm;
+  return isNaN(t)?'':_wvWhen(t);
 }
 // the one of these that changed last (for "Last change 7:41 pm" over a group)
 function _wvLatest(list){
@@ -11280,6 +11333,49 @@ function _wvSkip(ctrl,dir){
   if(_widgetEditMode) return;
   const q=(typeof _queueOwner==='function')?_queueOwner(ctrl):ctrl;
   svc('media_player',dir<0?'media_previous_track':'media_next_track',{entity_id:q});
+}
+// a moment, said the way a person says it (shared by _wvAt and a scene's last-set time)
+function _wvWhen(t){
+  if(!t||isNaN(t)) return '';
+  const d=new Date(t), now=new Date();
+  const hm=d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}).toLowerCase().replace(/ |\s+/g,' ');
+  if(d.toDateString()===now.toDateString()) return hm;
+  const y=new Date(now.getTime()-864e5); if(d.toDateString()===y.toDateString()) return 'yesterday '+hm;
+  return d.toLocaleDateString([], {weekday:'short'})+' '+hm;
+}
+// HOLD A SCENE TO CHANGE ITS PICTURE (968h): the same editor the Scenes page's
+// hold opens (openSceneEdit — upload, Generate, a style), so the picture is set
+// in one place. The click that follows a completed hold is swallowed.
+let _wvScT=null;
+function _wvSceneHold(el,eid){
+  if(_widgetEditMode) return;
+  clearTimeout(_wvScT);
+  _wvScT=setTimeout(()=>{ el.dataset.held='1'; try{ _proosHaptic('lift'); }catch(e){} if(typeof openSceneEdit==='function') openSceneEdit(eid); },550);
+}
+function _wvSceneHoldEnd(){ clearTimeout(_wvScT); }
+// CHOOSE THE SCENES A WIDGET LINKS TO (968h) — picked when the widget is added,
+// up to what its size holds (one for a small tile).
+function _openSceneChooser(max, done){
+  const all=CONFIG.scenes||[]; const pick=[];
+  const ov=document.createElement('div'); ov.id='device-chooser';
+  ov.innerHTML='<div class="dc-scrim"></div><div class="dc-card"><div class="dc-head"><div class="dc-title">'+(max===1?'Which Scene?':'Choose Scenes')+'</div>'
+    +'<button class="dc-x" aria-label="Close">×</button></div>'+(max>1?'<div class="dc-hint">Up to '+max+' for this size</div>':'')+'<div class="dc-list">'
+    +all.map(s=>'<button class="dc-row" data-eid="'+esc(s.entity)+'"><span class="dc-name">'+esc(s.name||s.entity)+'</span><span class="dc-tick"></span></button>').join('')
+    +'</div>'+(max>1?'<button class="dc-done" disabled>Add</button>':'')+'</div>';
+  document.body.appendChild(ov);
+  const close=v=>{ try{ ov.remove(); }catch(e){} if(done) done(v||null); };
+  ov.querySelector('.dc-x').addEventListener('click',()=>close(null));
+  ov.querySelector('.dc-scrim').addEventListener('click',()=>close(null));
+  const doneB=ov.querySelector('.dc-done');
+  if(doneB) doneB.addEventListener('click',()=>{ if(pick.length) close(pick.slice()); });
+  ov.querySelector('.dc-list').addEventListener('click',ev=>{ const b=ev.target.closest&&ev.target.closest('.dc-row'); if(!b) return;
+    _proosHaptic('lift'); const e=b.dataset.eid;
+    if(max===1){ close([e]); return; }
+    const i=pick.indexOf(e);
+    if(i>=0){ pick.splice(i,1); b.classList.remove('on'); }
+    else if(pick.length<max){ pick.push(e); b.classList.add('on'); }
+    if(doneB){ doneB.disabled=!pick.length; doneB.textContent=pick.length?('Add '+pick.length):'Add'; } });
+  requestAnimationFrame(()=>ov.classList.add('open'));
 }
 function _wvClock(s){ s=Math.max(0,Math.floor(+s||0)); const h=Math.floor(s/3600), m=Math.floor(s%3600/60), x=String(s%60).padStart(2,'0'); return h?h+':'+String(m).padStart(2,'0')+':'+x:m+':'+x; }
 // the volume a tile's slider sends — the media_player domain's own volume_set
@@ -21066,15 +21162,16 @@ body:has(#widget-picker.open) #widget-add-pill{display:none!important}   /* regi
    (150px, was 100 — "a lot of wasted space"), the panel's type and controls,
    and motion: tiles rise in turn, lit things glow, controls give under a
    finger. Under reduced motion all of it stops. */
-#widget-grid,.widget-grid,.wl-pv{--wv-ink2:rgba(255,255,255,.66);--wv-ink3:rgba(255,255,255,.42);--wv-hair:rgba(255,255,255,.10);--wv-amber:#FFC46B;--wv-amber-d:#E9963A;--wv-sky:#9CC4FF;--wv-mint:#7CF0C5;--wv-ok:#32D74B;--wv-warn:#FFB340;--wv-ease:var(--e-standard)}
+#widget-grid,.widget-grid,.wl-pv{--wv-ink2:rgba(255,255,255,.66);--wv-ink3:rgba(255,255,255,.5);--wv-hair:rgba(255,255,255,.10);--wv-amber:#FFC46B;--wv-amber-d:#E9963A;--wv-sky:#9CC4FF;--wv-mint:#7CF0C5;--wv-ok:#32D74B;--wv-warn:#FFB340;--wv-ease:var(--e-standard)}
 .widget-grid{grid-auto-rows:150px;gap:12px}
-/* THE TILE KEEPS DAVE'S GLASS (register 623, 26 Sep: "all tiles are to change to the old tile colour and
-   transparency.. accross the board") — 8% white, a 15% hairline, a plain 16px blur; on, 13% / 25%. The widget
-   page drew a darker glass; the standing ruling wins until Dave says otherwise (968g). What changes is the
-   corner (22px), the room inside and the motion. */
-.widget-cell{background:rgba(255,255,255,0.08)!important;border:.5px solid rgba(255,255,255,0.15)!important;border-radius:22px!important;box-shadow:none!important;-webkit-backdrop-filter:blur(16px)!important;backdrop-filter:blur(16px)!important;transition:transform var(--m-move) var(--e-standard),background var(--m-move) var(--e-standard)!important}
+/* THE WALL PANEL'S GLASS ON EVERY WIDGET (968h). Dave, 19 Oct 15:40: "think i would prefer the dark like on
+   the Gflip and the mocks but it depends on the black gradient and border around every screen I will need to see
+   them once everything is done". So the widget tile wears the G-Flip's .pp-glass — the same material, the same
+   numbers — and register 623's 8% white stays on the other tiles until Dave has seen the whole set. To go back,
+   this one rule returns to 623's values. */
+.widget-cell{background:rgba(22,22,28,.42)!important;border:0!important;border-radius:22px!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.10),0 10px 30px rgba(0,0,0,.25)!important;-webkit-backdrop-filter:blur(26px) saturate(150%)!important;backdrop-filter:blur(26px) saturate(150%)!important;transition:transform var(--m-move) var(--e-standard),background var(--m-move) var(--e-standard)!important}
+.widget-cell.w-on{background:rgba(30,30,38,.5)!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.16),0 12px 34px rgba(0,0,0,.3)!important}
 .widget-cell:not(.w-app):not(.w-full):not(.w-cam-s):not(.w-media){padding:14px 15px}
-.widget-cell.w-on{background:rgba(255,255,255,0.13)!important;border:.5px solid rgba(255,255,255,0.25)!important}
 .widget-cell.w-full,.widget-cell.w-cam-s,.widget-cell.w-app,.widget-cell.w-media{border-radius:22px!important}
 @media (hover:hover){.widget-grid:not(.edit-mode) .widget-cell:hover{transform:translateY(-3px)}}
 .widget-cell:active{transform:scale(.97)!important}
@@ -21226,7 +21323,68 @@ body:has(#widget-picker.open) #widget-add-pill{display:none!important}   /* regi
 .w-media.w-rows2 .mwc.tv .mwc-bg{display:block}
 .w-media .mwc-bg{opacity:.4;filter:blur(30px) saturate(1.7) brightness(.6)}
 .w-media .mw-dots{top:10px;right:14px;z-index:3}
-@media (prefers-reduced-motion:reduce){.widget-cell,.wv-glow,.wv-flow i{animation:none!important;transition:none!important}}
+/* ── batch 2 (968h) ── */
+/* scenes: each its own picture, or plain glass */
+.wv-scg{display:grid;grid-template-columns:1fr 1fr;gap:6px;position:relative;z-index:1}
+.wv-sc{position:relative;overflow:hidden;display:flex;align-items:center;gap:6px;height:38px;padding:0 10px;border-radius:11px;border:0;background:rgba(255,255,255,.07);color:#fff;font:inherit;text-align:left;cursor:pointer;min-width:0;transition:transform var(--m-tap) var(--e-spring),background var(--m-move) var(--e-standard)}
+.wv-sc.ph{background:linear-gradient(90deg,rgba(0,0,0,.72),rgba(0,0,0,.42) 60%,rgba(0,0,0,.66)),var(--ph) center/cover}
+.wv-sc:active{transform:scale(.95)}
+.wv-scn{flex:1;min-width:0;font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wv-sc em{font-style:normal;font-size:10.5px;color:rgba(255,255,255,.6);flex:none}
+.wv-sc.last{box-shadow:inset 0 0 0 1.5px rgba(255,196,107,.7)}
+.wv-sc.scw-run{animation:wv-ran var(--m-page) var(--e-standard)}
+@keyframes wv-ran{0%{background-color:rgba(255,196,107,.45)}100%{background-color:rgba(255,255,255,.07)}}
+.wv-scg.tall .wv-sc{height:62px;align-items:flex-end;padding-bottom:9px}
+.wv-scene1{padding:0}
+.widget-cell[data-wid="scene"]:has(.wv-scene1){padding:0!important}
+.wv-sc.one{position:absolute;inset:0;height:auto;border-radius:inherit;flex-direction:column;align-items:flex-start;justify-content:flex-end;gap:2px;padding:14px 15px}
+.wv-sc.one.ph{background:linear-gradient(to top,rgba(0,0,0,.8),rgba(0,0,0,.1) 70%),var(--ph) center/cover}
+.wv-sc.one .wv-scn{flex:none;font-size:17px;white-space:normal}
+.wv-sc.one em{font-size:11.5px}
+.wv-sck{position:absolute;top:13px;left:15px;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.6)}
+/* the scene chooser */
+#device-chooser .dc-hint{font-size:12.5px;color:rgba(255,255,255,.6);padding:0 18px 8px}
+#device-chooser .dc-row .dc-tick{margin-left:auto;width:20px;height:20px;border-radius:50%;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.35);flex:none}
+#device-chooser .dc-row.on .dc-tick{background:#fff;box-shadow:none}
+#device-chooser .dc-done{display:block;margin:10px 16px 16px;height:46px;width:calc(100% - 32px);border:0;border-radius:14px;background:#fff;color:#000;font:inherit;font-size:15px;font-weight:600;cursor:pointer}
+#device-chooser .dc-done:disabled{opacity:.35;cursor:default}
+/* security: every sensor, and when */
+.wv-shield{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;flex:none;background:rgba(255,255,255,.08);background:color-mix(in srgb,var(--sc) 18%,transparent);transition:background var(--m-move) var(--e-standard)}
+.wv-shield .sew-sh{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linejoin:round}
+.wv .sew-v.big{font-size:22px;font-weight:600;letter-spacing:-.01em}
+.wv .sew-v.dead{color:rgba(255,255,255,.55)}
+.wv .sew-s{white-space:normal}
+.wv-sg{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;position:relative;z-index:1}
+.wv-sn{border-radius:9px;background:rgba(255,255,255,.06);padding:6px 7px;font-size:10.5px;color:rgba(255,255,255,.62);display:flex;flex-direction:column;gap:2px;min-width:0}
+.wv-sn b{color:#fff;font-size:11.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wv-sn i{font-style:normal}
+.wv-sn.open{background:rgba(255,179,64,.16);color:#FFB340}
+.wv-sn.dead{opacity:.6}
+.wv.sew-mid{gap:6px}
+/* medium is one row: each sensor on one line, its word said only when it is not closed; the hold stays 44pt */
+.sew-mid .wv-sn{flex-direction:row;align-items:center;gap:5px;padding:5px 7px}
+.sew-mid .wv-sn:not(.open):not(.dead) i{display:none}
+.wv .sew-m .sec-hold,.wv.sew-m .sec-hold{margin-top:0}
+.wv .sec-hold{width:100%;justify-content:center;min-height:40px;border-radius:12px;text-transform:none;letter-spacing:0;font-size:13px;font-weight:600}
+/* assistant: the width used */
+.widget-cell[data-wid="assist"]{padding:0!important}
+.widget-cell[data-wid="assist"] .aw{padding:14px 15px}
+.aw[data-wide] .aw-top{gap:16px}
+.aw-col{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:4px;position:relative;z-index:1}
+.wv-k{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.5)}
+.aw-rec{display:flex;align-items:center;gap:8px;padding:5px 0;border:0;border-top:1px solid rgba(255,255,255,.1);background:none;color:#fff;font:inherit;font-size:12.5px;text-align:left;cursor:pointer;min-width:0}
+.aw-rec span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wv-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.wv-chip{font:inherit;font-size:11.5px;padding:5px 10px;border-radius:999px;border:0;background:rgba(255,255,255,.09);color:#fff;cursor:pointer;transition:background var(--m-move) var(--e-standard),transform var(--m-tap) var(--e-spring)}
+.wv-chip:active{transform:scale(.94)}
+/* weather, sun, people, irrigation: the same type in the taller row */
+.widget-cell[data-wid="weather"] .wx-tile-temp,.widget-cell[data-wid="weather"] .wx-t2-temp{font-size:44px;font-weight:200;letter-spacing:-.03em}
+.widget-cell[data-wid="people"] .ppw-av{width:44px;height:44px}
+.widget-cell[data-wid="people"] .ppw-k{font-size:15.5px;font-weight:600;color:#fff}
+.widget-cell[data-wid="irrigation"] .irw-ring{width:56px;height:56px}
+.widget-cell[data-wid="irrigation"] .irw-v{font-size:15.5px;font-weight:600}
+.widget-cell .wc-lbl{font-size:10px;font-weight:700;letter-spacing:.12em;color:rgba(255,255,255,.5)}
+@media (prefers-reduced-motion:reduce){.widget-cell,.wv-glow,.wv-flow i,.wv-sc{animation:none!important;transition:none!important}}
 :root{ --t-floor:13px; --tap:44px; }
 .page-title,.ll-room-name,.ll-pct,.set-section-title,.set-field-label,.set-field-hint,.set-value,
 .mp-room,.mp-artist,.mp-vol-pct,.aw-sb,.ctrl-sub,.top-bar-btn,
