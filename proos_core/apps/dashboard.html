@@ -4618,7 +4618,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101916';
+const PROOS_BUILD='2026101917';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -10997,7 +10997,11 @@ function renderWidgetContent(w){
       // Miniatures of the Media page cards — same pipeline, so entries & taps are always correct.
       // Always home-wide (identical on Home and area pages): the widget is a quick jump to anything
       // playing; area pages already have their own room media cards for local control.
-      const rms = CONFIG.rooms;
+      // A ROOM LEADS WITH ITS OWN (968r). Seen on Dave's box 19 Oct: the Bedroom's widget opened on the Office's
+      // song while the Bedroom's own speaker held its track — the house's players in the house's order. In a room the
+      // room's own players come first; the rest of the house follows, a swipe away, as before. On Home: unchanged.
+      const _own=(curRoom>=0&&CONFIG.rooms[curRoom])?CONFIG.rooms[curRoom]:null;
+      const rms = _own ? [_own].concat(CONFIG.rooms.filter(x=>x!==_own)) : CONFIG.rooms;
       const cards=[];
       rms.forEach(rm=> buildRoomMediaWidgetCards(rm).forEach(c=>cards.push(c)));
       if(!cards.length){
@@ -12620,7 +12624,7 @@ function renderScenes(){
       <div class="scene-info">
         <div>
           <div class="scene-name">${s.name}</div>
-          ${s.rooms?`<div class="scene-sub">${s.rooms}</div>`:''}
+          ${s.rooms?`<div class="scene-sub">${s.rooms}</div>`:(()=>{ const t=Date.parse(st(s.entity)||''); const w=isNaN(t)?'':_wvWhen(t); return w?`<div class="scene-sub">Last set ${w}</div>`:''; })()}
         </div>
         <div class="scene-run-ic">
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -21480,6 +21484,28 @@ body:has(#widget-picker.open) #widget-add-pill{display:none!important}   /* regi
 .cpc-m.on{background:var(--cc);color:#141414}
 .cpc:not(.heat):not(.cool):not(.auto) .cpc-m.on{background:#fff}
 @media(max-width:600px){ .cpc-grid{grid-template-columns:1fr;padding:0 12px 24px} }
+/* THE OTHER PAGES (968r) — Scenes, Security, Irrigation, Weather and Cameras in the panel's cards: the same radius,
+   glass and type as the rest, grids that fill the screen they are on, words lit only by what they say */
+#scenes-grid{grid-template-columns:repeat(auto-fill,minmax(240px,1fr))!important;grid-auto-rows:168px!important;gap:14px!important}
+#scenes-grid .scene-card{height:168px;border-radius:20px;border:0;box-shadow:inset 0 0 0 1px rgba(255,255,255,.10),0 10px 30px rgba(0,0,0,.3)}
+#scenes-grid .scene-bg:not([style]){background:radial-gradient(120% 120% at 20% 0%,rgba(255,255,255,.10),rgba(22,22,28,.6))}
+#scenes-grid .scene-name{font-size:17px;font-weight:600;letter-spacing:0}
+#scenes-grid .scene-sub{font-size:var(--t-floor);color:rgba(255,255,255,.72);letter-spacing:0;margin-top:3px}
+#scenes-grid .scene-run-ic{width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.18);display:grid;place-items:center}
+#security-content{grid-template-columns:repeat(auto-fill,minmax(260px,1fr))!important;gap:12px!important}
+#security-content .sec-card{border-radius:16px!important;padding:14px 16px!important;min-height:60px}
+#security-content .sec-alarm-card{grid-column:1/-1;border-radius:20px!important;padding:18px!important}
+#security-content .sec-name{font-size:15px;font-weight:500}
+#security-content .sec-state{font-size:var(--t-floor);font-weight:600}
+#security-content .sec-card.alert{box-shadow:inset 0 0 0 1px rgba(255,196,107,.55),0 10px 30px rgba(0,0,0,.25)!important}
+#security-content .sec-card.alert .sec-state{background:rgba(255,196,107,.16);color:#FFC46B}
+#irr-grid{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))!important;gap:14px!important}
+#irr-grid .irr-tile{border-radius:20px!important;min-height:150px}
+#irr-grid .irr-tile.on{box-shadow:inset 0 0 0 1px rgba(156,196,255,.5),0 0 30px rgba(156,196,255,.18)!important}
+#irr-grid .irr-name{font-size:16px;font-weight:600;color:#fff}
+.wx-card,.wx-panel{border-radius:20px!important}
+.cam-card{border-radius:20px!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.10),0 10px 30px rgba(0,0,0,.3)}
+.cam-card-name{font-size:var(--t-floor)!important;letter-spacing:.04em}
 /* a card narrower than a phone's width (a phone, or two across on an iPad in portrait) gives the title the row and
    puts the transport under it */
 .mp-card.mpc{container-type:inline-size}
