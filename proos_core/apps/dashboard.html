@@ -4618,7 +4618,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101915';
+const PROOS_BUILD='2026101916';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -17793,205 +17793,78 @@ function updateNavClimateTemp(){
 }
 
 
-let _climateRoomIdx=null;
-
 function selectClimateRoomByEntity(entity){
-  const idx=_climateUnits().findIndex(u=>u.entity===entity);
-  if(idx>=0) _climateRoomIdx=idx;
   showPage('climate');
+  // 968q: the page shows every thermostat — the one asked for is brought into view
+  setTimeout(()=>{ try{ const c=document.querySelector('.cpc[data-cp="'+entity+'"]'); if(c) c.scrollIntoView({block:'nearest'}); }catch(e){} },80);
 }
 
 function renderClimateRoomTabs(){
-  const tabs=document.getElementById('cp-room-tabs');if(!tabs)return;
-  const units=_climateUnits();
-  if(!units.length) return;
-  // Auto-select first thermostat if none selected / out of range.
-  if(_climateRoomIdx===null||_climateRoomIdx>=units.length) _climateRoomIdx=0;
-  // Only show tabs if more than one thermostat
-  if(units.length<=1){ tabs.innerHTML=''; return; }
-  tabs.innerHTML=units.map((u,idx)=>{
-    const sel=idx===_climateRoomIdx;
-    return `<button type="button" class="rtab${sel?' sel':''}" onclick="selectClimateRoom(${idx})">${u.name}</button>`;
-  }).join('');
+  // 968q: every thermostat is its own card on the page, so no chips choose between them
+  const tabs=document.getElementById('cp-room-tabs'); if(tabs) tabs.innerHTML='';
 }
 
-function selectClimateRoom(idx){
-  _climateRoomIdx=idx;
-  renderClimatePage();
+/* ══ THE CLIMATE PAGE IN THE PANEL'S CARDS (968q) ════════════════════════════════════════════════════════════════
+   Dave, 19 Oct 20:50: "yes Climate needs to be also done". The page was one large dial for one thermostat at a time,
+   picked from chips. It is now every thermostat at once, each as the wall panel's climate card (mockup A2/C2 "Bedroom
+   Air · Cooling · − 22° + · Now 21°"): its name, what it is doing in words, the setpoint between − and +, the room's
+   own reading under it, and the modes the thermostat itself lists. The colour is the mode's (heat amber, cool blue,
+   auto violet). A press of − or + shows the new setpoint at once and sends one command when the presses stop; the
+   page never repaints that card under a finger. Nothing is said that the thermostat did not report. */
+let _cpDragActive=false;   // the live feed's guard (applyState): true while a setpoint is being stepped
+const _cpPend={};          // a setpoint stepped here and not yet sent: entity → {t, timer}
+const CP_STEP_MIN=7, CP_STEP_MAX=35;
+function _cpFmt(t){ return (Math.abs(t%1)>0.01)?t.toFixed(1):String(Math.round(t)); }   // 22 · 22.5 — a half only when there is one
+function _cpMode(e){ return String(st(e)||''); }
+function _cpWord(m){ return m==='heat_cool'?'Auto':m==='fan_only'?'Fan':m==='dry'?'Dry':m==='off'?'Off':m?m.charAt(0).toUpperCase()+m.slice(1):''; }
+function _cpLine(e){
+  const m=_cpMode(e); if(!m||m==='unavailable'||m==='unknown') return 'No signal';
+  const act=att(e,'hvac_action'), t=att(e,'temperature');
+  const verb={heating:'Heating',cooling:'Cooling',drying:'Drying',fan:'Fan',idle:'Idle',off:'Off'}[act];
+  if(m==='off') return 'Off';
+  if(verb && verb!=='Idle' && t!=null) return verb+' to '+Math.round(parseFloat(t))+'°';
+  if(verb) return verb+(t!=null?' · set '+Math.round(parseFloat(t))+'°':'');
+  return _cpWord(m)+(t!=null?' · set '+Math.round(parseFloat(t))+'°':'');
 }
-
-// Climate dial constants
-const CP_MIN=15, CP_MAX=32, CP_START_DEG=135, CP_SWEEP=270, CP_R=130, CP_CX=160, CP_CY=160;
-let _cpEntity=null, _cpTgt=20, _cpDragActive=false;
-
-function cpArcCol(mode){
-  return mode==='heat'?'rgba(253,180,80,1)':mode==='cool'?'rgba(100,180,255,1)':mode==='heat_cool'?'rgba(180,130,255,1)':'rgba(255,255,255,0.4)';
+function _cpCard(u){
+  const e=u.entity, m=_cpMode(e), dead=(!m||m==='unavailable'||m==='unknown');
+  const p=_cpPend[e], cur=att(e,'current_temperature');
+  // a thermostat that is off has no setpoint worth showing: the room's own reading is the big number
+  const tRaw=(m==='off')?null:(p?p.t:att(e,'temperature')), hasT=tRaw!=null&&tRaw!=='';
+  const show=hasT?_cpFmt(parseFloat(tRaw)):(cur!=null&&cur!==''?Math.round(parseFloat(cur)):'–');
+  const modes=(att(e,'hvac_modes')||[]).filter(x=>typeof x==='string');
+  const cls=m==='heat'?' heat':m==='cool'?' cool':m==='heat_cool'||m==='auto'?' auto':'';
+  return `<div class="cpc${cls}${dead?' dead':''}" data-cp="${e}">
+    <div class="cpc-hd"><div><b>${_hEsc(u.name)}</b><i>${_hEsc(_cpLine(e))}</i></div></div>
+    <div class="cpc-mid">
+      ${hasT&&!dead&&m!=='off'?`<button type="button" class="cpc-b" aria-label="Lower" onclick="_cpStep('${e}',-1)">${_wvSvg('minus')}</button>`:'<span class="cpc-sp"></span>'}
+      <div class="cpc-t"><b>${show}°</b><span>${hasT?(cur!=null&&cur!==''?'Now '+Math.round(parseFloat(cur))+'°':'Set'):'In the room'}</span></div>
+      ${hasT&&!dead&&m!=='off'?`<button type="button" class="cpc-b" aria-label="Raise" onclick="_cpStep('${e}',1)">${_wvSvg('plus')}</button>`:'<span class="cpc-sp"></span>'}
+    </div>
+    ${modes.length&&!dead?`<div class="cpc-modes">${modes.map(x=>`<button type="button" class="cpc-m${x===m?' on':''}" onclick="climatePageMode('${e}','${x}')">${_cpWord(x)}</button>`).join('')}</div>`:''}
+  </div>`;
 }
-
-function cpTgtToDeg(tgt){
-  return CP_START_DEG + ((tgt-CP_MIN)/(CP_MAX-CP_MIN))*CP_SWEEP;
-}
-
-function cpKnobPos(tgt){
-  const deg=cpTgtToDeg(tgt);
-  const rad=deg*Math.PI/180;
-  return {x:CP_CX+CP_R*Math.cos(rad), y:CP_CY+CP_R*Math.sin(rad)};
-}
-
-function cpBuildArc(tgt,col){
-  const pct=Math.min(1,Math.max(0,(tgt-CP_MIN)/(CP_MAX-CP_MIN)));
-  const totalCirc=2*Math.PI*CP_R;
-  const trackLen=(CP_SWEEP/360)*totalCirc;
-  const valLen=pct*trackLen;
-  const k=cpKnobPos(tgt);
-  return `
-    <circle cx="${CP_CX}" cy="${CP_CY}" r="${CP_R}" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="6"
-      stroke-dasharray="${trackLen.toFixed(1)} ${totalCirc.toFixed(1)}" stroke-linecap="round"
-      transform="rotate(${CP_START_DEG} ${CP_CX} ${CP_CY})"/>
-    <circle cx="${CP_CX}" cy="${CP_CY}" r="${CP_R}" fill="none" stroke="${col}" stroke-width="6"
-      id="cp-pg-arc" stroke-dasharray="${valLen.toFixed(1)} ${totalCirc.toFixed(1)}" stroke-linecap="round"
-      transform="rotate(${CP_START_DEG} ${CP_CX} ${CP_CY})"/>
-    <circle cx="${k.x.toFixed(1)}" cy="${k.y.toFixed(1)}" r="12" fill="${col}" id="cp-pg-knob"/>
-    <circle cx="${k.x.toFixed(1)}" cy="${k.y.toFixed(1)}" r="6" fill="#000" opacity="0.5" id="cp-pg-knob2"/>`;
-}
-
 function renderClimatePage(){
   renderClimateRoomTabs();
   const wrap=document.getElementById('cp-page-wrap');if(!wrap)return;
   const units=_climateUnits();
+  const heading=document.getElementById('climate-page-heading'); if(heading) heading.textContent='Climate';
   if(!units.length){wrap.innerHTML='<div class="cp-idle-msg">No thermostats found</div>';return;}
-
-  const u=units[_climateRoomIdx]||units[0];
-  _cpEntity=u.entity;
-  const heading=document.getElementById('climate-page-heading');
-  const friendlyName=att(_cpEntity,'friendly_name')||u.name;
-  if(heading) heading.textContent=friendlyName;
-
-  const _curRaw=att(_cpEntity,'current_temperature'); const cur=(_curRaw==null||_curRaw==='')?'–':Math.round(_curRaw);
-  _cpTgt=Math.round(parseFloat(att(_cpEntity,'temperature')||20));
-  const mode=st(_cpEntity)||'off';
-  const col=cpArcCol(mode);
-
-  const modes=att(_cpEntity,'hvac_modes')||['off','heat','cool','heat_cool'];
-  const modeBtns=modes.map(m=>{
-    const isActive=mode===m;
-    const modeCol=isActive&&m!=='off'?(m==='heat'?' heat':m==='cool'?' cool':''):'';
-    const label=m==='heat_cool'?'Auto':m==='off'?'Off':m.charAt(0).toUpperCase()+m.slice(1);
-    return `<button type="button" class="cp-mode-btn${isActive?(modeCol||' active'):''}${modeCol}" onclick="climatePageMode('${_cpEntity}','${m}')">${label}</button>`;
-  }).join('');
-
-  wrap.innerHTML=`
-    <div class="cp-dial-wrap" id="cp-dial-wrap">
-      <svg class="cp-dial-svg" viewBox="0 0 320 320" id="cp-svg">
-        ${cpBuildArc(_cpTgt,col)}
-        <!-- Large invisible touch target covers full dial area -->
-        <circle cx="${CP_CX}" cy="${CP_CY}" r="${CP_R+20}" fill="transparent" stroke="none"/>
-      </svg>
-      <div class="cp-dial-center">
-        <div class="cp-cur-lbl">current</div>
-        <div class="cp-current-temp" id="cp-pg-cur" style="color:${col}">${cur}°</div>
-        <div class="cp-tgt-row">
-          <div class="cp-tgt-val" id="cp-pg-tgt" style="color:${col}">${_cpTgt}°</div>
-          <div class="cp-tgt-lbl" style="margin-left:6px">target</div>
-        </div>
-      </div>
-    </div>
-    <div class="cp-adj-row">
-      <button type="button" class="cp-adj-btn" onclick="climatePageAdj('${_cpEntity}',_cpTgt-1)">−</button>
-      <div style="width:60px;text-align:center;font-size:13px;color:rgba(255,255,255,0.50);letter-spacing:0.06em;text-transform:uppercase">target</div>
-      <button type="button" class="cp-adj-btn" onclick="climatePageAdj('${_cpEntity}',_cpTgt+1)">+</button>
-    </div>
-    <div class="cp-modes">${modeBtns}</div>`;
-
-  // Attach drag handlers
-  cpAttachDrag();
+  wrap.innerHTML='<div class="cpc-grid">'+units.map(_cpCard).join('')+'</div>';
 }
-
-function cpAttachDrag(){
-  const wrap=document.getElementById('cp-dial-wrap');
-  if(!wrap) return;
-  let startAngle=null, startTgt=null, rafId=null, pendingAngle=null;
-
-  function getAngle(e){
-    const rect=wrap.getBoundingClientRect();
-    const cx=rect.left+rect.width/2;
-    const cy=rect.top+rect.height/2;
-    const touch=e.touches?e.touches[0]:e;
-    return Math.atan2(touch.clientY-cy, touch.clientX-cx)*180/Math.PI;
-  }
-
-  function applyUpdate(){
-    rafId=null;
-    if(pendingAngle===null) return;
-    let delta=pendingAngle-startAngle;
-    if(delta>180) delta-=360;
-    if(delta<-180) delta+=360;
-    const newTgt=startTgt+delta*(CP_MAX-CP_MIN)/CP_SWEEP;
-    const snapped=Math.round(Math.min(CP_MAX,Math.max(CP_MIN,newTgt)));
-    if(snapped!==_cpTgt){
-      _cpTgt=snapped;
-      cpUpdateDial();
-    }
-  }
-
-  function onStart(e){
-    _cpDragActive=true;
-    startAngle=getAngle(e);
-    startTgt=_cpTgt;
-    wrap.setPointerCapture(e.pointerId);
-    e.preventDefault();
-  }
-  function onMove(e){
-    if(!_cpDragActive) return;
-    e.preventDefault();
-    pendingAngle=getAngle(e);
-    if(!rafId) rafId=requestAnimationFrame(applyUpdate);
-  }
-  function onEnd(){
-    if(!_cpDragActive) return;
-    _cpDragActive=false;
-    if(rafId){cancelAnimationFrame(rafId);rafId=null;}
-    if(_cpEntity) svc('climate','set_temperature',{entity_id:_cpEntity,temperature:_cpTgt});
-  }
-
-  wrap.addEventListener('pointerdown',onStart,{passive:false});
-  wrap.addEventListener('pointermove',onMove,{passive:false});
-  wrap.addEventListener('pointerup',onEnd);
-  wrap.addEventListener('pointercancel',onEnd);
+// − / +: the new setpoint is shown at once; one command goes when the presses stop
+function _cpStep(e,dir){
+  const step=parseFloat(att(e,'target_temp_step'))||(String(att(e,'temperature_unit')||'').indexOf('F')>=0?1:0.5);
+  const lo=parseFloat(att(e,'min_temp')), hi=parseFloat(att(e,'max_temp'));
+  const p=_cpPend[e]||{t:parseFloat(att(e,'temperature'))};
+  if(!isFinite(p.t)) return;
+  let t=Math.round((p.t+dir*Math.max(step,0.5))*2)/2;
+  t=Math.max(isFinite(lo)?lo:CP_STEP_MIN, Math.min(isFinite(hi)?hi:CP_STEP_MAX, t));
+  p.t=t; clearTimeout(p.timer); _cpPend[e]=p; _cpDragActive=true;
+  const card=document.querySelector('.cpc[data-cp="'+e+'"] .cpc-t b'); if(card) card.textContent=_cpFmt(t)+'°';
+  p.timer=setTimeout(()=>{ delete _cpPend[e]; _cpDragActive=Object.keys(_cpPend).length>0;
+    svc('climate','set_temperature',{entity_id:e,temperature:t}); },700);
 }
-
-function cpUpdateDial(){
-  if(!_cpEntity) return;
-  const mode=st(_cpEntity)||'off';
-  const col=cpArcCol(mode);
-  const pct=Math.min(1,Math.max(0,(_cpTgt-CP_MIN)/(CP_MAX-CP_MIN)));
-  const totalCirc=2*Math.PI*CP_R;
-  const trackLen=(CP_SWEEP/360)*totalCirc;
-  const valLen=pct*trackLen;
-  const k=cpKnobPos(_cpTgt);
-
-  // Update arc dasharray only
-  const arc=document.getElementById('cp-pg-arc');
-  if(arc) arc.setAttribute('stroke-dasharray',`${valLen.toFixed(1)} ${totalCirc.toFixed(1)}`);
-
-  // Update knob position
-  const knob=document.getElementById('cp-pg-knob');
-  if(knob){knob.setAttribute('cx',k.x.toFixed(1));knob.setAttribute('cy',k.y.toFixed(1));knob.setAttribute('fill',col);}
-  const knob2=document.getElementById('cp-pg-knob2');
-  if(knob2){knob2.setAttribute('cx',k.x.toFixed(1));knob2.setAttribute('cy',k.y.toFixed(1));}
-
-  // Update target text
-  const tgtEl=document.getElementById('cp-pg-tgt');
-  if(tgtEl){tgtEl.textContent=Math.round(_cpTgt)+'°';tgtEl.style.color=col;}
-}
-
-function climatePageAdj(entity,newTgt){
-  _cpTgt=Math.round(Math.min(CP_MAX,Math.max(CP_MIN,newTgt)));
-  _cpEntity=entity;
-  cpUpdateDial();
-  svc('climate','set_temperature',{entity_id:entity,temperature:_cpTgt});
-}
-
 function climatePageMode(entity,m){
   svc('climate','set_hvac_mode',{entity_id:entity,hvac_mode:m});
   setTimeout(()=>renderClimatePage(),300);
@@ -21585,6 +21458,28 @@ body:has(#widget-picker.open) #widget-add-pill{display:none!important}   /* regi
 #settings-content .set-section .set-section-title+.set-row{border-top:0!important}
 #settings-content .set-section .set-label{font-size:15px}
 #settings-content .set-section .set-field-hint{padding:4px 16px 8px}
+/* CLIMATE (968q): every thermostat as the panel's climate card — the setpoint large between − and +, the room's reading
+   under it, the thermostat's own modes; the mode's colour (heat amber, cool blue, auto violet) */
+.cpc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;width:100%;padding:0 16px 24px;box-sizing:border-box;align-content:start}
+#cp-page-wrap{display:block!important;align-items:initial!important;justify-content:initial!important;overflow-y:auto}
+.cpc{--cc:rgba(255,255,255,.75);background:rgba(22,22,28,.42);-webkit-backdrop-filter:blur(26px) saturate(150%);backdrop-filter:blur(26px) saturate(150%);border-radius:20px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.10),0 10px 30px rgba(0,0,0,.25);padding:16px}
+.cpc.heat{--cc:#FFC46B}.cpc.cool{--cc:#9CC4FF}.cpc.auto{--cc:#C7A8FF}
+.cpc-hd b{display:block;font-size:16px;font-weight:600}
+.cpc-hd i{display:block;font-style:normal;font-size:var(--t-floor);color:var(--cc);margin-top:2px}
+.cpc.dead .cpc-hd i{color:rgba(255,255,255,.55)}
+.cpc-mid{display:flex;align-items:center;justify-content:space-between;margin:14px 0 4px}
+.cpc-b{width:52px;height:52px;border-radius:50%;border:0;padding:0;display:grid;place-items:center;background:rgba(255,255,255,.12);color:#fff;cursor:pointer;transition:transform var(--m-tap) var(--e-standard),background var(--m-move) var(--e-standard)}
+.cpc-b:active{transform:scale(.92);background:rgba(255,255,255,.2)}
+.cpc-b svg{width:20px;height:20px}
+.cpc-sp{width:52px}
+.cpc-t{text-align:center}
+.cpc-t b{display:block;font-size:52px;font-weight:200;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums;color:#fff}
+.cpc-t span{display:block;font-size:var(--t-floor);color:rgba(255,255,255,.62);margin-top:4px}
+.cpc-modes{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.cpc-m{flex:1 1 auto;min-height:40px;padding:0 14px;border-radius:20px;border:0;font:inherit;font-size:14px;font-weight:600;color:rgba(255,255,255,.8);background:rgba(255,255,255,.08);cursor:pointer;transition:background var(--m-move) var(--e-standard),color var(--m-move) var(--e-standard)}
+.cpc-m.on{background:var(--cc);color:#141414}
+.cpc:not(.heat):not(.cool):not(.auto) .cpc-m.on{background:#fff}
+@media(max-width:600px){ .cpc-grid{grid-template-columns:1fr;padding:0 12px 24px} }
 /* a card narrower than a phone's width (a phone, or two across on an iPad in portrait) gives the title the row and
    puts the transport under it */
 .mp-card.mpc{container-type:inline-size}
