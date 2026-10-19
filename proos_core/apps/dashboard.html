@@ -4618,7 +4618,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101914';
+const PROOS_BUILD='2026101915';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -9238,7 +9238,8 @@ function _wDefaultLayout(){
   }
   const anyPlayer=(CONFIG.rooms||[]).some(x=>x&&(x.sonos||x.media));
   if(anyPlayer) add('media', {size:3});
-  if(CONFIG.weather) add('weather', {size:2});
+  // the weather only when it reads (seen on the box: a weather entity that was unavailable drew "Unavailable" on Home)
+  if(CONFIG.weather && !['unavailable','unknown',''].includes(String(st(CONFIG.weather)||''))) add('weather', {size:2});
   if((CONFIG.scenes||[]).length) add('scene', {size:2});
   if(CONFIG.security&&CONFIG.security.alarm) add('security', {size:1});
   try{ if(_peopleList().length) add('people', {size:2}); }catch(e){}
@@ -21577,7 +21578,7 @@ body:has(#widget-picker.open) #widget-add-pill{display:none!important}   /* regi
 @media(max-width:600px){ #music-now-playing .mpc.hero .mpc-art{width:96px!important;height:96px!important} #music-now-playing .mpc.hero .mp-title{font-size:19px} #music-grid{grid-template-columns:repeat(auto-fill,minmax(130px,1fr))!important;gap:14px!important} }
 /* SETTINGS (968o): each section is one card of the panel's glass with its rows inside it, split by a hairline — the
    grouped cards of the approved settings mockups (6 Oct); two columns of cards where the screen is wide enough */
-#settings-content{columns:2 440px;column-gap:16px}
+#settings-content{max-width:820px;margin:0 auto;width:100%;box-sizing:border-box}   /* one column: a scrolling page split into columns overflowed sideways (seen on the box at 1552 wide) */
 #settings-content .set-section{break-inside:avoid;-webkit-column-break-inside:avoid;display:block;background:rgba(22,22,28,.42);-webkit-backdrop-filter:blur(26px) saturate(150%);backdrop-filter:blur(26px) saturate(150%);border-radius:20px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.10),0 10px 30px rgba(0,0,0,.25);padding:6px 0 8px;margin:0 0 16px;overflow:hidden}
 #settings-content .set-section-title{font-weight:600;letter-spacing:.12em;color:rgba(255,255,255,.62);padding:12px 16px 6px;margin:0}
 #settings-content .set-section .set-row{background:transparent!important;box-shadow:none!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;border-radius:0!important;margin:0!important;padding:12px 16px!important;min-height:52px;border-top:1px solid rgba(255,255,255,.07)!important}
