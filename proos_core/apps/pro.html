@@ -2869,7 +2869,7 @@ body.v3 .rh-card{border-radius:22px}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026101902';
+const PROOS_BUILD='2026101903';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -11846,7 +11846,13 @@ async function _dashRemoteRefresh(){
   if(!el || !_pane || !_pane.classList.contains('active')){
     if(_dashRemotePoll){ clearInterval(_dashRemotePoll); _dashRemotePoll=null; } return; }
   let data=null; try{ const r=await fetch(proCoreUrl()+'/dashboard/clients'); if(r.ok) data=await r.json(); }catch(e){}
-  const clients=(data&&data.clients)||[]; const ver=(data&&data.version)||0;
+  const allClients=(data&&data.clients)||[]; const ver=(data&&data.version)||0;
+  // 966: the wall panel is listed (with its picture) in Wall Panels — its update state goes there, not in this list
+  const kiosk=allClients.find(c=>c.device==='box-kiosk');
+  const ku=document.getElementById('wp-upd-box-kiosk');
+  if(ku){ ku.innerHTML=!kiosk?'':(!kiosk.online?_wpChip('Asleep — updates on wake'):(kiosk.version===ver?_wpChip('Up to Date','rgba(50,215,75,.16)'):_wpChip('Updating…','rgba(224,163,58,.22)'))); }
+  const clients=allClients.filter(c=>c.device!=='box-kiosk');
+  const _seenNames={}; clients.forEach(function(c){ const n=c.name||'Dashboard'; _seenNames[n]=(_seenNames[n]||0)+1; c._label=n+(_seenNames[n]>1?' ('+_seenNames[n]+')':''); });
   const online=clients.filter(c=>c.online);
   const cnt=document.getElementById('dr-count'); if(cnt) cnt.textContent=clients.length?(online.length+' connected'):'';
   if(!clients.length){
@@ -11865,7 +11871,7 @@ async function _dashRemoteRefresh(){
     else if(c.version===ver){ st='Up to date'; col='#3ec77e'; }
     else { st='Updating…'; col='#e0a33a'; }
     return '<div style="display:flex;align-items:center;justify-content:space-between;border:0.5px solid var(--line);border-radius:10px;padding:9px 12px">'
-      +'<span style="font-size:13px;color:var(--t1)">'+esc(c.name||c.device||'Dashboard')+'</span>'
+      +'<span style="font-size:13px;color:var(--t1)">'+esc(c._label||c.name||c.device||'Dashboard')+'</span>'
       +'<span style="font-size:12px;color:'+col+'">'+st+'</span></div>';
   }).join('');
 }
@@ -11917,6 +11923,7 @@ function _wpRow(id){
         +(room?_wpChip(room):_wpChip('No Home Room','rgba(255,179,64,.2)'))
         +(st.mic?_wpChip('Mic: '+_wpMicName(st.mic),'rgba(50,215,75,.16)'):_wpChip('No Mic'))
         +_wpChip((s.pages&&s.pages.length)?('Own layout for '+s.pages.length+(s.pages.length===1?' page':' pages')):'Shared layout')
+        +'<span id="wp-upd-'+esc(id)+'"></span>'
       +'</div></div><span style="color:var(--t3);font-size:18px">›</span></div>';
 }
 async function _wpCardRender(withShots){
@@ -11929,6 +11936,7 @@ async function _wpCardRender(withShots){
     +'<div style="flex:1"><div style="font-size:15px;font-weight:600;color:var(--t1)">All Wall Panels</div><div class="cred-meta" style="margin:2px 0 0">The layout every panel starts with — set a room here once and every panel shows it</div></div>'
     +'<button class="btn-ghost" onclick="event.stopPropagation();openWpEdit(\'\')">Edit Layout</button></div>'
     +ids.map(_wpRow).join('');
+  try{ if(typeof _dashRemoteRefresh==='function') _dashRemoteRefresh(); }catch(e){}   // 966: fill in the panel's update state
   if(withShots) ids.forEach(function(id){ if(!_wpList[id].shot) return;
     _wpShot(id).then(function(){ const p=document.getElementById('wp-pic-'+id); if(p) p.innerHTML=_wpPic(id,150,84); }); });
 }

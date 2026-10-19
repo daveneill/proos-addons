@@ -4615,7 +4615,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101903';
+const PROOS_BUILD='2026101904';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -6372,6 +6372,7 @@ async function connect(){
       try{ const cfg=await snd({type:'get_config'}); _haLocationName=(cfg&&cfg.result&&cfg.result.location_name)||''; _rememberPlatformUrls(cfg&&cfg.result); }catch(e){}
       try{ localStorage.setItem('ha_url', HA); }catch(e){}   // the address that just worked — a fact, not a typed one
       try{ const wu=await snd({type:'auth/current_user'}); _haUser=(wu&&wu.result)||null; }catch(e){}
+      try{ if(typeof window._dashRename==='function') window._dashRename(); }catch(e){}   // 966
       if(!_haLocationName){ const zh=states['zone.home']; if(zh&&zh.attributes&&zh.attributes.friendly_name) _haLocationName=zh.attributes.friendly_name; }
       // 697: every update to start with (nothing is missed while the home is discovered), then
       // _subscribeStates() narrows it to what this dashboard draws once the registry is read.
@@ -19473,14 +19474,31 @@ document.addEventListener('click', function(e){
   // bar shows this device as updated. NO polling — instant, and silent when nothing changed.
   // EventSource auto-reconnects; its 'hello' carries the current version so a publish missed
   // while asleep is caught on reconnect. A stable per-device id names this screen for Pro.
-  var _dashId=(function(){ try{ var id=localStorage.getItem('proos_dash_id'); if(!id){ id='d-'+Math.random().toString(36).slice(2)+Date.now().toString(36); localStorage.setItem('proos_dash_id',id);} return id; }catch(e){ return 'd-'+Date.now(); } })();
-  function _dashName(){ try{ return localStorage.getItem('proos_dash_name')||(typeof _haLocationName==='string'&&_haLocationName)||document.title||'Dashboard'; }catch(e){ return 'Dashboard'; } }
+  // 966: the box's own kiosk keeps no storage across a restart (963a) — it is always "box-kiosk", the same name its wall
+  // panel record has, so Pro can show whether the panel took an update beside its picture.
+  var _dashId=(function(){ try{ if(location.hostname==='127.0.0.1') return 'box-kiosk'; var id=localStorage.getItem('proos_dash_id'); if(!id){ id='d-'+Math.random().toString(36).slice(2)+Date.now().toString(36); localStorage.setItem('proos_dash_id',id);} return id; }catch(e){ return 'd-'+Date.now(); } })();
+  /* 966: every screen used to say the home's name (or "ProOS"), so Pro listed four identical rows (Dave, 19 Oct 12:13:
+     "they all identify as ProOS so hard to know what device has not updated"). A screen now names itself from what it
+     can READ: who is signed in, and the kind of device it is ("Dave's iPad"). */
+  function _dashDevice(){ var ua=navigator.userAgent||'', touch=(navigator.maxTouchPoints||0)>1;
+    if(/iPad/.test(ua)||(/Macintosh/.test(ua)&&touch)) return 'iPad';
+    if(/iPhone/.test(ua)) return 'iPhone';
+    if(/Android/.test(ua)) return /Mobile/.test(ua)?'Android Phone':'Android Tablet';
+    if(/Macintosh/.test(ua)) return 'Mac';
+    if(/Windows/.test(ua)) return 'Windows PC';
+    return 'Screen'; }
+  function _dashName(){ try{ var o=localStorage.getItem('proos_dash_name'); if(o) return o;
+    if(location.hostname==='127.0.0.1') return 'Wall Panel';
+    var u=(typeof _haUser!=='undefined' && _haUser) || window._haUser || null; var n=(u&&u.name)?String(u.name).trim().split(/\s+/)[0]:'';
+    return (n?n+'\u2019s ':'')+_dashDevice(); }catch(e){ return 'Dashboard'; } }
   var _dashES=null, _dashApplying=false;
   // Persist the last-applied version across reloads so a dashboard that was CLOSED during a
   // publish shows "Dashboard updated" the next time it's opened (not just live-reconnects).
   var _dashAppliedVer=(function(){ try{ return parseInt(localStorage.getItem('proos_dash_applied_ver')||'0',10)||0; }catch(e){ return 0; } })();
   function _dashSetApplied(v){ _dashAppliedVer=v; try{ localStorage.setItem('proos_dash_applied_ver', String(v)); }catch(e){} }
   function _dashAck(v){ try{ fetch(coreUrl()+'/dashboard/ack',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({device:_dashId,name:_dashName(),version:v})}).catch(function(){}); }catch(e){} }
+  // 966: once the signed-in person is known, say the screen's name again (the version it holds is unchanged — a fact)
+  window._dashRename=function(){ if(_dashAppliedVer) _dashAck(_dashAppliedVer); };
   // Full-screen status overlay, styled like the ProOS-restarting screen: "Updating…" while it
   // rebuilds, then "Dashboard updated ✓" briefly. Used for a live push AND for a missed-update
   // catch-up when a closed screen reopens.
