@@ -2041,6 +2041,15 @@ body.v3 .rh-card{border-radius:22px}
       <div id="wallpanel-body"></div>
     </div>
 
+    <!-- A WALL PANEL'S LAYOUT (register 965: room by room, for one panel or for all of them) -->
+    <div class="panel" id="panel-wpedit">
+      <div class="panel-head">
+        <button class="back" onclick="_wpeBack()">‹ Back</button>
+        <div class="panel-title" id="wpe-title">Wall Panel Layout</div>
+      </div>
+      <div id="wpedit-body"></div>
+    </div>
+
     <!-- NAV LAYOUT (installer arranges the dashboard nav) -->
     <div class="panel" id="panel-navlayout">
       <div class="panel-head">
@@ -2860,7 +2869,7 @@ body.v3 .rh-card{border-radius:22px}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026101901';
+const PROOS_BUILD='2026101902';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -11893,7 +11902,7 @@ function _wpPic(id, w, h){
   const sh=_wpShots[id], s=_wpList[id];
   const box='width:'+w+'px;height:'+h+'px;border-radius:10px;overflow:hidden;flex:none;background:#0b0b0d;box-shadow:0 0 0 3px #0b0b0d,0 0 0 4px rgba(255,255,255,.14);display:grid;place-items:center;text-align:center';
   if(sh&&sh.url) return '<div style="'+box+';position:relative"><img src="'+sh.url+'" style="width:100%;height:100%;object-fit:cover;display:block"><span style="position:absolute;right:6px;bottom:5px;font-size:10.5px;background:rgba(0,0,0,.6);border-radius:6px;padding:1px 6px;color:rgba(255,255,255,.85)">'+esc(_wpTime(sh.at))+'</span></div>';
-  const msg=sh?(sh.why||'No picture'):((s&&s.shot)?'Taking a picture…':'This panel cannot send a picture of itself');
+  const msg=sh?(sh.why||'No picture'):((s&&s.shot)?'Taking a picture…':(_wpOnline(s)?'This panel cannot send a picture of itself':'Not on — no picture'));
   return '<div style="'+box+';font-size:11px;color:var(--t3);padding:8px">'+esc(msg)+'</div>';
 }
 function _wpChip(t, col){ return '<span style="font-size:11.5px;border-radius:999px;padding:3px 10px;background:'+(col||'rgba(255,255,255,.08)')+';color:var(--t1)">'+esc(t)+'</span>'; }
@@ -11916,7 +11925,10 @@ async function _wpCardRender(withShots){
   const ids=Object.keys(_wpList).sort(function(a,b){ return (_wpOnline(_wpList[b])?1:0)-(_wpOnline(_wpList[a])?1:0); });
   if(!ids.length){ el.innerHTML='<div class="cred-meta">No wall panel has listed itself yet. A panel lists itself here the first time it turns on — there is nothing to type in.</div>'; return; }
   if(withShots) ids.forEach(function(id){ if(_wpList[id].shot) delete _wpShots[id]; });
-  el.innerHTML=ids.map(_wpRow).join('');
+  el.innerHTML='<div onclick="openWpEdit(\'\')" style="cursor:pointer;display:flex;gap:14px;align-items:center;border-radius:12px;padding:14px;background:linear-gradient(90deg,rgba(91,108,255,.16),rgba(91,108,255,.04));border:0.5px solid rgba(91,108,255,.35)">'
+    +'<div style="flex:1"><div style="font-size:15px;font-weight:600;color:var(--t1)">All Wall Panels</div><div class="cred-meta" style="margin:2px 0 0">The layout every panel starts with — set a room here once and every panel shows it</div></div>'
+    +'<button class="btn-ghost" onclick="event.stopPropagation();openWpEdit(\'\')">Edit Layout</button></div>'
+    +ids.map(_wpRow).join('');
   if(withShots) ids.forEach(function(id){ if(!_wpList[id].shot) return;
     _wpShot(id).then(function(){ const p=document.getElementById('wp-pic-'+id); if(p) p.innerHTML=_wpPic(id,150,84); }); });
 }
@@ -11958,7 +11970,8 @@ function renderWallPanel(takeShot){
       +'<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px;flex-wrap:wrap"><div><div style="font-size:14px;color:var(--t1)">Resting Screen</div><div class="cred-meta">The photo and clock, after the panel is left untouched</div></div>'
         +_wpSeg('rest', (typeof st.rest==='number')?st.rest:null, [[null,'Panel\'s Own'],[30,'30 Sec'],[60,'1 Min'],[120,'2 Min'],[300,'5 Min'],[0,'Never']])+'</div>'
       +'<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px"><div><div style="font-size:14px;color:var(--t1)">Locked</div><div class="cred-meta">The homeowner uses it but can\'t change it — everything is set here</div></div><span style="font-size:12.5px;color:#3ec77e">Always</span></div></div>'
-    +'<div class="cred-card"><div class="cred-top"><span class="cred-name">Layout</span></div><div class="cred-meta">'+((s.pages&&s.pages.length)?('This panel has its own layout for '+s.pages.length+(s.pages.length===1?' page':' pages')+'; every other page uses the shared layout.'):'Uses the shared layout.')+' Editing the layout here comes in the next build.</div></div>'
+    +'<div class="cred-card"><div class="cred-top"><span class="cred-name">Layout</span></div><div class="cred-meta">'+((s.pages&&s.pages.length)?('This panel has its own layout for '+s.pages.length+(s.pages.length===1?' page':' pages')+'; every other page uses the layout for All Wall Panels.'):'Uses the layout for All Wall Panels.')+'</div>'
+      +'<div class="cred-actions"><button class="btn-primary" onclick="openWpEdit(_wpSel)">Edit Layout</button></div></div>'
     +'<div class="cred-card"><div class="cred-top"><span class="cred-name">Forget This Panel</span></div><div class="cred-meta">For a panel taken off the wall, or an old copy of one. A panel that is still on lists itself again within a minute.</div>'
       +'<div class="cred-actions"><button class="btn-ghost" id="wp-forget" onclick="_wpForget()">'+(_wpForgetArm===id?'Tap Again to Forget':'Forget')+'</button></div></div>';
   _wpMicRoomLine();
@@ -12008,6 +12021,153 @@ async function _wpForget(){
   if(_wpForgetArm!==_wpSel){ _wpForgetArm=_wpSel; const b=document.getElementById('wp-forget'); if(b) b.textContent='Tap Again to Forget'; return; }
   if(await _wpPost({forget:true, screen:_wpSel})){ _wpForgetArm=null; toast('Panel forgotten'); openDashRemote(); }
 }
+
+// ── A WALL PANEL'S LAYOUT (register 965) ─────────────────────────────────────────
+// Room by room: what one panel shows (its own layout), or what every panel starts with (All Wall Panels — the wall
+// kind's default on the box). The panel resolves its own > All Wall Panels > the iPad's > what the room has (962), so the
+// editor starts each room from exactly what that panel draws today, and says where that came from. Saving writes the
+// box (Core /layouts); the panel picks it up within a minute; the picture shows it on the glass.
+let _wpe={screen:'', page:'', res:null, list:[], dirty:false, adding:null};
+const WPE_ROOM_KINDS=[['lights','Lights','Every light in the room'],['media','Music','The room\'s speaker'],['covers','Shades','Every shade in the room'],['climate','Climate','The room\'s thermostat'],['activities','Activities','Watch, listen — the room\'s activities']];
+const WPE_HOUSE_KINDS=[['scene','Scenes'],['weather','Weather'],['security','Security'],['people','People'],['sun','Sun'],['irrigation','Irrigation'],['assist','Ask ProOS']];
+function _wpeAreas(){ return (_areas||[]).filter(function(a){ return a.area_id && !(Array.isArray(a.labels)&&a.labels.includes(SYSTEM_LABEL)); }); }
+function _wpeEntArea(e){ if(e.area_id) return e.area_id; const d=(_devices||[]).find(x=>x.id===e.device_id); return d?d.area_id:null; }
+function _wpeRoomEnts(area, dom){ return (_ents||[]).filter(function(e){ return !e.disabled_by && !e.hidden_by && e.entity_id.split('.')[0]===dom && _wpeEntArea(e)===area; }).map(e=>e.entity_id); }
+function _wpeSt(eid){ return (_states||[]).find(x=>x.entity_id===eid); }
+function _wpeName(eid){ const st=_wpeSt(eid); return (st&&st.attributes&&st.attributes.friendly_name)||eid; }
+function _wpeLightKind(eid){ const st=_wpeSt(eid); if(!st) return ''; const m=(st.attributes&&st.attributes.supported_color_modes)||[];
+  if(m.some(x=>/^(hs|xy|rgb|rgbw|rgbww)$/.test(x))) return 'Colour'; if(m.indexOf('color_temp')>=0) return 'White Tones'; if(m.some(x=>x!=='onoff')) return 'Dimmer'; return 'Switch'; }
+function _wpeKindOf(eid){ const d=eid.split('.')[0]; if(d==='light') return _wpeLightKind(eid)||'Light';
+  return ({media_player:'Music',cover:'Shade',climate:'Climate',camera:'Camera',lock:'Lock',scene:'Scene',script:'Activity',fan:'Fan',switch:'Switch'})[d]||d; }
+/* what the panel draws for a room with no layout anywhere — the same composition the panel uses (962, _ppRoomWidgets) */
+function _wpeRoomDefault(area){
+  const out=[];
+  if(_wpeRoomEnts(area,'light').length) out.push({id:'lights'});
+  if(_wpeRoomEnts(area,'media_player').length) out.push({id:'media'});
+  if(_wpeRoomEnts(area,'climate').length) out.push({id:'climate'});
+  if(_wpeRoomEnts(area,'cover').length) out.push({id:'covers'});
+  _wpeRoomEnts(area,'camera').forEach(function(c){ out.push({id:'camera', entity:c}); });
+  return out;
+}
+function _wpeUid(){ return 'w'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+function _wpeLabel(w, area){
+  const room=_wpAreaName(area);
+  switch(w.id){
+    case 'lights': { const n=_wpeRoomEnts(area,'light').length; return ['Lights', n+' in '+room+' — each with its own card']; }
+    case 'media': return ['Music', 'The speaker in '+room];
+    case 'covers': return ['Shades', 'Every shade in '+room];
+    case 'climate': return ['Climate', 'The thermostat in '+room];
+    case 'activities': return ['Activities', 'The room\'s activities'];
+    case 'device': { const e=(_ents||[]).find(x=>x.entity_id===w.entity)||{entity_id:w.entity}; const ea=_wpeEntArea(e);
+      return [_wpeName(w.entity), _wpeKindOf(w.entity)+(ea&&ea!==area?' · from '+(_wpAreaName(ea)||'another room'):'')]; }
+    case 'camera': return [w.entity?_wpeName(w.entity):'Camera', 'Camera'];
+    default: { const k=WPE_HOUSE_KINDS.find(x=>x[0]===w.id); return [k?k[1]:w.id, 'Whole house']; }
+  }
+}
+function openWpEdit(screen){
+  _wpe={screen:screen||'', page:'', res:null, list:[], dirty:false, adding:null};
+  show('wpedit');
+  const t=document.getElementById('wpe-title'); if(t) t.textContent=screen?(_wpName(_wpList[screen])+' — Layout'):'All Wall Panels — Layout';
+  const first=(screen && (_wpList[screen]||{}).settings && _wpList[screen].settings.home_room) || ((_wpeAreas()[0]||{}).area_id) || '';
+  _wpeLoad(first);
+}
+function _wpeBack(){ if(_wpe.screen){ openWallPanel(_wpe.screen); } else openDashRemote(); }
+async function _wpeLoad(area){
+  _wpe.page=area?('room_'+area):''; _wpe.adding=null; _wpe.dirty=false;
+  try{ const r=await fetch(proCoreUrl()+'/layouts?kind=wall&screen='+encodeURIComponent(_wpe.screen||'')); _wpe.res=r.ok?await r.json():null; }catch(e){ _wpe.res=null; }
+  _wpe.list=_wpeCurrent().map(function(w){ return Object.assign({}, w); });
+  renderWpEdit();
+}
+/* where this room's layout comes from, for this panel (or for All Wall Panels) */
+function _wpeSource(){
+  const res=_wpe.res||{}, pg=_wpe.page;
+  if(!_wpe.screen){ const d=(res.default||{})[pg]; return Array.isArray(d)?['own','Set for All Wall Panels']:['room','Nothing set yet — every panel draws what the room has']; }
+  const sc=(res.scopes||{})[pg];
+  if(sc==='screen') return ['own','This panel\'s own layout'];
+  if(sc==='default') return ['all','From All Wall Panels'];
+  if(sc==='fallback') return ['ipad','From the iPad layout (no wall layout set for this room yet)'];
+  return ['room','Nothing set yet — the panel draws what the room has'];
+}
+function _wpeCurrent(){
+  const res=_wpe.res||{}, pg=_wpe.page, area=pg.replace(/^room_/,'');
+  if(!_wpe.screen){ const d=(res.default||{})[pg]; if(Array.isArray(d)) return d; }
+  else { const p=(res.pages||{})[pg]; if(Array.isArray(p)) return p; }
+  return _wpeRoomDefault(area);
+}
+function renderWpEdit(){
+  const body=document.getElementById('wpedit-body'); if(!body) return;
+  const area=_wpe.page.replace(/^room_/,''); const src=_wpeSource();
+  const res=_wpe.res||{};
+  const rooms=_wpeAreas().map(function(a){
+    const pg='room_'+a.area_id; let tag;
+    if(!_wpe.screen) tag=Array.isArray((res.default||{})[pg])?'Set':'—';
+    else tag=({screen:'This Panel',default:'All Panels',fallback:'iPad'})[(res.scopes||{})[pg]]||'Room';
+    const on=a.area_id===area;
+    return '<div onclick="_wpePick(\''+esc(a.area_id)+'\')" style="cursor:pointer;display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;'+(on?'background:rgba(255,255,255,.11);':'')+'"><span style="flex:1;font-size:14px;color:var(--t1)">'+esc(a.name)+'</span><span style="font-size:11.5px;color:var(--t3)">'+esc(tag)+'</span></div>';
+  }).join('');
+  const rows=_wpe.list.map(function(w, i){ const l=_wpeLabel(w, area); const colour=(w.id==='device'&&_wpeKindOf(w.entity)==='Colour');
+    return '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-top:0.5px solid var(--line)">'
+      +'<div style="flex:1;min-width:0"><div style="font-size:14px;color:var(--t1)">'+esc(l[0])+(colour?' <span style="font-size:11px;border-radius:999px;padding:2px 8px;background:rgba(91,108,255,.22);color:#c3cbff">Colour</span>':'')+'</div><div style="font-size:12px;color:var(--t3)">'+esc(l[1])+'</div></div>'
+      +'<button class="btn-ghost" style="padding:6px 10px" '+(i===0?'disabled':'')+' onclick="_wpeMove('+i+',-1)">↑</button>'
+      +'<button class="btn-ghost" style="padding:6px 10px" '+(i===_wpe.list.length-1?'disabled':'')+' onclick="_wpeMove('+i+',1)">↓</button>'
+      +'<button class="btn-ghost" style="padding:6px 10px" onclick="_wpeRemove('+i+')">✕</button></div>'; }).join('');
+  const canClear=_wpe.screen && src[0]==='own';
+  body.innerHTML=''
+    +'<div style="display:grid;grid-template-columns:minmax(180px,240px) 1fr;gap:14px;align-items:start">'
+      +'<div class="cred-card" style="margin:0"><div class="cred-top"><span class="cred-name">Rooms</span></div><div style="margin-top:8px">'+rooms+'</div>'
+        +'<div class="cred-meta" style="margin-top:10px">The panel\'s Home page is its own and is not edited here.</div></div>'
+      +'<div>'
+        +'<div class="cred-card" style="margin-top:0"><div class="cred-top"><span class="cred-name">'+esc(_wpAreaName(area)||'Choose a room')+'</span>'
+          +'<button class="btn-ghost" style="margin-left:auto" onclick="_wpeAddOpen()">+ Add Widget</button></div>'
+          +'<div class="cred-meta">'+esc(src[1])+(_wpe.dirty?' · <b style="color:#e0a33a">not saved</b>':'')+'</div>'
+          +(canClear?'<div class="cred-actions" style="margin-top:8px"><button class="btn-ghost" onclick="_wpeClear()">Use All Panels Layout</button></div>':'')
+          +'<div id="wpe-add"></div>'
+          +'<div style="margin-top:10px;border:0.5px solid var(--line);border-radius:10px;overflow:hidden">'+(rows||'<div class="cred-meta" style="padding:14px">No widgets — the room page will be empty.</div>')+'</div>'
+          +'<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;flex-wrap:wrap">'
+            +(_wpe.screen?'<button class="btn-ghost" onclick="_wpeSave(\'default\')">Save for All Panels</button><button class="btn-primary" onclick="_wpeSave(\'screen\')">Save to This Panel</button>'
+                         :'<button class="btn-primary" onclick="_wpeSave(\'default\')">Save for All Panels</button>')
+          +'</div>'
+          +'<div class="cred-meta" style="margin-top:8px">Saving updates the panel within a minute.</div></div>'
+        +(_wpe.screen && (_wpList[_wpe.screen]||{}).shot?('<div class="cred-card"><div class="cred-top"><span class="cred-name">On the Panel</span><button class="btn-ghost" style="margin-left:auto" onclick="_wpeShot()">Take a Picture</button></div><div id="wpe-shot" style="margin-top:10px">'+(_wpShots[_wpe.screen]&&_wpShots[_wpe.screen].url?_wpPic(_wpe.screen,400,225):'<div class="cred-meta">See what the panel shows right now.</div>')+'</div></div>'):'')
+      +'</div></div>';
+  if(_wpe.adding) _wpeAddRender();
+}
+function _wpePick(area){ if(_wpe.dirty){ toast('Not saved — save, or pick the room again to leave it'); _wpe.dirty=false; return; } _wpeLoad(area); }
+function _wpeMove(i, d){ const j=i+d; if(j<0||j>=_wpe.list.length) return; const t=_wpe.list[i]; _wpe.list[i]=_wpe.list[j]; _wpe.list[j]=t; _wpe.dirty=true; renderWpEdit(); }
+function _wpeRemove(i){ _wpe.list.splice(i,1); _wpe.dirty=true; renderWpEdit(); }
+function _wpeAddOpen(){ _wpe.adding=_wpe.adding?null:'room'; renderWpEdit(); }
+function _wpeAddRender(){
+  const el=document.getElementById('wpe-add'); if(!el) return; const area=_wpe.page.replace(/^room_/,'');
+  const chip=function(k,l){ const on=_wpe.adding===k; return '<button onclick="_wpe.adding=\''+k+'\';_wpeAddRender()" style="border:0;cursor:pointer;font:inherit;font-size:12.5px;padding:7px 12px;border-radius:9px;background:'+(on?'#fff':'rgba(255,255,255,.08)')+';color:'+(on?'#000':'var(--t1)')+';font-weight:'+(on?'600':'400')+'">'+l+'</button>'; };
+  let list='';
+  const opt=function(onclick, title, sub, tag){ return '<div onclick="'+onclick+'" style="cursor:pointer;display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.05);border:0.5px solid var(--line)"><div style="flex:1;min-width:0"><div style="font-size:13.5px;color:var(--t1)">'+esc(title)+'</div><div style="font-size:12px;color:var(--t3)">'+esc(sub)+'</div></div>'+(tag?'<span style="font-size:11px;border-radius:999px;padding:2px 9px;background:'+(tag==='Colour'?'rgba(91,108,255,.22)':'rgba(255,255,255,.08)')+';color:var(--t1)">'+esc(tag)+'</span>':'')+'</div>'; };
+  if(_wpe.adding==='room') list=WPE_ROOM_KINDS.map(k=>opt("_wpeAdd({id:'"+k[0]+"'})", k[1], k[2]+' — '+(_wpAreaName(area)||'this room'), '')).join('');
+  else if(_wpe.adding==='house') list=WPE_HOUSE_KINDS.map(k=>opt("_wpeAdd({id:'"+k[0]+"'})", k[1], 'Whole house', '')).join('');
+  else {
+    const doms=({light:['light'], device:['switch','fan','lock','scene','script','media_player','cover','climate'], camera:['camera']})[_wpe.adding]||[];
+    const ents=(_ents||[]).filter(e=>!e.disabled_by && !e.hidden_by && doms.indexOf(e.entity_id.split('.')[0])>=0)
+      .sort(function(a,b){ const ah=_wpeEntArea(a)===area?0:1, bh=_wpeEntArea(b)===area?0:1; return ah-bh || _wpeName(a.entity_id).localeCompare(_wpeName(b.entity_id)); });
+    list=ents.slice(0,60).map(function(e){ const w=_wpe.adding==='camera'?"{id:'camera',entity:'"+e.entity_id+"'}":"{id:'device',entity:'"+e.entity_id+"'}";
+      return opt('_wpeAdd('+w+')', _wpeName(e.entity_id), _wpAreaName(_wpeEntArea(e))||'Not in a room', _wpeKindOf(e.entity_id)); }).join('') || '<div class="cred-meta">None on the box.</div>';
+  }
+  el.innerHTML='<div style="margin-top:12px;padding:12px;border-radius:12px;background:rgba(255,255,255,.04);border:0.5px solid var(--line)">'
+    +'<div style="display:flex;flex-wrap:wrap;gap:6px">'+chip('room','This Room')+chip('light','A Light')+chip('device','A Device')+chip('camera','A Camera')+chip('house','Whole House')+'</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;margin-top:10px;max-height:300px;overflow:auto">'+list+'</div>'
+    +'<div class="cred-meta" style="margin-top:8px">Any room\'s devices can go on any page. A colour lamp gets the colour wheel on the panel; a switch gets a plain button.</div></div>';
+}
+function _wpeAdd(w){ w.uid=_wpeUid(); _wpe.list.push(w); _wpe.dirty=true; renderWpEdit(); }
+async function _wpeSave(scope){
+  const body={kind:'wall', screen:_wpe.screen||'', page:_wpe.page, widgets:_wpe.list, scope:scope};
+  if(scope==='screen' && !_wpe.screen) return;
+  const j=await _wpPost(body); if(!j) return;
+  toast(scope==='default'?'Saved for All Wall Panels':'Saved to this panel'); await _wpLoad(); _wpeLoad(_wpe.page.replace(/^room_/,''));
+}
+async function _wpeClear(){
+  const j=await _wpPost({clear:true, screen:_wpe.screen, page:_wpe.page}); if(!j) return;
+  toast('This room now follows All Wall Panels'); await _wpLoad(); _wpeLoad(_wpe.page.replace(/^room_/,''));
+}
+async function _wpeShot(){ const el=document.getElementById('wpe-shot'); if(el) el.innerHTML='<div class="cred-meta">Taking a picture…</div>';
+  await _wpShot(_wpe.screen); if(el) el.innerHTML=_wpPic(_wpe.screen,400,225); }
 
 // ── NAV LAYOUT builder (installer arranges the dashboard bottom-nav, per context) ──
 const NAV_PAGES=[['lights','Lights'],['climate','Climate'],['access','Access'],['security','Security'],['irrigation','Irrigation'],['cameras','Cameras'],['media','Media'],['music','Music']];
@@ -16926,7 +17086,7 @@ function ahRemove(){
     });
 }
 
-const PANELS=['home','library','manage','backups','maintenance','site','credentials','unifi','unifi-net','users','room','integration','rooms','activities','automations','scripts','irrigation','savant','helpers','blueprints','labels','tech','music','applehome','dashremote','wallpanel','navlayout','hub','assist2','systems','toolbox','device','history'];
+const PANELS=['home','library','manage','backups','maintenance','site','credentials','unifi','unifi-net','users','room','integration','rooms','activities','automations','scripts','irrigation','savant','helpers','blueprints','labels','tech','music','applehome','dashremote','wallpanel','wpedit','navlayout','hub','assist2','systems','toolbox','device','history'];
 function show(panel){
   PANELS.forEach(p=>{ const el=document.getElementById('panel-'+p); if(el) el.classList.toggle('active', p===panel); });
   // One-shot entrance arm: content pops in on panel ENTRY, then disarms so

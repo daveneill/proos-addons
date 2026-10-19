@@ -12,6 +12,7 @@ a new one: each picture has a name of its own, made for this request, and is rem
 """
 import json
 import os
+import threading
 import time
 import urllib.request
 
@@ -52,7 +53,17 @@ def _post(url: str, token: str, body: dict, timeout: float = 15):
         return json.loads(r.read().decode() or "{}")
 
 
+# one picture at a time: read on the box 11:36 (964b), two asked together of the same kiosk — one came back, the other
+# "no new picture arrived". The kiosk takes them one after another anyway; Core now asks the same way.
+_LOCK = threading.Lock()
+
+
 def _kiosk(door: dict, post=_post) -> dict:
+    with _LOCK:
+        return _kiosk_one(door, post)
+
+
+def _kiosk_one(door: dict, post=_post) -> dict:
     if not door:
         return {"why": "Core cannot read the box's internal address, so it cannot reach the screen app"}
     _sweep()

@@ -292,6 +292,13 @@ def register(kind: str, screen: str, name: str = "", shot: str = "") -> dict:
         if name and not s.get("name"):
             s["name"] = str(name)[:60]
         s["shot"] = shot if shot in SHOTS else ""
+        if screen == "box-kiosk" and s["shot"] == "kiosk":
+            # 964b: the box's own kiosk now always registers as "box-kiosk"; any other record that said "kiosk" was made by
+            # that same page under a random id before (963a) — an old copy. It keeps its record (Pro can Forget it) but
+            # no longer claims the box's screen as its own picture.
+            for sid, o in doc["screens"].items():
+                if sid != screen and o.get("shot") == "kiosk":
+                    o["shot"] = ""
         _write(doc)
         return resolve(kind, screen)
     except Exception as exc:  # noqa: BLE001

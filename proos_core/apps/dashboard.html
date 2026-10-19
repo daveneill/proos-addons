@@ -4615,7 +4615,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101902';
+const PROOS_BUILD='2026101903';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -22170,7 +22170,9 @@ function _ppBRoom(){
       case 'covers': (r.covers||[]).forEach(function(c){ if(!done[c]){ done[c]=1; cards+=_ppCardCover(c, r); } }); break;
       case 'climate': if(r.climate && !done[r.climate]){ done[r.climate]=1; cards+=_ppCardClimate(r.climate, r); } break;
       case 'device': if(w.entity && !done[w.entity]){ done[w.entity]=1; cards+=_ppCardDevice(w.entity, r); } break;
-      case 'camera': cards+=_ppCardCamera(Math.min(parseInt(w.cam)||0, (CONFIG.cameras||[]).length-1)); break;
+      case 'camera': { var ci=-1; if(w.entity) ci=(CONFIG.cameras||[]).findIndex(function(x){ return x.entity===w.entity; });   // 965: Pro names a camera by its entity
+        else ci=Math.min(parseInt(w.cam)||0, (CONFIG.cameras||[]).length-1);
+        if(ci>=0) cards+=_ppCardCamera(ci); break; }
       case 'scene': cards+=_ppCardScenes(r); break;
       case 'weather': cards+=_ppCardWeather(); break;
       case 'security': cards+=_ppCardSecurity(); break;
