@@ -4615,7 +4615,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101904';
+const PROOS_BUILD='2026101905';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -19490,7 +19490,9 @@ document.addEventListener('click', function(e){
   function _dashName(){ try{ var o=localStorage.getItem('proos_dash_name'); if(o) return o;
     if(location.hostname==='127.0.0.1') return 'Wall Panel';
     var u=(typeof _haUser!=='undefined' && _haUser) || window._haUser || null; var n=(u&&u.name)?String(u.name).trim().split(/\s+/)[0]:'';
-    return (n?n+'\u2019s ':'')+_dashDevice(); }catch(e){ return 'Dashboard'; } }
+    // 966a, read on the box: the household login is named "Home", so "Home's iPad" — a possessive cannot tell a person from
+    // a shared login. The device leads; the login it is signed in with follows, as it is: "iPad — Home", "iPhone — Dave".
+    return _dashDevice()+(n?' \u2014 '+n:''); }catch(e){ return 'Dashboard'; } }
   var _dashES=null, _dashApplying=false;
   // Persist the last-applied version across reloads so a dashboard that was CLOSED during a
   // publish shows "Dashboard updated" the next time it's opened (not just live-reconnects).
