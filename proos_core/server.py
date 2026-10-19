@@ -6460,6 +6460,7 @@ class Handler(BaseHTTPRequestHandler):
                 _q = parse_qs(urlparse(self.path).query)
                 if (_q.get("summary") or [""])[0]:
                     return self._send(200, _layouts.summary())
+                _layouts.seen((_q.get("screen") or [""])[0])   # 964: a screen asking for its layout is a screen that is on
                 return self._send(200, _layouts.resolve((_q.get("kind") or [""])[0], (_q.get("screen") or [""])[0]))
             if parts == ["panels", "shot"]:
                 # REGISTER 963: a NEW picture of one wall panel's screen, taken now (Pro asks each time its page opens).
@@ -9356,6 +9357,14 @@ class Handler(BaseHTTPRequestHandler):
                                                              b.get("shot") or ""))
                 if b.get("rename"):
                     return self._send(200, _layouts.rename(b.get("screen"), b.get("name") or ""))
+                if isinstance(b.get("settings"), dict) or b.get("forget"):
+                    # 964: a wall panel's settings, and forgetting a panel — set in Pro only (installer)
+                    _u = getattr(self, "_user", None)
+                    if not (_u and _u.get("is_admin")):
+                        return self._send(403, {"error": "installer access required"})
+                    if b.get("forget"):
+                        return self._send(200, _layouts.forget(b.get("screen")))
+                    return self._send(200, _layouts.set_settings(b.get("screen"), b.get("settings")))
                 if isinstance(b.get("adopt"), dict):
                     return self._send(200, _layouts.adopt(b.get("kind"), b.get("screen"), b.get("adopt"), b.get("name") or ""))
                 if b.get("clear"):

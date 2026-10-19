@@ -4615,7 +4615,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101901';
+const PROOS_BUILD='2026101902';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -21903,7 +21903,8 @@ function ppStart(){
     // browser (the kiosk's WebKit) gives a finger TOUCH and MOUSE events, not pointer events (register 954), so every
     // family is listened for, and whichever comes first wakes it.
     var wake=function(ev){
-      if(_pp.scr==='rest'){ if(ev.cancelable) ev.preventDefault(); ev.stopPropagation(); _pp.woke=Date.now(); ppGo(_pp.prev||'home'); }
+      if(_pp.scr==='rest'){ if(ev.cancelable) ev.preventDefault(); ev.stopPropagation(); _pp.woke=Date.now();
+        if(_ppSet().home_room){ _pp.room=_ppSet().home_room; ppGo('room'); } else ppGo(_pp.prev||'home'); }   // 964: it wakes on its own room
       _ppPoke(); };
     ['touchstart','pointerdown','mousedown'].forEach(function(n){ d.addEventListener(n, wake, {capture:true, passive:false}); });
     ['click','mouseup','touchend','pointerup'].forEach(function(n){ d.addEventListener(n, function(ev){ if(_pp.woke && Date.now()-_pp.woke<700){ if(ev.cancelable) ev.preventDefault(); ev.stopPropagation(); } }, {capture:true, passive:false}); });
@@ -21926,6 +21927,7 @@ function _ppBar(){ var map={rest:'',home:'home',rooms:'rooms',room:'rooms',light
   document.querySelectorAll('#pp-bar [data-tab]').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-tab')===map[_pp.scr]); }); }
 function ppGo(scr, force){
   if(!_ppOn) return;
+  if(scr==='rooms' && _ppSet().rooms==='home' && _ppSet().home_room){ _pp.room=_ppSet().home_room; scr='room'; }   // 964
   if(scr!=='rest' && scr!=='assist') _pp.prev=scr;
   var was=_pp.scr; _pp.scr=scr;
   var root=document.getElementById('pp'); root.classList.toggle('pp-resting', scr==='rest');
@@ -22033,7 +22035,7 @@ function _ppRC(r, cls){
     +'<div class="tx"><div class="nm">'+_ppE(r.name)+'</div><div class="st"></div></div></button>';
 }
 function _ppBHome(){
-  var rs=_ppRooms();
+  var rs=_ppShownRooms();
   return '<div class="pp-bg" style="'+_ppBg(_ppHomePhoto())+'"></div><div class="pp-shade"></div>'
     +'<div class="pp-hhead"><div class="g" data-greet></div><div class="n" id="pp-site">Home</div></div>'
     +'<div class="pp-htime"><div class="t" data-clock></div><div class="d"><span data-wx></span><span data-date></span></div></div>'
@@ -22049,7 +22051,7 @@ function _ppBHome(){
       :'<div class="pp-empty" style="top:270px">Your rooms appear here once they’re set up.</div>');
 }
 function _ppBRooms(){
-  var rs=_ppRooms();
+  var rs=_ppShownRooms();
   return '<div class="pp-bg" style="'+_ppBg(_ppHomePhoto())+'"></div>'
     +'<div class="pp-head"><div class="n">Rooms</div><div class="s" data-inuse></div></div>'
     +(rs.length?('<div class="pp-grid pp-scroll">'+rs.map(function(r){ return _ppRC(r); }).join('')+'</div>')
@@ -22062,13 +22064,21 @@ function _ppSL(kind, label, icon){
    The room page draws the layout the box holds for this screen (Core /layouts — this screen's own page, else its kind's
    home default), widget by widget, in the panel's style. A room the box has no layout for draws what the room has
    (its lights, its speaker, its blinds, its climate, its cameras, its activities) — the same composition as before. */
+/* 964: THE BOX'S OWN KIOSK HAS ONE NAME. Its browser keeps no storage across a restart (read on the box 19 Oct: each
+   kiosk restart listed the G-Flip again under a new random id), so the panel the box itself drives is always "box-kiosk";
+   any other screen keeps the device id it made. */
+function _ppScreenId(){ return location.hostname==='127.0.0.1' ? 'box-kiosk' : proosDeviceId(); }
 function _ppLayoutLoad(){
   try{
     if(!_pp.registered){ _pp.registered=true;   // 962: a wall panel says what it is, so the app and Pro can list it to edit
-      fetch(proosCoreBase()+'/layouts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({register:true, kind:'wall', screen:proosDeviceId(), name:'Wall Panel',
+      fetch(proosCoreBase()+'/layouts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({register:true, kind:'wall', screen:_ppScreenId(), name:'Wall Panel',
         shot:(location.hostname==='127.0.0.1'?'kiosk':'')})}).catch(function(){}); }   // 963: the box's own kiosk can send a picture of itself
-    fetch(proosCoreBase()+'/layouts?kind=wall&screen='+encodeURIComponent(proosDeviceId()))
+    fetch(proosCoreBase()+'/layouts?kind=wall&screen='+encodeURIComponent(_ppScreenId()))
       .then(function(r){ return r.ok?r.json():null; }).then(function(j){ if(!j||!j.pages) return;
+        var first=!_pp.setLoaded; _pp.setLoaded=true;
+        var ss=JSON.stringify(j.settings||{}); if(ss!==_pp.setSig){ _pp.setSig=ss; _pp.set=j.settings||{}; _ppPoke();
+          if(first && _pp.set.home_room && (_pp.scr==='home'||!_pp.scr)){ _pp.room=_pp.set.home_room; ppGo('room'); }
+          else if(_pp.scr==='settings'||_pp.scr==='home'||_pp.scr==='rooms') _ppBuild(_pp.scr); }
         var sig=JSON.stringify(j.pages); if(sig===_pp.laySig) return; _pp.laySig=sig; _pp.layout=j.pages;
         if(_pp.scr==='room') _ppBuild('room'); }).catch(function(){});
   }catch(e){}
@@ -22258,14 +22268,22 @@ function _ppBAssist(){
 }
 
 /* ── Settings: the panel's own, never the app's pages (register 953) ── */
-function _ppRestSecs(){ var v=60; try{ var s=localStorage.getItem('proos_pp_rest'); if(s!=null && s!=='') v=parseInt(s,10); }catch(e){} return isFinite(v)?v:60; }
+function _ppSet(){ return (_pp && _pp.set) || {}; }   // 964: what Pro set for this panel on the box ({} = nothing set)
+function _ppRestSecs(){ var b=_ppSet(); if(typeof b.rest==='number') return b.rest;
+  var v=60; try{ var s=localStorage.getItem('proos_pp_rest'); if(s!=null && s!=='') v=parseInt(s,10); }catch(e){} return isFinite(v)?v:60; }
+/* the rooms this panel shows: every room, or only its home room when Pro says so (964) */
+function _ppShownRooms(){ var rs=_ppRooms(), b=_ppSet();
+  if(b.rooms==='home' && b.home_room){ var h=rs.filter(function(r){ return r.id===b.home_room; }); if(h.length) return h; }
+  return rs; }
 function _ppBSettings(){
   var cur=_ppRestSecs(), opts=[[30,'30 Sec'],[60,'1 Min'],[120,'2 Min'],[300,'5 Min'],[0,'Never']];
   return '<div class="pp-bg" style="'+_ppBg(_ppHomePhoto())+'"></div>'
     +'<div class="pp-head"><div class="n">Settings</div></div>'
     +'<div class="pp-set pp-scroll">'
       +'<div class="pp-card pp-glass"><div class="pp-sh">Resting Screen</div><div class="pp-sd">The photo and clock, after the panel is left untouched</div>'
-        +'<div class="pp-seg">'+opts.map(function(o){ return '<button data-cmd="rest" data-v="'+o[0]+'"'+(o[0]===cur?' class="on"':'')+'>'+o[1]+'</button>'; }).join('')+'</div></div>'
+        +(typeof _ppSet().rest==='number'
+          ? '<div class="pp-kv"><span>'+_ppE((opts.filter(function(o){ return o[0]===cur; })[0]||[0,''])[1])+'</span><b>Set by your installer</b></div>'   // 964: Pro set it; the panel is locked
+          : '<div class="pp-seg">'+opts.map(function(o){ return '<button data-cmd="rest" data-v="'+o[0]+'"'+(o[0]===cur?' class="on"':'')+'>'+o[1]+'</button>'; }).join('')+'</div>')+'</div>'
       +'<div class="pp-card pp-glass"><div class="pp-sh">This Panel</div>'
         +'<div class="pp-kv"><span>Home</span><b id="pp-ab-home">—</b></div><div class="pp-kv"><span>ProOS</span><b id="pp-ab-ver">—</b></div><div class="pp-kv"><span>Screen</span><b>'+_ppE(typeof PROOS_BUILD!=='undefined'?PROOS_BUILD:'')+'</b></div>'
         +'<button class="pp-wide" data-cmd="reload">Restart Screen</button></div>'

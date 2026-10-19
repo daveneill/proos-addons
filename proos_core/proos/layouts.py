@@ -23,6 +23,7 @@ import json
 import logging
 import os
 import re
+import time
 
 _LOG = logging.getLogger("proos.layouts")
 STORE = os.path.join(os.environ.get("PROOS_DATA_DIR", "/data"), "layouts.json")
@@ -93,8 +94,80 @@ def load() -> dict:
         if isinstance(s, dict) and str(sid):
             out["screens"][str(sid)[:120]] = {"kind": _kind(s.get("kind")), "name": str(s.get("name") or "")[:60],
                                                "pages": _pages(s.get("pages")),
-                                               "shot": s.get("shot") if s.get("shot") in SHOTS else ""}
+                                               "shot": s.get("shot") if s.get("shot") in SHOTS else "",
+                                               "settings": _settings(s.get("settings"))}
     return out
+
+
+# register 964: a wall panel's own settings, set in Pro (Dave's mocks SS-W2, 19 Oct). Each is what a person chose; an
+# absent key means "not set" and the panel keeps its own behaviour.
+#   home_room  the area the panel belongs to (its mic's room is set to the same area in the platform's device registry)
+#   mic        the platform's assist_satellite entity the panel uses
+#   rooms      "all" (every room, opening on the home room) or "home" (the home room only)
+#   rest       seconds before the resting screen; 0 = never
+REST_CHOICES = (0, 30, 60, 120, 300)
+_AREA = re.compile(r"^[A-Za-z0-9_\-]{1,80}$")
+_SAT = re.compile(r"^assist_satellite\.[a-z0-9_]{1,120}$")
+
+
+def _settings(v) -> dict:
+    out = {}
+    if not isinstance(v, dict):
+        return out
+    if isinstance(v.get("home_room"), str) and _AREA.match(v["home_room"]):
+        out["home_room"] = v["home_room"]
+    if isinstance(v.get("mic"), str) and _SAT.match(v["mic"]):
+        out["mic"] = v["mic"]
+    if v.get("rooms") in ("all", "home"):
+        out["rooms"] = v["rooms"]
+    if isinstance(v.get("rest"), int) and not isinstance(v.get("rest"), bool) and v["rest"] in REST_CHOICES:
+        out["rest"] = v["rest"]
+    return out
+
+
+def set_settings(screen: str, settings) -> dict:
+    """Merge a person's choices into one screen's settings. A key given as null clears it (back to the panel's own)."""
+    try:
+        screen = str(screen or "")[:120]
+        doc = load()
+        s = doc["screens"].get(screen)
+        if not s:
+            return {"error": "unknown screen"}
+        cur = dict(s.get("settings") or {})
+        for k, val in (settings or {}).items() if isinstance(settings, dict) else []:
+            if val is None:
+                cur.pop(k, None)
+            elif k in _settings({k: val}):      # a choice Pro does not offer is refused; the old choice stays
+                cur[k] = val
+        s["settings"] = _settings(cur)
+        _write(doc)
+        return resolve(s.get("kind", ""), screen)
+    except Exception as exc:  # noqa: BLE001
+        return {"error": str(exc)}
+
+
+def forget(screen: str) -> dict:
+    """Drop one screen's record - a panel taken off the wall, or an old copy of one (Pro, the installer's choice)."""
+    try:
+        screen = str(screen or "")[:120]
+        doc = load()
+        gone = doc["screens"].pop(screen, None) is not None
+        if gone:
+            _write(doc)
+        _SEEN.pop(screen, None)
+        return {"forgotten": gone}
+    except Exception as exc:  # noqa: BLE001
+        return {"error": str(exc)}
+
+
+# when each screen last asked for its layout (it asks on load and every minute) - kept in memory only, never written:
+# "online" in Pro is this, read, not a guess. Gone on a Core restart until the screen next asks (within a minute).
+_SEEN = {}
+
+
+def seen(screen: str):
+    if screen:
+        _SEEN[str(screen)[:120]] = time.time()
 
 
 def _write(doc: dict) -> dict:
@@ -122,7 +195,7 @@ def resolve(kind: str = "", screen: str = "") -> dict:
     for p, ws in ((s or {}).get("pages") or {}).items():
         pages[p], scopes[p] = ws, "screen"
     return {"kind": kind, "screen": screen, "name": (s or {}).get("name", ""), "pages": pages, "scopes": scopes,
-            "default": dflt}
+            "default": dflt, "settings": (s or {}).get("settings") or {}}
 
 
 def save(kind: str, screen: str, page: str, widgets, scope: str = "screen", name: str = "") -> dict:
@@ -244,5 +317,7 @@ def summary() -> dict:
     """For Pro and for the reading on the box: how many pages each level holds."""
     doc = load()
     return {"default": {k: sorted(v.keys()) for k, v in doc["default"].items()},
-            "screens": {sid: {"kind": s["kind"], "name": s["name"], "pages": sorted(s["pages"].keys()), "shot": s.get("shot", "")}
+            "screens": {sid: {"kind": s["kind"], "name": s["name"], "pages": sorted(s["pages"].keys()), "shot": s.get("shot", ""),
+                              "settings": s.get("settings") or {},
+                              "seen_ago": (round(time.time() - _SEEN[sid]) if sid in _SEEN else None)}
                         for sid, s in doc["screens"].items()}}
