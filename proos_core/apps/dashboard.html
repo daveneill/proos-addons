@@ -4606,7 +4606,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101918';
+const PROOS_BUILD='2026101919';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -14060,15 +14060,41 @@ function renderSettings(){
   // number floating alone at the top and a section of its own for one
   // installer action. The four address rows the one-sign-in ruling says a
   // person never has to read sit under Details, for a support call.
+  // THE SETTINGS PAGE, IN THE MOCKUP'S ORDER (968t — Dave, 20 Oct 06:04, "both": the dashboard's Settings and the app's
+  // own, one design). The approved settings mockup (22 Sep; built natively 6 Oct, register 684): Your Installer · This
+  // Device · Pro Assist Remembers · Account, each row's own explanation inside the row, Sign Out last. The rows, their
+  // ids, what each does and what the app owns (data-app-owned, register 333) are unchanged — only the order and the
+  // shape. Wall Panel and Pro appear only where they apply, as before.
   c.innerHTML=`
-    <div class="set-section" data-app-owned="connection">
-      <div class="set-section-title">Account</div>
-      ${_haUser?`<div class="set-row"><div class="set-label">Signed in as</div><div class="set-value">${esc(_haUser.name||'—')} ${tierBadge(_haUser)}</div></div>`:''}
-      <div class="set-row"><div class="set-label">Home</div><div class="set-value">${esc(_haLocationName||'—')}</div></div>
-      ${connected?`<div class="set-row" style="cursor:pointer" onclick="dashSignOut()"><div class="set-label" style="color:#e0564b">Sign out</div><div class="set-value" style="color:#e0564b">&rsaquo;</div></div>`:''}
+    <div class="set-section" data-ic="installer">
+      <div class="set-section-title">Your Installer</div>
+      <div class="set-row">
+        <div class="sg-tx"><div class="set-label">Allow Installer Access</div><div class="set-field-hint sg-in">Your installer can manage this home. Turn off to revoke their access — and any tech support they enabled — at any time.</div></div>
+        <button id="set-installer-btn" data-on="" onclick="toggleInstallerAccess()" style="background:none;border:0.5px solid rgba(255,255,255,0.15);border-radius:8px;padding:6px 18px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;color:rgba(255,255,255,0.50)">Checking…</button>
+      </div>
+      <div class="set-row" data-app-owned="location">
+        <div class="sg-tx"><div class="set-label">Share My Location</div><div class="set-field-hint sg-in">When on, this device sends its position to your home every few minutes so the home knows when you are coming and going. Off by default.</div></div>
+        <button id="set-loc-btn" onclick="setLocationSharing(!locationSharingOn());renderSettings&&renderSettings()" style="background:none;border:0.5px solid rgba(255,255,255,0.15);border-radius:8px;padding:6px 18px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;color:${locationSharingOn()?'#84d9b4':'rgba(255,255,255,0.45)'}">${locationSharingOn()?'On':'Off'}</button>
+      </div>
+      <div class="set-row">
+        <div class="sg-tx"><div class="set-label">Talk To ProOS</div><div class="set-field-hint sg-in">Talking to ProOS sends the recording to your home’s transcription service to turn it into words. Off by default — you can always type instead.</div></div>
+        <button id="set-voice-btn" onclick="setVoiceConsent(!voiceConsentGiven())" style="background:none;border:0.5px solid rgba(255,255,255,0.15);border-radius:8px;padding:6px 18px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;color:${voiceConsentGiven()?'#84d9b4':'rgba(255,255,255,0.45)'}">${voiceConsentGiven()?'On':'Off'}</button>
+      </div>
+    </div>
+    <div class="set-section" data-ic="device">
+      <div class="set-section-title">This Device</div>
+      <div class="set-row">
+        <div class="sg-tx"><div class="set-label">Open App to</div><div class="set-field-hint sg-in">Which screen the app opens to. Default is Home.</div></div>
+        <select id="set-default-room" onchange="setDefaultRoom(this.value)" style="background:rgba(255,255,255,0.06);border:0.5px solid rgba(255,255,255,0.15);border-radius:8px;padding:7px 12px;font-size:13px;font-family:inherit;color:#fff;cursor:pointer">
+          <option value=""${(localStorage.getItem('dash_default_room')||'')?'':' selected'}>Home</option>
+          ${(CONFIG.rooms||[]).map(r=>`<option value="${esc(r.name)}"${(localStorage.getItem('dash_default_room')||'')===r.name?' selected':''}>${esc(r.name)}</option>`).join('')}
+        </select>
+      </div>
+      ${ssSettingRow()}
+      ${retSettingRow()}
     </div>
     ${_installerMode ? `
-    <div class="set-section">
+    <div class="set-section" data-ic="pro">
       <div class="set-section-title">Pro</div>
       <div class="set-row"><div class="set-label">Mode</div><div class="set-value" style="color:#e3a23c">Pro · ${esc(_proName||'active')}</div></div>
       <div class="set-row" style="cursor:pointer" onclick="openRequests()"><div class="set-label">Homeowner Requests</div><div class="set-value"><span id="set-req-count">…</span> &rsaquo;</div></div>
@@ -14079,17 +14105,24 @@ function renderSettings(){
       <div class="set-row" style="cursor:pointer" onclick="exitInstaller()"><div class="set-label" style="color:#e0564b">Exit Pro Mode</div><div class="set-value"></div></div>
     </div>` : ''}
     ${(typeof _isPanel==='function'&&_isPanel())?`
-    <div class="set-section">
+    <div class="set-section" data-ic="panel">
       <div class="set-section-title">Wall Panel</div>
       <div class="set-row" style="cursor:pointer" onclick="panelEditHome()"><div><div class="set-label">Edit Home Screen</div><div class="set-field-hint" style="margin-top:2px">Add, remove or resize what this panel shows. Editing ends by itself after a minute.</div></div><div class="set-value">&rsaquo;</div></div>
     </div>`:''}
-    <div class="set-section">
-      <div class="set-section-title">Profile</div>
+    <div class="set-section" id="set-assist-mem" data-ic="assist">
+      <div class="set-section-title">Pro Assist Remembers</div>
+      <div class="set-field-hint" style="padding:0 4px 8px">Things you have told it, what it has noticed about how you use the home, and your recent conversations. Forget anything here and it is gone.</div>
+      <div id="set-assist-mem-body"><div class="set-row"><div class="set-label" style="color:rgba(255,255,255,0.50)">Reading…</div></div></div>
+    </div>
+    <div class="set-section" data-ic="account">
+      <div class="set-section-title">Account</div>
+      ${_haUser?`<div class="set-row" data-app-owned="connection"><div class="set-label">Signed in as</div><div class="set-value">${esc(_haUser.name||'—')} ${tierBadge(_haUser)}</div></div>`:''}
+      <div class="set-row" data-app-owned="connection"><div class="set-label">Home</div><div class="set-value">${esc(_haLocationName||'—')}</div></div>
       <div class="set-row" style="align-items:center;gap:12px">
         <div id="set-avatar-preview" style="width:46px;height:46px;border-radius:50%;flex:0 0 auto;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:600;color:#fff;background:linear-gradient(135deg,#3a4bdd,#8a5cc0);border:0.5px solid rgba(255,255,255,0.28);background-size:cover;background-position:center"></div>
         <div style="flex:1 1 auto;min-width:0">
           <div class="set-label">Profile Picture</div>
-          <div class="set-field-hint" style="margin-top:2px">Shown as your avatar on the dashboard.</div>
+          <div class="set-field-hint sg-in">Shown as your picture across ProOS.</div>
         </div>
         <div style="display:flex;gap:8px;flex:0 0 auto">
           <button class="set-btn-primary" style="padding:8px 14px" onclick="dashAvatarUpload()">Change</button>
@@ -14097,60 +14130,22 @@ function renderSettings(){
         </div>
       </div>
       <div id="set-avatar-msg" style="font-size:11px;color:rgba(255,255,255,0.50);min-height:14px;padding:2px 4px 0"></div>
-    </div>
-    <div class="set-section">
-      <div class="set-section-title">Your Installer</div>
-      <div class="set-row">
-        <div class="set-label">Allow Installer Access</div>
-        <button id="set-installer-btn" data-on="" onclick="toggleInstallerAccess()" style="background:none;border:0.5px solid rgba(255,255,255,0.15);border-radius:8px;padding:6px 18px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;color:rgba(255,255,255,0.50)">Checking…</button>
-      </div>
-      <div class="set-row" data-app-owned="location">
-        <div class="set-label">Share My Location</div>
-        <button id="set-loc-btn" onclick="setLocationSharing(!locationSharingOn());renderSettings&&renderSettings()" style="background:none;border:0.5px solid rgba(255,255,255,0.15);border-radius:8px;padding:6px 18px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;color:${locationSharingOn()?'#84d9b4':'rgba(255,255,255,0.45)'}">${locationSharingOn()?'On':'Off'}</button>
-      </div>
-      <div class="set-row">
-        <div class="set-label">Talk To ProOS</div>
-        <button id="set-voice-btn" onclick="setVoiceConsent(!voiceConsentGiven())" style="background:none;border:0.5px solid rgba(255,255,255,0.15);border-radius:8px;padding:6px 18px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;color:${voiceConsentGiven()?'#84d9b4':'rgba(255,255,255,0.45)'}">${voiceConsentGiven()?'On':'Off'}</button>
-      </div>
-      <div class="set-field-hint" data-app-owned="location" style="padding:6px 4px 0">When on, this device sends its position to your home every few minutes so the home knows when you are coming and going. Off by default.</div>
-      <div class="set-field-hint" style="padding:6px 4px 0">Talking to ProOS sends the recording to your home’s transcription service to turn it into words. Off by default — you can always type instead.</div>
-      <div class="set-field-hint" style="padding:6px 4px 0">Your installer can manage this home. Turn off to revoke their access — and any tech support they enabled — at any time.</div>
-    </div>
-    <div class="set-section">
-      <div class="set-section-title">Display</div>
-      <div class="set-row">
-        <div class="set-label">Open App to</div>
-        <select id="set-default-room" onchange="setDefaultRoom(this.value)" style="background:rgba(255,255,255,0.06);border:0.5px solid rgba(255,255,255,0.15);border-radius:8px;padding:7px 12px;font-size:13px;font-family:inherit;color:#fff;cursor:pointer">
-          <option value=""${(localStorage.getItem('dash_default_room')||'')?'':' selected'}>Home</option>
-          ${(CONFIG.rooms||[]).map(r=>`<option value="${esc(r.name)}"${(localStorage.getItem('dash_default_room')||'')===r.name?' selected':''}>${esc(r.name)}</option>`).join('')}
-        </select>
-      </div>
-      <div class="set-field-hint" style="padding:6px 4px 0">Which screen the app opens to. Default is Home.</div>
-      ${ssSettingRow()}
-      ${retSettingRow()}
-    </div>
-    <div class="set-section" id="set-assist-mem">
-      <div class="set-section-title">What Pro Assist remembers</div>
-      <div class="set-field-hint" style="padding:0 4px 8px">Things you have told it, what it has noticed about how you use the home, and your recent conversations. Forget anything here and it is gone.</div>
-      <div id="set-assist-mem-body"><div class="set-row"><div class="set-label" style="color:rgba(255,255,255,0.50)">Reading…</div></div></div>
-    </div>
-    <div class="set-section">
-      <div class="set-section-title">About</div>
       <div class="set-row"><div class="set-label">Version</div><div class="set-value" style="font-variant-numeric:tabular-nums">1.0 · build ${PROOS_BUILD}</div></div>
       <div class="set-row"><div class="set-label">Connection</div><div class="set-value">${connected?(_onHome()?'Connected · at home':'Connected · away'):connWord}</div></div>
-      <div class="set-row" style="cursor:pointer" data-app-owned="connection" onclick="const b=document.getElementById('set-conn-details');b.style.display=b.style.display==='none'?'':'none';this.querySelector('.set-value').textContent=b.style.display==='none'?'\u203a':'Hide'"><div class="set-label">Details</div><div class="set-value">&rsaquo;</div></div>
+      <div class="set-row" style="cursor:pointer" data-app-owned="connection" onclick="const b=document.getElementById('set-conn-details');b.style.display=b.style.display==='none'?'':'none';this.querySelector('.set-value').textContent=b.style.display==='none'?'›':'Hide'"><div class="set-label">Details</div><div class="set-value">&rsaquo;</div></div>
       <div id="set-conn-details" style="display:none" data-app-owned="connection">
         <!-- MIRROR, NOT SETTINGS (register 438): what is TRUE about where this
              glass reached the home — read from the platform on every connect;
              nothing to save. Under Details (567) because a person never has to
              read an address; a support call does. -->
         <div class="set-row"><div class="set-label">Connected at</div><div class="set-value">${esc(_connHost())}</div></div>
-        <div class="set-row"><div class="set-label">Reached</div><div class="set-value">${connected?(_onHome()?'On your home network':'Away — through your home\u2019s remote address'):connWord}</div></div>
+        <div class="set-row"><div class="set-label">Reached</div><div class="set-value">${connected?(_onHome()?'On your home network':'Away — through your home’s remote address'):connWord}</div></div>
         <div class="set-row"><div class="set-label">Home network name</div><div class="set-value">${esc(_homeNetName())}</div></div>
         <div class="set-field-hint" style="padding:0 4px 8px">Open ProOS by this name on your home network — it follows the box if its address changes. Pinned to a home screen, use the name, never a number.</div>
         ${_remoteUrl()?`<div class="set-row"><div class="set-label">Remote address</div><div class="set-value">${esc(_hostOf(_remoteUrl()))}</div></div>`:`<div class="set-row"><div class="set-label">Remote address</div><div class="set-value">Not set</div></div>`}
-        <div class="set-field-hint" style="padding:0 4px 8px">Away from home, ProOS uses your home\u2019s own remote address and traffic goes through your remote-access service. Your installer can give you this address if it isn\u2019t set.</div>
+        <div class="set-field-hint" style="padding:0 4px 8px">Away from home, ProOS uses your home’s own remote address and traffic goes through your remote-access service. Your installer can give you this address if it isn’t set.</div>
       </div>
+      ${connected?`<div class="set-row" data-app-owned="connection" style="cursor:pointer" onclick="dashSignOut()"><div class="set-label" style="color:#e0564b">Sign Out</div><div class="set-value" style="color:#e0564b">&rsaquo;</div></div>`:''}
     </div>`;
   // WHAT THE APP OWNS LEAVES THIS PAGE INSIDE THE APP (register 333): the
   // app's Your Home holds the address, remote access and what this device
@@ -14183,7 +14178,12 @@ function _settingsLayout(c){
   const secs=[...c.querySelectorAll(':scope > .set-section')];
   if(_setSel>=secs.length) _setSel=0;
   const side=document.createElement('div'); side.className='sg-side';
-  side.innerHTML=secs.map((sec,i)=>{ const tt=sec.querySelector('.set-section-title'); return `<button type="button" class="sg-item${i===_setSel?' on':''}" data-i="${i}">${_hEsc(tt?tt.textContent:'')}</button>`; }).join('');
+  // 968t: the mockup's sidebar — each section with its own coloured icon
+  const IC={installer:['#2139F0','<path d="M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6z"/>'],device:['#5E5CE6','<rect x="5" y="2.5" width="14" height="19" rx="2.5"/><path d="M10 18.5h4"/>'],
+    pro:['#E3A23C','<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/>'],panel:['#30B0C7','<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>'],
+    assist:['#AF52DE','<path d="M12 3l1.8 4.6L18.5 9l-4.7 1.6L12 15l-1.8-4.4L5.5 9l4.7-1.4z"/><path d="M18 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/>'],account:['#8E8E93','<circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/>']};
+  side.innerHTML=secs.map((sec,i)=>{ const tt=sec.querySelector('.set-section-title'); const ic=IC[sec.dataset.ic]||IC.account;
+    return `<button type="button" class="sg-item${i===_setSel?' on':''}" data-i="${i}"><span class="sg-ic" style="--ic:${ic[0]}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${ic[1]}</svg></span>${_hEsc(tt?tt.textContent:'')}</button>`; }).join('');
   const main=document.createElement('div'); main.className='sg-main';
   secs.forEach((sec,i)=>{ sec.classList.toggle('sg-on', i===_setSel); main.appendChild(sec); });
   c.innerHTML=''; c.appendChild(side); c.appendChild(main); c.classList.add('sg');
@@ -18134,11 +18134,10 @@ function ssSettingRow(){
   if(!ssAllowed()) return '';
   const cur=ssSecs();
   const opt=(v,l)=>'<option value="'+v+'"'+(cur===v?' selected':'')+'>'+l+'</option>';
-  return '<div class="set-row" style="margin-top:10px"><div class="set-label">Screensaver After</div>'
+  return '<div class="set-row"><div class="sg-tx"><div class="set-label">Screensaver After</div><div class="set-field-hint sg-in">A clock, weather and now-playing appear after the screen sits idle. Tap to wake.</div></div>'
     +'<select id="set-screensaver" onchange="setScreensaver(this.value)" style="background:rgba(255,255,255,0.06);border:0.5px solid rgba(255,255,255,0.15);border-radius:8px;padding:7px 12px;font-size:13px;font-family:inherit;color:#fff;cursor:pointer">'
     +opt(0,'Off')+opt(30,'30 seconds')+opt(60,'1 minute')+opt(120,'2 minutes')+opt(300,'5 minutes')
-    +'</select></div>'
-    +'<div class="set-field-hint" style="padding:6px 4px 0">A clock, weather and now-playing appear after the screen sits idle. Tap to wake.</div>';
+    +'</select></div>';
 }
 function ssReset(){
   if(_ssActive){ ssHide(); return; }
@@ -18267,11 +18266,10 @@ function setReturnAfter(v){
 function retSettingRow(){
   const cur=retSecs();
   const opt=(v,l)=>'<option value="'+v+'"'+(cur===v?' selected':'')+'>'+l+'</option>';
-  return '<div class="set-row" style="margin-top:10px"><div class="set-label">Return to Start After</div>'
+  return '<div class="set-row"><div class="sg-tx"><div class="set-label">Return to Start After</div><div class="set-field-hint sg-in">After sitting idle, the app returns to the page set in “Open app to”.</div></div>'
     +'<select id="set-return" onchange="setReturnAfter(this.value)" style="background:rgba(255,255,255,0.06);border:0.5px solid rgba(255,255,255,0.15);border-radius:8px;padding:7px 12px;font-size:13px;font-family:inherit;color:#fff;cursor:pointer">'
     +opt(0,'Off')+opt(30,'30 seconds')+opt(60,'1 minute')+opt(120,'2 minutes')+opt(300,'5 minutes')
-    +'</select></div>'
-    +'<div class="set-field-hint" style="padding:6px 4px 0">After sitting idle, the app returns to the page set in “Open app to”.</div>';
+    +'</select></div>';
 }
 
 function resetProTimeout(){
@@ -20418,7 +20416,11 @@ async function saveService(){
    the phone's floor) and it sat over the widgets in a narrow column. It now has one place on every page and device:
    the top right corner, under the safe area — clear of the bar, the mic and the band (register 508's reason holds:
    nothing there can be taken for the mic). Every popup hides it (the overlay list below names them all). */
-#widget-add-pill{position:fixed;right:var(--proos-edge,16px);top:calc(var(--proos-sat,0px) + 14px);z-index:56;align-items:center;justify-content:center;width:34px;height:34px;background:rgba(0,0,0,0.34);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border:0.5px solid rgba(255,255,255,0.2);border-radius:50%;color:rgba(255,255,255,0.55);cursor:pointer;-webkit-tap-highlight-color:transparent;transition:background .15s,border-color .15s,color .15s}
+/* 968t — BOTTOM RIGHT, ABOVE THE BAR. Dave, 20 Oct 06:14 (screenshot of his Mac): at the top right it pushed Home's
+   time and date in — "That needs to be in a better spot"; he chose bottom right, just above the bottom bar. It stands
+   on the bar's own top (the band's floor plus the bar's height plus the band's gap — no number of its own, register
+   389), so it is the same place on every page and device and moves with nothing; the clock goes back where it was. */
+#widget-add-pill{position:fixed;right:var(--proos-edge,16px);top:auto;bottom:calc(var(--proos-floor) + var(--proos-dock-h) + var(--proos-band-gap,12px));z-index:56;align-items:center;justify-content:center;width:44px;height:44px;background:rgba(0,0,0,0.34);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border:0.5px solid rgba(255,255,255,0.2);border-radius:50%;color:rgba(255,255,255,0.55);cursor:pointer;-webkit-tap-highlight-color:transparent;transition:background .15s,border-color .15s,color .15s}
 #widget-add-pill:hover{background:rgba(0,0,0,0.5);border-color:rgba(255,255,255,0.50);color:rgba(255,255,255,0.85)}
 /* IT BELONGS TO THE HOME AND ROOM PAGES ONLY. In the column it was scoped by
    where it lived; as furniture it has to say so — Lights, Media and the rest
@@ -20426,6 +20428,7 @@ async function saveService(){
 #widget-add-pill{display:none}
 body:has(#page-home.page.active) #widget-add-pill{display:flex}
 body.proos-popup #widget-add-pill{display:none!important}
+body.proos-listening #widget-add-pill{display:none!important}   /* 968t: the listening caption shows at the bottom right — the + steps aside while it does */
 #proos-media,#proos-mic{position:fixed;bottom:var(--proos-floor);width:var(--proos-dock-h);height:var(--proos-dock-h);border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:60;transition:transform .22s cubic-bezier(.2,.9,.25,1.1)}
 /* REGISTER 506. TYPING IS THE FALLBACK AND IT IS ASKED FOR. The keyboard sits
    ABOVE the microphone rather than beside it, because beside it is where the
@@ -21486,7 +21489,7 @@ body.proos-popup:has(#page-home.page.active) #widget-add-pill,body:has(#widget-p
   #settings-content.sg .sg-main>.set-section.sg-on{display:block!important}
 }
 /* 968s: Home's clock column leaves the top-right corner to the + */
-#page-home .home-clockrow{padding-right:48px}
+/* (968t: the clock no longer gives way to the + — it moved to the bottom right) */
 /* 968s: a room shows no room chips, no clock and no greeting — the mockups' room is its name, its state and its two
    buttons (All Lights · Scenes); Home keeps its photo cards and its clock */
 html.pv-room #page-home .room-tabs,html.pv-room #page-home .home-clockrow,html.pv-room #page-home .home-rule,html.pv-room #page-home #home-greet{display:none!important}
@@ -21577,6 +21580,15 @@ html.pv-room #page-home .room-acts{display:block;margin-top:4px}
 #settings-content .set-section .set-section-title+.set-row{border-top:0!important}
 #settings-content .set-section .set-label{font-size:15px}
 #settings-content .set-section .set-field-hint{padding:4px 16px 10px!important}
+/* 968t: each row's own explanation sits inside the row, under its name (the mockup), and the control stays at the right */
+#settings-content .set-row .sg-tx{flex:1 1 auto;min-width:0;padding-right:16px}
+#settings-content .set-section .set-field-hint.sg-in{padding:3px 0 0!important;margin:0;font-size:var(--t-floor);line-height:1.35;color:rgba(255,255,255,.55)}
+#settings-content .set-row:has(.sg-in){align-items:center}
+.sg-ic{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:9px;background:var(--ic,#2139F0);color:#fff;margin-right:12px;flex:none;vertical-align:middle}
+.sg-ic svg{width:17px;height:17px}
+.sg-item{display:flex;align-items:center}
+#settings-content .set-row:has(#set-avatar-preview) button{background:rgba(255,255,255,.10)!important;border:0!important;color:#fff!important;border-radius:999px!important;font-size:var(--t-floor)!important;font-weight:600}
+#settings-content .set-row:has(#set-avatar-preview) .set-btn-danger{color:#ff6b61!important}
 /* CLIMATE (968q): every thermostat as the panel's climate card — the setpoint large between − and +, the room's reading
    under it, the thermostat's own modes; the mode's colour (heat amber, cool blue, auto violet) */
 .cpc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;width:100%;padding:0 16px 24px;box-sizing:border-box;align-content:start}
