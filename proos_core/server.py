@@ -6474,7 +6474,7 @@ class Handler(BaseHTTPRequestHandler):
                     _rec = _layouts.screen((_q.get("screen") or [""])[0]) if _layouts else {}
                     _r = _pshot.take(_rec)
                 except Exception as e:  # noqa: BLE001
-                    _r = {"why": "picture failed: %s" % str(e)[:160]}
+                    _r = {"why": "The picture failed: %s" % str(e)[:160]}
                 if _r.get("jpeg"):
                     return self._send_bytes(200, "image/jpeg", _r["jpeg"])
                 return self._send(200, {"why": _r.get("why") or "no picture"})
