@@ -4615,7 +4615,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101910';
+const PROOS_BUILD='2026101912';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -9584,7 +9584,8 @@ function _wlFit(root){
     const inn=pv.querySelector('.wl-pv-in'); if(!inn) return;
     const W=+inn.dataset.w, H=+inn.dataset.h, fw=pv.clientWidth, fh=pv.clientHeight;
     if(!fw||!fh) return;
-    const k=Math.min(fw/W, fh/H);
+    // 968k: a small widget is not blown up past a third over its real size — the preview shows what you will get
+    const k=Math.min(fw/W, fh/H, 1.35);   // never stretched: one k for both sides
     inn.style.transform=`translate(-50%,-50%) scale(${k.toFixed(4)})`;
   });
 }
@@ -10372,23 +10373,21 @@ function renderWidgetContent(w){
               onclickFn:(function(_ce){return ()=>selectClimateRoomByEntity(_ce);})(clim)};
     }
     case 'people': {
-      // FACES IN A ROW (register 614, 24 Sep 2026). The v2 mockup: "Faces in a
-      // row, a green ring when home, faded when away, the zone under the name.
-      // Only people — never the house or a device." It was a list with a
-      // "Home" word on every row. The count leads; each face carries its own
-      // state; the zone is said only when it is not home.
+      // FACES, WHERE, AND SINCE WHEN (968j; register 614's rules kept: only people, never the house or a
+      // device; a green ring when home, faded when away). Each person says where they are and since when —
+      // the person's own state and its last_changed, nothing worked out.
       const ppl=_peopleList();
       const nHome=ppl.filter(p=>p.zone==='Home').length, nAway=ppl.length-nHome;
-      const faces=ppl.map(p=>{
+      const _pd=(typeof _widgetDims==='function')?_widgetDims(w):{w:(typeof w.size==='number'?w.size:2),h:1};
+      const show=ppl.slice(0,_pd.w>=3?3:2);
+      const faces=show.map(p=>{
         const home=p.zone==='Home';
         const av=p.pic?`<span class="ppw-av" style="background-image:url('${p.pic}')"></span>`:`<span class="ppw-av ppw-ini">${_hEsc(p.ini)}</span>`;
-        const first=_hEsc(String(p.name).split(/\s+/)[0]);
-        // the zone rides the name's line ("Jarrod · School") — on a second line
-        // the face overflowed a 100px row (worked: 92 in 74)
-        return `<div class="ppw-f${home?' home':' away'}">${av}<span class="ppw-n">${first}${home?'':` <span class="ppw-z">\u00b7 ${_hEsc(p.zone)}</span>`}</span></div>`;
+        const at=_wvAt(p.eid);
+        return `<div class="ppv-p${home?' home':' away'}">${av}<div class="ppv-tx"><b>${_hEsc(String(p.name).split(/\s+/)[0])}</b><span>${_hEsc(p.zone)}${at?' · since '+_hEsc(at):''}</span></div></div>`;
       }).join('');
       const head=[nHome?nHome+' home':'',nAway?nAway+' away':''].filter(Boolean).join(' · ')||'Nobody';
-      const html=`<div class="wc ppw"><div class="ppw-k">${head}</div><div class="ppw-row">${faces}</div></div>`;
+      const html=`<div class="wc wv ppw"><div class="wv-hd"><div class="wv-tx"><div class="wv-t">People</div><div class="wv-s ppw-k">${_hEsc(head)}${ppl.length>show.length?' · +'+(ppl.length-show.length)+' more':''}</div></div></div><div class="ppv-row wv-mt" style="--n:${Math.max(1,show.length)}">${faces}</div></div>`;
       return {icon:'', label:'People', value:nHome+' home', sub:'', html, onclickFn:()=>openPeopleMap()};
     }
     case 'weather': {
@@ -10418,24 +10417,34 @@ function renderWidgetContent(w){
       const tTxt=(t==null||t==='')?'–':Math.round(t);
       const cl=_wxCondLabel(cond);
       const iconSvg=`<svg viewBox="0 0 24 24">${_wxIcon(cond,isDay)}</svg>`;
-      const hl=_wxHL?`H:${Math.round(_wxHL.hi)}°  L:${Math.round(_wxHL.lo)}°`:'';
+      // EVERYTHING THE FORECAST SAYS, AND NOTHING IT DOESN'T (968j, Dave's approved widget page: feels-like,
+      // high and low, wind, rain, UV, the hours ahead). Each fact is the weather entity's own attribute or its
+      // own forecast, drawn only when it is there; the living sky stays behind every size.
+      const wsp=att(we,'wind_speed'), wun=att(we,'wind_speed_unit')||'km/h', hum=att(we,'humidity'), uv=att(we,'uv_index');
+      const rain=(_wxHourly&&_wxHourly[0]&&_wxHourly[0].precipitation_probability!=null)?_wxHourly[0].precipitation_probability:null;
+      const facts=[_wxHL?`<span>H <b>${Math.round(_wxHL.hi)}°</b> L <b>${Math.round(_wxHL.lo)}°</b></span>`:'',
+        (wsp!=null&&wsp!=='')?`<span>Wind <b>${Math.round(wsp)} ${_hEsc(wun)}</b></span>`:'',
+        rain!=null?`<span>Rain <b>${Math.round(rain)}%</b></span>`:'',
+        (hum!=null&&hum!=='')?`<span>Humidity <b>${Math.round(hum)}%</b></span>`:'',
+        (uv!=null&&uv!=='')?`<span>UV <b>${Math.round(uv)}</b></span>`:''].filter(Boolean);
+      const now=`<div class="wxv-now"><span class="wxv-ic">${iconSvg}</span><div><div class="wxv-t">${tTxt}°</div><div class="wv-s">${_hEsc(cl)}${feels!=null?' · feels '+Math.round(feels)+'°':''}</div></div></div>`;
+      const _wd=(typeof _widgetDims==='function')?_widgetDims(w):{w:(typeof w.size==='number'?w.size:1),h:1};
       let html;
       if((typeof w.size==='number'?w.size:1)>=2){   // 2×1 and the 3×1 banner share the rich layout
-        let strip='';
+        let strip='', spark='';
         if(_wxHourly&&_wxHourly.length){
-          strip=_wxHourly.slice(0,5).map((x,i)=>`<div class="wx-t2-hr"><div class="wx-t2-ht">${_wxHour(x.datetime,i)}</div><div class="wx-t2-hic"><svg viewBox="0 0 24 24">${_wxIcon(x.condition,_wxHourIsDay(x.datetime))}</svg></div><div class="wx-t2-htemp">${x.temperature==null?'–':Math.round(x.temperature)}°</div></div>`).join('');
+          const hs=_wxHourly.slice(0,_wd.w>=3?6:5);
+          strip=`<div class="wxv-hrs">`+hs.map((x,i)=>`<span>${_wxHour(x.datetime,i)}<svg viewBox="0 0 24 24">${_wxIcon(x.condition,_wxHourIsDay(x.datetime))}</svg><b>${x.temperature==null?'–':Math.round(x.temperature)}°</b></span>`).join('')+`</div>`;
+          const ts=hs.map(x=>parseFloat(x.temperature)).filter(isFinite);
+          if(_wd.w>=3&&ts.length===hs.length&&ts.length>1){
+            const lo=Math.min(...ts), hi=Math.max(...ts), rg=Math.max(1,hi-lo);
+            const pts=ts.map((v,i)=>(i*100/(ts.length-1)).toFixed(1)+','+(30-(v-lo)/rg*24).toFixed(1)).join(' ');
+            spark=`<svg class="wxv-sp" viewBox="0 0 100 34" preserveAspectRatio="none"><polygon points="0,34 ${pts} 100,34" fill="rgba(156,196,255,.14)"/><polyline points="${pts}" fill="none" stroke="#9cc4ff" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg>`;
+          }
         }
-        html=_wxTileScene(cond,isDay)+`<div class="wx-t2"><div class="wx-t2-l"><div class="wc-lbl">Weather</div>`+
-          `<div class="wx-t2-main"><div class="wx-t2-ic">${iconSvg}</div><div class="wx-t2-temp">${tTxt}°</div></div>`+
-          `<div class="wx-t2-cond">${cl}${feels!=null?' · Feels '+Math.round(feels)+'°':''}</div>`+
-          `<div class="wx-t2-hl">${hl}</div></div>`+
-          `<div class="wx-t2-r">${strip||'<div class="wx-t2-tap">Tap for full forecast</div>'}</div></div>`;
+        html=_wxTileScene(cond,isDay)+`<div class="wc wv wxv"><div class="wxv-row">${now}<div class="wv-facts wxv-f">${facts.join('')}</div></div><div class="wv-mt">${spark}${strip||'<div class="wv-s">Tap for the full forecast</div>'}</div></div>`;
       } else {
-        const line=(feels!=null?`Feels ${Math.round(feels)}°`:'')+((feels!=null&&hl)?'  ·  ':'')+hl;
-        html=`<div class="wx-tile"><div class="wx-tile-glyph">${iconSvg}</div>`+
-          `<div class="wc-lbl">Weather</div>`+
-          `<div><div class="wx-tile-temp">${tTxt}°</div><div class="wx-tile-cond">${cl}</div></div>`+
-          `<div class="wx-tile-hl">${line||'Tap for full forecast'}</div></div>`;
+        html=_wxTileScene(cond,isDay)+`<div class="wc wv wxv"><div class="wv-k">Weather</div>${now}<div class="wv-facts wv-mt">${facts.slice(0,2).join('')||'<span>Tap for the full forecast</span>'}</div></div>`;
       }
       return {icon, label:'Weather', value:`${tTxt}°`, sub:cl, html, onclickFn:()=>showPage('weather')};
     }
@@ -10478,7 +10487,9 @@ function renderWidgetContent(w){
       const armed=alarm.startsWith('armed'), trig=alarm==='triggered';
       const subTxt=open.length
         ?`${open.length} zone${open.length>1?'s':''} open`+(dead.length?` · ${dead.length} not reporting`:'')
-        :(dead.length?`${dead.length} not reporting`:'All closed');
+        :(dead.length?`${dead.length} not reporting`:(_secList.length?'All closed':'No sensors to read'));
+      // (968j) NO SENSORS IS NOT ALL CLOSED: "All closed" is said only over sensors that reported; a house
+      // with none to read says so (968h left this open).
       // Hold-to-confirm arm/disarm ON the tile (step 2). The hold is the intent
       // gate; completing it opens the panel's own PIN overlay — the alarm's
       // credential is never bypassed (we HAVE control, we are not IN control).
@@ -10513,7 +10524,7 @@ function renderWidgetContent(w){
       const _closedN=_sens.length-open.length-dead.length;
       const _countTxt=_panelDead?'The panel isn’t answering'
         :(open.length||dead.length)?[open.length?open.length+' open':'',dead.length?dead.length+' not reporting':'',_closedN>0?_closedN+' closed':''].filter(Boolean).join(' · ')
-        :(_kinds?_kinds+' · all closed':'All closed');
+        :(_kinds?_kinds+' · all closed':(_sens.length?'All closed':'No sensors to read'));
       const _hold=_panelDead?'':`<button class="sec-hold" onpointerdown="_wSecHold(event,this,'${_hSvc}','${_hLbl}')" onpointerup="_wSecHoldEnd(this)" onpointercancel="_wSecHoldEnd(this)" onpointerleave="_wSecHoldEnd(this)"`+
         ` onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()" onclick="event.stopPropagation()">${_hIco}<span>Hold to ${_hLbl==='Disarm'?'disarm':'arm'}</span></button>`;
       // EVERY SENSOR, AND WHEN (968h, Dave's approved widget page: "Security 2 x 2
@@ -10646,15 +10657,23 @@ function renderWidgetContent(w){
         :(_n&&zUnread.length===_n?'No reading':'Idle');
       const _iSub=_run?(_n>1?`${_run} of ${_n} zones`:''):(`${_n} zone${_n!==1?'s':''}`);
       const _iWide=_widgetDims(w).w>=2;
+      // EACH ZONE, AND WHEN IT LAST RAN (968j). The ring and the words are as before (602 — no time left is
+      // invented: no attribute says it for every brand). Medium lists the zones, each with when it last
+      // changed (its own last_changed) and Run / Stop through its own domain — a valve opens and closes, a
+      // switch turns on and off.
+      const _zbtn=z=>{ const on=st(z)==='on'||st(z)==='open', d=z.split('.')[0];
+        const sv=on?(d==='valve'?'close_valve':'turn_off'):(d==='valve'?'open_valve':'turn_on');
+        return `<button class="wv-pill${on?' on':''}" onclick="event.stopPropagation();if(!_widgetEditMode)svc('${d}','${sv}',{entity_id:'${z}'})"${_WVSTOP}>${on?'Stop':'Run'}</button>`; };
       const _iHtml=_iWide
-        ? `<div class="irw irw-m"><div class="irw-h"><svg class="irw-ring" viewBox="0 0 50 50">${_ring}${_drops}</svg><div class="irw-tx"><div class="irw-v">${_hEsc(_iWord)}</div><div class="irw-s">${_hEsc(_iSub)}</div></div>`
+        ? `<div class="wc wv irw irw-m"><div class="wv-hd"><div class="irw-h"><svg class="irw-ring" viewBox="0 0 50 50">${_ring}${_drops}</svg><div class="irw-tx"><div class="irw-v">${_hEsc(_iWord)}</div><div class="irw-s">${_hEsc(_iSub)}</div></div></div>`
           +(_run?`<button class="irw-stop" type="button" onclick="event.stopPropagation();if(!_widgetEditMode)_wIrrStop(${JSON.stringify(active).replace(/"/g,'&quot;')})" onpointerdown="event.stopPropagation()">Stop all</button>`:'')+`</div>`
-          +`<div class="irw-zs">${_zones.map(z=>`<span class="irw-z${st(z)==='on'?' on':''}">${_hEsc(_nm(z))}</span>`).join('')}</div></div>`
-        : `<div class="irw"><svg class="irw-ring" viewBox="0 0 50 50">${_ring}${_drops}</svg><div class="irw-tx"><div class="irw-v">${_hEsc(_iWord)}</div><div class="irw-s">${_hEsc(_iSub)}</div></div></div>`;
+          +`<div class="irv-zs wv-mt">${_zones.slice(0,3).map(z=>{ const at=_wvAt(z), on=st(z)==='on';
+              return `<div class="irv-z${on?' on':''}"><span class="irv-n">${_hEsc(_nm(z))}</span><span class="irv-w">${on?'Running':(at?'Off since '+_hEsc(at):'')}</span>${_zbtn(z)}</div>`; }).join('')}</div></div>`
+        : `<div class="wc wv irw"><div class="wv-k">Irrigation</div><div class="irw-h"><svg class="irw-ring" viewBox="0 0 50 50">${_ring}${_drops}</svg><div class="irw-tx"><div class="irw-v">${_hEsc(_iWord)}</div><div class="irw-s">${_hEsc(_iSub)}</div></div></div></div>`;
       return {icon, label:'Irrigation', value:active.length?`${active.length} Active`
              :(_zones.length&&zUnread.length===_zones.length?'No reading':'Off'),
       sub:`${_zones.length} zones${zUnread.length&&zUnread.length<_zones.length?' · '+zUnread.length+' not reporting':''}`, on:active.length>0, mo:active.length?'water':'', onclickFn:()=>showPage('irrigation'),
-      html:_iHtml, hsig:'irw:'+_iWide+'|'+_iWord+'|'+_zones.map(z=>st(z)).join(',')};
+      html:_iHtml};
     }
     case 'scene': {
       const all=CONFIG.scenes||[];
@@ -10829,19 +10848,29 @@ function renderWidgetContent(w){
       const sunNow=sunV!=null?_kwt(sunV):null, useNow=useV!=null?_kwt(useV):null;
       const gridNow=gridV!=null?useNow:null;   // (kept for the tile's signature)
       const bolt='<svg class="enw-g" viewBox="0 0 24 24"><path d="M13 2.5L4.5 13.5H11l-1 8 8.5-11H12z"/></svg>';
+      // THE FLOW, NOW AND TODAY (968j, Dave's approved widget page). From the platform's own Energy settings
+      // (register 620): what the house uses now, what the sun makes, and which way the grid is going
+      // (its reading is negative while exporting) — dots run along each line in the way power is moving.
+      // A meter the platform does not have is not drawn.
+      const exporting=gridV!=null&&gridV<0;
       let html;
       if(_ed.w>=2){
-        const max=Math.max(0.0001,...E.hours.map(h=>E.hasSun?Math.max(h.sun,h.use):h.use));
-        const nowH=new Date().getHours();
-        const bars=E.hours.slice(6,21).map((h,k)=>{ const v=E.hasSun?h.sun:h.use; const hr=6+k;
-          return `<i style="height:${Math.max(4,Math.round(v/max*100))}%;${hr>nowH?'opacity:0.25;':''}background:${E.hasSun&&v>0?'#ffc978':'rgba(255,255,255,0.28)'}"></i>`; }).join('');
-        const right=[sunNow?'Solar '+sunNow:'', useNow?'using '+useNow:''].filter(Boolean).join(' \u00b7 ')||(_kwh(E.used)+' used');
-        html=`<div class="wc enw enw-m"><div class="enw-h"><span class="enw-k">${bolt}Energy today</span><span class="enw-r">${_hEsc(right)}</span></div><div class="enw-bars">${bars}</div></div>`;
+        const node=(cls,ic,val,lbl)=>`<div class="env-n ${cls}"><span>${ic}</span><b>${_hEsc(val)}</b>${_hEsc(lbl)}</div>`;
+        const sunI='<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
+        const homeI='<svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7M5 9.5V21h14V9.5"/></svg>';
+        const gridI='<svg viewBox="0 0 24 24"><path d="M12 2v20M5 7h14M7 7l-3 15M17 7l3 15"/></svg>';
+        const line=(on,c,rev)=>`<div class="env-l${rev?' rev':''}" style="--c:${c}">${on?'<i></i><i></i><i></i>':''}</div>`;
+        const flow=`<div class="env-f">`
+          +(E.hasSun&&sunNow?node('sun',sunI,sunNow,'Solar')+line(true,'#ffd23f',false):'')
+          +node('home',homeI,useNow||'—','House')
+          +(gridV!=null?line(Math.abs(gridV)>0.02,exporting?'#7cf0c5':'#9cc4ff',!exporting)+node('grid',gridI,_kwt(gridV),exporting?'To grid':'From grid'):'')
+          +`</div>`;
+        html=`<div class="wc wv enw enw-m"><div class="wv-hd"><div class="wv-tx"><div class="wv-t">Energy</div><div class="wv-s">Today <b>${_hEsc(_kwh(E.used))}</b> used${E.hasSun?` · <b>${_hEsc(_kwh(E.sun))}</b> made`:''}</div></div></div><div class="wv-mt">${flow}</div></div>`;
       } else {
-        const big=E.hasSun&&sunNow?sunNow:_kwh(E.used);
-        const k=E.hasSun&&sunNow?'Solar':'Today';
-        const sub=E.hasSun&&sunNow?(useNow?'Using '+useNow:_kwh(E.sun)+' made today'):(E.gout>0.05?_kwh(E.gout)+' exported':(E.hasSun?_kwh(E.sun)+' from solar':'used so far'));
-        html=`<div class="wc enw"><div class="enw-k">${bolt}${k}</div><div class="enw-sp"></div><div class="enw-big">${_hEsc(big)}</div><div class="enw-s${E.gout>0.05&&!(E.hasSun&&sunNow)?' ok':''}">${_hEsc(sub)}</div></div>`;
+        const big=(useNow||_kwh(E.used));
+        html=`<div class="wc wv enw"><div class="wv-hd"><div class="wv-tx"><div class="wv-t">Energy</div><div class="wv-s">${useNow?'Now':'Today'}</div></div></div>`
+          +`<div class="env-bigs wv-mt"><div><b>${_hEsc(String(big).replace(/ kWh?$/,''))}</b><span>${useNow?'kW using':'kWh used'}</span></div>${E.hasSun&&sunNow?`<div class="sun"><b>${_hEsc(sunNow.replace(/ kW$/,''))}</b><span>kW solar</span></div>`:''}</div>`
+          +`<div class="wv-facts"><span>Today <b>${_hEsc(_kwh(E.used))}</b>${E.gout>0.05?` · exported <b>${_hEsc(_kwh(E.gout))}</b>`:''}</span></div></div>`;
       }
       return {icon, label:'Energy', value:_kwh(E.used), sub:'', html, hsig:'en:'+_ed.w+':'+Math.round(E.used*10)+':'+(E.at||0)+':'+sunNow+':'+gridNow};
     }
@@ -10985,6 +11014,7 @@ function renderWidgetContent(w){
       const _ago=_agoStr(d.when);
       const html=`<div class="pw-door${_ringing?' ringing':''}" onclick="_paOpenAndPlay(${_ci},'${_cid}',${_wms})">`
         +`<div class="pw-door-bg"${art?` style="background-image:url('${art}')"`:''}>${art?'':(W_SVG.camera||'')}</div>`
+        +`<span class="wv-bell"><svg viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20a2 2 0 0 0 4 0"/></svg></span>`
         +`<div class="pw-door-ov"><div class="pw-door-t">${_hEsc(d.cam||'Doorbell')}</div>`
         +`<div class="pw-door-s">${_ringing?'Ringing now':_hEsc(_ago?('Rang '+_ago):'No rings')}</div></div>`
         +(_ringing&&_ci>=0?`<button class="pw-answer" type="button" onclick="event.stopPropagation();if(!_widgetEditMode)openProtectCamera(${_ci})" onpointerdown="event.stopPropagation()">Answer</button>`:'')
@@ -11079,7 +11109,7 @@ function renderWidgetContent(w){
         const f=faults[0], mins=f.since?Math.round((Date.now()-new Date(f.since).getTime())/60000):null;
         _line=[f.area, f.guidance||((mins!=null&&mins>=1)?('No signal for '+(mins<60?mins+' min':Math.round(mins/60)+' h')):'Not responding')].filter(Boolean).join(' \u00b7 ');
       }
-      const html=`<div class="aww${state==='attention'?' aww-fault':''}" data-s="${state}"><div class="aww-orb" style="--c:${col}"><i></i><b></b></div>`+
+      const html=`<div class="aww${state==='attention'?' aww-fault':''}" data-s="${state}">${state==='calm'?'<div class="wv-scan"></div>':''}<div class="aww-orb" style="--c:${col}"><i></i><b></b></div>`+
         `<div class="aww-tx">`+
         `<div class="aww-head" style="color:${state==='calm'?'#fff':(state==='attention'?'#fff':col)}">${_hEsc(head)}</div>`+
         `<div class="aww-sub">${_hEsc(_line)}</div></div>`+_cols+
@@ -11146,11 +11176,12 @@ function renderWidgetContent(w){
         `<path d="${d}" fill="none" stroke="rgba(255,255,255,${isDay?'0.18':'0.12'})" stroke-width="1.5" stroke-dasharray="2 4"/>`+
         (isDay?`<path d="${f}" fill="none" stroke="url(#${gid})" stroke-width="2" stroke-linecap="round" vector-effect="non-scaling-stroke"/>`:'')+
         `</svg>`+(isDay?`<i class="sunw-orb" style="left:${(px/120*100).toFixed(1)}%;top:${(py/66*100).toFixed(1)}%;background:${orb};box-shadow:0 0 8px ${orb}"></i>`:'')+`</div>`;
+      // DAYLIGHT IN WORDS (968j): the arc as before — the sun where it really is, both times at the ends — under
+      // a heading that says what is next (golden hour, sunset, sunrise; by night on the wide face, how long it is dark).
+      const head=`<div class="wv-hd"><div class="wv-tx"><div class="wv-t">Sun</div><div class="wv-s sunw-next">${_hEsc((!isDay&&_sd.w>=2)?('Dark for '+dur((sr-m+1440)%1440)):nextTxt)}</div></div></div>`;
       const html=_sd.w>=2
-        // (the middle of a night row would repeat "Sunrise" beside Sunrise ${riseT})
-        ? `<div class="wc sunw sunw-m">${arc}<div class="sun-foot"><span>Sunrise ${riseT}</span><span class="sunw-next">${_hEsc(isDay?nextTxt:('Dark for '+dur((sr-m+1440)%1440)))}</span><span>Sunset ${setT}</span></div></div>`
-        : `<div class="wc sunw">${arc}<div class="sun-ends"><span>${riseT}</span><span>${setT}</span></div>`
-          +`<div class="sunw-next">${_hEsc(nextTxt)}</div></div>`;
+        ? `<div class="wc wv sunw sunw-m">${head}${arc}<div class="wv-facts sunv-f"><span>Sunrise <b>${riseT}</b></span><span>Sunset <b>${setT}</b></span></div></div>`
+        : `<div class="wc wv sunw">${head}${arc}<div class="sun-ends"><span>${riseT}</span><span>${setT}</span></div></div>`;
       return {icon, label:'Sun', value:isDay?'Up':'Down', sub:setTxt, html,
         onclickFn:()=>{ if(CONFIG.weather) showPage('weather'); }};
     }
@@ -21349,6 +21380,82 @@ body:has(#widget-picker.open) #widget-add-pill{display:none!important}   /* regi
 .w-media.w-rows2 .mwc.tv .mwc-bg{display:block}
 .w-media .mwc-bg{opacity:.4;filter:blur(30px) saturate(1.7) brightness(.6)}
 .w-media .mw-dots{top:10px;right:14px;z-index:3}
+/* ═══ DARK EVERYWHERE (968k) ═══ Dave, 19 Oct 16:24: "I want the dark everywhere same as the Gflip". Every card
+   surface in the app — the Lights page's lights, the Media page's players, the Security, Irrigation and Weather cards,
+   the room controls and the Settings rows — wears the wall panel's own glass (.pp-glass's numbers), as the widgets do.
+   Controls inside them keep their light chips, as on the panel. This supersedes register 623's 8% white. */
+.mp-card,.med-card,.ll-light,.irr-tile,.sec-card,.wx-card,.wx-panel,.ctrl,.set-row,.access-action{background:rgba(22,22,28,.42)!important;border:0!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.10),0 10px 30px rgba(0,0,0,.25)!important;-webkit-backdrop-filter:blur(26px) saturate(150%)!important;backdrop-filter:blur(26px) saturate(150%)!important}
+.ll-light.on,.ctrl.on,.irr-tile.on{background:rgba(30,30,38,.5)!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.16),0 12px 34px rgba(0,0,0,.3)!important}
+/* the header sits closer to the widgets (its scrim, faded in on scroll, is the page's own — home_column_order) */
+#page-home .home-identity{padding-bottom:22px!important}
+/* THE LIBRARY SHEET (968k, Dave: "the widget library look will need to change to suit"): the widget page's sheet —
+   the panel's dark glass, a grab handle, tiles that rise in turn and lift under a finger, previews on a soft light. */
+.widget-picker-sheet{background:rgba(24,24,30,.86)!important;-webkit-backdrop-filter:blur(40px)!important;backdrop-filter:blur(40px)!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12),0 -20px 60px rgba(0,0,0,.5);animation:wv-sheet var(--m-page) var(--e-sheet) both}
+.widget-picker-sheet::before{content:'';display:block;width:44px;height:5px;border-radius:3px;background:rgba(255,255,255,.3);margin:-4px auto 12px}
+@keyframes wv-sheet{from{transform:translateY(40px);opacity:.5}}
+.wl-it{background:rgba(255,255,255,.04)!important;border:0!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.10);transition:transform var(--m-move) var(--e-standard),background var(--m-move) var(--e-standard)}
+@media (hover:hover){.wl-it:not(.already-added):hover{transform:translateY(-3px);background:rgba(255,255,255,.07)!important}}
+.wl-pv{background:radial-gradient(120% 120% at 30% 0%,rgba(255,255,255,.07),rgba(255,255,255,.015))}
+.wl-pv .widget-cell{background:rgba(22,22,28,.42)!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.10)!important}
+/* ── the rest (968j) ── */
+/* weather */
+.wxv{position:relative;z-index:1}
+.wxv-row{display:flex;gap:16px;align-items:flex-start}
+.wxv-now{display:flex;align-items:center;gap:10px}
+.wxv-ic svg{width:40px;height:40px;animation:wv-float calc(var(--m-page)*10) ease-in-out infinite}
+@keyframes wv-float{50%{transform:translateY(-3px)}}
+.wxv-t{font-size:40px;font-weight:200;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums}
+.wxv-f{flex:1;min-width:0;justify-content:flex-end;padding-top:6px}
+.wxv-hrs{display:flex;justify-content:space-between;font-size:11px;color:rgba(255,255,255,.66);text-align:center}
+.wxv-hrs span{display:flex;flex-direction:column;gap:3px;align-items:center}
+.wxv-hrs svg{width:16px;height:16px}
+.wxv-hrs b{color:#fff;font-size:12.5px;font-weight:600}
+.wxv-sp{display:block;width:100%;height:16px;margin-bottom:2px}
+.widget-cell.w-span3 .wxv-hrs span{flex-direction:row;gap:5px;align-items:center}
+.widget-cell[data-wid="weather"] .wxv .wv-k{margin-bottom:6px}
+/* sun */
+.sunv-f{justify-content:space-between}
+/* people */
+.ppv-row{display:grid;grid-template-columns:repeat(var(--n),minmax(0,1fr));gap:10px;position:relative;z-index:1}
+.ppv-p{display:flex;align-items:center;gap:9px;min-width:0}
+.ppv-p .ppw-av{width:40px;height:40px;flex:none;position:relative}
+.ppv-p.home .ppw-av{box-shadow:0 0 0 2px #32D74B}
+.ppv-p.away .ppw-av{opacity:.55}
+.ppv-tx{display:flex;flex-direction:column;min-width:0}
+.ppv-tx b{font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ppv-tx span{font-size:11.5px;color:rgba(255,255,255,.66);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* irrigation */
+.irw.wv .irw-h{display:flex;align-items:center;gap:10px}
+.irv-zs{display:flex;flex-direction:column}
+.irv-z{display:flex;align-items:center;gap:8px;font-size:12.5px;padding:4px 0;border-top:1px solid rgba(255,255,255,.1)}
+.irv-n{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500}
+.irv-w{font-size:11px;color:rgba(255,255,255,.6)}
+.irv-z.on .irv-w{color:#9CC4FF}
+.irv-z .wv-pill{height:26px;padding:0 10px;font-size:11.5px}
+/* energy */
+.env-bigs{display:flex;gap:14px;align-items:flex-end}
+.env-bigs b{display:block;font-size:30px;font-weight:200;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums}
+.env-bigs span{font-size:11.5px;color:rgba(255,255,255,.66)}
+.env-bigs .sun b{color:#ffd23f}
+.env-f{display:flex;align-items:center;gap:8px}
+.env-n{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10.5px;color:rgba(255,255,255,.66);flex:none}
+.env-n span svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.env-n.sun span{color:#ffd23f}.env-n.grid span{color:#9CC4FF}
+.env-n b{font-size:15px;color:#fff;font-weight:600;font-variant-numeric:tabular-nums}
+.env-l{flex:1;height:2px;background:rgba(255,255,255,.12);position:relative;overflow:hidden;min-width:20px}
+.env-l i{position:absolute;top:-2px;width:6px;height:6px;border-radius:50%;background:var(--c);box-shadow:0 0 8px var(--c);animation:wv-run calc(var(--m-page)*3.5) linear infinite}
+.env-l i:nth-child(2){animation-delay:calc(var(--m-page)*-1.15)}.env-l i:nth-child(3){animation-delay:calc(var(--m-page)*-2.3)}
+.env-l.rev i{animation-direction:reverse}
+@keyframes wv-run{from{left:-6px}to{left:100%}}
+/* awareness: calm is a slow light passing */
+.aww .wv-scan{position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,rgba(124,240,197,.08) 50%,transparent 70%);transform:translateX(-100%);animation:wv-scan calc(var(--m-page)*9) ease-in-out infinite;pointer-events:none}
+@keyframes wv-scan{60%,100%{transform:translateX(100%)}}
+.aww-head{font-size:17px!important;font-weight:600!important}
+/* doorbell */
+.pw-door .wv-bell{position:absolute;right:12px;top:10px;z-index:2;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:rgba(0,0,0,.45);color:#fff}
+.pw-door.ringing .wv-bell{background:#FFB340;color:#000;animation:wv-ring calc(var(--m-page)*6) ease-in-out infinite;transform-origin:50% 0}
+.pw-door .wv-bell svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+@keyframes wv-ring{0%,70%,100%{transform:rotate(0)}74%{transform:rotate(14deg)}78%{transform:rotate(-12deg)}82%{transform:rotate(8deg)}86%{transform:rotate(-4deg)}}
 /* cameras: the wide faces (968i) */
 .widget-cell.w-cam-w::before{content:'LIVE';position:absolute;left:12px;top:12px;z-index:2;font-size:10px;font-weight:800;letter-spacing:.08em;background:#FF3B30;color:#fff;border-radius:6px;padding:3px 7px;pointer-events:none}
 .widget-cell.w-cam-w .cam-label{font-size:13px;font-weight:600;padding:22px 14px 11px;background:linear-gradient(transparent,rgba(0,0,0,.75))}
@@ -21425,7 +21532,7 @@ body:has(#widget-picker.open) #widget-add-pill{display:none!important}   /* regi
 .widget-cell[data-wid="irrigation"] .irw-ring{width:56px;height:56px}
 .widget-cell[data-wid="irrigation"] .irw-v{font-size:15.5px;font-weight:600}
 .widget-cell .wc-lbl{font-size:10px;font-weight:700;letter-spacing:.12em;color:rgba(255,255,255,.5)}
-@media (prefers-reduced-motion:reduce){.widget-cell,.wv-glow,.wv-flow i,.wv-sc{animation:none!important;transition:none!important}}
+@media (prefers-reduced-motion:reduce){.widget-cell,.wv-glow,.wv-flow i,.wv-sc,.wxv-ic svg,.env-l i,.wv-scan,.wv-bell{animation:none!important;transition:none!important}}
 :root{ --t-floor:13px; --tap:44px; }
 .page-title,.ll-room-name,.ll-pct,.set-section-title,.set-field-label,.set-field-hint,.set-value,
 .mp-room,.mp-artist,.mp-vol-pct,.aw-sb,.ctrl-sub,.top-bar-btn,
@@ -21886,6 +21993,19 @@ html.pp-on #app{visibility:hidden}
 .pp-sw button.on i{box-shadow:0 0 0 3px #fff}
 .pp-pop .card.cam{width:720px;max-height:420px}
 .pp-camlg{width:100%;height:340px;aspect-ratio:16/9;max-height:340px;border-radius:12px;background:#111 center/contain no-repeat}
+.pp-mlist{position:absolute;left:28px;right:28px;top:84px;bottom:66px;display:grid;grid-template-columns:1fr 1fr;gap:12px;align-content:start;padding-bottom:12px}
+.pp-mc{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px 12px;align-items:center}
+.pp-mc .art{width:92px;height:92px;border-radius:12px;background:#24242c center/cover;display:grid;place-items:center;color:rgba(255,255,255,.5);box-shadow:0 10px 24px rgba(0,0,0,.4)}
+.pp-mc.wide .art{width:150px;height:84px}
+.pp-mc .art svg{width:28px;height:28px}
+.pp-mc .tx{min-width:0}
+.pp-mc .tt{font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
+.pp-mc .ar{font-size:12px;color:rgba(255,255,255,.66);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pp-mc .pp-eyebrow{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pp-mct{display:flex;align-items:center;gap:10px;margin-top:8px}
+.pp-mct .pp-rb{width:40px;height:40px;background:transparent;box-shadow:none}
+.pp-mct .pp-rb.big{width:48px;height:48px;background:#fff;color:#000}
+.pp-mc .pp-sl{grid-column:1/-1;height:44px}
 #pp-bar button{color:rgba(255,255,255,.55)}
 #pp-bar button.on{color:rgba(255,255,255,.92)}
 </style>
@@ -22449,9 +22569,9 @@ function ppStart(){
     d.innerHTML='<div id="pp-stage">'
       +'<section class="pp-scr" id="pp-rest"></section><section class="pp-scr" id="pp-home"></section>'
       +'<section class="pp-scr" id="pp-rooms"></section><section class="pp-scr" id="pp-room"></section>'
-      +'<section class="pp-scr" id="pp-lights"></section><section class="pp-scr" id="pp-music"></section>'
+      +'<section class="pp-scr" id="pp-lights"></section><section class="pp-scr" id="pp-media"></section><section class="pp-scr" id="pp-music"></section>'
       +'<section class="pp-scr" id="pp-assist"></section><section class="pp-scr" id="pp-settings"></section><section class="pp-scr" id="pp-favs"></section>'
-      +'<nav id="pp-bar">'+[['home','home','Home'],['rooms','grid','Rooms'],['lights','bulb','Lights'],['music','music','Music'],['assist','mic','Assist'],['settings','gear','Settings']]
+      +'<nav id="pp-bar">'+[['home','home','Home'],['rooms','grid','Rooms'],['lights','bulb','Lights'],['media','tv','Media'],['music','music','Music'],['assist','mic','Assist'],['settings','gear','Settings']]
         .map(function(t){ return '<button data-tab="'+t[0]+'">'+_ppIc(t[1])+'<span>'+t[2]+'</span></button>'; }).join('')+'</nav>'
       +'<div class="pp-pop" id="pp-pop"><div class="card pp-glass"></div></div><div id="pp-toast" class="pp-glass"></div></div>';
     document.body.appendChild(d);
@@ -22482,7 +22602,7 @@ function _ppFit(){ var s=document.getElementById('pp-stage'); if(!s) return; var
   // again at the size, so every line stays sharp. At the panel's own 800×450 nothing is scaled at all.
   s.style.width=((window.innerWidth||800)/k)+'px'; s.style.transform='';
   if(Math.abs(k-1)<0.01){ s.style.zoom=''; } else { s.style.zoom=String(k); } }
-function _ppBar(){ var map={rest:'',home:'home',rooms:'rooms',room:'rooms',lights:'lights',music:'music',favs:'music',assist:'assist',settings:'settings'};
+function _ppBar(){ var map={rest:'',home:'home',rooms:'rooms',room:'rooms',lights:'lights',media:'media',music:'music',favs:'music',assist:'assist',settings:'settings'};
   document.querySelectorAll('#pp-bar [data-tab]').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-tab')===map[_pp.scr]); }); }
 function ppGo(scr, force){
   if(!_ppOn) return;
@@ -22573,7 +22693,7 @@ function _ppNow(){
 
 function _ppBuild(scr){
   var el=document.getElementById('pp-'+scr); if(!el) return;
-  var f={rest:_ppBRest, home:_ppBHome, rooms:_ppBRooms, room:_ppBRoom, lights:_ppBLights, music:_ppBMusic, assist:_ppBAssist, settings:_ppBSettings, favs:_ppBFavs}[scr];
+  var f={rest:_ppBRest, home:_ppBHome, rooms:_ppBRooms, room:_ppBRoom, lights:_ppBLights, media:_ppBMedia, music:_ppBMusic, assist:_ppBAssist, settings:_ppBSettings, favs:_ppBFavs}[scr];
   if(f){ el.innerHTML=f(); }
   if(scr==='home') _ppSite();
   if(scr==='room'){ _ppLoadActs(); setTimeout(function(){ _ppCamPaint(document.getElementById('pp-room')); }, 50); }
@@ -22814,6 +22934,34 @@ function _ppBMusic(){
     +'<div class="pp-mvol">'+_ppSL('mvol',r.name,'spk')+'</div>'
     +'<div class="pp-svc"><button class="pp-glass" data-cmd="favs">'+_ppIc('star')+'Favourites</button><button class="pp-glass" data-go="assist">'+_ppIc('mic')+'Ask by Voice</button></div>';
 }
+/* ── MEDIA (968k). Dave, 19 Oct 16:24: "Gflip is also missing a media page its only got music so that needs to be across
+   the board". Everything playing in the house — a TV and its source as well as a speaker — through the app's own Media
+   page pipeline (buildRoomCards, the one door every Now Playing card goes through, house scope), each as a panel card:
+   the art in the shape of what plays, the room and source, back · play/pause · forward (back and forward only when the
+   player says it can), and the volume when it can be set — on the device the room's audio is committed to. ── */
+var _ppMAcc=[];
+function _ppMediaCollect(ctrl, volEnt, art, title, artist, label, vol, hasVol){
+  _ppMAcc.push({ctrl:ctrl, vol:volEnt||ctrl, art:art, title:title, artist:artist, label:label, hasVol:!!hasVol}); return ''; }
+function _ppMediaList(){ _ppMAcc=[];
+  _ppRooms().forEach(function(r){ try{ buildRoomCards(r,_ppMediaCollect,true,'house'); }catch(e){} });
+  return _ppMAcc.slice(); }
+function _ppMediaSig(L){ return (L||_ppMediaList()).map(function(m){ return m.ctrl+':'+st(m.ctrl)+':'+m.title+':'+m.artist+':'+m.hasVol; }).join('|'); }
+function _ppBMedia(){
+  var L=_ppMediaList(); _pp.msig=_ppMediaSig(L);
+  var live=function(m){ var v=st(m.ctrl); return v==='playing'||v==='paused'; }, n=L.filter(function(m){ return st(m.ctrl)==='playing'; }).length;
+  var head='<div class="pp-bg" style="'+_ppBg(_ppHomePhoto())+'"></div><div class="pp-head"><div class="n">Media</div><div class="s">'+(n?(n+' playing'):'Nothing playing')+'</div></div>';
+  if(!L.length) return head+'<div class="pp-empty">Nothing is playing in the house.</div>';
+  return head+'<div class="pp-mlist pp-scroll">'+L.map(function(m){
+    var wide=(typeof _npShape==='function')&&_npShape(m.ctrl)==='wide', art=m.art?artSrc(m.art):'', sf=att(m.ctrl,'supported_features')|0, on=st(m.ctrl)==='playing';
+    return '<div class="pp-card pp-glass pp-mc'+(wide?' wide':'')+'" data-player="'+_ppE(m.vol)+'" data-ctrl="'+_ppE(m.ctrl)+'">'
+      +'<div class="art" style="'+_ppBg(art)+'">'+(art?'':_ppIc(wide?'tv':'music'))+'</div>'
+      +'<div class="tx"><div class="pp-eyebrow"><span class="pp-eq'+(on?'':' still')+'"><i></i><i></i><i></i><i></i></span>'+_ppE(m.label||'')+'</div>'
+      +'<div class="tt">'+_ppE((!live(m)&&(!m.title||m.title==='\u2013'||m.title==='–'))?'Not playing':(m.title||''))+'</div><div class="ar">'+_ppE(m.artist||'')+'</div>'
+      +'<div class="pp-mct">'+((sf&16)?'<button class="pp-rb" data-cmd="mcprev">'+_ppIc('prev')+'</button>':'')
+        +'<button class="pp-rb big" data-cmd="mcpp">'+_ppIc(on?'pause':'play')+'</button>'
+        +((sf&32)?'<button class="pp-rb" data-cmd="mcnext">'+_ppIc('next')+'</button>':'')+'</div></div>'
+      +(m.hasVol?_ppSL('vol','Volume','spk'):'')+'</div>'; }).join('')+'</div>';
+}
 function _ppSuggest(){
   var out=[], lit=_ppRooms().find(function(r){ return _ppLit(r).length; }), mr=_ppMusicRoom();
   if(lit) out.push('Turn off the '+lit.name+' lights'); else { var lr=_ppRooms().find(function(r){ return (r.lights||[]).length; }); if(lr) out.push('Turn on the '+lr.name+' lights'); }
@@ -22944,6 +23092,12 @@ function _ppUpdate(scr){
       var vl=parseFloat(att(_ppVolE(p),'volume_level')); _ppSetSL(pc.querySelector('.pp-sl'), isFinite(vl)?vl*100:0); }
     _ppRoomPatch(el);
     _ppActsPaint();
+  }
+  if(scr==='media'){   // 968k
+    var L=_ppMediaList(); if(_ppMediaSig(L)!==_pp.msig && !_pp.drag){ _ppBuild('media'); return; }
+    el.querySelectorAll('.pp-mc[data-player]').forEach(function(c){ var pv=c.getAttribute('data-player'), ct=c.getAttribute('data-ctrl');
+      var vl=parseFloat(att(_ppVolE(pv),'volume_level')); var sl=c.querySelector('.pp-sl'); if(sl && !_pp.drag) _ppSetSL(sl, isFinite(vl)?vl*100:0);
+      var b=c.querySelector('[data-cmd="mcpp"]'); if(b) b.innerHTML=_ppIc(st(ct)==='playing'?'pause':'play'); });
   }
   if(scr==='lights'){
     var cnt=0;
@@ -23101,6 +23255,8 @@ function _ppCmd(c, b){
   var home=document.getElementById('pp-home');
   if(c==='pp'||c==='prev'||c==='next'){ var p=(home.querySelector('.pp-np')||{})._p; if(!p) return;
     if(c==='pp') togglePlayPause(p); else svc('media_player', c==='prev'?'media_previous_track':'media_next_track', {entity_id:p}); return; }
+  if(c==='mcpp'||c==='mcprev'||c==='mcnext'){ var mc=b.closest('[data-ctrl]').getAttribute('data-ctrl'); if(!mc) return;   // 968k: the Media page's cards
+    if(c==='mcpp') togglePlayPause(mc); else _wvSkip(mc, c==='mcprev'?-1:1); return; }
   if(c==='mpp'||c==='mprev'||c==='mnext'){ var m=_ppMusicE(); if(!m) return;
     if(c==='mpp') togglePlayPause(m); else svc('media_player', c==='mprev'?'media_previous_track':'media_next_track', {entity_id:m}); return; }
   if(c==='colour'){ return _ppColourCard(b.closest('[data-light]').getAttribute('data-light')); }
