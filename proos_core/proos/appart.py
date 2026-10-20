@@ -26,6 +26,17 @@ import re
 import zipfile
 
 _BUNDLED = "/app/appart"                                              # ships with the release
+# THE PROTECH FLEET BRAND-LOOKUP KEY, carried by the image (register 969k). Dave, 20 Oct 2026: the new box "is not syncing
+# with brandfetch … this need to be sorted and a part of the new image before commission"; ruling the same evening: built
+# into the image. The 8 Aug spec already planned ONE fleet key ("the burst limit is per-IP = per-site"); a box's own
+# brandfetch_client_id option, when set, still wins. A Brandfetch client id is public by design — their API requires it
+# in the browser's query string — so carrying it in the image is the intended pattern, not a secret.
+FLEET_CLIENT_ID = "1idAU8kds2nLm_qtlqj"
+
+
+def client_id(option_value: str = "") -> str:
+    """The brand-lookup key in force: this box's own option if set, else the fleet key the image carries."""
+    return (option_value or "").strip() or FLEET_CLIENT_ID
 _UPLOADED = os.path.join(os.environ.get("PROOS_DATA_DIR", "/data"),   # managed in Pro → Tech
                          "appart_tiles")                              # Tools; survives updates
                                                                       # AND factory reset (branding)

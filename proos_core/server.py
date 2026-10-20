@@ -7125,7 +7125,7 @@ class Handler(BaseHTTPRequestHandler):
                 # app as restorable rather than simply vanishing.
                 out["brands"] = _appart.brands()
                 out["removed"] = sorted(_appart.removed_brands())
-                out["brandfetch"] = (_opt("brandfetch_client_id", "") or "").strip()
+                out["brandfetch"] = (_appart.client_id(_opt("brandfetch_client_id", "")) if _appart else (_opt("brandfetch_client_id", "") or "").strip())
                 return self._send(200, out)
             if parts == ["apps", "brands"]:
                 # What this box knows locally + the Brandfetch client id, for
@@ -7143,7 +7143,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, {
                     "brands": _appart.brands(),
                     "removed": sorted(_appart.removed_brands()),
-                    "brandfetch": (_opt("brandfetch_client_id", "") or "").strip()})
+                    "brandfetch": (_appart.client_id(_opt("brandfetch_client_id", "")) if _appart else (_opt("brandfetch_client_id", "") or "").strip())})
             if parts == ["rooms", "photos"]:
                 # ONE list for room pictures (B3, 22 Aug 2026). The dashboard
                 # kept its own ROOM_PHOTOS copy and the two disagreed; it now
@@ -8966,7 +8966,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not _appart:
                     return self._send(503, {"error": "artwork unavailable"})
                 b = self._body() or {}
-                cid = (_opt("brandfetch_client_id", "") or "").strip()
+                cid = (_appart.client_id(_opt("brandfetch_client_id", "")) if _appart else (_opt("brandfetch_client_id", "") or "").strip())
                 res = _appart.fetch_source(b.get("app") or b.get("slug") or "", cid,
                                            domain=(b.get("domain") or "").strip(),
                                            kind=(b.get("kind") or "logo"),

@@ -1,5 +1,5 @@
 name: ProOS Core
-version: "1.0.1042"
+version: "1.0.1043"
 slug: proos_core
 description: >-
   The operational layer above Home Assistant — state-based room control,
@@ -130,7 +130,8 @@ options:
   set_hostname: false
   # Brandfetch Logo API client ID (free). Lets Tech Tools look app artwork
   # up by brand domain. Fetched once and stored on the box — dashboards
-  # never call out to the internet for tiles. Blank = manual upload only.
+  # never call out to the internet for tiles. Blank = the Protech fleet key
+  # the image carries (register 969k); set one here only to override it.
   brandfetch_client_id: ""
   # Proactive notifications: when a device fault is CONFIRMED, tell the
   # household's phones in plain language, and again when it's back. One
