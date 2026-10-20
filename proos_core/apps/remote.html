@@ -199,12 +199,18 @@ function svcTiles() {
   // the main page as one button presses like the Savant"). A tap starts the activity; the one running carries the dot
   // and its live programme, and a tap on it opens its controls. Lights, Climate and Shades have their own hard keys —
   // they appear here only in a room with no activities.
-  const acts = (ST.activities || []).filter(a => a.key !== 'tv_off' && a.kind !== 'tv_off');
+  // Display On is not an activity anyone starts from a remote (hidden since 969j); TV Off is the Power key.
+  const acts = (ST.activities || []).filter(a => a.key !== 'tv_off' && a.kind !== 'tv_off' && a.kind !== 'display_on' && a.key !== 'display_on');
+  // Which tile is running: Core's own join only (remotes._match_activity). The TV merely being on is not an activity,
+  // and no tile is lit for it — nothing is guessed from a name.
+  const isOn = a => !!a.on;
+  const GENERIC = {tv:1, television:1, display:1, 'display on':1, music:1};
   if (acts.length) {
-    acts.forEach(a => {
+    acts.forEach(a0 => {
+      const a = Object.assign({}, a0, {on: isOn(a0)});
       const nm = String(a.label || '').replace(/^(watch|listen to|play)\s+/i, '');
       const logo = '<div style="position:relative;width:112px;height:67px;border-radius:13px;overflow:hidden;box-shadow:0 10px 24px rgba(0,0,0,.5);background:rgba(255,255,255,.1)">' +
-        '<div class="cen" style="padding:0">'+ic(a.kind === 'music' ? 'note' : 'tv', 30)+'</div>'+img(TILE(nm), 'ph', nm)+'</div>';
+        '<div class="cen" style="padding:0">'+ic(a.kind === 'music' ? 'note' : 'tv', 30)+'</div>'+(GENERIC[nm.toLowerCase()] ? '' : img(TILE(nm), 'ph', nm))+'</div>';
       let sub = esc(a.kind === 'music' ? 'Music' : 'Watch'), bar = '';
       if (a.on && w && a.kind !== 'music') {
         const left = minsLeft(w), pct = posPct(w);
