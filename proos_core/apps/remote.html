@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>ProOS Remote</title>
+<!--
+  THE ProOS REMOTE'S SCREEN (register 969j, 20 Oct 2026). Served by Core at /app/remote and shown full-screen by the
+  ProOS Remote app on the Sanytron Astrion HA100A (480×800, density 220 → 349×582 CSS px). Approved design:
+  docs/mockups/ProOS_Remote_Mockups_v2_2026-10-20.html. A LIGHT page on purpose: the full dashboard never finished
+  loading on this remote (register 969g). Every hard key is decided by Core from the room's live activity
+  (POST /remote/key); this page only moves around its own screens.
+-->
+<style>
+:root{color-scheme:dark;--ink:#fff;--ink2:rgba(255,255,255,.66);--ink3:rgba(255,255,255,.40);--glass:rgba(24,24,30,.52);
+--hair:rgba(255,255,255,.10);--amber:#FFC46B;--amber2:#E9963A;--sky:#9CC4FF;--mint:#7CF0C5;--ok:#32D74B;--live:#FF3B30;
+--ease:cubic-bezier(.2,.8,.2,1);--f:'Inter',-apple-system,Roboto,'Helvetica Neue',Arial,sans-serif}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;background:#000;color:var(--ink);font-family:var(--f);overflow:hidden;-webkit-font-smoothing:antialiased;user-select:none}
+#ph{position:fixed;inset:-24px;background:#000 center/cover;z-index:-2;filter:blur(18px) brightness(.5) saturate(1.2);transform:scale(1.05);transition:filter .6s,opacity .6s}
+#ph.sharp{inset:0;filter:none;transform:none}
+#sh{position:fixed;inset:0;z-index:-1;background:linear-gradient(180deg,rgba(0,0,0,.05) 0%,rgba(0,0,0,.35) 38%,rgba(0,0,0,.86) 72%,#000 100%)}
+#app{height:100%;display:flex;flex-direction:column}
+.sb{display:flex;align-items:center;gap:6px;padding:10px 15px 0;font-size:11.5px;font-weight:500;color:rgba(255,255,255,.8)}
+.sb .r{margin-left:auto;display:flex;gap:8px;align-items:center}
+.bat{width:21px;height:10px;border:1.4px solid rgba(255,255,255,.6);border-radius:3px;position:relative}.bat i{position:absolute;left:1.5px;top:1.5px;bottom:1.5px;background:#fff;border-radius:1px}
+.hero{padding:0 16px}.eb{font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.72)}
+.big{font-size:32px;font-weight:300;letter-spacing:-.03em;line-height:1.05;margin-top:2px}
+.g{background:var(--glass);border:1px solid var(--hair);border-radius:18px;backdrop-filter:blur(24px) saturate(1.4);-webkit-backdrop-filter:blur(24px) saturate(1.4);box-shadow:inset 0 1px 0 rgba(255,255,255,.07)}
+.ttl{font-size:14.5px;font-weight:600;line-height:1.2}.sub{font-size:11.5px;color:var(--ink2);margin-top:2px;line-height:1.3}.sub b{color:#fff;font-weight:600}
+.num{font-variant-numeric:tabular-nums}
+.bt{display:inline-grid;place-items:center;font-weight:800;letter-spacing:-.02em;position:relative;overflow:hidden;flex:none;box-shadow:0 6px 16px rgba(0,0,0,.45),inset 0 0 0 1px rgba(255,255,255,.1)}
+.bt::after{content:"";position:absolute;inset:0;background:linear-gradient(120deg,transparent 35%,rgba(255,255,255,.4) 50%,transparent 65%);transform:translateX(-130%);animation:sheen 5s ease-in-out infinite}
+@keyframes sheen{0%,60%{transform:translateX(-130%)}85%,100%{transform:translateX(130%)}}
+.eq{display:inline-flex;gap:2px;align-items:flex-end;height:11px;margin-right:3px}.eq i{width:2.5px;background:var(--mint);border-radius:1px;animation:eq 1s ease-in-out infinite}
+.eq i:nth-child(2){animation-delay:-.35s}.eq i:nth-child(3){animation-delay:-.7s}.eq i:nth-child(4){animation-delay:-.2s}@keyframes eq{0%,100%{height:3px}50%{height:11px}}
+.pw{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;flex:none;background:rgba(255,255,255,.1);color:#fff}
+.pw.on{background:linear-gradient(180deg,#FFD08A,#F0A048);color:#3a1d00;box-shadow:0 0 0 4px rgba(255,196,107,.16),0 0 22px rgba(255,180,90,.55)}
+.cring{width:34px;height:34px;border-radius:50%;flex:none;padding:3px;background:conic-gradient(#ff5e5e,#ffd36e,#7cf0a0,#6ec8ff,#b58cff,#ff5ec8,#ff5e5e)}.cring i{display:block;width:100%;height:100%;border-radius:50%;border:2px solid #111}
+.brt{height:38px;border-radius:12px;background:rgba(255,255,255,.1);position:relative;overflow:hidden;display:flex;align-items:center;padding:0 12px;font-size:12.5px;font-weight:600;gap:8px;margin-top:9px}
+.brt i{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,var(--amber2),var(--amber));z-index:0;transition:width .4s var(--ease)}
+.brt>*{position:relative;z-index:1}.brt .v{margin-left:auto}
+.chip{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 11px;border-radius:10px;background:rgba(255,255,255,.09);font-size:12px;font-weight:600;white-space:nowrap}
+.chip.on{background:#fff;color:#000}
+.f{outline:2px solid #fff;outline-offset:2px;animation:foc 2.2s ease-in-out infinite}@keyframes foc{50%{outline-color:rgba(255,255,255,.45);outline-offset:4px}}
+.legend{display:flex;gap:6px;justify-content:center;padding:10px 12px 12px;margin-top:auto;flex-wrap:wrap}
+.lk{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 8px 0 4px;border-radius:8px;background:rgba(255,255,255,.08);font-size:10.5px;font-weight:600;color:rgba(255,255,255,.85)}
+.lk .k{min-width:16px;height:16px;border-radius:5px;background:rgba(255,255,255,.16);display:grid;place-items:center;font-size:9px;padding:0 3px}
+.cb{width:14px;height:3px;border-radius:2px;display:inline-block}
+.chain{display:flex;align-items:center;gap:5px;font-size:10.5px;color:var(--ink2);margin-top:7px;flex-wrap:wrap}.chain span{padding:3px 7px;border-radius:7px;background:rgba(255,255,255,.08)}
+.chain i{width:12px;height:2px;background:linear-gradient(90deg,transparent,var(--mint),transparent);background-size:200% 100%;animation:pulse 1.5s linear infinite}@keyframes pulse{to{background-position:-200% 0}}
+.prog{height:4px;border-radius:2px;background:rgba(255,255,255,.18);overflow:hidden}.prog i{display:block;height:100%;background:#fff;border-radius:2px}
+.scroll{flex:1;min-height:0;overflow-y:auto;scrollbar-width:none}.scroll::-webkit-scrollbar{display:none}
+.hud{position:fixed;left:50%;top:44%;transform:translate(-50%,-50%) scale(.94);z-index:9;width:200px;padding:18px 16px;border-radius:24px;text-align:center;background:rgba(18,18,22,.82);backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px);border:1px solid var(--hair);opacity:0;pointer-events:none;transition:opacity .25s,transform .35s var(--ease)}
+.hud.on{opacity:1;transform:translate(-50%,-50%) scale(1)}
+#dim{position:fixed;inset:0;z-index:8;background:rgba(0,0,0,.45);opacity:0;pointer-events:none;transition:opacity .25s}#dim.on{opacity:1}
+.toast{position:fixed;left:12px;right:12px;bottom:46px;z-index:7;padding:12px;display:flex;align-items:center;gap:11px;transform:translateY(20px);opacity:0;transition:all .4s var(--ease)}
+.toast.on{transform:none;opacity:1}
+.okc{width:28px;height:28px;border-radius:50%;background:var(--ok);display:grid;place-items:center;color:#032;flex:none;box-shadow:0 0 18px rgba(50,215,75,.6);font-weight:800}
+.okc.bad{background:var(--amber);box-shadow:0 0 18px rgba(255,180,90,.6)}
+.slats{position:absolute;left:0;right:0;top:0;background:repeating-linear-gradient(180deg,#2a2e35 0 6px,#3a3f48 6px 8px);box-shadow:0 2px 6px rgba(0,0,0,.5);transition:height 1.2s var(--ease)}
+.spin{animation:spin 1.6s linear infinite;display:inline-grid}@keyframes spin{to{transform:rotate(360deg)}}
+.orb{width:132px;height:132px;border-radius:50%;position:relative;background:radial-gradient(circle at 38% 32%,#b9c4ff,#5b6cff 40%,#2139F0 62%,#0a1680);box-shadow:0 0 60px rgba(60,90,255,.6)}
+.orb::before,.orb::after{content:"";position:absolute;inset:-14px;border-radius:50%;border:2px solid rgba(120,140,255,.45);animation:wave 2s ease-out infinite}.orb::after{animation-delay:1s}
+@keyframes wave{from{transform:scale(.9);opacity:.9}to{transform:scale(1.5);opacity:0}}
+.orb.think{animation:breathe 1.2s ease-in-out infinite}@keyframes breathe{50%{transform:scale(.92)}}
+.dial{position:relative;width:206px;height:206px;margin:10px auto 0}.dial svg{position:absolute;inset:0;width:100%;height:100%}
+.dial .c{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.dots{display:inline-flex;gap:5px}.dots i{width:7px;height:7px;border-radius:50%;background:#5b8cff;animation:dt 1.2s infinite}.dots i:nth-child(2){animation-delay:.2s}.dots i:nth-child(3){animation-delay:.4s}
+@keyframes dt{0%,100%{opacity:.25}50%{opacity:1}}
+.tp{margin:10px 14px 0;height:96px;border-radius:18px;position:relative;overflow:hidden;display:grid;place-items:center;touch-action:none}
+</style></head><body>
+<div id="ph"></div><div id="sh"></div>
+<div id="app"></div>
+<div id="dim"></div><div class="hud" id="hud"></div>
+<div class="toast g" id="toast"></div>
+<script>
+'use strict';
+// ── the app on the remote (window.ProOSNative) gives the sign-in, serial and battery; a browser falls back ──
+const MARK = 'data:image/png;base64,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';   // Dave's mark, white
+const N = window.ProOSNative || null;
+const nat = (f, d) => { try { return N && N[f] ? N[f]() : d; } catch (e) { return d; } };
+let TOKEN = nat('token', '') || (function(){ try { return localStorage.getItem('ha_token') || ''; } catch(e){ return ''; } })();
+const SERIAL = nat('serial', '');
+const Q = new URLSearchParams(location.search);
+const AS = Q.get('as') || '';
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let ME = null, AREA = null, ST = null, SCREEN = 'home', STACK = [], FI = 0, LASTKEY = 0, LASTSTATE = 0, AWAKE = true;
+
+function api(path, opt) {
+  opt = opt || {};
+  const h = Object.assign({'Content-Type': 'application/json'}, TOKEN ? {Authorization: 'Bearer ' + TOKEN} : {});
+  const url = path + (AS && path.indexOf('?') < 0 ? '?as=' + encodeURIComponent(AS) : (AS ? '&as=' + encodeURIComponent(AS) : ''));
+  return fetch(url, {method: opt.body ? 'POST' : 'GET', headers: h, body: opt.body ? JSON.stringify(opt.body) : undefined, cache: 'no-store'})
+    .then(r => r.json().then(j => (r.ok ? j : Promise.reject(Object.assign(new Error(j.error || r.status), {status: r.status})))));
+}
+const tq = () => TOKEN ? 'token=' + encodeURIComponent(TOKEN) : '';
+
+// ── icons ──
+const IC = {
+ pwr:'<path d="M12 3v9"/><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/>', bulb:'<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9V16h7v-2.1A6 6 0 0 0 12 3z"/>',
+ blind:'<rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M4 8h16M4 12h16M4 16h16"/>', note:'<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>',
+ snow:'<path d="M12 2v20M4.9 6.5l14.2 11M19.1 6.5 4.9 17.5"/>', mic:'<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/>',
+ vol:'<path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 9a4.5 4.5 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/>', mute:'<path d="M11 5 6 9H3v6h3l5 4z"/><path d="M16 9l5 6M21 9l-5 6"/>',
+ fan:'<circle cx="12" cy="12" r="2"/><path d="M12 10c0-4 1-7 4-7 2 0 2 3 0 5M14 12c4 0 7 1 7 4 0 2-3 2-5 0M12 14c0 4-1 7-4 7-2 0-2-3 0-5M10 12c-4 0-7-1-7-4 0-2 3-2 5 0"/>',
+ home:'<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/>', tv:'<rect x="2.5" y="5" width="19" height="12.5" rx="2"/><path d="M8 21h8"/>',
+ drop:'<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/>', scene:'<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>',
+ play:'<path d="M7 5v14l11-7z"/>', pause:'<path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/>', next:'<path d="M5 5l9 7-9 7zM17 5h2.5v14H17z"/>', prev:'<path d="M19 5l-9 7 9 7zM4.5 5H7v14H4.5z"/>'
+};
+const ic = (n, s, fill) => '<svg width="'+(s||18)+'" height="'+(s||18)+'" viewBox="0 0 24 24" fill="'+(fill?'currentColor':'none')+'" stroke="'+(fill?'none':'currentColor')+'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+IC[n]+'</svg>';
+// Brand tiles: the platform's own name decides the tile (colour + mark). The device's real icon replaces these once
+// the platform hands one over.
+const BR = {apple_tv:['#000','tv','#fff'], samsungtv_smart:['#1428A0','S','#fff'], samsungtv:['#1428A0','S','#fff'], webostv:['#A50034','LG','#fff'],
+  androidtv_remote:['#3DDC84','▶','#062'], roku:['#6C3C97','R','#fff'], sonos:['#000','S','#fff'], heos:['#1b1b1b','H','#fff'],
+  denonavr:['#111','D','#fff'], cast:['#4285F4','◉','#fff'], music_assistant:['#1e40af','♪','#fff'], spotify:['#1DB954','≋','#000']};
+function tile(plat, s, label) {
+  const b = BR[plat] || ['rgba(255,255,255,.12)', (label || '?').trim().charAt(0).toUpperCase(), '#fff'];
+  return '<span class="bt" style="width:'+s+'px;height:'+s+'px;border-radius:'+Math.round(s*.26)+'px;background:'+b[0]+';color:'+b[2]+';font-size:'+Math.round(s*(b[1].length>2?.27:.42))+'px">'+esc(b[1])+'</span>';
+}
+const LK = (k, l) => '<span class="lk"><span class="k">'+k+'</span>'+esc(l)+'</span>';
+const COLS = ['#e5484d','#30a46c','#3e63dd','#f5d90a'].map(c => '<span class="cb" style="background:'+c+'"></span>').join('');
+
+function sb() {
+  const b = nat('battery', '');
+  let pct = 100; try { pct = (JSON.parse(b || '{}').level) || 100; } catch (e) {}
+  const t = new Date().toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}).replace(/\s?[AP]M/i, '');
+  return '<div class="sb"><span>'+t+'</span><span class="r">'+esc(ST ? ST.name : '')+'<span class="bat"><i style="width:'+Math.max(8,Math.round(pct*.8))+'%"></i></span></span></div>';
+}
+function setPhoto(sharp) {
+  const ph = $('#ph');
+  const want = AREA && ST && ST.photo ? '/remote/photo/' + encodeURIComponent(AREA) + '?' + tq() : '';
+  if (ph.dataset.u !== want) { ph.dataset.u = want; ph.style.backgroundImage = want ? 'url("' + want + '")' : 'none'; }
+  ph.classList.toggle('sharp', !!sharp);
+}
+
+// ── screens ──
+const S = {};
+S.pair = st => '<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;gap:16px">' +
+  '<img src="'+MARK+'" alt="" style="width:46px;height:auto;opacity:.85">' +
+  '<div class="big" style="font-size:28px">Pair This Remote</div>' +
+  (st.code ? '<div class="g" style="padding:16px 22px"><div class="sub" style="margin:0 0 6px">Code</div><div class="num" style="font-size:54px;font-weight:200;letter-spacing:10px">'+esc(st.code)+'</div></div>' +
+   '<div class="sub" style="font-size:13px;line-height:1.5">In ProOS Pro, open System Setup › Dashboards › Remotes and accept the remote showing this code.</div><span class="dots"><i></i><i></i><i></i></span>'
+   : '<div class="sub" style="font-size:13px">'+esc(st.msg || 'Finding your home…')+'</div><span class="dots"><i></i><i></i><i></i></span>') + '</div>';
+S.msg = st => '<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:26px;gap:14px">' +
+  '<div class="big" style="font-size:24px">'+esc(st.title)+'</div><div class="sub" style="font-size:13px;line-height:1.5">'+esc(st.text)+'</div>' +
+  (st.dots ? '<span class="dots"><i></i><i></i><i></i></span>' : '') + '</div>';
+
+function quick() {
+  const lon = (ST.lights||[]).filter(l => l.on), cov = ST.covers||[], m = ST.music, c = ST.climate;
+  const avgB = lon.length ? Math.round(lon.reduce((a,l)=>a+(l.brightness||100),0)/lon.length) : 0;
+  const q = [];
+  if ((ST.lights||[]).length) q.push(['lights','bulb','Lights', lon.length ? '<b>'+lon.length+'</b> on · '+avgB+'%' : 'All off','var(--amber)']);
+  if (cov.length) { const p = cov[0].position; q.push(['shades','blind','Shades', p != null ? (p ? 'Open <b>'+p+'%</b>' : 'Closed') : esc(cov[0].state),'#cfe3ff']); }
+  if (m) q.push(['music','note','Music', m.state === 'playing' ? '<span class="eq"><i></i><i></i><i></i><i></i></span>Playing' : (m.state === 'paused' ? 'Paused' : 'Off'),'var(--mint)']);
+  if (c) q.push(['climate','snow','Climate', c.mode === 'off' ? 'Off' : '<b>'+(c.target != null ? c.target+'°' : '—')+'</b> · '+esc(c.action || c.mode),'var(--sky)']);
+  if (!q.length) return '';
+  return '<div style="display:grid;grid-template-columns:repeat('+q.length+',1fr);gap:7px;padding:9px 14px 0">' + q.map(x =>
+    '<div class="g fo" data-go="'+x[0]+'" style="padding:9px 4px 8px;text-align:center;border-radius:15px"><div style="color:'+x[4]+';display:grid;place-items:center;height:22px">'+ic(x[1],17)+'</div>' +
+    '<div style="font-size:11.5px;font-weight:600;margin-top:3px">'+x[2]+'</div><div class="sub" style="font-size:10px;margin-top:1px">'+x[3]+'</div></div>').join('') + '</div>';
+}
+function nowline() {
+  const m = ST.music; if (!m || !m.title || m.state === 'off') return '';
+  const art = m.art ? 'background:url(\'/remote/art?e='+encodeURIComponent(m.entity)+'&'+tq()+'\') center/cover' : 'background:linear-gradient(135deg,#d97706,#7c2d12 60%,#1c1917)';
+  return '<div class="g fo" data-go="music" style="margin:12px 14px 0;padding:9px;display:flex;gap:10px;align-items:center">' +
+    '<div style="width:44px;height:44px;border-radius:10px;flex:none;box-shadow:0 6px 16px rgba(0,0,0,.5);'+art+'"></div>' +
+    '<div style="flex:1;min-width:0"><div class="ttl" style="font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(m.title)+'</div>' +
+    '<div class="sub">'+(m.state==='playing'?'<span class="eq"><i></i><i></i><i></i><i></i></span>':'')+esc([m.artist, m.name].filter(Boolean).join(' · '))+'</div></div>' +
+    '<span class="pw" data-ctl="'+esc(m.entity)+'|play_pause" style="width:32px;height:32px;background:#fff;color:#000">'+ic(m.state==='playing'?'pause':'play',13,1)+'</span></div>';
+}
+S.home = () => {
+  const day = new Date().toLocaleDateString([], {weekday: 'long'});
+  const acts = (ST.activities || []).filter(a => a.key !== 'tv_off' && a.kind !== 'display_on' && a.kind !== 'tv_off');
+  const off = (ST.activities || []).find(a => a.key === 'tv_off');
+  const tiles = acts.map(a => '<div class="g fo'+(a.on?' on':'')+'" data-act="'+esc(a.key)+'" style="padding:11px;display:flex;flex-direction:column;gap:9px;min-height:88px;'+(a.on?'background:rgba(33,57,240,.3);border-color:rgba(91,108,255,.55)':'')+'">' +
+    tile(a.platform, 34, a.label) + '<div><div class="ttl">'+esc(a.label)+'</div><div class="sub">'+(a.on?'<span class="eq"><i></i><i></i><i></i><i></i></span>On now':esc(a.kind === 'music' ? 'Music' : 'Watch'))+'</div></div></div>');
+  if (off && ST.activity) tiles.push('<div class="g fo" data-act="tv_off" style="padding:11px;display:flex;flex-direction:column;gap:9px;min-height:88px"><span class="pw" style="width:34px;height:34px">'+ic('pwr',16)+'</span><div><div class="ttl">Room Off</div><div class="sub">Everything off</div></div></div>');
+  return sb() + '<div class="scroll"><div class="hero" style="margin-top:'+(acts.length>2?28:58)+'px"><div class="eb">'+esc(day)+'</div><div class="big">'+esc(ST.name)+'</div></div>' +
+    nowline() + (tiles.length ? '<div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;padding:10px 14px 0">'+tiles.join('')+'</div>' : '') +
+    quick() + '</div><div class="legend">'+LK('OK','Start')+LK(ic('pwr',10),ST.activity?'Room Off':'Activities')+LK(ic('mic',10),'Ask')+'</div>';
+};
+S.watching = () => {
+  const w = ST.watching || {};
+  const pct = (w.duration && w.position != null) ? Math.min(100, Math.round((w.position + (w.updated ? (Date.now() - Date.parse(w.updated)) / 1000 : 0)) / w.duration * 100)) : null;
+  const left = (w.duration && w.position != null) ? Math.max(0, Math.round((w.duration - w.position) / 60)) : null;
+  const art = w.art ? 'background:url(\'/remote/art?e='+encodeURIComponent(w.source)+'&'+tq()+'\') center/cover' : 'background:radial-gradient(120% 90% at 80% 10%,#3b82f6 0%,#1e3a8a 35%,#0b1020 75%)';
+  const chain = [];
+  if (w.source_name) chain.push(w.source_name);
+  if (w.vol_name && w.vol_name !== w.source_name) chain.push(w.vol_name);
+  const caps = w.caps || {};
+  const lg = [];
+  if (caps.up) lg.push(LK('◀▶', (w.source_name || 'Source').split(' ').slice(-2).join(' ')));
+  if (w.vol_entity) lg.push(LK('VOL', w.vol_name || 'Volume'));
+  lg.push(LK(ic('pwr',10), 'Room Off'));
+  if (caps.ch_up) lg.push(LK('CH', 'Channel'));
+  const k = ST.keys || {};
+  if (['red','green','blue','yellow'].some(c => k[c] && k[c].press)) lg.push(LK(COLS, 'Colours'));
+  return sb() +
+    '<div style="margin:10px 12px 0;height:176px;border-radius:20px;overflow:hidden;position:relative;flex:none;'+art+'">' +
+    '<div style="position:absolute;inset:0;background:linear-gradient(180deg,transparent 30%,rgba(0,0,0,.78))"></div>' +
+    '<div style="position:absolute;top:12px;left:12px;display:flex;gap:8px;align-items:center">'+tile(w.platform,24,w.source_name)+'<span style="font-size:11px;font-weight:700;letter-spacing:.08em;color:rgba(255,255,255,.85);text-transform:uppercase">'+esc(w.app || w.label || '')+'</span></div>' +
+    '<div style="position:absolute;left:14px;right:14px;bottom:12px"><div style="font-size:20px;font-weight:600;letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(w.title || w.label || 'Watching')+'</div>' +
+    '<div class="sub">'+esc(w.series || ST.name)+(left!=null?' · <b>'+left+' min left</b>':'')+'</div>' + (pct!=null?'<div class="prog" style="margin-top:9px"><i style="width:'+pct+'%"></i></div>':'') + '</div></div>' +
+    (chain.length ? '<div class="chain" style="padding:0 14px">'+chain.map(c=>'<span>'+esc(c)+'</span>').join('<i></i>')+'</div>' : '') +
+    (w.vol_entity ? '<div class="g" style="margin:12px 14px 0;padding:10px 12px;display:flex;align-items:center;gap:10px">'+ic(w.muted?'mute':'vol',17)+
+      '<div style="flex:1"><div class="prog" style="height:6px"><i style="width:'+(w.volume||0)+'%"></i></div></div><b class="num" style="font-size:14px">'+(w.volume!=null?w.volume:'—')+'</b><span class="sub" style="margin:0">'+esc(w.vol_name||'')+'</span></div>' : '') +
+    (w.platform === 'apple_tv' ? '<div class="g tp" id="tp"><span class="sub" style="margin:0">Touch Surface · swipe to move, tap to select</span></div>' : '') +
+    '<div class="legend">'+lg.join('')+'</div>';
+};
+S.lights = () => {
+  const ls = ST.lights || [];
+  const on = ls.filter(l => l.on).length;
+  const rows = ls.map(l => {
+    const ring = l.kind === 'colour' && l.on ? '<span class="cring"><i style="background:'+(l.rgb?'rgb('+l.rgb.join(',')+')':'#ffc46b')+'"></i></span>' : '';
+    return '<div class="g fo" data-light="'+esc(l.entity)+'" style="padding:11px 11px 10px"><div style="display:flex;align-items:center;gap:10px"><div style="flex:1;min-width:0"><div class="ttl">'+esc(l.name)+'</div>' +
+      '<div class="sub">'+esc(l.kind === 'switch' ? 'Switch' : l.kind === 'dimmer' ? 'Dimmer' : 'Colour')+' · '+(l.on?'on'+(l.since?' for <b>'+ago(l.since)+'</b>':''):(l.available?'off':'not responding'))+'</div></div>'+ring+'<span class="pw'+(l.on?' on':'')+'">'+ic('pwr',16)+'</span></div>' +
+      (l.on && l.kind !== 'switch' ? '<div class="brt"><i style="width:'+(l.brightness||0)+'%"></i>'+ic('bulb',15)+'<span>Brightness</span><span class="v num">'+(l.brightness||0)+'%</span></div>' : '') + '</div>';
+  }).join('');
+  return sb() + '<div class="hero" style="margin-top:12px"><div class="eb">'+esc(ST.name)+' · '+on+' of '+ls.length+' on</div><div class="big">Lights</div></div>' +
+    '<div class="scroll"><div style="display:flex;flex-direction:column;gap:8px;padding:10px 14px 4px">'+(rows || '<div class="sub" style="padding:10px">No lights in this room.</div>')+'</div></div>' +
+    '<div class="legend">'+LK('▲▼','Choose')+LK('◀▶','Dim')+LK('OK','On / Off')+'</div>';
+};
+S.shades = () => {
+  const cs = ST.covers || [];
+  const rows = cs.map(c => { const closed = c.position != null ? 100 - c.position : (c.state === 'closed' ? 100 : 0);
+    return '<div class="g fo" data-cover="'+esc(c.entity)+'" style="padding:11px"><div style="display:flex;align-items:center"><div><div class="ttl">'+esc(c.name)+'</div><div class="sub">'+(c.position!=null?(c.position?'Open <b>'+c.position+'%</b>':'Closed'):esc(c.state))+(c.since?' · moved '+ago(c.since)+' ago':'')+'</div></div></div>' +
+      '<div style="height:78px;border-radius:12px;margin-top:10px;position:relative;overflow:hidden;background:linear-gradient(180deg,#8fb8ef 0%,#f3c98b 70%,#c98a52)"><div class="slats" style="height:'+closed+'%"></div><div style="position:absolute;inset:0;box-shadow:inset 0 0 0 5px rgba(20,20,24,.9);border-radius:12px"></div></div></div>'; }).join('');
+  return sb() + '<div class="hero" style="margin-top:12px"><div class="eb">'+esc(ST.name)+'</div><div class="big">Shades</div></div>' +
+    '<div class="scroll"><div style="display:flex;flex-direction:column;gap:9px;padding:10px 14px 4px">'+(rows || '<div class="sub" style="padding:10px">No shades in this room.</div>')+'</div></div>' +
+    '<div class="legend">'+LK('◀▶','Open / Close')+LK('▲▼','Choose')+LK('OK','Stop')+'</div>';
+};
+S.climate = () => {
+  const c = ST.climate;
+  if (!c) return sb() + S.msg({title: 'No Climate', text: 'There is no climate control in this room.'});
+  const lo = c.min || 16, hi = c.max || 30, t = c.target;
+  const frac = t != null ? Math.max(0, Math.min(1, (t - lo) / (hi - lo))) : 0;
+  const dash = Math.round(415 * frac);
+  return sb() + '<div class="hero" style="margin-top:12px"><div class="eb">'+esc(c.name)+'</div><div class="big">Climate</div></div>' +
+    '<div class="dial"><svg viewBox="0 0 206 206"><defs><linearGradient id="cg" x1="0" x2="1"><stop offset="0" stop-color="#6ec8ff"/><stop offset="1" stop-color="#5b6cff"/></linearGradient></defs>' +
+    '<circle cx="103" cy="103" r="88" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="12" stroke-dasharray="415 553" transform="rotate(135 103 103)" stroke-linecap="round"/>' +
+    '<circle cx="103" cy="103" r="88" fill="none" stroke="url(#cg)" stroke-width="12" stroke-dasharray="'+dash+' 553" transform="rotate(135 103 103)" stroke-linecap="round" style="transition:stroke-dasharray .5s"/></svg>' +
+    '<div class="c"><div class="num" style="font-size:58px;font-weight:200;letter-spacing:-3px;line-height:1">'+(t!=null?t+'°':'—')+'</div><div class="sub" style="display:flex;gap:5px;align-items:center;margin-top:4px">'+
+    (c.action && c.action !== 'idle' && c.action !== 'off' ? '<span class="spin" style="color:var(--sky)">'+ic('fan',13)+'</span>' : '')+esc(c.action || c.mode)+(c.current!=null?' · room <b>'+c.current+'°</b>':'')+'</div></div></div>' +
+    '<div style="display:flex;justify-content:center;gap:16px" class="sub">'+(c.humidity!=null?'<span>'+ic('drop',12)+' <b>'+c.humidity+'%</b></span>':'')+(c.fan?'<span>Fan <b>'+esc(c.fan)+'</b></span>':'')+'</div>' +
+    '<div style="display:flex;gap:6px;padding:12px 14px 0;justify-content:center;flex-wrap:wrap">'+(c.modes||[]).map(m=>'<span class="chip fo'+(m===c.mode?' on':'')+'" data-mode="'+esc(m)+'">'+esc(cap(m.replace('_',' ')))+'</span>').join('')+'</div>' +
+    '<div class="legend">'+LK('◀▶','Temperature')+LK('▲▼','Mode')+LK('OK','Set Mode')+'</div>';
+};
+S.music = () => {
+  const m = ST.music;
+  if (!m) return sb() + S.msg({title: 'No Music', text: 'There is no speaker in this room.'});
+  const art = m.art ? 'background:url(\'/remote/art?e='+encodeURIComponent(m.entity)+'&'+tq()+'\') center/cover' : 'background:linear-gradient(135deg,#f59e0b,#b45309 45%,#3b1d0a)';
+  const pos = m.duration && m.position != null ? Math.min(100, Math.round((m.position + (m.state==='playing' && m.updated ? (Date.now()-Date.parse(m.updated))/1000 : 0))/m.duration*100)) : null;
+  return sb() + '<div style="display:flex;align-items:center;gap:8px;padding:12px 16px 0">'+tile(m.platform,22,m.app)+'<div class="eb">'+esc(ST.name)+' · '+esc(m.name)+'</div>'+(m.state==='playing'?'<span class="eq" style="margin-left:auto"><i></i><i></i><i></i><i></i></span>':'')+'</div>' +
+    '<div style="margin:12px auto 0;width:220px;height:220px;border-radius:18px;box-shadow:0 24px 50px rgba(0,0,0,.6);flex:none;'+art+'"></div>' +
+    '<div style="padding:14px 18px 0"><div style="font-size:19px;font-weight:600;letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(m.title || (m.state==='off'?'Nothing Playing':'—'))+'</div><div class="sub" style="font-size:13px">'+esc([m.artist,m.album].filter(Boolean).join(' · '))+'</div>' +
+    (pos!=null?'<div class="prog" style="margin-top:11px"><i style="width:'+pos+'%"></i></div>':'')+'</div>' +
+    '<div style="display:flex;justify-content:center;align-items:center;gap:34px;margin-top:12px"><span class="fo" data-ctl="'+esc(m.entity)+'|prev">'+ic('prev',22,1)+'</span>' +
+    '<span class="fo" data-ctl="'+esc(m.entity)+'|play_pause" style="width:58px;height:58px;border-radius:50%;background:#fff;color:#000;display:grid;place-items:center;box-shadow:0 0 30px rgba(255,200,120,.35)">'+ic(m.state==='playing'?'pause':'play',24,1)+'</span>' +
+    '<span class="fo" data-ctl="'+esc(m.entity)+'|next">'+ic('next',22,1)+'</span></div>' +
+    '<div class="legend">'+LK('◀▶','Track')+LK('OK','Play / Pause')+LK('VOL',m.name||'Volume')+'</div>';
+};
+S.rooms = () => {
+  const rs = (ME && ME.rooms_list) || [];
+  return sb() + '<div class="hero" style="margin-top:12px"><div class="eb">'+rs.length+' rooms</div><div class="big">Rooms</div></div>' +
+    '<div class="scroll"><div style="display:flex;flex-direction:column;gap:9px;padding:10px 14px 4px">' + rs.map(r =>
+      '<div class="fo" data-room="'+esc(r.area)+'" style="height:80px;border-radius:18px;overflow:hidden;position:relative;display:flex;align-items:flex-end;padding:11px 13px;flex:none;'+(r.photo?'background:url(\'/remote/photo/'+encodeURIComponent(r.area)+'?'+tq()+'\') center/cover':'background:linear-gradient(90deg,#1f2937,#111827)')+'">' +
+      '<div style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(0,0,0,.78),rgba(0,0,0,.15))"></div><div style="position:relative"><div class="ttl" style="font-size:16px">'+esc(r.name)+'</div><div class="sub">'+(r.now?'<span class="eq"><i></i><i></i><i></i><i></i></span>'+esc(r.now):'Quiet')+(ME.home_room===r.area?' · Home room':'')+'</div></div></div>').join('') +
+    '</div></div><div class="legend">'+LK('CH','Next Room')+LK('OK','Go')+LK(ic('home',10),'Home Room')+'</div>';
+};
+S.rest = () => {
+  const d = new Date(), m = ST && ST.music;
+  return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding-bottom:30px">' +
+    '<div class="num" style="font-size:96px;font-weight:200;letter-spacing:-5px;line-height:1">'+d.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'}).replace(/\s?[AP]M/i,'')+'</div>' +
+    '<div style="font-size:15px;color:var(--ink2);margin-top:6px">'+d.toLocaleDateString([], {weekday:'long', day:'numeric', month:'long'})+'</div>' +
+    (m && m.title && m.state === 'playing' ? '<div class="g" style="margin-top:34px;width:300px;padding:10px;display:flex;gap:10px;align-items:center;text-align:left"><div style="width:46px;height:46px;border-radius:10px;flex:none;'+(m.art?'background:url(\'/remote/art?e='+encodeURIComponent(m.entity)+'&'+tq()+'\') center/cover':'background:linear-gradient(135deg,#d97706,#7c2d12)')+'"></div><div><div class="ttl" style="font-size:13.5px">'+esc(m.title)+'</div><div class="sub"><span class="eq"><i></i><i></i><i></i><i></i></span>'+esc(ST.name+' · '+m.name)+'</div></div></div>' : '') +
+    '<div class="sub" style="margin-top:26px">Pick up or press any button</div></div>';
+};
+S.voice = st => sb() + '<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;padding:0 22px">' +
+  '<div class="orb'+(st.phase==='think'?' think':'')+'"></div><div style="text-align:center"><div style="font-size:22px;font-weight:500">'+esc(st.phase==='think'?'Thinking…':st.phase==='done'?'Done':'Listening…')+'</div>' +
+  (st.heard ? '<div style="font-size:15px;color:var(--ink2);margin-top:10px;line-height:1.45">“'+esc(st.heard)+'”</div>' : '') + '</div>' +
+  (st.reply ? '<div class="g" style="width:100%;padding:11px 12px;display:flex;gap:10px;align-items:center"><span class="okc'+(st.bad?' bad':'')+'">'+(st.bad?'!':'✓')+'</span><div class="sub" style="margin:0;color:#fff">'+esc(st.reply)+'</div></div>' : '') +
+  '</div><div class="legend">'+LK(ic('mic',10),'Speak · the home knows when you stop')+'</div>';
+
+function cap(s) { return String(s || '').replace(/\b\w/g, c => c.toUpperCase()); }
+function ago(iso) { const s = (Date.now() - Date.parse(iso)) / 1000; if (!(s >= 0)) return ''; if (s < 3600) return Math.max(1, Math.round(s/60)) + ' m'; if (s < 86400) return Math.floor(s/3600) + ' h ' + Math.round((s%3600)/60) + ' m'; return Math.round(s/86400) + ' d'; }
+
+let VSTATE = {};
+function render() {
+  let html;
+  if (SCREEN === 'pair' || SCREEN === 'msg') html = S[SCREEN](VSTATE);
+  else if (!ST) html = S.msg({title: 'ProOS', text: 'Loading the room…', dots: true});
+  else if (SCREEN === 'voice') html = S.voice(VSTATE);
+  else html = S[SCREEN]();
+  const keepFi = FI;
+  $('#app').innerHTML = html;
+  setPhoto(SCREEN === 'home' || SCREEN === 'rest');
+  focusSet(keepFi);
+  if (SCREEN === 'watching') touchpad();
+}
+function focusables() { return Array.prototype.slice.call(document.querySelectorAll('#app .fo')); }
+function focusSet(i) {
+  const f = focusables(); f.forEach(x => x.classList.remove('f'));
+  if (!f.length) { FI = 0; return; }
+  FI = Math.max(0, Math.min(f.length - 1, i)); f[FI].classList.add('f');
+  try { f[FI].scrollIntoView({block: 'nearest'}); } catch (e) {}
+}
+function move(dir) {
+  const f = focusables(); if (!f.length) return;
+  const a = f[FI].getBoundingClientRect(), ax = a.left + a.width/2, ay = a.top + a.height/2;
+  let best = -1, bd = 1e9;
+  f.forEach((el, i) => { if (i === FI) return; const b = el.getBoundingClientRect(), bx = b.left + b.width/2, by = b.top + b.height/2;
+    const dx = bx - ax, dy = by - ay;
+    const ok = dir === 'up' ? dy < -4 : dir === 'down' ? dy > 4 : dir === 'left' ? dx < -4 : dx > 4;
+    if (!ok) return; const d = (dir === 'up' || dir === 'down') ? Math.abs(dy) + Math.abs(dx) * 2 : Math.abs(dx) + Math.abs(dy) * 2;
+    if (d < bd) { bd = d; best = i; } });
+  if (best >= 0) focusSet(best);
+}
+function go(screen, push) {
+  if (push !== false && SCREEN !== screen && ['pair','msg','rest'].indexOf(SCREEN) < 0) STACK.push(SCREEN);
+  SCREEN = screen; FI = 0; render();
+}
+function back() { if (STACK.length) { SCREEN = STACK.pop(); FI = 0; render(); } else if (SCREEN !== mainScreen()) go(mainScreen(), false); }
+function mainScreen() { return ST && ST.activity && ST.activity.kind !== 'music' ? 'watching' : 'home'; }
+
+// ── doing things ──
+function toast(text, bad) {
+  const t = $('#toast'); t.innerHTML = '<span class="okc'+(bad?' bad':'')+'">'+(bad?'!':'✓')+'</span><span style="font-size:13px">'+text+'</span>';
+  t.classList.add('on'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('on'), 3200);
+}
+function hud(html) {
+  const h = $('#hud'); h.innerHTML = html; h.classList.add('on'); $('#dim').classList.add('on');
+  clearTimeout(h._h); h._h = setTimeout(() => { h.classList.remove('on'); $('#dim').classList.remove('on'); }, 1600);
+}
+function after(res) {
+  if (!res) return;
+  if (res.hud && res.hud.kind === 'volume') hud('<div style="display:flex;justify-content:center">'+ic(res.hud.muted?'mute':'vol',26)+'</div><div class="num" style="font-size:48px;font-weight:200;letter-spacing:-2px;margin-top:4px">'+(res.hud.muted?'Muted':(res.hud.level!=null?res.hud.level:'—'))+'</div>' +
+    (res.hud.level!=null?'<div class="prog" style="height:6px;margin-top:8px"><i style="width:'+res.hud.level+'%"></i></div>':'')+'<div class="sub" style="margin-top:8px">'+esc(res.hud.name)+' · Volume</div>');
+  if (res.toast) {
+    const t = res.toast;
+    if (t.kind === 'scene') hud('<div style="width:62px;height:62px;border-radius:20px;margin:0 auto;display:grid;place-items:center;background:linear-gradient(180deg,#4b3a8f,#22184f);color:#e9ddff;box-shadow:0 0 30px rgba(120,90,255,.5)">'+ic('scene',28)+'</div><div style="font-size:19px;font-weight:600;margin-top:10px">'+esc(t.label)+'</div>');
+    else toast('<b>'+esc((t.area ? t.area + ', ' : '') + t.label)+'.</b>');
+  }
+  if (res.error) toast(esc(res.error), true);
+  refresh(true, 700);
+}
+function key(name, long) {
+  LASTKEY = Date.now();
+  const k = (ST && ST.keys && ST.keys[name]) ? ST.keys[name][long ? 'long' : 'press'] : null;
+  // screens with their own controls take the D-pad and OK; the watching screen hands them to the source (Core)
+  const local = SCREEN !== 'watching' && SCREEN !== 'home';
+  if (['up','down','left','right','ok','back'].indexOf(name) >= 0 && (local || SCREEN === 'home' || !k || !k.core)) {
+    if (SCREEN === 'home' && name === 'back') return;
+    return localKey(name);
+  }
+  if (k && k.open) {
+    if (k.open === 'home') return go(SCREEN === 'home' && ST.activity && ST.activity.kind !== 'music' ? 'watching' : 'home', false);
+    if (k.open === 'activities') return go('home', false);
+    if (k.open === 'voice') return startVoice();
+    return go(k.open);
+  }
+  if (k && k.nav) {
+    if (k.nav === 'room_next' || k.nav === 'room_prev') return stepRoom(k.nav === 'room_next' ? 1 : -1);
+    return localKey(k.nav);
+  }
+  if (name === 'home') return go(mainScreen(), false);
+  if (name === 'voice') return startVoice();
+  if (!k) return;                                   // nothing to do in this room right now
+  api('/remote/key', {body: {area: AREA, key: name, long: !!long}}).then(after).catch(e => toast(esc(e.message), true));
+}
+function localKey(name) {
+  if (name === 'back') return back();
+  if (['up','down','left','right'].indexOf(name) >= 0) {
+    const el = focusables()[FI];
+    if (el && (name === 'left' || name === 'right')) {
+      if (el.dataset.light) return adjLight(el.dataset.light, name === 'right' ? 10 : -10);
+      if (el.dataset.cover) return ctl(el.dataset.cover, name === 'right' ? 'open' : 'close');
+      if (SCREEN === 'climate' && ST.climate) return adjTemp(name === 'right' ? 1 : -1);
+      if (SCREEN === 'music' && ST.music && !el.dataset.ctl) return ctl(ST.music.entity, name === 'right' ? 'next' : 'prev');
+    }
+    return move(name);
+  }
+  if (name === 'ok') { const el = focusables()[FI]; if (el) activate(el); }
+}
+function activate(el) {
+  if (el.dataset.go) return go(el.dataset.go);
+  if (el.dataset.act) return api('/remote/activity', {body: {area: AREA, key: el.dataset.act}}).then(r => { after(r); setTimeout(() => go(mainScreen(), false), 900); }).catch(e => toast(esc(e.message), true));
+  if (el.dataset.light) return ctl(el.dataset.light, 'toggle');
+  if (el.dataset.cover) return ctl(el.dataset.cover, 'stop');
+  if (el.dataset.mode) return ctl(ST.climate.entity, 'mode', el.dataset.mode);
+  if (el.dataset.ctl) { const p = el.dataset.ctl.split('|'); return ctl(p[0], p[1]); }
+  if (el.dataset.room) { AREA = el.dataset.room; STACK = []; ST = null; render(); return refresh(true).then(() => go(mainScreen(), false)); }
+}
+function ctl(entity, action, value) {
+  return api('/remote/control', {body: {area: AREA, entity: entity, action: action, value: value}}).then(after).catch(e => toast(esc(e.message), true));
+}
+let _dimT = {};
+function adjLight(eid, d) {
+  const l = (ST.lights || []).find(x => x.entity === eid); if (!l || l.kind === 'switch') return;
+  l.brightness = Math.max(1, Math.min(100, (l.on ? (l.brightness || 0) : 0) + d)); l.on = true; render();
+  clearTimeout(_dimT[eid]); _dimT[eid] = setTimeout(() => ctl(eid, 'brightness', l.brightness), 350);
+}
+let _tT;
+function adjTemp(d) {
+  const c = ST.climate; if (c.target == null) return;
+  c.target = Math.round((c.target + d * (c.step || 0.5)) * 10) / 10; render();
+  clearTimeout(_tT); _tT = setTimeout(() => ctl(c.entity, 'temperature', c.target), 500);
+}
+function stepRoom(d) {
+  const rs = (ME && ME.rooms_list) || []; if (rs.length < 2) return;
+  const i = rs.findIndex(r => r.area === AREA); AREA = rs[(i + d + rs.length) % rs.length].area; STACK = []; ST = null; render();
+  refresh(true).then(() => go(mainScreen(), false));
+}
+function touchpad() {
+  const tp = $('#tp'); if (!tp) return;
+  let sx, sy, st;
+  tp.addEventListener('touchstart', e => { const t = e.touches[0]; sx = t.clientX; sy = t.clientY; st = Date.now(); }, {passive: true});
+  tp.addEventListener('touchend', e => { const t = e.changedTouches[0], dx = t.clientX - sx, dy = t.clientY - sy;
+    if (Math.abs(dx) < 14 && Math.abs(dy) < 14) return key('ok');
+    key(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up')); });
+}
+
+// ── voice: the app records, the home's own speech-to-text hears, ProOS Assist answers for this room ──
+function startVoice() {
+  VSTATE = {phase: 'listen'}; go('voice');
+  if (!N || !N.startVoice) { VSTATE = {phase: 'done', reply: 'Voice works on the remote itself.', bad: true}; return render(); }
+  try { N.startVoice(); } catch (e) {}
+}
+window.proosVoice = function (ev) {
+  if (SCREEN !== 'voice') return;
+  if (ev.phase === 'think') { VSTATE.phase = 'think'; return render(); }
+  if (ev.error) { VSTATE = {phase: 'done', reply: ev.error, bad: true}; render(); return setTimeout(() => SCREEN === 'voice' && back(), 4000); }
+  VSTATE = {phase: 'think', heard: ev.text}; render();
+  api('/assist/chat', {body: {text: ev.text, area_id: AREA, area_confidence: 'certain', session: 'remote-' + (SERIAL || 'browser')}})
+    .then(r => { VSTATE = {phase: 'done', heard: ev.text, reply: r.reply || 'Done.'}; render(); refresh(true, 600); setTimeout(() => SCREEN === 'voice' && back(), 5000); })
+    .catch(e => { VSTATE = {phase: 'done', heard: ev.text, reply: e.message, bad: true}; render(); });
+};
+
+// ── hard keys from the app ──
+const CODES = {131:'home',132:'power',133:'voice',134:'light',135:'curtain',136:'music',137:'ac',138:'red',139:'green',140:'blue',141:'yellow',
+  19:'up',20:'down',21:'left',22:'right',23:'ok',66:'ok',4:'back',82:'menu',164:'mute',91:'mute',24:'vol_up',25:'vol_down',92:'ch_up',93:'ch_down'};
+const HOLD = {power:1, light:1, curtain:1, music:1, ac:1, red:1, green:1, blue:1, yellow:1};   // decided on release: short or long
+const REPEAT = {vol_up:1, vol_down:1, up:1, down:1, left:1, right:1};                        // act on press, repeat while held
+const down = {};
+window.proosKey = function (code, action, repeat) {
+  const name = CODES[code]; if (!name) return;
+  if (SCREEN === 'rest') { if (action === 'up') wake(); return; }
+  wakeBump();
+  if (SCREEN === 'pair' || SCREEN === 'msg') return;
+  if (HOLD[name]) {
+    if (action === 'down' && !repeat) { down[name] = {t: Date.now(), fired: false};
+      down[name].h = setTimeout(() => { down[name].fired = true; key(name, true); }, 600); }
+    else if (action === 'up' && down[name]) { clearTimeout(down[name].h); if (!down[name].fired) key(name, false); delete down[name]; }
+    return;
+  }
+  if (action !== 'down') return;
+  if (repeat && !REPEAT[name]) return;
+  if (repeat && Date.now() - (down['_' + name] || 0) < 220) return;
+  down['_' + name] = Date.now();
+  key(name, false);
+};
+document.addEventListener('keydown', e => {           // a keyboard in a browser, for the installer's look
+  const m = {ArrowUp:19, ArrowDown:20, ArrowLeft:21, ArrowRight:22, Enter:23, Escape:4, Backspace:4, h:131, p:132, v:133, '+':24, '-':25};
+  if (m[e.key] != null && !N) { e.preventDefault(); window.proosKey(m[e.key], 'down', e.repeat ? 1 : 0); }
+});
+document.addEventListener('keyup', e => { const m = {Enter:23, h:131, p:132}; if (m[e.key] != null && !N) window.proosKey(m[e.key], 'up', 0); });
+
+// ── resting: dim when put down, wake on pick-up (the app calls proosWake) ──
+let REST_AT = 45000, _restT;
+function wakeBump() { clearTimeout(_restT); _restT = setTimeout(rest, REST_AT); }
+function rest() { if (['pair','msg','voice'].indexOf(SCREEN) >= 0) return wakeBump(); AWAKE = false; STACK = []; SCREEN = 'rest'; render(); }
+function wake() { if (SCREEN === 'rest') { AWAKE = true; SCREEN = mainScreen(); FI = 0; render(); refresh(true); } wakeBump(); }
+window.proosWake = wake;
+
+// ── state ──
+let _refT, _busy = false;
+function refresh(fresh, delay) {
+  clearTimeout(_refT);
+  if (delay) { _refT = setTimeout(() => refresh(fresh), delay); return Promise.resolve(); }
+  if (!AREA || _busy) return Promise.resolve();
+  _busy = true;
+  return api('/remote/room/' + encodeURIComponent(AREA) + (fresh ? '?fresh=1' : '')).then(s => {
+    const was = ST && ST.activity && ST.activity.key; ST = s; LASTSTATE = Date.now();
+    const now = s.activity && s.activity.key;
+    if (was !== now && (SCREEN === 'home' || SCREEN === 'watching')) { SCREEN = mainScreen(); FI = 0; }
+    if (Date.now() - LASTKEY > 1500 || !document.querySelector('#app .f')) render();
+  }).catch(e => { if (e.status === 401 || e.status === 403) return unpaired(e); }).then(() => { _busy = false; schedule(); });
+}
+function schedule() { clearTimeout(_refT); _refT = setTimeout(() => refresh(false), AWAKE ? 2500 : 15000); }
+function unpaired(e) {
+  if (N && N.forgetToken) { try { N.forgetToken(); } catch (x) {} }
+  TOKEN = ''; pair();
+}
+function status() {
+  if (!N) return;
+  let b = {}; try { b = JSON.parse(nat('battery', '{}')); } catch (e) {}
+  const body = {battery: b.level, docked: !!b.charging, rssi: b.rssi, app: nat('version', ''), room: AREA};
+  if (AWAKE && SCREEN !== 'pair') { const sh = nat('shot', ''); if (sh && sh.length < 380000) body.shot = sh; }   // Pro's picture of this screen
+  api('/remote/status', {body: body}).catch(() => {});
+}
+function boot() {
+  if (!TOKEN) return pair();
+  api('/remote/me').then(me => {
+    ME = me;
+    const rooms = me.rooms_list || [];
+    if (!rooms.length) { VSTATE = {title: 'Choose a Room', text: 'This remote is paired. In ProOS Pro, set its Home Room in Dashboards › Remotes.', dots: true}; SCREEN = 'msg'; render(); return setTimeout(boot, 8000); }
+    AREA = rooms.some(r => r.area === me.home_room) ? me.home_room : rooms[0].area;
+    SCREEN = 'home'; render(); refresh(true); wakeBump(); setTimeout(status, 2500); setInterval(status, 30000);
+    setInterval(() => api('/remote/me').then(m => { ME = m; if (!(m.rooms_list || []).some(r => r.area === AREA)) boot(); }).catch(() => {}), 30000);
+  }).catch(e => { if (e.status === 401 || e.status === 403) return unpaired(e); VSTATE = {title: 'Can\'t Reach Your Home', text: 'Checking again…', dots: true}; SCREEN = 'msg'; render(); setTimeout(boot, 5000); });
+}
+// ── pairing: say hello, show the code, wait for the installer to accept in Pro ──
+function pair() {
+  SCREEN = 'pair'; VSTATE = {msg: 'Finding your home…'}; render();
+  if (!N || !N.serial) { VSTATE = {msg: 'Open this page on a ProOS Remote, or sign in to Pro in this browser first.'}; return render(); }
+  const nonce = nat('nonce', '');
+  const tick = () => fetch('/remote/hello?serial=' + encodeURIComponent(SERIAL) + '&model=' + encodeURIComponent(nat('model', 'HA100')) + '&nonce=' + encodeURIComponent(nonce) + '&app=' + encodeURIComponent(nat('version', '')), {cache: 'no-store'})
+    .then(r => r.json()).then(j => {
+      if (j.accepted && j.token) { try { N.saveToken(j.token); } catch (e) {} TOKEN = j.token; return boot(); }
+      VSTATE = {code: j.code}; render(); setTimeout(tick, 3000);
+    }).catch(() => { VSTATE = {msg: 'Can\'t reach your home yet — checking again…'}; render(); setTimeout(tick, 5000); });
+  tick();
+}
+setInterval(() => { if (SCREEN === 'rest' || ((SCREEN === 'watching' || SCREEN === 'music') && Date.now() - LASTKEY > 1500)) render(); }, 30000);
+boot();
+</script>
+</body></html>

@@ -2040,6 +2040,13 @@ body.v3 .rh-card{border-radius:22px}
       </div>
       <div id="wallpanel-body"></div>
     </div>
+    <div class="panel" id="panel-remotecfg">
+      <div class="panel-head">
+        <button class="back" onclick="openDashRemote()">‹ Dashboards</button>
+        <div class="panel-title" id="rm-title">Remote</div>
+      </div>
+      <div id="remotecfg-body"></div>
+    </div>
 
     <!-- A WALL PANEL'S LAYOUT (register 965: room by room, for one panel or for all of them) -->
     <div class="panel" id="panel-wpedit">
@@ -2869,7 +2876,7 @@ body.v3 .rh-card{border-radius:22px}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102003';
+const PROOS_BUILD='2026102004';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -11834,6 +11841,8 @@ function renderDashRemote(){
   body.innerHTML=''
     +'<div class="cred-card" id="wp-card"><div class="cred-top"><span class="cred-name">Wall Panels</span><span style="margin-left:auto;font-size:12px;color:var(--t3)">Pictures taken when you opened this page</span></div>'
       +'<div id="wp-rows" style="display:flex;flex-direction:column;gap:8px;margin-top:12px"><div class="cred-meta">Looking for wall panels…</div></div></div>'
+    +'<div class="cred-card" id="rm-card"><div class="cred-top"><span class="cred-name">Remotes</span><span style="margin-left:auto;font-size:12px;color:var(--t3)">ProOS Remote on the Astrion HA100</span></div>'
+      +'<div id="rm-rows" style="display:flex;flex-direction:column;gap:8px;margin-top:12px"><div class="cred-meta">Looking for remotes…</div></div></div>'
     +'<div class="cred-card">'
       +'<div class="cred-top"><span class="cred-name">App Dashboards</span><span id="dr-count" style="margin-left:auto;font-size:12px;color:var(--t3)"></span></div>'
       +'<div id="dr-screens" style="display:flex;flex-direction:column;gap:8px;margin:12px 0 4px"><div class="cred-meta">Checking connected screens…</div></div>'
@@ -11849,6 +11858,7 @@ function renderDashRemote(){
     +'<div class="cred-card" onclick="openNavLayout()" style="cursor:pointer"><div class="cred-top"><span class="cred-name">Nav Layout</span></div><div class="cred-meta">Arrange the dashboard bottom-nav — order and show/hide icons for Home and Area pages.</div><div class="cred-actions"><button class="btn-ghost" onclick="openNavLayout()">Open</button></div></div>';
   _dashRemoteRefresh();
   if(typeof _wpCardRender==='function') _wpCardRender(true);   // 963–964: the wall panels, each with a NEW picture of its screen
+  if(typeof _rmCardRender==='function') _rmCardRender();        // 969j: the remotes, and any remote waiting to be accepted
   if(_dashRemotePoll) clearInterval(_dashRemotePoll);
   _dashRemotePoll=setInterval(_dashRemoteRefresh, 5000);
 }
@@ -12031,6 +12041,144 @@ async function _wpSetRoom(area){
   if(!await _wpPost({screen:_wpSel, settings:{home_room:area||null}})) return;
   if(area && st.mic) await _wpMicToRoom(st.mic, area);
   await _wpLoad(); renderWallPanel(false); toast('Saved');
+}
+// ── REMOTES (register 969j) ─────────────────────────────────────────────────────────────────────────────────────────
+// Dave, 20 Oct 2026: the Astrion as "a room controller or multiple room controller similar to the wall panel section";
+// rooms the same as wall panels (Only This Room / All Rooms); mockups approved 18:04. A remote has no camera, so it
+// shows a four-digit code and the installer accepts the remote whose code matches — its own sign-in is made then,
+// nothing is typed and no token is shown. Only the eight printed and coloured keys are set here, per room; every other
+// key follows the room's activity (Core decides each press).
+let _rmData={remotes:[],waiting:[]}, _rmSel=null, _rmMapRoom=null, _rmForgetArm=null, _rmPoll=null, _rmActs={};
+const RM_KEYS=[['light','Light'],['curtain','Curtain'],['music','Music'],['ac','AC'],['red','Red'],['green','Green'],['blue','Blue'],['yellow','Yellow']];
+const RM_DEF={light:['Lights Page','All Lights On / Off'],curtain:['Shades Page','Open / Close All'],music:['Music Player','Play / Pause'],ac:['Climate Page','Climate On / Off'],
+  red:['The Source’s Own Red','Nothing'],green:['The Source’s Own Green','Nothing'],blue:['The Source’s Own Blue','Nothing'],yellow:['The Source’s Own Yellow','Nothing']};
+const RM_COL={red:'#e5484d',green:'#30a46c',blue:'#3e63dd',yellow:'#f5d90a'};
+async function _rmLoad(){ try{ const r=await fetch(proCoreUrl()+'/remotes'); if(r.ok) _rmData=await r.json(); }catch(e){} return _rmData; }
+function _rmOnlineTxt(r){ if(r.online) return 'Online'; if(!r.last_seen) return 'Not seen yet'; const m=Math.round((Date.now()/1000-r.last_seen)/60); return 'Last seen '+(m<60?m+' min':Math.round(m/60)+' h')+' ago'; }
+function _rmPic(r, w, h){
+  const box='width:'+w+'px;height:'+h+'px;border-radius:10px;overflow:hidden;flex:none;background:#0b0b0d;box-shadow:0 0 0 3px #0b0b0d,0 0 0 4px rgba(255,255,255,.14);display:grid;place-items:center;text-align:center';
+  if(r&&r.shot) return '<div style="'+box+';position:relative"><img src="'+r.shot+'" style="width:100%;height:100%;object-fit:cover;display:block">'+(r.shot_at?'<span style="position:absolute;right:5px;bottom:4px;font-size:10px;background:rgba(0,0,0,.6);border-radius:6px;padding:1px 5px;color:rgba(255,255,255,.85)">'+esc(_wpTime(new Date(r.shot_at*1000)))+'</span>':'')+'</div>';
+  return '<div style="'+box+';font-size:10.5px;color:var(--t3);padding:6px">'+(r&&r.online?'Picture coming…':'No picture yet')+'</div>';
+}
+function _rmRow(r){
+  const room=r.home_room?_wpAreaName(r.home_room):'';
+  return '<div onclick="openRemote(\''+esc(r.serial)+'\')" style="cursor:pointer;display:flex;gap:16px;align-items:center;border:0.5px solid var(--line);border-radius:12px;padding:12px 14px">'
+    +_rmPic(r,54,90)
+    +'<div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:600;color:var(--t1)">'+esc(r.name||'Remote')+'</div>'
+      +'<div style="font-size:12.5px;color:'+(r.online?'#3ec77e':'var(--t3)')+';margin-top:2px">'+esc(_rmOnlineTxt(r))+'</div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">'
+        +(room?_wpChip(room):_wpChip('No Home Room','rgba(255,179,64,.2)'))
+        +_wpChip(r.rooms==='all'?'All Rooms':'Only This Room')
+        +(r.battery!=null?_wpChip(r.battery+'%'+(r.docked?' · On the Dock':''),r.battery<20?'rgba(255,69,58,.22)':null):'')
+        +_wpChip(esc(r.model||'HA100'))
+      +'</div></div><span style="color:var(--t3);font-size:18px">›</span></div>';
+}
+async function _rmCardRender(){
+  const el=document.getElementById('rm-rows'); if(!el) return;
+  await _rmLoad();
+  const w=(_rmData.waiting||[]), rs=(_rmData.remotes||[]);
+  let h='';
+  w.forEach(function(p){ h+='<div style="display:flex;gap:14px;align-items:center;border-radius:12px;padding:14px;background:linear-gradient(90deg,rgba(91,108,255,.18),rgba(91,108,255,.04));border:0.5px solid rgba(91,108,255,.4)">'
+    +'<div style="font-size:30px;font-weight:300;letter-spacing:6px;color:var(--t1);font-variant-numeric:tabular-nums">'+esc(p.code)+'</div>'
+    +'<div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:600;color:var(--t1)">New Remote Waiting</div><div class="cred-meta" style="margin:2px 0 0">'+esc(p.model||'HA100')+' · '+esc(p.serial)+' — accept it only if the remote in your hand shows this code</div></div>'
+    +'<button class="btn-primary" style="flex:none;width:auto;min-height:40px;padding:0 22px" onclick="_rmAccept(\''+esc(p.serial)+'\',this)">Accept</button></div>'; });
+  h+=rs.map(_rmRow).join('');
+  if(!h) h='<div class="cred-meta">No remote yet. Open ProOS Remote on the remote: it shows a four-digit code and appears here to be accepted — there is nothing to type in.</div>';
+  el.innerHTML=h;
+  const pane=document.getElementById('panel-dashremote');
+  if(_rmPoll) clearTimeout(_rmPoll);
+  _rmPoll=setTimeout(function(){ if(pane&&pane.classList.contains('active')) _rmCardRender(); }, w.length?3000:15000);
+}
+async function _rmAccept(serial, btn){
+  if(btn){ btn.disabled=true; btn.textContent='Accepting…'; }
+  try{ const r=await fetch(proCoreUrl()+'/remotes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accept:serial})});
+    const j=await r.json(); if(!r.ok||j.error){ toast(j.error||'Could not accept'); if(btn){ btn.disabled=false; btn.textContent='Accept'; } return; }
+    toast('Accepted — the remote signs in within a few seconds'); _rmCardRender(); }catch(e){ toast('ProOS Core did not answer'); }
+}
+function openRemote(serial){ _rmSel=serial; _rmForgetArm=null; _rmMapRoom=null; show('remotecfg'); renderRemote(); }
+function _rmCur(){ return (_rmData.remotes||[]).find(function(r){ return r.serial===_rmSel; }); }
+async function _rmPost(body){
+  try{ const r=await fetch(proCoreUrl()+'/remotes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const j=r.ok?await r.json():null; if(!j||j.error){ toast((j&&j.error)||'Could not save'); return null; } return j; }catch(e){ toast('ProOS Core did not answer'); return null; }
+}
+async function _rmRoomActs(area){
+  if(!area) return [];
+  if(_rmActs[area]) return _rmActs[area];
+  try{ const r=await fetch(proCoreUrl()+'/rooms/'+encodeURIComponent(area)+'/activities'); const j=r.ok?await r.json():{};
+    _rmActs[area]=(j.activities||[]).filter(function(a){ return a.key!=='tv_off' && a.kind!=='display_on'; }); }catch(e){ _rmActs[area]=[]; }
+  return _rmActs[area];
+}
+function _rmActionVal(a){ if(!a) return 'none'; if(a.open) return 'open:'+a.open; if(a.do) return 'do:'+a.do; if(a.scene) return 'scene:'+a.scene; if(a.script) return 'script:'+a.script; if(a.activity) return 'activity:'+a.activity; return 'none'; }
+function _rmOptions(key, which, cur, acts){
+  const def=RM_DEF[key][which==='press'?0:1];
+  const scenes=(_states||[]).filter(function(x){ return x.entity_id.indexOf('scene.')===0; });
+  const scripts=(_states||[]).filter(function(x){ return x.entity_id.indexOf('script.')===0 && x.entity_id.indexOf('script.proos_')!==0; });
+  const fn=function(x){ return (x.attributes&&x.attributes.friendly_name)||x.entity_id; };
+  let o='<option value="default"'+(cur==='default'?' selected':'')+'>Default · '+esc(def)+'</option><option value="none"'+(cur==='none'?' selected':'')+'>Nothing</option>';
+  o+='<optgroup label="Open a Page">'+[['lights','Lights'],['shades','Shades'],['music','Music'],['climate','Climate'],['activities','Activities'],['rooms','Rooms']].map(function(p){ const v='open:'+p[0]; return '<option value="'+v+'"'+(cur===v?' selected':'')+'>'+p[1]+' Page</option>'; }).join('')+'</optgroup>';
+  o+='<optgroup label="Whole Room">'+[['lights_toggle','All Lights On / Off'],['covers_toggle','Open / Close All Shades'],['music_play_pause','Music Play / Pause'],['climate_toggle','Climate On / Off']].map(function(p){ const v='do:'+p[0]; return '<option value="'+v+'"'+(cur===v?' selected':'')+'>'+p[1]+'</option>'; }).join('')+'</optgroup>';
+  if(acts.length) o+='<optgroup label="Activities">'+acts.map(function(a){ const v='activity:'+a.key; return '<option value="'+esc(v)+'"'+(cur===v?' selected':'')+'>'+esc(a.label)+'</option>'; }).join('')+'</optgroup>';
+  if(scenes.length) o+='<optgroup label="Scenes">'+scenes.map(function(x){ const v='scene:'+x.entity_id; return '<option value="'+esc(v)+'"'+(cur===v?' selected':'')+'>'+esc(fn(x))+'</option>'; }).join('')+'</optgroup>';
+  if(scripts.length) o+='<optgroup label="Scripts">'+scripts.map(function(x){ const v='script:'+x.entity_id; return '<option value="'+esc(v)+'"'+(cur===v?' selected':'')+'>'+esc(fn(x))+'</option>'; }).join('')+'</optgroup>';
+  return o;
+}
+async function renderRemote(){
+  const body=document.getElementById('remotecfg-body'); if(!body) return;
+  await _rmLoad();
+  const r=_rmCur();
+  if(!r){ body.innerHTML='<div class="cred-card"><div class="cred-meta">This remote is no longer listed.</div></div>'; return; }
+  const t=document.getElementById('rm-title'); if(t) t.textContent=r.name||'Remote';
+  const fld='background:rgba(255,255,255,0.06);border:0.5px solid var(--line);border-radius:8px;padding:9px 12px;color:var(--t1);font-family:inherit;font-size:13px';
+  const areas=(_areas||[]).filter(function(a){ return a.area_id && !(Array.isArray(a.labels)&&a.labels.includes(SYSTEM_LABEL)); });
+  const room=r.home_room?_wpAreaName(r.home_room):'';
+  const mroom=_rmMapRoom||r.home_room||'';
+  const acts=await _rmRoomActs(mroom);
+  const ov=((r.maps||{})[mroom])||{};
+  const rows=RM_KEYS.map(function(k){
+    const o=ov[k[0]]||{};
+    const curP=('press' in o)?_rmActionVal(o.press):'default', curL=('long' in o)?_rmActionVal(o.long):'default';
+    const mark=RM_COL[k[0]]?'<span style="width:22px;height:5px;border-radius:3px;display:inline-block;background:'+RM_COL[k[0]]+'"></span>':'<span style="font-size:10px;font-weight:700;letter-spacing:.06em;padding:3px 6px;border-radius:6px;background:#121214;border:1px solid rgba(255,255,255,.14)">'+k[1].toUpperCase()+'</span>';
+    return '<div style="display:grid;grid-template-columns:130px 1fr 1fr;gap:10px;align-items:center;padding:8px 0;border-bottom:0.5px solid var(--line)">'
+      +'<div style="display:flex;gap:8px;align-items:center;font-size:14px;color:var(--t1)">'+mark+esc(k[1])+'</div>'
+      +'<select style="'+fld+'" onchange="_rmSetKey(\''+k[0]+'\',\'press\',this.value)">'+_rmOptions(k[0],'press',curP,acts)+'</select>'
+      +'<select style="'+fld+'" onchange="_rmSetKey(\''+k[0]+'\',\'long\',this.value)">'+_rmOptions(k[0],'long',curL,acts)+'</select></div>';
+  }).join('');
+  body.innerHTML=''
+    +'<div class="cred-card"><div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">'+_rmPic(r,150,250)
+      +'<div style="flex:1;min-width:200px"><div class="cred-name">Actual Screen</div><div class="cred-meta">The remote sends a picture of its screen while it is in use.</div>'
+      +'<div style="font-size:12.5px;margin-top:8px;color:'+(r.online?'#3ec77e':'var(--t3)')+'">'+esc(_rmOnlineTxt(r))+'</div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">'+_wpChip(esc(r.model||'HA100'))+(r.battery!=null?_wpChip('Battery '+r.battery+'%'+(r.docked?' · On the Dock':'')):'')+(r.app?_wpChip('App '+esc(r.app)):'')+_wpChip(esc(r.serial))+'</div></div></div></div>'
+    +'<div class="cred-card"><div class="cred-top"><span class="cred-name">Name</span></div><div class="cred-meta">What it is called in Pro.</div>'
+      +'<div style="display:flex;gap:8px;margin-top:10px"><input id="rm-name" type="text" value="'+esc(r.name||'')+'" style="flex:1;min-width:0;'+fld+'" onkeydown="if(event.key===\'Enter\')_rmRename()"/><button class="btn-ghost" onclick="_rmRename()">Save</button></div></div>'
+    +'<div class="cred-card"><div class="cred-top"><span class="cred-name">Home Room</span></div><div class="cred-meta">The room it opens on, and the room "turn on the lights" means when you speak into it.</div>'
+      +'<select style="width:100%;margin-top:10px;'+fld+'" onchange="_rmSet({home_room:this.value||null})"><option value="">Not set</option>'
+        +areas.map(function(a){ return '<option value="'+esc(a.area_id)+'"'+(a.area_id===r.home_room?' selected':'')+'>'+esc(a.name)+'</option>'; }).join('')+'</select></div>'
+    +'<div class="cred-card"><div class="cred-top"><span class="cred-name">Rooms It Controls</span></div>'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:10px;flex-wrap:wrap"><div class="cred-meta" style="margin:0">'+(r.rooms==='all'?'Every room — Channel steps through them when nothing is playing, Home goes back to '+esc(room||'its home room'):esc(room||'Its home room')+' only')+'</div>'
+      +'<div style="display:inline-flex;background:rgba(255,255,255,.07);border-radius:10px;padding:3px;gap:2px">'+[['home',(room||'Home Room')+' Only'],['all','All Rooms']].map(function(o){ const on=(o[0]===(r.rooms||'home'));
+        return '<button onclick="_rmSet({rooms:\''+o[0]+'\'})" style="border:0;cursor:pointer;font:inherit;font-size:12.5px;padding:6px 11px;border-radius:8px;background:'+(on?'rgba(255,255,255,.18)':'transparent')+';color:'+(on?'#fff':'var(--t2)')+';font-weight:'+(on?'600':'400')+'">'+esc(o[1])+'</button>'; }).join('')+'</div></div></div>'
+    +'<div class="cred-card"><div class="cred-top"><span class="cred-name">Button Map</span>'
+      +'<select style="margin-left:auto;'+fld+'" onchange="_rmMapRoom=this.value;renderRemote()">'+areas.map(function(a){ return '<option value="'+esc(a.area_id)+'"'+(a.area_id===mroom?' selected':'')+'>'+esc(a.name)+'</option>'; }).join('')+'</select></div>'
+      +'<div class="cred-meta">The eight printed and coloured keys, in this room. Everything else follows the activity: the D-pad drives what’s on, Volume moves the room’s volume device, Power is Room Off (hold: All Off).</div>'
+      +(mroom?'<div style="display:grid;grid-template-columns:130px 1fr 1fr;gap:10px;font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.08em;margin-top:14px"><span>Key</span><span>Press</span><span>Hold</span></div>'+rows
+        +'<div class="cred-actions" style="margin-top:12px"><button class="btn-ghost" onclick="_rmSet({reset_map:\''+esc(mroom)+'\'})">Reset to Defaults</button></div>':'<div class="cred-meta" style="margin-top:10px">Set a Home Room first.</div>')+'</div>'
+    +'<div class="cred-card"><div class="cred-top"><span class="cred-name">Forget This Remote</span></div><div class="cred-meta">Signs the remote out and removes its login. To use it again it shows a new code to accept.</div>'
+      +'<div class="cred-actions"><button class="btn-ghost" onclick="_rmForget()">'+(_rmForgetArm===_rmSel?'Tap Again to Forget':'Forget')+'</button></div></div>';
+}
+async function _rmSet(o){ o.serial=_rmSel; if(await _rmPost(o)){ await renderRemote(); toast('Saved — the remote picks it up within a few seconds'); } }
+async function _rmRename(){ const v=(document.getElementById('rm-name').value||'').trim(); if(v) _rmSet({name:v}); }
+async function _rmSetKey(key, which, val){
+  const area=_rmMapRoom||(_rmCur()||{}).home_room; if(!area) return;
+  let action=null;
+  if(val==='default') action='default';
+  else if(val!=='none'){ const i=val.indexOf(':'), k=val.slice(0,i), v=val.slice(i+1); action={}; action[k]=v;
+    if(k==='scene'||k==='script'){ const st=(_states||[]).find(function(x){ return x.entity_id===v; }); action.label=(st&&st.attributes&&st.attributes.friendly_name)||v; }
+    if(k==='activity'){ const a=(_rmActs[area]||[]).find(function(x){ return x.key===v; }); action.label=a?a.label:v; } }
+  _rmSet({map:{area:area, key:key, which:which, action:action}});
+}
+async function _rmForget(){
+  if(_rmForgetArm!==_rmSel){ _rmForgetArm=_rmSel; renderRemote(); return; }
+  if(await _rmPost({forget:_rmSel})){ toast('Remote forgotten'); openDashRemote(); }
 }
 async function _wpSetMic(mic){
   const st=(_wpList[_wpSel]||{}).settings||{};
@@ -17106,7 +17254,7 @@ function ahRemove(){
     });
 }
 
-const PANELS=['home','library','manage','backups','maintenance','site','credentials','unifi','unifi-net','users','room','integration','rooms','activities','automations','scripts','irrigation','savant','helpers','blueprints','labels','tech','music','applehome','dashremote','wallpanel','wpedit','navlayout','hub','assist2','systems','toolbox','device','history'];
+const PANELS=['home','library','manage','backups','maintenance','site','credentials','unifi','unifi-net','users','room','integration','rooms','activities','automations','scripts','irrigation','savant','helpers','blueprints','labels','tech','music','applehome','dashremote','wallpanel','remotecfg','wpedit','navlayout','hub','assist2','systems','toolbox','device','history'];
 function show(panel){
   PANELS.forEach(p=>{ const el=document.getElementById('panel-'+p); if(el) el.classList.toggle('active', p===panel); });
   // One-shot entrance arm: content pops in on panel ENTRY, then disarms so

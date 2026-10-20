@@ -215,6 +215,10 @@ except Exception:  # optional - missing modules must not stop boot
     _door = None
     roomorder = None
 try:
+    from proos import remotes as _remotes, remotekeys as _remotekeys   # the ProOS Remote (register 969j)
+except Exception:  # noqa: BLE001 — never stop boot
+    _remotes = _remotekeys = None
+try:
     from proos import layouts as _layouts        # dashboard layouts on the box (register 960)
 except Exception:  # noqa: BLE001
     _layouts = None
@@ -3727,6 +3731,9 @@ def factory_reset(clear_proos_data=False, keep_auth=False):
                    # the key to the kiosk screen app's internal door (register 963) — the next pass makes a new one and
                    # gives it to the kiosk
                    "kiosk_rest.json",
+                   # the ProOS Remotes this home accepted, and the logins Core made for them (register 969j) — the reset
+                   # deletes the platform's users, so every remote shows a new code to be accepted again
+                   "remotes.json", "remote_logins.json",
                    # the installer-pasted Apple Music token (register 759) — like the AI key, placed
                    # per box by the installer; a reset home is set up afresh
                    "apple_music_token.json",
@@ -4797,6 +4804,24 @@ _proof_runs: dict = {}
 _proof_lock = threading.Lock()
 
 
+_REMOTE_STATE: dict = {}       # (serial, area) -> (at, room state) — two seconds, so a run of D-pad presses reads once
+
+
+def _remote_feats(eid):
+    try:
+        return int(((_client.snapshot([eid]).get(eid) or {}).get("attributes") or {}).get("supported_features") or 0)
+    except Exception:  # noqa: BLE001
+        return 0
+
+
+def _journal_emit_safe(area, kind, data):
+    try:
+        if _journal_mod is not None:
+            _journal_mod.emit(area, kind, data)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 class Handler(BaseHTTPRequestHandler):
     def _send(self, code: int, payload: dict):
         body = json.dumps(payload).encode()
@@ -4873,6 +4898,333 @@ class Handler(BaseHTTPRequestHandler):
         # (a name is still resolved at get_controller's door, register 441)
         return unquote(parts[1])
 
+    # ── THE ProOS REMOTE (register 969j) ─────────────────────────────────────────────────────────────────────────────
+    # A remote is a screen with its own platform login (made when an installer accepts it). Every hard key is
+    # re-decided here from the room's live activity; the page never sends a service call of its own.
+    def _remote_who(self, q=None):
+        """(remote record, is_installer) for the caller, or (None, False). An installer may open the remote page in a
+        browser to see what a remote shows (?as=<serial>, else an All Rooms view)."""
+        u = getattr(self, "_user", None)
+        if not u or _remotes is None:
+            return None, False
+        r = _remotes.by_user(u.get("id"))
+        inst = bool(users and (u.get("is_admin") or u.get("is_owner") or users.is_tech(u.get("id"))))
+        if r:
+            return r, inst
+        if inst:
+            want = ((q or {}).get("as") or [""])[0]
+            d = _remotes.summary()["remotes"]
+            r = next((x for x in d if x.get("serial") == want), None)
+            return (r or {"serial": "installer", "name": "Installer View", "rooms": "all", "home_room": None}), True
+        return None, False
+
+    def _remote_areas(self, r):
+        try:
+            ids = [a.get("area_id") for a in (_client.area_registry() or []) if a.get("area_id")]
+            useful = _remotes.useful_rooms(ids, _client.entity_registry() or [], _client.device_registry() or [])
+        except Exception:  # noqa: BLE001
+            ids, useful = [], []
+        ok = _remotes.allowed_rooms(r, useful)
+        hr = r.get("home_room")
+        if r.get("rooms") == "all" and hr and hr in ids and hr not in ok:
+            ok.insert(0, hr)
+        if r.get("rooms") != "all" and hr and hr in ids:
+            ok = [hr]
+        return ok, ids
+
+    def _remote_state(self, r, area, fresh=False):
+        key = (r.get("serial"), area)
+        hit = _REMOTE_STATE.get(key)
+        if hit and not fresh and time.time() - hit[0] < 2.0:
+            return hit[1]
+        st = _remotes.room_state(area, r, _client, project,
+                                 lambda k, e: _remotekeys.plan(k, e, _client.entity_registry() or [],
+                                                              _remote_feats(e)),
+                                 lambda e, f: _remotekeys.capabilities(e, _client.entity_registry() or [], f))
+        _REMOTE_STATE[key] = (time.time(), st)
+        return st
+
+    def _remote_get(self, parts, q):
+        if _remotes is None:
+            return self._send(503, {"error": "remote module not loaded"})
+        if parts == ["remote", "hello"]:
+            return self._send(200, _remotes.hello((q.get("serial") or [""])[0], (q.get("model") or [""])[0],
+                                                  (q.get("nonce") or [""])[0], (q.get("app") or [""])[0]))
+        if parts == ["remotes"]:
+            u = getattr(self, "_user", None)
+            if not (users and u and (u.get("is_admin") or u.get("is_owner") or users.is_tech(u.get("id")))):
+                return self._send(403, {"error": "installer access required"})
+            return self._send(200, _remotes.summary())
+        r, inst = self._remote_who(q)
+        if not r:
+            return self._send(403, {"error": "this sign-in is not a ProOS remote"})
+        allowed, all_ids = self._remote_areas(r)
+        if parts == ["remote", "me"]:
+            names = {a.get("area_id"): a.get("name") for a in (_client.area_registry() or [])}
+            pics = {a.get("area_id"): bool(a.get("picture")) for a in (_client.area_registry() or [])}
+            rooms = []
+            for a in allowed:
+                lab = None
+                try:
+                    s = _client.snapshot(["sensor.proos_activity_%s" % a]).get("sensor.proos_activity_%s" % a) or {}
+                    if s.get("state") not in (None, "off", "idle", "standby", "unknown", "unavailable"):
+                        lab = (s.get("attributes") or {}).get("label") or s.get("state")
+                except Exception:  # noqa: BLE001
+                    pass
+                rooms.append({"area": a, "name": names.get(a, a), "photo": pics.get(a, False), "now": lab})
+            out = {k: v for k, v in r.items() if k not in ("user_id", "shot")}
+            out["rooms_list"] = rooms
+            out["installer"] = inst
+            return self._send(200, out)
+        if parts[:2] == ["remote", "room"] and len(parts) == 3:
+            area = parts[2]
+            if area not in allowed:
+                return self._send(403, {"error": "this remote isn't set to that room"})
+            try:
+                return self._send(200, self._remote_state(r, area, fresh=bool(q.get("fresh"))))
+            except Exception as e:  # noqa: BLE001
+                return self._send(502, {"error": str(e)})
+        if parts[:2] == ["remote", "photo"] and len(parts) == 3:
+            area = parts[2]
+            if area not in all_ids:
+                return self._send(404, {"error": "no such room"})
+            pic = next((a.get("picture") for a in (_client.area_registry() or []) if a.get("area_id") == area), None)
+            if not pic:
+                return self._send(404, {"error": "this room has no photo"})
+            try:
+                ctype, data = _platform_get_bytes(pic.replace("/512x512", "/original") if "/api/image" in pic else pic)
+                return self._send_bytes(200, ctype, data, cache="private, max-age=3600")
+            except Exception as e:  # noqa: BLE001
+                return self._send(502, {"error": str(e)})
+        if parts == ["remote", "art"]:
+            eid = (q.get("e") or [""])[0]
+            if not eid.startswith("media_player."):
+                return self._send(400, {"error": "a media player is required"})
+            pic = ((_client.snapshot([eid]).get(eid) or {}).get("attributes") or {}).get("entity_picture")
+            if not pic:
+                return self._send(404, {"error": "nothing to show"})
+            try:
+                if pic.startswith("/"):
+                    ctype, data = _platform_get_bytes(pic)
+                else:
+                    with urllib.request.urlopen(pic, timeout=10) as resp:
+                        ctype, data = resp.headers.get("Content-Type") or "image/jpeg", resp.read()
+                return self._send_bytes(200, ctype, data, cache="private, max-age=60")
+            except Exception as e:  # noqa: BLE001
+                return self._send(502, {"error": str(e)})
+        return self._send(404, {"error": "not found"})
+
+    def _remote_post(self, parts, b):
+        if _remotes is None:
+            return self._send(503, {"error": "remote module not loaded"})
+        if parts == ["remote", "hello"]:
+            return self._send(200, _remotes.hello(b.get("serial"), b.get("model"), b.get("nonce"), b.get("app")))
+        u = getattr(self, "_user", None)
+        if parts == ["remotes"]:
+            if not (users and u and (u.get("is_admin") or u.get("is_owner") or users.is_tech(u.get("id")))):
+                return self._send(403, {"error": "installer access required"})
+            if b.get("accept"):
+                try:
+                    out = _remotes.accept(b["accept"], _ws_call, _remotes.mint_llat)
+                except Exception as e:  # noqa: BLE001
+                    return self._send(502, {"error": str(e)})
+                _journal_emit_safe("site", "remote_accepted", {"serial": b["accept"], "by": u.get("name")})
+                return self._send(200, out)
+            if b.get("forget"):
+                return self._send(200, _remotes.forget(b["forget"], _ws_call))
+            if b.get("serial"):
+                _REMOTE_STATE.clear()
+                return self._send(200, _remotes.set_settings(b["serial"], b))
+            return self._send(400, {"error": "accept, forget or serial required"})
+        r, inst = self._remote_who()
+        if not r:
+            return self._send(403, {"error": "this sign-in is not a ProOS remote"})
+        if parts == ["remote", "status"]:
+            got = _remotes.status(u.get("id"), b) if not inst or _remotes.by_user(u.get("id")) else None
+            return self._send(200, {"ok": bool(got)})
+        allowed, _ = self._remote_areas(r)
+        area = b.get("area") or ""
+        if area not in allowed:
+            return self._send(403, {"error": "this remote isn't set to that room"})
+        if parts == ["remote", "key"]:
+            key = str(b.get("key") or "")
+            if key not in _remotes.HARD:
+                return self._send(400, {"error": "unknown key"})
+            try:
+                st = self._remote_state(r, area)
+                ctx = {"area": area, "activity": st.get("activity"),
+                       "vol_eid": (st.get("watching") or {}).get("vol_entity")
+                       or (None if st.get("activity") else (st.get("music") or {}).get("entity")),
+                       "music_eid": (st.get("music") or {}).get("entity"),
+                       "vol_muted": bool((st.get("watching") or {}).get("muted")) if st.get("watching")
+                       else bool((st.get("music") or {}).get("muted")),
+                       "map": _remotes.map_for(r, area), "rooms_mode": r.get("rooms") or "home"}
+                act = _remotes.resolve(key, bool(b.get("long")), ctx,
+                                       lambda k, e: _remotekeys.plan(k, e, _client.entity_registry() or [],
+                                                                    _remote_feats(e)))
+                return self._send(200, self._remote_do(r, area, act, st))
+            except Exception as e:  # noqa: BLE001
+                return self._send(502, {"error": str(e)})
+        if parts == ["remote", "activity"]:
+            try:
+                st = self._remote_state(r, area)
+                return self._send(200, self._remote_do(r, area, {"fire": b.get("key") or ""}, st))
+            except Exception as e:  # noqa: BLE001
+                return self._send(502, {"error": str(e)})
+        if parts == ["remote", "control"]:
+            try:
+                return self._send(200, self._remote_control(area, b))
+            except Exception as e:  # noqa: BLE001
+                return self._send(502, {"error": str(e)})
+        return self._send(404, {"error": "not found"})
+
+    def _remote_do(self, r, area, act, st):
+        """Carry out one resolved action. Screen-only actions (open/nav) are handed straight back."""
+        if not act:
+            return {"did": None}
+        if "open" in act or "nav" in act:
+            return act
+        out = {"did": True}
+        if "call" in act:
+            c = dict(act["call"]["data"])
+            eid = c.pop("entity_id")
+            _client.call_service(act["call"]["domain"], act["call"]["service"], eid, c or None)
+            if act.get("hud") == "volume":
+                time.sleep(0.25)
+                v = _client.snapshot([eid]).get(eid) or {}
+                at = v.get("attributes") or {}
+                lvl = at.get("volume_level")
+                out["hud"] = {"kind": "volume", "entity": eid, "name": at.get("friendly_name") or eid,
+                              "level": int(round(float(lvl) * 100)) if isinstance(lvl, (int, float)) else None,
+                              "muted": bool(at.get("is_volume_muted"))}
+            _REMOTE_STATE.pop((r.get("serial"), area), None)
+            return out
+        if "fire" in act:
+            acts = st.get("activities") or []
+            want = act["fire"]
+            if want == "off":
+                a = next((x for x in acts if x.get("key") in ("tv_off", "off", "room_off")), None)
+            else:
+                a = next((x for x in acts if x.get("key") == want), None)
+            if not a:
+                return {"did": False, "error": "that activity isn't in this room"}
+            full = (project.activities_status(_client, project.load(), area) or {}).get("activities", []) if project else []
+            script = next((x.get("entity_id") for x in full if x.get("key") == a.get("key")), None)
+            if not script:
+                return {"did": False, "error": "that activity isn't stored on the box"}
+            steps = None
+            try:
+                steps = project.room_fire_plan(_client, project.load(), area, script) if project else None
+            except Exception:  # noqa: BLE001
+                steps = None
+            if steps is None:
+                steps = get_controller(area).fire_plan(script)
+            for s_ in steps or []:
+                _client.call_service(s_["domain"], s_["service"], s_["entity_id"])
+            _journal_emit_safe(area, "remote_activity", {"activity": a.get("key"), "remote": r.get("serial"),
+                                                          "steps": len(steps or [])})
+            _REMOTE_STATE.pop((r.get("serial"), area), None)
+            return {"did": True, "toast": {"kind": "activity", "label": a.get("label"), "area": st.get("name")}}
+        if "scene" in act:
+            _client.call_service("scene", "turn_on", act["scene"])
+            return {"did": True, "toast": {"kind": "scene", "label": act.get("label") or act["scene"]}}
+        if "script" in act:
+            _client.call_service("script", "turn_on", act["script"])
+            return {"did": True, "toast": {"kind": "scene", "label": act.get("label") or act["script"]}}
+        if "activity" in act:
+            return self._remote_do(r, area, {"fire": act["activity"]}, st)
+        if act.get("do") == "room_all_off":
+            res = self._remote_do(r, area, {"fire": "off"}, st) if st.get("activity") else {}
+            for l in st.get("lights") or []:
+                if l.get("on"):
+                    _client.call_service("light", "turn_off", l["entity"])
+            m = st.get("music") or {}
+            if m.get("state") == "playing":
+                _client.call_service("media_player", "media_pause", m["entity"])
+            _REMOTE_STATE.pop((r.get("serial"), area), None)
+            return {"did": True, "toast": {"kind": "off", "label": "All Off", "area": st.get("name"),
+                                           "activity": bool(res.get("did"))}}
+        if act.get("do") == "lights_toggle":
+            ls = [l for l in st.get("lights") or [] if l.get("available")]
+            anyon = any(l.get("on") for l in ls)
+            for l in ls:
+                _client.call_service("light", "turn_off" if anyon else "turn_on", l["entity"])
+            _REMOTE_STATE.pop((r.get("serial"), area), None)
+            return {"did": True, "toast": {"kind": "lights", "label": "Lights Off" if anyon else "Lights On"}}
+        if act.get("do") == "covers_toggle":
+            cs = st.get("covers") or []
+            anyopen = any(c.get("state") in ("open", "opening") for c in cs)
+            for c in cs:
+                _client.call_service("cover", "close_cover" if anyopen else "open_cover", c["entity"])
+            _REMOTE_STATE.pop((r.get("serial"), area), None)
+            return {"did": True, "toast": {"kind": "shades", "label": "Closing" if anyopen else "Opening"}}
+        if act.get("do") == "music_play_pause":
+            m = st.get("music") or {}
+            if not m.get("entity"):
+                return {"did": False}
+            _client.call_service("media_player", "media_play_pause", m["entity"])
+            _REMOTE_STATE.pop((r.get("serial"), area), None)
+            return {"did": True}
+        if act.get("do") == "climate_toggle":
+            c = st.get("climate") or {}
+            if not c.get("entity"):
+                return {"did": False}
+            _client.call_service("climate", "turn_on" if c.get("mode") == "off" else "turn_off", c["entity"])
+            _REMOTE_STATE.pop((r.get("serial"), area), None)
+            return {"did": True, "toast": {"kind": "climate", "label": "Climate On" if c.get("mode") == "off" else "Climate Off"}}
+        return {"did": None}
+
+    def _remote_control(self, area, b):
+        """An on-screen control: only a device in this room, and only the actions its kind has."""
+        eid = str(b.get("entity") or "")
+        dom = eid.split(".", 1)[0]
+        ents = _client.entity_registry() or []
+        dev_area = {d.get("id"): d.get("area_id") for d in (_client.device_registry() or [])}
+        from proos.membership import area_of
+        row = next((e for e in ents if e.get("entity_id") == eid), None)
+        if not row or area_of(row, dev_area) != area:
+            # the room's committed speaker may live in another room's device list (a Sonos group); allow it by record
+            rec = project._resolve_rec(project.load(), area) if project else None
+            okset = set()
+            for k in ("audio_volume", "video_volume", "speakers", "audio"):
+                for x in (rec or {}).get(k) or []:
+                    okset.add(x.get("entity") if isinstance(x, dict) else x)
+            if eid not in okset:
+                return {"did": False, "error": "that device isn't in this room"}
+        a, v = str(b.get("action") or ""), b.get("value")
+        calls = {
+            ("light", "toggle"): ("light", "toggle", None), ("light", "on"): ("light", "turn_on", None),
+            ("light", "off"): ("light", "turn_off", None),
+            ("cover", "open"): ("cover", "open_cover", None), ("cover", "close"): ("cover", "close_cover", None),
+            ("cover", "stop"): ("cover", "stop_cover", None),
+            ("media_player", "play_pause"): ("media_player", "media_play_pause", None),
+            ("media_player", "next"): ("media_player", "media_next_track", None),
+            ("media_player", "prev"): ("media_player", "media_previous_track", None),
+            ("scene", "activate"): ("scene", "turn_on", None),
+            ("climate", "on"): ("climate", "turn_on", None), ("climate", "off"): ("climate", "turn_off", None),
+        }
+        if (dom, a) in calls:
+            d, s_, data = calls[(dom, a)]
+            _client.call_service(d, s_, eid, data)
+        elif dom == "light" and a == "brightness":
+            _client.call_service("light", "turn_on", eid, {"brightness_pct": max(1, min(100, int(v)))})
+        elif dom == "cover" and a == "position":
+            _client.call_service("cover", "set_cover_position", eid, {"position": max(0, min(100, int(v)))})
+        elif dom == "climate" and a == "temperature":
+            _client.call_service("climate", "set_temperature", eid, {"temperature": float(v)})
+        elif dom == "climate" and a == "mode":
+            _client.call_service("climate", "set_hvac_mode", eid, {"hvac_mode": str(v)})
+        elif dom == "climate" and a == "fan":
+            _client.call_service("climate", "set_fan_mode", eid, {"fan_mode": str(v)})
+        elif dom == "media_player" and a == "volume":
+            _client.call_service("media_player", "volume_set", eid, {"volume_level": max(0, min(100, int(v))) / 100.0})
+        else:
+            return {"did": False, "error": "that isn't something this device does"}
+        for k in list(_REMOTE_STATE):
+            if k[1] == area:
+                _REMOTE_STATE.pop(k, None)
+        return {"did": True}
+
     def _auth(self):
         self._user = None
         if auth is None:
@@ -4888,6 +5240,9 @@ class Handler(BaseHTTPRequestHandler):
             if not tok and self.path.split("?")[0].strip("/") in ("events/stream", "events"):
                 tok = (parse_qs(urlparse(self.path).query).get("token")
                        or [""])[0] or None
+            if not tok and self.path.split("?")[0].strip("/").startswith(("remote/photo/", "remote/art")):
+                # a picture on the remote's screen is loaded by <img>, which cannot set a header (register 969j)
+                tok = (parse_qs(urlparse(self.path).query).get("token") or [""])[0] or None
             self._user = auth.verify(tok) if tok else None
         except Exception:
             self._user = None
@@ -4900,12 +5255,16 @@ class Handler(BaseHTTPRequestHandler):
             # /local/pro.html is today — the login lives INSIDE the app.
             # Phase 2 (reg 268) adds the bare root: it only ever redirects
             # to the Pro page, serving no data.
-            if path in ("", "app/pro", "app/dashboard"):
+            if path in ("", "app/pro", "app/dashboard", "app/remote"):
                 return True
             # The box relaying an alert carries no ProOS login (register
             # 309); do_POST verifies the body against HA's own registrations
             # before anything is sent. Only the POST; a GET here is not public.
             if path in ("push", "push/forget") and self.command == "POST":
+                return True
+            # A remote saying hello carries no login yet (register 969j): it can only ever create a WAITING entry an
+            # installer must accept, or collect the sign-in made for the app that holds its own secret.
+            if path == "remote/hello":
                 return True
             if path not in auth.PUBLIC_PATHS:
                 self._send(401, {"error": "authentication required"})
@@ -5081,7 +5440,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.end_headers()
                 return
             if parts[:1] == ["app"]:
-                if len(parts) == 2 and parts[1] in ("pro", "dashboard"):
+                if len(parts) == 2 and parts[1] in ("pro", "dashboard", "remote"):
                     fp = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                       "apps", parts[1] + ".html")
                     try:
@@ -6461,6 +6820,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, _nc)
             if parts == ["navcaps"]:
                 return self._send(200, navconfig.load_caps(_live_areas()) if navconfig else {})
+            if parts[:1] == ["remote"] or parts == ["remotes"]:
+                return self._remote_get(parts, parse_qs(urlparse(self.path).query))
             if parts == ["layouts"]:
                 # REGISTER 960: a screen's dashboard layout, page by page — its own if it has one, else its kind's
                 # home default. ?kind=phone|tablet|panel&screen=<device id>. ?summary=1 lists what the box holds.
@@ -6916,7 +7277,8 @@ class Handler(BaseHTTPRequestHandler):
     # shipping: both PWAs attach their tokens to every :8770 call, and the
     # dashboard's homeowner writes (music, providers/oauth, scenes/photo,
     # room_order, navcaps, areas, assist) are all HOUSEHOLD class.
-    _POST_OPEN = ("auth/login", "dashboard/ack")   # auth/claim left 16 Oct 2026 (register 902 — the sign-in QR is gone)
+    _POST_OPEN = ("auth/login", "dashboard/ack",   # auth/claim left 16 Oct 2026 (register 902 — the sign-in QR is gone)
+                  "remote/hello")   # a remote asking to join — it can only make a WAITING entry (register 969j)
     _POST_INSTALLER = (
         "dashboard/publish", "sync", "provision/claim", "credentials/",
         "auth/qr",               # minting a homeowner sign-in code — reg 438
@@ -6932,6 +7294,7 @@ class Handler(BaseHTTPRequestHandler):
         "music/install", "music/enabled", "music/connect", "music/setup",
         "project/heal",          # rebuilds a room record — commissioning work
         "apps/brands/",          # teaching/retiring an app — commissioning work
+        "remotes",               # accepting, setting up or forgetting a ProOS Remote (register 969j)
     )
     # Homeowner actions that sit UNDER an installer prefix but are reads in
     # disguise — a POST only because they carry a body, not a config write.
@@ -9374,6 +9737,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, navconfig.save(self._body() or {}, _live_areas()))
             if parts == ["navcaps"]:
                 return self._send(200, navconfig.save_caps(self._body() or {}, _live_areas()) if navconfig else {})
+            if parts[:1] == ["remote"] or parts == ["remotes"]:
+                return self._remote_post(parts, self._body() or {})
             if parts == ["layouts"]:
                 # REGISTER 960. Body: {kind, screen, page, widgets, scope:"screen"|"default", name}
                 #   adopt:{page: widgets}  -> copy a device's own layouts up (never overwrites anything on the box)
