@@ -417,7 +417,7 @@ function go(screen, push) {
   if (push !== false && SCREEN !== screen && ['pair','msg','rest','voice'].indexOf(SCREEN) < 0) STACK.push(SCREEN);
   SCREEN = screen; render();
 }
-function back() { if (STACK.length) { SCREEN = STACK.pop(); render(); } else if (SCREEN !== mainScreen()) go(mainScreen(), false); }
+function back() { if (STACK.length) { SCREEN = STACK.pop(); render(); } else if (SCREEN !== 'main') home(); }   // the page's ‹ always leads back to Services (969r)
 function mainScreen() { return ST && ST.watching ? 'watching' : 'main'; }
 function home() { STACK = []; PANE = 1; SCREEN = 'main'; render(); }
 
