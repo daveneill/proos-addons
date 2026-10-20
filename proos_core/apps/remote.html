@@ -195,21 +195,29 @@ function svcTiles() {
   const t = [];
   const w = ST.watching, m = ST.music, ls = ST.lights || [], cl = ST.climate, cv = ST.covers || [];
   const mOn = m && (m.state === 'playing' || m.state === 'paused') && m.title;
-  if (w) {
-    const left = minsLeft(w), pct = posPct(w);
-    t.push('<div class="gl act fill press" data-go="watching" style="flex:1.5;min-height:150px"><div class="ldot"></div><div class="cen">' +
-      (w.app ? '<div style="position:relative;width:112px;height:67px;border-radius:13px;overflow:hidden;box-shadow:0 10px 24px rgba(0,0,0,.5);background:rgba(255,255,255,.1)"><div class="cen" style="font-size:13px;font-weight:600">'+esc(w.app)+'</div>'+img(TILE(w.app), 'ph', w.app)+'</div>'
-        : '<div style="width:64px;height:64px;border-radius:18px;background:rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center">'+ic('tv',30)+'</div>') +
-      '<div><div class="t1">'+esc(w.title || w.label || 'Watching')+'</div><div class="t2">'+esc([w.series && w.series !== w.title ? w.series : '', left!=null ? left+' min left' : ''].filter(Boolean).join(' · ') || w.source_name || '')+'</div></div></div>' +
-      (pct!=null?'<div class="bar" style="position:absolute;left:18px;right:18px;bottom:14px"><i style="width:'+pct+'%"></i></div>':'') + '</div>');
-  } else if (mOn) {
-    t.push('<div class="gl act fill press" data-go="music" style="flex:1.5;min-height:150px">'+(m.state==='playing'?'<div class="ldot"></div>':'')+'<div class="cen">' +
-      '<div style="width:84px;height:84px;border-radius:14px;overflow:hidden;position:relative;background:linear-gradient(135deg,#d4612a,#7c2d12);box-shadow:0 10px 24px rgba(0,0,0,.5)">'+(m.art?img(artUrl(m.entity)):'')+'</div>' +
-      '<div><div class="t1">'+esc(m.title)+'</div><div class="t2">'+(m.state==='playing'?'<span class="eq"><i></i><i></i><i></i></span>':'')+esc([m.artist, m.name].filter(Boolean).join(' · '))+'</div></div></div></div>');
-  } else if ((ST.activities || []).some(a => a.kind !== 'tv_off' && a.key !== 'tv_off')) {
-    t.push('<div class="gl fill press" data-go="activities" style="min-height:110px"><div class="cen">'+ic('tv',44,'#fff',1.5) +
-      '<div><div class="t1">Watch</div><div class="t2">'+(ST.activities.filter(a => a.key !== 'tv_off').length)+' Activities</div></div></div></div>');
+  // THE SERVICES SCREEN IS THE ROOM'S ACTIVITIES, ONE PRESS EACH (Dave, 21 Oct 08:29: "Activities are supposed to be on
+  // the main page as one button presses like the Savant"). A tap starts the activity; the one running carries the dot
+  // and its live programme, and a tap on it opens its controls. Lights, Climate and Shades have their own hard keys —
+  // they appear here only in a room with no activities.
+  const acts = (ST.activities || []).filter(a => a.key !== 'tv_off' && a.kind !== 'tv_off');
+  if (acts.length) {
+    acts.forEach(a => {
+      const nm = String(a.label || '').replace(/^(watch|listen to|play)\s+/i, '');
+      const logo = '<div style="position:relative;width:112px;height:67px;border-radius:13px;overflow:hidden;box-shadow:0 10px 24px rgba(0,0,0,.5);background:rgba(255,255,255,.1)">' +
+        '<div class="cen" style="padding:0">'+ic(a.kind === 'music' ? 'note' : 'tv', 30)+'</div>'+img(TILE(nm), 'ph', nm)+'</div>';
+      let sub = esc(a.kind === 'music' ? 'Music' : 'Watch'), bar = '';
+      if (a.on && w && a.kind !== 'music') {
+        const left = minsLeft(w), pct = posPct(w);
+        sub = esc([w.title, left != null ? left + ' min left' : ''].filter(Boolean).join(' · ') || 'On Now');
+        if (pct != null) bar = '<div class="bar" style="position:absolute;left:18px;right:18px;bottom:14px"><i style="width:'+pct+'%"></i></div>';
+      } else if (a.on && mOn) sub = (m.state === 'playing' ? '<span class="eq"><i></i><i></i><i></i></span>' : '') + esc([m.title, m.artist].filter(Boolean).join(' · '));
+      else if (a.on) sub = 'On Now';
+      t.push('<div class="gl fill press'+(a.on?' act':'')+'" '+(a.on ? 'data-go="'+(a.kind === 'music' ? 'music' : 'watching')+'"' : 'data-act="'+esc(a.key)+'"')+' style="min-height:120px">' +
+        (a.on ? '<div class="ldot"></div>' : '') + '<div class="cen">' + logo + '<div><div class="t1">'+esc(nm || a.label)+'</div><div class="t2">'+sub+'</div></div></div>' + bar + '</div>');
+    });
+    return t;
   }
+  if (w) t.push('<div class="gl act fill press" data-go="watching" style="min-height:120px"><div class="ldot"></div><div class="cen">'+ic('tv',44,'#fff',1.5)+'<div><div class="t1">'+esc(w.title || w.label || 'Watching')+'</div></div></div></div>');
   if (ls.length) {
     const on = ls.filter(l => l.on), avg = on.length ? Math.round(on.reduce((a, l) => a + (l.brightness || 100), 0) / on.length) : 0;
     t.push('<div class="gl fill press" data-go="lights" style="min-height:110px">'+(on.length?'<div class="glow" style="background:radial-gradient(circle,rgba(255,196,107,.38) 0%,rgba(255,196,107,0) 65%)"></div>':'') +
@@ -496,7 +504,7 @@ document.addEventListener('click', e => {
     toast('<b>Opening ' + esc(s.name || cap(s.app)) + '…</b>');
     return api('/remote/shortcut', {body: {area: AREA, app: s.app, target: s.target}}).then(after).catch(err => toast(esc(err.message), true)); }
   if (d.scene) return api('/remote/scene', {body: {area: AREA, entity: d.scene}}).then(after).catch(err => toast(esc(err.message), true));
-  if (d.act) return api('/remote/activity', {body: {area: AREA, key: d.act}}).then(r => { after(r); STACK = []; setTimeout(() => go(mainScreen(), false), 900); }).catch(err => toast(esc(err.message), true));
+  if (d.act) { toast('<b>Starting…</b>'); return api('/remote/activity', {body: {area: AREA, key: d.act}}).then(r => { after(r); STACK = []; setTimeout(() => refresh(true).then(() => { if (ST && ST.watching) go('watching', false); }), 1500); }).catch(err => toast(esc(err.message), true)); }
   if (d.ctl) { const p = d.ctl.split('|'); return ctl(p[0], p[1]); }
   if (d.key) return key(d.key, false);
   if (d.room) { AREA = d.room; STACK = []; ST = null; PANE = 1; SCREEN = 'main'; render(); return refresh(true).then(() => go(mainScreen(), false)); }
@@ -536,7 +544,7 @@ function key(name, long) {
   const k = (ST && ST.keys && ST.keys[name]) ? ST.keys[name][long ? 'long' : 'press'] : null;
   if (k && k.open) {
     if (k.open === 'home') return home();
-    if (k.open === 'activities') return go(ST && ST.watching ? 'watching' : 'activities');
+    if (k.open === 'activities') return;   // no longer offered: Power is TV Off and nothing else (969q)
     if (k.open === 'voice') return startVoice();
     return go(k.open);
   }

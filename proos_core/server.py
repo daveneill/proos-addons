@@ -5153,6 +5153,8 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 a = next((x for x in acts if x.get("key") == want), None)
             if not a:
+                if want == "off":
+                    return {"did": None}       # a room with no TV: Power has nothing to switch off (969q)
                 return {"did": False, "error": "that activity isn't in this room"}
             full = (project.activities_status(_client, project.load(), area) or {}).get("activities", []) if project else []
             script = next((x.get("entity_id") for x in full if x.get("key") == a.get("key")), None)

@@ -297,7 +297,9 @@ def resolve(key: str, long: bool, ctx: dict, keyplan) -> dict | None:
     if key == "power":
         if long:
             return {"do": "room_all_off", "label": "All Off"}
-        return {"fire": "off", "label": "Room Off"} if watching else {"open": "activities"}
+        # 969q (Dave 21 Oct 08:29: "the power button is for the TV off thats it"): always the room's TV Off activity —
+        # it never opens a list of activities (those are one-press tiles on the main screen).
+        return {"fire": "off", "label": "TV Off"}
     if key == "home":
         return {"open": "home"}
     if key == "voice":
