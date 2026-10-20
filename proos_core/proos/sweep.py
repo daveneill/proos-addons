@@ -451,22 +451,36 @@ def check_backups(r, now):
         c = r.backups()
     except Exception as e:                                       # noqa: BLE001
         return [_item("8", "Backups", UNKNOWN, "could not read the box's backup schedule: %s" % e)]
+    # 969t (Dave, 21 Oct: "I have enabled backups and done a backup and it never clears … it has to have a solution"):
+    # every problem this check finds carries the button that fixes it, done through the platform's own backup.
+    now_btn = {"kind": "backup_now", "label": "Back Up Now"}
     if c.get("enabled") is False:
-        return [_item("8", "Backups", PROBLEM, "the box's automatic backups are off", _iso(now), card=True)]
+        return [_item("8", "Backups", PROBLEM, "the box's automatic backups are off", _iso(now), card=True,
+                      actions=[{"kind": "backup_on", "label": "Turn On Daily Backups"}])]
     if c.get("enabled") is None:
         return [_item("8", "Backups", UNKNOWN, "the box did not say whether automatic backups are on")]
+    if "locations" in c and not c.get("locations"):
+        # READ ON THE G-FLIP, 21 Oct: the schedule was on with no location (agent_ids []), so every automatic
+        # backup failed ("backup_manager_error") and a manual one failed the same way — the platform's own setup
+        # page asks for a location, and ProOS hides that page.
+        return [_item("8", "Backups", PROBLEM, "automatic backups are on but have nowhere to save — no backup "
+                      "location is chosen, so every backup fails", _iso(now), card=True,
+                      actions=[{"kind": "backup_location", "label": "Save on This Box and Back Up Now"}])]
     last = _ts(c.get("last_completed"))
+    tried = _ts(c.get("last_attempted"))
     nxt = _ts(c.get("next"))
+    failed = " — the last try (%s) failed" % _when(tried, now) if tried and (not last or tried > last + 60) else ""
     if not last:
-        return [_item("8", "Backups", PROBLEM, "automatic backups are on but none has completed", _iso(now), card=True)]
+        return [_item("8", "Backups", PROBLEM, "automatic backups are on but none has completed" + failed,
+                      _iso(now), card=True, actions=[now_btn])]
     # within one schedule period: the box's own next run is after now, and the last one is
     # no older than the gap between it and the next one the box has planned
     period = (nxt - last) if (nxt and nxt > last) else 86400
     if now - last <= period + 3600:
         return [_item("8", "Backups", CONFIRMED, "last automatic backup completed %s" % _when(last, now),
                       c.get("last_completed"))]
-    return [_item("8", "Backups", PROBLEM, "the last automatic backup was %s — older than the box's own schedule"
-                  % _when(last, now), c.get("last_completed"), card=True)]
+    return [_item("8", "Backups", PROBLEM, "the last automatic backup was %s — older than the box's own schedule%s"
+                  % (_when(last, now), failed), c.get("last_completed"), card=True, actions=[now_btn])]
 
 
 def check_savant(r, now):
@@ -545,18 +559,40 @@ def cards(now=None):
     already shows on Health are referenced in the report, never carded twice. They stand
     until a later sweep reads the thing right."""
     rep = load_last() or {}
+    acks = rep.get("acknowledged") or {}
     out = []
     for it in rep.get("items") or []:
         if not it.get("card"):
             continue
-        out.append({"kind": "sweep", "room": "ProOS", "slug": "site",
-                    "severity": "critical" if it["check"] in ("2", "1c", "4") else "warning",
-                    "audience": "installer", "title": "Sweep — %s" % it["subject"],
-                    "cause": it["words"] + " (found by the full sweep, %s)" % _when(rep.get("at"), now or time.time()),
-                    "subject": "sweep:%s:%s" % (it["check"], it["subject"]),
-                    "id": "sw-" + hashlib.sha1(("%s|%s" % (it["check"], it["subject"])).encode()).hexdigest()[:10],
-                    "since": rep.get("at"), "last_seen": rep.get("at"), "actions": it.get("actions") or []})
+        iid = "sw-" + hashlib.sha1(("%s|%s" % (it["check"], it["subject"])).encode()).hexdigest()[:10]
+        # 969t: every sweep card can be checked again on the spot — the whole sweep re-reads the box, so a card
+        # clears the moment the thing reads right, instead of standing until tomorrow's sweep.
+        acts = list(it.get("actions") or []) + [{"kind": "sweep_recheck", "label": "Check Again"}]
+        c = {"kind": "sweep", "room": "ProOS", "slug": "site",
+             "severity": "critical" if it["check"] in ("2", "1c", "4") else "warning",
+             "audience": "installer", "title": "Sweep — %s" % it["subject"],
+             "cause": it["words"] + " (found by the full sweep, %s)" % _when(rep.get("at"), now or time.time()),
+             "subject": "sweep:%s:%s" % (it["check"], it["subject"]),
+             "id": iid, "since": rep.get("at"), "last_seen": rep.get("at"), "actions": acts}
+        if iid in acks:
+            c["acknowledged"] = acks[iid]
+        out.append(c)
     return out
+
+
+def acknowledge(iid, now=None):
+    """Acknowledge a sweep card (969t; the same meaning as healthmon.dismiss — it stays listed, quiet). Kept in the
+    report itself, so the next sweep, which writes a fresh report, starts it afresh if the problem is still there."""
+    rep = load_last() or {}
+    if not any(c["id"] == iid for c in cards(now)):
+        return None
+    rep.setdefault("acknowledged", {})[iid] = {"at": now or time.time()}
+    os.makedirs(DATA, exist_ok=True)
+    tmp = LAST_PATH + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(rep, fh)
+    os.replace(tmp, LAST_PATH)
+    return {"id": iid}
 
 
 # ── the daily schedule — the time lives in /data, and so does "done today" ───

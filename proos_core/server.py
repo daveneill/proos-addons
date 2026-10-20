@@ -3848,6 +3848,89 @@ def _platform_backup_cfg():
     return _pb.summarise(ws_command(_client.base_url, _client._token, "backup/config/info", timeout=15) or {})
 
 
+def _backup_local_agent():
+    """The platform's own backup location on this box (969t) — the local agent the platform lists in
+    backup/agents/info ("hassio.local" on a ProOS image), never a guessed id. None when it lists none."""
+    from proos.ha_ws import ws_command
+    try:
+        info = ws_command(_client.base_url, _client._token, "backup/agents/info", timeout=15) or {}
+    except Exception:                                            # noqa: BLE001
+        return None
+    ids = [a.get("agent_id") for a in (info.get("agents") or []) if a.get("agent_id")]
+    return next((i for i in ids if i in ("hassio.local", "backup.local")), None) \
+        or next((i for i in ids if i.endswith(".local")), None)
+
+
+def _backup_wait_then_sweep(before, trigger):
+    """After a backup is asked for: wait (up to 30 min) for the platform to say a newer automatic backup completed
+    or the attempt ended, then re-run the sweep so the card reads the truth (969t)."""
+    from proos.ha_ws import ws_command
+    deadline = time.time() + 1800
+    time.sleep(20)
+    while time.time() < deadline:
+        try:
+            cfg = _platform_backup_cfg()
+            info = ws_command(_client.base_url, _client._token, "backup/info", timeout=15) or {}
+            if cfg.get("last_completed") != before.get("last_completed") or (
+                    cfg.get("last_attempted") != before.get("last_attempted") and info.get("state") == "idle"):
+                break
+        except Exception:                                        # noqa: BLE001
+            pass
+        time.sleep(15)
+    _sweep_run(trigger)
+
+
+def _sweep_fix(iid, kind):
+    """A sweep card's button (969t). Every sweep card has Check Again; the backup card's buttons act through the
+    platform's own backup (backup/config/update, backup/generate_with_automatic_settings). The card itself is only
+    cleared by the sweep re-reading the box — never by this call returning."""
+    from proos import sweep as _sw
+    from proos.ha_ws import ws_command
+    card = next((c for c in _sw.cards() if c["id"] == iid), None)
+    if not card:
+        return {"ok": True, "cleared": True, "note": "Already fixed — that check reads right now."}
+    act = next((a for a in card.get("actions") or [] if kind in (None, a.get("kind"))), None)
+    if not act:
+        return {"error": "no such action"}
+    k = act["kind"]
+    if k == "sweep_recheck":
+        threading.Thread(target=_sweep_run, args=("recheck",), daemon=True, name="proos-sweep").start()
+        return {"ok": True, "did": "sweep_fix", "note": "Checking again — the card clears in a minute if it reads right."}
+    if k in ("backup_location", "backup_on", "backup_now"):
+        if not os.environ.get("SUPERVISOR_TOKEN"):
+            return {"error": "Backups are only available on the ProOS box"}
+        before = _platform_backup_cfg()
+        fields = {}
+        if k == "backup_on":
+            fields["schedule"] = {"recurrence": "daily"}
+        if k in ("backup_location", "backup_on") and not before.get("locations"):
+            agent = _backup_local_agent()
+            if not agent:
+                return {"error": "The box lists no place to save a backup on itself — its storage is not answering."}
+            fields["create_backup"] = {"agent_ids": [agent]}
+        try:
+            if fields:
+                ws_command(_client.base_url, _client._token, "backup/config/update", timeout=15, **fields)
+            if k in ("backup_location", "backup_now"):
+                ws_command(_client.base_url, _client._token, "backup/generate_with_automatic_settings", timeout=30)
+        except Exception as e:                                   # noqa: BLE001
+            return {"error": "The box refused: %s" % e}
+        if _journal_mod is not None:
+            try:
+                _journal_mod.emit("site", "repair", {"incident": iid, "action": k})
+            except Exception:                                    # noqa: BLE001
+                pass
+        if k == "backup_on":
+            threading.Thread(target=_sweep_run, args=("fix",), daemon=True, name="proos-sweep").start()
+            return {"ok": True, "did": "sweep_fix", "note": "Daily backups are on — checking again now."}
+        threading.Thread(target=_backup_wait_then_sweep, args=(before, "fix"), daemon=True,
+                         name="proos-backup-wait").start()
+        return {"ok": True, "did": "sweep_fix",
+                "note": ("Backups will save on this box. " if k == "backup_location" else "")
+                + "Backing up now — the card clears when the box says it finished (a few minutes)."}
+    return {"error": "that button isn't something this card can do"}
+
+
 class _SweepReaders:
     """The Full Assist Sweep's readers (register 663) — every one a platform or ProOS
     reading that already exists; the sweep adds no transport of its own."""
@@ -7453,7 +7536,12 @@ class Handler(BaseHTTPRequestHandler):
                 b = self._body() or {}
                 # REGISTER 926 item 5: dismiss = ACKNOWLEDGED — the card stays, listed under Seen, quiet until its
                 # reading changes; it clears only when its condition is gone.
-                inc = _healthmon_mod.dismiss((b.get("id") or "").strip())
+                _did_ = (b.get("id") or "").strip()
+                if _did_.startswith("sw-"):                    # a sweep card (969t)
+                    from proos import sweep as _sw_
+                    inc = _sw_.acknowledge(_did_)
+                else:
+                    inc = _healthmon_mod.dismiss(_did_)
                 if inc is None:
                     return self._send(404, {"error": "no such incident"})
                 return self._send(200, {"ok": True, "acknowledged": inc.get("id"),
@@ -7490,6 +7578,9 @@ class Handler(BaseHTTPRequestHandler):
                 # Assist reads what was tried, the physical path, and acts
                 # through the platform's controls; the card clears only when
                 # the next scan finds the condition gone, as ever.
+                if _iid_.startswith("sw-"):                    # a sweep card's button (969t)
+                    _o_ = _sweep_fix(_iid_, b.get("action"))
+                    return self._send(200 if not _o_.get("error") else 400, _o_)
                 _inc0 = _healthmon_mod.get(_iid_) or {}
                 _act0 = next((a for a in (_inc0.get("actions") or [])
                               if b.get("action") in (None, a.get("kind"))), None)
@@ -8683,7 +8774,7 @@ class Handler(BaseHTTPRequestHandler):
                 from proos import platform_backup as _pb
                 from proos.ha_ws import ws_command
                 try:
-                    fields = _pb.update_fields(self._body() or {}, _platform_backup_cfg())
+                    fields = _pb.update_fields(self._body() or {}, _platform_backup_cfg(), _backup_local_agent())
                 except ValueError as e:
                     return self._send(400, {"error": str(e)})
                 except Exception as e:                           # noqa: BLE001

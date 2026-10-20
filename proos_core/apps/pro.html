@@ -2876,7 +2876,7 @@ body.v3 .rh-card{border-radius:22px}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102004';
+const PROOS_BUILD='2026102101';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -18183,15 +18183,17 @@ async function renderHealth(){
     return '<div class="hlt-inc '+esc(i.severity||'warning')+(i.acknowledged?' seen':'')+'"'+nav+'>'
       +'<div class="t">'+esc(i.title||'')+'</div><div class="c">'+esc(i.cause||'')+'</div>'
       +'<div class="acts">'
-      +(fix?'<button class="btn-primary" style="padding:6px 14px;font-size:12px" onclick="event.stopPropagation();hltFix(\''+esc(i.id)+'\')">Fix now</button>':'')
+      +(fix?'<button class="btn-primary" style="padding:6px 14px;font-size:12px" onclick="event.stopPropagation();hltFix(\''+esc(i.id)+'\',\'reload\')">Fix now</button>':'')
       +(((i.actions||[]).some(a=>a.kind==='copy_applist'))?'<button class="btn-primary" style="padding:6px 14px;font-size:12px" onclick="event.stopPropagation();hltCopyApplist()">Copy app list</button>':'')
-      +(wit?'<button class="btn-primary" style="padding:6px 14px;font-size:12px" onclick="event.stopPropagation();hltFix(\''+esc(i.id)+'\')">Bind witness</button>':'')
-      +(aps?'<button class="btn-primary" style="padding:6px 14px;font-size:12px" onclick="event.stopPropagation();hltFix(\''+esc(i.id)+'\')">Apply recommended settings</button>':'')
-      +(rms?'<button class="btn-primary" style="padding:6px 14px;font-size:12px" onclick="event.stopPropagation();hltFix(\''+esc(i.id)+'\')">Restart ProOS Music</button>':'')
+      +(wit?'<button class="btn-primary" style="padding:6px 14px;font-size:12px" onclick="event.stopPropagation();hltFix(\''+esc(i.id)+'\',\'witness\')">Bind witness</button>':'')
+      +(aps?'<button class="btn-primary" style="padding:6px 14px;font-size:12px" onclick="event.stopPropagation();hltFix(\''+esc(i.id)+'\',\'apply_settings\')">Apply Recommended Settings</button>':'')
+      +(rms?'<button class="btn-primary" style="padding:6px 14px;font-size:12px" onclick="event.stopPropagation();hltFix(\''+esc(i.id)+'\',\'restart_music\')">Restart ProOS Music</button>':'')
       +(pair?'<button class="btn-primary" style="padding:6px 14px;font-size:12px" onclick="event.stopPropagation();hltPair(\''+esc(pair.entry_id)+'\')">Pair</button>':'')
       +cfm.map((a,k)=>'<button class="'+(k===0?'btn-primary':'btn-ghost')+'" style="padding:6px 14px;font-size:12px" onclick="event.stopPropagation();hltConfirm(\''+esc(a.entity)+'\',\''+esc(a.answer)+'\',this)">'+esc(a.label)+'</button>').join('')
       +(heal?'<button class="btn-primary" style="padding:6px 14px;font-size:12px" onclick="event.stopPropagation();hltHealRecords()">Rebuild record</button>':'')
       +(adopt?'<button class="btn-primary" style="padding:6px 14px;font-size:12px" onclick="event.stopPropagation();hltAdoptHome()">Adopt Its New Home</button>':'')
+      // 969t: a card's own buttons, named by Core (label) and sent back by kind — the sweep cards' fixes and Check Again.
+      +(i.actions||[]).filter(a=>_HLT_KIND_BTNS.indexOf(a.kind)>=0).map(a=>'<button class="'+(a.kind==='sweep_recheck'?'btn-ghost':'btn-primary')+'" style="padding:6px 14px;font-size:12px" onclick="event.stopPropagation();hltFix(\''+esc(i.id)+'\',\''+esc(a.kind)+'\')">'+esc(a.label||'Fix')+'</button>').join('')
       +'<button class="btn-ghost" style="padding:6px 14px;font-size:12px" onclick="event.stopPropagation();hltAskAssist(\''+esc(i.id)+'\')">Ask Assist</button>'
       +(rec?'<button class="btn-ghost" style="padding:6px 14px;font-size:12px" onclick="event.stopPropagation();openRoomHub(\''+esc(rec.room)+'\')">Save Room</button>':'')
       // REGISTER 926 item 5 (Dave: "dismiss should mean acknowledged"): Acknowledge keeps the card, quiet, under Seen
@@ -18456,10 +18458,13 @@ async function hltDismiss(id){
     else toast('Couldn\u2019t acknowledge that one');
   }catch(e){ toast(_coreFailWords('',e)); }
 }
-async function hltFix(id){
+// 969t: the button pressed is sent with the press. Until now every card's buttons posted only the card id and Core ran
+// the card's FIRST action — so on a two-button card (Prepare: open room / Apply Recommended Settings) the second did nothing.
+const _HLT_KIND_BTNS=['backup_location','backup_on','backup_now','sweep_recheck'];
+async function hltFix(id, kind){
   toast('Working…');
   try{
-    const r=await fetch(proCoreUrl()+'/health/fix',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:id})});
+    const r=await fetch(proCoreUrl()+'/health/fix',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(kind?{id:id,action:kind}:{id:id})});
     const d=await r.json();
     // VERIFY, then report (register 126): Core re-checks the incident's own
     // clear condition after the reload and answers {cleared, note} — the
@@ -18474,6 +18479,8 @@ async function hltFix(id){
     else if(d.ok&&d.did==='witness_bound'){ toast(d.cleared?'Witness bound ✓':'Witness bound — clears once the next scan confirms it'); renderHealth(); }
     else if(d.ok&&d.did==='settings_applied'){ toast('Recommended settings applied ✓'); renderHealth(); }
     else if(d.ok&&d.did==='restart_music'){ toast(d.note||'ProOS Music is restarting…'); }
+    else if(d.ok&&d.did==='sweep_fix'){ toast(d.note||'Working…'); setTimeout(()=>{ try{ renderHealth(); }catch(e){} }, 15000); setTimeout(()=>{ try{ renderHealth(); }catch(e){} }, 90000); }
+    else if(d.ok&&d.cleared){ toast(d.note||'Already fixed'); renderHealth(); }
     else if(d.navigate&&d.navigate.kind==='recommit'){ openRoomHub(d.navigate.room); }
     else if(d.error){ toast(d.error); }
   }catch(e){ toast(_coreFailWords('',e)); }

@@ -38,12 +38,16 @@ def summarise(info) -> dict:
     }
 
 
-def update_fields(partial, current) -> dict:
+def update_fields(partial, current, local_agent=None) -> dict:
     """Pro's partial edit ({enabled, time, keep, full}) → backup/config/update fields.
     Only what Pro changed is sent; the platform keeps everything else it owns
-    (locations, encryption key, add-on list)."""
+    (locations, encryption key, add-on list) — EXCEPT a schedule switched on with nowhere to save
+    (969t, read on the G-Flip 21 Oct: agent_ids [] made every backup fail): then the box's own storage, the
+    platform's local agent `local_agent` read from backup/agents/info, is named as the location."""
     out = {}
     cur = current or {}
+    if (partial.get("enabled") is True and local_agent and "locations" in cur and not cur.get("locations")):
+        out.setdefault("create_backup", {})["agent_ids"] = [local_agent]
     if "enabled" in partial or "time" in partial:
         enabled = bool(partial.get("enabled", cur.get("enabled")))
         sch = {"recurrence": "daily" if enabled else "never"}
@@ -61,5 +65,5 @@ def update_fields(partial, current) -> dict:
         out["retention"] = {"copies": n, "days": None}
     if "full" in partial:
         f = bool(partial["full"])
-        out["create_backup"] = {"include_all_addons": f, "include_database": f}
+        out.setdefault("create_backup", {}).update({"include_all_addons": f, "include_database": f})
     return out
