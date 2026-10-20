@@ -4941,6 +4941,22 @@ class Handler(BaseHTTPRequestHandler):
                                  lambda k, e: _remotekeys.plan(k, e, _client.entity_registry() or [],
                                                               _remote_feats(e)),
                                  lambda e, f: _remotekeys.capabilities(e, _client.entity_registry() or [], f))
+        # 969p: the Favourites screen is the room's App Shortcuts (the same ones the dashboard tiles launch), and each
+        # scene carries the photo the dashboard shows for it (the owner's own, else the curated match to its name).
+        try:
+            st["shortcuts"] = [{"app": s.get("app"), "name": s.get("name"), "target": s.get("target")}
+                               for s in (_shortcuts.room(area) if _shortcuts else []) if s.get("app")]
+        except Exception:  # noqa: BLE001
+            st["shortcuts"] = []
+        try:
+            ov = _scenephotos.load() if _scenephotos else {}
+            for s in (st.get("scenes") or []) + (st.get("home_scenes") or []):
+                rec = ov.get(s["entity"]) or {}
+                if rec.get("name"):
+                    s["name"] = rec["name"]
+                s["photo"] = rec.get("photo") or (_scenephotos.match(s.get("name") or "scene") if _scenephotos else "")
+        except Exception:  # noqa: BLE001
+            pass
         _REMOTE_STATE[key] = (time.time(), st)
         return st
 
@@ -5056,6 +5072,7 @@ class Handler(BaseHTTPRequestHandler):
                        "vol_eid": (st.get("watching") or {}).get("vol_entity")
                        or (None if st.get("activity") else (st.get("music") or {}).get("entity")),
                        "music_eid": (st.get("music") or {}).get("entity"),
+                       "music_state": (st.get("music") or {}).get("state"),
                        "vol_muted": bool((st.get("watching") or {}).get("muted")) if st.get("watching")
                        else bool((st.get("music") or {}).get("muted")),
                        "map": _remotes.map_for(r, area), "rooms_mode": r.get("rooms") or "home"}
@@ -5076,6 +5093,35 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, self._remote_control(area, b))
             except Exception as e:  # noqa: BLE001
                 return self._send(502, {"error": str(e)})
+        if parts == ["remote", "shortcut"]:
+            # 969p: a Favourites tile — only a shortcut the installer added to THIS room, launched the way the
+            # dashboard's tile launches it (shortcuts.launch: wake, route, send).
+            if not _shortcuts:
+                return self._send(503, {"error": "shortcuts unavailable"})
+            sc = next((x for x in _shortcuts.room(area) if x.get("app") == b.get("app")
+                       and (not b.get("target") or x.get("target") == b.get("target"))), None)
+            if not sc:
+                return self._send(404, {"error": "that app isn't set up in this room"})
+            try:
+                res = _shortcuts.launch(_client, project, area, sc)
+            except Exception as e:  # noqa: BLE001
+                return self._send(502, {"error": str(e)})
+            _REMOTE_STATE.pop((r.get("serial"), area), None)
+            return self._send(200, {"did": not res.get("error"), "error": res.get("error")})
+        if parts == ["remote", "scene"]:
+            # 969p: a Scenes card — a scene in a room this remote may control, or one that belongs to no room.
+            eid = str(b.get("entity") or "")
+            row = next((e for e in (_client.entity_registry() or []) if e.get("entity_id") == eid), None)
+            if not eid.startswith("scene.") or not row:
+                return self._send(404, {"error": "no such scene"})
+            from proos.membership import area_of
+            dev_area = {d.get("id"): d.get("area_id") for d in (_client.device_registry() or [])}
+            sa = area_of(row, dev_area)
+            if sa and sa not in allowed:
+                return self._send(403, {"error": "that scene belongs to a room this remote isn't set to"})
+            _client.call_service("scene", "turn_on", eid)
+            nm = ((_client.snapshot([eid]).get(eid) or {}).get("attributes") or {}).get("friendly_name") or eid
+            return self._send(200, {"did": True, "toast": {"kind": "scene", "label": nm}})
         return self._send(404, {"error": "not found"})
 
     def _remote_do(self, r, area, act, st):

@@ -303,12 +303,18 @@ def resolve(key: str, long: bool, ctx: dict, keyplan) -> dict | None:
     if key == "voice":
         return {"open": "voice"}
     if key in ("up", "down", "left", "right", "ok", "back", "menu"):
-        logical = "ok" if key == "ok" else key
-        if watching and target:
-            p = keyplan(logical, target)
-            if p:
-                return {"call": p, "label": target}
-        return {"nav": key}
+        # 969l/969p (Dave 20 Oct 21:43: "it's a touchscreen so direction buttons are for the control"): these keys
+        # only ever control what's playing. They never move around the remote's screen; with nothing on they do nothing.
+        video = watching and (act or {}).get("kind") != "music"
+        if video and target:
+            p = keyplan(key, target)
+            return {"call": p, "label": target} if p else None
+        m = ctx.get("music_eid")
+        music_on = bool(m) and (((act or {}).get("kind") == "music") or ctx.get("music_state") in ("playing", "paused"))
+        if music_on and key in ("left", "right", "ok"):
+            svc = {"left": "media_previous_track", "right": "media_next_track", "ok": "media_play_pause"}[key]
+            return {"call": {"domain": "media_player", "service": svc, "data": {"entity_id": m}}, "label": m}
+        return None
     if key in ("ch_up", "ch_down"):
         if watching and target:
             p = keyplan(key, target)
@@ -472,6 +478,7 @@ def room_state(area: str, remote: dict, client, project_mod, keyplan, keycaps) -
     music_eid = (s_act.get("attributes") or {}).get("audio_entity") or vol_a
     vs = snap.get(vol_v if act_ctx and act_ctx.get("kind") != "music" else (music_eid or vol_v)) or {}
     ctx = {"area": area, "activity": act_ctx, "vol_eid": vol_v, "music_eid": music_eid,
+           "music_state": (snap.get(music_eid) or {}).get("state") if music_eid else None,
            "vol_muted": bool((vs.get("attributes") or {}).get("is_volume_muted")),
            "map": map_for(remote, area), "rooms_mode": (remote or {}).get("rooms") or "home"}
 
@@ -525,7 +532,8 @@ def room_state(area: str, remote: dict, client, project_mod, keyplan, keycaps) -
         except Exception:  # noqa: BLE001
             feats = 0
         watching = {"label": act_ctx.get("label"), "source": src, "source_name": nm(src) if src else None,
-                    "platform": plat.get(src), "title": sat.get("media_title"), "series": sat.get("media_series_title"),
+                    "platform": plat.get(src), "state": sst.get("state"),
+                    "title": sat.get("media_title"), "series": sat.get("media_series_title"),
                     "app": sat.get("app_name"), "art": bool(sat.get("entity_picture")),
                     "position": sat.get("media_position"), "duration": sat.get("media_duration"),
                     "updated": sat.get("media_position_updated_at"),
@@ -537,9 +545,16 @@ def room_state(area: str, remote: dict, client, project_mod, keyplan, keycaps) -
                  "source": a.get("source_eid"), "platform": plat.get(a.get("source_eid")),
                  "on": bool(cur) and a.get("key") == cur.get("key")} for a in acts]
     scenes = [{"entity": eid, "name": nm(eid)} for eid in by_dom.get("scene", [])]
+    # 969p: the Scenes screen also offers the home's scenes that belong to no room ("Whole Home"), by the platform's own
+    # room assignment — a scene assigned to another room is that room's, not this one's.
+    loose = [e["entity_id"] for e in ents if str(e.get("entity_id", "")).startswith("scene.")
+             and not e.get("disabled_by") and not e.get("hidden_by") and not area_of(e, dev_area)]
+    lsnap = client.snapshot(loose) if loose else {}
+    home_scenes = [{"entity": eid, "name": ((lsnap.get(eid) or {}).get("attributes") or {}).get("friendly_name") or eid}
+                   for eid in loose]
     return {"area": area, "name": names.get(area, area), "photo": pics.get(area, False),
             "activity": act_ctx, "activities": acts_out, "lights": lights, "covers": covers, "climate": climate,
-            "music": music, "watching": watching, "scenes": scenes,
+            "music": music, "watching": watching, "scenes": scenes, "home_scenes": home_scenes,
             "keys": legend(ctx, keyplan), "at": time.time()}
 
 
@@ -551,6 +566,6 @@ def key_context(area: str, remote: dict, client, project_mod) -> dict:
     act = st.get("activity")
     return {"area": area, "activity": act,
             "vol_eid": w.get("vol_entity") or (m.get("entity") if not act else None),
-            "music_eid": m.get("entity"),
+            "music_eid": m.get("entity"), "music_state": m.get("state"),
             "vol_muted": bool(w.get("muted")) if w else bool(m.get("muted")),
             "map": map_for(remote, area), "rooms_mode": (remote or {}).get("rooms") or "home"}
