@@ -4606,7 +4606,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102003';
+const PROOS_BUILD='2026102004';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -6407,6 +6407,10 @@ async function connect(){
       // manual refresh.
       ['entity_registry_updated','device_registry_updated','area_registry_updated','label_registry_updated']
         .forEach(ev=>snd({type:'subscribe_events',event_type:ev}));
+      // 969 (Dave, 20 Oct 12:55): the home's name follows the platform LIVE on every open glass — updateHomeName's own
+      // note said "live from get_config and core_config_updated", but nothing ever subscribed to the event, so a
+      // rename in Pro reached a phone, iPad or wall panel only when it was next reloaded.
+      snd({type:'subscribe_events',event_type:'core_config_updated'}).catch(()=>{});
       startHeartbeat();
       if(!CONFIG.manual){
         try{
@@ -6440,6 +6444,8 @@ async function connect(){
       onStateChange(d.entity_id);
     }else if(m.type==='event'&&['entity_registry_updated','device_registry_updated','area_registry_updated','label_registry_updated'].includes(m.event?.event_type)){
       scheduleLiveRediscover();
+    }else if(m.type==='event'&&m.event?.event_type==='core_config_updated'){
+      _homeNameRefresh();
     }else if(m.id&&cbs[m.id]){cbs[m.id](m);delete cbs[m.id]}
   };
   ws.onerror = (err) => {
@@ -6996,6 +7002,10 @@ function alignInk(el){
   }catch(e){ el.style.marginLeft=''; }
 }
 function alignTitle(){ alignInk(document.getElementById('client-name')); }
+async function _homeNameRefresh(){   // 969: the platform said its config changed — read the name again and show it
+  try{ const cfg=await snd({type:'get_config'}); const n=(cfg&&cfg.result&&cfg.result.location_name)||''; if(n){ _haLocationName=n; updateHomeName();
+    if(curPage==='settings'&&typeof renderSettings==='function') renderSettings(); } }catch(e){}
+}
 function updateHomeName(){
   // THE PLATFORM NAMES THE HOME (register 438): location_name, live from
   // get_config and core_config_updated. The per-device "Client Name" copy

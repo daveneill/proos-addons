@@ -2869,7 +2869,7 @@ body.v3 .rh-card{border-radius:22px}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102001';
+const PROOS_BUILD='2026102002';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -11124,6 +11124,9 @@ async function _liveSubscribe(){
   for(const ev of ['entity_registry_updated','device_registry_updated','area_registry_updated','label_registry_updated']){
     try{ const r=await snd({type:'subscribe_events', event_type:ev}); if(r&&r.id!=null) _evSubs[r.id]=_liveTouched; }catch(e){}
   }
+  // 969: the home's name follows the platform live (a rename on another screen, or the platform's own settings)
+  try{ const r=await snd({type:'subscribe_events', event_type:'core_config_updated'}); if(r&&r.id!=null) _evSubs[r.id]=async()=>{ try{ const c=(await snd({type:'get_config'})).result||{};
+    if(c.location_name){ _haLocationName=c.location_name; const hn=document.getElementById('hero-name'); if(hn) hn.textContent=_haLocationName; if(typeof _readiness!=='undefined'&&_readiness) _readiness.name=_haLocationName; } }catch(e){} }; }catch(e){}
   // the platform announces its own restart before it goes quiet (plan G1) — the waiting screen's only basis for "restarting"
   try{ const r=await snd({type:'subscribe_events', event_type:'homeassistant_stop'}); if(r&&r.id!=null) _evSubs[r.id]=()=>{ _pcRestartAt=Date.now(); _pcTitle(); }; }catch(e){}
 }
