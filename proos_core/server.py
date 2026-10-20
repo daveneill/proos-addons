@@ -6496,7 +6496,22 @@ class Handler(BaseHTTPRequestHandler):
                 dev = (parse_qs(urlparse(self.path).query).get("device") or [""])[0]
                 return self._send(200, roomorder.resolve(dev))
             if parts == ["catalog"]:
-                return self._send(200, catalog.load() if catalog else {"integrations": {}})
+                _cat = catalog.load() if catalog else {"integrations": {}}
+                # 969c (Dave, 20 Oct 14:11: "still no drivers showing only Samsung TV … CoolAutomation, Shelly, Wiz, Ness
+                # M1"): a driver this Core CARRIES is ProOS's own build, so it is certified here whatever the central
+                # catalog last said — the catalog still called Shelly, Cool Automation, WiZ, Ness M1, LIFX, Sonos, Denon
+                # and HEOS "native", and Pro lists a ProOS-registered driver only when it is certified (it keeps them
+                # out of the general list), so they showed nowhere. What the box carries is the evidence.
+                try:
+                    if _drivers is not None:
+                        _cat = dict(_cat); _ints = dict(_cat.get("integrations") or {})
+                        for _dom, _dv in _drivers.shipped().items():
+                            _e = dict(_ints.get(_dom) or {}); _e["tier"] = "certified"; _e["proos_build"] = _dv.get("version") or ""
+                            _ints[_dom] = _e
+                        _cat["integrations"] = _ints
+                except Exception:  # noqa: BLE001
+                    pass
+                return self._send(200, _cat)
             if parts == ["catalog", "published"]:
                 return self._send(200, catalog.load_published() if catalog else [])
             if parts == ["assist", "memory"]:

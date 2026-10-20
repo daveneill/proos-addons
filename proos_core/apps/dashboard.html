@@ -4606,7 +4606,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102004';
+const PROOS_BUILD='2026102005';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -6335,6 +6335,7 @@ function _gateWayOut(){
     host.appendChild(a);
   }catch(e){}
 }
+const WS_AUTH_WAIT_MS=12000;   // 969d plumbing: how long a new socket may take to be signed in before it is retried
 async function connect(){
   // The door's answer comes first: every Core call below goes where it
   // says (register 352). One knock, 1.5 s at most, once per page load.
@@ -6361,6 +6362,12 @@ async function connect(){
   const haUrl = new URL(HA);
   const wsProto = haUrl.protocol === 'https:' ? 'wss:' : 'ws:';
   ws = new WebSocket(`${wsProto}//${haUrl.host}/api/websocket`);
+  // 969d (Dave, 20 Oct 14:11, after the platform restarted: "Dashboard app sits on this screen the whole time and needs
+  // to close the app and open to reconnect again where as pro connects automatically"). This page reconnects only
+  // when its socket CLOSES; a socket opened while the platform is still starting can stay open without ever being
+  // signed in — no close, so no retry, and the waiting screen stays for good. A socket not signed in within
+  // WS_AUTH_WAIT_MS (plumbing) is closed here, and its close retries like any other.
+  { const _me=ws; clearTimeout(window._wsAuthTimer); window._wsAuthTimer=setTimeout(()=>{ if(ws===_me && !_me._authed){ try{ _me.close(); }catch(e){} if(ws===_me){ _pcWsUp=false; if(!_pcWsDownAt) _pcWsDownAt=Date.now(); scheduleReconnect(1000); } } }, WS_AUTH_WAIT_MS); }
   ws.onmessage = async e => {
     const m = JSON.parse(e.data);
     if(m.type==='auth_required'){
@@ -6385,6 +6392,7 @@ async function connect(){
       setTimeout(()=>{ try{ location.reload(); }catch(e){} }, 1000);
     }
     else if(m.type==='auth_ok'){
+      ws._authed=true; clearTimeout(window._wsAuthTimer);
       _pcWsUp=true; _pcWsDownAt=0; _pcEvaluate();
       if(loadMsg) loadMsg.textContent = 'Loading states…';
       const r = await snd({type:'get_states'});
@@ -6524,7 +6532,11 @@ async function _pcHealthTick(){
   try{ const c=new AbortController(); const t=setTimeout(()=>c.abort(),2500);
     const r=await fetch(proosCoreBase()+'/health',{signal:c.signal,cache:'no-store'}); clearTimeout(t);
     // Core ANSWERED (any status means the process is up) — clear the counter.
-    _pcHealthFails=0; _pcEvaluate(); return;
+    _pcHealthFails=0; _pcEvaluate();
+    // 969d: Core answers but the waiting screen is still up (the platform's socket is what is down) — the app is asked
+    // to look and reload too; it only ever asked on Core failures, so a platform restart left the app on this screen
+    if(_pcShown) _pcAskAppToFind();
+    return;
   }catch(e){
     // A TIMEOUT (AbortError) means Core is UP but momentarily too busy to answer within 2.5s
     // — e.g. it's serving a big events/thumbnail batch on this same :8770 port, so the health
