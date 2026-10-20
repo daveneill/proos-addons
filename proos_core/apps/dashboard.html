@@ -4606,7 +4606,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102005';
+const PROOS_BUILD='2026102006';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -21604,7 +21604,7 @@ html.pv-room #page-home .room-acts{display:block;margin-top:4px}
 .lp-alloff:active,.rp-home:active{transform:scale(.96)}
 .lp-room{margin-bottom:24px}
 .lp-rn{font-size:var(--t-floor);font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.62);margin:0 2px 10px}
-.lp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px}
+.lp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px;align-items:start}   /* 969e: a light opening its colour panel grows on its own — its neighbour in the row no longer stretches into an empty panel (Dave, 20 Oct 14:43) */
 .ll-light.lp-c{display:block!important;min-height:0!important;margin:0!important;padding:16px!important;border-radius:20px!important}
 .lp-hd{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .lp-tx{min-width:0}
