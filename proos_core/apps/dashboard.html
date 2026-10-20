@@ -4606,7 +4606,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026101920';
+const PROOS_BUILD='2026102001';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -21433,16 +21433,13 @@ body:has(#widget-picker.open) #widget-add-pill{display:none!important}   /* regi
 .room-tabs.rtab-cards .rcard span{font-size:12px;color:rgba(255,255,255,.7);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .room-tabs.rtab-cards .rcard.live::after{content:'';position:absolute;top:12px;right:12px;width:8px;height:8px;border-radius:50%;background:#FFC46B;box-shadow:0 0 10px #FFC46B}
 @media(max-width:768px){.room-tabs.rtab-cards .rcard{width:156px;height:108px}}
-@media (min-width:1024px) and (orientation:landscape){
-  html.pv-room #page-home .home-identity{position:fixed!important;left:var(--proos-edge,32px);top:var(--proos-sat,0px);width:38vw;display:flex!important;flex-direction:column;justify-content:flex-start;padding:var(--proos-detail-top) var(--proos-detail-right) 0 0!important;z-index:6;text-shadow:0 2px 18px rgba(0,0,0,.55)}   /* 968s: at the top, as Dave asked */
-  html.pv-room #page-home .home-identity::before{display:none!important}
-  html.pv-room #page-home .room-tabs{max-width:38vw}
-  html.pv-room #page-home .home-clockrow,html.pv-room #page-home .home-rule,html.pv-room #page-home #home-greet{display:none!important}
-  html.pv-room #page-home #ctrl-grid,html.pv-room #page-home .status-bar{margin-left:calc(38vw + 56px);width:calc(100% - 38vw - 56px)}
-  html.pv-room #page-home .status-bar{padding-top:calc(var(--proos-sat,0px) + 28px)}
-  html.pv-room #page-home #ctrl-grid{padding-top:10px}
-  html.pv-room{--proos-shade:linear-gradient(90deg,rgba(0,0,0,.22) 0%,rgba(0,0,0,.30) 34%,rgba(8,8,11,.72) 49%,rgba(8,8,11,.86) 100%)}   /* the one shade, turned to the side */
-}
+/* 968x — A ROOM ON AN IPAD OR A MAC IS LAID OUT LIKE HOME. Dave, 20 Oct 11:19, with a picture of the Family Room on
+   his Mac: "all area pages for apps ipad widgets need to be like the home page and not everything on the right that
+   works well for a small screen like the Gflip but ipad and mac have more space … including the black gradient to be
+   at bottom and not all to the right". The side layout (968m: the name in a fixed column on the left, the widgets in a
+   column on the right, the shade turned to the side) is gone from the app; a room now reads as Home does — its name,
+   what it is doing and its buttons at the top, the widgets across the page beneath, the one shade along the bottom.
+   The wall panel keeps its own layout (html.proos-panel rules, untouched). */
 /* 968s — THE LIBRARY IS ONE SIZE. The centred card (12 Oct ruling) keeps its place; it is now as wide as the screen
    allows (to 1100) and ALWAYS the same height, whichever group is chosen — only the grid inside it scrolls. */
 #widget-picker .widget-picker-sheet{width:min(1100px,calc(100vw - 32px))!important;height:min(86dvh,calc(100dvh - 2*(var(--proos-sat,0px) + 24px)))!important;max-height:none!important;display:flex!important;flex-direction:column;overflow:hidden!important;padding:22px clamp(14px,2.4vw,28px) 0!important}
@@ -21513,7 +21510,8 @@ body.proos-popup:has(#page-home.page.active) #widget-add-pill,body:has(#widget-p
 }
 #settings-content .set-section-title{font-size:15.5px!important;font-weight:600!important;letter-spacing:0!important;text-transform:none!important;color:#fff!important;padding:14px 16px 6px!important}
 #settings-content .set-section .set-label{font-size:15px;font-weight:400}
-}
+/* 968x: a stray "}" stood here from 968u's edit of the Settings block — the browser dropped the next rule with it,
+   which was the one hiding a room's chips: they came back on every room from 1.0.1032 (Dave's Mac, 20 Oct 11:19). */
 /* 968s: Home's clock column leaves the top-right corner to the + */
 /* (968t: the clock no longer gives way to the + — it moved to the bottom right) */
 /* 968s: a room shows no room chips, no clock and no greeting — the mockups' room is its name, its state and its two
@@ -21528,7 +21526,9 @@ html.pv-room #page-home .room-acts{display:block;margin-top:4px}
 .ra-b:active{transform:scale(.96)}
 .ra-b svg{width:17px;height:17px}
 .ra-b.on svg{color:#FFC46B;filter:drop-shadow(0 0 6px rgba(255,196,107,.7))}
-@media (orientation:portrait),(max-width:1023px){
+/* 968x: the photo-as-hero room is the PHONE's only (Dave: the iPad and the Mac have the space — like Home); it was every
+   portrait screen and every window under 1024, so an upright iPad and a narrow Mac window had a hole above the widgets */
+@media (max-width:767px){
   html.pv-room{--proos-shade:linear-gradient(to bottom,rgba(0,0,0,.42) 0%,rgba(0,0,0,.12) 16%,rgba(0,0,0,.22) 30%,rgba(8,8,11,.84) 46%,rgba(8,8,11,.93) 100%)}   /* the photo as a hero */
   html.pv-room #page-home #ctrl-grid{margin-top:14vh}   /* the identity stays pinned at the top (register 537); the widgets start lower so the photo shows */
 }
