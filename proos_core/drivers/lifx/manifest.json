@@ -1,9 +1,14 @@
 {
   "domain": "lifx",
   "name": "LIFX",
-  "codeowners": ["@Djelibeybi", "@protech-proos"],
+  "codeowners": [
+    "@Djelibeybi",
+    "@protech-proos"
+  ],
   "config_flow": true,
-  "dependencies": ["network"],
+  "dependencies": [
+    "network"
+  ],
   "dhcp": [
     {
       "macaddress": "D073D5*"
@@ -51,11 +56,14 @@
   },
   "integration_type": "device",
   "iot_class": "local_polling",
-  "loggers": ["aiolifx", "aiolifx_effects", "bitstring"],
-  "requirements": [
-    "aiolifx==1.2.1",
-    "aiolifx-effects==0.3.2",
-    "aiolifx-themes==1.0.2"
+  "loggers": [
+    "lifx"
   ],
-  "version": "1.2.1+proos.1"
+  "requirements": [
+    "lifx-async==7.6.5"
+  ],
+  "zeroconf": [
+    "_lifx._udp.local."
+  ],
+  "version": "7.6.5+proos.2"
 }

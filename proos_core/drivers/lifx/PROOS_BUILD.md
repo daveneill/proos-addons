@@ -1,27 +1,10 @@
 # ProOS Certified LIFX Integration
+A ProOS-certified fork of the platform's own `lifx`, REBUILT on Home Assistant 2026.10.2 (register 969b, 20 Oct 2026).
+The first build (1.2.1+proos.1) was cut from 2026.6.3; the platform's own LIFX has since been rewritten (lifx-async, config
+entries at VERSION 2), and on Dave's 2026.10.2 box the old fork could not read the entries the native one had made —
+both LIFX entries showed migration_error. Supported by Protech.
 
-A ProOS-certified fork of the Home Assistant core `lifx` integration. Supported by
-Protech; native library integrations are third-party and unsupported.
-
-## What this build changes (vs HA core 2026.6.3 `lifx`)
-- `manifest.json`: added `version` (`1.2.1+proos.1`) and `@protech-proos` codeowner.
-  Nothing else changed (same aiolifx requirements, same dhcp/homekit discovery, same
-  domain).
-- `binary_sensor.py`: adds a ProOS **connection-health** binary_sensor
-  (`<name> Connection`, `device_class=connectivity`, diagnostic). Added unconditionally
-  in `async_setup_entry` and ALWAYS available, so it reports `off` even when the bulb is
-  offline at startup. `on` = the per-device `LIFXUpdateCoordinator`'s last update
-  succeeded. `lifx` already loads the `binary_sensor` platform (HEV cycle), so no
-  `__init__.py` change was needed — the sensor rides the existing platform.
-
-Everything else is byte-for-byte HA core 2026.6.3. Domain stays `lifx`, so this
-overrides the built-in integration; existing LIFX entries keep working.
-
-## Awareness wiring (Core)
-Point the bulb's ProOS reachability at `binary_sensor.<name>_connection` (state
-`on`/`off`).
-
-## Delivery / maintenance
-Overlay these two files onto the native `lifx` folder for HA 2026.6.3 in
-`/config/custom_components/lifx/`. Re-base and bump `+proos.N` when core changes the
-`lifx` files; retire by deleting the folder if HA ships an equivalent signal.
+Changes vs native 2026.10.2: manifest `version` (`<lifx-async>+proos.2`) and `@protech-proos`; `binary_sensor.py` adds a
+ProOS connection-health sensor (`<name> Connection`, connectivity, diagnostic), always available, on = the per-device
+coordinator's last update succeeded. Everything else byte-for-byte native 2026.10.2. Domain stays `lifx`, so this
+replaces the platform's own — rebuild it whenever the platform changes its LIFX.
