@@ -4606,7 +4606,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102001';
+const PROOS_BUILD='2026102002';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -12412,6 +12412,7 @@ function makeMediaPageCard(ctrl, volEnt, art, title, artist, roomLabel, vol, has
       </div>
       <div class="mpc-ct mp-ctrls" onclick="event.stopPropagation()">${ctrlsHtml}</div>
     </div>
+    ${tvCard?'':`<div class="mpc-prog mpc-p" data-e="${ctrl}" style="display:none"><div class="tr"><i></i></div><div class="tm"><span></span><span></span></div></div>`}
     ${hasVol?`<div class="wv-sl wv-vl mpc-vol" style="--v:${_vp}%" onclick="event.stopPropagation()"><div class="wv-slf"></div><span class="wv-sll">${_wvSvg('vol')}Volume</span><span class="wv-slv mp-vol-pct">${_vp}</span>
       <input class="mp-vol-sl" type="range" min="0" max="1" step="0.02" value="${(vol||0).toFixed(2)}" aria-label="Volume"
         onpointerdown="volInput(this,'${volEnt}',this.parentNode.querySelector('.wv-slv'))"
@@ -12421,6 +12422,19 @@ function makeMediaPageCard(ctrl, volEnt, art, title, artist, roomLabel, vol, has
 }
 
 
+// 968y: every player card carries the Music page's progress line (Dave, 20 Oct 12:01 — one player, one layout, every page)
+function _mpcProg(){
+  document.querySelectorAll('.mpc-p[data-e]').forEach(function(el){
+    const c=el.getAttribute('data-e'); const p=(typeof _relayNativeOf==='function'&&_relayNativeOf(c))||c;
+    const dur=parseFloat(att(p,'media_duration')); let pos=parseFloat(att(p,'media_position'));
+    if(!(dur>0)||!isFinite(pos)){ el.style.display='none'; return; }
+    if(st(p)==='playing'){ const at=Date.parse(att(p,'media_position_updated_at')); if(isFinite(at)) pos+=(Date.now()-at)/1000; }
+    pos=Math.max(0,Math.min(pos,dur)); el.style.display='';
+    el.querySelector('i').style.width=(pos/dur*100).toFixed(1)+'%';
+    const t=el.querySelectorAll('.tm span'); t[0].textContent=_wvClock(pos); t[1].textContent='-'+_wvClock(dur-pos);
+  });
+}
+setInterval(function(){ try{ if(document.querySelector('#page-media.active')) _mpcProg(); }catch(e){} },1000);
 // Media page: full-width art-bg cards for all active players
 function renderGlobalMediaStrip(){
   if(_draggingVol) return;
@@ -12436,6 +12450,7 @@ function renderGlobalMediaStrip(){
     if(titleEl) titleEl.textContent='All Players';
   } else {
     ms.innerHTML=cards.join('');
+    try{ _mpcProg(); }catch(e){}
     if(idleMsg) idleMsg.style.display='none';
     if(titleEl) titleEl.textContent=cards.length+' playing now';
     const wrap=document.getElementById('media-live-wrap');
@@ -21561,7 +21576,11 @@ html.pv-room #page-home .room-acts{display:block;margin-top:4px}
 .lp-c .wv-sll,.lp-c .wv-slv,.mpc .wv-sll,.mpc .wv-slv{font-size:14px}
 .lp-c .ll-color-wrap{margin-top:10px}
 .lp-none{padding:48px 0;text-align:center;color:rgba(255,255,255,.55);font-size:14px}
-#media-page-strip{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px!important;padding:0 16px 24px}
+/* 968y — ONE PLAYER, ONE SIZE (Dave, 20 Oct 12:01: "media page will always be 2 players wide for landscape and portrait
+   … mobile … only one wide … having standard sizing makes for a more premium feel"). Two across on an iPad (either way
+   up) and a Mac, one on a phone; the page's own edge only (the strip added its 16 to the page's 32 — the cards stood
+   in from Home's and Music's by 16, by 12 on a phone). */
+#media-page-strip{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px!important;padding:0 0 24px!important}
 .mp-card.mpc{height:auto!important;display:block!important;padding:14px!important;border-radius:20px!important;margin:0!important}
 .mpc-row{display:flex;align-items:center;gap:14px;min-width:0}
 .mpc .mpc-art{width:72px!important;height:72px!important;min-height:0!important;aspect-ratio:auto!important;border-radius:14px!important;flex:none!important;display:grid;place-items:center;background:linear-gradient(135deg,#ff5f6d,#ffc371);color:#fff;cursor:pointer;overflow:hidden;position:relative;box-shadow:0 8px 22px rgba(0,0,0,.35)}
@@ -21579,11 +21598,8 @@ html.pv-room #page-home .room-acts{display:block;margin-top:4px}
 .mpc .mpc-vol{height:46px;border-radius:14px;margin-top:12px}
 /* MUSIC (968o, the mockups' A3/B3): the player larger with its progress; the library's covers as the panel's — rounded,
    a white play button always there to touch, six across on an iPad; the chips and search on the dark glass */
-#music-now-playing .mpc.hero{padding:18px!important}
-#music-now-playing .mpc.hero .mpc-art{width:132px!important;height:132px!important;border-radius:18px!important}
-#music-now-playing .mpc.hero .mp-title{font-size:24px;letter-spacing:-.01em}
-#music-now-playing .mpc.hero .mp-artist{font-size:15px}
 .mpc-prog{margin-top:14px}
+#music-now-playing .mpc .mpc-p{display:none!important}   /* 968y: the Music hero draws its own (#mus-prog) */
 .mpc-prog .tr{height:5px;border-radius:3px;background:rgba(255,255,255,.14);overflow:hidden}
 .mpc-prog .tr i{display:block;height:100%;width:0;background:#fff;border-radius:3px;transition:width 1s linear}
 .mpc-prog .tm{display:flex;justify-content:space-between;margin-top:6px;font-size:var(--t-floor);color:rgba(255,255,255,.6);font-variant-numeric:tabular-nums}
@@ -21596,7 +21612,7 @@ html.pv-room #page-home .room-acts{display:block;margin-top:4px}
 .mus-libchip.on{background:#fff!important;color:#000!important}
 #music-search{background:rgba(22,22,28,.42)!important;border:0!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);height:44px;font-size:14px!important;border-radius:22px!important}
 .mus-shelf-t{font-size:18px!important}
-@media(max-width:600px){ #music-now-playing .mpc.hero .mpc-art{width:96px!important;height:96px!important} #music-now-playing .mpc.hero .mp-title{font-size:19px} #music-grid{grid-template-columns:repeat(auto-fill,minmax(130px,1fr))!important;gap:14px!important} }
+@media(max-width:600px){ #music-grid{grid-template-columns:repeat(auto-fill,minmax(130px,1fr))!important;gap:14px!important} }
 /* SETTINGS (968o): each section is one card of the panel's glass with its rows inside it, split by a hairline — the
    grouped cards of the approved settings mockups (6 Oct); two columns of cards where the screen is wide enough */
 #settings-content{width:100%;box-sizing:border-box}   /* one column: a scrolling page split into columns overflowed sideways (seen on the box at 1552 wide) */
@@ -21691,7 +21707,24 @@ html.pv-room #page-home .room-acts{display:block;margin-top:4px}
 /* a card narrower than a phone's width (a phone, or two across on an iPad in portrait) gives the title the row and
    puts the transport under it */
 .mp-card.mpc{container-type:inline-size}
-@container (max-width:430px){ .mpc-row{flex-wrap:wrap} .mpc-ct{order:3;flex:1 1 100%;justify-content:center;margin-top:10px} }
+/* 968y: the transport STAYS on the row at every width, as the old phone player and the Music page draw it (Dave's
+   pictures 3 and 2) — under the title it was "wrong layout" (pictures 4 and 6). One player, two sizes by its own width:
+   a wide card (an iPad or a Mac) and a narrow one (a phone, or two across on an upright iPad). */
+.mpc .mpc-art{width:112px!important;height:112px!important;border-radius:18px!important}
+.mpc.tv .mpc-art{width:168px!important}
+.mpc .mp-title{font-size:20px!important;letter-spacing:-.01em}
+.mpc .mp-artist{font-size:14px}
+.mp-card.mpc{padding:16px!important}
+@container (max-width:520px){
+  .mpc .mpc-art{width:64px!important;height:64px!important;border-radius:14px!important}
+  .mpc.tv .mpc-art{width:96px!important}
+  .mpc .mp-title{font-size:17px!important}
+  .mpc .mp-artist{font-size:var(--t-floor)}
+  .mpc-row{gap:12px}
+  .mpc-ct{gap:6px}
+  .mpc .mpb{width:38px!important;height:38px!important}
+  .mpc .mpb.play{width:46px!important;height:46px!important}
+}
 .rp-top{border-bottom:0!important;align-items:flex-end!important}
 .rp-h .page-heading{display:flex;align-items:baseline;gap:12px}
 .rp-n{font-size:15px;font-weight:400;color:rgba(255,255,255,.62);letter-spacing:0}
@@ -21701,9 +21734,7 @@ html.pv-room #page-home .room-acts{display:block;margin-top:4px}
 .room-card-st{font-size:var(--t-floor);color:rgba(255,255,255,.74);margin-bottom:10px}
 .room-card.live .room-card-name::after{content:'';display:inline-block;width:8px;height:8px;border-radius:50%;background:#FFC46B;box-shadow:0 0 10px #FFC46B;margin-left:9px;vertical-align:middle}
 @media(max-width:600px){
-  #media-page-strip{grid-template-columns:1fr;padding:0 12px 24px}
-  .mpc .mpc-art{width:58px!important;height:58px!important}
-  .mpc.tv .mpc-art{width:88px!important}
+  #media-page-strip{grid-template-columns:1fr}
   .lp-grid{grid-template-columns:1fr}
   #page-rooms .rooms-grid{padding:4px 12px 24px}
   #page-rooms .room-card{height:170px}
