@@ -1,0 +1,82 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to Savant host",
+        "description": "Enter the IP address (or hostname) of your Savant host. Its stable identity and current control endpoint are discovered automatically.",
+        "data": {
+          "host": "Host address"
+        }
+      },
+      "login": {
+        "title": "Log in to Savant host",
+        "description": "Log in with a host-local account ({host}, “{name}”). This is how the host authenticates a headless client.",
+        "data": {
+          "username": "Username",
+          "password": "Password"
+        }
+      },
+      "devices": {
+        "title": "Savant devices found",
+        "description": "{count} device(s) found on {host}. Choose which to import. Each device is placed in its configured room as an area — you can move them later in Home Assistant.",
+        "data": {
+          "devices": "Devices to import"
+        }
+      },
+      "coolmaster": {
+        "title": "CoolMasterNet devices found",
+        "description": "This Savant configuration includes CoolMasterNet climate devices. If Home Assistant can reach CoolMasterNet directly, install the built-in CoolMasterNet integration first; retrying Savant setup will exclude exact duplicate climate devices.",
+        "menu_options": {
+          "install_coolmaster": "Cancel and install CoolMasterNet first",
+          "continue_without_coolmaster": "Continue with Savant only"
+        }
+      },
+      "reconfigure": {
+        "title": "Refresh Savant devices",
+        "description": "Log in to download the current device and media-source inventory from {host}.",
+        "data": {
+          "username": "Username",
+          "password": "Password"
+        }
+      },
+      "reconfigure_devices": {
+        "title": "Savant devices found",
+        "description": "{count} device(s) found. Choose the refreshed inventory to import, including each media source.",
+        "data": {
+          "devices": "Devices to import"
+        }
+      }
+    },
+    "error": {
+      "discovery_failed": "Could not discover a Savant host with a stable UID. Confirm Home Assistant is on the same network as the host.",
+      "invalid_auth": "Login failed — check the host-local username and password.",
+      "no_auth_response": "The host did not respond to the login request. The host may only accept local login from the Savant app (see PROTOCOL.md §4.6).",
+      "cannot_connect": "Could not connect to the host on the discovered port.",
+      "connection_refused": "The Savant host advertised a control port but refused the connection. It may be restarting; wait a moment and try again.",
+      "no_devices": "Connected and authenticated, but no rooms or devices were reported by the host."
+    },
+    "abort": {
+      "already_configured": "This host is already configured.",
+      "discovery_failed": "Could not discover a Savant host with a stable UID. Confirm Home Assistant is on the same network as the host.",
+      "reconfigure_failed": "The reconfiguration session was not initialized.",
+      "reconfigure_successful": "Savant device inventory refreshed.",
+      "coolmaster_setup_recommended": "Set up the built-in CoolMasterNet integration, then retry Savant setup."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Savant advanced options",
+        "description": "Optional. Update the local account or add a cached hostToken / cloud credentials. Leave blank to keep the current value.",
+        "data": {
+          "username": "Local username",
+          "password": "Local password",
+          "host_token": "Host token",
+          "cloud_token": "Cloud token",
+          "configuration_id": "Configuration ID",
+          "rooms": "Extra room names (comma or newline separated)"
+        }
+      }
+    }
+  }
+}

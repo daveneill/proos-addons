@@ -52,6 +52,7 @@ COPY appart /app/appart
 # with the Core update. Ship copies of deploy/, pinned byte-identical by
 # app_routes_bench.py.
 COPY apps /app/apps
+COPY drivers /app/drivers
 # The Savant profile rides INSIDE the image too (register 634): Core serves it
 # at /savant/profile so the profile and the feed can never disagree. 797 shipped
 # it in the zip but not in the image, so Pro said "not in this build".

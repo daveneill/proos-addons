@@ -1,0 +1,30 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Cool Automation",
+        "description": "Connect to your CoolLinkBridge / CoolLinkHub / CoolMasterNet controller.",
+        "data": {
+          "host": "IP address",
+          "port": "Port",
+          "cool": "Enable Cool mode",
+          "heat": "Enable Heat mode",
+          "heat_cool": "Enable Auto mode",
+          "dry": "Enable Dry mode",
+          "fan_only": "Enable Fan mode",
+          "min_temp": "Minimum set temperature",
+          "max_temp": "Maximum set temperature",
+          "half_steps": "Allow half-degree steps",
+          "send_wakeup_prompt": "Send wake-up prompt (only if the hub needs it)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not reach the hub at that address and port.",
+      "no_units": "Connected, but the hub reported no indoor units."
+    },
+    "abort": {
+      "already_configured": "This hub is already configured."
+    }
+  }
+}

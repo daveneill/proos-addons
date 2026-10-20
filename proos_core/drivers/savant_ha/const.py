@@ -1,0 +1,364 @@
+"""Constants for the Savant Home Assistant integration.
+
+Protocol constants here are reconstructed from live black-box observation, not vendor
+docs — see the sibling project's ``PROTOCOL.md`` (condensed locally in this repo's
+``PROTOCOL.md``). Each constant carries a note pointing at the section that documents
+where it was observed.
+"""
+
+from __future__ import annotations
+
+import logging
+import uuid
+from typing import Any
+
+DOMAIN = "savant_ha"
+
+LOGGER = logging.getLogger(__package__)
+
+
+def new_uid() -> str:
+    """Generate the stable client identifier persisted with a config entry."""
+    return "homeassistant-" + uuid.uuid4().hex[:16]
+
+
+# ---- Config flow fields ---------------------------------------------------
+CONF_HOST = "host"  # transient <HOST_IP> used only while configuring legacy entries
+CONF_PORT = "port"  # legacy cached control port; UDP discovery is authoritative
+CONF_HOST_UID = "host_uid"  # stable host UID from the UDP control record
+CONF_USERNAME = "username"  # local user name for the host (optional)
+CONF_PASSWORD = "password"  # local user password for the host (optional)
+CONF_CLOUD_TOKEN = "cloud_token"  # optional; observed key in devicePresent
+CONF_CONFIGURATION_ID = "configuration_id"  # optional; observed key in devicePresent
+CONF_HOST_TOKEN = "host_token"  # optional; explicit session hostToken
+CONF_HOME_ID = "home_id"  # discovered from the 9101 control record
+CONF_UID = "uid"  # generated stable client identifier
+CONF_NAME = "name"  # discovered host name
+CONF_ROOMS = "rooms"  # user-supplied room names (list[str])
+CONF_DEVICES = "devices"  # user-approved device list (list[dict]) from the picker step
+CONF_MEDIA_TOPOLOGY = "media_topology"  # complete archive media inventory for exact routing
+
+# Device kinds in the approved device list (mirror HA platform names).  Devices come
+# from the uiconfig.tar.gz config archive (PROTOCOL.md §13); each maps to one HA device
+# with one or more entities.
+DEVICE_TYPE_LIGHT = "light"
+DEVICE_TYPE_CLIMATE = "climate"
+DEVICE_TYPE_COVER = "cover"
+DEVICE_TYPE_FAN = "fan"
+DEVICE_TYPE_LOCK = "lock"
+DEVICE_TYPE_MEDIA_PLAYER = "media_player"
+
+# ---- Protocol (PROTOCOL.md §1) --------------------------------------------
+# WebSocket subprotocol negotiated on the control channel.
+RPM_SUBPROTOCOL = "rpm-protocol"  # PROTOCOL.md §1
+# Keepalive byte observed in WS ping/pong frames (PROTOCOL.md §1).
+KEEPALIVE_BYTE = b"\x45"
+# Interval observed between keepalive pings (~2s). Used as a starting value.
+KEEPALIVE_INTERVAL = 2.0
+
+# UDP discovery ports (PROTOCOL.md §1.1).
+DISCOVERY_PORT_CONTROL = 9101  # _control_.ws
+DISCOVERY_PORT_PRESENCE = 9103  # _presence_.ws
+DISCOVERY_SERVICE_CONTROL = "_control_.ws"
+DISCOVERY_SERVICE_PRESENCE = "_presence_.ws"
+
+# Observed envelope keys; host maps and some client variants omit uid/user (PROTOCOL.md §2).
+ENVELOPE_KEY_MESSAGES = "messages"
+ENVELOPE_KEY_URI = "URI"
+ENVELOPE_KEY_UID = "uid"
+ENVELOPE_KEY_USER = "user"
+
+# ---- Session endpoints (PROTOCOL.md §3 / §4) ------------------------------
+URI_DEVICE_PRESENT = "session/devicePresent"
+URI_DEVICE_RECOGNIZED = "session/deviceRecognized"
+URI_AUTH_REQUEST = "session/authenticationRequest"
+URI_AUTH_RESPONSE = "session/authenticationResponse"
+URI_FILE_DOWNLOAD = "session/fileDownload"
+URI_STATE_REGISTER = "state/register"
+URI_STATE_UNREGISTER = "state/unregister"
+URI_STATE_UPDATE = "state/update"
+URI_SERVICE_REQUEST = "service/request"
+URI_DCM_REQUEST = "dcm/request"
+URI_DASHBOARD_REGISTER = "dis/dashboard/register"
+URI_DASHBOARD_UPDATE = "dis/dashboard/update"
+URI_DASHBOARD_REQUEST = "dis/dashboard/request"
+URI_USER_DATA_REGISTER = "dis/userData/register"
+URI_FEATURE_LOCK = "featureLock"
+
+# Native clients register this dashboard state before the main state subscription
+# (PROTOCOL.md §3; sibling PROTOCOL.md §6.7).
+DASHBOARD_STATE_RECENT_SERVICES = "RecentServices"
+# Native startup registers these user-data state channels around the main state batch
+# (PROTOCOL.md §3; sibling PROTOCOL.md §6.7).
+USER_DATA_INITIAL_STATES = (
+    "local.setting.update",
+    "user.setting.update",
+    "global.setting.update",
+)
+USER_DATA_IMAGE_STATES = ("global.image.update", "user.image.update")
+# State key the host pushes the current scene list under (PROTOCOL.md §9.1).
+SCENES_STATE_KEY = "scenesAndFoldersReduced"
+# Dashboard RPC activation request and observed fixed scene schema version (PROTOCOL.md §9.3).
+DASHBOARD_REQUEST_APPLY_SCENE = "ApplyScene"
+SCENE_VERSION = "2.0"
+
+# ---- Service/request verbs (PROTOCOL.md §6) -------------------------------
+VERB_SET_VOLUME = "SetVolume"
+VERB_POWER_ON = "PowerOn"
+VERB_POWER_OFF = "PowerOff"
+VERB_PLAY = "Play"
+VERB_PAUSE = "Pause"
+VERB_STOP_REPEAT = "StopRepeat"
+VERB_SKIP_UP = "SkipUp"
+VERB_SKIP_DOWN = "SkipDown"
+VERB_SEEK = "Seek"
+VERB_ROOM_BRIGHTNESS = "__RoomSetBrightness"
+VERB_DIMMER_SET = "DimmerSet"
+VERB_RF_SHADE_SET = "RFShadeSet"  # PROTOCOL.md §7.5.1, archive-declared Lutron command.
+VERB_SET_COOL_POINT = "SetCoolPointTemperature"
+VERB_SET_HEAT_POINT = "SetHeatPointTemperature"
+VERB_HVAC_MODE_AUTO = "SetHVACModeAuto"
+VERB_HVAC_MODE_COOL = "SetHVACModeCool"
+VERB_HVAC_MODE_HEAT = "SetHVACModeHeat"
+VERB_HVAC_MODE_OFF = "SetHVACModeOff"
+VERB_FAN_MODE_ON = "SetFanModeOn"  # Captured one-way setter; not exposed as HA control.
+
+# ---- Component/service-type scopes (PROTOCOL.md §6) -----------------------
+SVC_AV_SAVANTMUSIC = "SVC_AV_SAVANTMUSIC"
+SVC_AV_GENERALAUDIO = "SVC_AV_GENERALAUDIO"
+SVC_ENV_HVAC = "SVC_ENV_HVAC"
+SVC_ENV_LIGHTING = "SVC_ENV_LIGHTING"
+SVC_ENV_SHADE = "SVC_ENV_SHADE"
+
+# ---- State-key prefixes / attributes (PROTOCOL.md §5) ---------------------
+HVAC_STATE_PREFIX = "HVAC Controller.HVAC_controller."
+# Default unit/suffix index observed on HVAC state keys.
+HVAC_UNIT_SUFFIX = "_1"
+
+# Per-room attributes (PROTOCOL.md §5.2 / §6.1).
+ROOM_CURRENT_VOLUME = "CurrentVolume"
+ROOM_IS_MUTED = "IsMuted"
+ROOM_LIGHTS_ON = "RoomLightsAreOn"
+ROOM_BRIGHTNESS = "BrightnessLevel"
+ROOM_CURRENT_TEMPERATURE = "RoomCurrentTemperature"
+ROOM_SHADES_OPEN = "RoomShadesAreOpen"
+ROOM_FANS_ON = "RoomFansAreOn"
+
+# The full observed set of per-room attributes (PROTOCOL.md §6.1). There is no dedicated
+# "get rooms" endpoint, so room names are recovered by stripping one of these known
+# suffixes from the right and are supplemented by scene definitions (§6.1).
+ROOM_ATTRIBUTES = (
+    "ActiveService",
+    "ActiveServices",
+    "LastActiveService",
+    "CurrentVolume",
+    "IsMuted",
+    "RelativeVolumeOnly",
+    "RoomLightsAreOn",
+    "RoomNumberOfLightsOn",
+    "BrightnessLevel",
+    "RoomFansAreOn",
+    "RoomShadesAreOpen",
+    "RoomNumberOfShadesOpen",
+    "ShadeLevel",
+    "ShadeSummary",
+    "ShadeLevelIsValid",
+    "ActiveAudioService",
+    "GroupVolume",
+    "CurrentStreamingService",
+    "CurrentStreamingServiceVisible",
+    "RoomCurrentTemperature",
+    "SleepTimerActive",
+    "SleepTimerRemainingTime",
+)
+
+
+def room_from_state_key(
+    key: str, non_room_prefixes: set[str] | None = None
+) -> str | None:
+    """Return the room name for a per-room state key, else ``None``.
+
+    A room is the prefix before a known per-room attribute (PROTOCOL.md §6.1), e.g.
+    ``Living.Room.RoomCurrentTemperature`` -> ``"Living.Room"``. Audio-zone logical
+    components share a few attribute names and are not rooms.
+    """
+    if "." not in key:
+        return None
+    for attribute in ROOM_ATTRIBUTES:
+        suffix = f".{attribute}"
+        if key.endswith(suffix):
+            room = key[: -len(suffix)]
+            if non_room_prefixes and room in non_room_prefixes:
+                return None
+            logical = room.rsplit(".", 1)[-1]
+            if logical.startswith("Audio Zone ") and logical[11:].isdigit():
+                return None
+            return room or None
+    return None
+
+
+def room_state_keys(rooms: set[str] | list[str]) -> list[str]:
+    """Return the ``<room>.<attr>`` subscription keys for a set of room names."""
+    # The host can fan a controller reading out to every room's summary-temperature
+    # key. Climate entities use their controller-specific stateName instead, so avoid
+    # subscribing to this misleading aggregate while retaining it as a recognized room
+    # attribute if it arrives unsolicited (PROTOCOL.md §5.1-5.2).
+    return [
+        f"{room}.{attr}"
+        for room in rooms
+        for attr in ROOM_ATTRIBUTES
+        if attr != ROOM_CURRENT_TEMPERATURE
+    ]
+
+# Global attributes (PROTOCOL.md §5.4).
+GLOBAL_LIGHTS_ON = "global.LightsAreOn"
+
+# Legacy Audio Zone prefix (PROTOCOL.md §5.3). New config-archive-derived zones retain
+# their component identity, e.g. ``Living Room Sound Bar.Audio Zone 1...``.
+MUSIC_ZONE_PREFIX = "Music.Audio Zone "
+
+# ---- State subscription defaults (PROTOCOL.md §5 / §6.1) ------------------
+# These dotted keys are the *observed* surface from the sibling repo's
+# ``savantre/schema.py``.  Room names are host-defined; there is no "get rooms"
+# endpoint, so rooms are derived from scene definitions and per-room state keys
+# (PROTOCOL.md §6.1) and subscribed to dynamically at runtime.
+
+# HVAC attributes, joined as ``<HVAC_STATE_PREFIX><attr><HVAC_UNIT_SUFFIX>``.
+HVAC_STATE_ATTRIBUTES = (
+    "ThermostatCurrentTemperature",
+    "ThermostatCurrentHeatPoint",
+    "ThermostatCurrentCoolPoint",
+    "ThermostatCurrentSetPoint",
+    "ThermostatCurrentHumidity",
+    "ThermostatCurrentHumiditySetPoint",
+    "ThermostatCurrentRemoteTemperature",
+    "ThermostatMode",
+    "ThermostatHVACState",
+    "ThermostatFanMode",
+    "ThermostatCurrentFanSpeed",
+    "IsCurrentHVACModeOff",
+    "IsCurrentHVACModeCool",
+    "IsCurrentHVACModeHeat",
+    "IsCurrentHVACModeAuto",
+    "IsCurrentHVACModeEmergencyHeat",
+    "IsCurrentHVACModeHumidify",
+    "IsCurrentHVACModeDehumidify",
+    "IsCurrentFanSpeedLow",
+    "IsCurrentFanSpeedMidLow",
+    "IsCurrentFanSpeedMid",
+    "IsCurrentFanSpeedMidHigh",
+    "IsCurrentFanSpeedHigh",
+    "IsCurrentFanSpeedOff",
+    "IsThermostatCurrentFanModeAuto",
+    "IsThermostatCurrentFanModeOn",
+    "IsThermostatCurrentFanModeOff",
+    "IsThermostatHolding",
+    "ThermostatAwayState",
+    "ThermostatHoldUntil",
+    "ThermostatIsSavingEnergy",
+)
+
+# Audio-zone attributes observed in live captures (sibling PROTOCOL.md §6.2).
+MUSIC_ZONE_ATTRIBUTES = (
+    "CurrentSongName",
+    "CurrentArtistName",
+    "CurrentAlbumName",
+    "CurrentArtworkPath",
+    "CurrentArtworkDeeplink",
+    "NowPlayingSource",
+    "CurrentStreamingService",
+    "CurrentPauseStatus",
+    "CurrentRepeatStatus",
+    "CurrentRepeatMode",
+    "CurrentShuffleStatus",
+    "CurrentElapsedTime",
+    "CurrentRemainingTime",
+    "CurrentProgress",
+    "CurrentTransportActions",
+    "refreshLMQ",
+    "refreshLMQ3",
+    "TransportSet",
+    "SeekDisabled",
+    "SongLiked",
+    "Explicit",
+    "IsRepeatStatusAvailable",
+    "IsShuffleStatusAvailable",
+    "CurrentVolume",
+    "IsMuted",
+)
+
+# Global keys that need no per-room prefix (PROTOCOL.md §5.4).
+GLOBAL_STATE_KEYS = (
+    "global.LightsAreOn",
+    "global.SonosGroups",
+    "Energy.Grid.IsAvailable",
+)
+
+# Number of Audio Zones to subscribe to by default.
+DEFAULT_MUSIC_ZONES = 2
+
+
+def build_default_subscribe_keys(
+    rooms: list[str] | None = None, *, include_legacy_defaults: bool = True
+) -> list[str]:
+    """Return the default dotted state keys to subscribe to.
+
+    ``rooms`` are user-supplied room names (optional); additional rooms are discovered
+    at runtime from scene definitions and state keys (PROTOCOL.md §6.1).
+    """
+    keys: list[str] = []
+    if include_legacy_defaults:
+        keys.extend(
+            f"{HVAC_STATE_PREFIX}{attr}{HVAC_UNIT_SUFFIX}" for attr in HVAC_STATE_ATTRIBUTES
+        )
+        for zone in range(1, DEFAULT_MUSIC_ZONES + 1):
+            keys.extend(audio_zone_state_keys("Music", f"Audio Zone {zone}"))
+    keys.extend(GLOBAL_STATE_KEYS)
+    keys.extend(room_state_keys(set(rooms or [])))
+    return keys
+
+
+def audio_zone_state_keys(
+    component: str, logical_component: str, variant_id: str = "1"
+) -> list[str]:
+    """Return state keys for one archive-derived music endpoint.
+
+    The configuration archive identifies an endpoint by both its component and logical
+    component. Audio Zone numbers are only unique within a component (PROTOCOL.md §13).
+    """
+    # Ordinary media state is component/logical/attribute. ZonesActiveIn is the
+    # separately captured service-qualified membership state (sibling PROTOCOL.md §6.2).
+    prefix = f"{component}.{logical_component}."
+    return [f"{prefix}{attr}" for attr in MUSIC_ZONE_ATTRIBUTES] + [
+        f"{prefix}{variant_id}.{SVC_AV_SAVANTMUSIC}.ZonesActiveIn"
+    ]
+
+
+def device_state_keys(device: dict[str, Any]) -> list[str]:
+    """Return state keys for an archive-derived device record.
+
+    ``stateName`` identifies the exact state key for loads. For thermostats it names
+    only the current-temperature key, so derive the rest of that controller unit's
+    observed attributes from the same component/logical-component prefix and suffix.
+    """
+    state_name = str(device.get("state_name") or "")
+    marker = "ThermostatCurrentTemperature"
+    if not state_name:
+        return []
+    if device.get("type") != DEVICE_TYPE_CLIMATE or marker not in state_name:
+        return [state_name]
+    prefix, suffix = state_name.split(marker, 1)
+    return [f"{prefix}{attribute}{suffix}" for attribute in HVAC_STATE_ATTRIBUTES]
+
+
+# ---- Defaults --------------------------------------------------------------
+# Identity values sent in devicePresent.  The device block is NOT validated by the
+# host: the reverse-engineering repo's login test tool authenticated successfully with
+# make/app/name "login_test" and model/OS/type "cli". ``UID`` is generated once and
+# persisted; ``homeId`` is likewise unvalidated for local login (sibling PROTOCOL.md §4.1).
+DEVICE_MAKE = "Home Assistant"
+DEVICE_APP = "savant_ha"
+DEVICE_MODEL = "Home Assistant"
+DEVICE_OS = "Home Assistant"
+DEVICE_TYPE = "Home Assistant"
+DEVICE_NAME = "Home Assistant"

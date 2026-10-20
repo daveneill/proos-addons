@@ -202,6 +202,10 @@ except Exception as _ae:  # noqa: BLE001
     auth = None
     print(f"  AUTH MODULE UNAVAILABLE ({_ae}) — every route except /health is refused", flush=True)
 try:
+    from proos import drivers as _drivers             # our certified drivers, carried by Core (reg 969a)
+except Exception:  # noqa: BLE001 — never stop boot
+    _drivers = None
+try:
     from proos import provision, users, consent, terminal, navconfig, catalog
     from proos import door as _door                     # the remote door (reg 351)
     from proos import roomorder
@@ -5590,6 +5594,10 @@ class Handler(BaseHTTPRequestHandler):
                 # WHAT THE BOX SERVES (5 Oct 2026): the page builds read from www/,
                 # so Pro can show Core and both pages on one row, from the box.
                 try:
+                    _drv = _drivers.state(_ws_call) if _drivers is not None else {"error": "drivers module unavailable"}
+                except Exception as _dre:  # noqa: BLE001
+                    _drv = {"error": str(_dre)[:160]}
+                try:
                     _apps = provision.served_builds()
                 except Exception as _ae:  # noqa: BLE001
                     _apps = {"error": str(_ae)[:160]}
@@ -5607,6 +5615,7 @@ class Handler(BaseHTTPRequestHandler):
                                         "awareness": _aw,
                                         "ha_stream": _hs,
                                         "door": _dr,
+                                        "drivers": _drv,
                                         "vitals": _vit})
             if parts == ["events"]:
                 qs = parse_qs(urlparse(self.path).query)
@@ -10093,6 +10102,21 @@ def main():
                 print(f"  remote door \u00b7 {_ds.get('words')}")
             except Exception as _de:
                 print(f"  remote door \u00b7 skipped: {_de}")
+            try:
+                # OUR CERTIFIED DRIVERS (register 969a, Dave 20 Oct: "Ship inside Core"): the ProOS versions of the
+                # platform's drivers converge into custom_components on every boot — install when different, leave
+                # alone when identical; the platform loads them on its next start, and /health says until it has.
+                if _drivers is not None:
+                    _dv = _drivers.install()
+                    if _dv.get("installed"):
+                        print(f"  drivers \u00b7 installed {', '.join(_dv['installed'])} -> {_dv['dest']}")
+                    else:
+                        print(f"  drivers \u00b7 {len(_dv.get('current') or [])} already current")
+                    if _dv.get("errors"):
+                        print(f"  drivers \u00b7 install errors: {_dv['errors'][:5]}")
+                    print(f"  drivers \u00b7 {_drivers.state(_ws_call, force=True).get('words')}")
+            except Exception as _dve:
+                print(f"  drivers \u00b7 skipped: {_dve}")
             try:
                 # A4 (reg 278, Dave's GO): the native door leads to ProOS \u2014
                 # the "proos" dashboard is the installation default, every

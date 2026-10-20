@@ -2869,7 +2869,7 @@ body.v3 .rh-card{border-radius:22px}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102002';
+const PROOS_BUILD='2026102003';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -4409,9 +4409,20 @@ async function _beginFlow(domain){
     _flow.flowId=start.flow_id; renderFlowStep(start);
   }catch(e){
     const notInstalled = /\b404\b/.test(String(e&&e.message||e));
+    // 969a: Core now carries our certified drivers and installs them on every boot; a driver that is in place but not
+    // yet loaded is waiting for the platform's one restart — say that, and offer it, instead of "isn't installed"
+    let waiting=false;
+    if(notInstalled){ try{ const h=await (await fetch(proCoreUrl()+'/health',{cache:'no-store'})).json(); waiting=!!(h&&h.drivers&&(h.drivers.waiting||[]).includes(domain)); }catch(_){} }
+    if(waiting){
+      flowMessage(`The ${integrationName(domain)} certified driver is installed. The home engine needs to restart once to load it (about a minute).`);
+      try{ const host=document.getElementById('flow-actions'); if(host && !host.querySelector('.drv-restart')){ const b=document.createElement('button'); b.className='btn-primary drv-restart'; b.textContent='Restart the Home Engine';
+        b.onclick=async()=>{ if(!(await proAsk('Restart the home engine now? Everything pauses for about a minute.'))) return; b.disabled=true; b.textContent='Restarting\u2026'; try{ await snd({type:'call_service',domain:'homeassistant',service:'restart'}); }catch(_){} };
+        host.insertBefore(b, host.firstChild); } }catch(_){}
+    } else {
     flowMessage(notInstalled
       ? `The ${integrationName(domain)} certified driver isn't installed on this system yet.`
       : "Couldn't start setup here — this integration can't be set up here, or it has no UI setup.");
+    }
   }
 }
 

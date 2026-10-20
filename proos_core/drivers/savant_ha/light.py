@@ -1,0 +1,256 @@
+"""Light platform: one entity per Savant lighting load (from the config archive).
+
+Each ``LightEntities`` row in ``serviceImplementation.sqlite`` is a single load with an
+``addresses`` field (the ``DimmerSet`` ``Address*`` args) and a ``stateName`` field (the
+per-load dimmer/colour state key). Legacy room entities use ``__RoomSetBrightness``;
+configured loads require their exact per-load state and captured ``DimmerSet`` shape.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from homeassistant.components.light import ATTR_RGBW_COLOR, ColorMode, LightEntity
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import CONF_NAME
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+
+from .const import (
+    DEVICE_TYPE_LIGHT,
+    DOMAIN,
+    ROOM_BRIGHTNESS,
+    ROOM_LIGHTS_ON,
+    SVC_ENV_LIGHTING,
+    VERB_ROOM_BRIGHTNESS,
+)
+from .control import (
+    dimmer_args,
+    dimmer_command,
+    is_color_light,
+    is_switch,
+    parse_light_color,
+    parse_light_state,
+    state_name_component,
+    state_name_logical,
+)
+from .entity import SavantEntity
+from .hub import SavantHub
+
+
+class SavantLight(SavantEntity, LightEntity):
+    """A single Savant lighting load."""
+
+    _attr_supported_color_modes = {ColorMode.BRIGHTNESS}
+
+    def __init__(self, hub: SavantHub, device: dict[str, Any]) -> None:
+        super().__init__(
+            hub,
+            device_key=f"light:{device['id']}",
+            device_name=device["name"],
+            area=device.get("area", ""),
+        )
+        self._room = device.get("room", "")
+        self._state_name = device.get("state_name", "")
+        self._addresses = device.get("addresses", "")
+        self._device = device
+        self._is_switch = is_switch(device)
+        self._is_color = is_color_light(device)
+        # Optimistic state: the host pushes per-load state once the client encodes
+        # msgpack strings with the legacy raw formats (PROTOCOL.md §1), but the pushed
+        # confirmation arrives a round-trip later — remember the last commanded
+        # on/brightness so the power toggle feels instant like a native HA light.
+        # The pushed state remains authoritative (it overrides the assumed values).
+        self._assumed_on: bool | None = None
+        self._assumed_brightness: int | None = None
+        self._assumed_rgbw_color: tuple[int, int, int, int] | None = None
+        # The host retains color channels at brightness zero but does not restore the
+        # previous color-load brightness for useLastDimmerValue. Keep the last state the
+        # host reported while on, including changes made outside Home Assistant.
+        self._last_active_brightness: int | None = None
+        self._last_active_rgbw_color: tuple[int, int, int, int] | None = None
+        if self._is_switch:
+            self._attr_supported_color_modes = {ColorMode.ONOFF}
+            self._attr_color_mode = ColorMode.ONOFF
+        elif self._is_color:
+            self._attr_supported_color_modes = {ColorMode.RGBW}
+            self._attr_color_mode = ColorMode.RGBW
+        self._attr_unique_id = f"{hub.uid}_light_{device['id']}"
+        if not self._is_switch and not self._is_color:
+            self._attr_color_mode = ColorMode.BRIGHTNESS
+
+    def _component(self) -> str:
+        # Per-load: derive component/logical from stateName "<component>.<logical>...".
+        component = state_name_component(self._state_name)
+        if component:
+            return component
+        # Room-level: the lighting component is the host/project name (PROTOCOL.md §6).
+        return self.hub.entry.data.get(CONF_NAME, "")
+
+    def _logical_component(self) -> str:
+        return state_name_logical(self._state_name)
+
+    def _dimmer_args(
+        self,
+        level: int,
+        rgbw_color: tuple[int, int, int, int] | None = None,
+        use_last_dimmer_value: bool = False,
+    ) -> dict[str, Any]:
+        return dimmer_args(self._device, level, rgbw_color, use_last_dimmer_value)
+
+    def _parsed_state(self) -> tuple[bool | None, int | None]:
+        if not self._state_name:
+            return None, None
+        value = self._state(self._state_name)
+        on, brightness = parse_light_state(self._state_name, value)
+        if on:
+            self._last_active_brightness = brightness
+            color = parse_light_color(self._state_name, value)
+            if color is not None:
+                self._last_active_rgbw_color = color
+        return on, brightness
+
+    @property
+    def is_on(self) -> bool | None:
+        real_on, _ = self._parsed_state()
+        if real_on is not None:
+            return real_on
+        if self._assumed_on is not None:
+            return self._assumed_on
+        if not self._state_name:
+            value = self._state(f"{self._room}.{ROOM_LIGHTS_ON}")
+            return value if isinstance(value, bool) else None
+        return None
+
+    @property
+    def brightness(self) -> int | None:
+        if self._is_switch:
+            return None
+        _, real_brightness = self._parsed_state()
+        if real_brightness is not None:
+            return real_brightness
+        if self._assumed_brightness is not None:
+            return self._assumed_brightness
+        if not self._state_name:
+            level = self._state(f"{self._room}.{ROOM_BRIGHTNESS}")
+            if isinstance(level, (int, float)):
+                return max(0, min(255, int(float(level) / 100 * 255)))
+        return None
+
+    @property
+    def rgbw_color(self) -> tuple[int, int, int, int] | None:
+        """Expose the RGBW channels used by Home Assistant's color controls."""
+        if not self._is_color:
+            return None
+        color = parse_light_color(self._state_name, self._state(self._state_name))
+        return color if color is not None else self._assumed_rgbw_color
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        if self._is_switch:
+            return
+        brightness = kwargs.get("brightness")
+        if self._state_name and self._addresses:
+            requested_color = kwargs.get(ATTR_RGBW_COLOR)
+            restore_last = brightness is None and requested_color is None
+            use_host_last = restore_last and not self._is_color
+            level = (
+                round(brightness / 255 * 100)
+                if isinstance(brightness, int)
+                else round((self._last_active_brightness or 255) / 255 * 100)
+            )
+            rgbw_color = (
+                tuple(requested_color)
+                if self._is_color and isinstance(requested_color, tuple)
+                else (
+                    (self._last_active_rgbw_color or self.rgbw_color)
+                    if self._is_color
+                    else None
+                )
+            )
+            await self._service_request(
+                dimmer_command(self._device),
+                component=self._component(),
+                service_type=SVC_ENV_LIGHTING,
+                zone=self._room,
+                logical_component=self._logical_component(),
+                request_args=self._dimmer_args(level, rgbw_color, use_host_last),
+            )
+            self._assumed_on = True
+            self._assumed_brightness = brightness if isinstance(brightness, int) else 255
+            self._assumed_rgbw_color = rgbw_color
+            self.async_write_ha_state()
+            return
+        await self._service_request(
+            VERB_ROOM_BRIGHTNESS,
+            component=None,
+            service_type=SVC_ENV_LIGHTING,
+            zone=self._room,
+            logical_component=None,
+            request_args={"BrightnessLevel": 100, "useLastDimmerValue": True},
+        )
+        self._assumed_on = True
+        self.async_write_ha_state()
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        if self._is_switch:
+            return
+        if self._state_name and self._addresses:
+            self._parsed_state()  # Retain the current host state before it reports level zero.
+            await self._service_request(
+                dimmer_command(self._device),
+                component=self._component(),
+                service_type=SVC_ENV_LIGHTING,
+                zone=self._room,
+                logical_component=self._logical_component(),
+                # Color-capable loads require their current RGBW payload for the off
+                # transition. The next no-attribute turn_on sets useLastDimmerValue to
+                # restore the host's remembered brightness/color.
+                request_args=self._dimmer_args(0, self.rgbw_color),
+            )
+            self._assumed_on = False
+            self._assumed_brightness = 0
+            self.async_write_ha_state()
+            return
+        await self._service_request(
+            VERB_ROOM_BRIGHTNESS,
+            component=None,
+            service_type=SVC_ENV_LIGHTING,
+            zone=self._room,
+            logical_component=None,
+            request_args={"BrightnessLevel": 0, "useLastDimmerValue": True},
+        )
+        self._assumed_on = False
+        self.async_write_ha_state()
+
+
+def _build_entities(hub: SavantHub) -> list[SavantLight]:
+    if hub.devices is not None:
+        return [
+            SavantLight(hub, device)
+            for device in hub.devices
+            if device.get("type") == DEVICE_TYPE_LIGHT and not is_switch(device)
+        ]
+    # Legacy fallback: one room-level light per room that reports lighting.
+    return [
+        SavantLight(hub, {"id": room, "name": room, "room": room})
+        for room in sorted(hub.rooms)
+        if f"{room}.{ROOM_LIGHTS_ON}" in hub.states
+        or f"{room}.{ROOM_BRIGHTNESS}" in hub.states
+    ]
+
+
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    hub: SavantHub = hass.data[DOMAIN][entry.entry_id]
+
+    def _add() -> None:
+        entities = [e for e in _build_entities(hub) if not hub.is_created(e.unique_id)]
+        if entities:
+            hub.mark_created([e.unique_id for e in entities])
+            async_add_entities(entities)
+
+    _add()
+    hub.add_platform_callback(_add)
