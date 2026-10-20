@@ -4606,7 +4606,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102002';
+const PROOS_BUILD='2026102003';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -4847,7 +4847,9 @@ function applyMobileCardStyles(container){
   container.querySelectorAll('.ms-row-card').forEach(card=>{
     card.style.margin='0';
   });
-  container.querySelectorAll('.mp-card').forEach(card=>{
+  // 968z: not the panel's player card (.mpc, 968o/968y) — this pinned its art to 52 and its corners to 16 on every phone,
+  // under the stylesheet's sizes (inline !important), so the phone's player never matched the iPad's or the Mac's
+  container.querySelectorAll('.mp-card:not(.mpc)').forEach(card=>{
     card.style.height='auto';
     card.style.borderRadius='16px';
     card.style.margin='0';
@@ -6006,7 +6008,15 @@ function _npShape(ctrl){
   const t=String(att(ctrl,'media_content_type')||'').toLowerCase();
   return _NP_WIDE[t]?'wide':(_NP_SQUARE[t]?'square':'');
 }
+// 968z (Dave, 20 Oct 12:31): "make the change if room name appears twice" — a speaker named for its room read
+// "Office · Office"; the room is said once. Any other pair ("Bedroom · ProOS Panel Media Player") is kept.
+function _onceLabel(l){
+  const s=String(l||''); const p=s.split(' \u00b7 ');
+  if(p.length===2 && p[0].trim().toLowerCase()===p[1].trim().toLowerCase()) return p[0];
+  return s;
+}
 function makeMediaWidgetCard(ctrl, volEnt, art, title, artist, roomLabel, vol, hasVol){
+  roomLabel=_onceLabel(roomLabel);
   const playing=st(ctrl)==='playing';
   const artUrl=artSrc(art);
   const shape=_npShape(ctrl);
@@ -6035,14 +6045,16 @@ function makeMediaWidgetCard(ctrl, volEnt, art, title, artist, roomLabel, vol, h
     +`<div class="mwc-tx"><div class="mwc-room">${playing?'<span class="mw-eq"><i></i><i></i><i></i></span>':''}${_hEsc(roomLabel||'')}${app&&!String(roomLabel||'').includes(app)?' · '+_hEsc(app):''}</div>`
     +`<div class="mwc-title">${_hEsc(title||'')}</div>${artist?`<div class="mwc-artist">${_hEsc(artist)}</div>`:''}`
     +((epTxt&&ser&&ser!==title)||(epTxt&&!artist)?`<div class="mwc-artist wv-ep">${_hEsc(epTxt)}</div>`:'')+`</div>`
-    +`</div>`
-    +`<div class="wv-mbot">`
+    // 968z (Dave, 20 Oct 12:31: "all these now playing widgets need to match same layout as the players"): the transport
+    // sits in the top row at the right, beside the words — the Media and Music players' layout — then the line and volume
     +`<div class="wv-tr">`
       +((sf&16)?B('wv-rb wv-tb','Back',`_wvSkip('${ctrl}',-1)`,_wvSvg('prev')):'')
       +`<button class="mwc-pp" aria-label="${playing?'Pause':'Play'}" onclick="event.stopPropagation();if(!_widgetEditMode)togglePlayPause('${ctrl}')" onpointerdown="event.stopPropagation()" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()">`
       +(playing?'<svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>':'<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>')+`</button>`
       +((sf&32)?B('wv-rb wv-tb','Forward',`_wvSkip('${ctrl}',1)`,_wvSvg('next')):'')
     +`</div>`
+    +`</div>`
+    +`<div class="wv-mbot">`
     // THE PROGRESS LINE RUNS (register 618): position, duration and when the
     // player reported them — the same three attributes for every brand.
     +(()=>{ if(!(dur>0)||!isFinite(pos)) return '';
@@ -12383,6 +12395,7 @@ function _activeActivityFor(r){
 
 
 function makeMediaPageCard(ctrl, volEnt, art, title, artist, roomLabel, vol, hasVol){
+  roomLabel=_onceLabel(roomLabel);   // 968z
   const playing=st(ctrl)==='playing';
   // A TV showing Live TV is not a music player: channel up/down instead of
   // track skip, and NO artwork — the integration guesses channel/app logos
@@ -12402,7 +12415,10 @@ function makeMediaPageCard(ctrl, volEnt, art, title, artist, roomLabel, vol, has
   // source over the title, the transport as round buttons, and the volume as the panel's bar with its level inside —
   // the same entities, the same one volume (volEnt), the same commands as before.
   const _vp=Math.round((vol||0)*100);
-  return `<div class="mp-card mpc${tvCard?' tv':''}${playing?' on':''}">
+  // 968z: a video playing on a streamer (Apple TV, Shield — not a TV, which is tvCard) keeps its 16:9 art in the wide
+  // frame the TV card uses, by the player's own content type (_npShape, register 598) — it was cropped to a square
+  const wideArt=!tvCard && typeof _npShape==='function' && _npShape(ctrl)==='wide';
+  return `<div class="mp-card mpc${tvCard?' tv':''}${wideArt?' wide':''}${playing?' on':''}">
     <div class="mpc-row">
       <div class="mpc-art mp-art" onclick="openPlayer('${ctrl}','${volEnt}')">${artUrl?`<img src="${artUrl}" onerror="this.remove()"/>`:''}${tvCard?'<svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>':'<svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>'}</div>
       <div class="mpc-tx mp-info" onclick="openPlayer('${ctrl}','${volEnt}')">
@@ -21407,27 +21423,34 @@ body:has(#widget-picker.open) #widget-add-pill{display:none!important}   /* regi
 .w-media .mwc-prog i{background:#fff}
 .wv-tm{display:flex;justify-content:space-between;font-size:10.5px;color:var(--wv-ink3);font-variant-numeric:tabular-nums}
 .w-media .wv-vol{display:none}
-/* one-row faces: the art at full height; beside it the words, then the transport and the line */
-.w-media:not(.w-rows2) .mwc{display:grid!important;grid-template-columns:auto minmax(0,1fr);grid-template-rows:auto 1fr;column-gap:12px;row-gap:4px}
-.w-media:not(.w-rows2) .wv-mtop{display:contents}
-.w-media:not(.w-rows2) .mwc-art{grid-row:1 / span 2;grid-column:1;width:122px!important;height:122px!important;max-width:none;max-height:none;align-self:center}
-.w-media:not(.w-rows2) .mwc-art.wide{align-self:center;height:auto!important;width:100%!important;max-width:none;aspect-ratio:16/9}
-.w-media:not(.w-rows2) .mwc[data-shape="wide"]{grid-template-columns:42% minmax(0,1fr)}
-.w-media:not(.w-rows2) .mwc-tx{grid-column:2;grid-row:1}
-.w-media:not(.w-rows2) .wv-mbot{grid-column:2;grid-row:2;justify-content:flex-end}
-/* two-row faces: art and words on top, transport, line and volume under */
+/* 968z — NOW PLAYING IS THE PLAYER. Dave, 20 Oct 12:31, with a picture of four Now Playing widgets: "need to match same
+   layout as the players for audio and media and the larger ones make better use of the space — art should adjust in
+   size as the widget does". The players' layout at every size: the art, the room and the words, the transport at the
+   right of that row; under it the line and (two-row faces) the volume. The art is one variable: a one-row face fits its
+   row; a two-row face grows with the widget's own width (cqw), within limits; a show keeps its 16:9 at the same height. */
+/* the widget is its own size container (its grid cell gives it a height), so the art follows BOTH: as tall as the face
+   allows once the line (and on two-row faces the volume) is under it, never wider than a share of the face */
+.widget-cell.w-media{container-type:size;--npa:clamp(52px,min(calc(100cqh - 66px),22cqw),104px)}
+.widget-cell.w-media.w-rows2{--npa:clamp(96px,min(calc(100cqh - 140px),42cqw),240px)}
 .w-media.w-rows2 .wv-vol{display:block}
-.w-media.w-rows2 .wv-mtop{align-items:flex-start}
-.w-media.w-rows2 .mwc-art{align-self:flex-start;width:132px!important;height:132px!important;flex:none}
-.w-media.w-rows2.w-span3 .mwc-art{width:150px!important;height:150px!important}
-.w-media.w-rows2 .mwc-art.wide{width:236px!important;height:auto!important}
-.w-media.w-rows2.w-span3 .mwc-art.wide{width:268px!important}
-.w-media.w-rows2 .mwc-title{font-size:19px;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-/* a two-wide two-row SHOW: the widescreen picture across the top, the words under it */
-.w-media.w-rows2:not(.w-span3) .mwc[data-shape="wide"] .wv-mtop{flex-direction:column;align-items:stretch;gap:8px}
-.w-media.w-rows2:not(.w-span3) .mwc[data-shape="wide"] .mwc-art.wide{width:100%!important;height:110px!important;aspect-ratio:auto;max-height:none}
-.w-media.w-rows2:not(.w-span3) .mwc[data-shape="wide"] .mwc-title{font-size:17px;-webkit-line-clamp:1}
-.w-media.w-rows2 .mwc.tv .mwc-art{position:relative;inset:auto;border-radius:var(--proos-art-r-l)}
+.w-media .mwc{display:flex!important;flex-direction:column!important;justify-content:space-between!important}
+.w-media .wv-mtop{display:flex!important;flex-direction:row!important;align-items:center!important;gap:12px;flex:0 0 auto!important}
+.w-media .mwc-art{align-self:center!important;width:var(--npa)!important;height:var(--npa)!important;max-width:none!important;max-height:none!important;aspect-ratio:auto!important;flex:none!important;position:relative!important;inset:auto!important}
+.w-media .mwc-art.wide{width:calc(var(--npa) * 16 / 9)!important}
+.w-media .mwc-tx{flex:1 1 auto;min-width:0}
+.w-media .wv-mtop .wv-tr{flex:none;gap:8px;justify-content:flex-end}
+.w-media .wv-tb{width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.12)!important;color:#fff}
+.w-media .wv-tb svg{width:15px;height:15px}
+.w-media .wv-tr .mwc-pp{width:42px!important;height:42px!important}
+.w-media.w-rows2 .wv-tb{width:40px;height:40px}
+.w-media.w-rows2 .wv-tr .mwc-pp{width:48px!important;height:48px!important}
+.w-media.w-rows2 .mwc-title{font-size:clamp(17px,4.6cqw,22px);white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.w-media.w-rows2 .wv-mbot{gap:10px}
+/* a narrow face keeps play/pause and lets the words keep their room */
+@container (max-width:330px){ .w-media .wv-tb{display:none!important} }
+@container (max-width:520px){ .w-media:not(.w-rows2) .wv-tb{width:34px;height:34px} .w-media:not(.w-rows2) .wv-tr .mwc-pp{width:42px!important;height:42px!important} .w-media .wv-mtop .wv-tr{gap:6px} }
+/* a two-row face only two columns wide: the art takes a smaller share so the words keep a line of their own */
+@container (max-width:480px){ .w-media.w-rows2 .mwc{--npa:clamp(84px,30cqw,140px)} .w-media.w-rows2 .wv-tb{width:36px;height:36px} .w-media.w-rows2 .wv-tr .mwc-pp{width:44px!important;height:44px!important} .w-media.w-rows2 .mwc-title{font-size:17px} }
 .w-media.w-rows2 .mwc.tv::after{content:none}
 .w-media.w-rows2 .mwc.tv .mwc-bg{display:block}
 .w-media .mwc-bg{opacity:.4;filter:blur(30px) saturate(1.7) brightness(.6)}
@@ -21711,13 +21734,13 @@ html.pv-room #page-home .room-acts{display:block;margin-top:4px}
    pictures 3 and 2) — under the title it was "wrong layout" (pictures 4 and 6). One player, two sizes by its own width:
    a wide card (an iPad or a Mac) and a narrow one (a phone, or two across on an upright iPad). */
 .mpc .mpc-art{width:112px!important;height:112px!important;border-radius:18px!important}
-.mpc.tv .mpc-art{width:168px!important}
+.mpc.tv .mpc-art,.mpc.wide .mpc-art{width:168px!important}
 .mpc .mp-title{font-size:20px!important;letter-spacing:-.01em}
 .mpc .mp-artist{font-size:14px}
 .mp-card.mpc{padding:16px!important}
 @container (max-width:520px){
-  .mpc .mpc-art{width:64px!important;height:64px!important;border-radius:14px!important}
-  .mpc.tv .mpc-art{width:96px!important}
+  .mp-card.mpc .mpc-art.mp-art{width:64px!important;height:64px!important}
+  /* a narrow card keeps ONE picture size for every player — a 16:9 frame here squeezed the title to a few letters */
   .mpc .mp-title{font-size:17px!important}
   .mpc .mp-artist{font-size:var(--t-floor)}
   .mpc-row{gap:12px}
