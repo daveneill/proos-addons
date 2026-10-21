@@ -95,8 +95,13 @@ def enroll(home_id: str, name: str, core: str) -> dict:
     """Ask to join (or say we are still here). Returns Connect's answer: pending / approved / revoked."""
     st = identity()
     try:
-        got = _call("POST", "/v1/enroll", {"box_id": st["box_id"], "secret": st["secret"],
-                                           "home_id": home_id, "name": name, "core": core}, st)
+        body = {"box_id": st["box_id"], "secret": st["secret"], "home_id": home_id, "name": name, "core": core}
+        try:                                         # register 969v: the box's public key for its remote-access line
+            from proos import connecttunnel as _ct
+            body["ssh_key"] = _ct.public_key()
+        except Exception:  # noqa: BLE001
+            pass
+        got = _call("POST", "/v1/enroll", body, st)
     except urllib.error.HTTPError as e:
         got = {"status": "refused", "why": "Connect answered %s" % e.code}
     except Exception as e:  # noqa: BLE001
@@ -300,6 +305,7 @@ def converge(sup, ws, req, home_id: str, name: str, core: str) -> dict:
     out = {"enroll": enroll(home_id, name, core)}
     stt = status()
     out["status"] = {k: stt.get(k) for k in ("status", "voice_ready", "why")}
+    out["tunnel"] = stt.get("tunnel")                 # register 969v: Connect's answer for the remote-access line
     ready = stt.get("status") == "approved" and bool(stt.get("voice_ready"))
     if ready:
         out["engine"] = ensure_engine(sup, ws, req)
@@ -316,5 +322,11 @@ def reading() -> dict:
     """What /voice/status says about the ProOS voice — never the secret."""
     st = _load()
     with _lock:
-        return {"connect_url": CONNECT_URL, "box_id": st.get("box_id"), "engine": _engine.get("entity"),
-                "ready": bool(_engine.get("ready")), "last": _engine.get("last")}
+        out = {"connect_url": CONNECT_URL, "box_id": st.get("box_id"), "engine": _engine.get("entity"),
+               "ready": bool(_engine.get("ready")), "last": _engine.get("last")}
+    try:                                              # register 969v: the remote-access line, as Core sees it
+        from proos import connecttunnel as _ct
+        out["remote"] = _ct.reading()
+    except Exception:  # noqa: BLE001
+        pass
+    return out

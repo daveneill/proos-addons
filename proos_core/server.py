@@ -3762,6 +3762,9 @@ def factory_reset(clear_proos_data=False, keep_auth=False):
                    # the box's ProOS Connect id and secret (register 969u) — a reset box asks to join afresh and is
                    # approved again on Connect, so a box passed to another home never carries the old approval
                    "connect.json",
+                   # the box's remote-access key pair and Connect's pinned host key (register 969v) — made afresh with
+                   # the new Connect id
+                   "connect_ssh_ed25519", "connect_ssh_ed25519.pub", "connect_known_hosts",
                    # the installer-pasted Apple Music token (register 759) — like the AI key, placed
                    # per box by the installer; a reset home is set up afresh
                    "apple_music_token.json",
@@ -10885,21 +10888,34 @@ def main():
         _cvm.serve()
 
         def _connect_voice_loop():
+            # register 969v: the remote-access line follows Connect's answer every 20 s (a drop is re-opened, a
+            # revoke closes it within the same); the full pass (join, voice engine, pipeline) as before.
+            from proos import connecttunnel as _ctm
             time.sleep(20)
-            last = None
+            last, last_line, next_full = None, None, 0.0
             while True:
                 try:
-                    try:
-                        _loc = (_client._req("GET", "/api/config") or {}).get("location_name") or ""
-                    except Exception:                                    # noqa: BLE001
-                        _loc = ""
-                    _cr = _cvm.converge(_sv, _ws_call, _client._req, str(_opt("home_id", "") or ""),
-                                        _loc, CORE_VERSION)
-                    _now = (_cr.get("status") or {}).get("status"), bool(_cvm.engine())
-                    if _now != last:
-                        print(f"  voice · ProOS Connect: {_cr.get('status')} engine={_cvm.engine()}", flush=True)
-                        last = _now
-                    time.sleep(600 if _cvm.engine() else 60)
+                    if time.time() >= next_full:
+                        try:
+                            _loc = (_client._req("GET", "/api/config") or {}).get("location_name") or ""
+                        except Exception:                                # noqa: BLE001
+                            _loc = ""
+                        _cr = _cvm.converge(_sv, _ws_call, _client._req, str(_opt("home_id", "") or ""),
+                                            _loc, CORE_VERSION)
+                        _tun = _ctm.wanted((_cr.get("status") or {}).get("status"), _cr.get("tunnel"))
+                        _now = (_cr.get("status") or {}).get("status"), bool(_cvm.engine())
+                        if _now != last:
+                            print(f"  voice · ProOS Connect: {_cr.get('status')} engine={_cvm.engine()}", flush=True)
+                            last = _now
+                        next_full = time.time() + (600 if _cvm.engine() else 60)
+                    else:
+                        _st = _cvm.status()
+                        _tun = _ctm.wanted(_st.get("status"), _st.get("tunnel"))
+                    _ln = _ctm.keep(_tun).get("line")
+                    if _ln != last_line:
+                        print(f"  remote · ProOS Connect line: {_ln} {(_tun or {}).get('listen') or ''}", flush=True)
+                        last_line = _ln
+                    time.sleep(20)
                 except Exception as _cle:                                # noqa: BLE001
                     print(f"  voice · ProOS Connect pass failed: {_cle}", flush=True)
                     time.sleep(60)
