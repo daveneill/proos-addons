@@ -2876,7 +2876,7 @@ body.v3 .rh-card{border-radius:22px}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102103';
+const PROOS_BUILD='2026102104';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -12573,27 +12573,111 @@ async function techViewPrepare(view){
   }
   setHTML(view,h);
 }
+// THE BOX'S PORTS (register 969z, Dave 21 Oct 16:05: "no way to ever modify these settings … change to static or change
+// DNS … the Gflip has 2 x LAN connections"; 16:07: one image for every device, "show the number of LAN ports on the
+// unit"). Every port the box reports, as the box reports it — LAN 1, LAN 2 …, Wi-Fi — each with its own settings and
+// Edit. A change goes through the box's own network control and waits for Keep These Settings; not kept in 2 minutes,
+// the box puts the port back by itself.
+let _boxNet=null, _netTick=null, _netView=null;
+function _netRefresh(){ try{ if(_netView && _netView.isConnected) techViewNet(_netView); }catch(e){} }
+function _netMaskOpts(sel){ let o=''; for(let p=30;p>=8;p--){ const m=(0xffffffff<<(32-p))>>>0; const t=[m>>>24,(m>>>16)&255,(m>>>8)&255,m&255].join('.');
+  o+='<option value="'+p+'"'+(p===sel?' selected':'')+'>'+t+' (/'+p+')</option>'; } return o; }
 function _boxNetCard(b){
-  const itf=((b&&b.interfaces)||[]).find(i=>i.primary)||((b&&b.interfaces)||[])[0];
-  let h='<div class="hub-fl" style="margin-top:2px">This Box</div><div class="sys-grid" style="margin-bottom:6px">';
-  if(!itf){ h+='<div class="sys-card" style="cursor:default"><div class="d">The box did not state its network.</div></div></div>'; return h; }
+  _boxNet=b||null;
+  const itfs=((b&&b.interfaces)||[]);
+  let h='<div class="hub-fl" style="margin-top:2px">This Box</div>';
+  const pend=b&&b.pending;
+  if(pend){
+    h+='<div class="sys-card" id="net-pending" style="cursor:default;border-left:3px solid #e6c34d;margin-bottom:12px"><div class="d" style="margin:0 0 10px">'
+      +'New settings on <b>'+esc(pend.label||pend.interface)+'</b>. Keep them, or the box puts the old ones back by itself in <b id="net-left">'+(pend.seconds_left|0)+'</b> s.</div>'
+      +'<button class="btn-primary" onclick="netKeep()">Keep These Settings</button> <button class="btn-ghost" onclick="netPutBack()">Put Back Now</button></div>';
+    clearInterval(_netTick); let left=pend.seconds_left|0;
+    _netTick=setInterval(()=>{ left=Math.max(0,left-1); const el=document.getElementById('net-left'); if(el) el.textContent=left; if(!el||left<=0){ clearInterval(_netTick); } },1000);
+  }
+  h+='<div class="sys-grid" style="margin-bottom:6px">';
+  if(!itfs.length){ h+='<div class="sys-card" style="cursor:default"><div class="d">The box did not state its network.</div></div></div>'; return h; }
   const row=(k,v)=>'<div class="row" style="cursor:default"><div class="rl">'+esc(k)+'</div><div class="rr">'+esc(v==null||v===''?'Not stated':v)+'</div></div>';
-  h+='<div class="sys-card" style="cursor:default">'
-    +row('Address',(itf.addresses||[]).join(', '))
-    +row('Addressing',itf.addressing)
-    +row('Gateway',itf.gateway)
-    +row('DNS',(itf.dns||[]).join(', '))
-    +row('Connection',(itf.kind?itf.kind.charAt(0).toUpperCase()+itf.kind.slice(1):'')+(itf.vlan?' · VLAN '+itf.vlan:'')+(itf.connected===false?' · Not connected':''))
-    +row('Internet',b.internet===true?'Reachable':(b.internet===false?'Not reachable':null))
-    +'</div>';
+  itfs.forEach(function(itf){
+    const kind=itf.kind==='wireless'?'Wi-Fi':(itf.kind?itf.kind.charAt(0).toUpperCase()+itf.kind.slice(1):'');
+    const state=itf.enabled===false?'Off':(itf.connected===false?'Not connected':'Connected');
+    h+='<div class="sys-card" id="net-'+esc(itf.name)+'" style="cursor:default">'
+      +'<div class="t" style="justify-content:space-between"><span>'+esc(itf.label||itf.name)+'</span><span class="d" style="color:'+(state==='Connected'?'#3ddc84':'rgba(255,255,255,.55)')+'">'+state+'</span></div>'
+      +row('Address',(itf.addresses||[]).join(', '))
+      +row('Addressing',itf.addressing)
+      +row('Gateway',itf.gateway)
+      +row('DNS',(itf.dns||[]).join(', '))
+      +row('Connection',kind+(itf.vlan?' · VLAN '+itf.vlan:''))
+      +'<div style="margin-top:10px"><button class="btn-ghost" '+(pend?'disabled ':'')+'onclick="netEdit(\''+esc(itf.name)+'\')">Edit Settings</button></div>'
+      +'</div>';
+  });
+  h+='<div class="sys-card" style="cursor:default">'+row('Internet',b.internet===true?'Reachable':(b.internet===false?'Not reachable':null));
   const sys=(b.systems||[]);
   if(sys.length){
-    h+='<div class="sys-card" style="cursor:default">'+sys.map(x=>row(x.name,
-      x.reachable?(x.failed_at?'Last failed '+new Date(x.failed_at*1000).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}):'No failures seen'):('Not answering — '+(x.why||'no reason given')+(x.retry_in?' · trying again in '+x.retry_in+' s':'')))).join('')+'</div>';
+    h+=sys.map(x=>row(x.name,
+      x.reachable?(x.failed_at?'Last failed '+new Date(x.failed_at*1000).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}):'No failures seen'):('Not answering — '+(x.why||'no reason given')+(x.retry_in?' · trying again in '+x.retry_in+' s':'')))).join('');
   }
-  return h+'</div>';
+  return h+'</div></div>';
+}
+function netEdit(name){
+  const itf=((_boxNet&&_boxNet.interfaces)||[]).find(i=>i.name===name); const card=document.getElementById('net-'+name);
+  if(!itf||!card) return;
+  const m=itf.enabled===false?'disabled':(itf.method||'auto');
+  const dns=itf.dns||[];
+  setHTML(card,'<div class="t" style="justify-content:space-between"><span>'+esc(itf.label||itf.name)+'</span></div>'
+    +'<div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">'
+    +'<select class="fsel" id="net-m" onchange="netForm()"><option value="auto"'+(m==='auto'?' selected':'')+'>Automatic (DHCP)</option>'
+    +'<option value="static"'+(m==='static'?' selected':'')+'>Static</option><option value="disabled"'+(m==='disabled'?' selected':'')+'>Off</option></select>'
+    +'<div id="net-st" style="display:flex;flex-direction:column;gap:8px">'
+    +'<input class="set-input" id="net-a" placeholder="Address, e.g. 192.168.8.120" inputmode="decimal" value="'+esc((itf.addresses||[])[0]||'')+'">'
+    +'<select class="fsel" id="net-p">'+_netMaskOpts(itf.prefix||24)+'</select>'
+    +'<input class="set-input" id="net-g" placeholder="Gateway, e.g. 192.168.8.1" inputmode="decimal" value="'+esc(itf.gateway||'')+'"></div>'
+    +'<div id="net-dn" style="display:flex;flex-direction:column;gap:8px">'
+    +'<input class="set-input" id="net-d1" placeholder="DNS server 1" inputmode="decimal" value="'+esc(dns[0]||'')+'">'
+    +'<input class="set-input" id="net-d2" placeholder="DNS server 2 (optional)" inputmode="decimal" value="'+esc(dns[1]||'')+'">'
+    +'<div class="d" id="net-dh" style="font-size:12px"></div></div>'
+    +'<div class="d" id="net-err" style="color:#ff6b6b;font-size:13px"></div>'
+    +'<div><button class="btn-primary" onclick="netSave(\''+esc(itf.name)+'\')">Save</button> <button class="btn-ghost" onclick="_netRefresh()">Cancel</button></div>'
+    +'<div class="d" style="font-size:12px">After saving, the box waits 2 minutes for Keep These Settings. If nobody keeps them, it puts the old settings back by itself.</div>'
+    +'</div>');
+  netForm();
+}
+function netForm(){
+  const m=(document.getElementById('net-m')||{}).value;
+  const st=document.getElementById('net-st'), dn=document.getElementById('net-dn'), dh=document.getElementById('net-dh');
+  if(st) st.style.display=m==='static'?'flex':'none';
+  if(dn) dn.style.display=m==='disabled'?'none':'flex';
+  if(dh) dh.textContent=m==='auto'?'Leave blank to use the DNS the router hands out.':'';
+}
+async function netSave(name){
+  const v=id=>((document.getElementById(id)||{}).value||'').trim();
+  const body={method:v('net-m'), address:v('net-a'), prefix:parseInt(v('net-p'),10), gateway:v('net-g'), dns:[v('net-d1'),v('net-d2')].filter(Boolean)};
+  const err=document.getElementById('net-err'); if(err) err.textContent='';
+  const itf=((_boxNet&&_boxNet.interfaces)||[]).find(i=>i.name===name)||{};
+  if(body.method==='disabled' && itf.primary){ if(!(await proAsk('Turn off '+(itf.label||name)+'?\n\nIt is the port this box is reached on. If nobody keeps the change within 2 minutes, it is turned back on by itself.'))) return; }
+  let r, d={};
+  try{ r=await _coreFetch(proCoreUrl()+'/network/interface/'+encodeURIComponent(name),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)},70000); d=await r.json().catch(()=>({})); }
+  catch(e){ d={}; }
+  if(r && r.ok){
+    const moved=body.method==='static' && (itf.addresses||[])[0] && body.address!==(itf.addresses||[])[0] && itf.primary;
+    if(moved){ toast('Saved. Open Pro at http://'+body.address+' within 2 minutes and press Keep These Settings — or the box puts the old address back.'); }
+    else toast('Saved. Press Keep These Settings within 2 minutes.');
+    setTimeout(()=>_netRefresh(), 1500);
+    return;
+  }
+  if(err) err.textContent=(d&&d.error)||'The box did not answer. If its address changed, open Pro at the new address and press Keep These Settings.';
+}
+async function netKeep(){
+  try{ const r=await _coreFetch(proCoreUrl()+'/network/keep',{method:'POST'},15000); const d=await r.json().catch(()=>({}));
+    toast(d.kept?'Kept. '+(d.label||'The port')+' keeps its new settings.':'Nothing was waiting.'); }catch(e){ toast('The box did not answer.'); }
+  clearInterval(_netTick); _netRefresh();
+}
+async function netPutBack(){
+  try{ const r=await _coreFetch(proCoreUrl()+'/network/putback',{method:'POST'},70000); const d=await r.json().catch(()=>({}));
+    toast(d.put_back?'Put back. '+(d.label||'The port')+' has its old settings.':('Not put back: '+(d.why||'no answer'))); }catch(e){ toast('The box did not answer.'); }
+  clearInterval(_netTick); _netRefresh();
 }
 async function techViewNet(view){
+  _netView=view;   // 969z: where the ports are drawn, to redraw after a change
   let d=null;
   try{ const r=await _coreFetch(proCoreUrl()+'/net/awareness',{cache:'no-store'},15000); if(r.ok) d=await r.json(); }catch(e){}
   if(!d){ setHTML(view,'<div class="empty"><div class="et">Core unreachable</div></div>'); return; }

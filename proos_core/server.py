@@ -3820,6 +3820,8 @@ def factory_reset(clear_proos_data=False, keep_auth=False):
                    # the box's remote-access key pair and Connect's pinned host key (register 969v) — made afresh with
                    # the new Connect id
                    "connect_ssh_ed25519", "connect_ssh_ed25519.pub", "connect_known_hosts",
+                   # a network change waiting for Keep (register 969z) — a reset box starts with no change in hand
+                   "net_pending.json",
                    # the installer-pasted Apple Music token (register 759) — like the AI key, placed
                    # per box by the installer; a reset home is set up afresh
                    "apple_music_token.json",
@@ -6323,7 +6325,13 @@ class Handler(BaseHTTPRequestHandler):
                     _hi = _sv("GET", "/host/info") or {}
                 except Exception:                                # noqa: BLE001
                     _hi = {}
-                return self._send(200, _bn.summarise(_ni, _hi, _systems))
+                _sum = _bn.summarise(_ni, _hi, _systems)
+                try:                                     # 969z: a change waiting for Keep These Settings
+                    from proos import netchange as _nc
+                    _sum["pending"] = _nc.pending()
+                except Exception:                        # noqa: BLE001
+                    _sum["pending"] = None
+                return self._send(200, _sum)
             if parts == ["network", "gear"]:
                 u = getattr(self, "_user", None)
                 # The switches and gateway of the house — the installer's
@@ -7566,6 +7574,7 @@ class Handler(BaseHTTPRequestHandler):
         "project/heal",          # rebuilds a room record — commissioning work
         "apps/brands/",          # teaching/retiring an app — commissioning work
         "remotes",               # accepting, setting up or forgetting a ProOS Remote (register 969j)
+        "network/",              # changing the box's own network ports, keeping or putting back (register 969z)
     )
     # Homeowner actions that sit UNDER an installer prefix but are reads in
     # disguise — a POST only because they carry a body, not a config write.
@@ -7764,6 +7773,27 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(403, {"error": "installer access required"})
                 b = self._body() or {}
                 return self._send(*_voice_phrases_set(b.get("entity_id"), b.get("phrases")))
+            if parts[:1] == ["network"] and len(parts) in (2, 3) and parts[1] in ("interface", "keep", "putback"):
+                # 969z (Dave, 16:05): an installer changes a port — Automatic, Static or Off, its own DNS — through the
+                # platform's network control, held for Keep These Settings (proos/netchange.py). Installer only (the
+                # floor above, "network/").
+                from proos import netchange as _nc
+
+                def _nj(kind, data):
+                    if _journal_mod is not None:
+                        _journal_mod.emit("site", kind, dict(data, by=(getattr(self, "_user", None) or {}).get("name")))
+                if not os.environ.get("SUPERVISOR_TOKEN"):
+                    return self._send(503, {"error": "The box's network can only be changed on the ProOS box"})
+                try:
+                    if parts[1] == "interface" and len(parts) == 3:
+                        return self._send(200, _nc.apply(_sv, parts[2], self._body() or {}, _nj))
+                    if parts[1] == "keep":
+                        return self._send(200, _nc.keep(_nj))
+                    if parts[1] == "putback":
+                        return self._send(200, _nc.put_back(_sv, _nj, why="put back by the installer"))
+                except ValueError as e:
+                    return self._send(400, {"error": str(e)})
+                return self._send(404, {"error": "not found"})
             if parts == ["voice", "default"]:
                 # The installer chooses the product's voice. An engine the
                 # box doesn't have is refused (a choice must be a reading);
@@ -11027,6 +11057,12 @@ def main():
         print(f"  voice · the ProOS voice answers on port {_cvm.PORT}; joining {_cvm.CONNECT_URL}", flush=True)
     except Exception as _cvse:                                           # noqa: BLE001
         print(f"  voice · ProOS Connect voice not started: {_cvse}", flush=True)
+    # 969z: a network change still waiting for Keep when Core started is put back on time, not forgotten
+    try:
+        from proos import netchange as _nc
+        _nc.arm(_sv, (lambda k, d: _journal_mod.emit("site", k, d)) if _journal_mod is not None else None)
+    except Exception as _nce:                                            # noqa: BLE001
+        print(f"  network · waiting change not re-armed: {_nce}", flush=True)
     threading.Thread(target=_habits_loop, name="proos-habits", daemon=True).start()
     threading.Thread(target=_sweep_loop, name="proos-sweep-daily", daemon=True).start()
     threading.Thread(target=_reconnect_loop, name="proos-reconnect", daemon=True).start()

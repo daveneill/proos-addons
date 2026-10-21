@@ -4631,7 +4631,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102102';
+const PROOS_BUILD='2026102103';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -4790,6 +4790,9 @@ function _bootBanner(on, at){
       document.body.appendChild(el); }
     var t=''; try{ t=new Date(at).toLocaleTimeString([], {hour:'numeric', minute:'2-digit'}); }catch(e){}
     el.textContent='Connecting to your home · showing it as at '+t;
+    clearTimeout(window._bootBannerT);
+    window._bootBannerT=setTimeout(function(){ try{ if(window.__pr && !window.__pr.live && el.isConnected)
+      el.textContent='Still connecting to your home · showing it as at '+t; }catch(e){} }, 20000);
   }catch(e){}
 }
 // The opening screen, built from this device's last live visit (see above). Never raises; with nothing kept, it does nothing.
@@ -6643,7 +6646,11 @@ function _pcEvaluate(){
   // on its own. Two failed Core pings, or the platform's socket down for
   // longer than a normal reconnect.
   const wsSustainedDown = !_pcWsUp && _pcWsDownAt && (Date.now()-_pcWsDownAt > 10000);
-  const offline = _pcHealthFails>=2 || wsSustainedDown;
+  // 969y addendum (Dave, 16:02 on 5G: "still says reconnecting and then nothing"): a screen opened from the last visit
+  // and still connecting says so in its own line at the top — the full "Reconnecting" cover is for losing a home that WAS
+  // reached, and over the opened screen it hid exactly what instant open is for
+  const _openedFromVisit = !!(window.__pr && window.__pr.booted && !window.__pr.live);
+  const offline = (_pcHealthFails>=2 || wsSustainedDown) && !_openedFromVisit;
   const o=document.getElementById('proos-reboot');
   if(offline && !_pcShown){
     _pcShown=true; _pcDownAt=Date.now(); _pcShownAt=HA; _pcTitle();
