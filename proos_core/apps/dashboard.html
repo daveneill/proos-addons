@@ -4639,7 +4639,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102118';
+const PROOS_BUILD='2026102119';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -7931,7 +7931,11 @@ function showPage(p){const keep=arguments[1]===true&&p===curPage;if(!keep){
   try{ document.body.dataset.page = p; }catch(e){}
   if(p==='sonos'){if(_sonosRoom) renderSonosNowPlaying(_sonosRoom); else initSonosPage();}
   if(p==='heos'){if(_heosRoom) renderHeosNowPlaying(_heosRoom); else initHeosPage();}
-  if(p==='music') initMusicPage();
+  // 970n (Dave, 22 Oct 06:42: "if you go to say new releases in spotify half way through looking through them it
+  // refreshes and goes back to main spotify page"). A reconnect or a return to the app repaints the open page in place
+  // (keep, 970f) — and for Music that ran initMusicPage, which re-selects the speaker and draws its service's front
+  // page again. A repaint of Music now refreshes only its player; where you are in a service is left alone.
+  if(p==='music'){ if(keep){ try{ renderMusicNowPlaying(); }catch(e){} } else initMusicPage(); }
   document.querySelectorAll('.page').forEach(el=>el.classList.remove('active'));
   // THE BAR IS NOT PAINTED (register 533). A line here used to set an INLINE
   // background of rgba(0,0,0,0.92) on every page that was not Home. It was
@@ -21950,7 +21954,9 @@ html.pv-room #page-home .room-acts{display:block;margin-top:4px}
   #player-overlay .player-panel:not(.is-remote) .ptb.play-main{width:88px!important;height:88px!important}
   #player-overlay .player-panel:not(.is-remote) .pl-vol{height:60px}
   #player-overlay .player-panel:not(.is-remote) .player-progress{order:0!important;margin:0!important}
-  #player-overlay .player-panel:not(.is-remote) .remote-btns-and-vol #player-vol-row{padding:0 48px 32px calc(48px + min(560px,42vw) + 48px)!important}
+  /* 970n (Dave 06:42: "volume slider on the ipad is supposed to be full width to the edge of the album art along the
+     bottom of page"): from the art's left edge to the right margin */
+  #player-overlay .player-panel:not(.is-remote) .remote-btns-and-vol #player-vol-row{padding:0 48px 32px 48px!important}
 }
 /* measured at 390x844 on the box: centring the column left 46 above the title and 20 between the rest — on a phone
    the column starts at the art, one gap down; the iPad's side column (≥769) stays centred beside the art */
