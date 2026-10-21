@@ -154,6 +154,15 @@ def ensure_pipeline(ws) -> dict:
             "conversation_language": "en", "stt_engine": "stt.faster_whisper", "stt_language": "en",
             "tts_engine": "tts.piper", "tts_language": VOICE_LANG, "tts_voice": VOICE,
             "wake_word_entity": None, "wake_word_id": None}
+    # register 969u: once ProOS Connect's Ryan is in force he is the pipeline's voice too — this pass must never
+    # put the local voice back over him.
+    try:
+        from proos import connectvoice as _cv
+        _eng = _cv.engine()
+        if _eng:
+            want.update({"tts_engine": _eng, "tts_language": _cv.VOICE_LANG, "tts_voice": _cv.VOICE_NAME})
+    except Exception:  # noqa: BLE001
+        pass
     mine = next((p for p in pipes if p.get("name") == PIPELINE_NAME), None)
     out = {}
     if mine is None:

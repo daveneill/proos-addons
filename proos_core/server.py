@@ -643,6 +643,16 @@ def _speakable(engines):
     return [e for e in (engines or []) if not str(e).startswith(NEVER_SPEAKS)]
 
 
+def _connect_engine():
+    """The ProOS Voice engine from ProOS Connect (register 969u) — or None until Connect has approved this box,
+    the voice is set up there, and the platform has the engine."""
+    try:
+        from proos import connectvoice as _cvm
+        return _cvm.engine()
+    except Exception:                                            # noqa: BLE001
+        return None
+
+
 def _voice_load():
     try:
         with open(_VOICE_PATH, encoding="utf-8") as fh:
@@ -679,6 +689,12 @@ def _tts_engine():
     still has it, else the first found (the old behaviour, kept as the
     honest fallback — reported by /voice/status, never silent)."""
     engines = _speakable(_tts_engines())        # register 933: Google Translate never
+    # THE ONE PROOS VOICE (register 969u, Dave 21 Oct: "lock in one voice as our ProOS voice not jumping
+    # around"). Once ProOS Connect has approved this box and the platform has the ProOS Voice engine, Ryan is
+    # the voice — before any saved choice, before the local voice. Until then the order below is unchanged.
+    _cv = _connect_engine()
+    if _cv and _cv in engines:
+        return _cv
     chosen = _voice_load().get("engine")
     if chosen and chosen in engines:
         return chosen
@@ -732,6 +748,9 @@ def _voice_choice():
     is healed here by reading the engine — once — and saved back."""
     vs = _voice_load()
     eng = _tts_engine()
+    if eng and eng == _connect_engine():          # register 969u: Ryan, named with his language
+        from proos import connectvoice as _cvm
+        return eng, _cvm.VOICE_NAME, _cvm.VOICE_LANG
     voice = vs.get("voice")
     if not (voice and vs.get("engine") == eng):
         # NOTHING CHOSEN IS NO LONGER SILENCE. This returned (engine, None,
@@ -3734,6 +3753,9 @@ def factory_reset(clear_proos_data=False, keep_auth=False):
                    # the ProOS Remotes this home accepted, and the logins Core made for them (register 969j) — the reset
                    # deletes the platform's users, so every remote shows a new code to be accepted again
                    "remotes.json", "remote_logins.json",
+                   # the box's ProOS Connect id and secret (register 969u) — a reset box asks to join afresh and is
+                   # approved again on Connect, so a box passed to another home never carries the old approval
+                   "connect.json",
                    # the installer-pasted Apple Music token (register 759) — like the AI key, placed
                    # per box by the installer; a reset home is set up afresh
                    "apple_music_token.json",
@@ -5763,6 +5785,11 @@ class Handler(BaseHTTPRequestHandler):
                        "never_speaks": list(NEVER_SPEAKS),
                        "engine_default_speaking": bool(_svoice is None),
                        "voices": [], "voices_language": None}
+                try:                                    # register 969u: the ProOS voice from Connect
+                    from proos import connectvoice as _cvm
+                    out["connect"] = _cvm.reading()
+                except Exception as _cve:                # noqa: BLE001
+                    out["connect"] = {"error": str(_cve)[:120]}
                 if eng:
                     _vv, _vl, _why = _tts_voices(eng)
                     out["voices"], out["voices_language"] = _vv, _vl
@@ -10844,6 +10871,36 @@ def main():
     global BACKUP_PASSWORD
     if cfg.get("backup_password"):
         BACKUP_PASSWORD = cfg["backup_password"]
+    # THE PROOS VOICE FROM PROOS CONNECT (register 969u). Core answers the platform's Wyoming protocol on its own
+    # add-on network, joins Connect, and once Dave has approved the box there gives the platform the engine. A pass
+    # a minute until the voice is in force, then every ten minutes (a right box gets no writes).
+    try:
+        from proos import connectvoice as _cvm
+        _cvm.serve()
+
+        def _connect_voice_loop():
+            time.sleep(20)
+            last = None
+            while True:
+                try:
+                    try:
+                        _loc = (_client._req("GET", "/api/config") or {}).get("location_name") or ""
+                    except Exception:                                    # noqa: BLE001
+                        _loc = ""
+                    _cr = _cvm.converge(_sv, _ws_call, _client._req, str(_opt("home_id", "") or ""),
+                                        _loc, CORE_VERSION)
+                    _now = (_cr.get("status") or {}).get("status"), bool(_cvm.engine())
+                    if _now != last:
+                        print(f"  voice · ProOS Connect: {_cr.get('status')} engine={_cvm.engine()}", flush=True)
+                        last = _now
+                    time.sleep(600 if _cvm.engine() else 60)
+                except Exception as _cle:                                # noqa: BLE001
+                    print(f"  voice · ProOS Connect pass failed: {_cle}", flush=True)
+                    time.sleep(60)
+        threading.Thread(target=_connect_voice_loop, name="proos-connect-voice", daemon=True).start()
+        print(f"  voice · the ProOS voice answers on port {_cvm.PORT}; joining {_cvm.CONNECT_URL}", flush=True)
+    except Exception as _cvse:                                           # noqa: BLE001
+        print(f"  voice · ProOS Connect voice not started: {_cvse}", flush=True)
     threading.Thread(target=_habits_loop, name="proos-habits", daemon=True).start()
     threading.Thread(target=_sweep_loop, name="proos-sweep-daily", daemon=True).start()
     threading.Thread(target=_reconnect_loop, name="proos-reconnect", daemon=True).start()
