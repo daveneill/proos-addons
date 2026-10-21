@@ -207,21 +207,29 @@ class _Handler(socketserver.StreamRequestHandler):
         if not text:
             write_event(self.wfile, "error", {"text": "nothing to say", "code": "empty"})
             return
-        started = False
+        # 970d (Dave, 21 Oct 18:37: "a loud ticking sound over the top of the voice"). Measured: the audio the app
+        # plays had a click every 0.1 s, exactly where Core cut Connect's stream into 4800-byte audio-chunks, while
+        # Connect's own copy of the same sentence (read on the server) had none — the seams were added after Core,
+        # by the platform joining one short chunk to the next. The platform builds the whole sentence before
+        # anything plays (it hands the app a finished file), so the sentence now goes over as ONE chunk: no seams,
+        # and nothing heard any later.
+        pcm, rate = bytearray(), None
         try:
-            for rate, chunk in self.speak(text):
-                fmt = {"rate": rate, "width": WIDTH, "channels": CHANNELS}
-                if not started:
-                    write_event(self.wfile, "audio-start", fmt)
-                    started = True
-                write_event(self.wfile, "audio-chunk", fmt, chunk)
+            for r, chunk in self.speak(text):
+                rate = rate or r
+                pcm += chunk
         except ConnectionError as e:
-            if not started:
+            if not pcm:
                 write_event(self.wfile, "error", {"text": str(e), "code": "connect"})
                 return
-        if not started:
+        if not pcm:
             write_event(self.wfile, "error", {"text": "ProOS Connect sent no audio", "code": "empty"})
             return
+        if len(pcm) % WIDTH:
+            pcm = pcm[:-(len(pcm) % WIDTH)]       # never half a sample
+        fmt = {"rate": rate, "width": WIDTH, "channels": CHANNELS}
+        write_event(self.wfile, "audio-start", fmt)
+        write_event(self.wfile, "audio-chunk", fmt, bytes(pcm))
         write_event(self.wfile, "audio-stop", {})
 
 
