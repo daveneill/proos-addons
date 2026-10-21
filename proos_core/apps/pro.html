@@ -2876,7 +2876,7 @@ body.v3 .rh-card{border-radius:22px}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102101';
+const PROOS_BUILD='2026102102';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -3086,7 +3086,10 @@ async function pickEndpoint(){
   return c[start];
 }
 function _onHome(){
-  try{ return !!HA && (HA===_localUrl() || _isLocalHost(new URL(HA).hostname)); }catch(e){ return false; }
+  // 969w (Dave's phone through ProOS Connect, 21 Oct: the badge said Local over 5G). Through Connect the address in use
+  // IS the page's own address, so "same as the page's address" no longer means "on the home network": only an address
+  // on the home network itself does.
+  try{ return !!HA && _isLocalHost(new URL(HA).hostname); }catch(e){ return false; }
 }
 // Away from home, keep looking for the home network: when the home address
 // answers again, move back to it.
@@ -3099,6 +3102,10 @@ setInterval(async ()=>{
 
 // ── connect ──
 async function connect(){
+  // 969w: Pro on a phone never connects, by EVERY road here, not only the first load (Dave, 21 Oct 13:09: the phone
+  // message showed, then Pro connected on the phone anyway). The ?gate= preview is the installer's own page check.
+  try{ if(_proOnPhone() && !new URLSearchParams(location.search).get('gate')){ document.getElementById('app').style.display='none';
+    document.getElementById('landing').style.display='flex'; renderGate('phone'); return; } }catch(e){}
   if(!_token() || !homeCandidates().length){ showLanding(); return; }
   await _proosDoorReady;                                   // the door first (register 352)
   if(_reconnect){ clearTimeout(_reconnect); _reconnect=null; }

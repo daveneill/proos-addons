@@ -4117,7 +4117,7 @@ async function autoDiscover(haUrl, token) {
       });
       // register 440: the site area is known by its dashboard_system label, never its name
       const homeArea=ar.result.find(a=>Array.isArray(a.labels)&&a.labels.includes(LABEL_SYSTEM));
-      if(homeArea&&homeArea.picture) CONFIG._homeAreaPhoto=/^https?:\/\//i.test(homeArea.picture)?homeArea.picture:`${haUrl}${homeArea.picture.replace(/\/\d+x\d+/,'/original')}`;
+      if(homeArea&&homeArea.picture) CONFIG._homeAreaPhoto=/^https?:\/\//i.test(homeArea.picture)?homeArea.picture:_photoUrl(haUrl, homeArea.picture);
     }
   } catch(e) { console.warn('[ProOS] Area registry failed:', e); }
 
@@ -4141,7 +4141,7 @@ async function autoDiscover(haUrl, token) {
       // and the /original upgrade. Prepending haUrl to an absolute URL made
       // every curated background a broken image (blank cards, 1 Aug).
       if(/^https?:\/\//i.test(p)) return p;
-      return `${haUrl}${p.replace(/\/\d+x\d+/,'/original')}`;}
+      return _photoUrl(haUrl, p);}
     return roomCuratedPhoto(areaName);
   }
 
@@ -4564,6 +4564,14 @@ function _rememberPlatformUrls(cfg){
   const u={internal:String((cfg&&cfg.internal_url)||''), external:String((cfg&&cfg.external_url)||'')};
   try{ localStorage.setItem('proos_platform_urls', JSON.stringify(u)); }catch(e){}
 }
+function _photoUrl(haUrl, p){
+  // 969w (measured on Connect 21 Oct 13:24: 55 MB to Dave's phone in one visit, most of it room photos sent at full size,
+  // 2.5–2.9 MB each, the same photo up to five times). Away from home the photo comes from Core made to fit a screen
+  // (long side 1280) and is kept by the phone; at home it is the full photo, exactly as before.
+  try{ if(_proosLink()==='remote'){ const m=String(p).match(/\/api\/image\/serve\/([0-9a-f]{32})\//i);
+    if(m) return proosCoreBase()+'/photo/'+m[1]+'?w=1280'; } }catch(e){}
+  return `${haUrl}${String(p).replace(/\/\d+x\d+/,'/original')}`;
+}
 function homeCandidates(){
   const secure=(location.protocol==='https:');
   const p=_platformUrls();
@@ -4606,7 +4614,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102006';
+const PROOS_BUILD='2026102101';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -6653,8 +6661,10 @@ async function pickEndpoint(){
   return c[start];
 }
 function _onHome(){
-  // is the address in use the one this page reaches the home by at home?
-  try{ return !!HA && (HA===_localUrl() || _isLocalHost(new URL(HA).hostname)); }catch(e){ return false; }
+  // 969w (Dave's phone through ProOS Connect, 21 Oct: the badge said Local over 5G). Through Connect the address in use
+  // IS the page's own address, so "same as the page's address" no longer means "on the home network": only an address
+  // on the home network itself does.
+  try{ return !!HA && _isLocalHost(new URL(HA).hostname); }catch(e){ return false; }
 }
 // Away from home, keep looking for the home network: when the home address
 // answers again, move back to it.

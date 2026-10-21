@@ -318,26 +318,28 @@ def jpeg_size(jpeg: bytes):
     return None
 
 
-def scale_for(size):
+def scale_for(size, keep=None, above=None):
     """The libjpeg-turbo scale for a picture of this size, or None to leave it alone:
-    the most it can be shrunk (½, ¼ or ⅛) while its long side stays at least LONG_SIDE."""
+    the most it can be shrunk (½, ¼ or ⅛) while its long side stays at least `keep` (LONG_SIDE)."""
+    keep = keep or LONG_SIDE
+    above = above or SHRINK_ABOVE
     if not size:
         return None
     long_side = max(size)
-    if long_side <= SHRINK_ABOVE:
+    if long_side <= above:
         return None
     for d in (8, 4, 2):
-        if long_side / d >= LONG_SIDE:
+        if long_side / d >= keep:
             return "1/%d" % d
     return None
 
 
-def shrink(jpeg: bytes) -> bytes:
+def shrink(jpeg: bytes, keep=None, above=None) -> bytes:
     """A large picture made smaller by libjpeg-turbo's DCT scaling (see scale_for); a picture
     that is already small comes back untouched. Returns the original when the tool is missing
     or the picture will not decode."""
     dj, cj = shutil.which("djpeg"), shutil.which("cjpeg")
-    scale = scale_for(jpeg_size(jpeg))
+    scale = scale_for(jpeg_size(jpeg), keep, above)
     if not (dj and cj and jpeg and scale):
         return jpeg
     try:

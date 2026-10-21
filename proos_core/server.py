@@ -1038,6 +1038,39 @@ def _platform_get_bytes(path):
         return resp.headers.get("Content-Type") or "image/jpeg", resp.read()
 
 
+# ── A ROOM PHOTO MADE TO FIT A SCREEN (register 969w) ────────────────────────────────────────────────────────────
+# Measured through ProOS Connect, 21 Oct 13:24: one visit sent Dave's phone 55 MB, most of it room photos at full size
+# (2.5–2.9 MB each, the same one up to five times). The platform keeps the photo; Core shrinks it with libjpeg-turbo
+# (the same tool the camera pictures use, register 696) and keeps a handful in memory. Nothing is stored on disk.
+_PHOTO_PATH = re.compile(r"^photo/([0-9a-f]{32})$")
+_PHOTO_KEEP = 40                  # plumbing: photos kept in memory (about 300 KB each at 1280)
+_photo_cache = {}                 # (image id, long side) -> (ts, content type, bytes)
+_photo_lock = threading.Lock()
+
+
+def _room_photo(image_id, long_side):
+    """(content type, bytes) — the platform's uploaded image, its long side brought down to about long_side."""
+    key = (image_id, long_side)
+    with _photo_lock:
+        hit = _photo_cache.get(key)
+    if hit:
+        return hit[1], hit[2]
+    ctype, raw = _platform_get_bytes("/api/image/serve/%s/original" % image_id)
+    data = raw
+    try:
+        from proos import protectmedia as _pm
+        if "jpeg" in (ctype or "").lower() or raw[:2] == b"\xff\xd8":
+            data = _pm.shrink(raw, keep=long_side, above=long_side + 200)
+            ctype = "image/jpeg"
+    except Exception:                                            # noqa: BLE001
+        data = raw
+    with _photo_lock:
+        _photo_cache[key] = (time.time(), ctype, data)
+        while len(_photo_cache) > _PHOTO_KEEP:
+            _photo_cache.pop(min(_photo_cache, key=lambda k: _photo_cache[k][0]), None)
+    return ctype, data
+
+
 def _reload_entry(entry_id):
     """Reload a config entry via HA's REST endpoint -- the proven path (the same
     one the app's Reload button uses). The WS 'config_entries/reload' command is
@@ -5413,6 +5446,11 @@ class Handler(BaseHTTPRequestHandler):
             # App tile artwork is public brand imagery loaded by <img>/CSS.
             if path.startswith("apps/art/tile/"):
                 return True
+            # 969w: a room photo made to fit a screen, by its platform image id — open exactly as the platform's own
+            # /api/image/serve/<id>/... is (the platform serves its uploaded images without a sign-in, by an id that
+            # cannot be guessed). Loaded by CSS backgrounds, which cannot carry a sign-in.
+            if _PHOTO_PATH.match(path) and self.command == "GET":
+                return True
             # A2 Phase 1 (reg 267): the app PAGES are public exactly as
             # /local/pro.html is today — the login lives INSIDE the app.
             # Phase 2 (reg 268) adds the bare root: it only ever redirects
@@ -5548,9 +5586,27 @@ class Handler(BaseHTTPRequestHandler):
                 except Exception:                                # noqa: BLE001
                     self._send(404, {"error": "app not shipped"})
                     return True
+                # 969w (measured through ProOS Connect, 21 Oct: the 1.7 MB page went to Dave's phone four times in one
+                # visit, "no-store"). The page carries a fingerprint of its own bytes; a browser that already holds
+                # these exact bytes is told "unchanged" and sends nothing more. It still asks every time, so a new
+                # build is never missed.
+                import hashlib as _hl
+                etag = '"%s"' % _hl.sha256(data).hexdigest()[:32]
+                # a compressing front (ProOS Connect's Caddy) hands the tag back marked weak or with its encoding
+                # added ("…-zstd"); the fingerprint itself is what is compared
+                _seen = [t.strip().replace("W/", "").strip('"').split("-")[0]
+                         for t in (self.headers.get("If-None-Match") or "").split(",")]
+                if etag.strip('"') in _seen:
+                    self.send_response(304)
+                    self.send_header("ETag", etag)
+                    self.send_header("Cache-Control", "no-cache")
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return True
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
-                self.send_header("Cache-Control", "no-store")
+                self.send_header("Cache-Control", "no-cache")
+                self.send_header("ETag", etag)
                 self.send_header("Content-Length", str(len(data)))
                 self.end_headers()
                 self.wfile.write(data)
@@ -6987,6 +7043,19 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, _nc)
             if parts == ["navcaps"]:
                 return self._send(200, navconfig.load_caps(_live_areas()) if navconfig else {})
+            if len(parts) == 2 and parts[0] == "photo" and _PHOTO_PATH.match("photo/" + parts[1]):
+                # 969w: a room photo made to fit a screen (see _room_photo). An image id names one upload for good, so the
+                # phone may keep it.
+                try:
+                    _w = int((parse_qs(urlparse(self.path).query).get("w") or ["1280"])[0])
+                except Exception:                                    # noqa: BLE001
+                    _w = 1280
+                _w = min(2560, max(320, _w))
+                try:
+                    ctype, data = _room_photo(parts[1], _w)
+                except Exception as e:                               # noqa: BLE001
+                    return self._send(502, {"error": "the photo could not be read from the platform: %s" % str(e)[:120]})
+                return self._send_bytes(200, ctype, data, cache="public, max-age=2592000, immutable")
             if parts[:1] == ["remote"] or parts == ["remotes"]:
                 return self._remote_get(parts, parse_qs(urlparse(self.path).query))
             if parts == ["layouts"]:
