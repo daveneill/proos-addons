@@ -1649,9 +1649,12 @@ body[data-home-state="noticing"] .home-state-go,body[data-home-state="attention"
 .home-eq i:nth-child(3){height:8px}
 .mp-title{font-size:16px;font-weight:300;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mp-artist{font-size:12px;color:rgba(255,255,255,0.50);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-@keyframes marquee-scroll{0%{transform:translateX(0)}85%{transform:translateX(var(--marquee-dist))}100%{transform:translateX(var(--marquee-dist))}}
+/* 970l (Dave, 21 Oct 23:37: "the long scroll ... starts at normal speed but then seems to speed up"). It was eased in
+   and out over a fixed 8 s whatever the length, so a long title crawled, then raced through the middle. Now: a pause to
+   read the start, one steady speed (the duration grows with the distance, applyMarquee), a pause at the end. */
+@keyframes marquee-scroll{0%,15%{transform:translateX(0)}85%,100%{transform:translateX(var(--marquee-dist))}}
 .mp-title.scrolling,.mp-artist.scrolling,.ms-title.scrolling,.ms-artist.scrolling,.player-title.scrolling,.player-artist.scrolling,.player-album.scrolling{
-  text-overflow:clip;animation:marquee-scroll 8s ease-in-out infinite;display:inline-block;
+  text-overflow:clip;animation:marquee-scroll var(--marquee-dur,8s) linear infinite;display:inline-block;
 }
 .mp-vol-col{display:flex;align-items:center;gap:8px;flex:1;min-width:0;margin:0 16px}
 .mp-vol-col svg{width:12px;height:12px;stroke:rgba(255,255,255,0.3);fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
@@ -4635,7 +4638,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102116';
+const PROOS_BUILD='2026102117';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -4971,13 +4974,21 @@ function att(e,a){const v=states[e]?.attributes?.[a];return _metaIsKey(a)?_metaO
 function artSrc(art){if(!art)return '';return art.startsWith('http')?art:HA+art;}
 
 function applyMarquee(container){
+  // 970l: a title already scrolling with the same words is left running — the players redraw on every update, and
+  // restarting the scroll each time sent it back to the start (or, mid-way, made it look as if it sped up)
   container.querySelectorAll('.mp-title,.mp-artist,.ms-title,.ms-artist,.player-title,.player-artist,.player-album').forEach(el=>{
+    const words=el.textContent||'';
+    if(el.classList.contains('scrolling') && el.dataset.mqWords===words) return;
     el.classList.remove('scrolling');
     el.style.removeProperty('--marquee-dist');
+    el.style.removeProperty('--marquee-dur');
+    el.dataset.mqWords=words;
     requestAnimationFrame(()=>{
       const overflow=el.scrollWidth-el.offsetWidth;
       if(overflow>4){
         el.style.setProperty('--marquee-dist',`-${overflow}px`);
+        // 970l: one steady speed — 30 px a second over the moving part (70% of the cycle), never under 6 s in all
+        el.style.setProperty('--marquee-dur',Math.max(6,(overflow/30)/0.7).toFixed(1)+'s');
         el.classList.add('scrolling');
       }
     });
