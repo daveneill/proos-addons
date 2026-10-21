@@ -4631,7 +4631,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102103';
+const PROOS_BUILD='2026102104';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -4733,7 +4733,8 @@ function _sndWire(d,timeout=15000){const id=mid++;d.id=id;ws.send(JSON.stringify
 // arrive and the same screen is rebuilt in place. Anything not kept (awareness, cameras, every command) waits for the
 // home: nothing is claimed that was not read, and a command is sent only once the home is reached (or refused, said).
 const _BOOT_WS=new Set(['get_states','get_config','auth/current_user','config/area_registry/list','config/device_registry/list',
-  'config/entity_registry/list','config/label_registry/list','config/floor_registry/list']);
+  'config/entity_registry/list','config/entity_registry/list_for_display','config/entity_registry/get_entries',
+  'config/label_registry/list','config/floor_registry/list']);
 const _BOOT_CORE=[/^\/music\/speakers$/,/^\/scenes\/photos$/,/^\/rooms\/photos$/,/^\/room_order(\?|$)/,/^\/navconfig$/,/^\/consent$/];
 function _bootRecCore(k){ return _BOOT_CORE.some(function(r){ return r.test(k); }); }
 function _coreKey(u){
@@ -6535,10 +6536,14 @@ async function connect(){
       try{ const wu=await snd({type:'auth/current_user'}); _haUser=(wu&&wu.result)||null; }catch(e){}
       try{ if(typeof window._dashRename==='function') window._dashRename(); }catch(e){}   // 966
       if(!_haLocationName){ const zh=states['zone.home']; if(zh&&zh.attributes&&zh.attributes.friendly_name) _haLocationName=zh.attributes.friendly_name; }
-      // 697: every update to start with (nothing is missed while the home is discovered), then
-      // _subscribeStates() narrows it to what this dashboard draws once the registry is read.
+      // 970c (Dave, 21 Oct 17:33: "I just need it fixed"). Read on Connect while his phone opened on 5G: this line
+      // asked the home for EVERY change of every device the moment the page connected (697 narrowed it only after
+      // discovery) — about 15 a second, mostly readings in no room — and on a slow link that stream queued ahead of
+      // the opening answers (358 KB waiting on one connection) and filled the phone's link, so discovery took 30–88 s.
+      // Now nothing streams until the registry is read; _subscribeStates() then asks the platform for only what this
+      // dashboard draws, and its first answer repeats each one's state, so nothing that changed meanwhile is missed.
+      // A home where that cannot be done (manual set-up, no registry, the platform says no) gets the full feed there.
       _entSubId=null; _allSubId=null; _entSubKey='';
-      { const q={type:'subscribe_events',event_type:'state_changed'}; snd(q).catch(()=>{}); _allSubId=q.id; }
       // THE WAITING SCREEN SAYS WHAT IS TRUE (plan G1, Dave 3 Oct: "have all these pages designed
       // to look and say correct info"). The platform announces its own restart on this socket
       // before it goes quiet; that announcement is the only basis for "restarting".
@@ -6572,10 +6577,12 @@ async function connect(){
           const msg=err?.message||String(err);
           if(loadMsg){loadMsg.textContent=`Discovery error: ${msg}`;loadMsg.style.color='rgba(33,57,240,0.9)';}
           console.error('Auto-discovery failed:', err);
+          try{ _fullFeed(); }catch(e){}                                   // 970c: discovery failed — still live
           setTimeout(onReady, 2000);
           return;
         }
       }
+      try{ _subscribeStates(); }catch(e){}                               // 970c: a live feed on every path (manual: the full one)
       onReady();
       _bootBanner(false);                                                // 969y: the live readings are on screen
     }else if(m.type==='event'&&m.event?.event_type==='homeassistant_stop'){ _pcRestartAt=Date.now(); _pcTitle();
@@ -6859,8 +6866,31 @@ async function fetchEntityRegistry() {
     if(lr.result) {
       definedLabels = new Set(lr.result.map(l => l.label_id));
     }
-    // Fetch entity registry
-    const r = await snd({type:'config/entity_registry/list'});
+    // Fetch entity registry. 970c: the platform's own compact form (list_for_display — what its own screens read; 132 KB
+    // on the G-Flip against 729 KB for the full list), plus the full entry only where this page needs a field the
+    // compact form leaves out: unique_id and config_entry_id, for players and for alarm zones (twin pairing). A
+    // platform without the compact form gets the full list, exactly as before.
+    let r = null;
+    try{
+      const d = await snd({type:'config/entity_registry/list_for_display'});
+      const ents = d && d.success!==false && d.result && d.result.entities;
+      if(Array.isArray(ents)){
+        const list = ents.map(x=>({entity_id:x.ei, hidden:!!x.hb, hidden_by:x.hb?'hidden':null, name:x.en||null, original_name:null,
+          device_id:x.di||null, area_id:x.ai||null, platform:x.pl||null, labels:x.lb||[]}));
+        const alarmPl = new Set(list.filter(e=>e.entity_id.indexOf('alarm_control_panel.')===0).map(e=>e.platform));
+        const need = list.filter(e=>{ const dm=e.entity_id.slice(0,e.entity_id.indexOf('.'));
+          return dm==='media_player' || ((dm==='sensor'||dm==='binary_sensor'||dm==='alarm_control_panel') && alarmPl.has(e.platform)); })
+          .map(e=>e.entity_id);
+        if(need.length){
+          const g = await snd({type:'config/entity_registry/get_entries', entity_ids:need});
+          const full = (g && g.success!==false && g.result) || null;
+          if(!full) throw new Error('no full entries');
+          list.forEach(e=>{ const f=full[e.entity_id]; if(f){ e.unique_id=f.unique_id; e.config_entry_id=f.config_entry_id; } });
+        }
+        r = {result:list};
+      }
+    }catch(e){ r = null; }
+    if(!r) r = await snd({type:'config/entity_registry/list'});
     if(r.result) {
       hiddenEntities = new Set(
         r.result.filter(e => e.hidden === true || e.hidden_by !== null).map(e => e.entity_id)
@@ -6953,18 +6983,23 @@ function _onEntitiesEvent(ev){
 function _subscribeStates(){
   if(!ws||ws.readyState!==1) return;
   const want=_wantedEntities();
-  if(CONFIG.manual||!Object.keys(entityAreaMap).length||!want.length) return;   // keep the full feed
+  if(CONFIG.manual||!Object.keys(entityAreaMap).length||!want.length){ _fullFeed(); return; }   // keep the full feed
   const key=want.slice().sort().join(',');
   if(key===_entSubKey) return;
   _entSubKey=key; _wantedSet=new Set(want);
   const q={type:'subscribe_entities',entity_ids:want};
   const oldEnt=_entSubId, oldAll=_allSubId;
   snd(q).then(r=>{
-    if(!r||r.success===false){ _entSubKey=''; return; }          // the platform said no: the full feed stays
+    if(!r||r.success===false){ _entSubKey=''; _fullFeed(); return; }          // the platform said no: the full feed
     _entSubId=q.id;
     if(oldEnt) snd({type:'unsubscribe_events',subscription:oldEnt}).catch(()=>{});
     if(oldAll){ snd({type:'unsubscribe_events',subscription:oldAll}).catch(()=>{}); _allSubId=null; }
-  }).catch(()=>{ _entSubKey=''; });
+  }).catch(()=>{ _entSubKey=''; _fullFeed(); });
+}
+// 970c: every change of every device — only for a home whose own list cannot be asked for (see above)
+function _fullFeed(){
+  if(_allSubId||_entSubId||!ws||ws.readyState!==1) return;
+  const q={type:'subscribe_events',event_type:'state_changed'}; snd(q).catch(()=>{}); _allSubId=q.id;
 }
 let _systemAreas = new Set(); // area_ids labelled dashboard_system — never become rooms, never drive a refresh
 let areaNameById = {}; // area_id -> HA area registry name (populated by autoDiscover; preserves apostrophes the slug loses)
