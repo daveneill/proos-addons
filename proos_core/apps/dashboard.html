@@ -3611,11 +3611,14 @@ try{var _sb=localStorage.getItem('proos_std_bg');if(_sb){document.documentElemen
         <div class="remote-btns" id="remote-btns" style="display:none;padding:4px 16px 14px;background:rgba(13,13,17,0.97);flex-shrink:0">
           <!-- filled by JS -->
         </div>
-        <div class="player-vol" id="player-vol-row" style="display:none">
+        <!-- 970h (Dave, 21 Oct 20:32): the player's volume in the new design — the same bar the player cards use
+             (.wv-sl.wv-vl, 968o), the mute button beside it as before -->
+        <div class="player-vol pl-new" id="player-vol-row" style="display:none">
           <span id="player-vol-icon"></span>
-          <input class="player-vol-sl" id="player-vol-sl" type="range" min="0" max="1" step="0.02" value="0.5"
-            oninput="volInput(this,_playerVolEntity,document.getElementById('player-vol-pct'))"/>
-          <span class="player-vol-pct" id="player-vol-pct">50</span>
+          <div class="wv-sl wv-vl pl-vol" id="player-vol-bar" style="--v:50%"><div class="wv-slf"></div><span class="wv-sll"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>Volume</span><span class="wv-slv" id="player-vol-pct">50</span>
+            <input class="player-vol-sl" id="player-vol-sl" type="range" min="0" max="1" step="0.02" value="0.5" aria-label="Volume"
+              oninput="this.parentNode.style.setProperty('--v',Math.round(this.value*100)+'%');volInput(this,_playerVolEntity,document.getElementById('player-vol-pct'))"
+              onpointerup="volEnd()" ontouchend="volEnd()" onchange="volEnd()"/></div>
         </div>
       </div>
       </div>
@@ -4631,7 +4634,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102108';
+const PROOS_BUILD='2026102109';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -17696,8 +17699,9 @@ function updatePlayerUI(){
   const volIconEl=document.getElementById('player-vol-icon');
   if(hasVol){
     volRow.style.display='flex';
-    if(document.activeElement!==volSl) volSl.value=vol.toFixed(2);
-    volPct.textContent=Math.round(vol*100);
+    if(document.activeElement!==volSl && _draggingVol!==_playerVolEntity){ volSl.value=vol.toFixed(2);
+      volPct.textContent=Math.round(vol*100);
+      const _vb=document.getElementById('player-vol-bar'); if(_vb) _vb.style.setProperty('--v',Math.round(vol*100)+'%'); }
     if(volIconEl) volIconEl.innerHTML=volIcon(_playerVolEntity);
   } else volRow.style.display='none';
 
@@ -17810,6 +17814,12 @@ function updatePlayerUI(){
     document.getElementById('remote-btns').style.display='none';
     document.getElementById('player-panel').classList.remove('is-remote');
   }
+  // 970h: a music player's volume sits in its own column, between the transport and the tools, at the same spacing as
+  // everything else; a TV remote keeps it in the bottom bar beside the remote's buttons, where it always was.
+  try{ const _vr=document.getElementById('player-vol-row'), _ex=document.getElementById('player-extras');
+       const _bot=document.querySelector('.remote-btns-and-vol');
+       if(isVideo&&remoteEntity){ if(_bot && _vr.parentNode!==_bot) _bot.appendChild(_vr); }
+       else if(_ex && _vr.nextElementSibling!==_ex) _ex.parentNode.insertBefore(_vr,_ex); }catch(_e){}
 
   // Extras — hide when remote is active (buttons are in remote-btns bar instead)
   const extras=document.getElementById('player-extras');
@@ -21839,6 +21849,16 @@ html.pv-room #page-home .room-acts{display:block;margin-top:4px}
    1.7, brightness .6). No fade-in here: this card is redrawn on every player update and a fade would flash each time. */
 .mpc-bg{position:absolute;inset:-44px;background:center/cover;filter:blur(30px) saturate(1.7) brightness(.6);opacity:.4;z-index:0;pointer-events:none}
 .mp-card.mpc>:not(.mpc-bg){position:relative;z-index:1}
+/* 970h — THE PLAYER (Dave, 21 Oct 20:32: "volume slider is missing or the old volume slider … change them to the new
+   design and the music and group speakers pills … centre them horizontally and check spacing between everything equal
+   spacing"). The volume is the cards' bar; one gap separates every row of the player's column; the tools are centred. */
+.player-panel #player-vol-row.pl-new{gap:10px;align-items:center}
+.pl-vol{flex:1;height:48px;border-radius:14px;min-width:0}
+.pl-vol .wv-sll,.pl-vol .wv-slv{font-size:14px}
+.player-panel:not(.is-remote) .player-body{gap:20px!important;justify-content:center!important;padding-top:20px!important}
+.player-panel:not(.is-remote) .player-body>*{margin-top:0!important;margin-bottom:0!important}
+.player-panel:not(.is-remote) .player-body #player-vol-row{padding:0!important;border-top:0!important;height:auto!important;flex:none!important;position:static!important;width:100%!important}
+.player-panel:not(.is-remote) .player-extras{justify-content:center}
 .mpc-row{display:flex;align-items:center;gap:14px;min-width:0}
 .mpc .mpc-art{width:72px!important;height:72px!important;min-height:0!important;aspect-ratio:auto!important;border-radius:14px!important;flex:none!important;display:grid;place-items:center;background:linear-gradient(135deg,#ff5f6d,#ffc371);color:#fff;cursor:pointer;overflow:hidden;position:relative;box-shadow:0 8px 22px rgba(0,0,0,.35)}
 .mpc.tv .mpc-art{width:112px!important;background:linear-gradient(135deg,#2b3a55,#141a26)}
