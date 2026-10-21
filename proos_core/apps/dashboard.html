@@ -4635,7 +4635,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102113';
+const PROOS_BUILD='2026102114';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -21909,7 +21909,7 @@ html.pv-room #page-home .room-acts{display:block;margin-top:4px}
    buttons sat under the volume — and a real iPhone adds its own top and bottom safe areas. On a phone the art now
    takes what is left (never above the column's width, never under 200), so every row always shows. */
 @media (max-width:768px){
-  #player-overlay .player-panel:not(.is-remote) .player-art{width:max(200px,min(calc(100% - 48px),calc(100dvh - 470px - env(safe-area-inset-top) - env(safe-area-inset-bottom))))!important;height:auto!important;aspect-ratio:1/1!important;flex:none!important;margin:16px auto 0!important}
+  #player-overlay .player-panel:not(.is-remote) .player-art{width:max(200px,min(calc(100% - 48px),calc(100dvh - 470px - var(--proos-sat) - env(safe-area-inset-bottom))))!important;height:auto!important;aspect-ratio:1/1!important;flex:none!important;margin:16px auto 0!important}
 }
 @media (min-width:769px){
   #player-overlay .player-panel:not(.is-remote) .player-body{gap:32px!important;padding:0!important}
