@@ -4635,7 +4635,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102114';
+const PROOS_BUILD='2026102115';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -21868,7 +21868,14 @@ html.pv-room #page-home .room-acts{display:block;margin-top:4px}
    title left-aligned over "artist · album"; a 6px progress line; the transport across the full width with a 76px play;
    Group Speakers and Music as two equal buttons; the volume at the bottom, 56 tall, its mute inside its left end; one
    24px gap between every row. */
-#player-overlay .player-panel:not(.is-remote)::before{background:rgba(0,0,0,.42)!important;-webkit-backdrop-filter:blur(48px) saturate(1.4)!important;backdrop-filter:blur(48px) saturate(1.4)!important}
+/* 970j (Dave, 21 Oct 23:06, iPhone: "when I go to the page sometimes they are gone and within a few seconds they appear
+   again" — everything under the title missing for a moment). On the box in Chrome every row is there at once; the
+   page's DOM is complete when the player opens (openPlayer draws it before the slide-up). The one thing an iPhone does
+   differently here is paint a full-screen backdrop-filter behind content that is sliding in: it repainted only what
+   changed (the title, whose marquee starts a frame later) and left the rest until the next player update. The blurred
+   art is now the art itself, blurred with a plain filter (no backdrop-filter at all): the same look, nothing for the
+   iPhone to wait on, and far cheaper to draw. */
+#player-overlay .player-panel:not(.is-remote)::before{background:inherit!important;background-size:cover!important;background-position:center!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;filter:blur(48px) saturate(1.4) brightness(.58);transform:scale(1.25)}
 #player-overlay .player-panel:not(.is-remote)::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.1) 0%,rgba(0,0,0,.25) 55%,rgba(0,0,0,.55) 100%);z-index:0;pointer-events:none}
 #player-overlay .player-panel .pl-down,#player-overlay .player-panel .pl-hgap-r{display:none}
 #player-overlay .player-panel:not(.is-remote) .pl-down{display:flex;width:44px;height:44px;border-radius:22px;border:0;background:rgba(255,255,255,.12);color:#fff;align-items:center;justify-content:center;cursor:pointer;padding:0}
