@@ -4635,7 +4635,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102112';
+const PROOS_BUILD='2026102113';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -21896,7 +21896,7 @@ html.pv-room #page-home .room-acts{display:block;margin-top:4px}
 #player-overlay .player-panel:not(.is-remote) .player-extras{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(0,1fr));gap:12px!important;width:100%}
 #player-overlay .player-panel:not(.is-remote) .player-extra-btn{height:48px;justify-content:center;border-radius:14px;border:.5px solid rgba(255,255,255,.18);background:rgba(255,255,255,.1);color:#fff;font-size:15px;font-weight:500;gap:8px;padding:0 12px}
 #player-overlay .player-panel:not(.is-remote) .player-extra-btn svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8}
-#player-overlay .player-panel:not(.is-remote) .remote-btns-and-vol{background:none!important}
+#player-overlay .player-panel:not(.is-remote) .remote-btns-and-vol{background:none!important;border:0!important;box-shadow:none!important}
 #player-overlay .player-panel:not(.is-remote) .remote-btns-and-vol #player-vol-row{padding:24px 24px max(calc(env(safe-area-inset-bottom) + 12px),28px)!important;height:auto!important}
 #player-overlay .player-panel .pl-vol{height:56px;border-radius:16px;background:rgba(255,255,255,.12)}
 #player-overlay .player-panel .pl-vol .wv-sll{left:54px;font-size:16px}
@@ -21905,6 +21905,12 @@ html.pv-room #page-home .room-acts{display:block;margin-top:4px}
 #player-overlay .player-panel .pl-vol #player-vol-icon{position:absolute;left:6px;top:6px;width:44px;height:44px;z-index:2;display:flex;align-items:center;justify-content:center}
 #player-overlay .player-panel .pl-vol #player-vol-icon button{width:44px!important;height:44px!important;color:#fff}
 #player-overlay .player-panel .pl-vol #player-vol-icon svg{stroke:#fff!important;width:20px;height:20px}
+/* measured on the box at 390x844 after install: header 60 + art 360 + the column 308 + the volume 108 = 860, so the
+   buttons sat under the volume — and a real iPhone adds its own top and bottom safe areas. On a phone the art now
+   takes what is left (never above the column's width, never under 200), so every row always shows. */
+@media (max-width:768px){
+  #player-overlay .player-panel:not(.is-remote) .player-art{width:max(200px,min(calc(100% - 48px),calc(100dvh - 470px - env(safe-area-inset-top) - env(safe-area-inset-bottom))))!important;height:auto!important;aspect-ratio:1/1!important;flex:none!important;margin:16px auto 0!important}
+}
 @media (min-width:769px){
   #player-overlay .player-panel:not(.is-remote) .player-body{gap:32px!important;padding:0!important}
   #player-overlay .player-panel:not(.is-remote) .player-title{font-size:32px!important}
