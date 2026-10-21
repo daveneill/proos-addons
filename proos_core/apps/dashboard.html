@@ -4634,7 +4634,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102110';
+const PROOS_BUILD='2026102111';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -17814,12 +17814,8 @@ function updatePlayerUI(){
     document.getElementById('remote-btns').style.display='none';
     document.getElementById('player-panel').classList.remove('is-remote');
   }
-  // 970h: a music player's volume sits in its own column, between the transport and the tools, at the same spacing as
-  // everything else; a TV remote keeps it in the bottom bar beside the remote's buttons, where it always was.
-  try{ const _vr=document.getElementById('player-vol-row'), _ex=document.getElementById('player-extras');
-       const _bot=document.querySelector('.remote-btns-and-vol');
-       if(isVideo&&remoteEntity){ if(_bot && _vr.parentNode!==_bot) _bot.appendChild(_vr); }
-       else if(_ex && _vr.nextElementSibling!==_ex) _ex.parentNode.insertBefore(_vr,_ex); }catch(_e){}
+  // 970h: the volume stays at the bottom of the player (Dave, 20:56: "Volume slider needs to stay at the bottom of page
+  // the buttons are above") — in the bottom bar, where it always was; it was hidden there by the page's frost (below).
 
   // Extras — hide when remote is active (buttons are in remote-btns bar instead)
   const extras=document.getElementById('player-extras');
@@ -21027,6 +21023,12 @@ body.proos-more-open #nav-overflow{display:grid}
   -webkit-mask-image:linear-gradient(0deg,#000 0,#000 calc(100% - var(--proos-scrim-fade)),rgba(0,0,0,0) 100%);
   mask-image:linear-gradient(0deg,#000 0,#000 calc(100% - var(--proos-scrim-fade)),rgba(0,0,0,0) 100%)}
 body.proos-under-bar #proos-dock-scrim{opacity:1}
+/* 970h — THE BAR'S FROST NEVER LIES OVER AN OPEN PLAYER (Dave, 21 Oct 20:32: the player's "volume slider is missing").
+   Read in Chrome at 390x844: the frost (fixed, z 59) is drawn at body level while the player (z 500) sits inside the app's
+   own layer, so whenever the page behind had content under the bar, its 30px blur covered the bottom of the open player
+   — the volume and, once it moved up, Group Speakers and Music. The frost belongs to the page; a full-screen overlay
+   over the page has no bar to frost. */
+body:has(#player-overlay.open) #proos-dock-scrim,body:has(#widget-picker.open) #proos-dock-scrim,body:has(#scene-edit.open) #proos-dock-scrim,body:has(#proos-sheet.open) #proos-dock-scrim{opacity:0!important;visibility:hidden}
 /* Widget library sheet: the picker lives deep inside #app where an ancestor's
    stacking context caps its z-index, so these ROOT-level pills painted on top
    of the open sheet. While the sheet is open they're dead targets under the
@@ -21857,7 +21859,7 @@ html.pv-room #page-home .room-acts{display:block;margin-top:4px}
 .pl-vol .wv-sll,.pl-vol .wv-slv{font-size:14px}
 .player-panel:not(.is-remote) .player-body{gap:20px!important;justify-content:center!important;padding-top:20px!important}
 .player-panel:not(.is-remote) .player-body>*{margin-top:0!important;margin-bottom:0!important}
-.player-panel:not(.is-remote) .player-body #player-vol-row{padding:0!important;border-top:0!important;height:auto!important;flex:none!important;position:static!important;width:100%!important}
+.player-panel:not(.is-remote) .remote-btns-and-vol #player-vol-row{border-top:0!important;background:none!important}
 .player-panel:not(.is-remote) .player-extras{justify-content:center}
 /* measured at 390x844 on the box: centring the column left 46 above the title and 20 between the rest — on a phone
    the column starts at the art, one gap down; the iPad's side column (≥769) stays centred beside the art */
