@@ -2876,7 +2876,7 @@ body.v3 .rh-card{border-radius:22px}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102102';
+const PROOS_BUILD='2026102103';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -11433,8 +11433,10 @@ var _proosDoorReady=(function(){
     var c=new AbortController(); var t=setTimeout(function(){ try{c.abort();}catch(e){} },2500);
     return fetch(door+'/health',{cache:'no-store',signal:c.signal})
       .then(function(r){ return r.ok?r.json():null; })
-      .then(function(j){ _proosDoorBase=(j&&j.version)?door:''; })
-      .catch(function(){ _proosDoorBase=''; })
+      .then(function(j){ _proosDoorBase=(j&&j.version)?door:''; try{ localStorage.setItem('proos_last_way_in', _proosDoorBase); }catch(e){} })
+      // 969y: a knock that timed out on a slow link (5G at 5 s a round trip, 21 Oct) is not "no door" — the door that
+      // answered last time at this address is kept; with none known, the direct path as before
+      .catch(function(){ var m=null; try{ m=localStorage.getItem('proos_last_way_in'); }catch(e){} _proosDoorBase=(m===door)?door:''; })
       .finally(function(){ clearTimeout(t); });
   }catch(e){ _proosDoorBase=''; return Promise.resolve(''); }
 })();

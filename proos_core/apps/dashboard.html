@@ -4516,7 +4516,9 @@ function _coreFailWords(path, e){
 // The camera page's appetite, read from that fact (register 356).
 const _PROOS_LINK={
   local:  {live:true,  snapMs:350,  stagger:0,   strip:30, detMs:15000},
-  remote: {live:false, snapMs:2500, stagger:400, strip:8,  detMs:60000}
+  // 969y (Dave's 5G through ProOS Connect, 21 Oct: the Cameras page pulled about 60 full-size stills, 100–345 KB each,
+  // in under a minute): away, a still every 8 s per camera, asked for at phone size (see fetchCamWS)
+  remote: {live:false, snapMs:8000, stagger:600, strip:8,  detMs:60000, stillW:480}
 };
 function _linkBudget(){ return _PROOS_LINK[_proosLink()]; }
 // MOTION FOLLOWS THE LINK (register 373). The same fact the camera page reads
@@ -4601,6 +4603,21 @@ const TOK = CONFIG.ha.token;
 // PROOS_REQUIRE_AUTH is armed. A latent break, found while wiring the homeowner
 // card. The skip is now EXACT: only the ping itself is public.
 (function(){ const _rf=window.fetch.bind(window); window.fetch=function(u,o){ try{ if(typeof u==='string' && (u.indexOf(':8770')>=0 || u.indexOf(':3000')>=0 || (typeof _proosSelfBase==='function' && _proosSelfBase() && u.indexOf(_proosSelfBase()+'/')===0) || (typeof _proosDoorBase==='string' && _proosDoorBase && u.indexOf(_proosDoorBase+'/')===0)) && !(/\/health(\?|$)/.test(u.split('#')[0]) && !/\/sysadmin\/health(\?|$)/.test(u.split('#')[0]))){ o=o||{}; o.headers=Object.assign({'Authorization':'Bearer '+((typeof _proToken==='function'&&_proToken())||localStorage.getItem('ha_token')||'')}, o.headers||{}); } }catch(e){} return _rf(u,o); }; })();
+// INSTANT OPEN (register 969y) — the state the page opens from while the home is still being reached. See _bootFromCache.
+window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws:{},core:{}}};
+(function(){ const _rf0=window.fetch.bind(window); window.fetch=function(u,o){ try{ var pr=window.__pr, k=(typeof _coreKey==='function')?_coreKey(u):null;
+  if(k!==null && pr){
+    var get=!(o&&o.method&&String(o.method).toUpperCase()!=='GET');
+    // replaying the last visit: a Core reading it kept is answered from it at once
+    if(pr.replay && get && pr.replay.core && pr.replay.core[k]){ var h=pr.replay.core[k];
+      return Promise.resolve(new Response(h.b,{status:h.s||200,headers:{'Content-Type':h.t||'application/json'}})); }
+    // opened from the last visit and not yet connected: anything else to Core waits for the home (never the health knock)
+    if(pr.booted && !pr.live && !/\/health(\?|$)/.test(String(u).split('#')[0])){
+      return _whenLive(get?0:20000).then(function(){ return window.fetch(u,o); }); }
+    // live: keep the readings the opening screen is built from, for the next open
+    if(get && _bootRecCore(k)) return _rf0(u,o).then(function(r){ try{ if(r&&r.ok){ var t=r.headers.get('Content-Type')||'';
+      r.clone().text().then(function(b){ if(b.length<400000) pr.rec.core[k]={s:r.status,t:t,b:b}; }).catch(function(){}); } }catch(e){} return r; });
+  } }catch(e){} return _rf0(u,o); }; })();
 // NOTE: /health is deliberately excluded above. It is public (no auth needed), and adding
 // the Authorization header turns it into a CORS-preflighted request. Safari blocks that
 // cross-origin preflight to port 8770 far more readily than Chrome — which made the
@@ -4614,7 +4631,7 @@ const TOK = CONFIG.ha.token;
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102101';
+const PROOS_BUILD='2026102102';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -4705,7 +4722,110 @@ _dashBuildCheck(true);
 setInterval(function(){ _dashBuildCheck(false); }, 90000);
 document.addEventListener('visibilitychange', function(){
   if(!document.hidden) _dashBuildCheck(false); });
-function snd(d,timeout=15000){const id=mid++;d.id=id;ws.send(JSON.stringify(d));return new Promise((res,rej)=>{const t=setTimeout(()=>{delete cbs[id];rej(new Error(`WS timeout: ${d.type}`));},timeout);cbs[id]=m=>{clearTimeout(t);res(m)};})}
+function _sndWire(d,timeout=15000){const id=mid++;d.id=id;ws.send(JSON.stringify(d));return new Promise((res,rej)=>{const t=setTimeout(()=>{delete cbs[id];rej(new Error(`WS timeout: ${d.type}`));},timeout);cbs[id]=m=>{clearTimeout(t);res(m)};})}
+// ── INSTANT OPEN (register 969y) ─────────────────────────────────────────────────────────────────────────────────────
+// Dave, 21 Oct: "Apps updated opens great on wifi shithouse on 5G" — "this needs to be faultless". Measured through
+// ProOS Connect: on his 5G a 2-byte answer took 5.5 s, and the home's live data (225 KB) over a minute. So the page no
+// longer waits for the home before it shows the home. Every live open keeps the readings its opening screen is built
+// from (the platform's states, registries and config; Core's room, scene, music and navigation readings) in this
+// device's own store, for THIS address only. The next open builds the screen from them through the SAME code that
+// builds it live — nothing is drawn by a second hand — labelled with the time they were read; then the live readings
+// arrive and the same screen is rebuilt in place. Anything not kept (awareness, cameras, every command) waits for the
+// home: nothing is claimed that was not read, and a command is sent only once the home is reached (or refused, said).
+const _BOOT_WS=new Set(['get_states','get_config','auth/current_user','config/area_registry/list','config/device_registry/list',
+  'config/entity_registry/list','config/label_registry/list','config/floor_registry/list']);
+const _BOOT_CORE=[/^\/music\/speakers$/,/^\/scenes\/photos$/,/^\/rooms\/photos$/,/^\/room_order(\?|$)/,/^\/navconfig$/,/^\/consent$/];
+function _bootRecCore(k){ return _BOOT_CORE.some(function(r){ return r.test(k); }); }
+function _coreKey(u){
+  // the path of a Core call, whichever door it went through — or null when it is not a Core call
+  try{
+    if(typeof u!=='string') return null;
+    var s=u.split('#')[0];
+    if(typeof _proosDoorBase==='string' && _proosDoorBase && s.indexOf(_proosDoorBase+'/')===0) return s.slice(_proosDoorBase.length);
+    var sb=(typeof _proosSelfBase==='function')?_proosSelfBase():null;
+    if(sb && s.indexOf(sb+'/')===0) return s.slice(sb.length);
+    var m=s.match(/^https?:\/\/[^\/]+:8770(\/.*)$/); if(m) return m[1];
+    return null;
+  }catch(e){ return null; }
+}
+function _whenLive(capMs){
+  var pr=window.__pr; if(pr.live) return Promise.resolve();
+  return new Promise(function(res,rej){ pr.waiters.push(res);
+    if(capMs) setTimeout(function(){ if(!pr.live) rej(new Error('Still connecting to your home — try again in a moment')); }, capMs); });
+}
+function _setLive(){ var pr=window.__pr; if(pr.live) return; pr.live=true; var w=pr.waiters; pr.waiters=[]; w.forEach(function(f){ try{ f(); }catch(e){} }); }
+function snd(d,timeout=15000){
+  var pr=window.__pr;
+  if(pr.replay){ var hit=pr.replay.ws&&pr.replay.ws[d.type];
+    if(hit) return Promise.resolve(JSON.parse(JSON.stringify(hit)));
+    return _whenLive(d.type==='call_service'?20000:0).then(()=>_sndWire(d,timeout)); }
+  if(pr.booted && !pr.live) return _whenLive(d.type==='call_service'?20000:0).then(()=>_sndWire(d,timeout));
+  const p=_sndWire(d,timeout);
+  if(_BOOT_WS.has(d.type)) p.then(m=>{ if(m && m.success!==false && m.result!==undefined) pr.rec.ws[d.type]=m; }).catch(()=>{});
+  return p;
+}
+const _BOOT_DB='proos-boot', _BOOT_KEY='open';
+function _bootDb(){ return new Promise(function(res,rej){ try{ var q=indexedDB.open(_BOOT_DB,1);
+  q.onupgradeneeded=function(){ q.result.createObjectStore('kv'); }; q.onsuccess=function(){ res(q.result); }; q.onerror=function(){ rej(q.error); };
+  }catch(e){ rej(e); } }); }
+function _bootLoad(){ return _bootDb().then(function(db){ return new Promise(function(res){ try{ var g=db.transaction('kv').objectStore('kv').get(_BOOT_KEY);
+  g.onsuccess=function(){ res(g.result||null); }; g.onerror=function(){ res(null); }; }catch(e){ res(null); } }); }).catch(function(){ return null; }); }
+let _bootSaveT=null;
+function _bootSave(){
+  clearTimeout(_bootSaveT);
+  _bootSaveT=setTimeout(function(){ try{ var pr=window.__pr; if(!pr.rec.ws.get_states) return;
+    var rec={v:1, at:Date.now(), origin:location.origin, build:(typeof PROOS_BUILD!=='undefined'?PROOS_BUILD:''), ws:pr.rec.ws, core:pr.rec.core};
+    _bootDb().then(function(db){ try{ db.transaction('kv','readwrite').objectStore('kv').put(rec,_BOOT_KEY); }catch(e){} }).catch(function(){});
+  }catch(e){} }, 2500);
+}
+function _bootBanner(on, at){
+  try{
+    var el=document.getElementById('proos-boot-banner');
+    if(!on){ if(el){ el.style.opacity='0'; setTimeout(function(){ try{ el.remove(); }catch(e){} }, 400); } return; }
+    if(!el){ el=document.createElement('div'); el.id='proos-boot-banner';
+      el.style.cssText='position:fixed;left:50%;top:calc(var(--proos-sat) + 8px);transform:translateX(-50%);z-index:99990;'
+        +'background:rgba(20,20,26,.88);color:rgba(255,255,255,.85);font:500 12px/1 -apple-system,Inter,system-ui,sans-serif;'
+        +'padding:7px 12px;border-radius:999px;border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);'
+        +'transition:opacity var(--m-move) var(--e-standard);pointer-events:none;white-space:nowrap';
+      document.body.appendChild(el); }
+    var t=''; try{ t=new Date(at).toLocaleTimeString([], {hour:'numeric', minute:'2-digit'}); }catch(e){}
+    el.textContent='Connecting to your home · showing it as at '+t;
+  }catch(e){}
+}
+// The opening screen, built from this device's last live visit (see above). Never raises; with nothing kept, it does nothing.
+async function _bootFromCache(){
+  var pr=window.__pr;
+  if(!CONFIG.ha.token || CONFIG.ha.token==='YOUR_TOKEN_HERE' || CONFIG.manual) return;
+  var snap=await _bootLoad();
+  if(!snap || snap.v!==1 || snap.origin!==location.origin || !snap.ws || !snap.ws.get_states || pr.live) return;
+  if(_proosDoorBase===null){ try{ var md=localStorage.getItem('proos_last_way_in'); if(md!==null) _proosDoorBase=md; }catch(e){} }
+  pr.replay=snap;
+  try{
+    (snap.ws.get_states.result||[]).forEach(s=>{ if(s && s.entity_id) states[s.entity_id]=s; });
+    try{ _haLocationName=(snap.ws.get_config&&snap.ws.get_config.result&&snap.ws.get_config.result.location_name)||''; }catch(e){}
+    try{ _haUser=(snap.ws['auth/current_user']&&snap.ws['auth/current_user'].result)||null; }catch(e){}
+    if(!_haLocationName){ const zh=states['zone.home']; if(zh&&zh.attributes&&zh.attributes.friendly_name) _haLocationName=zh.attributes.friendly_name; }
+    await fetchEntityRegistry();
+    try{ await loadScenePhotos(); }catch(e){}
+    const discovered = await autoDiscover(HA, TOK);
+    if(pr.live) return;                      // the home answered first: the live open builds the screen itself
+    CONFIG.rooms = discovered.rooms;
+    if(discovered.irrigation.length > 0) CONFIG.irrigation = discovered.irrigation;
+    CONFIG.irrigationCtl = discovered.irrigationCtl||[];
+    if(discovered.cameras.length > 0) CONFIG.cameras = discovered.cameras;
+    if(discovered.scenes) CONFIG.scenes = discovered.scenes;
+    CONFIG.security = discovered.security;
+    if(discovered.weather) CONFIG.weather = discovered.weather;
+    pr.booted=true;
+    pr.replay=null;
+    onReady();
+    _bootBanner(true, snap.at);
+  }catch(e){
+    console.warn('[ProOS] opening from the last visit did not complete — waiting for the home', e);
+  }finally{
+    pr.replay=null;
+  }
+}
 // A COMMAND THAT FAILED MUST SAY SO (19 Aug 2026, register 233). This
 // line ended `.catch(()=>{})` — every command in the app, for lights,
 // covers, scenes, the alarm, irrigation and media, swallowed its own
@@ -6401,6 +6521,8 @@ async function connect(){
     }
     else if(m.type==='auth_ok'){
       ws._authed=true; clearTimeout(window._wsAuthTimer);
+      _setLive();                                                        // 969y: commands and Core calls may go now
+      try{ if(typeof _bootPromise!=='undefined') await _bootPromise; }catch(e){}   // the opening screen finishes first
       _pcWsUp=true; _pcWsDownAt=0; _pcEvaluate();
       if(loadMsg) loadMsg.textContent = 'Loading states…';
       const r = await snd({type:'get_states'});
@@ -6442,6 +6564,7 @@ async function connect(){
           CONFIG.security = discovered.security;
           if(discovered.weather) CONFIG.weather = discovered.weather;
           if(loadMsg) loadMsg.textContent=`Ready — ${discovered.rooms.length} rooms found`;
+          _bootSave();                                                   // 969y: kept for the next open
         }catch(err){
           const msg=err?.message||String(err);
           if(loadMsg){loadMsg.textContent=`Discovery error: ${msg}`;loadMsg.style.color='rgba(33,57,240,0.9)';}
@@ -6451,6 +6574,7 @@ async function connect(){
         }
       }
       onReady();
+      _bootBanner(false);                                                // 969y: the live readings are on screen
     }else if(m.type==='event'&&m.event?.event_type==='homeassistant_stop'){ _pcRestartAt=Date.now(); _pcTitle();
     }else if(m.type==='event'&&_entSubId&&m.id===_entSubId&&m.event){
       _onEntitiesEvent(m.event);      // 697: the platform's own per-device feed
@@ -6872,8 +6996,10 @@ var _proosDoorReady=(function(){
     var c=new AbortController(); var t=setTimeout(function(){ try{c.abort();}catch(e){} },2500);
     return fetch(door+'/health',{cache:'no-store',signal:c.signal})
       .then(function(r){ return r.ok?r.json():null; })
-      .then(function(j){ _proosDoorBase=(j&&j.version)?door:''; })
-      .catch(function(){ _proosDoorBase=''; })
+      .then(function(j){ _proosDoorBase=(j&&j.version)?door:''; try{ localStorage.setItem('proos_last_way_in', _proosDoorBase); }catch(e){} })
+      // 969y: a knock that timed out on a slow link (5G at 5 s a round trip, 21 Oct) is not "no door" — the door that
+      // answered last time at this address is kept; with none known, the direct path as before
+      .catch(function(){ var m=null; try{ m=localStorage.getItem('proos_last_way_in'); }catch(e){} _proosDoorBase=(m===door)?door:''; })
       .finally(function(){ clearTimeout(t); });
   }catch(e){ _proosDoorBase=''; return Promise.resolve(''); }
 })();
@@ -14022,7 +14148,9 @@ async function fetchCamWS(entity){
   // even when the entity state reads "unavailable" — UniFi Protect flaps state but still serves
   // frames — and these cameras put the token in entity_picture, not a separate access_token attr.
   const pic = att(entity,'entity_picture');
-  if(pic) return `${HA}${pic}${pic.includes('?')?'&':'?'}t=${Date.now()}`;
+  // 969y: away from home the platform's own camera proxy makes the still phone-sized (its width parameter)
+  let _w=''; try{ const b=_linkBudget(); if(b && b.stillW) _w='&width='+b.stillW; }catch(e){}
+  if(pic) return `${HA}${pic}${pic.includes('?')?'&':'?'}t=${Date.now()}${_w}`;
   // Fallback: WS get_image (base64) for any camera that doesn't expose entity_picture.
   try {
     const res = await snd({type:'camera/get_image',entity_id:entity});
@@ -19460,6 +19588,8 @@ if(!CONFIG.ha.token || CONFIG.ha.token === 'YOUR_TOKEN_HERE'){
   _tellApp('load:done');   // 696c
   _setupLocalUI();
 } else {
+  // 969y: the opening screen from this device's last live visit first (instant), then the home itself
+  var _bootPromise=_bootFromCache().catch(function(){});
   connect();
 }
 
