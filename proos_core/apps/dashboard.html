@@ -1653,7 +1653,7 @@ body[data-home-state="noticing"] .home-state-go,body[data-home-state="attention"
    and out over a fixed 8 s whatever the length, so a long title crawled, then raced through the middle. Now: a pause to
    read the start, one steady speed (the duration grows with the distance, applyMarquee), a pause at the end. */
 @keyframes marquee-scroll{0%,15%{transform:translateX(0)}85%,100%{transform:translateX(var(--marquee-dist))}}
-.mp-title.scrolling,.mp-artist.scrolling,.ms-title.scrolling,.ms-artist.scrolling,.player-title.scrolling,.player-artist.scrolling,.player-album.scrolling{
+.mp-title.scrolling,.mp-artist.scrolling,.ms-title.scrolling,.ms-artist.scrolling,.player-title.scrolling,.player-artist.scrolling,.player-album.scrolling,.player-sub.scrolling{
   text-overflow:clip;animation:marquee-scroll var(--marquee-dur,8s) linear infinite;display:inline-block;
 }
 .mp-vol-col{display:flex;align-items:center;gap:8px;flex:1;min-width:0;margin:0 16px}
@@ -3555,6 +3555,7 @@ try{var _sb=localStorage.getItem('proos_std_bg');if(_sb){document.documentElemen
             <div class="player-title" id="player-title">–</div>
             <div class="player-artist" id="player-artist"></div>
             <div class="player-album" id="player-album"></div>
+            <div class="player-sub" id="player-sub"></div>
           </div>
           <div class="player-progress" id="player-progress" style="display:none">
             <input class="player-seek" id="player-seek" type="range" min="0" max="100" value="0"
@@ -4638,7 +4639,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102117';
+const PROOS_BUILD='2026102118';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -4976,7 +4977,7 @@ function artSrc(art){if(!art)return '';return art.startsWith('http')?art:HA+art;
 function applyMarquee(container){
   // 970l: a title already scrolling with the same words is left running — the players redraw on every update, and
   // restarting the scroll each time sent it back to the start (or, mid-way, made it look as if it sped up)
-  container.querySelectorAll('.mp-title,.mp-artist,.ms-title,.ms-artist,.player-title,.player-artist,.player-album').forEach(el=>{
+  container.querySelectorAll('.mp-title,.mp-artist,.ms-title,.ms-artist,.player-title,.player-artist,.player-album,.player-sub').forEach(el=>{
     const words=el.textContent||'';
     if(el.classList.contains('scrolling') && el.dataset.mqWords===words) return;
     el.classList.remove('scrolling');
@@ -16865,10 +16866,10 @@ function musicRenderGroup(entity){
   if(musicEngine(entity)!=='ma' || groupSiblings(entity).length<=1){ el.style.display='none'; el.innerHTML=''; return; }
   const gm=att(entity,'group_members')||[];
   const grouped=gm.length>1;
-  let label='Group speakers';
+  let label='Group Speakers';   // 970m: a button label is Title Case
   if(grouped){
     const names=gm.map(e=>playerRoomName(e)).filter(Boolean);
-    label = names.length<=2 ? ('Playing in '+names.join(' + ')) : ('Playing in '+names.length+' rooms');
+    label = names.length<=2 ? ('Playing in '+names.join(' + ')) : ('Playing in '+names.length+' Rooms');
   }
   el.className='music-group'+(grouped?' on':'');
   el.style.display='flex';   // a chip in the tools row (register 560), not a band
@@ -17682,6 +17683,8 @@ function updatePlayerUI(){
   document.getElementById('player-title').textContent=_claim?title:'';
   document.getElementById('player-artist').textContent=_claim?artist:'';
   document.getElementById('player-album').textContent=_claim?album:'';
+  // 970m: the music player's one line under the title — "artist · album", on ONE line (it wrapped and was cut)
+  { const _sub=document.getElementById('player-sub'); if(_sub) _sub.textContent=_claim?[artist,album].filter(Boolean).join(' \u00b7 '):''; }
   // Marquee for long player text
   requestAnimationFrame(()=>applyMarquee(document.getElementById('player-panel')));
 
@@ -17850,7 +17853,7 @@ function updatePlayerUI(){
     const gm=att(e,'group_members')||[];
     const n=gm.length>1?gm.length:1;
     extraBtns.unshift(`<button class="player-extra-btn${n>1?' active':''}" onclick="openGroupSheet()">
-      <svg viewBox="0 0 24 24"><circle cx="7" cy="7" r="3"/><circle cx="17" cy="11" r="3"/><circle cx="9" cy="17" r="3"/></svg>${n>1?`Playing in ${n} rooms`:'Group speakers'}</button>`);
+      <svg viewBox="0 0 24 24"><circle cx="7" cy="7" r="3"/><circle cx="17" cy="11" r="3"/><circle cx="9" cy="17" r="3"/></svg>${n>1?`Playing in ${n} Rooms`:'Group Speakers'}</button>`);
   }
   // Music doorway — open the full ProOS Music experience (search / browse / full
   // queue) for this speaker. Audio players only; video players use sources/apps.
@@ -17993,6 +17996,7 @@ function playerSeekCommit(el){
 function updateSeekFill(el){
   const pct=((el.value-el.min)/(el.max-el.min)*100).toFixed(1);
   el.style.background=`linear-gradient(to right,rgba(255,255,255,0.85) 0%,rgba(255,255,255,0.85) ${pct}%,rgba(255,255,255,0.18) ${pct}%,rgba(255,255,255,0.18) 100%)`;
+  el.style.setProperty('--pct',pct+'%');   // 970m: the redesigned player draws its fill from this (the global range rule wins over inline)
 }
 
 function tickPlayerPos(){
@@ -20362,7 +20366,7 @@ document.addEventListener('click', function(e){
       <div id="player-group-sheet" style="display:none;position:fixed;inset:0;z-index:9999;flex-direction:column;justify-content:flex-end">
         <div onclick="closeGroupSheet()" style="flex:1;background:rgba(0,0,0,0.35)"></div>
         <div style="background:#0a0a0c;border-top:0.5px solid rgba(255,255,255,0.08);padding:16px 20px calc(28px + env(safe-area-inset-bottom));min-height:44dvh;max-height:70dvh;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none">
-          <div style="font-size:9px;letter-spacing:0.12em;text-transform:uppercase;color:rgba(255,255,255,0.50);margin-bottom:4px">Group speakers</div>
+          <div style="font-size:9px;letter-spacing:0.12em;text-transform:uppercase;color:rgba(255,255,255,0.50);margin-bottom:4px">Group Speakers</div>
           <div id="player-group-host" style="font-size:13px;color:rgba(255,255,255,0.55);margin-bottom:14px"></div>
           <div id="player-group-list" style="display:flex;flex-direction:column;gap:8px"></div>
         </div>
@@ -21904,10 +21908,16 @@ html.pv-room #page-home .room-acts{display:block;margin-top:4px}
 /* 970k (Dave 23:21: "when first line is long it moves off the page"): the title's marquee moved the title itself, so
    it slid out past the screen's edge; the column now clips it, and it scrolls within the column's width */
 #player-overlay .player-panel:not(.is-remote) .player-title{font-size:24px!important;font-weight:600!important;letter-spacing:0!important;line-height:1.2!important;text-align:left!important;margin-bottom:4px}
-#player-overlay .player-panel:not(.is-remote) .player-artist,#player-overlay .player-panel:not(.is-remote) .player-album{display:inline!important;width:auto!important;font-size:17px!important;color:rgba(255,255,255,.72)!important;margin:0!important}
-#player-overlay .player-panel:not(.is-remote) .player-album:not(:empty)::before{content:' · '}
-#player-overlay .player-panel:not(.is-remote) .player-seek{height:6px!important;border-radius:3px!important}
-#player-overlay .player-panel:not(.is-remote) .player-seek::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:7px;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.4)}
+/* 970m (Dave 23:46: "Please check over all" — "artist · album" wrapped to two lines and the second was cut in half):
+   the music player shows them as ONE line (#player-sub), which scrolls like the title when it is long */
+#player-overlay .player-panel .player-sub{display:none}
+#player-overlay .player-panel:not(.is-remote) .player-artist,#player-overlay .player-panel:not(.is-remote) .player-album{display:none!important}
+#player-overlay .player-panel:not(.is-remote) .player-sub{display:block;white-space:nowrap;font-size:17px;color:rgba(255,255,255,.72)}
+#player-overlay .player-panel:not(.is-remote) .player-sub:not(.scrolling){overflow:hidden;text-overflow:ellipsis}
+/* 970m: the progress line as designed — read on the phone it was still the global 2px line with the grey pill and
+   no fill: the global range rule (all !important) beat these and the inline fill */
+#player-overlay .player-panel:not(.is-remote) .player-seek{background:linear-gradient(90deg,#fff 0,#fff var(--pct,0%),rgba(255,255,255,.22) var(--pct,0%)) center/100% 6px no-repeat!important}
+#player-overlay .player-panel:not(.is-remote) .player-seek::-webkit-slider-thumb{width:14px!important;height:14px!important;border-radius:7px!important;margin-top:13px;background:#fff!important;box-shadow:0 1px 4px rgba(0,0,0,.4)}
 #player-overlay .player-panel:not(.is-remote) .player-seek::-moz-range-thumb{width:14px;height:14px;border-radius:7px;background:#fff;border:0}
 #player-overlay .player-panel:not(.is-remote) .player-times{font-size:12px!important;color:rgba(255,255,255,.7)!important;margin-top:8px!important}
 #player-overlay .player-panel:not(.is-remote) .player-transport{justify-content:space-between!important;gap:0!important;width:100%}
@@ -21936,7 +21946,7 @@ html.pv-room #page-home .room-acts{display:block;margin-top:4px}
 @media (min-width:769px){
   #player-overlay .player-panel:not(.is-remote) .player-body{gap:32px!important;padding:0!important}
   #player-overlay .player-panel:not(.is-remote) .player-title{font-size:32px!important}
-  #player-overlay .player-panel:not(.is-remote) .player-artist,#player-overlay .player-panel:not(.is-remote) .player-album{font-size:20px!important}
+  #player-overlay .player-panel:not(.is-remote) .player-sub{font-size:20px}
   #player-overlay .player-panel:not(.is-remote) .ptb.play-main{width:88px!important;height:88px!important}
   #player-overlay .player-panel:not(.is-remote) .pl-vol{height:60px}
   #player-overlay .player-panel:not(.is-remote) .player-progress{order:0!important;margin:0!important}
