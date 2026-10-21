@@ -4631,7 +4631,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102105';
+const PROOS_BUILD='2026102106';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -4722,7 +4722,15 @@ _dashBuildCheck(true);
 setInterval(function(){ _dashBuildCheck(false); }, 90000);
 document.addEventListener('visibilitychange', function(){
   if(!document.hidden) _dashBuildCheck(false); });
-function _sndWire(d,timeout=15000){const id=mid++;d.id=id;ws.send(JSON.stringify(d));return new Promise((res,rej)=>{const t=setTimeout(()=>{delete cbs[id];rej(new Error(`WS timeout: ${d.type}`));},timeout);cbs[id]=m=>{clearTimeout(t);res(m)};})}
+function _sndWire(d,timeout=15000){if(_wsOpening&&timeout<WS_OPENING_WAIT_MS)timeout=WS_OPENING_WAIT_MS;const id=mid++;d.id=id;ws.send(JSON.stringify(d));return new Promise((res,rej)=>{const t=setTimeout(()=>{delete cbs[id];rej(new Error(`WS timeout: ${d.type}`));},timeout);cbs[id]=m=>{clearTimeout(t);res(m)};})}
+// 970e (Dave, 21 Oct 19:19, phone on weak 5G: "Opening Your Home" for good). Read on Connect: the live connection
+// carried ~141 KB of the opening and was then dropped at 29–68 s, again and again — the heartbeat's ping waits in line
+// behind the opening's answers, so on a slow link two "missed" pongs closed a connection that was still delivering,
+// and every new connection started the opening from nothing (so it never finished, and nothing was kept for the next
+// open). While the opening is being fetched the heartbeat stands down and its calls get WS_OPENING_WAIT_MS; once the
+// screen is built, the heartbeat watches as before.
+const WS_OPENING_WAIT_MS=90000;   // plumbing: how long one opening answer may take on a slow link
+let _wsOpening=false;
 // ── INSTANT OPEN (register 969y) ─────────────────────────────────────────────────────────────────────────────────────
 // Dave, 21 Oct: "Apps updated opens great on wifi shithouse on 5G" — "this needs to be faultless". Measured through
 // ProOS Connect: on his 5G a 2-byte answer took 5.5 s, and the home's live data (225 KB) over a minute. So the page no
@@ -6525,6 +6533,8 @@ async function connect(){
     }
     else if(m.type==='auth_ok'){
       ws._authed=true; clearTimeout(window._wsAuthTimer);
+      _wsOpening=true;                                                   // 970e: the opening is on its way
+      clearTimeout(window._wsOpenCap); window._wsOpenCap=setTimeout(()=>{ _wsOpening=false; }, 5*WS_OPENING_WAIT_MS);   // never stands down for good
       _setLive();                                                        // 969y: commands and Core calls may go now
       try{ if(typeof _bootPromise!=='undefined') await _bootPromise; }catch(e){}   // the opening screen finishes first
       _pcWsUp=true; _pcWsDownAt=0; _pcEvaluate();
@@ -6578,11 +6588,13 @@ async function connect(){
           if(loadMsg){loadMsg.textContent=`Discovery error: ${msg}`;loadMsg.style.color='rgba(33,57,240,0.9)';}
           console.error('Auto-discovery failed:', err);
           try{ _fullFeed(); }catch(e){}                                   // 970c: discovery failed — still live
+          _wsOpening=false;                                               // 970e
           setTimeout(onReady, 2000);
           return;
         }
       }
       try{ _subscribeStates(); }catch(e){}                               // 970c: a live feed on every path (manual: the full one)
+      _wsOpening=false;                                                  // 970e: the screen is built — the heartbeat watches
       onReady();
       _bootBanner(false);                                                // 969y: the live readings are on screen
     }else if(m.type==='event'&&m.event?.event_type==='homeassistant_stop'){ _pcRestartAt=Date.now(); _pcTitle();
@@ -6602,7 +6614,7 @@ async function connect(){
     _gateSay('Looking for your home at ' + haUrl.host + '…'); _pcSay('It isn\u2019t answering at '+haUrl.host+' yet \u2014 your rooms keep working on their own; ProOS keeps looking.');
     console.error('WS error',err);
   };
-  ws.onclose = (ev)=>{ _pcWsUp=false; if(!_pcWsDownAt) _pcWsDownAt=Date.now(); try{_pcEvaluate();}catch(e){}
+  ws.onclose = (ev)=>{ _wsOpening=false; _pcWsUp=false; if(!_pcWsDownAt) _pcWsDownAt=Date.now(); try{_pcEvaluate();}catch(e){}
     _gateSay('Your home at ' + haUrl.host + ' closed the connection' + ((ev&&ev.code)?(' (' + ev.code + ')'):'') + ' — reconnecting…'); _pcSay('Your home at '+haUrl.host+' closed the connection \u2014 looking for it again\u2026');
     scheduleReconnect(2000); };
 }
@@ -6717,6 +6729,7 @@ function startHeartbeat(){
   stopHeartbeat(); _wsPongMiss=0;
   _wsPingTimer=setInterval(()=>{
     if(!ws || ws.readyState!==WebSocket.OPEN){ scheduleReconnect(500); return; }
+    if(_wsOpening){ _wsPongMiss=0; return; }                             // 970e: a ping would queue behind the opening
     let pong=false;
     snd({type:'ping'},10000).then(()=>{pong=true;_wsPongMiss=0;}).catch(()=>{});
     if(_wsPongTimer) clearTimeout(_wsPongTimer);
@@ -6737,6 +6750,7 @@ function ensureConnected(){
   if(!CONFIG.ha.token) return;
   if(!ws || ws.readyState===WebSocket.CLOSING || ws.readyState===WebSocket.CLOSED){ scheduleReconnect(200); return; }
   if(ws.readyState===WebSocket.OPEN){
+    if(_wsOpening) return;                                               // 970e: still delivering the opening
     let pong=false;
     snd({type:'ping'},4000).then(()=>{pong=true;}).catch(()=>{});
     setTimeout(()=>{ if(!pong){ try{ws.close();}catch(e){} scheduleReconnect(200); } }, 4000);
