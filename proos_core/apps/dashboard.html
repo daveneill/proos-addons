@@ -4634,7 +4634,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102109';
+const PROOS_BUILD='2026102110';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -21859,6 +21859,9 @@ html.pv-room #page-home .room-acts{display:block;margin-top:4px}
 .player-panel:not(.is-remote) .player-body>*{margin-top:0!important;margin-bottom:0!important}
 .player-panel:not(.is-remote) .player-body #player-vol-row{padding:0!important;border-top:0!important;height:auto!important;flex:none!important;position:static!important;width:100%!important}
 .player-panel:not(.is-remote) .player-extras{justify-content:center}
+/* measured at 390x844 on the box: centring the column left 46 above the title and 20 between the rest — on a phone
+   the column starts at the art, one gap down; the iPad's side column (≥769) stays centred beside the art */
+@media (max-width:768px){.player-panel:not(.is-remote) .player-body{justify-content:flex-start!important}}
 .mpc-row{display:flex;align-items:center;gap:14px;min-width:0}
 .mpc .mpc-art{width:72px!important;height:72px!important;min-height:0!important;aspect-ratio:auto!important;border-radius:14px!important;flex:none!important;display:grid;place-items:center;background:linear-gradient(135deg,#ff5f6d,#ffc371);color:#fff;cursor:pointer;overflow:hidden;position:relative;box-shadow:0 8px 22px rgba(0,0,0,.35)}
 .mpc.tv .mpc-art{width:112px!important;background:linear-gradient(135deg,#2b3a55,#141a26)}
