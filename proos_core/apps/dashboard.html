@@ -4635,7 +4635,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102115';
+const PROOS_BUILD='2026102116';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -21875,7 +21875,9 @@ html.pv-room #page-home .room-acts{display:block;margin-top:4px}
    changed (the title, whose marquee starts a frame later) and left the rest until the next player update. The blurred
    art is now the art itself, blurred with a plain filter (no backdrop-filter at all): the same look, nothing for the
    iPhone to wait on, and far cheaper to draw. */
-#player-overlay .player-panel:not(.is-remote)::before{background:inherit!important;background-size:cover!important;background-position:center!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;filter:blur(48px) saturate(1.4) brightness(.58);transform:scale(1.25)}
+#player-overlay .player-panel:not(.is-remote)::before{background:inherit!important;background-size:cover!important;background-position:center!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;filter:blur(48px) saturate(1.4) brightness(.58);inset:-120px!important;transform:none}
+/* 970k (Dave 23:21 screenshot): a blur fades to clear at its own edges, and the panel's sharp art showed through there
+   (big ghost letters by the volume). The blurred layer now reaches 120px past every edge, so its fade is off screen. */
 #player-overlay .player-panel:not(.is-remote)::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.1) 0%,rgba(0,0,0,.25) 55%,rgba(0,0,0,.55) 100%);z-index:0;pointer-events:none}
 #player-overlay .player-panel .pl-down,#player-overlay .player-panel .pl-hgap-r{display:none}
 #player-overlay .player-panel:not(.is-remote) .pl-down{display:flex;width:44px;height:44px;border-radius:22px;border:0;background:rgba(255,255,255,.12);color:#fff;align-items:center;justify-content:center;cursor:pointer;padding:0}
@@ -21887,7 +21889,9 @@ html.pv-room #page-home .room-acts{display:block;margin-top:4px}
 #player-overlay .player-panel:not(.is-remote) .player-header-entity{font-size:15px!important;font-weight:600!important;letter-spacing:.04em!important}
 #player-overlay .player-panel:not(.is-remote) .player-art{box-shadow:0 30px 60px rgba(0,0,0,.55)!important}
 #player-overlay .player-panel:not(.is-remote) .player-body{gap:24px!important;padding:24px 24px 0!important}
-#player-overlay .player-panel:not(.is-remote) .player-info{display:block!important;text-align:left!important}
+#player-overlay .player-panel:not(.is-remote) .player-info{display:block!important;text-align:left!important;overflow:hidden!important}
+/* 970k (Dave 23:21: "when first line is long it moves off the page"): the title's marquee moved the title itself, so
+   it slid out past the screen's edge; the column now clips it, and it scrolls within the column's width */
 #player-overlay .player-panel:not(.is-remote) .player-title{font-size:24px!important;font-weight:600!important;letter-spacing:0!important;line-height:1.2!important;text-align:left!important;margin-bottom:4px}
 #player-overlay .player-panel:not(.is-remote) .player-artist,#player-overlay .player-panel:not(.is-remote) .player-album{display:inline!important;width:auto!important;font-size:17px!important;color:rgba(255,255,255,.72)!important;margin:0!important}
 #player-overlay .player-panel:not(.is-remote) .player-album:not(:empty)::before{content:' · '}
