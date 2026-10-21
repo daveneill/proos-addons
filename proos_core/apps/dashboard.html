@@ -4639,7 +4639,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102119';
+const PROOS_BUILD='2026102120';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -22117,6 +22117,12 @@ html.pv-room #page-home .room-acts{display:block;margin-top:4px}
   .lp-grid{grid-template-columns:1fr}
   #page-rooms .rooms-grid{padding:4px 12px 24px}
   #page-rooms .room-card{height:170px}
+}
+/* 970o — Dave, 22 Oct: on the phone the Rooms cards sat 8px from the edge and the header 32px, where Home and Media use
+   16px. The phone gutter is 16px on every page, so Rooms takes it too (sides only; top and bottom are left as they are). */
+@media(max-width:768px){
+  #page-rooms .rooms-grid{padding-left:16px!important;padding-right:16px!important}
+  #page-rooms .rooms-top-bar{padding-left:16px!important;padding-right:16px!important}
 }
 /* ═══ DARK EVERYWHERE (968k) ═══ Dave, 19 Oct 16:24: "I want the dark everywhere same as the Gflip". Every card
    surface in the app — the Lights page's lights, the Media page's players, the Security, Irrigation and Weather cards,
