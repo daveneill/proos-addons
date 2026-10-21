@@ -1062,6 +1062,11 @@ def _room_photo(image_id, long_side):
         if "jpeg" in (ctype or "").lower() or raw[:2] == b"\xff\xd8":
             data = _pm.shrink(raw, keep=long_side, above=long_side + 200)
             ctype = "image/jpeg"
+        else:
+            # Read on the G-Flip through Connect, 21 Oct 13:50: the room photos are PNG, 1536 × 1024, 2.7 MB each — the
+            # weight is the format, not the size. ffmpeg (already in Core's image for camera Talk, register 700) makes a
+            # JPEG that fits; without it, or on any failure, the photo goes as it is.
+            data, ctype = _photo_as_jpeg(raw, long_side) or (raw, ctype)
     except Exception:                                            # noqa: BLE001
         data = raw
     with _photo_lock:
@@ -1069,6 +1074,23 @@ def _room_photo(image_id, long_side):
         while len(_photo_cache) > _PHOTO_KEEP:
             _photo_cache.pop(min(_photo_cache, key=lambda k: _photo_cache[k][0]), None)
     return ctype, data
+
+
+def _photo_as_jpeg(raw, long_side):
+    """(jpeg bytes, "image/jpeg") — any picture ffmpeg can read, its long side no bigger than long_side — or None."""
+    import shutil as _sh
+    import subprocess
+    ff = _sh.which("ffmpeg")
+    if not ff or not raw:
+        return None
+    try:
+        scale = ("scale='if(gt(iw,ih),min(%d,iw),-2)':'if(gt(iw,ih),-2,min(%d,ih))'" % (long_side, long_side))
+        out = subprocess.run([ff, "-hide_banner", "-loglevel", "error", "-i", "pipe:0", "-vf", scale,
+                              "-q:v", "4", "-frames:v", "1", "-f", "image2", "-c:v", "mjpeg", "pipe:1"],
+                             input=raw, capture_output=True, timeout=20, check=True).stdout
+        return (out, "image/jpeg") if out and out[:2] == b"\xff\xd8" and len(out) < len(raw) else None
+    except Exception:                                            # noqa: BLE001
+        return None
 
 
 def _reload_entry(entry_id):
