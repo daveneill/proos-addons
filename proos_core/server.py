@@ -693,6 +693,12 @@ def _tts_engine():
     # around"). Once ProOS Connect has approved this box and the platform has the ProOS Voice engine, Ryan is
     # the voice — before any saved choice, before the local voice. Until then the order below is unchanged.
     _cv = _connect_engine()
+    if _cv and _cv not in engines:
+        # 969u addendum, seen on the G-Flip 21 Oct 11:54: the platform had just added tts.proos_voice but Core's
+        # engine list was up to ten minutes old, so Piper kept speaking after Dave approved the box. A ProOS voice
+        # the list has not seen yet is a reason to read the list again, once.
+        _tts_cache["ts"] = 0.0
+        engines = _speakable(_tts_engines())
     if _cv and _cv in engines:
         return _cv
     chosen = _voice_load().get("engine")
