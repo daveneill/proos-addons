@@ -4631,7 +4631,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102104';
+const PROOS_BUILD='2026102105';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -6877,9 +6877,11 @@ async function fetchEntityRegistry() {
       if(Array.isArray(ents)){
         const list = ents.map(x=>({entity_id:x.ei, hidden:!!x.hb, hidden_by:x.hb?'hidden':null, name:x.en||null, original_name:null,
           device_id:x.di||null, area_id:x.ai||null, platform:x.pl||null, labels:x.lb||[]}));
-        const alarmPl = new Set(list.filter(e=>e.entity_id.indexOf('alarm_control_panel.')===0).map(e=>e.platform));
+        // read on the G-Flip: asking for every sensor of an alarm platform fetched 264 entries (201 KB) — UniFi Protect
+        // and Elk carry far more than their zones. A zone is known by its own state (_isLinkedZone: an alarm area and a
+        // logical status), which is already read, so only players and zones are asked for.
         const need = list.filter(e=>{ const dm=e.entity_id.slice(0,e.entity_id.indexOf('.'));
-          return dm==='media_player' || ((dm==='sensor'||dm==='binary_sensor'||dm==='alarm_control_panel') && alarmPl.has(e.platform)); })
+          return dm==='media_player' || ((dm==='sensor'||dm==='binary_sensor') && _isLinkedZone(e.entity_id)); })
           .map(e=>e.entity_id);
         if(need.length){
           const g = await snd({type:'config/entity_registry/get_entries', entity_ids:need});
