@@ -4631,7 +4631,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102107';
+const PROOS_BUILD='2026102108';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -12642,7 +12642,9 @@ function makeMediaPageCard(ctrl, volEnt, art, title, artist, roomLabel, vol, has
   // 968z: a video playing on a streamer (Apple TV, Shield — not a TV, which is tvCard) keeps its 16:9 art in the wide
   // frame the TV card uses, by the player's own content type (_npShape, register 598) — it was cropped to a square
   const wideArt=!tvCard && typeof _npShape==='function' && _npShape(ctrl)==='wide';
-  return `<div class="mp-card mpc${tvCard?' tv':''}${wideArt?' wide':''}${playing?' on':''}">
+  // 970g (Dave, 21 Oct 20:12: "all players on mobile iPad and all pages … have the blurred background of the art like in
+  // pic 2" — Home's player widget). The same backdrop Home's .mwc card draws, from the same artwork: one player look.
+  return `<div class="mp-card mpc${tvCard?' tv':''}${wideArt?' wide':''}${playing?' on':''}">${artUrl?`<div class="mpc-bg" style="background-image:url('${artUrl}')"></div>`:''}
     <div class="mpc-row">
       <div class="mpc-art mp-art" onclick="openPlayer('${ctrl}','${volEnt}')">${artUrl?`<img src="${artUrl}" onerror="this.remove()"/>`:''}${tvCard?'<svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>':'<svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>'}</div>
       <div class="mpc-tx mp-info" onclick="openPlayer('${ctrl}','${volEnt}')">
@@ -21833,6 +21835,10 @@ html.pv-room #page-home .room-acts{display:block;margin-top:4px}
    in from Home's and Music's by 16, by 12 on a phone). */
 #media-page-strip{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px!important;padding:0 0 24px!important}
 .mp-card.mpc{height:auto!important;display:block!important;padding:14px!important;border-radius:20px!important;margin:0!important}
+/* 970g — the art's blurred backdrop, as Home's player widget draws it (.w-media .mwc-bg: opacity .4, blur 30px, saturate
+   1.7, brightness .6). No fade-in here: this card is redrawn on every player update and a fade would flash each time. */
+.mpc-bg{position:absolute;inset:-44px;background:center/cover;filter:blur(30px) saturate(1.7) brightness(.6);opacity:.4;z-index:0;pointer-events:none}
+.mp-card.mpc>:not(.mpc-bg){position:relative;z-index:1}
 .mpc-row{display:flex;align-items:center;gap:14px;min-width:0}
 .mpc .mpc-art{width:72px!important;height:72px!important;min-height:0!important;aspect-ratio:auto!important;border-radius:14px!important;flex:none!important;display:grid;place-items:center;background:linear-gradient(135deg,#ff5f6d,#ffc371);color:#fff;cursor:pointer;overflow:hidden;position:relative;box-shadow:0 8px 22px rgba(0,0,0,.35)}
 .mpc.tv .mpc-art{width:112px!important;background:linear-gradient(135deg,#2b3a55,#141a26)}
