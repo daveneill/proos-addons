@@ -129,4 +129,5 @@ def reading() -> dict:
         w = _state.get("want") or {}
         return {"line": "open" if (p and p.poll() is None) else ("off" if not w else "down"),
                 "port": w.get("listen"), "host": w.get("host"), "since": _state.get("since"),
+                "app_url": w.get("app_url"),
                 "last_exit": _state.get("last_exit"), "tries": _state.get("tries")}

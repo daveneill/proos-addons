@@ -7065,6 +7065,19 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, _nc)
             if parts == ["navcaps"]:
                 return self._send(200, navconfig.load_caps(_live_areas()) if navconfig else {})
+            if parts == ["connect", "address"]:
+                # 969x (Dave, 14:16: test in the TestFlight app, not a web login). The home's app address on ProOS
+                # Connect while its line is allowed — what the app uses away from home — read from Connect's own last
+                # answer to this box; null when there is none. Any signed-in person of this home may ask.
+                if getattr(self, "_user", None) is None:
+                    return self._send(401, {"error": "sign in required"})
+                try:
+                    from proos import connecttunnel as _ctm
+                    _r = _ctm.reading()
+                    return self._send(200, {"away": _r.get("app_url") if _r.get("line") == "open" else None,
+                                            "line": _r.get("line")})
+                except Exception as e:                           # noqa: BLE001
+                    return self._send(200, {"away": None, "line": "unknown", "why": str(e)[:100]})
             if len(parts) == 2 and parts[0] == "photo" and _PHOTO_PATH.match("photo/" + parts[1]):
                 # 969w: a room photo made to fit a screen (see _room_photo). An image id names one upload for good, so the
                 # phone may keep it.
