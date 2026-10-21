@@ -3524,12 +3524,14 @@ try{var _sb=localStorage.getItem('proos_std_bg');if(_sb){document.documentElemen
       <div id="player-bg" onclick="closePlayer()"></div>
       <div class="player-panel" id="player-panel">
         <div class="player-header-row" id="player-header-row" style="display:none">
-          <div style="width:44px"></div>
+          <button class="pl-down" aria-label="Close" onclick="closePlayer()"><svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+          <div class="pl-hgap" style="width:44px"></div>
           <div style="text-align:center;flex:1">
             <div class="player-header-type" id="player-header-type"></div>
             <div class="player-header-entity" id="player-header-entity"></div>
           </div>
-          <button onclick="closePlayer()" style="width:44px;background:none;border:none;color:rgba(255,255,255,0.7);cursor:pointer;padding:0;display:flex;align-items:center;justify-content:flex-end">
+          <div class="pl-hgap pl-hgap-r" style="width:44px"></div>
+          <button class="pl-x" aria-label="Close" onclick="closePlayer()" style="width:44px;background:none;border:none;color:rgba(255,255,255,0.7);cursor:pointer;padding:0;display:flex;align-items:center;justify-content:flex-end">
             <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
         </div>
@@ -3614,8 +3616,7 @@ try{var _sb=localStorage.getItem('proos_std_bg');if(_sb){document.documentElemen
         <!-- 970h (Dave, 21 Oct 20:32): the player's volume in the new design — the same bar the player cards use
              (.wv-sl.wv-vl, 968o), the mute button beside it as before -->
         <div class="player-vol pl-new" id="player-vol-row" style="display:none">
-          <span id="player-vol-icon"></span>
-          <div class="wv-sl wv-vl pl-vol" id="player-vol-bar" style="--v:50%"><div class="wv-slf"></div><span class="wv-sll"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>Volume</span><span class="wv-slv" id="player-vol-pct">50</span>
+          <div class="wv-sl wv-vl pl-vol" id="player-vol-bar" style="--v:50%"><div class="wv-slf"></div><span id="player-vol-icon"></span><span class="wv-sll"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>Volume</span><span class="wv-slv" id="player-vol-pct">50</span>
             <input class="player-vol-sl" id="player-vol-sl" type="range" min="0" max="1" step="0.02" value="0.5" aria-label="Volume"
               oninput="this.parentNode.style.setProperty('--v',Math.round(this.value*100)+'%');volInput(this,_playerVolEntity,document.getElementById('player-vol-pct'))"
               onpointerup="volEnd()" ontouchend="volEnd()" onchange="volEnd()"/></div>
@@ -4634,7 +4635,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102111';
+const PROOS_BUILD='2026102112';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -21861,6 +21862,58 @@ html.pv-room #page-home .room-acts{display:block;margin-top:4px}
 .player-panel:not(.is-remote) .player-body>*{margin-top:0!important;margin-bottom:0!important}
 .player-panel:not(.is-remote) .remote-btns-and-vol #player-vol-row{border-top:0!important;background:none!important}
 .player-panel:not(.is-remote) .player-extras{justify-content:center}
+/* 970i — THE PLAYER, REDESIGNED (Dave, 21 Oct 21:22 "can you redesign these music player pages as that looks crap";
+   21:34 "That's better build please" — the design canvas "ProOS Player Redesign", phone and iPad landscape). Music
+   players only; a TV remote keeps its own layout. The art fills the screen, blurred; a round close (down) at the left;
+   title left-aligned over "artist · album"; a 6px progress line; the transport across the full width with a 76px play;
+   Group Speakers and Music as two equal buttons; the volume at the bottom, 56 tall, its mute inside its left end; one
+   24px gap between every row. */
+#player-overlay .player-panel:not(.is-remote)::before{background:rgba(0,0,0,.42)!important;-webkit-backdrop-filter:blur(48px) saturate(1.4)!important;backdrop-filter:blur(48px) saturate(1.4)!important}
+#player-overlay .player-panel:not(.is-remote)::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.1) 0%,rgba(0,0,0,.25) 55%,rgba(0,0,0,.55) 100%);z-index:0;pointer-events:none}
+#player-overlay .player-panel .pl-down,#player-overlay .player-panel .pl-hgap-r{display:none}
+#player-overlay .player-panel:not(.is-remote) .pl-down{display:flex;width:44px;height:44px;border-radius:22px;border:0;background:rgba(255,255,255,.12);color:#fff;align-items:center;justify-content:center;cursor:pointer;padding:0}
+#player-overlay .player-panel:not(.is-remote) .pl-hgap{display:none}
+#player-overlay .player-panel:not(.is-remote) .pl-hgap-r{display:block}
+#player-overlay .player-panel:not(.is-remote) .pl-x,#player-overlay .player-panel:not(.is-remote) #player-close-x{display:none!important}
+#player-overlay .player-panel:not(.is-remote) .player-header-row{padding:max(16px,var(--proos-sat)) 24px 0!important}
+#player-overlay .player-panel:not(.is-remote) .player-header-type{font-size:11px!important;letter-spacing:.16em!important;color:rgba(255,255,255,.7)!important}
+#player-overlay .player-panel:not(.is-remote) .player-header-entity{font-size:15px!important;font-weight:600!important;letter-spacing:.04em!important}
+#player-overlay .player-panel:not(.is-remote) .player-art{box-shadow:0 30px 60px rgba(0,0,0,.55)!important}
+#player-overlay .player-panel:not(.is-remote) .player-body{gap:24px!important;padding:24px 24px 0!important}
+#player-overlay .player-panel:not(.is-remote) .player-info{display:block!important;text-align:left!important}
+#player-overlay .player-panel:not(.is-remote) .player-title{font-size:24px!important;font-weight:600!important;letter-spacing:0!important;line-height:1.2!important;text-align:left!important;margin-bottom:4px}
+#player-overlay .player-panel:not(.is-remote) .player-artist,#player-overlay .player-panel:not(.is-remote) .player-album{display:inline!important;width:auto!important;font-size:17px!important;color:rgba(255,255,255,.72)!important;margin:0!important}
+#player-overlay .player-panel:not(.is-remote) .player-album:not(:empty)::before{content:' · '}
+#player-overlay .player-panel:not(.is-remote) .player-seek{height:6px!important;border-radius:3px!important}
+#player-overlay .player-panel:not(.is-remote) .player-seek::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:7px;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.4)}
+#player-overlay .player-panel:not(.is-remote) .player-seek::-moz-range-thumb{width:14px;height:14px;border-radius:7px;background:#fff;border:0}
+#player-overlay .player-panel:not(.is-remote) .player-times{font-size:12px!important;color:rgba(255,255,255,.7)!important;margin-top:8px!important}
+#player-overlay .player-panel:not(.is-remote) .player-transport{justify-content:space-between!important;gap:0!important;width:100%}
+#player-overlay .player-panel:not(.is-remote) .ptb{color:#fff!important}
+#player-overlay .player-panel:not(.is-remote) #player-shuffle,#player-overlay .player-panel:not(.is-remote) #player-repeat{color:rgba(255,255,255,.75)!important;width:44px;height:44px}
+#player-overlay .player-panel:not(.is-remote) #player-shuffle.active,#player-overlay .player-panel:not(.is-remote) #player-repeat.active{color:#fff!important}
+#player-overlay .player-panel:not(.is-remote) .ptb.play-main{width:76px!important;height:76px!important;background:#fff!important;color:#111!important;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+#player-overlay .player-panel:not(.is-remote) .player-extras{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(0,1fr));gap:12px!important;width:100%}
+#player-overlay .player-panel:not(.is-remote) .player-extra-btn{height:48px;justify-content:center;border-radius:14px;border:.5px solid rgba(255,255,255,.18);background:rgba(255,255,255,.1);color:#fff;font-size:15px;font-weight:500;gap:8px;padding:0 12px}
+#player-overlay .player-panel:not(.is-remote) .player-extra-btn svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8}
+#player-overlay .player-panel:not(.is-remote) .remote-btns-and-vol{background:none!important}
+#player-overlay .player-panel:not(.is-remote) .remote-btns-and-vol #player-vol-row{padding:24px 24px max(calc(env(safe-area-inset-bottom) + 12px),28px)!important;height:auto!important}
+#player-overlay .player-panel .pl-vol{height:56px;border-radius:16px;background:rgba(255,255,255,.12)}
+#player-overlay .player-panel .pl-vol .wv-sll{left:54px;font-size:16px}
+#player-overlay .player-panel .pl-vol .wv-sll svg{display:none}
+#player-overlay .player-panel .pl-vol .wv-slv{right:18px;font-size:16px}
+#player-overlay .player-panel .pl-vol #player-vol-icon{position:absolute;left:6px;top:6px;width:44px;height:44px;z-index:2;display:flex;align-items:center;justify-content:center}
+#player-overlay .player-panel .pl-vol #player-vol-icon button{width:44px!important;height:44px!important;color:#fff}
+#player-overlay .player-panel .pl-vol #player-vol-icon svg{stroke:#fff!important;width:20px;height:20px}
+@media (min-width:769px){
+  #player-overlay .player-panel:not(.is-remote) .player-body{gap:32px!important;padding:0!important}
+  #player-overlay .player-panel:not(.is-remote) .player-title{font-size:32px!important}
+  #player-overlay .player-panel:not(.is-remote) .player-artist,#player-overlay .player-panel:not(.is-remote) .player-album{font-size:20px!important}
+  #player-overlay .player-panel:not(.is-remote) .ptb.play-main{width:88px!important;height:88px!important}
+  #player-overlay .player-panel:not(.is-remote) .pl-vol{height:60px}
+  #player-overlay .player-panel:not(.is-remote) .player-progress{order:0!important;margin:0!important}
+  #player-overlay .player-panel:not(.is-remote) .remote-btns-and-vol #player-vol-row{padding:0 48px 32px calc(48px + min(560px,42vw) + 48px)!important}
+}
 /* measured at 390x844 on the box: centring the column left 46 above the title and 20 between the rest — on a phone
    the column starts at the art, one gap down; the iPad's side column (≥769) stays centred beside the art */
 @media (max-width:768px){.player-panel:not(.is-remote) .player-body{justify-content:flex-start!important}}
