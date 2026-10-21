@@ -1043,6 +1043,7 @@ def _platform_get_bytes(path):
 # (2.5–2.9 MB each, the same one up to five times). The platform keeps the photo; Core shrinks it with libjpeg-turbo
 # (the same tool the camera pictures use, register 696) and keeps a handful in memory. Nothing is stored on disk.
 _PHOTO_PATH = re.compile(r"^photo/([0-9a-f]{32})$")
+_WEATHER_STD = {}                 # 970a: the last weather pass (proos/weatherstd.py)
 _PHOTO_KEEP = 40                  # plumbing: photos kept in memory (about 300 KB each at 1280)
 _photo_cache = {}                 # (image id, long side) -> (ts, content type, bytes)
 _photo_lock = threading.Lock()
@@ -3822,6 +3823,9 @@ def factory_reset(clear_proos_data=False, keep_auth=False):
                    "connect_ssh_ed25519", "connect_ssh_ed25519.pub", "connect_known_hosts",
                    # a network change waiting for Keep (register 969z) — a reset box starts with no change in hand
                    "net_pending.json",
+                   # where Core put the home's weather service (register 970a) — a reset box sets it up afresh at the
+                   # location its new home is given
+                   "weather_std.json",
                    # the installer-pasted Apple Music token (register 759) — like the AI key, placed
                    # per box by the installer; a reset home is set up afresh
                    "apple_music_token.json",
@@ -7073,6 +7077,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, _nc)
             if parts == ["navcaps"]:
                 return self._send(200, navconfig.load_caps(_live_areas()) if navconfig else {})
+            if parts == ["weather", "status"]:
+                # 970a: what the last weather pass found — created, current, moved, skipped (no location) or the
+                # platform's own refusal, word for word
+                return self._send(200, _WEATHER_STD.get("last") or {"pending": "the first weather pass runs 30 s after start"})
             if parts == ["connect", "address"]:
                 # 969x (Dave, 14:16: test in the TestFlight app, not a web login). The home's app address on ProOS
                 # Connect while its line is allowed — what the app uses away from home — read from Connect's own last
@@ -11063,6 +11071,24 @@ def main():
         _nc.arm(_sv, (lambda k, d: _journal_mod.emit("site", k, d)) if _journal_mod is not None else None)
     except Exception as _nce:                                            # noqa: BLE001
         print(f"  network · waiting change not re-armed: {_nce}", flush=True)
+    # 970a: weather is standard — the platform's own forecast service, at the location Pro sets. A pass every five
+    # minutes (a right box gets reads only), so a move made in Pro › Location reaches the forecast within that.
+    def _weather_std_loop():
+        from proos import weatherstd as _wsm
+        time.sleep(30)
+        last = None
+        while True:
+            try:
+                r = _wsm.ensure(_ws_call, _client._req)
+                _WEATHER_STD["last"] = r
+                key = json.dumps(r, sort_keys=True)
+                if key != last:
+                    print(f"  weather · {r}", flush=True)
+                    last = key
+            except Exception as _wse:                                    # noqa: BLE001
+                print(f"  weather · pass failed: {_wse}", flush=True)
+            time.sleep(300)
+    threading.Thread(target=_weather_std_loop, name="proos-weather-std", daemon=True).start()
     threading.Thread(target=_habits_loop, name="proos-habits", daemon=True).start()
     threading.Thread(target=_sweep_loop, name="proos-sweep-daily", daemon=True).start()
     threading.Thread(target=_reconnect_loop, name="proos-reconnect", daemon=True).start()
