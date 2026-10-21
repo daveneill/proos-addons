@@ -4631,7 +4631,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102106';
+const PROOS_BUILD='2026102107';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -7160,8 +7160,8 @@ function onReady(){
   } else {
     // ── reconnect: refresh data but PRESERVE the user's current view ──
     const savedPage=curPage;
-    selectRoom(curRoom);                                     // re-render current room/home with fresh state
-    if(savedPage && savedPage!=='home') showPage(savedPage); // restore sub-page if the user was on one
+    selectRoom(curRoom, true);                               // re-render current room/home with fresh state, in place (970f)
+    if(savedPage && savedPage!=='home') showPage(savedPage, true); // restore sub-page if the user was on one, in place
     refreshRequestsBadge();
     applyPendingCommand();
     updateWeather();
@@ -7893,12 +7893,20 @@ function _proosEnterKind(pg){
   document.addEventListener('pointercancel', function(){ if(byTouch) return; if(live) settle(false); else { armed=false; pg=null; } }, {passive:true});
 })();
 
-function showPage(p){
+// 970f (Dave, 21 Oct 19:50: "I can leave scrolling of the widgets in a position like this and if I wait it resets back
+// to top while I'm looking at it it should only be resetting on page change"). The page and room switchers were also
+// the REPAINT: a reconnect (onReady) and every live re-discovery (a device, room or label changing on the box, and
+// every return to the front) called them to redraw the screen in place — and arriving lands at the top. `keep` is
+// that repaint: the same page drawn again with fresh state, where the person is left exactly where they are and
+// nothing they had open is closed. A real page change (no `keep`) behaves exactly as before. `keep` is the second
+// argument, true only for the same page; a different page is a page change, whoever asks.
+function showPage(p){const keep=arguments[1]===true&&p===curPage;if(!keep){
   closePlayer();
   try{ closeMusicAct(); _proosHoistPopups(); }catch(e){}     // register 788: no popup outlives its page
   try{ _closeMore(); }catch(e){}
   try{ if(_widgetEditMode && typeof _isPanel==='function' && _isPanel()) exitWidgetEditMode(); }catch(e){}   // 932: leaving the page ends a panel's editing
   try{ const _det=document.getElementById('pa-detail'); if(_det && _det.style.display!=='none' && typeof closeProtectCamera==='function') closeProtectCamera(); }catch(e){}
+  }
   curPage=p;
   // THE BODY SAYS WHICH PAGE IS ON THE GLASS (register 521). Chrome that lives
   // outside the pages - the keyboard pill, and anything added beside it later -
@@ -7944,7 +7952,7 @@ function showPage(p){
   else{if(camRefreshTimer){clearInterval(camRefreshTimer);camRefreshTimer=null;}{const _ov=document.getElementById('pa-detail');if(_ov&&_ov.style.display!=='none'&&typeof closeProtectCamera==='function')closeProtectCamera();}Object.values(_camTimers||{}).forEach(t=>clearInterval(t));_camTimers={};if(typeof _paStopGridLive==='function')_paStopGridLive();if(typeof _paDetTimer!=='undefined'&&_paDetTimer){clearInterval(_paDetTimer);_paDetTimer=null;}}
   // On navigating to a page, land at the top rather than resuming the previous scroll position.
   // rAF runs after any render's own scroll-restore, so this wins.
-  if(pg) requestAnimationFrame(()=>{
+  if(pg && !keep) requestAnimationFrame(()=>{
     pg.querySelectorAll('.room-controls,.rooms-grid,.cp-page-wrap,.access-grid,.scenes-grid,.media-grid,.security-content,.irr-grid,.settings-content,#climate-all-list,#lights-page-content,#media-live-wrap,#sonos-favs-grid,#heos-sources-grid,#cam-grid,#music-grid,.wx-scroll').forEach(el=>{ el.scrollTop=0; });
   });
 }
@@ -9082,7 +9090,7 @@ function selectRoom(i){
   renderBottomNav();
   // Land showing the Add-widget button (top if it fits, else scrolled down to it), not buried
   // below the fold. Runs after renderWidgetGrid's own scroll-restore rAF, so it wins.
-  revealAddBtnOnNav();
+  if(arguments[1]!==true) revealAddBtnOnNav();               // 970f: a repaint (second argument true) stays where the person is
 }
 
 let bgActive='a';let _bgUrl=null;setTimeout(()=>{const lb=document.getElementById('room-bg-b');if(lb)lb.classList.add('hidden')},0);
@@ -14576,7 +14584,7 @@ async function liveRediscover(){
     // Re-render the CURRENT context in place (no page jump). If the room we were in
     // no longer exists, fall back to Home.
     const keep = (typeof curRoom!=='undefined' && curRoom>=0 && curRoom < CONFIG.rooms.length) ? curRoom : -1;
-    selectRoom(keep);
+    selectRoom(keep, keep===curRoom);                        // 970f: the same place is a repaint — no jump to the top
   }catch(err){
     console.error('Live re-discover failed:', err);
   }finally{
@@ -22953,7 +22961,13 @@ html.pp-on #app{visibility:hidden}
     try{ var _eq=0, _app=document.getElementById('app')||document.body;
       new MutationObserver(function(){ if(_eq) return; _eq=setTimeout(function(){ _eq=0;
         var p=document.querySelector('.page.active');
-        if(p && !p.querySelector('.proos-scroller')) _markPageScroller(); },0); })
+        // 970f (Dave, 21 Oct 19:50, Cameras: "odd times I go into this page the frosted look behind the navbar is
+        // missing and then comes back"). Read in Chrome: at 50 ms the plain camera grid is elected; when the Protect
+        // app replaces it the grid is hidden (0 tall) but KEPT the election, so the frost was judged on an empty,
+        // hidden box and scrolling the real list never asked again — until something else re-elected. An elected
+        // scroller that is no longer shown, or no longer the page's body, is now elected again like a missing one.
+        var sc=p && p.querySelector('.proos-scroller'), ph=p ? p.getBoundingClientRect().height : 0;
+        if(p && (!sc || !sc.offsetParent || (ph && sc.getBoundingClientRect().height < ph*0.4))) _markPageScroller(); },0); })
         .observe(_app,{childList:true,subtree:true});
     }catch(e){} }
   function roomTabsRewind(){
