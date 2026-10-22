@@ -2229,6 +2229,7 @@ body.v3 .rh-card{border-radius:22px}
           <div class="mstep-locked" id="ahstep-pair-locked">Publish to Apple Home first, then pair using the code shown here.</div>
           <div id="ah-pair" style="display:none"></div>
           <div id="ah-own" style="display:none"></div>
+          <div id="ah-pc" style="display:none"></div>
         </div>
       </div>
 
@@ -2877,7 +2878,7 @@ body.v3 .rh-card{border-radius:22px}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102203';
+const PROOS_BUILD='2026102204';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -17136,6 +17137,7 @@ async function ahLoadStatus(){
   await ahRenderPairing();
   await ahLoadInventory();
   await ahRenderOwn();
+  await ahRenderPc();
 }
 
 // ── step 2 — pairing ──
@@ -17369,6 +17371,51 @@ async function ahSetOwn(ids, mayRestart, bridgeClear, alerts){
     return await r.json().catch(()=>({}));
   }catch(e){ return {supported:false, error:String(e)}; }
 }
+// 970s: ProOS Cameras — the add-on that publishes UniFi cameras to Apple Home itself (stage A: live view, snapshots,
+// motion; then the doorbell with talk, then HomeKit Secure Video). Core installs it, gives it the list, starts it.
+let _ahPc=null;
+function ahPcCams(){
+  return _ents.filter(e=>e.entity_id.indexOf('camera.')===0 && e.platform==='unifiprotect' && !e.disabled_by && ahAreaOf(e))
+    .map(e=>({eid:e.entity_id, mac:String(e.unique_id||'').split('_')[0].toLowerCase(), name:ahNiceName(e.entity_id)}))
+    .sort((a,b)=>a.name.localeCompare(b.name));
+}
+async function ahRenderPc(){
+  const host=document.getElementById('ah-pc'); if(!host) return;
+  try{ const r=await fetch(proCoreUrl()+'/homekit/cameras'); _ahPc=r.ok?await r.json():null; }catch(e){ _ahPc=null; }
+  if(!_ahPc){ host.style.display='none'; return; }
+  const cams=ahPcCams(); if(!cams.length){ host.style.display='none'; return; }
+  const on=new Set(_ahPc.cameras||[]); const notes=await ahFetchNotifications();
+  const haOwn=new Set((_ahOwn||[]).map(x=>x.entity_id));
+  const st=_ahPc.installing?'Installing — the box is building it, a few minutes':_ahPc.error?('Last attempt: '+esc(_ahPc.error)):
+    !_ahPc.installed?'Not installed yet — switch a camera on and Update':_ahPc.state==='started'?'Running · version '+esc(_ahPc.version||''):'Installed · '+esc(_ahPc.state||'stopped');
+  host.style.display='block';
+  host.innerHTML='<div class="section-label" style="margin-top:22px">ProOS Cameras</div>'
+    +'<div class="wiz-hint" style="margin:0 0 6px">ProOS publishes these cameras to Apple Home itself — live view, snapshots and motion now; the doorbell with two-way talk and HomeKit Secure Video (People, Animals, Vehicles, Packages in the Home app) as they are finished. Each is added in the Home app with its own code.</div>'
+    +'<div class="es" style="font-size:11px;color:var(--t3);margin:0 0 8px">'+st+'</div>'
+    +cams.map(c=>{
+      const info=ahParsePairing(notes, 'proos_cameras_'+c.mac); const isOn=on.has(c.eid);
+      const dup=isOn && haOwn.has(c.eid);
+      return '<div class="row"><div class="rl">'+esc(c.name)
+        +'<div class="es" style="font-size:11px;color:var(--t3);font-weight:300;margin-top:3px">'
+        +(isOn ? (info&&info.code ? 'Code <b style="color:var(--t1)">'+esc(info.code)+'</b>' : (_ahPc.state==='started'?'Paired':'Code shows once it is running')) : 'Off')+'</div>'
+        +(dup?'<div class="es" style="font-size:11px;color:#f5a623;margin-top:3px">Also switched on in the list above — switch that one off so it is not in Apple Home twice</div>':'')
+        +'</div><div class="rr"><button type="button" class="sw '+(isOn?'on':'')+'" role="switch" aria-checked="'+isOn+'" data-pc="'+esc(c.eid)+'" onclick="ahToggleOne(this)"><span class="sw-knob"></span></button></div></div>';
+    }).join('')
+    +'<button class="btn-primary" id="ah-pc-save" onclick="ahSavePc()" style="margin-top:12px">Update ProOS Cameras</button>';
+}
+async function ahSavePc(){
+  const btn=document.getElementById('ah-pc-save');
+  const cams=[...document.querySelectorAll('#ah-pc .sw.on[data-pc]')].map(b=>b.getAttribute('data-pc'));
+  if(btn){ btn.disabled=true; btn.textContent='Updating…'; }
+  try{
+    const r=await fetch(proCoreUrl()+'/homekit/cameras',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cameras:cams})});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok) toast("Couldn't update ProOS Cameras · "+String(j.error||r.status).slice(0,80));
+    else toast(j.installing?'Installing ProOS Cameras · a few minutes':'ProOS Cameras updated · '+cams.length+' camera'+(cams.length===1?'':'s'));
+  }catch(e){ toast("Couldn't reach ProOS Core"); }
+  finally{ if(btn){ btn.disabled=false; btn.textContent='Update ProOS Cameras'; } setTimeout(ahRenderPc, 4000); }
+}
+
 // 970p: each own accessory's pairing code, under the bridge's.
 async function ahRenderOwn(){
   const host=document.getElementById('ah-own'); if(!host) return;

@@ -1,0 +1,26 @@
+name: ProOS Cameras
+version: "0.1.0"
+slug: proos_cameras
+description: >-
+  Puts this home's UniFi Protect cameras into Apple Home as their own accessories, published by ProOS — live view,
+  snapshots and motion now; the doorbell with two-way talk and HomeKit Secure Video in the next stages. Cameras are
+  chosen in ProOS Pro (Apple Home); nothing is set here.
+url: https://github.com/daveneill/proos-addons/tree/main/proos_cameras
+arch:
+  - amd64
+  - aarch64
+init: false
+startup: services
+boot: auto
+host_network: true
+homeassistant_api: true
+map:
+  - homeassistant_config:ro
+options:
+  cameras: []
+  log_level: info
+schema:
+  cameras:
+    - str
+  log_level: list(debug|info|warning|error)
+stage: experimental

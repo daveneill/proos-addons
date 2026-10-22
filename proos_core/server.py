@@ -6103,6 +6103,13 @@ class Handler(BaseHTTPRequestHandler):
             if parts == ["unifi", "curation"]:
                 # Exposure model: live cameras merged with the installer's curation.
                 return self._send(200, unifi.curation_view(unifi._get_client(_creds)))
+            if parts == ["homekit", "cameras"]:
+                # 970s: the ProOS Cameras add-on — installed?, running?, which cameras it publishes.
+                from proos import proscams as _pc
+                try:
+                    return self._send(200, _pc.status(_sv))
+                except Exception as e:                               # noqa: BLE001
+                    return self._send(502, {"error": str(e)[:200]})
             if parts == ["homekit", "accessories"]:
                 # 970p: the devices that are their own Apple Home accessory, and which entry each is.
                 from proos import platform_entries as _pe
@@ -9062,6 +9069,19 @@ class Handler(BaseHTTPRequestHandler):
                         target=lambda: _sv("POST", "/core/restart"), daemon=True
                     ).start()
                 return
+            if parts == ["homekit", "cameras"]:
+                # 970s: Pro's camera choice for ProOS Cameras {cameras:[camera entity ids]} — installs the add-on from
+                # this box's ProOS repository if needed (in the background; it builds on the box), sets its list in
+                # its own options, starts or restarts it. The list lives in the add-on's options, nowhere else.
+                from proos import proscams as _pc
+                body = self._body()
+                cams = body.get("cameras")
+                if not isinstance(cams, list):
+                    return self._send(400, {"error": "cameras must be a list"})
+                try:
+                    return self._send(200, _pc.apply(_sv, cams))
+                except Exception as e:                               # noqa: BLE001
+                    return self._send(502, {"error": str(e)[:200]})
             if parts == ["homekit", "accessories"]:
                 # 970p: make each device Apple pairs on its own (TV, receiver, projector, lock, camera, activity
                 # remote) its own accessory, through the platform's own setup and Configure flows. Body:
