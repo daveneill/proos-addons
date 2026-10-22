@@ -191,11 +191,12 @@ def video_args(codec: str, s: dict) -> list:
 
 
 def fit(w: int, h: int) -> str:
-    """The camera's picture inside the size the iPhone asked for, its true shape kept (black bars, never squashed)
-    and square pixels. 970t: Front Door's 3024 x 4096 portrait stream squashed to 1280 x 720 came out marked with 3:4
-    pixels (SAR 3:4) — read by ffmpeg in the cloud; a passed-through camera's pixels are square."""
-    return ("scale=%d:%d:force_original_aspect_ratio=decrease,pad=%d:%d:(ow-iw)/2:(oh-ih)/2,setsar=1"
-            % (w, h, w, h))
+    """The camera's picture at the HEIGHT the iPhone asked for, in its own true shape, with square pixels — the
+    Homebridge UniFi Protect plugin's scaling (homebridge-plugin-utils 2.4.0: "scale=-2:min(ih, height)"); the Home
+    app shows a tall doorbell tall. The asked width is not forced (w is kept for the call shape only).
+    970t: forcing 1280 x 720 squashed Front Door's 3024 x 4096 portrait (SAR 3:4). 970w: 0.2.4–0.2.5 fitted it
+    inside 1280 x 720 with black bars — it played (Dave, 23:10) but "really small"."""
+    return "scale=-2:min(ih\\,%d),setsar=1" % h
 
 
 def ffmpeg_live(src: str, s: dict, audio_port: int | None, codec: str = "h264") -> list:
