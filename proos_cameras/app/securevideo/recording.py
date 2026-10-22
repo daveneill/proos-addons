@@ -367,6 +367,9 @@ class RecordingStream:
                     if off >= len(data):
                         event["endOfStream"] = bool(is_last)
                     self.conn.send_event("dataSend", "data", event)
+                    if seq <= 2 and chunk == 1:
+                        log.info("recording: stream %s — %s %d sent to the hub (%d bytes)", self.stream_id,
+                                 meta["dataType"], seq, len(data))
                     chunk += 1
                     init = False
                 last_marked = bool(is_last)
@@ -397,6 +400,7 @@ class RecordingStream:
         log.info("recording: finished sending stream %s", self.stream_id)
 
     def _on_ack(self, message):
+        log.info("recording: hub ack for stream %s: %r", self.stream_id, message)
         log.info("recording: hub acknowledged stream %s", self.stream_id)
         ack = getattr(self.delegate, "acknowledge_stream", None)
         self._closed(lambda: ack(self.stream_id) if ack else None)

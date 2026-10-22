@@ -32,6 +32,7 @@ HKSV_PACING = 4.0              # s minimum between pieces handed to the hub (HKS
 PIECE_S = 1.0                  # s per piece in the rolling buffer (the plugin's livestream segment length)
 KEEP_EXTRA_S = 6.0             # s kept beyond the pre-buffer, so a key frame before it is always held
 RECORD_PROBESIZE = 5000000     # bytes (the plugin's default)
+STALL_S = 30.0                 # s with nothing handed to the hub before a recording is closed (970bb; ProOS's own)
 TIER_QUALITY = {"high": 2, "medium": 3, "low": 4}
 
 
@@ -296,10 +297,21 @@ class Recorder:
         index, seek = start
         cmd = record_command(self.cfg, seek, self.name)
         proc = await asyncio.create_subprocess_exec(*cmd, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
-                                                    stderr=asyncio.subprocess.DEVNULL)
-        log.info("%s: recording %s — %d s held, starting %.1f s before the event, %sx%s at %s kbit/s", self.name,
-                 stream_id, int(self.ts.held_seconds()), prebuffer, "auto", self.cfg["video"]["height"],
-                 self.cfg["video"]["bitrate"])
+                                                    stderr=asyncio.subprocess.PIPE)
+        t0 = time.monotonic()
+        log.info("%s: recording %s — %d s held, starting %.1f s before the event, %s high at %s kbit/s, %s fps", self.name,
+                 stream_id, int(self.ts.held_seconds()), prebuffer, self.cfg["video"]["height"],
+                 self.cfg["video"]["bitrate"], self.cfg["video"]["fps"])
+
+        async def errors():      # 970bb: the recording conversion's own words, into the log
+            while True:
+                line = await proc.stderr.readline()
+                if not line:
+                    break
+                log.warning("%s: recording ffmpeg: %s", self.name, line.decode(errors="replace").rstrip()[:300])
+            log.info("%s: recording %s ffmpeg ended (exit %s) after %.1f s", self.name, stream_id, await proc.wait(),
+                     time.monotonic() - t0)
+        errlog = asyncio.ensure_future(errors())
         backlog = [self.ts.init] + [b for (_t, b, _k) in list(self.ts.ring)[index:]]
         live = asyncio.Queue()
         listener = live.put_nowait
@@ -310,24 +322,35 @@ class Recorder:
                 for b in backlog:
                     proc.stdin.write(b)
                     await proc.stdin.drain()
+                log.info("%s: recording %s — %d buffered pieces (%d bytes) handed to the conversion in %.1f s", self.name,
+                         stream_id, len(backlog) - 1, sum(len(b) for b in backlog), time.monotonic() - t0)
                 while not stop.is_set():
                     b = await live.get()
                     proc.stdin.write(b)
                     await proc.stdin.drain()
             except (BrokenPipeError, ConnectionResetError, asyncio.CancelledError):
                 pass
+            except Exception:
+                log.exception("%s: recording %s feed failed", self.name, stream_id)
         feeder = asyncio.ensure_future(feed())
         cut = fmp4.Cutter()
         last = time.monotonic()
         sent = 0
+        got = 0
         try:
             while not stop.is_set():
+                if time.monotonic() - last > STALL_S:       # 970bb: never hold the hub's one recording slot forever
+                    raise RuntimeError("nothing sent for %d s" % STALL_S)
                 try:
                     data = await asyncio.wait_for(proc.stdout.read(65536), 1.0)
                 except asyncio.TimeoutError:
                     continue
                 if not data:
                     break
+                if not got:
+                    log.info("%s: recording %s — first output from the conversion after %.1f s", self.name, stream_id,
+                             time.monotonic() - t0)
+                got += len(data)
                 for piece in cut.feed(data):
                     wait = last + self.pacing - time.monotonic()
                     if wait > 0:
@@ -340,10 +363,14 @@ class Recorder:
                     yield piece[1], False
                     last = time.monotonic()
                     sent += 1
+                    if sent <= 3 or sent % 10 == 0:
+                        log.info("%s: recording %s — piece %d (%s, %d bytes) handed to the hub at %.1f s", self.name,
+                                 stream_id, sent, piece[0], len(piece[1]), time.monotonic() - t0)
         finally:
             if listener in self.ts.listeners:
                 self.ts.listeners.remove(listener)
             feeder.cancel()
+            errlog.cancel() if proc.returncode is not None else None
             if proc.returncode is None:
                 try:
                     proc.terminate()
