@@ -1,0 +1,689 @@
+{
+ "services": {
+  "CameraCapabilities": {
+   "UUID": "00008010-0000-1000-8000-0026BB765291",
+   "req": [
+    "CameraCapabilitiesConfiguration",
+    "Version"
+   ],
+   "opt": [
+    "ManuallyDisabled"
+   ]
+  },
+  "CameraGlobalOperatingMode": {
+   "UUID": "00008032-0000-1000-8000-0026BB765291",
+   "req": [
+    "CameraOperatingModeIndicator",
+    "HomeKitCameraActive",
+    "StreamingEnabled"
+   ],
+   "opt": [
+    "ManuallyDisabled",
+    "NightVision",
+    "ThirdPartyCameraActive"
+   ]
+  },
+  "CameraMotionZones": {
+   "UUID": "00008021-0000-1000-8000-0026BB765291",
+   "req": [
+    "Active",
+    "CameraZones",
+    "Version"
+   ],
+   "opt": []
+  },
+  "CameraMultiTierRTPStreamManagement": {
+   "UUID": "00008031-0000-1000-8000-0026BB765291",
+   "req": [
+    "RTPStreamingControl",
+    "SensorUUID",
+    "SetupEndpoints",
+    "StatusActive",
+    "StreamingEnabled",
+    "SupportedAudioStreamTiers",
+    "SupportedRTPConfiguration",
+    "SupportedVideoStreamTiers"
+   ],
+   "opt": []
+  },
+  "CameraWebRTCStreamManagement": {
+   "UUID": "00008033-0000-1000-8000-0026BB765291",
+   "req": [
+    "SensorUUID",
+    "StreamingEnabled",
+    "WebRTCNumberOfActiveSessions",
+    "WebRTCProvideAnswer",
+    "WebRTCReoffer",
+    "WebRTCSolicitOffer",
+    "WebRTCStreamingControl",
+    "WebRTCSupportedAudioStreamTiers",
+    "WebRTCSupportedVideoStreamTiers",
+    "WebRTCUpdateSession"
+   ],
+   "opt": []
+  },
+  "CameraBufferManagement": {
+   "UUID": "00008000-0000-1000-8000-0026BB765291",
+   "req": [
+    "BufferActivityCommand",
+    "BufferEventCommand",
+    "BufferEventSequenceNumber",
+    "BufferUploadCommand",
+    "CameraRecordingPublishingPoint"
+   ],
+   "opt": []
+  },
+  "CameraKeyManagement": {
+   "UUID": "00008050-0000-1000-8000-0026BB765291",
+   "req": [
+    "CameraKey",
+    "CameraKeyID"
+   ],
+   "opt": []
+  },
+  "CameraClientCertificateManagement": {
+   "UUID": "00008080-0000-1000-8000-0026BB765291",
+   "req": [
+    "CameraClientCertificate",
+    "CameraClientCertificateStatus",
+    "CameraClientCSR"
+   ],
+   "opt": []
+  },
+  "CameraRecordingManagement": {
+   "UUID": "00000204-0000-1000-8000-0026BB765291",
+   "req": [
+    "Active"
+   ],
+   "opt": [
+    "RecordingAudioActive",
+    "SelectedCameraRecordingConfiguration",
+    "SupportedAudioRecordingConfiguration",
+    "SupportedCameraRecordingConfiguration",
+    "SupportedVideoRecordingConfiguration"
+   ]
+  },
+  "CameraOperatingMode": {
+   "UUID": "0000021A-0000-1000-8000-0026BB765291",
+   "req": [
+    "EventSnapshotsActive",
+    "HomeKitCameraActive"
+   ],
+   "opt": [
+    "CameraOperatingModeIndicator",
+    "ManuallyDisabled",
+    "NightVision",
+    "PeriodicSnapshotsActive",
+    "ThirdPartyCameraActive",
+    "DiagonalFieldOfView"
+   ]
+  },
+  "DataStreamTransportManagement": {
+   "UUID": "00000129-0000-1000-8000-0026BB765291",
+   "req": [
+    "SetupDataStreamTransport",
+    "SupportedDataStreamTransportConfiguration",
+    "Version"
+   ],
+   "opt": []
+  },
+  "MotionSensor": {
+   "UUID": "00000085-0000-1000-8000-0026BB765291",
+   "req": [
+    "MotionDetected"
+   ],
+   "opt": [
+    "ContributingSensors",
+    "MotionEnabled",
+    "Name",
+    "StatusActive",
+    "StatusFault",
+    "StatusLowBattery",
+    "StatusTampered"
+   ]
+  },
+  "Microphone": {
+   "UUID": "00000112-0000-1000-8000-0026BB765291",
+   "req": [
+    "Mute"
+   ],
+   "opt": [
+    "Volume"
+   ]
+  },
+  "Speaker": {
+   "UUID": "00000113-0000-1000-8000-0026BB765291",
+   "req": [
+    "Mute"
+   ],
+   "opt": [
+    "Active",
+    "Volume"
+   ]
+  }
+ },
+ "chars": {
+  "Active": {
+   "UUID": "000000B0-0000-1000-8000-0026BB765291",
+   "Format": "uint8",
+   "Permissions": [
+    "NOTIFY",
+    "PAIRED_READ",
+    "PAIRED_WRITE"
+   ],
+   "minValue": 0,
+   "maxValue": 1,
+   "minStep": 1,
+   "validValues": [
+    0,
+    1
+   ]
+  },
+  "BufferActivityCommand": {
+   "UUID": "00008017-0000-1000-8000-0026BB765291",
+   "Format": "tlv8",
+   "Permissions": [
+    "PAIRED_WRITE"
+   ]
+  },
+  "BufferEventCommand": {
+   "UUID": "00008014-0000-1000-8000-0026BB765291",
+   "Format": "tlv8",
+   "Permissions": [
+    "PAIRED_READ",
+    "PAIRED_WRITE",
+    "WRITE_RESPONSE"
+   ]
+  },
+  "BufferEventSequenceNumber": {
+   "UUID": "00008015-0000-1000-8000-0026BB765291",
+   "Format": "uint32",
+   "Permissions": [
+    "NOTIFY",
+    "PAIRED_READ"
+   ]
+  },
+  "BufferUploadCommand": {
+   "UUID": "00008013-0000-1000-8000-0026BB765291",
+   "Format": "tlv8",
+   "Permissions": [
+    "PAIRED_READ",
+    "PAIRED_WRITE",
+    "WRITE_RESPONSE"
+   ]
+  },
+  "CameraCapabilitiesConfiguration": {
+   "UUID": "00008011-0000-1000-8000-0026BB765291",
+   "Format": "tlv8",
+   "Permissions": [
+    "PAIRED_READ"
+   ]
+  },
+  "CameraClientCSR": {
+   "UUID": "00008081-0000-1000-8000-0026BB765291",
+   "Format": "tlv8",
+   "Permissions": [
+    "PAIRED_READ",
+    "PAIRED_WRITE",
+    "WRITE_RESPONSE"
+   ]
+  },
+  "CameraClientCertificate": {
+   "UUID": "00008082-0000-1000-8000-0026BB765291",
+   "Format": "tlv8",
+   "Permissions": [
+    "PAIRED_READ",
+    "PAIRED_WRITE",
+    "TIMED_WRITE"
+   ]
+  },
+  "CameraClientCertificateStatus": {
+   "UUID": "00008083-0000-1000-8000-0026BB765291",
+   "Format": "tlv8",
+   "Permissions": [
+    "NOTIFY",
+    "PAIRED_READ"
+   ]
+  },
+  "CameraKey": {
+   "UUID": "00008051-0000-1000-8000-0026BB765291",
+   "Format": "tlv8",
+   "Permissions": [
+    "PAIRED_WRITE",
+    "TIMED_WRITE"
+   ]
+  },
+  "CameraKeyID": {
+   "UUID": "00008052-0000-1000-8000-0026BB765291",
+   "Format": "tlv8",
+   "Permissions": [
+    "NOTIFY",
+    "PAIRED_READ"
+   ]
+  },
+  "CameraOperatingModeIndicator": {
+   "UUID": "0000021D-0000-1000-8000-0026BB765291",
+   "Format": "bool",
+   "Permissions": [
+    "NOTIFY",
+    "PAIRED_READ",
+    "PAIRED_WRITE",
+    "TIMED_WRITE"
+   ],
+   "validValues": [
+    0,
+    1
+   ]
+  },
+  "CameraRecordingPublishingPoint": {
+   "UUID": "00008016-0000-1000-8000-0026BB765291",
+   "Format": "tlv8",
+   "Permissions": [
+    "PAIRED_READ",
+    "PAIRED_WRITE"
+   ]
+  },
+  "CameraZones": {
+   "UUID": "00008022-0000-1000-8000-0026BB765291",
+   "Format": "tlv8",
+   "Permissions": [
+    "PAIRED_READ",
+    "PAIRED_WRITE"
+   ]
+  },
+  "ContributingSensors": {
+   "UUID": "00008086-0000-1000-8000-0026BB765291",
+   "Format": "tlv8",
+   "Permissions": [
+    "NOTIFY",
+    "PAIRED_READ"
+   ]
+  },
+  "DiagonalFieldOfView": {
+   "UUID": "00000224-0000-1000-8000-0026BB765291",
+   "Format": "float",
+   "Permissions": [
+    "NOTIFY",
+    "PAIRED_READ"
+   ],
+   "minValue": 0,
+   "maxValue": 360
+  },
+  "EventSnapshotsActive": {
+   "UUID": "00000223-0000-1000-8000-0026BB765291",
+   "Format": "uint8",
+   "Permissions": [
+    "NOTIFY",
+    "PAIRED_READ",
+    "PAIRED_WRITE"
+   ],
+   "minValue": 0,
+   "maxValue": 1,
+   "validValues": [
+    0,
+    1
+   ]
+  },
+  "HomeKitCameraActive": {
+   "UUID": "0000021B-0000-1000-8000-0026BB765291",
+   "Format": "uint8",
+   "Permissions": [
+    "NOTIFY",
+    "PAIRED_READ",
+    "PAIRED_WRITE"
+   ],
+   "minValue": 0,
+   "maxValue": 1,
+   "validValues": [
+    0,
+    1
+   ]
+  },
+  "ManuallyDisabled": {
+   "UUID": "00000227-0000-1000-8000-0026BB765291",
+   "Format": "bool",
+   "Permissions": [
+    "NOTIFY",
+    "PAIRED_READ"
+   ],
+   "validValues": [
+    0,
+    1
+   ]
+  },
+  "MotionDetected": {
+   "UUID": "00000022-0000-1000-8000-0026BB765291",
+   "Format": "bool",
+   "Permissions": [
+    "NOTIFY",
+    "PAIRED_READ"
+   ]
+  },
+  "MotionEnabled": {
+   "UUID": "00008087-0000-1000-8000-0026BB765291",
+   "Format": "bool",
+   "Permissions": [
+    "NOTIFY",
+    "PAIRED_READ",
+    "PAIRED_WRITE",
+    "TIMED_WRITE"
+   ]
+  },
+  "Mute": {
+   "UUID": "0000011A-0000-1000-8000-0026BB765291",
+   "Format": "bool",
+   "Permissions": [
+    "NOTIFY",
+    "PAIRED_READ",
+    "PAIRED_WRITE"
+   ]
+  },
+  "Name": {
+   "UUID": "00000023-0000-1000-8000-0026BB765291",
+   "Format": "string",
+   "Permissions": [
+    "PAIRED_READ"
+   ],
+   "maxLen": 64
+  },
+  "NightVision": {
+   "UUID": "0000011B-0000-1000-8000-0026BB765291",
+   "Format": "bool",
+   "Permissions": [
+    "NOTIFY",
+    "PAIRED_READ",
+    "PAIRED_WRITE",
+    "TIMED_WRITE"
+   ]
+  },
+  "PeriodicSnapshotsActive": {
+   "UUID": "00000225-0000-1000-8000-0026BB765291",
+   "Format": "uint8",
+   "Permissions": [
+    "NOTIFY",
+    "PAIRED_READ",
+    "PAIRED_WRITE"
+   ],
+   "validValues": [
+    0,
+    1
+   ]
+  },
+  "RTPStreamingControl": {
+   "UUID": "00008045-0000-1000-8000-0026BB765291",
+   "Format": "tlv8",
+   "Permissions": [
+    "PAIRED_READ",
+    "PAIRED_WRITE",
+    "WRITE_RESPONSE"
+   ]
+  },
+  "RecordingAudioActive": {
+   "UUID": "00000226-0000-1000-8000-0026BB765291",
+   "Format": "uint8",
+   "Permissions": [
+    "NOTIFY",
+    "PAIRED_READ",
+    "PAIRED_WRITE",
+    "TIMED_WRITE"
+   ],
+   "validValues": [
+    0,
+    1
+   ]
+  },
+  "SelectedCameraRecordingConfiguration": {
+   "UUID": "00000209-0000-1000-8000-0026BB765291",
+   "Format": "tlv8",
+   "Permissions": [
+    "NOTIFY",
+    "PAIRED_READ",
+    "PAIRED_WRITE"
+   ]
+  },
+  "SensorUUID": {
+   "UUID": "0000805B-0000-1000-8000-0026BB765291",
+   "Format": "data",
+   "Permissions": [
+    "PAIRED_READ"
+   ]
+  },
+  "SetupDataStreamTransport": {
+   "UUID": "00000131-0000-1000-8000-0026BB765291",
+   "Format": "tlv8",
+   "Permissions": [
+    "PAIRED_READ",
+    "PAIRED_WRITE",
+    "WRITE_RESPONSE"
+   ]
+  },
+  "SetupEndpoints": {
+   "UUID": "00000118-0000-1000-8000-0026BB765291",
+   "Format": "tlv8",
+   "Permissions": [
+    "PAIRED_READ",
+    "PAIRED_WRITE"
+   ]
+  },
+  "StatusActive": {
+   "UUID": "00000075-0000-1000-8000-0026BB765291",
+   "Format": "bool",
+   "Permissions": [
+    "NOTIFY",
+    "PAIRED_READ"
+   ]
+  },
+  "StatusFault": {
+   "UUID": "00000077-0000-1000-8000-0026BB765291",
+   "Format": "uint8",
+   "Permissions": [
+    "NOTIFY",
+    "PAIRED_READ"
+   ],
+   "minValue": 0,
+   "maxValue": 1,
+   "minStep": 1,
+   "validValues": [
+    0,
+    1
+   ]
+  },
+  "StatusLowBattery": {
+   "UUID": "00000079-0000-1000-8000-0026BB765291",
+   "Format": "uint8",
+   "Permissions": [
+    "NOTIFY",
+    "PAIRED_READ"
+   ],
+   "minValue": 0,
+   "maxValue": 1,
+   "minStep": 1,
+   "validValues": [
+    0,
+    1
+   ]
+  },
+  "StatusTampered": {
+   "UUID": "0000007A-0000-1000-8000-0026BB765291",
+   "Format": "uint8",
+   "Permissions": [
+    "NOTIFY",
+    "PAIRED_READ"
+   ],
+   "minValue": 0,
+   "maxValue": 1,
+   "minStep": 1,
+   "validValues": [
+    0,
+    1
+   ]
+  },
+  "StreamingEnabled": {
+   "UUID": "00008041-0000-1000-8000-0026BB765291",
+   "Format": "bool",
+   "Permissions": [
+    "NOTIFY",
+    "PAIRED_READ",
+    "PAIRED_WRITE",
+    "TIMED_WRITE"
+   ]
+  },
+  "SupportedAudioRecordingConfiguration": {
+   "UUID": "00000207-0000-1000-8000-0026BB765291",
+   "Format": "tlv8",
+   "Permissions": [
+    "NOTIFY",
+    "PAIRED_READ"
+   ]
+  },
+  "SupportedAudioStreamTiers": {
+   "UUID": "00008044-0000-1000-8000-0026BB765291",
+   "Format": "tlv8",
+   "Permissions": [
+    "NOTIFY",
+    "PAIRED_READ"
+   ]
+  },
+  "SupportedCameraRecordingConfiguration": {
+   "UUID": "00000205-0000-1000-8000-0026BB765291",
+   "Format": "tlv8",
+   "Permissions": [
+    "NOTIFY",
+    "PAIRED_READ"
+   ]
+  },
+  "SupportedDataStreamTransportConfiguration": {
+   "UUID": "00000130-0000-1000-8000-0026BB765291",
+   "Format": "tlv8",
+   "Permissions": [
+    "PAIRED_READ"
+   ]
+  },
+  "SupportedRTPConfiguration": {
+   "UUID": "00000116-0000-1000-8000-0026BB765291",
+   "Format": "tlv8",
+   "Permissions": [
+    "PAIRED_READ"
+   ]
+  },
+  "SupportedVideoRecordingConfiguration": {
+   "UUID": "00000206-0000-1000-8000-0026BB765291",
+   "Format": "tlv8",
+   "Permissions": [
+    "NOTIFY",
+    "PAIRED_READ"
+   ]
+  },
+  "SupportedVideoStreamTiers": {
+   "UUID": "00008043-0000-1000-8000-0026BB765291",
+   "Format": "tlv8",
+   "Permissions": [
+    "NOTIFY",
+    "PAIRED_READ"
+   ]
+  },
+  "ThirdPartyCameraActive": {
+   "UUID": "0000021C-0000-1000-8000-0026BB765291",
+   "Format": "uint8",
+   "Permissions": [
+    "NOTIFY",
+    "PAIRED_READ"
+   ],
+   "validValues": [
+    0,
+    1
+   ]
+  },
+  "Version": {
+   "UUID": "00000037-0000-1000-8000-0026BB765291",
+   "Format": "string",
+   "Permissions": [
+    "PAIRED_READ"
+   ],
+   "maxLen": 64
+  },
+  "Volume": {
+   "UUID": "00000119-0000-1000-8000-0026BB765291",
+   "Format": "uint8",
+   "Permissions": [
+    "NOTIFY",
+    "PAIRED_READ",
+    "PAIRED_WRITE"
+   ],
+   "minValue": 0,
+   "maxValue": 100,
+   "minStep": 1
+  },
+  "WebRTCNumberOfActiveSessions": {
+   "UUID": "00008057-0000-1000-8000-0026BB765291",
+   "Format": "uint8",
+   "Permissions": [
+    "NOTIFY",
+    "PAIRED_READ"
+   ],
+   "minValue": 0,
+   "maxValue": 255
+  },
+  "WebRTCProvideAnswer": {
+   "UUID": "00008054-0000-1000-8000-0026BB765291",
+   "Format": "tlv8",
+   "Permissions": [
+    "PAIRED_READ",
+    "PAIRED_WRITE",
+    "WRITE_RESPONSE"
+   ]
+  },
+  "WebRTCReoffer": {
+   "UUID": "00008058-0000-1000-8000-0026BB765291",
+   "Format": "tlv8",
+   "Permissions": [
+    "PAIRED_READ",
+    "PAIRED_WRITE",
+    "WRITE_RESPONSE"
+   ]
+  },
+  "WebRTCSolicitOffer": {
+   "UUID": "00008053-0000-1000-8000-0026BB765291",
+   "Format": "tlv8",
+   "Permissions": [
+    "PAIRED_READ",
+    "PAIRED_WRITE",
+    "WRITE_RESPONSE"
+   ]
+  },
+  "WebRTCStreamingControl": {
+   "UUID": "00008056-0000-1000-8000-0026BB765291",
+   "Format": "tlv8",
+   "Permissions": [
+    "PAIRED_READ",
+    "PAIRED_WRITE",
+    "WRITE_RESPONSE"
+   ]
+  },
+  "WebRTCSupportedAudioStreamTiers": {
+   "UUID": "0000805A-0000-1000-8000-0026BB765291",
+   "Format": "tlv8",
+   "Permissions": [
+    "NOTIFY",
+    "PAIRED_READ"
+   ]
+  },
+  "WebRTCSupportedVideoStreamTiers": {
+   "UUID": "00008059-0000-1000-8000-0026BB765291",
+   "Format": "tlv8",
+   "Permissions": [
+    "NOTIFY",
+    "PAIRED_READ"
+   ]
+  },
+  "WebRTCUpdateSession": {
+   "UUID": "0000805C-0000-1000-8000-0026BB765291",
+   "Format": "tlv8",
+   "Permissions": [
+    "PAIRED_READ",
+    "PAIRED_WRITE",
+    "WRITE_RESPONSE"
+   ]
+  }
+ }
+}

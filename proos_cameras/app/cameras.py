@@ -445,6 +445,8 @@ class Published:
     def _run(self):
         from pyhap.accessory_driver import AccessoryDriver
         asyncio.set_event_loop(self.loop)
+        if self.cam.get("secure_video") and self._run_secure_video():
+            return
         code = code_for(self.cam["mac"])
         self.driver = AccessoryDriver(port=PORT0 + self.index, persist_file=os.path.join(
             DATA, "%s.state" % self.cam["mac"]), pincode=code.encode(), loop=self.loop)
@@ -466,6 +468,47 @@ class Published:
         log.info("%s published on port %d (%s)", self.cam["name"], PORT0 + self.index,
                  "paired" if self.driver.state.paired else "waiting to be paired")
         self.driver.start()
+
+
+    def _run_secure_video(self) -> bool:
+        """970y: the camera as Apple's new Secure Video camera — its own accessory (its own state file, so it is added
+        again in the Home app). False → the classic camera instead (its channels could not be read)."""
+        from pyhap.accessory_driver import AccessoryDriver
+        from securevideo import accessory as SA
+        from securevideo import datastream as SD
+        name = self.cam["name"]
+        chans = SA.channels_for(protect, self.cid, name)
+        if not chans:
+            log.error("%s: no channel could be read — published as the classic camera instead", name)
+            return False
+        top = chans[0]
+        try:
+            hz = SA.audio_rate(protect.stream_url(self.cid, "medium" if any(c["quality"] == "medium" for c in chans)
+                                                  else top["quality"]))
+        except Exception:  # noqa: BLE001
+            hz = 0
+        sizes = advertised({"codec": "hevc", "width": top["width"], "height": top["height"], "fps": top["fps"]}, True)
+        SD.install_key_keeper()
+        code = code_for(self.cam["mac"])
+        self.driver = AccessoryDriver(port=PORT0 + self.index, persist_file=os.path.join(
+            DATA, "%s.sv.state" % self.cam["mac"]), pincode=code.encode(), loop=self.loop)
+        server = SD.Server(self.loop)
+        self.loop.run_until_complete(server.start())
+        lost = self.driver.connection_lost
+
+        def connection_lost(addr, _lost=lost, _server=server):
+            _server.hap_connection_lost(addr)
+            return _lost(addr)
+        self.driver.connection_lost = connection_lost
+        self.acc = SA.make_accessory_class()(self.driver, self.cam, self.cid, protect, talk, server, chans, sizes, hz,
+                                             os.path.join(DATA, "%s.sv.json" % self.cam["mac"]))
+        self.driver.add_accessory(self.acc)
+        log.info("%s published as a Secure Video camera on port %d (%s); tiers %s; recording sizes %s; sound %s Hz",
+                 name, PORT0 + self.index, "paired" if self.driver.state.paired else "waiting to be paired",
+                 ", ".join("%dx%d" % (c["width"], c["height"]) for c in chans),
+                 ", ".join("%dx%d" % (w, h) for w, h, _f in sizes), hz or "none")
+        self.driver.start()
+        return True
 
 
 def main():
@@ -491,6 +534,9 @@ def main():
         time.sleep(0.5)
     states = {s["entity_id"]: s for s in stream.all_states()} if stream.healthy() else {}
     cams = plan(wanted, ents, devs, states)
+    secure = {c for c in (opts.get("secure_video") or []) if isinstance(c, str)}      # 970y: Route 2, per camera
+    for cam in cams:
+        cam["secure_video"] = cam.get("entity") in secure
     published, by_motion, by_ring = [], {}, {}
     for i, cam in enumerate(cams):
         try:
