@@ -33,6 +33,9 @@ PIECE_S = 1.0                  # s per piece in the rolling buffer (the plugin's
 KEEP_EXTRA_S = 6.0             # s kept beyond the pre-buffer, so a key frame before it is always held
 RECORD_PROBESIZE = 5000000     # bytes (the plugin's default)
 STALL_S = 30.0                 # s with nothing handed to the hub before a recording is closed (970bb; ProOS's own)
+POST_S = 8.0                   # s a recording carries on after motion ends, then the camera ends it (970dd; two
+                               # of the hub's 4 s fragments — ProOS's own)
+MAX_S = 180.0                  # s the longest a recording runs (970dd; ProOS's own)
 TIER_QUALITY = {"high": 2, "medium": 3, "low": 4}
 
 
@@ -267,6 +270,7 @@ class Recorder:
         re-based per clip and a prft wall clock before each (the camera.ui HomeKit plugin's way, the implementation
         HAP-NodeJS PR #1132's author runs: "tvOS 27 hubs ... crash homed when [prft] is missing"); no pacing."""
         self.name, self.ts, self.pacing, self.passthrough = name, timeshift, pacing, passthrough
+        self.motion_on = lambda: True       # set by the camera: is its motion sensor on now? (970dd)
         self.cfg = None
         self.active = False
 
@@ -423,13 +427,32 @@ class Recorder:
                 sent += 1
             log.info("%s: recording %s — %d buffered pieces handed to the hub in %.1f s", self.name, stream_id,
                      sent - 1, time.monotonic() - t0)
+            last_sent, off_since = time.monotonic(), None
             while not stop.is_set():
                 try:
-                    t, b = await asyncio.wait_for(live.get(), STALL_S)
+                    t, b = await asyncio.wait_for(live.get(), 1.0)
                 except asyncio.TimeoutError:
-                    raise RuntimeError("nothing sent for %d s" % STALL_S)
-                yield prep(t, b), False
+                    t, b = None, None
+                now = time.monotonic()
+                # 970dd: the camera ends the clip itself POST_S after motion stops (HAP-NodeJS's own example:
+                # "the generator will send a proper endOfStream if the motion stops"), and never runs past MAX_S —
+                # Dave's hub never closed a recording, so each one held the camera's only recording slot for good
+                if self.motion_on():
+                    off_since = None
+                elif off_since is None:
+                    off_since = now
+                if b is None:
+                    if now - last_sent > STALL_S:
+                        raise RuntimeError("nothing sent for %d s" % STALL_S)
+                    continue
+                why = ("motion ended %.0f s ago" % (now - off_since)) if off_since and now - off_since >= POST_S \
+                    else ("%d s, the longest a recording runs" % MAX_S) if now - t0 >= MAX_S else None
+                yield prep(t, b), bool(why)
                 sent += 1
+                last_sent = now
+                if why:
+                    log.info("%s: recording %s — last piece sent marked as the end (%s)", self.name, stream_id, why)
+                    return
                 if sent % 10 == 0:
                     log.info("%s: recording %s — piece %d handed to the hub at %.1f s", self.name, stream_id, sent,
                              time.monotonic() - t0)

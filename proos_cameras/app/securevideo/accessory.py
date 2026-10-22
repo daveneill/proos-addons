@@ -105,6 +105,7 @@ def make_accessory_class():
                                            snapshot=self._snapshot_async, state_path=state_path,
                                            local_address=self._local_address)
             self.sv.load()
+            self.recorder.motion_on = lambda: bool(SV.H.char(self.sv.motion, "MotionDetected").value)   # 970dd
             self.char_ring = self.char_ring_switch = None
             if cam.get("doorbell"):          # the platform's doorbell services, as the classic camera (970t)
                 serv = self.add_preload_service("Doorbell")
