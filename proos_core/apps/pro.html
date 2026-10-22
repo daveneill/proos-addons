@@ -2877,7 +2877,7 @@ body.v3 .rh-card{border-radius:22px}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102201';
+const PROOS_BUILD='2026102202';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -16996,7 +16996,19 @@ async function ahWalk(base, startPayload, answers){
 }
 
 // ── what each entity becomes in Apple Home (mirrors HA homekit get_accessory) ──
-const AH_BRIDGEABLE=['light','switch','lock','cover','climate','fan','media_player','alarm_control_panel','remote'];
+const AH_BRIDGEABLE=['light','switch','lock','cover','climate','fan','media_player','alarm_control_panel','remote','camera'];
+// 970q: what a camera can alert on, read from the platform's registry BY FACT — UniFi Protect marks each sensor in its
+// own registry id (<mac>_smart_obj_person / _vehicle / _animal, <mac>_package) on the camera's device; a doorbell is
+// the device's event entity whose class is doorbell (the platform links its ring to the camera by itself).
+const AH_DET_KINDS=[['person','People','_smart_obj_person','binary_sensor.'],['vehicle','Vehicles','_smart_obj_vehicle','binary_sensor.'],
+  ['animal','Animals','_smart_obj_animal','binary_sensor.'],['package','Packages','_package','event.']];
+function ahCamDet(eid){
+  const out={doorbell:false}; const e=_ents.find(x=>x.entity_id===eid); if(!e||!e.device_id) return out;
+  const same=_ents.filter(x=>x.device_id===e.device_id);
+  AH_DET_KINDS.forEach(([k,,suf,dom])=>{ const m=same.find(x=>String(x.unique_id||'').endsWith(suf) && x.entity_id.indexOf(dom)===0 && !x.disabled_by); if(m) out[k]=m.entity_id; });
+  out.doorbell=same.some(x=>x.entity_id.indexOf('event.')===0 && ((ahState(x.entity_id)||{}).attributes||{}).device_class==='doorbell');
+  return out;
+}
 // 970p: the platform's `state_needs_accessory_mode`, mirrored — these never go on the bridge (it silently skips them);
 // each becomes its own Apple Home accessory with its own pairing code. Cameras follow in the next build.
 function ahNeedsOwn(eid){
@@ -17038,6 +17050,7 @@ function ahHomeKitType(eid){
     return 'Speaker';
   }
   if(dom==='remote') return (f&4) ? 'TV Remote' : null;   // 970p: activity remotes only (others are not Apple accessories)
+  if(dom==='camera') return ahCamDet(eid).doorbell ? 'Doorbell' : 'Camera';   // 970q
   return null;
 }
 // every entity ProOS can publish (Apple TVs/HomePods/Ubiquiti media auto-hidden)
@@ -17191,6 +17204,7 @@ async function ahLoadInventory(){
   let enabled=new Set();
   if(_ahBridge){ try{ (await ahReadEnabled(_ahBridge.entry_id)).forEach(id=>enabled.add(id)); }catch(e){} }
   enabled.delete(AH_NONE_SENTINEL);                       // the "expose nothing" marker isn't a real device
+  const rawEnabled=new Set(enabled);                      // 970q: detection tiles are on the bridge, not rows
   // 970p: a device Apple pairs on its own is ON when it has its own accessory — never because it sits in the
   // bridge's list (the bridge skips it, so that list said "on" for a TV Apple Home never saw).
   [...enabled].forEach(id=>{ if(ahNeedsOwn(id)) enabled.delete(id); });
@@ -17214,9 +17228,10 @@ async function ahLoadInventory(){
   const rowFor=(e,room)=>{
     const on=enabled.has(e.entity_id); const t=ahHomeKitType(e.entity_id)||''; const nm=entName(e.entity_id);
     const search=esc((nm+' '+t+' '+(room||'')).toLowerCase());
+    const camBlock=(String(e.entity_id).indexOf('camera.')===0)?ahCamBlock(e.entity_id, rawEnabled):'';
     return '<div class="row" data-eid-row="1" data-search="'+search+'"><div class="rl">'+esc(nm)
-      +'<div class="es" style="font-size:11px;color:var(--t3);font-weight:300;margin-top:3px">Appears as '+esc(t)+(ahNeedsOwn(e.entity_id)?' · Paired On Its Own':'')+'</div></div>'
-      +'<div class="rr"><button type="button" class="sw '+(on?'on':'')+'" role="switch" aria-checked="'+on+'" data-eid="'+esc(e.entity_id)+'" data-area="'+esc(ahAreaOf(e)||'_')+'" onclick="ahToggleOne(this)"><span class="sw-knob"></span></button></div></div>';
+      +'<div class="es" style="font-size:11px;color:var(--t3);font-weight:300;margin-top:3px">Appears as '+esc(t)+(ahNeedsOwn(e.entity_id)?' · Paired On Its Own':'')+'</div>'
+      +camBlock+'</div><div class="rr"><button type="button" class="sw '+(on?'on':'')+'" role="switch" aria-checked="'+on+'" data-eid="'+esc(e.entity_id)+'" data-area="'+esc(ahAreaOf(e)||'_')+'" onclick="ahToggleOne(this)"><span class="sw-knob"></span></button></div></div>';
   };
   const section=(title, arr, areaKey, warn)=>{
     if(!arr.length) return '';
@@ -17238,6 +17253,50 @@ async function ahLoadInventory(){
   if(prev){ const s=document.getElementById('ah-inv-search'); if(s){ s.value=prev; ahFilterInv(); } }
   if(save) save.style.display='block';
   ahStep('media','open', enabled.size?(enabled.size+' on'):'none on');
+}
+// 970q: a camera's Alert On and Detection Tiles. Alert On: Any Motion (the platform's own link) or People / Vehicles /
+// Animals (one or more — several are combined by the platform's group helper) or Packages (a doorbell's package event;
+// it cannot be combined). Detection Tiles: the camera's People / Vehicles / Animals sensors on the bridge.
+function ahCamAlertNow(eid){
+  const own=(_ahOwn||[]).find(x=>x.entity_id===eid)||{}; const det=ahCamDet(eid);
+  const ids=own.alert_members||(own.linked_motion_sensor?[own.linked_motion_sensor]:[]);
+  return AH_DET_KINDS.map(k=>k[0]).filter(k=>det[k] && ids.indexOf(det[k])>=0);
+}
+function ahCamBlock(eid, rawEnabled){
+  const det=ahCamDet(eid); const kinds=AH_DET_KINDS.filter(k=>det[k[0]]);
+  if(!kinds.length) return det.doorbell?'<div class="es" style="font-size:11px;color:var(--t3);margin-top:4px">Rings in the Home app with the picture</div>':'';
+  const now=ahCamAlertNow(eid);
+  const chip=(k,label,on)=>'<button type="button" class="ah-chip'+(on?' on':'')+'" data-cam="'+esc(eid)+'" data-kind="'+k+'" onclick="event.stopPropagation();ahChip(this)" style="margin:6px 6px 0 0;padding:5px 10px;border-radius:999px;border:0.5px solid var(--line-soft);background:'+(on?'var(--t1)':'transparent')+';color:'+(on?'#000':'var(--t2)')+';font:inherit;font-size:11px">'+esc(label)+'</button>';
+  const tiles=['person','vehicle','animal'].filter(k=>det[k]); const tilesOn=tiles.length && tiles.every(k=>rawEnabled.has(det[k]));
+  return '<div class="ah-cam" data-cam="'+esc(eid)+'" style="margin-top:6px">'
+    +'<div class="es" style="font-size:11px;color:var(--t3)">Alert On'+(det.doorbell?' · the doorbell rings by itself':'')+'</div>'
+    +chip('any','Any Motion',!now.length)+kinds.map(k=>chip(k[0],k[1],now.indexOf(k[0])>=0)).join('')
+    +(tiles.length?'<div style="margin-top:8px"><button type="button" class="ah-chip ah-tiles'+(tilesOn?' on':'')+'" data-cam="'+esc(eid)+'" onclick="event.stopPropagation();ahChipTiles(this)" style="padding:5px 10px;border-radius:999px;border:0.5px solid var(--line-soft);background:'+(tilesOn?'var(--t1)':'transparent')+';color:'+(tilesOn?'#000':'var(--t2)')+';font:inherit;font-size:11px">Detection Tiles</button></div>':'')
+    +'</div>';
+}
+function ahChipPaint(b, on){ b.classList.toggle('on', on); b.style.background=on?'var(--t1)':'transparent'; b.style.color=on?'#000':'var(--t2)'; }
+function ahChip(btn){
+  const box=btn.closest('.ah-cam'); const k=btn.dataset.kind; const all=[...box.querySelectorAll('.ah-chip[data-kind]')];
+  if(k==='any'){ all.forEach(b=>ahChipPaint(b, b===btn)); return; }
+  const turnOn=!btn.classList.contains('on');
+  all.forEach(b=>{ const bk=b.dataset.kind;
+    if(bk==='any') ahChipPaint(b,false);
+    else if(turnOn && (k==='package' ? bk!=='package' : bk==='package')) ahChipPaint(b,false);   // Packages stands alone
+  });
+  ahChipPaint(btn, turnOn);
+  if(!all.some(b=>b.dataset.kind!=='any' && b.classList.contains('on'))) all.forEach(b=>ahChipPaint(b, b.dataset.kind==='any'));
+}
+function ahChipTiles(btn){ ahChipPaint(btn, !btn.classList.contains('on')); }
+// what the screen says for every camera switched on: {alerts:{camera:[sensor ids]}, tiles:[sensor ids]}
+function ahCamChoices(onIds){
+  const alerts={}, tiles=[];
+  onIds.filter(id=>String(id).indexOf('camera.')===0).forEach(cam=>{
+    const det=ahCamDet(cam); const box=document.querySelector('#ah-inv-list .ah-cam[data-cam="'+cam.replace(/"/g,'')+'"]');
+    if(!box){ alerts[cam]=[]; return; }
+    alerts[cam]=[...box.querySelectorAll('.ah-chip.on[data-kind]')].map(b=>b.dataset.kind).filter(k=>k!=='any'&&det[k]).map(k=>det[k]);
+    const t=box.querySelector('.ah-tiles.on'); if(t) ['person','vehicle','animal'].forEach(k=>{ if(det[k]) tiles.push(det[k]); });
+  });
+  return {alerts, tiles};
 }
 function ahSecToggle(head){ const sec=head&&head.closest('.ah-sec'); if(sec) sec.classList.toggle('open'); }
 function ahFilterInv(){
@@ -17265,7 +17324,7 @@ async function ahSaveInventory(){
   const all=[].slice.call(document.querySelectorAll('#ah-inv-list .sw.on[data-eid]')).map(b=>b.getAttribute('data-eid'));
   // 970p: TVs, receivers, projectors, locks and activity remotes each get their own accessory (ProOS Core, through
   // the platform's own setup and Configure steps); everything else stays on the bridge.
-  const own=all.filter(ahNeedsOwn), ids=all.filter(id=>!ahNeedsOwn(id));
+  const own=all.filter(ahNeedsOwn), cc=ahCamChoices(own), ids=all.filter(id=>!ahNeedsOwn(id)).concat(cc.tiles);
   _ahBusy=true; if(save){ save.disabled=true; save.textContent='Updating…'; }
   try{
     // Order matters: the bridge's list goes through the platform's Configure steps first (no restart); then Core
@@ -17275,9 +17334,9 @@ async function ahSaveInventory(){
     if(ids.length) res=await ahApplyFilter(_ahBridge.entry_id, ids);
     if(res && res.restarting){ toast('Apple Home is restarting · press Update Apple Home again afterwards for TVs and locks'); }
     else {
-      const acc=await ahSetOwn(own, true, ids.length?null:_ahBridge.entry_id);
+      const acc=await ahSetOwn(own, true, ids.length?null:_ahBridge.entry_id, cc.alerts);
       if(acc && acc.supported===false && !ids.length) res=await ahApplyFilter(_ahBridge.entry_id, ids);   // older Core
-      const bad=Object.keys((acc&&acc.errors)||{}).filter(k=>k.indexOf('.')>0);
+      const bad=Object.keys((acc&&acc.errors)||{}).filter(k=>k.indexOf('.')>0);   // a device or a camera's alerts
       if(bad.length) toast("Couldn't add "+bad.map(entName).join(', ')+' to Apple Home');
       if(acc && acc.restarting) res=Object.assign({}, res, {restarting:true});
     }
@@ -17294,10 +17353,10 @@ async function ahSaveInventory(){
 
 // 970p: ask ProOS Core to make exactly these devices their own accessories (and remove ProOS's others).
 // New ones are named after the device, which needs one restart; Core says when it restarts.
-async function ahSetOwn(ids, mayRestart, bridgeClear){
+async function ahSetOwn(ids, mayRestart, bridgeClear, alerts){
   try{
     const r=await fetch(proCoreUrl()+'/homekit/accessories',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({entities:ids||[], restart:mayRestart!==false, bridge_clear:bridgeClear||undefined})});
+      body:JSON.stringify({entities:ids||[], restart:mayRestart!==false, bridge_clear:bridgeClear||undefined, alerts:alerts||{}})});
     if(r.status===404) return {supported:false};
     return await r.json().catch(()=>({}));
   }catch(e){ return {supported:false, error:String(e)}; }

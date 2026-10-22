@@ -30,6 +30,7 @@ OWN_MEDIA = ("tv", "receiver", "projector")
 REMOTE_ACTIVITY = 4                    # RemoteEntityFeature.ACTIVITY
 SEED_DOMAIN = "light"                  # the setup flow needs a domain; light never needs accessory mode, so the
                                        # flow spawns no extra accessory entries (it does for every domain it names)
+GROUP_PREFIX = "ProOS Alerts "          # the platform group helper that combines a camera's chosen detections
 FLOW = "/api/config/config_entries/flow"
 OFLOW = "/api/config/config_entries/options/flow"
 
@@ -69,9 +70,95 @@ def accessories(entries: list) -> dict:
         if mode != "accessory" or not eid:
             continue
         title = str(e.get("title") or "")
+        ec = ((e.get("options") or {}).get("entity_config") or (e.get("data") or {}).get("entity_config") or {})
         out[eid] = {"entry_id": e.get("entry_id"), "title": title, "ours": title.startswith(PREFIX),
-                    "name": (e.get("data") or {}).get("name")}
+                    "name": (e.get("data") or {}).get("name"),
+                    "linked_motion_sensor": (ec.get(eid) or {}).get("linked_motion_sensor")}
     return out
+
+
+# ── camera alerts (plan §3, Dave 18:26: "they can still trigger doorbell and person vehicle notification in Apple
+# Home and Apple TV"). The platform links a camera's own motion event and its doorbell ring by itself
+# (`_async_configure_linked_sensors`, setdefault); an explicit `linked_motion_sensor` in the accessory's
+# entity_config wins. One detection is linked directly; several are combined with the platform's own group
+# helper (a binary_sensor group), which ProOS names GROUP_PREFIX + camera and owns. Nothing = Any Motion.
+
+def alert_groups(group_entries: list) -> dict:
+    """{camera entity: {entry_id, entities}} for ProOS's own alert groups."""
+    out = {}
+    for e in group_entries or []:
+        t = str(e.get("title") or "")
+        if t.startswith(GROUP_PREFIX):
+            out[t[len(GROUP_PREFIX):]] = {"entry_id": e.get("entry_id"),
+                                          "entities": sorted((e.get("options") or {}).get("entities") or [])}
+    return out
+
+
+def create_group(camera: str, members: list, req) -> str:
+    """One binary_sensor group through the platform's own helper flow. Returns its entry id."""
+    s = req("POST", FLOW, {"handler": "group", "show_advanced_options": False}) or {}
+    url = "%s/%s" % (FLOW, s.get("flow_id"))
+    try:
+        _step(s, "user", kind="menu")
+        _step(req("POST", url, {"next_step_id": "binary_sensor"}), "binary_sensor")
+        s = _step(req("POST", url, {"name": GROUP_PREFIX + camera, "entities": list(members),
+                                    "hide_members": False, "all": False}), kind="create_entry")
+    except Exception:
+        try:
+            req("DELETE", url, None)
+        except Exception:  # noqa: BLE001
+            pass
+        raise
+    entry_id = (s.get("result") or {}).get("entry_id") if isinstance(s.get("result"), dict) else None
+    if not entry_id:
+        raise RuntimeError("the platform made the alert group but did not say which")
+    return entry_id
+
+
+def resolve_alerts(alerts: dict, group_entries: list, req, entity_of_entry, sleep) -> tuple:
+    """({camera: link entity or None}, created_groups, removed_groups, errors). `alerts` is {camera: [sensor
+    entities]} for every camera in play; a camera with [] gets Any Motion (no link: the platform's own)."""
+    have = alert_groups(group_entries)
+    links, made, gone, errors = {}, [], [], {}
+    for cam, chosen in (alerts or {}).items():
+        chosen = sorted(dict.fromkeys(c for c in (chosen or []) if isinstance(c, str) and "." in c))
+        g = have.get(cam)
+        try:
+            if len(chosen) > 1 and any(not c.startswith("binary_sensor.") for c in chosen):
+                raise RuntimeError("packages cannot be combined with other alerts")
+            if len(chosen) > 1:
+                if g and g["entities"] == chosen:
+                    gid = g["entry_id"]
+                else:
+                    if g:
+                        remove(g["entry_id"], req)
+                        gone.append(g["entry_id"])
+                    gid = create_group(cam, chosen, req)
+                    made.append(gid)
+                ent = None
+                for _ in range(10):        # the platform registers the group's entity a moment after the entry
+                    ent = entity_of_entry(gid)
+                    if ent:
+                        break
+                    sleep(0.5)
+                if not ent:
+                    raise RuntimeError("the alert group has no entity yet")
+                links[cam] = ent
+            else:
+                if g:
+                    remove(g["entry_id"], req)
+                    gone.append(g["entry_id"])
+                links[cam] = chosen[0] if chosen else None
+        except Exception as e:  # noqa: BLE001 — one camera's refusal never stops the others
+            errors[cam] = str(e)[:200]
+    for cam, g in have.items():          # a camera no longer in play keeps no group
+        if cam not in (alerts or {}) and g["entry_id"] not in gone:
+            try:
+                remove(g["entry_id"], req)
+                gone.append(g["entry_id"])
+            except Exception as e:  # noqa: BLE001
+                errors[cam] = str(e)[:200]
+    return links, made, gone, errors
 
 
 def is_accessory_entry(e: dict) -> bool:
@@ -157,7 +244,7 @@ def remove(entry_id: str, req) -> None:
     req("DELETE", "/api/config/config_entries/entry/%s" % entry_id, None)
 
 
-def name_entries(store_path: str, names: dict) -> int:
+def name_entries(store_path: str, names: dict, links: dict | None = None) -> int:
     """Give each new accessory entry its device's name ({entry_id: friendly name}), in the config-entry store,
     as `_homekit_brand` does for the bridge. The caller restarts the platform so the names load (the platform's
     API cannot change a HomeKit entry's name). Backs up, validates, swaps atomically. Returns entries named."""
@@ -167,15 +254,24 @@ def name_entries(store_path: str, names: dict) -> int:
     total = len(entries)
     taken = {(e.get("data") or {}).get("name") for e in entries
              if e.get("domain") == "homekit" and e.get("entry_id") not in names}
+    links = links or {}
     done = 0
     for e in entries:
         eid = e.get("entry_id")
-        if e.get("domain") != "homekit" or eid not in names:
+        if e.get("domain") != "homekit" or (eid not in names and eid not in links):
             continue
-        nm = unique_name(mdns_name(names[eid]), taken)
-        taken.add(nm)
-        e.setdefault("data", {})["name"] = nm
-        e["title"] = PREFIX + str(names[eid])
+        if eid in names:
+            nm = unique_name(mdns_name(names[eid]), taken)
+            taken.add(nm)
+            e.setdefault("data", {})["name"] = nm
+            e["title"] = PREFIX + str(names[eid])
+        if eid in links:                  # (camera entity, link or None) — the camera's Alert On
+            cam, link = links[eid]
+            ec = e.setdefault("options", {}).setdefault("entity_config", {}).setdefault(cam, {})
+            if link:
+                ec["linked_motion_sensor"] = link
+            else:
+                ec.pop("linked_motion_sensor", None)
         done += 1
     if done:
         try:
@@ -192,18 +288,20 @@ def name_entries(store_path: str, names: dict) -> int:
     return done
 
 
-def reconcile(wanted, entries: list, req, attrs_of, sleep, store_path: str) -> dict:
+def reconcile(wanted, entries: list, req, attrs_of, sleep, store_path: str, alerts: dict | None = None,
+              group_entries: list | None = None, entity_of_entry=None) -> dict:
     """Make the accessory entries match `wanted` (entities the installer switched on that need their own
     accessory). Entities that do not need one are refused here — they belong on the bridge."""
     ok, refused = [], []
     for w in dict.fromkeys(wanted or []):
         (ok if needs_own(w, attrs_of(w)) else refused).append(w)
     to_create, to_remove = plan(ok, entries)
-    created, removed, errors, names = [], [], {}, {}
+    created, removed, errors, names, made_entry = [], [], {}, {}, {}
     for eid in to_create:
         try:
             entry_id = create(eid, req)
             created.append(eid)
+            made_entry[eid] = entry_id
             names[entry_id] = (attrs_of(eid) or {}).get("friendly_name") or eid
         except Exception as e:  # noqa: BLE001 — one device's refusal never stops the others
             errors[eid] = str(e)[:200]
@@ -213,9 +311,24 @@ def reconcile(wanted, entries: list, req, attrs_of, sleep, store_path: str) -> d
             removed.append(entry_id)
         except Exception as e:  # noqa: BLE001
             errors[entry_id] = str(e)[:200]
+    # camera alerts: only cameras that are (or now become) their own accessory
+    links_by_entry, groups_made, groups_gone = {}, [], []
+    if alerts is not None:      # {} still matters: a camera switched off keeps no alert group
+        cams = {c: v for c, v in alerts.items() if c in ok and c.startswith("camera.")}
+        links, groups_made, groups_gone, aerr = resolve_alerts(cams, group_entries or [], req,
+                                                                entity_of_entry or (lambda _i: None), sleep)
+        errors.update(aerr)
+        now = accessories(entries)
+        for cam, link in links.items():
+            entry_id = (now.get(cam) or {}).get("entry_id") or made_entry.get(cam)
+            if not entry_id:
+                continue
+            if (now.get(cam) or {}).get("linked_motion_sensor") != link or cam in made_entry:
+                links_by_entry[entry_id] = (cam, link)
     named = 0
-    if names:
+    if names or links_by_entry:
         sleep(3)       # 968w: the platform's own pending save of the new entries lands first
-        named = name_entries(store_path, names)
+        named = name_entries(store_path, names, links_by_entry)
     return {"created": created, "removed": removed, "refused": refused, "errors": errors,
-            "named": named, "restart": bool(named)}
+            "named": named, "alerts_set": len(links_by_entry), "groups_made": groups_made,
+            "groups_removed": groups_gone, "restart": bool(named)}

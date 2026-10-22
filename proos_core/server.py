@@ -6106,7 +6106,9 @@ class Handler(BaseHTTPRequestHandler):
             if parts == ["homekit", "accessories"]:
                 # 970p: the devices that are their own Apple Home accessory, and which entry each is.
                 from proos import platform_entries as _pe
-                items = [dict(v, entity_id=k) for k, v in _hkacc.accessories(_pe.entries("homekit")).items()]
+                _grp = _hkacc.alert_groups(_pe.entries("group"))
+                items = [dict(v, entity_id=k, alert_members=(_grp.get(k) or {}).get("entities"))
+                         for k, v in _hkacc.accessories(_pe.entries("homekit")).items()]
                 try:
                     live = {e.get("entry_id"): e.get("state") for e in
                             (_client._req("GET", "/api/config/config_entries/entry?domain=homekit") or [])}
@@ -9077,8 +9079,21 @@ class Handler(BaseHTTPRequestHandler):
                         return {}
                     return st.get("attributes") or {}
                 try:
+                    def _entity_of_entry(entry_id):
+                        try:
+                            from proos.live_ha import registry_written
+                            registry_written()          # the group was made through a flow, not _ws_call
+                            for r in (_client.entity_registry() or []):
+                                if r.get("config_entry_id") == entry_id:
+                                    return r.get("entity_id")
+                        except Exception:                            # noqa: BLE001
+                            pass
+                        return None
+                    _al = body.get("alerts")
                     res = _hkacc.reconcile(ents, _pe.entries("homekit"), _client._req, _attrs, time.sleep,
-                                           _HA_STORAGE_ENTRIES)
+                                           _HA_STORAGE_ENTRIES,
+                                           alerts=_al if isinstance(_al, dict) else None,
+                                           group_entries=_pe.entries("group"), entity_of_entry=_entity_of_entry)
                 except FileNotFoundError:
                     return self._send(503, {"error": "config-entries store not visible"})
                 except PermissionError:
