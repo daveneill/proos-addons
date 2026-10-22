@@ -289,7 +289,7 @@ def name_entries(store_path: str, names: dict, links: dict | None = None) -> int
 
 
 def reconcile(wanted, entries: list, req, attrs_of, sleep, store_path: str, alerts: dict | None = None,
-              group_entries: list | None = None, entity_of_entry=None) -> dict:
+              group_entries: list | None = None, entity_of_entry=None, names_for: dict | None = None) -> dict:
     """Make the accessory entries match `wanted` (entities the installer switched on that need their own
     accessory). Entities that do not need one are refused here — they belong on the bridge."""
     ok, refused = [], []
@@ -302,7 +302,8 @@ def reconcile(wanted, entries: list, req, attrs_of, sleep, store_path: str, aler
             entry_id = create(eid, req)
             created.append(eid)
             made_entry[eid] = entry_id
-            names[entry_id] = (attrs_of(eid) or {}).get("friendly_name") or eid
+            # 970r: the name Pro shows (a camera's own name, not its stream's) — else the platform's friendly name
+            names[entry_id] = (names_for or {}).get(eid) or (attrs_of(eid) or {}).get("friendly_name") or eid
         except Exception as e:  # noqa: BLE001 — one device's refusal never stops the others
             errors[eid] = str(e)[:200]
     for entry_id in to_remove:

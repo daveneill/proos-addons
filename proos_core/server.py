@@ -9093,7 +9093,8 @@ class Handler(BaseHTTPRequestHandler):
                     res = _hkacc.reconcile(ents, _pe.entries("homekit"), _client._req, _attrs, time.sleep,
                                            _HA_STORAGE_ENTRIES,
                                            alerts=_al if isinstance(_al, dict) else None,
-                                           group_entries=_pe.entries("group"), entity_of_entry=_entity_of_entry)
+                                           group_entries=_pe.entries("group"), entity_of_entry=_entity_of_entry,
+                                           names_for=body.get("names") if isinstance(body.get("names"), dict) else None)
                 except FileNotFoundError:
                     return self._send(503, {"error": "config-entries store not visible"})
                 except PermissionError:

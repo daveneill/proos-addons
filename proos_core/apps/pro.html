@@ -2877,7 +2877,7 @@ body.v3 .rh-card{border-radius:22px}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102202';
+const PROOS_BUILD='2026102203';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -17002,6 +17002,12 @@ const AH_BRIDGEABLE=['light','switch','lock','cover','climate','fan','media_play
 // the device's event entity whose class is doorbell (the platform links its ring to the camera by itself).
 const AH_DET_KINDS=[['person','People','_smart_obj_person','binary_sensor.'],['vehicle','Vehicles','_smart_obj_vehicle','binary_sensor.'],
   ['animal','Animals','_smart_obj_animal','binary_sensor.'],['package','Packages','_package','event.']];
+// 970r: a camera is named after itself ("Alfresco"), not its stream ("Alfresco High resolution channel") — in Pro and
+// in the Home app (the name is sent to Core for the accessory).
+function ahNiceName(eid){
+  if(String(eid).indexOf('camera.')===0){ const e=_ents.find(x=>x.entity_id===eid); const d=e&&ahDevOf(e); const n=d&&(d.name_by_user||d.name); if(n) return n; }
+  return entName(eid);
+}
 function ahCamDet(eid){
   const out={doorbell:false}; const e=_ents.find(x=>x.entity_id===eid); if(!e||!e.device_id) return out;
   const same=_ents.filter(x=>x.device_id===e.device_id);
@@ -17057,6 +17063,7 @@ function ahHomeKitType(eid){
 function ahBridgeableEntities(){
   return _ents.filter(e=>{
     const dom=DOM(e);
+    if(e.disabled_by) return false;   // 970r: switched off in the platform (e.g. Protect's medium/low camera streams) — nothing to publish
     if(AH_BRIDGEABLE.indexOf(dom)<0) return false;
     if(dom==='media_player' && ahMediaSuppressReason(e)) return false;
     return !!ahHomeKitType(e.entity_id);
@@ -17226,7 +17233,7 @@ async function ahLoadInventory(){
   const byArea={};
   ents.forEach(e=>{ const ar=ahAreaOf(e); if(ar) (byArea[ar]=byArea[ar]||[]).push(e); });
   const rowFor=(e,room)=>{
-    const on=enabled.has(e.entity_id); const t=ahHomeKitType(e.entity_id)||''; const nm=entName(e.entity_id);
+    const on=enabled.has(e.entity_id); const t=ahHomeKitType(e.entity_id)||''; const nm=ahNiceName(e.entity_id);
     const search=esc((nm+' '+t+' '+(room||'')).toLowerCase());
     const camBlock=(String(e.entity_id).indexOf('camera.')===0)?ahCamBlock(e.entity_id, rawEnabled):'';
     return '<div class="row" data-eid-row="1" data-search="'+search+'"><div class="rl">'+esc(nm)
@@ -17356,7 +17363,8 @@ async function ahSaveInventory(){
 async function ahSetOwn(ids, mayRestart, bridgeClear, alerts){
   try{
     const r=await fetch(proCoreUrl()+'/homekit/accessories',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({entities:ids||[], restart:mayRestart!==false, bridge_clear:bridgeClear||undefined, alerts:alerts||{}})});
+      body:JSON.stringify({entities:ids||[], restart:mayRestart!==false, bridge_clear:bridgeClear||undefined, alerts:alerts||{},
+        names:Object.fromEntries((ids||[]).map(id=>[id, ahNiceName(id)]))})});
     if(r.status===404) return {supported:false};
     return await r.json().catch(()=>({}));
   }catch(e){ return {supported:false, error:String(e)}; }
@@ -17371,7 +17379,7 @@ async function ahRenderOwn(){
   host.innerHTML='<div class="section-label" style="margin-top:18px">Paired On Their Own</div>'
     +'<div class="wiz-hint" style="margin:0 0 10px">Apple pairs these one at a time. After the bridge, add each in the Home app with its own code.</div>'
     +mine.map(x=>{
-      const info=ahParsePairing(notes, x.entry_id); const nm=entName(x.entity_id);
+      const info=ahParsePairing(notes, x.entry_id); const nm=ahNiceName(x.entity_id);
       const qr=info&&info.qr ? (HA.replace(/\/$/,'')+info.qr) : '';
       return '<div class="row"><div class="rl">'+esc(nm)+'<div class="es" style="font-size:11px;color:var(--t3);font-weight:300;margin-top:3px">'
         +(info&&info.code ? 'Code <b style="color:var(--t1)">'+esc(info.code)+'</b>' : 'No code in memory — paired, or tap Show Code')+'</div>'
