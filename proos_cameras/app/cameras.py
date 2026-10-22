@@ -172,17 +172,22 @@ def video_args(codec: str, s: dict) -> list:
     except (IndexError, TypeError):
         prof = "high"
     br = int(s.get("v_max_bitrate") or 2000)
+    fps = int(s.get("fps") or 30)
+    # a key frame every second (with its headers), so the iPhone has a picture within a second of the first frame
+    # rather than at x264's default ~8 s — longer than Apple waits (970t: measured 9.4 s before, on a 6 s-GOP source)
     return ["-c:v", "libx264", "-profile:v", prof, "-preset", "veryfast", "-tune", "zerolatency", "-pix_fmt",
             "yuv420p", "-vf", "scale=%d:%d" % (int(s.get("width") or 1280), int(s.get("height") or 720)),
-            "-r", str(int(s.get("fps") or 30)), "-b:v", "%dk" % br, "-bufsize", "%dk" % (br * 4),
-            "-maxrate", "%dk" % br]
+            "-r", str(fps), "-g", str(fps), "-keyint_min", str(fps), "-sc_threshold", "0",
+            "-b:v", "%dk" % br, "-bufsize", "%dk" % (br * 4), "-maxrate", "%dk" % br]
 
 
 def ffmpeg_live(src: str, s: dict, audio_port: int | None, codec: str = "h264") -> list:
     """The ffmpeg command for one live view: Protect's stream in, video as SRTP to the iPhone (copied when it is
     H.264, made H.264 when not), sound as Opus to the relay — the platform's own command shape (type_cameras
     VIDEO_OUTPUT / AUDIO_OUTPUT)."""
-    cmd = ["ffmpeg", "-hide_banner", "-nostats", "-loglevel", "warning", "-rtsp_transport", "tcp", "-i", src,
+    # the stream is already known (probed), so ffmpeg is not left to study it for its default ~5 s before starting
+    fast = [] if codec in ("h264", "") else ["-fflags", "nobuffer", "-probesize", "500000", "-analyzeduration", "500000"]
+    cmd = ["ffmpeg", "-hide_banner", "-nostats", "-loglevel", "warning"] + fast + ["-rtsp_transport", "tcp", "-i", src,
            "-map", "0:v:0", "-an"] + video_args(codec, s) + [
            "-payload_type", "99", "-ssrc", str(s["v_ssrc"]), "-f", "rtp",
            "-srtp_out_suite", "AES_CM_128_HMAC_SHA1_80", "-srtp_out_params", s["v_srtp_key"],
