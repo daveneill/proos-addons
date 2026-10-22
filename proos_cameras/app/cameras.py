@@ -144,12 +144,47 @@ def notify(mac: str, name: str, code: str, paired: bool) -> None:
 
 
 # ── the media path (live view) ───────────────────────────────────────────────────────────────────────────────────
-def ffmpeg_live(src: str, s: dict, audio_port: int | None) -> list:
-    """The ffmpeg command for one live view: Protect's stream in, video copied as SRTP to the iPhone, sound as Opus
-    to the timing proxy (which encrypts and sends it) — the platform's own command shape (type_cameras VIDEO_OUTPUT /
-    AUDIO_OUTPUT)."""
+PROFILE_NAMES = ["baseline", "main", "high"]     # the platform's DEFAULT_VIDEO_PROFILE_NAMES
+
+
+def probe_codec(src: str, run=None) -> str:
+    """What Protect actually streams: 'h264', 'hevc', … ('' when ffprobe cannot tell). Read, never assumed —
+    970t addendum: a G6 doorbell's stream that is not H.264 never plays in Apple Home when copied."""
+    import subprocess
+    run = run or subprocess.run
+    try:
+        r = run(["ffprobe", "-v", "error", "-rtsp_transport", "tcp", "-select_streams", "v:0",
+                 "-show_entries", "stream=codec_name", "-of", "default=nw=1:nk=1", src],
+                capture_output=True, text=True, timeout=12)
+        return (r.stdout or "").strip().splitlines()[0].strip().lower() if r.stdout else ""
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def video_args(codec: str, s: dict) -> list:
+    """H.264 is passed through untouched (as the platform does for Protect); anything else — Apple Home plays only
+    H.264 — is made H.264 at the size, rate and bit rate the iPhone asked for (the platform's own non-copy settings:
+    libx264, the asked profile, zerolatency, yuv420p)."""
+    if codec in ("h264", ""):
+        return ["-c:v", "copy"]
+    try:
+        prof = PROFILE_NAMES[int.from_bytes(s.get("v_profile_id") or b"\x02", "big")]
+    except (IndexError, TypeError):
+        prof = "high"
+    br = int(s.get("v_max_bitrate") or 2000)
+    return ["-c:v", "libx264", "-profile:v", prof, "-preset", "veryfast", "-tune", "zerolatency", "-pix_fmt",
+            "yuv420p", "-vf", "scale=%d:%d" % (int(s.get("width") or 1280), int(s.get("height") or 720)),
+            "-r", str(int(s.get("fps") or 30)), "-b:v", "%dk" % br, "-bufsize", "%dk" % (br * 4),
+            "-maxrate", "%dk" % br]
+
+
+def ffmpeg_live(src: str, s: dict, audio_port: int | None, codec: str = "h264") -> list:
+    """The ffmpeg command for one live view: Protect's stream in, video as SRTP to the iPhone (copied when it is
+    H.264, made H.264 when not), sound as Opus to the relay — the platform's own command shape (type_cameras
+    VIDEO_OUTPUT / AUDIO_OUTPUT)."""
     cmd = ["ffmpeg", "-hide_banner", "-nostats", "-loglevel", "warning", "-rtsp_transport", "tcp", "-i", src,
-           "-map", "0:v:0", "-an", "-c:v", "copy", "-payload_type", "99", "-ssrc", str(s["v_ssrc"]), "-f", "rtp",
+           "-map", "0:v:0", "-an"] + video_args(codec, s) + [
+           "-payload_type", "99", "-ssrc", str(s["v_ssrc"]), "-f", "rtp",
            "-srtp_out_suite", "AES_CM_128_HMAC_SHA1_80", "-srtp_out_params", s["v_srtp_key"],
            "srtp://%s:%d?rtcpport=%d&localrtpport=%d&pkt_size=%d"
            % (s["address"], s["v_port"], s["v_port"], s["v_port"], 1316)]
@@ -193,6 +228,7 @@ def make_accessory_class():
             # real here: the iPhone's voice reaches the door (talk.Relay → Protect's talk session).
             self.char_ring = self.char_ring_switch = None
             self.talking = {}
+            self.codec = {}
             if cam.get("doorbell") or cam.get("speaker"):
                 from pyhap.const import CATEGORY_VIDEO_DOOR_BELL
                 self.category = CATEGORY_VIDEO_DOOR_BELL
@@ -254,11 +290,23 @@ def make_accessory_class():
                                on_voice=(lambda: self._open_talk(sid)) if can_talk else None)
             proxy.start()
             port = proxy.local_port
-            cmd = ffmpeg_live(src, stream_config, port)
+            if self.cid not in self.codec:
+                self.codec[self.cid] = await asyncio.get_running_loop().run_in_executor(None, probe_codec, src)
+                log.info("%s: Protect streams %s — %s", self.cam["name"], self.codec[self.cid] or "an unread codec",
+                         "passed through" if self.codec[self.cid] in ("h264", "") else "made H.264 for Apple Home")
+            cmd = ffmpeg_live(src, stream_config, port, self.codec[self.cid])
             proc = await asyncio.create_subprocess_exec(*cmd, stdin=asyncio.subprocess.DEVNULL,
                                                         stdout=asyncio.subprocess.DEVNULL,
                                                         stderr=asyncio.subprocess.PIPE)
             session_info["process"], session_info["proxy"] = proc, proxy
+
+            async def _errors(stream, name=self.cam["name"]):      # ffmpeg's own words, into the add-on's log
+                while True:
+                    line = await stream.readline()
+                    if not line:
+                        break
+                    log.warning("%s: ffmpeg: %s", name, line.decode(errors="replace").rstrip()[:300])
+            session_info["errlog"] = asyncio.ensure_future(_errors(proc.stderr))
             log.info("%s: live view started for %s", self.cam["name"], stream_config["address"])
             return True
 
