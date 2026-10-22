@@ -145,6 +145,7 @@ def notify(mac: str, name: str, code: str, paired: bool) -> None:
 
 # ── the media path (live view) ───────────────────────────────────────────────────────────────────────────────────
 PROFILE_NAMES = ["baseline", "main", "high"]     # the platform's DEFAULT_VIDEO_PROFILE_NAMES
+LEVEL_NAMES = ["3.1", "3.2", "4.0"]              # HAP's H.264 level codes 0 / 1 / 2
 
 
 def probe_codec(src: str, run=None) -> str:
@@ -163,19 +164,27 @@ def probe_codec(src: str, run=None) -> str:
 
 def video_args(codec: str, s: dict) -> list:
     """H.264 is passed through untouched (as the platform does for Protect); anything else — Apple Home plays only
-    H.264 — is made H.264 at the size, rate and bit rate the iPhone asked for (the platform's own non-copy settings:
-    libx264, the asked profile, zerolatency, yuv420p)."""
+    H.264 — is made H.264 at the size, rate, bit rate, profile and level the iPhone asked for, with the settings of
+    homebridge-plugin-utils 2.4.0 (the encoder behind the Homebridge UniFi Protect plugin): libx264 veryfast, the asked
+    profile and level, no B-frames, one slice per frame.
+    970v: the platform's "-tune zerolatency" was used until 0.2.4 — it cuts every frame into several slices, which
+    ffmpeg then bundles several to a packet (STAP-A, 164 of 465 packets measured); the Home app showed nothing for
+    30 s of a valid, correctly encrypted stream. The Homebridge encoder never uses it."""
     if codec in ("h264", ""):
         return ["-c:v", "copy"]
     try:
         prof = PROFILE_NAMES[int.from_bytes(s.get("v_profile_id") or b"\x02", "big")]
     except (IndexError, TypeError):
         prof = "high"
+    try:
+        level = LEVEL_NAMES[int.from_bytes(s.get("v_level") or b"\x02", "big")]
+    except (IndexError, TypeError):
+        level = "4.0"
     br = int(s.get("v_max_bitrate") or 2000)
     fps = int(s.get("fps") or 30)
     # a key frame every second (with its headers), so the iPhone has a picture within a second of the first frame
     # rather than at x264's default ~8 s — longer than Apple waits (970t: measured 9.4 s before, on a 6 s-GOP source)
-    return ["-c:v", "libx264", "-profile:v", prof, "-preset", "veryfast", "-tune", "zerolatency", "-pix_fmt",
+    return ["-c:v", "libx264", "-profile:v", prof, "-level:v", level, "-preset", "veryfast", "-bf", "0", "-pix_fmt",
             "yuv420p", "-vf", fit(int(s.get("width") or 1280), int(s.get("height") or 720)),
             "-r", str(fps), "-g", str(fps), "-keyint_min", str(fps), "-sc_threshold", "0",
             "-b:v", "%dk" % br, "-bufsize", "%dk" % (br * 4), "-maxrate", "%dk" % br]
