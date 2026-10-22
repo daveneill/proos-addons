@@ -2228,6 +2228,7 @@ body.v3 .rh-card{border-radius:22px}
         <div class="mstep-body">
           <div class="mstep-locked" id="ahstep-pair-locked">Publish to Apple Home first, then pair using the code shown here.</div>
           <div id="ah-pair" style="display:none"></div>
+          <div id="ah-own" style="display:none"></div>
         </div>
       </div>
 
@@ -2876,7 +2877,7 @@ body.v3 .rh-card{border-radius:22px}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102104';
+const PROOS_BUILD='2026102201';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -16918,8 +16919,21 @@ function ahAreaOf(e){ const d=ahDevOf(e); return e.area_id || (d&&d.area_id) || 
 function ahMediaSuppressReason(e){ const m=ahMfr(e); for(const k in AH_MEDIA_SUPPRESS){ if(m.indexOf(k)>=0) return AH_MEDIA_SUPPRESS[k]; } return null; }
 
 // ── find the live bridge (if any) ──
+// 970p: a device that Apple pairs on its own has its own HomeKit entry — never mistake one for the bridge.
+let _ahOwn=[];   // [{entity_id, entry_id, title, ours, state}] from ProOS Core
+async function ahLoadOwn(){
+  try{ const r=await fetch(proCoreUrl()+'/homekit/accessories'); if(!r.ok) return _ahOwn=[]; const j=await r.json(); _ahOwn=(j&&j.items)||[]; }
+  catch(e){ _ahOwn=[]; }
+  return _ahOwn;
+}
 async function ahFindBridge(){
-  try{ const all=await haRest('GET','/api/config/config_entries/entry'); return (all||[]).find(c=>c.domain==='homekit')||null; }
+  try{
+    const all=await haRest('GET','/api/config/config_entries/entry');
+    await ahLoadOwn();
+    const own=new Set(_ahOwn.map(x=>x.entry_id));
+    const hk=(all||[]).filter(c=>c.domain==='homekit' && !own.has(c.entry_id) && String(c.title||'').indexOf('ProOS \u00b7 ')!==0);
+    return hk.find(c=>c.title==='ProOS Apple Home')||hk[0]||null;
+  }
   catch(e){ return null; }
 }
 
@@ -16942,7 +16956,7 @@ async function ahFetchNotifications(){
 function ahParsePairing(notes, entryId){
   for(const n of (notes||[])){
     const id=String((n&&n.notification_id)||''); const title=String((n&&n.title)||''); const msg=String((n&&n.message)||'');
-    if(!((entryId&&id===entryId) || /homekit\s*pairing/i.test(title) || /homekit/i.test(id))) continue;
+    if(entryId ? id!==entryId : !(/homekit\s*pairing/i.test(title) || /homekit/i.test(id))) continue;   // 970p: several entries now — only this one's code
     const code=(msg.match(/(\d{3}-\d{2}-\d{3})/)||[])[1];
     const nm=(msg.match(/set up\s+(.+?)\s+in the Home App/i)||[])[1];
     if(code){ const qr=(msg.match(/\/api\/homekit\/pairingqr[^\s)"'\]]+/)||[])[0]; return {code:code, qr:qr, name:nm||''}; }
@@ -16982,7 +16996,16 @@ async function ahWalk(base, startPayload, answers){
 }
 
 // ── what each entity becomes in Apple Home (mirrors HA homekit get_accessory) ──
-const AH_BRIDGEABLE=['light','switch','lock','cover','climate','fan','media_player','alarm_control_panel'];
+const AH_BRIDGEABLE=['light','switch','lock','cover','climate','fan','media_player','alarm_control_panel','remote'];
+// 970p: the platform's `state_needs_accessory_mode`, mirrored — these never go on the bridge (it silently skips them);
+// each becomes its own Apple Home accessory with its own pairing code. Cameras follow in the next build.
+function ahNeedsOwn(eid){
+  const dom=String(eid).split('.')[0]; const s=ahState(eid); const at=(s&&s.attributes)||{};
+  if(dom==='camera'||dom==='lock') return true;
+  if(dom==='media_player') return ['tv','receiver','projector'].indexOf(at.device_class)>=0;
+  if(dom==='remote') return !!(Number(at.supported_features||0)&4);
+  return false;
+}
 const AH_DEFAULT_ON=new Set(['light','lock','cover','climate','fan','alarm_control_panel']); // conservative first-publish set; switches/media stay off. Security panel is on by default even in a system area.
 // One reserved, non-existent entity id. ProOS Core writes this as the sole
 // include when the installer exposes nothing — an include filter that matches
@@ -17011,8 +17034,10 @@ function ahHomeKitType(eid){
   if(dom==='media_player'){
     if(dc==='receiver') return 'Receiver';
     if(dc==='tv') return 'TV';
+    if(dc==='projector') return 'Projector';
     return 'Speaker';
   }
+  if(dom==='remote') return (f&4) ? 'TV Remote' : null;   // 970p: activity remotes only (others are not Apple accessories)
   return null;
 }
 // every entity ProOS can publish (Apple TVs/HomePods/Ubiquiti media auto-hidden)
@@ -17090,6 +17115,7 @@ async function ahLoadStatus(){
   if(rem) rem.style.display='block'; if(verify) verify.style.display='block';
   await ahRenderPairing();
   await ahLoadInventory();
+  await ahRenderOwn();
 }
 
 // ── step 2 — pairing ──
@@ -17165,6 +17191,10 @@ async function ahLoadInventory(){
   let enabled=new Set();
   if(_ahBridge){ try{ (await ahReadEnabled(_ahBridge.entry_id)).forEach(id=>enabled.add(id)); }catch(e){} }
   enabled.delete(AH_NONE_SENTINEL);                       // the "expose nothing" marker isn't a real device
+  // 970p: a device Apple pairs on its own is ON when it has its own accessory — never because it sits in the
+  // bridge's list (the bridge skips it, so that list said "on" for a TV Apple Home never saw).
+  [...enabled].forEach(id=>{ if(ahNeedsOwn(id)) enabled.delete(id); });
+  await ahLoadOwn(); _ahOwn.forEach(x=>{ if(x.entity_id) enabled.add(x.entity_id); });
   // No pre-selection: every toggle reflects what is ACTUALLY published. An empty
   // bridge shows everything off. Pre-checking types (e.g. Security) only misled
   // — it made the switchboard claim devices were live when nothing was exposed.
@@ -17185,7 +17215,7 @@ async function ahLoadInventory(){
     const on=enabled.has(e.entity_id); const t=ahHomeKitType(e.entity_id)||''; const nm=entName(e.entity_id);
     const search=esc((nm+' '+t+' '+(room||'')).toLowerCase());
     return '<div class="row" data-eid-row="1" data-search="'+search+'"><div class="rl">'+esc(nm)
-      +'<div class="es" style="font-size:11px;color:var(--t3);font-weight:300;margin-top:3px">Appears as '+esc(t)+'</div></div>'
+      +'<div class="es" style="font-size:11px;color:var(--t3);font-weight:300;margin-top:3px">Appears as '+esc(t)+(ahNeedsOwn(e.entity_id)?' · Paired On Its Own':'')+'</div></div>'
       +'<div class="rr"><button type="button" class="sw '+(on?'on':'')+'" role="switch" aria-checked="'+on+'" data-eid="'+esc(e.entity_id)+'" data-area="'+esc(ahAreaOf(e)||'_')+'" onclick="ahToggleOne(this)"><span class="sw-knob"></span></button></div></div>';
   };
   const section=(title, arr, areaKey, warn)=>{
@@ -17232,10 +17262,25 @@ function ahRoomSet(areaKey, on){
 async function ahSaveInventory(){
   if(!_ahBridge || _ahBusy) return;
   const save=document.getElementById('ah-inv-save');
-  const ids=[].slice.call(document.querySelectorAll('#ah-inv-list .sw.on[data-eid]')).map(b=>b.getAttribute('data-eid'));
+  const all=[].slice.call(document.querySelectorAll('#ah-inv-list .sw.on[data-eid]')).map(b=>b.getAttribute('data-eid'));
+  // 970p: TVs, receivers, projectors, locks and activity remotes each get their own accessory (ProOS Core, through
+  // the platform's own setup and Configure steps); everything else stays on the bridge.
+  const own=all.filter(ahNeedsOwn), ids=all.filter(id=>!ahNeedsOwn(id));
   _ahBusy=true; if(save){ save.disabled=true; save.textContent='Updating…'; }
   try{
-    const res=await ahApplyFilter(_ahBridge.entry_id, ids);
+    // Order matters: the bridge's list goes through the platform's Configure steps first (no restart); then Core
+    // makes the own accessories and, LAST, writes their names (and "expose nothing" when the bridge list is empty)
+    // and restarts once — any platform save after a direct write would undo it.
+    let res={type:'create_entry', restarting:false};
+    if(ids.length) res=await ahApplyFilter(_ahBridge.entry_id, ids);
+    if(res && res.restarting){ toast('Apple Home is restarting · press Update Apple Home again afterwards for TVs and locks'); }
+    else {
+      const acc=await ahSetOwn(own, true, ids.length?null:_ahBridge.entry_id);
+      if(acc && acc.supported===false && !ids.length) res=await ahApplyFilter(_ahBridge.entry_id, ids);   // older Core
+      const bad=Object.keys((acc&&acc.errors)||{}).filter(k=>k.indexOf('.')>0);
+      if(bad.length) toast("Couldn't add "+bad.map(entName).join(', ')+' to Apple Home');
+      if(acc && acc.restarting) res=Object.assign({}, res, {restarting:true});
+    }
     if(res && res.restarting){
       _ahRestarting=true; ahStartReconnectPoll();
       toast(ids.length ? ('Publishing '+ids.length+' to Apple Home · the home restarts (about a minute)') : 'Apple Home cleared · the home restarts (about a minute)');
@@ -17245,6 +17290,41 @@ async function ahSaveInventory(){
   }
   catch(e){ toast("Couldn't update Apple Home"); }
   finally{ _ahBusy=false; if(save){ save.disabled=false; save.textContent='Update Apple Home'; } if(!_ahRestarting) await ahLoadInventory(); }
+}
+
+// 970p: ask ProOS Core to make exactly these devices their own accessories (and remove ProOS's others).
+// New ones are named after the device, which needs one restart; Core says when it restarts.
+async function ahSetOwn(ids, mayRestart, bridgeClear){
+  try{
+    const r=await fetch(proCoreUrl()+'/homekit/accessories',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({entities:ids||[], restart:mayRestart!==false, bridge_clear:bridgeClear||undefined})});
+    if(r.status===404) return {supported:false};
+    return await r.json().catch(()=>({}));
+  }catch(e){ return {supported:false, error:String(e)}; }
+}
+// 970p: each own accessory's pairing code, under the bridge's.
+async function ahRenderOwn(){
+  const host=document.getElementById('ah-own'); if(!host) return;
+  const mine=(_ahOwn||[]).filter(x=>x.entity_id);
+  if(!mine.length){ host.style.display='none'; host.innerHTML=''; return; }
+  const notes=await ahFetchNotifications();
+  host.style.display='block';
+  host.innerHTML='<div class="section-label" style="margin-top:18px">Paired On Their Own</div>'
+    +'<div class="wiz-hint" style="margin:0 0 10px">Apple pairs these one at a time. After the bridge, add each in the Home app with its own code.</div>'
+    +mine.map(x=>{
+      const info=ahParsePairing(notes, x.entry_id); const nm=entName(x.entity_id);
+      const qr=info&&info.qr ? (HA.replace(/\/$/,'')+info.qr) : '';
+      return '<div class="row"><div class="rl">'+esc(nm)+'<div class="es" style="font-size:11px;color:var(--t3);font-weight:300;margin-top:3px">'
+        +(info&&info.code ? 'Code <b style="color:var(--t1)">'+esc(info.code)+'</b>' : 'No code in memory — paired, or tap Show Code')+'</div>'
+        +(qr?'<img src="'+esc(qr)+'" alt="Pairing QR code" style="width:120px;height:120px;border-radius:10px;background:#fff;padding:6px;margin-top:8px">':'')
+        +'</div><div class="rr">'+(info&&info.code?'':'<button class="mstep-hbtn" onclick="ahRegenOwn(\''+esc(x.entry_id)+'\',this)">Show Code</button>')+'</div></div>';
+    }).join('');
+}
+async function ahRegenOwn(entryId, btn){
+  if(btn){ btn.disabled=true; btn.textContent='Reading…'; }
+  try{ await haRest('POST','/api/config/config_entries/entry/'+entryId+'/reload', undefined, 60000); }catch(e){}
+  await new Promise(r=>setTimeout(r,2500));
+  await ahRenderOwn();
 }
 
 // Ask ProOS Core to set the exact HomeKit allow-list (writes the bridge filter

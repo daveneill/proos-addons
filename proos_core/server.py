@@ -2912,6 +2912,7 @@ _HA_STORAGE_ENTRIES = _HA_STORAGE_DIR + "/core.config_entries"
 # bridges nothing — whereas an *empty* include list makes HA expose EVERYTHING
 # (HomeKit's "no filter = all bridgeable" trap). Never name a real entity this.
 _HOMEKIT_NONE_SENTINEL = "sensor.proos_homekit_none"
+from proos import homekitacc as _hkacc         # noqa: E402 — 970p, devices Apple pairs on their own
 
 
 def _homekit_wide_open(filt):
@@ -2955,6 +2956,8 @@ def _homekit_brand(name="ProOS", title="ProOS Apple Home", entry_id=None):
             continue
         if entry_id and e.get("entry_id") != entry_id:
             continue
+        if not entry_id and _hkacc.is_accessory_entry(e):
+            continue    # 970p: a device's own accessory is never renamed "ProOS" or clamped to the bridge's filter
         data = e.setdefault("data", {})
         if data.get("name") != name:
             data["name"] = name
@@ -3214,6 +3217,8 @@ def _homekit_expose(entities, entry_id=None):
             continue
         if entry_id and e.get("entry_id") != entry_id:
             continue
+        if not entry_id and _hkacc.is_accessory_entry(e):
+            continue    # 970p: the bridge's allow-list is never written over a device's own accessory
         o = e.setdefault("options", {})
         o.setdefault("mode", "bridge")
         o["devices"] = o.get("devices", [])
@@ -6098,6 +6103,18 @@ class Handler(BaseHTTPRequestHandler):
             if parts == ["unifi", "curation"]:
                 # Exposure model: live cameras merged with the installer's curation.
                 return self._send(200, unifi.curation_view(unifi._get_client(_creds)))
+            if parts == ["homekit", "accessories"]:
+                # 970p: the devices that are their own Apple Home accessory, and which entry each is.
+                from proos import platform_entries as _pe
+                items = [dict(v, entity_id=k) for k, v in _hkacc.accessories(_pe.entries("homekit")).items()]
+                try:
+                    live = {e.get("entry_id"): e.get("state") for e in
+                            (_client._req("GET", "/api/config/config_entries/entry?domain=homekit") or [])}
+                except Exception:                                    # noqa: BLE001
+                    live = {}
+                for it in items:
+                    it["state"] = live.get(it.get("entry_id"))
+                return self._send(200, {"items": items})
             if parts and parts[0] == "logs":
                 # Full log access for the tech tier — core / supervisor / host /
                 # any add-on, via the Supervisor token. Same gate as the terminal.
@@ -9042,6 +9059,48 @@ class Handler(BaseHTTPRequestHandler):
                     threading.Thread(
                         target=lambda: _sv("POST", "/core/restart"), daemon=True
                     ).start()
+                return
+            if parts == ["homekit", "accessories"]:
+                # 970p: make each device Apple pairs on its own (TV, receiver, projector, lock, camera, activity
+                # remote) its own accessory, through the platform's own setup and Configure flows. Body:
+                # {entities:[...], restart?}. The full wanted set: ProOS's own accessories not in it are removed.
+                body = self._body()
+                ents = body.get("entities")
+                if not isinstance(ents, list):
+                    return self._send(400, {"error": "entities must be a list"})
+                from proos import platform_entries as _pe
+
+                def _attrs(eid):
+                    try:
+                        st = _client._req("GET", "/api/states/%s" % eid) or {}
+                    except Exception:                                # noqa: BLE001
+                        return {}
+                    return st.get("attributes") or {}
+                try:
+                    res = _hkacc.reconcile(ents, _pe.entries("homekit"), _client._req, _attrs, time.sleep,
+                                           _HA_STORAGE_ENTRIES)
+                except FileNotFoundError:
+                    return self._send(503, {"error": "config-entries store not visible"})
+                except PermissionError:
+                    return self._send(503, {"error": "config dir is read-only — set "
+                                                     "homeassistant_config:rw and rebuild Core"})
+                except Exception as e:                               # noqa: BLE001
+                    return self._send(500, {"error": str(e)})
+                # "Expose nothing" on the bridge is a direct write too (the Configure steps cannot say it), so it is
+                # made HERE, last, in the same pass as the names: any platform save in between would overwrite it.
+                clear = body.get("bridge_clear")
+                if clear:
+                    try:
+                        if not res["named"]:
+                            time.sleep(3)    # 968w
+                        res["bridge_cleared"] = _homekit_expose([], entry_id=clear)
+                        res["restart"] = True
+                    except Exception as e:                           # noqa: BLE001
+                        res["errors"]["bridge"] = str(e)[:200]
+                do_restart = res["restart"] and body.get("restart", True)
+                self._send(200, dict(res, ok=not res["errors"], restarting=bool(do_restart)))
+                if do_restart:
+                    threading.Thread(target=lambda: _sv("POST", "/core/restart"), daemon=True).start()
                 return
             if parts == ["homekit", "expose"]:
                 # Opt-in allow-list: set exactly which entities the bridge
