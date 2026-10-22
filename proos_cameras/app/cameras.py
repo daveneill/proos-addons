@@ -36,6 +36,7 @@ DATA = os.environ.get("PROOS_DATA", "/data")
 PORT0 = 51900                    # first Apple Home port; one per camera, in order (plumbing)
 EVENT_PULSE = 1.0                # s an event-type motion is held "detected" for Apple (plumbing)
 
+MOTION_KINDS = ["motion", "smart_obj_person", "smart_obj_vehicle", "smart_obj_animal"]   # Protect's registry ids
 RESOLUTIONS = [(320, 180), (320, 240), (480, 270), (480, 360), (640, 360), (640, 480), (1024, 576), (1024, 768),
                (1280, 720), (1280, 960), (1920, 1080), (1600, 1200)]      # the platform's own list (type_cameras)
 
@@ -116,9 +117,24 @@ def plan(wanted, entities: list, devices: list, states: dict) -> list:
                         or ((states.get(xid) or {}).get("attributes") or {}).get("device_class") == cls):
                     return xid
             return None
+        def by_uid(domain, suffixes):
+            """970aa: the device's entities by Protect's own registry id (<MAC>_<kind>), never by name."""
+            found = []
+            for x in same:
+                xid, uid = x.get("entity_id", ""), str(x.get("unique_id") or "")
+                pre, _, kind = uid.partition("_")
+                if xid.startswith(domain) and not x.get("disabled_by") and protect.norm_mac(pre) == mac \
+                        and kind in suffixes:
+                    found.append(xid)
+            return sorted(found, key=lambda i: suffixes.index(str(next(
+                (y.get("unique_id") for y in same if y.get("entity_id") == i), "_")).partition("_")[2]))
+        pkg = by_uid("event.", ["package"])
         out.append({"entity": eid, "mac": mac, "name": d.get("name_by_user") or d.get("name") or eid,
                     "model": d.get("model") or "UniFi Protect", "sw": d.get("sw_version") or "",
-                    "motion": ev("motion"), "doorbell": ev("doorbell")})
+                    "motion": ev("motion"), "doorbell": ev("doorbell"),
+                    # 970aa: Protect's on/off detections — held for as long as Protect says (Front Door, 06:28:
+                    # person detected 25 s while the plain motion event never fired), and the package event
+                    "motion_sensors": by_uid("binary_sensor.", MOTION_KINDS), "package": pkg[0] if pkg else None})
     return out
 
 
@@ -295,7 +311,7 @@ def make_accessory_class():
             if cam.get("sw"):
                 info.configure_char("FirmwareRevision", value=str(cam["sw"])[:64])
             self.char_motion = None
-            if cam.get("motion"):
+            if cam.get("motion") or cam.get("motion_sensors") or cam.get("package"):
                 self.char_motion = self.add_preload_service("MotionSensor").configure_char(
                     "MotionDetected", value=False)
             # 970t: a doorbell — the platform's own doorbell services (homekit/doorbell.py), and a Speaker that is
@@ -345,8 +361,17 @@ def make_accessory_class():
             if not self.char_motion:
                 return
             self.char_motion.set_value(True)
-            threading.Timer(EVENT_PULSE, lambda: self.char_motion.set_value(False)).start()
+            # a pulse never ends motion that Protect still holds on (970aa)
+            threading.Timer(EVENT_PULSE, lambda: None if getattr(self, "held", False)
+                            else self.char_motion.set_value(False)).start()
             log.info("%s: motion → Apple Home", self.cam["name"])
+
+        def motion_state(self, on: bool):
+            """970aa: motion held on while any of Protect's detections is on."""
+            self.held = bool(on)
+            if self.char_motion and bool(self.char_motion.value) != bool(on):
+                self.char_motion.set_value(bool(on))
+                log.info("%s: motion %s → Apple Home", self.cam["name"], "started" if on else "ended")
 
         def get_snapshot(self, image_size):  # noqa: ARG002 — Apple's size is a hint; Protect's own picture is used
             return protect.snapshot(self.cid)
@@ -537,7 +562,7 @@ def main():
     secure = {c for c in (opts.get("secure_video") or []) if isinstance(c, str)}      # 970y: Route 2, per camera
     for cam in cams:
         cam["secure_video"] = cam.get("entity") in secure
-    published, by_motion, by_ring = [], {}, {}
+    published, by_motion, by_ring, by_sensor = [], {}, {}, {}
     for i, cam in enumerate(cams):
         try:
             pcam = protect.camera_for_mac(cam["mac"]) or {}
@@ -552,12 +577,23 @@ def main():
         p = Published(cam, cid, i)
         p.start()
         published.append(p)
-        if cam.get("motion"):
-            by_motion[cam["motion"]] = p
+        for t in [cam.get("motion"), cam.get("package")]:
+            if t:
+                by_motion[t] = p
+        for t in cam.get("motion_sensors") or []:
+            by_sensor[t] = p
+        log.info("%s: motion from %s; ring from %s", cam["name"],
+                 ", ".join([t for t in [cam.get("motion"), cam.get("package")] + list(cam.get("motion_sensors") or [])
+                            if t]) or "nothing", cam.get("doorbell") or "nothing")
         if cam.get("doorbell"):
             by_ring[cam["doorbell"]] = p
 
     def on_change(eid):
+        ps = by_sensor.get(eid)
+        if ps and ps.acc:
+            snap = stream.snapshot(ps.cam["motion_sensors"]) or {}
+            ps.acc.motion_state(any((snap.get(i) or {}).get("state") == "on" for i in ps.cam["motion_sensors"]))
+            return
         p = by_motion.get(eid) or by_ring.get(eid)
         if p and p.acc:
             st = (stream.snapshot([eid]) or {}).get(eid) or {}

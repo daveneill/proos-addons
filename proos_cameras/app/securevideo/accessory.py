@@ -79,6 +79,7 @@ def make_accessory_class():
             if cam.get("sw"):
                 info.configure_char("FirmwareRevision", value=str(cam["sw"])[:64])
             self.talking = {}
+            self.held = False
             loop = driver.loop
             url = lambda q: protect.stream_url(cid, q)      # noqa: E731
             self.timeshift = M.Timeshift(cam["name"], loop, url, quality="medium" if any(
@@ -153,8 +154,18 @@ def make_accessory_class():
         def motion(self):
             loop = self.driver.loop
             loop.call_soon_threadsafe(self.sv.set_motion, True)
-            threading.Timer(EVENT_PULSE, lambda: loop.call_soon_threadsafe(self.sv.set_motion, False)).start()
+            # a pulse never ends motion that Protect still holds on (970aa)
+            threading.Timer(EVENT_PULSE, lambda: None if self.held
+                            else loop.call_soon_threadsafe(self.sv.set_motion, False)).start()
             log.info("%s: motion → Apple Home (Secure Video)", self.cam["name"])
+
+        def motion_state(self, on: bool):
+            """970aa: motion held on while any of Protect's detections is on — the hub records for that long."""
+            if bool(on) == self.held:
+                return
+            self.held = bool(on)
+            self.driver.loop.call_soon_threadsafe(self.sv.set_motion, bool(on))
+            log.info("%s: motion %s → Apple Home (Secure Video)", self.cam["name"], "started" if on else "ended")
 
         async def stop(self):
             self.timeshift.stop()
