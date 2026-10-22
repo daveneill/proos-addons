@@ -27,28 +27,44 @@ AUDIO = {"pt": 110, "bps": 24000, "capture_hz": 24000}                       # A
 AUDIO_TIER = {"identifier": 1, "targetAverageBitrate": 24000, "sampleRate": 4, "bitDepth": 2, "packetTime": 20,
               "channels": 1}                                                  # bits/s; 48 kHz on the wire (Apple's guide)
 EVENT_PULSE = 1.0
+MEASURE_RETRIES = 2          # 970hh: plumbing — how many more tries a silent Protect channel gets at start-up
+MEASURE_GAP_S = 2.0          # 970hh: plumbing — the pause before each retry
 
 
-def measure_channel(src: str, seconds: float = 4.0, run=None) -> dict:
+def measure_channel(src: str, seconds: float = 4.0, run=None, why: list | None = None) -> dict:
     """A Protect channel as it really is: codec, size, frame rate (ffprobe) and bit rate (bytes copied for `seconds`).
-    {} when it cannot be read. Front Door measured this way on the box, 22 Oct (970y)."""
+    {} when it cannot be read, with the reason appended to `why` (970hh). Front Door measured this way on the box,
+    22 Oct (970y)."""
     run = run or subprocess.run
+    why = why if why is not None else []
     try:
         import json
         p = run(["ffprobe", "-v", "error", "-rtsp_transport", "tcp", "-select_streams", "v:0", "-show_entries",
                  "stream=codec_name,width,height,avg_frame_rate", "-of", "json", src],
                 capture_output=True, text=True, timeout=15)
         st = (json.loads(p.stdout or "{}").get("streams") or [{}])[0]
+        if not st.get("width"):
+            why.append("the stream's details did not come back (%s)"
+                       % ((getattr(p, "stderr", "") or "").strip()[-160:] or "exit %s" % getattr(p, "returncode", "?")))
+            return {}
         num, _, den = str(st.get("avg_frame_rate") or "0/1").partition("/")
         fps = float(num) / float(den or 1) if float(den or 1) else 0.0
         c = run(["ffmpeg", "-v", "error", "-rtsp_transport", "tcp", "-i", src, "-map", "0:v:0", "-c", "copy",
                  "-t", str(seconds), "-f", "data", "pipe:1"], capture_output=True, timeout=seconds + 20)
         kbps = len(c.stdout or b"") * 8 / seconds / 1000.0
-        if not st.get("width") or not kbps:
+        if not kbps:
+            err = getattr(c, "stderr", b"") or b""
+            err = err.decode(errors="replace") if isinstance(err, bytes) else str(err)
+            why.append("no video arrived in %g s (%s)" % (seconds, err.strip()[-160:] or "exit %s"
+                                                             % getattr(c, "returncode", "?")))
             return {}
         return {"codec": str(st.get("codec_name") or "").lower(), "width": int(st["width"]), "height": int(st["height"]),
                 "fps": round(fps, 2), "kbps": round(kbps)}
-    except Exception:  # noqa: BLE001
+    except subprocess.TimeoutExpired as e:
+        why.append("no answer within %d s" % int(e.timeout))
+        return {}
+    except Exception as e:  # noqa: BLE001
+        why.append("%s: %s" % (type(e).__name__, e))
         return {}
 
 
@@ -201,25 +217,44 @@ def audio_rate(src: str, run=None) -> int:
         return 0
 
 
-def channels_for(protect, cid: str, name: str) -> list:
-    """Measure the camera's Protect channels in parallel (high, medium, low), largest first; [] if none read."""
+def channels_for(protect, cid: str, name: str, retries: int = MEASURE_RETRIES, gap_s: float = MEASURE_GAP_S,
+                 measure=None) -> list:
+    """Measure the camera's Protect channels in parallel (high, medium, low), largest first; [] if none read.
+    970hh: a channel that does not answer is logged with its reason and measured again (one at a time, after a short
+    gap) before the camera goes live — Backyard went live twice without its high channel and nothing said why."""
+    measure = measure or measure_channel
     out = {}
 
     def one(q):
+        why = []
         try:
-            m = measure_channel(protect.stream_url(cid, q))
+            m = measure(protect.stream_url(cid, q), why=why)
         except Exception as e:  # noqa: BLE001
-            log.warning("%s: %s channel not read: %s", name, q, e)
-            return
+            m, why = {}, ["%s: %s" % (type(e).__name__, e)]
         if m:
             m["quality"] = q
             out[q] = m
-    ts = [threading.Thread(target=one, args=(q,)) for q in ("high", "medium", "low")]
+        return why
     t0 = time.time()
+    reasons = {}
+    ts = [threading.Thread(target=lambda q=q: reasons.__setitem__(q, one(q))) for q in ("high", "medium", "low")]
     for t in ts:
         t.start()
     for t in ts:
         t.join()
+    for attempt in range(1, retries + 1):
+        missing = [q for q in ("high", "medium", "low") if q not in out]
+        if not missing:
+            break
+        for q in missing:
+            log.warning("%s: %s channel not read — %s — trying again (%d of %d)", name, q,
+                        "; ".join(reasons.get(q) or ["no reason given"]), attempt, retries)
+            time.sleep(gap_s)
+            reasons[q] = one(q)
+    for q in ("high", "medium", "low"):
+        if q not in out:
+            log.warning("%s: %s channel could not be read — %s — going live without it", name, q,
+                        "; ".join(reasons.get(q) or ["no reason given"]))
     chans = [out[q] for q in ("high", "medium", "low") if q in out]
     for c in chans:
         log.info("%s: %s channel %s %dx%d at %s fps, %d kbit/s", name, c["quality"], c["codec"], c["width"],
