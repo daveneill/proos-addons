@@ -39,6 +39,55 @@ EVENT_PULSE = 1.0                # s an event-type motion is held "detected" for
 RESOLUTIONS = [(320, 180), (320, 240), (480, 270), (480, 360), (640, 360), (640, 480), (1024, 576), (1024, 768),
                (1280, 720), (1280, 960), (1920, 1080), (1600, 1200)]      # the platform's own list (type_cameras)
 
+# 970x: the Homebridge UniFi Protect plugin's tables (homebridge-unifi-protect 8.1.0, media/resolution.js)
+RESOLUTIONS_4X3 = [(3840, 2880), (2560, 1920), (1920, 1440), (1280, 960), (1024, 768), (640, 480), (480, 360), (320, 240)]
+RESOLUTIONS_16X9 = [(3840, 2160), (2560, 1440), (1920, 1080), (1280, 720), (640, 360), (480, 270), (320, 180)]
+MAX_CONVERTED_PIXELS = 1920 * 1440   # ProOS's own cap for a converted picture (970x) — the plugin mostly copies
+
+
+def is_4x3(w: int, h: int) -> bool:
+    """As the plugin: a portrait camera (taller than wide) counts as its landscape family. One stated difference: within
+    2 % of 4:3 counts (the plugin wants it exact) — Front Door's main stream is 3024 x 4096 (0.738, not 0.75), which
+    the exact test files as wide and caps the iPhone at 1080 high instead of 1440."""
+    return abs(max(w, h) * 3 - min(w, h) * 4) <= 0.02 * min(w, h) * 4
+
+
+def advertised(native: dict | None, converted: bool) -> list:
+    """The sizes offered to the iPhone, as [w, h, fps].
+    Copied cameras (H.264, or unread) keep the platform's list at 30 fps, as before. A converted camera gets the
+    plugin's list: its own size, then its aspect table — every size under its longest side plus the 1920 / 1280
+    widths Apple requires — at the camera's own frame rate (15 / 24 / 30, as the plugin normalises); then ProOS's cap
+    drops any size above 1920 x 1440 so the box is never asked to convert 4K live."""
+    if not converted or not native or not native.get("width") or not native.get("height"):
+        return [[w, h, 30] for w, h in RESOLUTIONS]
+    nw, nh = int(native["width"]), int(native["height"])
+    f = float(native.get("fps") or 15)
+    fps = 30 if f > 24 else 24 if f > 15 else 15
+    out = [[nw, nh, fps]]
+    top = max(nw, nh)
+    for w, h in (RESOLUTIONS_4X3 if is_4x3(nw, nh) else RESOLUTIONS_16X9):
+        if (max(w, h) < top or w in (1920, 1280)) and [w, h, fps] not in out:
+            out.append([w, h, fps])
+            top = max(top, max(w, h))
+    return [r for r in out if r[0] * r[1] <= MAX_CONVERTED_PIXELS]
+
+
+def probe_stream(src: str, run=None) -> dict:
+    """What Protect actually streams — codec, width, height, frame rate — read once with ffprobe ({} when unread)."""
+    import subprocess
+    run = run or subprocess.run
+    try:
+        r = run(["ffprobe", "-v", "error", "-rtsp_transport", "tcp", "-select_streams", "v:0",
+                 "-show_entries", "stream=codec_name,width,height,avg_frame_rate", "-of", "json", src],
+                capture_output=True, text=True, timeout=12)
+        st = (json.loads(r.stdout or "{}").get("streams") or [{}])[0]
+        num, _, den = str(st.get("avg_frame_rate") or "0/1").partition("/")
+        fps = float(num) / float(den or 1) if float(den or 1) else 0.0
+        return {"codec": str(st.get("codec_name") or "").lower(), "width": int(st.get("width") or 0),
+                "height": int(st.get("height") or 0), "fps": round(fps, 2)}
+    except Exception:  # noqa: BLE001
+        return {}
+
 
 # ── what the platform says about each camera ─────────────────────────────────────────────────────────────────────
 def plan(wanted, entities: list, devices: list, states: dict) -> list:
@@ -227,11 +276,13 @@ def make_accessory_class():
     from pyhap.camera import VIDEO_CODEC_PARAM_LEVEL_TYPES as LV, VIDEO_CODEC_PARAM_PROFILE_ID_TYPES as PF
 
     class ProOSCamera(PyhapCamera):
-        def __init__(self, cam: dict, cid: str, driver, address: str):
+        def __init__(self, cam: dict, cid: str, driver, address: str, native: dict | None = None):
+            native = native or {}
+            converted = native.get("codec", "") not in ("h264", "")
             opts = {
                 "video": {"codec": {"profiles": [PF["BASELINE"], PF["MAIN"], PF["HIGH"]],      # the platform's own
                                     "levels": [LV["TYPE3_1"], LV["TYPE3_2"], LV["TYPE4_0"]]},
-                          "resolutions": [[w, h, 30] for w, h in RESOLUTIONS]},
+                          "resolutions": advertised(native, converted)},      # 970x
                 "audio": {"codecs": [{"type": "OPUS", "samplerate": 24}, {"type": "OPUS", "samplerate": 16}]},
                 "srtp": True, "address": address, "stream_count": 2,
             }
@@ -251,7 +302,7 @@ def make_accessory_class():
             # real here: the iPhone's voice reaches the door (talk.Relay → Protect's talk session).
             self.char_ring = self.char_ring_switch = None
             self.talking = {}
-            self.codec = {}
+            self.codec = {cid: native["codec"]} if native.get("codec") else {}   # read at start-up (970x)
             if cam.get("doorbell") or cam.get("speaker"):
                 from pyhap.const import CATEGORY_VIDEO_DOOR_BELL
                 self.category = CATEGORY_VIDEO_DOOR_BELL
@@ -397,7 +448,20 @@ class Published:
         code = code_for(self.cam["mac"])
         self.driver = AccessoryDriver(port=PORT0 + self.index, persist_file=os.path.join(
             DATA, "%s.state" % self.cam["mac"]), pincode=code.encode(), loop=self.loop)
-        self.acc = make_accessory_class()(self.cam, self.cid, self.driver, self.driver.state.address)
+        native = {}
+        try:      # 970x: read once what Protect streams, so the sizes offered to the iPhone are this camera's own
+            native = probe_stream(protect.stream_url(self.cid, "high"))
+        except Exception as e:  # noqa: BLE001
+            log.warning("%s: stream not read at start-up (%s) — the platform's sizes offered", self.cam["name"], e)
+        if not native.get("codec"):
+            log.warning("%s: stream not read at start-up — the platform's sizes offered", self.cam["name"])
+        else:
+            log.info("%s: Protect streams %s %sx%s at %s fps — %s", self.cam["name"], native["codec"],
+                     native.get("width"), native.get("height"), native.get("fps"),
+                     "passed through" if native["codec"] == "h264" else "made H.264 for Apple Home")
+        self.acc = make_accessory_class()(self.cam, self.cid, self.driver, self.driver.state.address, native)
+        log.info("%s: sizes offered to the iPhone: %s", self.cam["name"],
+                 ", ".join("%dx%d@%d" % tuple(r) for r in advertised(native, native.get("codec", "") not in ("h264", ""))))
         self.driver.add_accessory(self.acc)
         log.info("%s published on port %d (%s)", self.cam["name"], PORT0 + self.index,
                  "paired" if self.driver.state.paired else "waiting to be paired")
