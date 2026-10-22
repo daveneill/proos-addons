@@ -89,7 +89,6 @@ def make_accessory_class():
             self.timeshift = M.Timeshift(cam["name"], loop, url, quality=rq, piece_s=4.0 if hevc else M.PIECE_S,
                                          hevc_tag=hevc)
             self.recorder = M.Recorder(cam["name"], self.timeshift, passthrough=hevc)
-            can_talk = bool(cam.get("doorbell") or cam.get("speaker"))
             self.live = M.LiveView(cam["name"], loop, url, channels, AUDIO, relay_factory=self._relay)
             top = max(channels, key=lambda c: c["width"] * c["height"])
             options = {
@@ -97,7 +96,11 @@ def make_accessory_class():
                            "width": top["width"], "height": top["height"]},
                 "video": {"codec": 2 if top.get("codec") == "hevc" else 1, "payload_type": 99,
                           "tiers": M.tiers_from(channels)},
-                "audio": {"payload_type": AUDIO["pt"], "tier": AUDIO_TIER, "two_way": can_talk},
+                # 970gg: the Speaker service on every camera, as the camera.ui HomeKit plugin does (twoWayAudio: true
+                # whatever the camera) — Backyard (no speaker) paired but the Home app said "No Response" and never
+                # asked it for a picture; the Speaker service was the one structural difference from Front Door.
+                # Voice still only reaches a camera that can play it (can_talk, in _relay).
+                "audio": {"payload_type": AUDIO["pt"], "tier": AUDIO_TIER, "two_way": True},
                 "recording": recording_options(sizes, audio_hz),
                 "event_triggers": R.DOORBELL if cam.get("doorbell") else 0,
             }
