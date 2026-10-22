@@ -1,5 +1,5 @@
 name: ProOS Cameras
-version: "0.2.3"
+version: "0.2.4"
 slug: proos_cameras
 description: >-
   Puts this home's UniFi Protect cameras into Apple Home as their own accessories, published by ProOS — live view,

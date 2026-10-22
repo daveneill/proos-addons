@@ -176,9 +176,17 @@ def video_args(codec: str, s: dict) -> list:
     # a key frame every second (with its headers), so the iPhone has a picture within a second of the first frame
     # rather than at x264's default ~8 s — longer than Apple waits (970t: measured 9.4 s before, on a 6 s-GOP source)
     return ["-c:v", "libx264", "-profile:v", prof, "-preset", "veryfast", "-tune", "zerolatency", "-pix_fmt",
-            "yuv420p", "-vf", "scale=%d:%d" % (int(s.get("width") or 1280), int(s.get("height") or 720)),
+            "yuv420p", "-vf", fit(int(s.get("width") or 1280), int(s.get("height") or 720)),
             "-r", str(fps), "-g", str(fps), "-keyint_min", str(fps), "-sc_threshold", "0",
             "-b:v", "%dk" % br, "-bufsize", "%dk" % (br * 4), "-maxrate", "%dk" % br]
+
+
+def fit(w: int, h: int) -> str:
+    """The camera's picture inside the size the iPhone asked for, its true shape kept (black bars, never squashed)
+    and square pixels. 970t: Front Door's 3024 x 4096 portrait stream squashed to 1280 x 720 came out marked with 3:4
+    pixels (SAR 3:4) — read by ffmpeg in the cloud; a passed-through camera's pixels are square."""
+    return ("scale=%d:%d:force_original_aspect_ratio=decrease,pad=%d:%d:(ow-iw)/2:(oh-ih)/2,setsar=1"
+            % (w, h, w, h))
 
 
 def ffmpeg_live(src: str, s: dict, audio_port: int | None, codec: str = "h264") -> list:
