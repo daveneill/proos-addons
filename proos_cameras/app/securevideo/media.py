@@ -56,14 +56,14 @@ def live_command(src: str, req: dict, sess: dict, relay_port: int | None, audio:
     """One tier, passed through: video copied as SRTP to the Home app; sound as Opus to the relay."""
     cmd = ["ffmpeg", "-hide_banner", "-nostats", "-loglevel", "warning", "-rtsp_transport", "tcp", "-i", src,
            "-map", "0:v:0", "-an", "-c:v", "copy", "-bsf:v", "dump_extra=freq=keyframe",
-           "-payload_type", str(sess["video_pt"]), "-ssrc", str(req["videoSSRC"]), "-f", "rtp",
+           "-payload_type", str(sess["video_pt"]), "-ssrc", str(sess["vssrc"]), "-f", "rtp",
            "-srtp_out_suite", "AES_CM_128_HMAC_SHA1_80", "-srtp_out_params", srtp_key(sess["video"]),
            "srtp://%s:%d?rtcpport=%d&localrtpport=%d&pkt_size=1316"
            % (sess["target"], sess["cvp"], sess["cvp"], sess["cvp"])]
-    if relay_port and audio and req.get("audioSSRC") is not None:
+    if relay_port and audio:
         cmd += ["-map", "0:a:0?", "-vn", "-c:a", "libopus", "-application", "lowdelay", "-ac", "1",
                 "-ar", "%d" % audio["capture_hz"], "-b:a", "%d" % audio["bps"], "-frame_duration", "20",
-                "-payload_type", str(audio["pt"]), "-ssrc", str(req["audioSSRC"]), "-f", "rtp",
+                "-payload_type", str(audio["pt"]), "-ssrc", str(sess["assrc"]), "-f", "rtp",
                 "rtp://127.0.0.1:%d?pkt_size=188" % relay_port]
     return cmd
 
@@ -87,8 +87,13 @@ class LiveView:
         log.info("%s: live view prepared for %s (video %d, sound %d)", self.name, sess["target"], sess["cvp"], sess["cap"])
         # our ports = the Home app's own numbers, as the classic camera answers (HAP-python), so return audio and
         # RTCP arrive where the relay and ffmpeg listen; SRTP keys echoed (we send with the keys we were given)
-        return {"videoPort": sess["cvp"], "audioPort": sess["cap"], "videoSSRC": random.getrandbits(32),
-                "audioSSRC": random.getrandbits(32), "video": req["video"], "audio": req["audio"]}
+        # 970z: the stream ids announced HERE are the ones sent with. The author of the tested code (camera.ui
+        # HomeKit plugin, multiTierRtpDelegate.ts): "iOS filters the incoming stream by the ssrc from the Setup
+        # Endpoints response" — not the one in the START request, which HAP-NodeJS's own comment says to use; 0.3.0
+        # used START's, and the iPhone threw the picture away (Front Door, 05:53).
+        sess["vssrc"], sess["assrc"] = random.getrandbits(32) or 1, random.getrandbits(32) or 1
+        return {"videoPort": sess["cvp"], "audioPort": sess["cap"], "videoSSRC": sess["vssrc"],
+                "audioSSRC": sess["assrc"], "video": req["video"], "audio": req["audio"]}
 
     def start_stream(self, req: dict):
         sess = self.sessions.get(req["sessionIdentifier"])
