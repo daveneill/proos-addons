@@ -5,7 +5,8 @@ Ported from HAP-NodeJS (PR #1132 branch) src/lib/camera/RecordingManagement.ts (
     as the three Supported…RecordingConfiguration TLVs, encoded exactly as HAP-NodeJS's tlv.encode does;
   - the hub's choice (SelectedCameraRecordingConfiguration) parsed and handed to the delegate;
   - recording on/off (Active), camera on/off and snapshot switches (Camera Operating Mode);
-  - dataSend/open "ipcamera.recording" → one recording stream at a time: our open answer, then the delegate's
+  - dataSend/open "ipcamera.recording" → one recording stream per hub (970ee — HAP-NodeJS allows one per camera;
+    Dave's home had two Apple TVs ask within 0.2 s and the second was turned away): our open answer, then the delegate's
     fMP4 (first the init segment, then fragments), sent in 256 KB chunks with sequence numbers; ended by the hub's
     ack / close, the data stream closing, or a 12 s safety close after the last fragment.
   - state kept across restarts, the chosen configuration only while what we offer is unchanged (same hash).
@@ -157,7 +158,7 @@ class RecordingManagement:
         self.event_triggers = event_triggers
         self.on_state_change = on_state_change or (lambda: None)
         self.sensor_services = list(sensor_services or [])
-        self.stream = None
+        self.streams = {}             # data-stream connection → its recording stream (970ee: one per hub)
         self.selected = None          # (parsed, base64)
         self.recording_active = False
 
@@ -221,8 +222,9 @@ class RecordingManagement:
         for s in self.sensor_services:
             if H.has(s, "StatusActive"):
                 H.char(s, "StatusActive").set_value(bool(value))
-        if not value and self.stream:
-            self.stream.close(D.R_NOT_ALLOWED)
+        if not value:
+            for st in list(self.streams.values()):
+                st.close(D.R_NOT_ALLOWED)
         self.on_state_change()
 
     def camera_active(self) -> bool:
@@ -243,19 +245,28 @@ class RecordingManagement:
         if not self.camera_active():
             log.info("recording: refused — camera is off in the Home app")
             return self._reject(conn, rid, D.R_NOT_ALLOWED)
-        if self.stream:
-            log.info("recording: refused — another recording is running (stream %s)", self.stream.stream_id)
+        if conn in self.streams:        # one per data stream: a stream owns the connection's dataSend handler
+            log.info("recording: refused — this hub already has recording %s running", self.streams[conn].stream_id)
             return self._reject(conn, rid, D.R_BUSY)
         if not self.selected:
             log.info("recording: refused — the hub has not chosen a recording configuration")
             return self._reject(conn, rid, D.R_INVALID_CONFIGURATION)
-        log.info("recording: hub opened stream %s (reason %s)", message.get("streamId"), message.get("reason"))
-        self.stream = RecordingStream(conn, self.delegate, rid, message.get("streamId"), self._stream_closed)
-        self.stream.start()
+        others = [st.stream_id for st in self.streams.values()]
+        log.info("recording: hub %s opened stream %s (reason %s)%s", getattr(conn, "remote", None) and conn.remote[0],
+                 message.get("streamId"), message.get("reason"),
+                 " — alongside another hub's recording %s" % others if others else "")
+        st = RecordingStream(conn, self.delegate, rid, message.get("streamId"), self._stream_closed)
+        self.streams[conn] = st
+        st.start()
+
+    @property
+    def stream(self):
+        """Any running recording (None when idle)."""
+        return next(iter(self.streams.values()), None)
 
     def _stream_closed(self, stream):
-        if self.stream is stream:
-            self.stream = None
+        if self.streams.get(stream.conn) is stream:
+            del self.streams[stream.conn]
 
     # persistence
     def config_hash(self) -> str:
@@ -321,8 +332,8 @@ class RecordingManagement:
 
     def destroy(self):
         self.server.off("dataSend", "request", "open", self._on_open)
-        if self.stream:
-            self.stream.close(D.R_CANCELLED)
+        for st in list(self.streams.values()):
+            st.close(D.R_CANCELLED)
 
 
 class RecordingStream:

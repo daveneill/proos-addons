@@ -173,6 +173,19 @@ def decode_payload(payload: bytes):
 UNIDENTIFIED, EXPECTING_HELLO, READY, CLOSING, CLOSED = range(5)
 
 
+def _brief(v, depth=0):
+    """A message as a short readable line: byte strings become their size (970ee)."""
+    if isinstance(v, (bytes, bytearray, memoryview)):
+        return "<%d bytes>" % len(v)
+    if depth > 4:
+        return "…"
+    if isinstance(v, dict):
+        return "{" + ", ".join("%s: %s" % (k, _brief(x, depth + 1)) for k, x in v.items()) + "}"
+    if isinstance(v, (list, tuple)):
+        return "[" + ", ".join(_brief(x, depth + 1) for x in v) + "]"
+    return repr(v)[:80]
+
+
 class Connection(asyncio.Protocol):
     def __init__(self, server: "Server"):
         self.server = server
@@ -272,6 +285,10 @@ class Connection(asyncio.Protocol):
             self._dispatch(m)
 
     def _dispatch(self, m):
+        if m.get("protocol") != "control":       # 970ee: every message a hub sends, into the log (bytes as sizes)
+            log.info("HDS [%s] <- %s %s/%s %s", self.remote and self.remote[0],
+                     {RESPONSE: "response", EVENT: "event", REQUEST: "request"}.get(m["type"], m["type"]),
+                     m.get("protocol"), m.get("topic"), _brief(m.get("message")))
         if m["type"] == RESPONSE:
             cb_timer = self.responses.pop(m["id"], None)
             if not cb_timer:
