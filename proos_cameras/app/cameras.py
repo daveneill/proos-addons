@@ -300,8 +300,15 @@ def make_accessory_class():
                 log.info("%s: Protect streams %s — %s", self.cam["name"], self.codec[self.cid] or "an unread codec",
                          "passed through" if self.codec[self.cid] in ("h264", "") else "made H.264 for Apple Home")
             cmd = ffmpeg_live(src, stream_config, port, self.codec[self.cid])
+            # 970t: what the iPhone asked for — read, so a picture that never shows can be explained from the log
+            log.info("%s: the iPhone asked for %sx%s at %s fps, profile %s, level %s, up to %s kbit/s, video type %s, "
+                     "packets up to %s bytes", self.cam["name"], stream_config.get("width"), stream_config.get("height"),
+                     stream_config.get("fps"), stream_config.get("v_profile_id"), stream_config.get("v_level"),
+                     stream_config.get("v_max_bitrate"), stream_config.get("v_payload_type"),
+                     stream_config.get("v_max_mtu"))
+            cmd = cmd[:1] + ["-progress", "pipe:1", "-stats_period", "3"] + cmd[1:]
             proc = await asyncio.create_subprocess_exec(*cmd, stdin=asyncio.subprocess.DEVNULL,
-                                                        stdout=asyncio.subprocess.DEVNULL,
+                                                        stdout=asyncio.subprocess.PIPE,
                                                         stderr=asyncio.subprocess.PIPE)
             session_info["process"], session_info["proxy"] = proc, proxy
 
@@ -312,6 +319,21 @@ def make_accessory_class():
                         break
                     log.warning("%s: ffmpeg: %s", name, line.decode(errors="replace").rstrip()[:300])
             session_info["errlog"] = asyncio.ensure_future(_errors(proc.stderr))
+
+            async def _progress(stream, name=self.cam["name"]):     # frames actually sent, every 3 s
+                frame = None
+                while True:
+                    line = await stream.readline()
+                    if not line:
+                        break
+                    k, _, v = line.decode(errors="replace").strip().partition("=")
+                    if k == "frame":
+                        frame = v
+                    elif k == "progress" and frame is not None:
+                        log.info("%s: video frames sent so far: %s", name, frame)
+                rc = await proc.wait()
+                log.info("%s: ffmpeg ended (exit %s)", name, rc)
+            session_info["progress"] = asyncio.ensure_future(_progress(proc.stdout))
             log.info("%s: live view started for %s", self.cam["name"], stream_config["address"])
             return True
 
