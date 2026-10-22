@@ -149,9 +149,10 @@ class LiveView:
 class Timeshift:
     """A copy of the camera kept as ~1 s fMP4 pieces in memory (the plugin's timeshift buffer)."""
 
-    def __init__(self, name: str, loop, channel_url, quality: str = "medium", keep_s: float = 10.0):
+    def __init__(self, name: str, loop, channel_url, quality: str = "medium", keep_s: float = 10.0,
+                 piece_s: float = PIECE_S, hevc_tag: bool = False):
         self.name, self.loop, self.channel_url, self.quality = name, loop, channel_url, quality
-        self.keep_s = keep_s
+        self.keep_s, self.piece_s, self.hevc_tag = keep_s, piece_s, hevc_tag
         self.init = None
         self.ring = collections.deque()          # (monotonic seconds, bytes, starts_with_key_frame)
         self.listeners = []
@@ -162,7 +163,8 @@ class Timeshift:
     def command(self, src: str) -> list:
         return ["ffmpeg", "-hide_banner", "-nostats", "-loglevel", "warning", "-fflags", "+discardcorrupt",
                 "-err_detect", "ignore_err", "-max_delay", "500000", "-avioflags", "direct", "-rtsp_transport", "tcp",
-                "-i", src, "-map", "0:v:0", "-codec:v", "copy", "-frag_duration", str(int(PIECE_S * 1000000)),
+                "-i", src, "-map", "0:v:0", "-codec:v", "copy"] + (["-tag:v", "hvc1"] if self.hevc_tag else []) + [
+                "-frag_duration", str(int(self.piece_s * 1000000)),
                 "-movflags", "default_base_moof+empty_moov+frag_keyframe+skip_sidx+skip_trailer",
                 "-flush_packets", "1", "-reset_timestamps", "1", "-map", "0:a:0?", "-codec:a", "copy",
                 "-f", "mp4", "pipe:1"]
@@ -260,8 +262,11 @@ def record_command(cfg: dict, seek_s: float, name: str, video_filters=None) -> l
 class Recorder:
     """The recording delegate (recording.RecordingManagement calls it)."""
 
-    def __init__(self, name: str, timeshift: Timeshift, pacing: float = HKSV_PACING):
-        self.name, self.ts, self.pacing = name, timeshift, pacing
+    def __init__(self, name: str, timeshift: Timeshift, pacing: float = HKSV_PACING, passthrough: bool = False):
+        """passthrough (970cc, Secure Video): the camera's own HEVC pieces go to the hub unconverted — decode times
+        re-based per clip and a prft wall clock before each (the camera.ui HomeKit plugin's way, the implementation
+        HAP-NodeJS PR #1132's author runs: "tvOS 27 hubs ... crash homed when [prft] is missing"); no pacing."""
+        self.name, self.ts, self.pacing, self.passthrough = name, timeshift, pacing, passthrough
         self.cfg = None
         self.active = False
 
@@ -288,6 +293,10 @@ class Recorder:
         log.info("%s: recording %s acknowledged by the hub", self.name, stream_id)
 
     async def stream(self, stream_id, stop: asyncio.Event):
+        if self.passthrough:
+            async for item in self._passthrough(stream_id, stop):
+                yield item
+            return
         if not self.cfg or self.ts.init is None:
             raise RuntimeError("no recording buffer yet")
         prebuffer = self.cfg["prebuffer_ms"] / 1000.0
@@ -377,3 +386,55 @@ class Recorder:
                 except ProcessLookupError:
                     pass
             log.info("%s: recording %s ended — %d pieces sent", self.name, stream_id, sent)
+
+
+    async def _passthrough(self, stream_id, stop: asyncio.Event):
+        """970cc: init, then the buffered pieces from a key frame at or before the pre-buffer, then live pieces as they
+        arrive — each re-based and with its prft wall clock — until the hub closes or nothing comes for STALL_S."""
+        if not self.cfg or self.ts.init is None:
+            raise RuntimeError("no recording buffer yet")
+        prebuffer = self.cfg["prebuffer_ms"] / 1000.0
+        start = self.ts.aligned_start(prebuffer)
+        if start is None:
+            raise RuntimeError("no key frame in the recording buffer")
+        index = start[0]
+        ring = list(self.ts.ring)
+        offsets, sent, t0 = {}, 0, time.monotonic()
+        wall0 = time.time() - time.monotonic()            # monotonic arrival → wall clock
+        live = asyncio.Queue()
+        listener = lambda b: live.put_nowait((time.monotonic(), b))      # noqa: E731
+        self.ts.listeners.append(listener)
+        prev = [ring[index - 1][0] if index > 0 else ring[index][0] - self.ts.piece_s]
+
+        def prep(arrived, piece):
+            started = prev[0]
+            prev[0] = arrived
+            return fmp4.prepend_prft(fmp4.rebase_tfdt(piece, offsets), (wall0 + started) * 1000.0)
+        log.info("%s: recording %s — passed through: %d s held, from %.1f s before the event", self.name, stream_id,
+                 int(self.ts.held_seconds()), prebuffer)
+        try:
+            yield self.ts.init, False
+            sent += 1
+            log.info("%s: recording %s — init (%d bytes) handed to the hub", self.name, stream_id, len(self.ts.init))
+            for (t, b, _k) in ring[index:]:
+                if stop.is_set():
+                    return
+                yield prep(t, b), False
+                sent += 1
+            log.info("%s: recording %s — %d buffered pieces handed to the hub in %.1f s", self.name, stream_id,
+                     sent - 1, time.monotonic() - t0)
+            while not stop.is_set():
+                try:
+                    t, b = await asyncio.wait_for(live.get(), STALL_S)
+                except asyncio.TimeoutError:
+                    raise RuntimeError("nothing sent for %d s" % STALL_S)
+                yield prep(t, b), False
+                sent += 1
+                if sent % 10 == 0:
+                    log.info("%s: recording %s — piece %d handed to the hub at %.1f s", self.name, stream_id, sent,
+                             time.monotonic() - t0)
+        finally:
+            if listener in self.ts.listeners:
+                self.ts.listeners.remove(listener)
+            log.info("%s: recording %s ended — %d pieces sent in %.1f s", self.name, stream_id, sent,
+                     time.monotonic() - t0)

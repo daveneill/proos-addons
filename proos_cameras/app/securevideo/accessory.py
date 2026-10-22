@@ -82,9 +82,13 @@ def make_accessory_class():
             self.held = False
             loop = driver.loop
             url = lambda q: protect.stream_url(cid, q)      # noqa: E731
-            self.timeshift = M.Timeshift(cam["name"], loop, url, quality="medium" if any(
-                c["quality"] == "medium" for c in channels) else channels[0]["quality"])
-            self.recorder = M.Recorder(cam["name"], self.timeshift)
+            rq = "medium" if any(c["quality"] == "medium" for c in channels) else channels[0]["quality"]
+            hevc = next((c for c in channels if c["quality"] == rq), channels[0]).get("codec") == "hevc"
+            # 970cc: an HEVC camera's recordings are its own HEVC passed through in ~4 s pieces (the hub's fragment
+            # length) as hvc1, with re-based times and a prft clock each — the camera.ui HomeKit plugin's way
+            self.timeshift = M.Timeshift(cam["name"], loop, url, quality=rq, piece_s=4.0 if hevc else M.PIECE_S,
+                                         hevc_tag=hevc)
+            self.recorder = M.Recorder(cam["name"], self.timeshift, passthrough=hevc)
             can_talk = bool(cam.get("doorbell") or cam.get("speaker"))
             self.live = M.LiveView(cam["name"], loop, url, channels, AUDIO, relay_factory=self._relay)
             top = max(channels, key=lambda c: c["width"] * c["height"])

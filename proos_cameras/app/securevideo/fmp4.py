@@ -107,3 +107,75 @@ def starts_with_key_frame(moof: bytes) -> bool:
                     return False
             return False
     return False
+
+
+# ---------- Secure Video recording pieces (970cc) ----------
+# Ported from the camera.ui HomeKit plugin (utils/fmp4.ts — the implementation HAP-NodeJS PR #1132's author runs):
+# a clip's pieces have their decode times re-based to start at zero per track, and each carries a 'prft' box (the
+# wall clock it was recorded at) before its moof — the author: "tvOS 27 hubs read the fragment wall clock from prft
+# and crash homed when it is missing".
+
+NTP_EPOCH_OFFSET = 2208988800
+
+
+def _children(buf, start, end):
+    i = start
+    while i + 8 <= end:
+        size, kind = struct.unpack(">I4s", buf[i:i + 8])
+        if size < 8 or i + size > end:
+            return
+        yield kind, i, i + 8, i + size
+        i += size
+
+
+def rebase_tfdt(piece: bytes, offsets: dict) -> bytes:
+    """Each track's decode time made relative to the first one seen in this clip (offsets: track id → first)."""
+    out = bytearray(piece)
+    for kind, _s, c, e in _children(out, 0, len(out)):
+        if kind != b"moof":
+            continue
+        for k2, _s2, c2, e2 in _children(out, c, e):
+            if k2 != b"traf":
+                continue
+            track, tfdt = None, None
+            for k3, s3, c3, _e3 in _children(out, c2, e2):
+                if k3 == b"tfhd":
+                    track = struct.unpack(">I", out[c3 + 4:c3 + 8])[0]
+                elif k3 == b"tfdt":
+                    tfdt = s3
+            if track is None or tfdt is None:
+                continue
+            version = out[tfdt + 8]
+            pos = tfdt + 12
+            cur = struct.unpack(">Q", out[pos:pos + 8])[0] if version == 1 else struct.unpack(">I", out[pos:pos + 4])[0]
+            first = offsets.setdefault(track, cur)
+            new = max(0, cur - first)
+            if version == 1:
+                out[pos:pos + 8] = struct.pack(">Q", new)
+            else:
+                out[pos:pos + 4] = struct.pack(">I", new & 0xFFFFFFFF)
+    return bytes(out)
+
+
+def prepend_prft(piece: bytes, started_at_ms: float) -> bytes:
+    """A 'prft' box (version 1: NTP wall clock + the first track's decode time) before the piece's moof."""
+    track, media_time = None, None
+    for kind, _s, c, e in _children(piece, 0, len(piece)):
+        if kind != b"moof" or track is not None:
+            continue
+        for k2, _s2, c2, e2 in _children(piece, c, e):
+            if k2 != b"traf" or track is not None:
+                continue
+            for k3, s3, c3, _e3 in _children(piece, c2, e2):
+                if k3 == b"tfhd":
+                    track = struct.unpack(">I", piece[c3 + 4:c3 + 8])[0]
+                elif k3 == b"tfdt":
+                    version = piece[s3 + 8]
+                    media_time = (struct.unpack(">Q", piece[s3 + 12:s3 + 20])[0] if version == 1
+                                  else struct.unpack(">I", piece[s3 + 12:s3 + 16])[0])
+    if track is None or media_time is None:
+        return piece
+    ms = max(0, int(round(started_at_ms)))
+    ntp = ((ms // 1000 + NTP_EPOCH_OFFSET) << 32) | (((ms % 1000) << 32) // 1000)
+    prft = struct.pack(">I4sB3xIQQ", 32, b"prft", 1, track, ntp, media_time)
+    return prft + piece
