@@ -21,11 +21,13 @@ import logging
 import os
 import random
 import signal
+import socket
 import threading
 import time
 import urllib.request
 
 import protect
+import talk
 
 log = logging.getLogger("proos_cameras")
 
@@ -187,6 +189,46 @@ def make_accessory_class():
             if cam.get("motion"):
                 self.char_motion = self.add_preload_service("MotionSensor").configure_char(
                     "MotionDetected", value=False)
+            # 970t: a doorbell — the platform's own doorbell services (homekit/doorbell.py), and a Speaker that is
+            # real here: the iPhone's voice reaches the door (talk.Relay → Protect's talk session).
+            self.char_ring = self.char_ring_switch = None
+            self.talking = {}
+            if cam.get("doorbell") or cam.get("speaker"):
+                from pyhap.const import CATEGORY_VIDEO_DOOR_BELL
+                self.category = CATEGORY_VIDEO_DOOR_BELL
+                if cam.get("doorbell"):
+                    serv = self.add_preload_service("Doorbell")
+                    self.set_primary_service(serv)
+                    self.char_ring = serv.configure_char("ProgrammableSwitchEvent", value=0)
+                    self.char_ring_switch = self.add_preload_service("StatelessProgrammableSwitch").configure_char(
+                        "ProgrammableSwitchEvent", value=0, valid_values={"SinglePress": 0})
+                self.add_preload_service("Speaker").configure_char("Mute", value=0)
+
+        # the doorbell's ring — from the platform's own ring event for this camera
+        def ring(self):
+            if self.char_ring:
+                self.char_ring.set_value(0)
+                self.char_ring_switch.set_value(0)
+                log.info("%s: ring → Apple Home", self.cam["name"])
+
+        def _open_talk(self, sid):
+            """Called by the relay on the iPhone's first word: Protect's talk session, then ffmpeg to the door."""
+            import subprocess
+            import tempfile
+            sess = protect.talkback(self.cid)
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.bind(("127.0.0.1", 0))
+            port = s.getsockname()[1]
+            s.close()
+            fd, sdp = tempfile.mkstemp(suffix=".sdp")
+            with os.fdopen(fd, "w") as fh:
+                fh.write(talk.talk_sdp(port))
+            proc = subprocess.Popen(talk.ffmpeg_talk(sdp, sess), stdin=subprocess.DEVNULL,
+                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            self.talking[sid] = (proc, sdp)
+            log.info("%s: talking — the iPhone's voice to the door (%s, %s Hz)", self.cam["name"],
+                     sess.get("codec"), sess.get("samplingRate"))
+            return port
 
         # motion — from the platform's own motion event for this camera
         def motion(self):
@@ -194,22 +236,24 @@ def make_accessory_class():
                 return
             self.char_motion.set_value(True)
             threading.Timer(EVENT_PULSE, lambda: self.char_motion.set_value(False)).start()
+            log.info("%s: motion → Apple Home", self.cam["name"])
 
         def get_snapshot(self, image_size):  # noqa: ARG002 — Apple's size is a hint; Protect's own picture is used
             return protect.snapshot(self.cid)
 
         async def start_stream(self, session_info, stream_config):
-            from homekit_audio_proxy import AudioProxy
             try:
                 src = protect.stream_url(self.cid, "high")
             except Exception as e:  # noqa: BLE001
                 log.error("%s: no stream from Protect: %s", self.cam["name"], e)
                 return False
-            proxy = AudioProxy(dest_addr=stream_config["address"], dest_port=stream_config["a_port"],
-                               srtp_key_b64=stream_config["a_srtp_key"],
-                               target_clock_rate=int(stream_config.get("a_sample_rate") or 16) * 1000)
-            await proxy.async_start()
-            port = proxy.local_port or None
+            sid = session_info.get("id")
+            can_talk = bool(self.char_ring or self.cam.get("speaker"))
+            proxy = talk.Relay(stream_config["address"], stream_config["a_port"], stream_config["a_srtp_key"],
+                               int(stream_config.get("a_sample_rate") or 16),
+                               on_voice=(lambda: self._open_talk(sid)) if can_talk else None)
+            proxy.start()
+            port = proxy.local_port
             cmd = ffmpeg_live(src, stream_config, port)
             proc = await asyncio.create_subprocess_exec(*cmd, stdin=asyncio.subprocess.DEVNULL,
                                                         stdout=asyncio.subprocess.DEVNULL,
@@ -227,8 +271,16 @@ def make_accessory_class():
                 except asyncio.TimeoutError:
                     proc.kill()
             if proxy:
-                await proxy.async_stop()
-            log.info("%s: live view stopped", self.cam["name"])
+                proxy.stop()
+                log.info("%s: live view stopped (sound out %d packets, voice to the door %d)", self.cam["name"],
+                         proxy.packets_out, proxy.packets_back)
+            t = self.talking.pop(session_info.get("id"), None)
+            if t:
+                t[0].terminate()
+                try:
+                    os.unlink(t[1])
+                except OSError:
+                    pass
 
         async def reconfigure_stream(self, session_info, stream_config):
             return True
@@ -282,13 +334,15 @@ def main():
         time.sleep(0.5)
     states = {s["entity_id"]: s for s in stream.all_states()} if stream.healthy() else {}
     cams = plan(wanted, ents, devs, states)
-    published, by_motion = [], {}
+    published, by_motion, by_ring = [], {}, {}
     for i, cam in enumerate(cams):
         try:
-            cid = protect.camera_id_for_mac(cam["mac"])
+            pcam = protect.camera_for_mac(cam["mac"]) or {}
         except Exception as e:  # noqa: BLE001
             log.error("%s: Protect not reachable: %s", cam["name"], e)
             continue
+        cid = pcam.get("id")
+        cam["speaker"] = bool((pcam.get("featureFlags") or {}).get("hasSpeaker"))   # Protect's own word
         if not cid:
             log.error("%s: Protect does not list a camera with MAC %s", cam["name"], cam["mac"])
             continue
@@ -297,13 +351,15 @@ def main():
         published.append(p)
         if cam.get("motion"):
             by_motion[cam["motion"]] = p
+        if cam.get("doorbell"):
+            by_ring[cam["doorbell"]] = p
 
     def on_change(eid):
-        p = by_motion.get(eid)
+        p = by_motion.get(eid) or by_ring.get(eid)
         if p and p.acc:
             st = (stream.snapshot([eid]) or {}).get(eid) or {}
             if st.get("state") not in ("unavailable", "unknown", None):
-                p.acc.motion()
+                (p.acc.ring if eid in by_ring else p.acc.motion)()
     stream.on_change = on_change
     stop = threading.Event()
     signal.signal(signal.SIGTERM, lambda *_: stop.set())

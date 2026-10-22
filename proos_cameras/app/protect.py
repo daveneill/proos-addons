@@ -82,12 +82,18 @@ def cameras(store: str = STORE) -> list:
     return req("GET", "/v1/cameras", store=store) or []
 
 
-def camera_id_for_mac(mac: str, store: str = STORE) -> str | None:
+def camera_for_mac(mac: str, store: str = STORE) -> dict | None:
+    """Protect's own record of the camera with this MAC (id, name, featureFlags …), or None."""
     want = norm_mac(mac)
     for c in cameras(store):
         if norm_mac(c.get("mac")) == want:
-            return c.get("id")
+            return c
     return None
+
+
+def camera_id_for_mac(mac: str, store: str = STORE) -> str | None:
+    c = camera_for_mac(mac, store)
+    return c.get("id") if c else None
 
 
 def snapshot(cid: str, store: str = STORE) -> bytes:
