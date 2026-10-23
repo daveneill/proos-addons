@@ -4639,7 +4639,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102120';
+const PROOS_BUILD='2026102301';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -18762,6 +18762,18 @@ function mdLite(s){
   h=h.replace(/\n/g, '<br>');
   return h;
 }
+// 970mm: the web pages an answer drew on, as links under it (the provider's rule: web results show their sources,
+// visible and clickable). Core sends {url, title}; only http(s) addresses are linked, every word escaped.
+function assistSourcesHtml(list){
+  const ok=(list||[]).filter(s=>s && /^https?:\/\//.test(String(s.url||''))).slice(0,5);
+  if(!ok.length) return '';
+  return '<div class="assist-sources" style="margin-top:8px;font-size:11px;color:var(--t3,#888)">Sources: '
+    +ok.map(s=>'<a href="'+esc(s.url)+'" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:underline">'+esc(s.title||s.url)+'</a>').join(' · ')+'</div>';
+}
+function assistAddSources(div, list){
+  const h=assistSourcesHtml(list); if(!h || !div) return;
+  const b=div.querySelector('.assist-bubble')||div; b.insertAdjacentHTML('beforeend', h);
+}
 function addMsg(role, html, opts={}) {
   const h = document.getElementById('assist-history');
   const div = document.createElement('div');
@@ -19581,7 +19593,7 @@ async function submitAssist() {
       }
       if(resp.ok && d && d.reply){
         clearInterval(_slowNudge); thinking.remove();
-        addMsg('assistant', d.reply); window._assistLast=d.reply;
+        assistAddSources(addMsg('assistant', d.reply), d.sources); window._assistLast=d.reply;
         _assistReplied(d.reply, _spoken, d.speak_lead, d.speak_suppress);
         // AND THE HOME MAY HAVE MOVED (19 Aug 2026, register 243). This
         // branch refreshed NOTHING: a scene created through the gateway

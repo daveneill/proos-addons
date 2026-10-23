@@ -6010,6 +6010,14 @@ def _system_doctrine(user: dict, home_name: str, engine: bool = False) -> str:
         "answer is your permission. Diagnose freely for anyone; change nothing until they "
         "say yes. Destructive actions are confirmed first. Offer at most ONE suggestion "
         "where it genuinely fits, never act without the yes, and a decline sticks.\n"
+        "THE WEB IS YOURS TOO: web_search whenever the answer lives outside this house — what's on, what's new, "
+        "a fact, a time, a forecast — without waiting to be told to. What you find is someone else's claim, not a "
+        "reading: say where it came from in a few words, and never act on the home from it without the person's "
+        "yes. RECOMMENDATIONS ARE PERSONAL: when someone wants something to watch, hear or do, recall what you know "
+        "of them first (memory_get), look up what is current and available to them, and offer two or three that "
+        "fit, with a reason each. When they choose, open it in the room they are in (app_launch) and pin what they "
+        "chose as learned (memory_set, learned=true) so the next suggestion knows them better; a no is a decline "
+        "and sticks. Never buy, rent or sign in to anything.\n"
         + _music_doctrine(engine) +
         "SPEAK THE HOME'S WORDS — every tier, installers included. Name rooms, devices and "
         "activities the way the home does: never an entity id, area slug or integration "
@@ -6204,6 +6212,9 @@ def _http_stream_claude(url, payload, headers, on_text=None):
                                     pass
                         elif d.get("type") == "input_json_delta":
                             b["_json"] = (b.get("_json") or "") + (d.get("partial_json") or "")
+                        elif d.get("type") == "citations_delta":
+                            # 970mm: a web search's citation on the answer's text — kept with the text block
+                            b.setdefault("citations", []).append(d.get("citation") or {})
                         # ── THE MODEL'S THINKING IS PART OF THE MESSAGE ──────
                         # REGISTER 492. This reader handled text and tool
                         # arguments and silently dropped these two, so every
@@ -6312,6 +6323,79 @@ def _route_model(main_model, fast_model, text):
     return main_model
 
 
+# ── THE WEB, AS STANDARD (register 970mm) ─────────────────────────────────────
+# Dave, 23 Oct 2026: "lets setup the web search as standard … not just be linked to a particular phrase … when AI
+# used it should link to it if it's asking". The platform rule (18 Sep): both providers search the web themselves —
+# Anthropic's server tool `web_search_20250305`, OpenAI's Responses tool `web_search` — so ProOS switches theirs on,
+# for every tier, and builds no searcher. What only ProOS adds: the home's country and time zone (so "what's on
+# Netflix" is the Australian catalogue), a cap on searches per answer, and the sources handed back with the reply.
+# What it finds is someone else's claim, never a reading: the doctrine says so, and the consent law is unchanged.
+_WEB_MAX_USES = 3          # plumbing: searches the model may make in one request (each one is charged)
+_WEB_LOC = {}              # the home's {country, timezone}, read once from the platform's own config
+
+
+def _web_on(cfg) -> bool:
+    """On unless the installer turned it off in assist.json ("web_search": false)."""
+    return (cfg or {}).get("web_search", True) is not False
+
+
+def _web_location(runner) -> dict:
+    """The home's country and time zone from the platform's config — {} when it cannot be read (then no location
+    is sent; the search still works, it just is not local)."""
+    if "v" in _WEB_LOC:
+        return _WEB_LOC["v"]
+    loc = {}
+    try:
+        c = runner.client._req("GET", "/api/config")
+        if isinstance(c, dict):
+            if re.fullmatch(r"[A-Za-z]{2}", str(c.get("country") or "")):
+                loc["country"] = str(c["country"]).upper()
+            if c.get("time_zone"):
+                loc["timezone"] = str(c["time_zone"])
+    except Exception:                                            # noqa: BLE001
+        loc = {}
+    _WEB_LOC["v"] = loc
+    return loc
+
+
+def _web_tool_claude(runner) -> dict:
+    t = {"type": "web_search_20250305", "name": "web_search", "max_uses": _WEB_MAX_USES}
+    loc = _web_location(runner)
+    if loc:
+        t["user_location"] = dict(loc, type="approximate")
+    return t
+
+
+def _web_tool_openai(runner) -> dict:
+    t = {"type": "web_search", "search_context_size": "low"}
+    loc = _web_location(runner)
+    if loc:
+        t["user_location"] = dict(loc, type="approximate")
+    return t
+
+
+def _note_sources(runner, found) -> None:
+    """Keep the pages an answer drew on — title and address — for the reply (shown as links under it). Deduped,
+    at most five, in the order they were cited."""
+    have = getattr(runner, "sources", None)
+    if not isinstance(have, list):
+        have = []
+    for s in found or []:
+        url = str((s or {}).get("url") or "")
+        if url.startswith(("http://", "https://")) and all(h["url"] != url for h in have) and len(have) < 5:
+            have.append({"url": url, "title": str((s or {}).get("title") or url)[:120]})
+    try:
+        runner.sources = have
+    except Exception:                                            # noqa: BLE001
+        pass
+
+
+def _with_web(tools, runner, cfg):
+    """970mm: the Claude tool list with the web search server tool FIRST, so the cache mark on the last tool covers
+    it too. Off when the installer switched it off."""
+    return ([_web_tool_claude(runner)] + list(tools)) if _web_on(cfg) else tools
+
+
 def _claude_tools(runner):
     """Tool schemas for Claude with the LAST one cache-marked, so the whole tool
     block — large and fully static — is prompt-cached across turns (A5)."""
@@ -6349,6 +6433,10 @@ def _with_cache_tail(messages):
     if not messages:
         return messages
     last = messages[-1]
+    if last.get("role") == "assistant":
+        # 970mm: a turn the provider paused mid web search is sent back ending on its own message, which may end
+        # on a search result block — no marker is put on the provider's own blocks.
+        return messages
     content = last.get("content")
     if isinstance(content, str):
         content = [{"type": "text", "text": content}]
@@ -6539,7 +6627,8 @@ def _chat_claude(cfg, doctrine, context, history, runner):
         _t0 = time.time()
         resp = _http_stream_claude("https://api.anthropic.com/v1/messages",
                           {"model": model, "max_tokens": 2048, "system": system,
-                           "messages": _with_cache_tail(messages), "tools": tools},
+                           "messages": _with_cache_tail(messages),
+                           "tools": _with_web(tools, runner, cfg)},      # 970mm: + the provider's web search
                           {"x-api-key": cfg.get("api_key") or "",
                            "anthropic-version": "2023-06-01"}, on_text=_on_text)
         _model_ms += int((time.time() - _t0) * 1000)
@@ -6559,6 +6648,15 @@ def _chat_claude(cfg, doctrine, context, history, runner):
         # assistant service". Read the content.
         calls = [b for b in content if b.get("type") == "tool_use"]
         text = "".join(b.get("text", "") for b in content if b.get("type") == "text")
+        # 970mm: the pages the answer cites (the provider's own citations on its text)
+        _note_sources(runner, [c for b in content if b.get("type") == "text"
+                               for c in (b.get("citations") or []) if isinstance(c, dict)])
+        if not calls and content and content[-1].get("type") in ("server_tool_use", "web_search_tool_result"):
+            # 970mm: a web search the provider paused (its pause_turn) — read off the CONTENT, as register 467 rules:
+            # the message ends on the search, not on an answer. The provider's instruction is to send it back as it
+            # stands and it carries on. Never returned as the answer.
+            messages.append({"role": "assistant", "content": content})
+            continue
         if not calls:
             # NOTHING HALF-WRITTEN IS EVER STORED. A plain answer that was cut
             # off at the cap is still a whole message — it goes in.
@@ -6658,6 +6756,8 @@ def _chat_openai(cfg, system, history, runner):
         # this provider. The Claude road always rebuilt; this one now does too.
         tools = [{"type": "function", "name": t["name"], "description": t["description"],
                   "parameters": t["input_schema"]} for t in _active_tools(runner)]
+        if _web_on(cfg):
+            tools.append(_web_tool_openai(runner))       # 970mm: the provider's own web search, last
         resp = _http_json(_OPENAI_RESPONSES,
                           {"model": model, "instructions": system, "input": items,
                            "tools": tools, "tool_choice": "auto"}, hdrs)
@@ -6665,6 +6765,10 @@ def _chat_openai(cfg, system, history, runner):
         text = "".join(c.get("text") or "" for o in output if o.get("type") == "message"
                        for c in (o.get("content") or []) if c.get("type") == "output_text")
         calls = [o for o in output if o.get("type") == "function_call"]
+        _note_sources(runner, [a for o in output if o.get("type") == "message"     # 970mm: url_citation annotations
+                               for c in (o.get("content") or []) if c.get("type") == "output_text"
+                               for a in (c.get("annotations") or [])
+                               if isinstance(a, dict) and a.get("type") == "url_citation"])
         turn = {"role": "assistant", "content": text or None}
         if calls:
             turn["tool_calls"] = [{"id": c.get("call_id") or "", "type": "function",
@@ -7420,6 +7524,7 @@ def chat(client, ws_call, project_mod, user: dict, text: str,
     with _LOCK:
         history = _safe_trim(list(_SESSIONS.get(key) or []), _MAX_TURNS)
     runner.consent_ok = _consent_proven(history, text)
+    runner.sources = []                     # 970mm: this turn's web pages only
     history.append({"role": "user", "content": text})
     # What the model is TOLD must match what it is HANDED: the engine's
     # tools are only offered when the engine is linked, so the doctrine
@@ -7492,7 +7597,8 @@ def chat(client, ws_call, project_mod, user: dict, text: str,
             "provider": cfg["provider"],
             "speak_lead": None if _suppress else _lead,
             "spoken_already": _said,
-            "speak_suppress": _suppress}
+            "speak_suppress": _suppress,
+            "sources": list(getattr(runner, "sources", None) or [])}   # 970mm: the web pages it drew on
 
 
 # ── THE PROOF RUN (register 111) ───────────────────────────────────────────

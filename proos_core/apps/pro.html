@@ -2878,7 +2878,7 @@ body.v3 .rh-card{border-radius:22px}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102303';
+const PROOS_BUILD='2026102304';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -17968,6 +17968,18 @@ async function _assistWatch(first, thinking, stages){
     return null;                 // unknown: expired, or Core restarted under it
   }
 }
+// 970mm: the web pages an answer drew on, as links under it (the provider's rule: web results show their sources,
+// visible and clickable). Core sends {url, title}; only http(s) addresses are linked, every word escaped.
+function assistSourcesHtml(list){
+  const ok=(list||[]).filter(s=>s && /^https?:\/\//.test(String(s.url||''))).slice(0,5);
+  if(!ok.length) return '';
+  return '<div class="assist-sources" style="margin-top:8px;font-size:11px;color:var(--t3,#888)">Sources: '
+    +ok.map(s=>'<a href="'+esc(s.url)+'" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:underline">'+esc(s.title||s.url)+'</a>').join(' · ')+'</div>';
+}
+function assistAddSources(div, list){
+  const h=assistSourcesHtml(list); if(!h || !div) return;
+  const b=div.querySelector('.assist-bubble')||div; b.insertAdjacentHTML('beforeend', h);
+}
 async function submitAssist(){
   // Talks to the ProOS Core Assist GATEWAY (:8770/assist/chat) — the tool
   // registry, fast local intents and provider adapters all live in Core.
@@ -18025,6 +18037,7 @@ async function submitAssist(){
     if(!data){ addMsg('assistant','I lost sight of that one — it may still be running on the home. Check before asking again.'); return; }
     if(data.error){ addMsg('assistant', data.error); return; }
     const div=addMsg('assistant', data.reply || 'Done.', {md:true});
+    assistAddSources(div, data.sources);                       // 970mm: the web pages it drew on
     // evidence footer: exactly what the assistant read/did this turn.
     // (16 Aug 2026 — Dave: "how do I know it's checking?") Core now traces
     // EVERY tool call — reads included — and stamps the turn into the
