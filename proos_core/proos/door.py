@@ -44,7 +44,7 @@ import time
 
 # Bumped ONLY when the integration's own code below changes — a Core
 # update that leaves the door alone must not ask for a restart.
-DOOR_BUILD = "4"
+DOOR_BUILD = "5"
 DOMAIN = "proos"
 # REGISTER 928 (door build 3): conversation.py — "ProOS Assist", the platform's
 # own way of plugging an assistant into its voice pipeline, so a room's own
@@ -327,7 +327,12 @@ class ProOSAssist(conversation.ConversationEntity):
             # not configured …"}), Core's own words for it. Never silence.
             resp.async_set_speech(res.get("reply") or res.get("error") or NOT_ANSWERING)
         if asks and isinstance(res, dict) and (res.get("spoke") or {}).get("sent"):
-            await asyncio.sleep(min(SAY_MAX_S, SAY_START_S + SAY_WORD_S * len(reply.split())))
+            # Door build 5 (register 970ww): Core measures the question's own audio and says how long it takes
+            # (spoke.say_s); the words-per-second estimate is kept only for when it could not.
+            say = (res.get("spoke") or {}).get("say_s")
+            if not isinstance(say, (int, float)) or isinstance(say, bool) or say <= 0:
+                say = SAY_START_S + SAY_WORD_S * len(reply.split())
+            await asyncio.sleep(min(SAY_MAX_S, say))
         return conversation.ConversationResult(
             response=resp, conversation_id=user_input.conversation_id,
             continue_conversation=asks)

@@ -16,11 +16,18 @@ voice_assistant.cpp, read: RUN_END with no TTS start → IDLE) opens its mic aga
 and with Room Speakers it was handed nothing to play. The platform's own mechanism for "say something, then listen"
 is assist_satellite.start_conversation (read 24 Oct: Office Voice reports it, supported_features 3; called by hand
 with a short message, the board went responding → listening in 2.1 s). So, after a question spoken through the room
-speaker, ProOS WATCHES the speaker (physical state, not an estimate) until it stops playing, waits for the mic to
-finish its own turn, and — only if the mic is idle (a mic that reopened by itself, like the G-Flip panel's, is left
-alone) — starts a conversation on it with a moment of silence, so nothing is said twice.
+speaker, the door holds the mic's turn for as long as the question takes to say, and when that turn ends ProOS — only
+if the mic is idle (a mic that reopened by itself, like the G-Flip panel's, is left alone) — starts a conversation on
+it with a moment of silence, so nothing is said twice.
 
-TIMINGS below are plumbing: how long to wait for things that report their own state.
+HOW LONG THE QUESTION TAKES (970ww, Dave 09:40: "i tend to answer quicker than when it turns mic on"). 1.0.1090
+watched the room speaker for it; read on the box, the Office speaker never reports an announcement ("speaker_played":
+false, both turns) — and with music on it reports "playing" throughout, so that watch would have waited out the music.
+The door's fallback, 1.5 s + 0.4 s a word, held "Do you mean music, or something to watch?" for 4.7 s. Now: ProOS
+made the question's audio, so it MEASURES it — the same file the speaker was given (the platform's own cache, same
+engine, voice, language and words) — and the hold is the speaker starting up plus that length.
+
+TIMINGS below are plumbing.
 """
 from __future__ import annotations
 
@@ -34,11 +41,11 @@ REPLIES = ("room", "device")
 SILENCE_NAME = "proos_silence.wav"
 SILENCE_URL = "/local/" + SILENCE_NAME
 
-SPK_START_S = 4.0       # the room speaker beginning to play the question
-SPK_MAX_S = 40.0        # a question never plays longer than this
+SPEAKER_START_S = 1.0   # a room speaker fetching and starting an announcement (not reported by the speaker; plumbing)
+SAY_CAP_S = 15.0        # never hold a mic's turn longer than this (the door's own ceiling, register 936)
 SAT_BUSY_MAX_S = 25.0   # the mic finishing its own turn (the door holds the turn while the question plays)
-POLL_S = 0.3
-SETTLE_S = 0.6          # after the mic goes idle, a moment for one that reopens by itself to do so
+POLL_S = 0.2
+SETTLE_S = 0.2          # after the mic goes idle, a moment for one that reopens by itself to do so
 
 _BUSY = ("processing", "responding")
 
@@ -117,34 +124,75 @@ def ensure_silence(www_dir: str) -> bool:
     return True
 
 
-def reopen(state_of, start_conversation, speaker: str, mic: str, sleep=time.sleep, now=time.monotonic) -> dict:
-    """After a question played through `speaker`, open `mic` again. Returns what was seen and done.
+def audio_seconds(ctype: str, data: bytes) -> float | None:
+    """The length of a spoken file, read from the file itself: WAV (header), FLAC (STREAMINFO), MP3 (every frame
+    header counted). None when it cannot be read — then nothing is claimed."""
+    try:
+        if data[:4] == b"RIFF":
+            w = wave.open(io.BytesIO(data))
+            return w.getnframes() / float(w.getframerate())
+        if data[:4] == b"fLaC":
+            si = data[8:8 + 34]
+            rate = (si[10] << 12) | (si[11] << 4) | (si[12] >> 4)
+            total = ((si[13] & 0x0F) << 32) | (si[14] << 24) | (si[15] << 16) | (si[16] << 8) | si[17]
+            return total / float(rate) if rate and total else None
+        return _mp3_seconds(data)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+_MP3_BR = {  # kbps, by (version is MPEG-1, layer III) index
+    True: [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 0],
+    False: [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160, 0]}
+_MP3_SR = {3: [44100, 48000, 32000], 2: [22050, 24000, 16000], 0: [11025, 12000, 8000]}
+
+
+def _mp3_seconds(data: bytes) -> float | None:
+    i = 0
+    if data[:3] == b"ID3" and len(data) > 10:
+        i = 10 + ((data[6] & 0x7F) << 21 | (data[7] & 0x7F) << 14 | (data[8] & 0x7F) << 7 | (data[9] & 0x7F))
+    secs, frames, n = 0.0, 0, len(data)
+    while i + 4 <= n:
+        b1, b2, b3 = data[i + 1], data[i + 2], data[i + 3]
+        if data[i] != 0xFF or (b1 & 0xE0) != 0xE0:
+            i += 1
+            continue
+        ver, layer = (b1 >> 3) & 3, (b1 >> 1) & 3
+        bri, sri, pad = b2 >> 4, (b2 >> 2) & 3, (b2 >> 1) & 1
+        if ver == 1 or layer != 1 or sri == 3 or bri in (0, 15):
+            i += 1
+            continue
+        mpeg1 = ver == 3
+        br, sr = _MP3_BR[mpeg1][bri] * 1000, _MP3_SR[ver][sri]
+        spf = 1152 if mpeg1 else 576
+        size = int((spf // 8) * br / sr) + pad
+        if size < 4:
+            i += 1
+            continue
+        secs += spf / float(sr)
+        frames += 1
+        i += size
+    return secs if frames else None
+
+
+def hold_seconds(audio_s) -> float | None:
+    """How long the door holds the mic's turn after a question: the speaker starting, then the question itself."""
+    if not isinstance(audio_s, (int, float)) or audio_s <= 0:
+        return None
+    return round(min(SAY_CAP_S, SPEAKER_START_S + float(audio_s)), 2)
+
+
+def reopen(state_of, start_conversation, mic: str, sleep=time.sleep, now=time.monotonic) -> dict:
+    """When the mic's turn ends (the door held it while the question played), open it again if it is idle.
     state_of(entity) -> state string; start_conversation(mic) asks the platform to listen again."""
-    out = {"speaker": speaker, "mic": mic}
+    out = {"mic": mic}
     t0 = now()
-    # 1 · the speaker starts playing the question …
-    played = False
-    while now() - t0 < SPK_START_S:
-        if state_of(speaker) == "playing":
-            played = True
-            break
-        sleep(POLL_S)
-    out["speaker_played"] = played
-    # 2 · … and stops
-    if played:
-        t1 = now()
-        while state_of(speaker) == "playing":
-            if now() - t1 > SPK_MAX_S:
-                out["speaker_still_playing"] = True
-                break
-            sleep(POLL_S)
-    # 3 · the mic finishes its own turn
-    t2 = now()
     while state_of(mic) in _BUSY:
-        if now() - t2 > SAT_BUSY_MAX_S:
+        if now() - t0 > SAT_BUSY_MAX_S:
             out["done"] = "mic still busy"
             return out
         sleep(POLL_S)
+    out["turn_s"] = round(now() - t0, 2)
     sleep(SETTLE_S)
     st = state_of(mic)
     out["mic_state"] = st

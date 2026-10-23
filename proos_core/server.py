@@ -868,7 +868,7 @@ def _assist_speak(where, reply):
     return out
 
 
-def _mic_reopen(speaker, mic, where):
+def _mic_reopen(speaker, mic, where, spoke=None):
     """A question went out through the room speaker: open the room mic again once the speaker has finished
     (register 970vv; proos/roommic.py says why and how). Runs on its own thread; journals what it saw."""
     from proos import roommic as _rmic
@@ -887,7 +887,11 @@ def _mic_reopen(speaker, mic, where):
         _client.call_service("assist_satellite", "start_conversation", m,
                              {"start_media_id": _rmic.SILENCE_URL, "preannounce": False})
 
-    res = _rmic.reopen(_state, _start, speaker, mic)
+    res = _rmic.reopen(_state, _start, mic)
+    res["speaker"] = speaker
+    for _k in ("say_s", "audio_s"):
+        if (spoke or {}).get(_k) is not None:
+            res[_k] = spoke[_k]
     if _journal_mod is not None:
         try:
             _journal_mod.emit((where or {}).get("area_id") or "site", "mic_reopen", res)
@@ -10128,8 +10132,19 @@ class Handler(BaseHTTPRequestHandler):
                         _res["spoke"] = _assist_speak(where, _res.get("reply"))
                         _sp = _res["spoke"] or {}
                         if _mic and _sp.get("sent") and _rmic.asks(_res.get("reply")):
-                            threading.Thread(target=_mic_reopen, args=(_sp.get("via"), _mic, where),
-                                             daemon=True).start()
+                            # 970ww: the question's real length, measured from the audio the speaker was given
+                            # (the platform's cache — same engine, voice, language, words); the door holds the
+                            # mic's turn that long instead of its words-per-second estimate.
+                            try:
+                                _ct, _au, _ = _glass_voice_audio(_res.get("reply"))
+                                _secs = _rmic.audio_seconds(_ct, _au)
+                                if _rmic.hold_seconds(_secs):
+                                    _sp["say_s"] = _rmic.hold_seconds(_secs)
+                                    _sp["audio_s"] = round(_secs, 2)
+                            except Exception:                    # noqa: BLE001 — the door's estimate stands
+                                pass
+                            threading.Thread(target=_mic_reopen, args=(_sp.get("via"), _mic, where,
+                                                                       dict(_sp)), daemon=True).start()
                     # THE PANEL'S SCREEN SHOWS WHAT IT HEARD AND WHAT WAS SAID (register 932, panel build 3).
                     # A turn from a room's own microphone arrives through ProOS Assist with session
                     # "panel-<the satellite's device id>" (928). Every open dashboard is told, over the live
