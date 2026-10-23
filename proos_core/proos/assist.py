@@ -973,6 +973,39 @@ TOOLS = [
          "app": {"type": "string"},
          "device": {"type": "string", "description": "entity_id of the device to run it on (from app_launch's devices)"}},
          "required": ["area_id", "app", "device"]}},
+    # 970oo: "find me something to watch" — what a room can play, starting a show, learning what works (watchplay.py)
+    {"name": "watch_options",
+     "description": "What a room can PLAY before you suggest anything to watch: each app set up in the room, the "
+                    "device it runs on, and how far it goes — 'direct' (straight to the show, playing), 'app' (opens the "
+                    "app, they pick the show) or 'untested' (it will try straight to the show, then you ask whether it "
+                    "played). Only suggest titles on services the room can play, and say how far it will go. Give `app` "
+                    "to ask about one service: if it isn't set up you get the devices that say they have it (offer to "
+                    "set it up with app_shortcut_create).",
+     "input_schema": {"type": "object", "properties": {
+         "area_id": {"type": "string"},
+         "app": {"type": "string", "description": "optional: one service, e.g. 'Netflix'"}},
+         "required": ["area_id"]}},
+    {"name": "watch_play",
+     "description": "Start what they chose, in the room they are in, after they said yes. Give the title's own web page "
+                    "for that service (find it with web_search — for Netflix the netflix.com/title/<number> page) as "
+                    "`link`; without one the app just opens. Say `say`. When `ask_after` is true, ask them in a few "
+                    "words whether it started playing, then call watch_result with their answer.",
+     "input_schema": {"type": "object", "properties": {
+         "area_id": {"type": "string"},
+         "app": {"type": "string", "description": "the service, e.g. 'Netflix'"},
+         "title": {"type": "string", "description": "the show or film, for what you say"},
+         "link": {"type": "string", "description": "the title's web page on that service"},
+         "device": {"type": "string", "description": "entity_id, when the room has the app on more than one device"}},
+         "required": ["area_id", "app"]}},
+    {"name": "watch_result",
+     "description": "Record what the person told you after watch_play asked: did it start playing on its own? This is how "
+                    "the home learns which devices go straight to a show. Only call it with THEIR answer.",
+     "input_schema": {"type": "object", "properties": {
+         "area_id": {"type": "string"},
+         "app": {"type": "string"},
+         "device": {"type": "string", "description": "the device watch_play used"},
+         "played": {"type": "boolean"}},
+         "required": ["app", "device", "played"]}},
     {"name": "area_entities",
      "description": "List the REAL entities assigned to a room, with their current state — use this "
                     "before building a scene so you use actual light/cover/climate ids and never "
@@ -1684,6 +1717,7 @@ _READ_TOOLS = frozenset({
     "memory_get", "music_search", "recovery_history", "room_health",
     "room_read", "room_record", "room_status", "rooms_overview",
     "scenes_list", "security_status", "usage_history", "verify", "weather",
+    "watch_options",                   # 970oo: reads the room's shortcuts and what the home learned
 })
 
 def _run_calls(runner, calls):
@@ -2848,6 +2882,43 @@ class ToolRunner:
             # register 873 (Dave): a shortcut that ran is done — nothing to verify after, nothing to wait for before learning
             res["say"] = "%s, %s." % (room, sc.get("name") or app)
         return res
+
+    def t_watch_options(self, args):
+        """970oo: what the room can play and how far each goes (shortcuts + what this home has learned)."""
+        aid = self._resolve_area_id(args.get("area_id"))
+        if not aid:
+            return {"error": "area_id required"}
+        from . import watchplay as _wp
+        out = _wp.options(self.client, self.project, aid, (args.get("app") or "").strip() or None)
+        out["room"] = self._room_name(aid) or aid
+        return out
+
+    def t_watch_play(self, args):
+        """970oo: start the chosen title — the room's shortcut opens the app; an Android TV box at 'direct' or
+        'untested' is sent the title's link and Select in the background."""
+        aid = self._resolve_area_id(args.get("area_id"))
+        app = (args.get("app") or "").strip()
+        if not aid or not app:
+            return {"error": "area_id and app required"}
+        from . import watchplay as _wp
+        out = _wp.play(self.client, self.project, aid, app, args.get("link") or "",
+                       (args.get("device") or "").strip() or None)
+        if out.get("ok"):
+            self._audit("watch_play", app=out.get("app"), device=out.get("device"), area=aid, level=out.get("level"),
+                        title=(args.get("title") or "")[:80])
+        return out
+
+    def t_watch_result(self, args):
+        """970oo: the person's answer after an untested try — written only from their word."""
+        app = (args.get("app") or "").strip()
+        dev = (args.get("device") or "").strip()
+        if not app or not dev or not isinstance(args.get("played"), bool):
+            return {"error": "app, device and played (true/false) required"}
+        from . import watchplay as _wp
+        out = _wp.learn(dev, app, args["played"], who=str(self.user.get("name") or self.user.get("id") or ""),
+                        note="told by the person after a try")
+        self._audit("watch_result", app=app, device=dev, played=args["played"])
+        return out
 
     def t_app_shortcut_create(self, args):
         """REGISTER 867: build the shortcut, TEST it on the device, add it only when the device confirmed."""
@@ -6015,9 +6086,10 @@ def _system_doctrine(user: dict, home_name: str, engine: bool = False) -> str:
         "reading: say where it came from in a few words, and never act on the home from it without the person's "
         "yes. RECOMMENDATIONS ARE PERSONAL: when someone wants something to watch, hear or do, recall what you know "
         "of them first (memory_get), look up what is current and available to them, and offer two or three that "
-        "fit, with a reason each. When they choose, open it in the room they are in (app_launch) and pin what they "
-        "chose as learned (memory_set, learned=true) so the next suggestion knows them better; a no is a decline "
-        "and sticks. Never buy, rent or sign in to anything.\n"
+        "fit, with a reason each — only on services the room they are in can play (watch_options first), saying how "
+        "far it will go. When they choose, start it there (watch_play, with the title's page found by web_search) "
+        "and pin what they chose as learned (memory_set, learned=true) so the next suggestion knows them better; a "
+        "no is a decline and sticks. Never buy, rent or sign in to anything.\n"
         + _music_doctrine(engine) +
         "SPEAK THE HOME'S WORDS — every tier, installers included. Name rooms, devices and "
         "activities the way the home does: never an entity id, area slug or integration "

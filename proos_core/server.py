@@ -3800,6 +3800,7 @@ def factory_reset(clear_proos_data=False, keep_auth=False):
                    "device_ports.json",
                    # the fourteen that used to survive
                    "music_genres.json", "consent.json", "shortcuts.json",
+                   "watch_learned.json",          # 970oo: which box went straight to a show — this home's entity ids
                    "room_order.json", "layouts.json", "channels.json", "atv_apps.json",
                    "display_apps.json", "assist_scene_music.json",
                    "appart_brands.json", "appart_hidden.json",
