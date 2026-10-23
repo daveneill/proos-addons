@@ -207,36 +207,96 @@ def reopen(state_of, start_conversation, mic: str, sleep=time.sleep, now=time.mo
     return out
 
 
-# ── THE ROOM'S VOICE VOLUME (register 970xx) ──────────────────────────────────────────────────────────────────────
-# Dave, 24 Oct 10:10: "the volume the voice comes through the speakers is low … it does not seem to be the volume of
-# the music … make it part of pro as a room adjustment". ProOS speaks as an ANNOUNCEMENT (the platform's tts.speak →
-# play_media announce), which plays over the music and ducks it; the announcement's own volume was never set. The
-# platform's way to set it is play_media(announce, extra.volume) — read in the platform's Sonos integration
-# (media_player.py: extra "volume" → the speaker's audio-clip volume) and its documentation (examples 20 and 80: a
-# 0-100 scale; my first try sent 0.5 and played silently, 24 Oct 10:12). Only speakers whose integration is READ to
-# take it are listed; any other speaker keeps its own level and Pro says so.
+# ── THE ROOM'S VOICE VOLUME (registers 970xx, 970zz) ──────────────────────────────────────────────────────────────
+# Dave, 24 Oct 10:10: "the volume the voice comes through the speakers is low … make it part of pro as a room
+# ajustment"; 10:35 "25% is good default"; 10:38 "It needs to be brand agnostic … if its cable of transmitting the voice
+# replies then it defaults at that volume and can be changed for the room"; 10:44: "apple tv and shields are media
+# devices not audio … these settings only apply to a room that knows its audio endpoint … and is commisioned".
+#
+# So the voice volume belongs to a COMMISSIONED room's committed AUDIO ENDPOINT (the record's "audio" — the endpoint
+# model; never a TV, a streamer or a display) — the same speaker _assist_speak has always spoken through. How the level
+# is reached is decided by what that speaker REPORTS it can do (the platform's supported_features), not by a brand list:
+#   announce  its integration takes an announcement volume (play_media announce + extra.volume, 0-100) — read in the
+#             platform's Sonos integration; the music is not touched (read on the box: 12 % before and after)
+#   swap      it can set its volume: ProOS notes the level, sets the voice level, speaks, and puts the level back once
+#             the reply has played (its length measured from its own audio) — unless someone changed it meanwhile
+#   none      it cannot set a volume: it speaks at its own level, and Pro says so
+# A room that is not commissioned, or has no audio endpoint, has no voice volume at all.
 VOLUME_MIN, VOLUME_MAX = 10, 100
-ANNOUNCE_VOLUME_PLATFORMS = ("sonos",)
+VOLUME_DEFAULT = 25                     # Dave, 24 Oct 10:35
+OWN = "own"                             # the room chose the speaker's own level
+ANNOUNCE_VOLUME_PLATFORMS = ("sonos",)  # integrations READ to take extra.volume on an announcement
+F_VOLUME_SET = 4                        # the platform's MediaPlayerEntityFeature.VOLUME_SET
+F_MEDIA_ANNOUNCE = 1048576              # the platform's MediaPlayerEntityFeature.MEDIA_ANNOUNCE
+RESTORE_START_S = 1.0                   # the speaker fetching and starting the reply (plumbing; as SPEAKER_START_S)
+RESTORE_WORD_S = 0.4                    # only when the reply could not be measured: the door's own pace (936)
+RESTORE_CAP_S = 60.0
+RESTORE_SAME = 0.02                     # a level within this of the one ProOS set = nobody touched it
 
 
 def voice_volume(rec):
+    """The room's voice level: a whole percent, or None for the speaker's own. Unset = the default, 25."""
     v = (rec or {}).get("voice_volume")
-    return v if isinstance(v, int) and not isinstance(v, bool) and VOLUME_MIN <= v <= VOLUME_MAX else None
+    if v == OWN:
+        return None
+    if isinstance(v, int) and not isinstance(v, bool) and VOLUME_MIN <= v <= VOLUME_MAX:
+        return v
+    return VOLUME_DEFAULT
 
 
 def set_voice_volume(rec: dict, v) -> dict:
-    """None = the speaker's own level (stored as absent); otherwise a whole percent, 10-100."""
+    """10-100 = that level; "own" = the speaker's own; None = back to the default (stored as absent)."""
     if v is None:
         rec.pop("voice_volume", None)
         return rec
-    if not (isinstance(v, int) and not isinstance(v, bool) and VOLUME_MIN <= v <= VOLUME_MAX):
-        raise ValueError("voice volume must be a whole number from %d to %d" % (VOLUME_MIN, VOLUME_MAX))
+    if v != OWN and not (isinstance(v, int) and not isinstance(v, bool) and VOLUME_MIN <= v <= VOLUME_MAX):
+        raise ValueError("voice volume must be a whole number from %d to %d, or the speaker's own" % (VOLUME_MIN, VOLUME_MAX))
     rec["voice_volume"] = v
     return rec
 
 
+def audio_endpoint(rec):
+    """The commissioned room's committed audio endpoint — None for a room that is not commissioned or has none."""
+    if not (rec or {}).get("committed"):
+        return None
+    return next((e for e in (rec.get("audio") or []) if e), None)
+
+
+def method_for(platform, features) -> str | None:
+    f = features if isinstance(features, int) else 0
+    if str(platform or "") in ANNOUNCE_VOLUME_PLATFORMS and f & F_MEDIA_ANNOUNCE:
+        return "announce"
+    if f & F_VOLUME_SET:
+        return "swap"
+    return None
+
+
 def takes_voice_volume(platform) -> bool:
     return str(platform or "") in ANNOUNCE_VOLUME_PLATFORMS
+
+
+def restore_after_s(audio_s, words: int) -> float:
+    if isinstance(audio_s, (int, float)) and audio_s > 0:
+        return min(RESTORE_CAP_S, RESTORE_START_S + float(audio_s))
+    return min(RESTORE_CAP_S, RESTORE_START_S + RESTORE_WORD_S * max(1, int(words or 0)))
+
+
+def restore_volume(volume_of, set_volume, speaker: str, before, set_to: float, after_s: float, sleep=time.sleep) -> dict:
+    """Wait for the reply to play, then put the speaker's level back — unless someone changed it meanwhile."""
+    sleep(after_s)
+    now = volume_of(speaker)
+    out = {"speaker": speaker, "before": before, "set": set_to, "now": now, "waited_s": round(after_s, 2)}
+    if not isinstance(before, (int, float)):
+        out["done"] = "level before unknown — left"
+    elif not isinstance(now, (int, float)) or abs(now - set_to) > RESTORE_SAME:
+        out["done"] = "changed by someone during the reply — left"
+    else:
+        try:
+            set_volume(speaker, before)
+            out["done"] = "restored"
+        except Exception as e:  # noqa: BLE001
+            out["done"] = "could not restore: %s" % str(e)[:160]
+    return out
 
 
 def tts_media_id(engine: str, message: str, language=None, options=None) -> str:

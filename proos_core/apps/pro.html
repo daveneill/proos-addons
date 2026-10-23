@@ -2878,7 +2878,7 @@ body.v3 .rh-card{border-radius:22px}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102402';
+const PROOS_BUILD='2026102403';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -19278,16 +19278,18 @@ async function v2RoomVoice(){
     setHTML(body,'<div style="display:flex;align-items:center;gap:10px">'
       +'<span style="flex:1;min-width:0">Assist used from this room’s page speaks its reply through the room’s speaker.'+caps+'</span>'
       +'<button class="btn-ghost" onclick="v2RoomVoiceSet('+(d.enabled?'false':'true')+')">'+(d.enabled?'Turn off':'Turn on')+'</button></div>'
-      // THE ROOM'S VOICE VOLUME (register 970xx; Dave, 24 Oct): how loud the voice is, apart from the music.
+      // THE ROOM'S VOICE VOLUME (registers 970xx, 970zz; Dave, 24 Oct): a commissioned room's audio endpoint only.
       +'<div style="display:flex;align-items:center;gap:10px;margin-top:10px;padding-top:10px;border-top:0.5px solid rgba(255,255,255,.06)">'
         +'<span style="flex:1;min-width:0"><span style="color:var(--t1)">Voice Volume</span><br>'
-          +(d.voice_volume_ok?'How loud spoken replies are in this room. The music goes back to its own volume after.':'This room\u2019s speaker doesn\u2019t take a separate voice volume \u2014 it speaks at its own level.')+'</span>'
+          +(d.voice_volume_ok?(d.voice_volume_how==='announce'?'How loud spoken replies are in this room. The music stays at its own volume.':'How loud spoken replies are in this room. This speaker can\u2019t play a reply over music, so ProOS sets its volume for the reply and puts it back after.')
+            :(!d.committed||!d.voice_endpoint?'Commission this room with an audio endpoint to set how loud replies are.':'This room\u2019s speaker can\u2019t set a volume \u2014 it speaks at its own level.'))+'</span>'
         +(d.voice_volume_ok?'<select class="set-input" style="width:auto" onchange="v2RoomVoiceVol(this.value)">'
-          +['','10','15','20','25','30','35','40','45','50','60','70','80','90','100'].map(function(x){ const sel=(x===''?d.voice_volume==null:String(d.voice_volume)===x); return '<option value="'+x+'"'+(sel?' selected':'')+'>'+(x===''?'Speaker\u2019s Own':x+'%')+'</option>'; }).join('')+'</select>'
+          +['own','10','15','20','25','30','35','40','45','50','60','70','80','90','100'].map(function(x){ const sel=(x==='own'?d.voice_volume==null:String(d.voice_volume)===x); return '<option value="'+x+'"'+(sel?' selected':'')+'>'+(x==='own'?'Speaker\u2019s Own':x+'%'+(Number(x)===d.voice_volume_default?' (Default)':''))+'</option>'; }).join('')+'</select>'
           +'<button class="btn-ghost" onclick="v2RoomVoiceVolTest()">Test</button>':'')
       +'</div>'
       // ROOM MICS (register 970vv; Dave, 24 Oct): where each room mic's answers are heard.
-      +(d.mics||[]).map(function(m){
+      +((d.mics||[]).length&&!d.voice_endpoint?'<div style="margin-top:10px;padding-top:10px;border-top:0.5px solid rgba(255,255,255,.06)">The room mics here answer through themselves until the room is commissioned with an audio endpoint.</div>':'')
+      +(d.voice_endpoint?(d.mics||[]):[]).map(function(m){
         const nm=m.name||((_allStates||[]).find(x=>x.entity_id===m.entity)||{attributes:{}}).attributes.friendly_name||m.entity.split('.').pop().replace(/_/g,' ');
         const seg=[['room','Room Speakers'],['device','This Device']].map(function(o){ const on=(m.replies===o[0]);
           return '<button onclick="v2RoomMicSet('+JSON.stringify(m.entity).replace(/"/g,'&quot;')+',\''+o[0]+'\')" style="border:0;cursor:pointer;font:inherit;font-size:12px;padding:5px 10px;border-radius:8px;background:'+(on?'rgba(255,255,255,.18)':'transparent')+';color:'+(on?'#fff':'var(--t2)')+';font-weight:'+(on?'600':'400')+'">'+o[1]+'</button>'; }).join('');
@@ -19299,7 +19301,7 @@ async function v2RoomVoice(){
 }
 async function v2RoomVoiceVol(v){
   try{
-    const r=await fetch(proCoreUrl()+'/rooms/'+encodeURIComponent(_roomHubArea)+'/voice-volume',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({volume:v===''?null:parseInt(v,10)})});
+    const r=await fetch(proCoreUrl()+'/rooms/'+encodeURIComponent(_roomHubArea)+'/voice-volume',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({volume:v==='own'?'own':parseInt(v,10)})});
     if(r.status===403) toast('Only installer accounts can change this');
     else if(!r.ok){ const d=await r.json().catch(()=>({})); toast(d.error||'Could not save'); }
     else toast('Voice volume saved');

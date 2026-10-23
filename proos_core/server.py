@@ -851,30 +851,69 @@ def _assist_speak(where, reply):
         data["language"] = _lang
         out["voice"] = _voice
         out["language"] = _lang
-    # THE ROOM'S VOICE VOLUME (register 970xx): when the room has one and its speaker's integration is read to take an
-    # announcement volume, the same announcement goes through the platform's play_media with extra.volume.
-    _vol = None
+    # THE ROOM'S VOICE VOLUME (registers 970xx, 970zz): the commissioned room's audio endpoint (spk, above — the
+    # record's committed "audio", never a TV or streamer) speaks at the room's level, by what the speaker reports it
+    # can do: announce (extra.volume; music untouched) · swap (set, speak, put back) · none (its own level, said).
+    _vol, _how, _before = None, None, None
     try:
         from proos import roommic as _rmic
         _vol = _rmic.voice_volume(rec)
         if _vol:
             _plat = next((e.get("platform") for e in (_client.entity_registry() or [])
                           if e.get("entity_id") == spk), None)
-            if not _rmic.takes_voice_volume(_plat):
-                out["volume_ignored"] = "this speaker does not take a separate voice volume"
+            _st = (_client.snapshot([spk]) or {}).get(spk) or {}
+            _how = _rmic.method_for(_plat, (_st.get("attributes") or {}).get("supported_features"))
+            if _how == "swap":
+                _before = (_st.get("attributes") or {}).get("volume_level")
+            elif _how is None:
+                out["volume_ignored"] = "this speaker cannot set a volume — it speaks at its own level"
                 _vol = None
     except Exception:                                            # noqa: BLE001
-        _vol = None
+        _vol, _how = None, None
     try:
-        if _vol:
+        if _vol and _how == "announce":
             _client.call_service("media_player", "play_media", spk, {
                 "media_content_id": _rmic.tts_media_id(eng, msg, data.get("language"), data.get("options")),
                 "media_content_type": "music", "announce": True, "extra": {"volume": _vol}})
-            out["volume"] = _vol
+            out["volume"], out["volume_how"] = _vol, "announce"
+        elif _vol and _how == "swap":
+            _audio_s = None
+            try:
+                _ct, _au, _ = _glass_voice_audio(reply)            # the same words, voice and engine — measured
+                _audio_s = _rmic.audio_seconds(_ct, _au)
+            except Exception:                                    # noqa: BLE001
+                _audio_s = None
+            _client.call_service("media_player", "volume_set", spk, {"volume_level": _vol / 100.0})
+            _client.call_service("tts", "speak", eng, data)
+            out["volume"], out["volume_how"] = _vol, "swap"
+            _after = _rmic.restore_after_s(_audio_s, len(msg.split()))
+
+            def _vol_of(e):
+                try:
+                    return ((((_client.snapshot([e]) or {}).get(e) or {}).get("attributes") or {})
+                            .get("volume_level"))
+                except Exception:                                # noqa: BLE001
+                    return None
+
+            def _restore():
+                res = _rmic.restore_volume(
+                    _vol_of, lambda e, v: _client.call_service("media_player", "volume_set", e, {"volume_level": v}),
+                    spk, _before, _vol / 100.0, _after)
+                if _journal_mod is not None:
+                    try:
+                        _journal_mod.emit(aid, "voice_volume_restore", res)
+                    except Exception:                            # noqa: BLE001
+                        pass
+            threading.Thread(target=_restore, daemon=True).start()
         else:
             _client.call_service("tts", "speak", eng, data)
     except Exception as e:                                       # noqa: BLE001
         out["why"] = str(e)[:200]
+        if _how == "swap" and isinstance(_before, (int, float)):  # never leave a speaker at the voice level
+            try:
+                _client.call_service("media_player", "volume_set", spk, {"volume_level": _before})
+            except Exception:                                    # noqa: BLE001
+                pass
         return out
     # STAGE 2a (register 256): the room in the reply is the home's live
     # name; the record's copy only when the registry cannot be read.
@@ -889,18 +928,23 @@ def _assist_speak(where, reply):
 
 
 def _room_voice_volume_view(rec):
-    """The room's voice volume and whether its speaker can take one (register 970xx)."""
+    """The room's voice volume, and how its audio endpoint reaches it (registers 970xx, 970zz). A room that is not
+    commissioned, or has no audio endpoint, has none."""
     from proos import roommic as _rmic
-    spk = next((e for e in ((rec or {}).get("audio") or []) if e), None)
-    plat = None
+    spk = _rmic.audio_endpoint(rec)
+    how = None
     if spk:
         try:
             plat = next((e.get("platform") for e in (_client.entity_registry() or [])
                          if e.get("entity_id") == spk), None)
+            st = (_client.snapshot([spk]) or {}).get(spk) or {}
+            how = _rmic.method_for(plat, (st.get("attributes") or {}).get("supported_features"))
         except Exception:                                        # noqa: BLE001
-            plat = None
-    return {"voice_volume": _rmic.voice_volume(rec),
-            "voice_volume_ok": bool(spk) and _rmic.takes_voice_volume(plat)}
+            how = None
+    return {"voice_volume": _rmic.voice_volume(rec), "voice_volume_set": "voice_volume" in (rec or {}),
+            "voice_volume_default": _rmic.VOLUME_DEFAULT, "voice_endpoint": spk,
+            "voice_volume_how": how, "voice_volume_ok": bool(spk) and how is not None,
+            "committed": bool((rec or {}).get("committed"))}
 
 
 def _mic_reopen(speaker, mic, where, spoke=None):
@@ -8048,6 +8092,9 @@ class Handler(BaseHTTPRequestHandler):
                         break
                 if not rec:
                     return self._send(404, {"error": "room not found"})
+                if not _rmic.audio_endpoint(rec):
+                    return self._send(400, {"error": "this room is not commissioned with an audio endpoint, so it has "
+                                                     "no voice volume"})
                 if b.get("test"):
                     return self._send(200, {"spoke": _assist_speak(
                         {"area_id": slug}, "This is how loud ProOS will speak in this room.")})
