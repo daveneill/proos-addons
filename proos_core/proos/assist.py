@@ -4162,8 +4162,43 @@ class ToolRunner:
         def _kind(o):
             k = o["kind"] if o["kind"] != "track" else "song"
             return ("the %s " % k) if k in ("favourite", "artist", "song", "album", "playlist", "station", "podcast") else ""
-        said = ", ".join("%s%s%s" % (_kind(o), o["title"], (" on " + o["service"]) if o.get("service") else "") for o in options)
-        return {"ok": True, "asked": True, "say": "I found a few: %s. Which would you like?" % said, "options": options}
+
+        # REGISTER 970yy (Dave, 24 Oct 10:05: "it suggests the same thing on spotify twice" — heard: "the song Abc Jazz on
+        # Spotify, the playlist ABC Jazz on Spotify"). Options that share a name are said with the name ONCE and only
+        # their difference asked: "ABC Jazz on Spotify as a song or a playlist". Different names are said as before.
+        def _a(o):
+            k = o["kind"] if o["kind"] != "track" else "song"
+            if k not in ("favourite", "artist", "song", "album", "playlist", "station", "podcast"):
+                return None
+            return ("an " if k[0] in "aeiou" else "a ") + k
+
+        def _key(t):
+            return re.sub(r"[^a-z0-9]", "", str(t or "").lower())
+
+        groups = []
+        for o in options:
+            g = next((g for g in groups if _key(g[0]["title"]) == _key(o["title"])), None)
+            (g.append(o) if g is not None else groups.append([o]))
+        parts = []
+        for g in groups:
+            if len(g) == 1 or any(_a(o) is None for o in g):
+                parts.extend("%s%s%s" % (_kind(o), o["title"], (" on " + o["service"]) if o.get("service") else "") for o in g)
+                continue
+            name = next((o["title"] for o in g if o["kind"] not in ("track", "song")), g[0]["title"])  # a song's
+            svcs = {o.get("service") or "" for o in g}                                              # spelling is the loosest
+            if len(svcs) == 1:
+                svc = next(iter(svcs))
+                forms = [_a(o) for o in g]
+                head = name + ((" on " + svc) if svc else "")
+            else:
+                forms = ["%s%s" % (_a(o), (" on " + o["service"]) if o.get("service") else "") for o in g]
+                head = name
+            parts.append("%s as %s" % (head, (", ".join(forms[:-1]) + " or " + forms[-1])))
+        if len(groups) == 1 and len(options) > 1 and len(parts) == 1:
+            say = "I found %s. Which would you like?" % parts[0]
+        else:
+            say = "I found a few: %s. Which would you like?" % ", ".join(parts)
+        return {"ok": True, "asked": True, "say": say, "options": options}
 
     def pending_choice(self):
         key = getattr(self, "session_key", None)
