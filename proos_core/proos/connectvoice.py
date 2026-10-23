@@ -109,6 +109,47 @@ def enroll(home_id: str, name: str, core: str) -> dict:
     return got
 
 
+# ── the directory (register 970qq) ───────────────────────────────────────────
+# Away from home the app has no address after a sign-out; ProOS Connect answers "which home is this username?" from
+# one-way fingerprints each box lists — never the names, never a password (the 7 Sep design). The box still checks
+# the password itself. Sent when the list changes, and again every six hours so Connect never holds a stale one long.
+FP_PREFIX = "proos-directory-v1:"      # the same on Connect (relay.FP_PREFIX) and in the app
+DIR_RESEND_S = 6 * 3600                # plumbing: a list that has not changed is sent again after this
+_dir_sent = {"key": None, "at": 0.0}
+
+
+def fingerprint(username: str) -> str:
+    import hashlib
+    return hashlib.sha256((FP_PREFIX + str(username or "").strip().lower()).encode("utf-8")).hexdigest()
+
+
+def usernames(ws_call) -> list:
+    """The box's people who sign in with a username — the platform's own user list (active, not system accounts)."""
+    try:
+        got = ws_call("config/auth/list") or []      # Core's adapter: (msg_type, **fields) → the result
+    except Exception:  # noqa: BLE001
+        return []
+    users = got if isinstance(got, list) else (got.get("result") or [])
+    return sorted({str(u.get("username")).strip().lower() for u in users
+                   if isinstance(u, dict) and u.get("username") and u.get("is_active", True)
+                   and not u.get("system_generated")})
+
+
+def publish_directory(names: list, home_name: str = "", call=None, now=None) -> dict:
+    """List this home's usernames on Connect as fingerprints. Only when the list changed or it is time again."""
+    now = now or time.time()
+    fps = sorted({fingerprint(n) for n in names or [] if str(n or "").strip()})
+    key = json.dumps([fps, home_name])
+    if key == _dir_sent["key"] and now - _dir_sent["at"] < DIR_RESEND_S:
+        return {"sent": False, "listed": len(fps)}
+    try:
+        got = (call or _call)("POST", "/v1/directory", {"fingerprints": fps, "name": home_name})
+    except Exception as e:  # noqa: BLE001
+        return {"sent": False, "error": str(e)[:120]}
+    _dir_sent.update(key=key, at=now)
+    return dict(got or {}, sent=True, listed=len(fps))
+
+
 def status() -> dict:
     """Connect's own reading of this box: approved or not, and whether the voice is set up there."""
     st = identity()

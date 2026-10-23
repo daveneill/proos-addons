@@ -11148,6 +11148,12 @@ def main():
                         _cr = _cvm.converge(_sv, _ws_call, _client._req, str(_opt("home_id", "") or ""),
                                             _loc, CORE_VERSION)
                         _tun = _ctm.wanted((_cr.get("status") or {}).get("status"), _cr.get("tunnel"))
+                        if (_cr.get("status") or {}).get("status") == "approved":
+                            # 970qq: this home's usernames on Connect's directory, as fingerprints — so the app finds
+                            # the home away from home from a username alone (the box still checks the password)
+                            _dr = _cvm.publish_directory(_cvm.usernames(_ws_call), _loc)
+                            if _dr.get("sent") or _dr.get("error"):
+                                print(f"  remote · ProOS Connect directory: {_dr}", flush=True)
                         _now = (_cr.get("status") or {}).get("status"), bool(_cvm.engine())
                         if _now != last:
                             print(f"  voice · ProOS Connect: {_cr.get('status')} engine={_cvm.engine()}", flush=True)
