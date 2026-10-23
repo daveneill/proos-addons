@@ -2878,7 +2878,7 @@ body.v3 .rh-card{border-radius:22px}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102401';
+const PROOS_BUILD='2026102402';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -19278,6 +19278,14 @@ async function v2RoomVoice(){
     setHTML(body,'<div style="display:flex;align-items:center;gap:10px">'
       +'<span style="flex:1;min-width:0">Assist used from this room’s page speaks its reply through the room’s speaker.'+caps+'</span>'
       +'<button class="btn-ghost" onclick="v2RoomVoiceSet('+(d.enabled?'false':'true')+')">'+(d.enabled?'Turn off':'Turn on')+'</button></div>'
+      // THE ROOM'S VOICE VOLUME (register 970xx; Dave, 24 Oct): how loud the voice is, apart from the music.
+      +'<div style="display:flex;align-items:center;gap:10px;margin-top:10px;padding-top:10px;border-top:0.5px solid rgba(255,255,255,.06)">'
+        +'<span style="flex:1;min-width:0"><span style="color:var(--t1)">Voice Volume</span><br>'
+          +(d.voice_volume_ok?'How loud spoken replies are in this room. The music goes back to its own volume after.':'This room\u2019s speaker doesn\u2019t take a separate voice volume \u2014 it speaks at its own level.')+'</span>'
+        +(d.voice_volume_ok?'<select class="set-input" style="width:auto" onchange="v2RoomVoiceVol(this.value)">'
+          +['','10','15','20','25','30','35','40','45','50','60','70','80','90','100'].map(function(x){ const sel=(x===''?d.voice_volume==null:String(d.voice_volume)===x); return '<option value="'+x+'"'+(sel?' selected':'')+'>'+(x===''?'Speaker\u2019s Own':x+'%')+'</option>'; }).join('')+'</select>'
+          +'<button class="btn-ghost" onclick="v2RoomVoiceVolTest()">Test</button>':'')
+      +'</div>'
       // ROOM MICS (register 970vv; Dave, 24 Oct): where each room mic's answers are heard.
       +(d.mics||[]).map(function(m){
         const nm=m.name||((_allStates||[]).find(x=>x.entity_id===m.entity)||{attributes:{}}).attributes.friendly_name||m.entity.split('.').pop().replace(/_/g,' ');
@@ -19288,6 +19296,22 @@ async function v2RoomVoice(){
           +'<span style="display:inline-flex;background:rgba(255,255,255,.07);border-radius:10px;padding:3px;gap:2px">'+seg+'</span></div>';
       }).join(''));
   }catch(e){ setHTML(body,'Unavailable.'); }
+}
+async function v2RoomVoiceVol(v){
+  try{
+    const r=await fetch(proCoreUrl()+'/rooms/'+encodeURIComponent(_roomHubArea)+'/voice-volume',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({volume:v===''?null:parseInt(v,10)})});
+    if(r.status===403) toast('Only installer accounts can change this');
+    else if(!r.ok){ const d=await r.json().catch(()=>({})); toast(d.error||'Could not save'); }
+    else toast('Voice volume saved');
+  }catch(e){ toast('Could not save'); }
+  v2RoomVoice();
+}
+async function v2RoomVoiceVolTest(){
+  try{
+    const r=await fetch(proCoreUrl()+'/rooms/'+encodeURIComponent(_roomHubArea)+'/voice-volume',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({test:true})});
+    const d=await r.json().catch(()=>({})); const sp=d.spoke||{};
+    toast(sp.sent?'Speaking now'+(sp.volume?' at '+sp.volume+'%':''):('Couldn\u2019t speak: '+(sp.why||d.error||'unknown')));
+  }catch(e){ toast('Could not reach ProOS Core'); }
 }
 async function v2RoomMicSet(ent, v){
   try{

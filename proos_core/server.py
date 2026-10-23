@@ -851,8 +851,28 @@ def _assist_speak(where, reply):
         data["language"] = _lang
         out["voice"] = _voice
         out["language"] = _lang
+    # THE ROOM'S VOICE VOLUME (register 970xx): when the room has one and its speaker's integration is read to take an
+    # announcement volume, the same announcement goes through the platform's play_media with extra.volume.
+    _vol = None
     try:
-        _client.call_service("tts", "speak", eng, data)
+        from proos import roommic as _rmic
+        _vol = _rmic.voice_volume(rec)
+        if _vol:
+            _plat = next((e.get("platform") for e in (_client.entity_registry() or [])
+                          if e.get("entity_id") == spk), None)
+            if not _rmic.takes_voice_volume(_plat):
+                out["volume_ignored"] = "this speaker does not take a separate voice volume"
+                _vol = None
+    except Exception:                                            # noqa: BLE001
+        _vol = None
+    try:
+        if _vol:
+            _client.call_service("media_player", "play_media", spk, {
+                "media_content_id": _rmic.tts_media_id(eng, msg, data.get("language"), data.get("options")),
+                "media_content_type": "music", "announce": True, "extra": {"volume": _vol}})
+            out["volume"] = _vol
+        else:
+            _client.call_service("tts", "speak", eng, data)
     except Exception as e:                                       # noqa: BLE001
         out["why"] = str(e)[:200]
         return out
@@ -866,6 +886,21 @@ def _assist_speak(where, reply):
     out.update({"sent": True, "via": spk, "engine": eng,
                 "room": _an.get(aid) or rec.get("name") or aid})
     return out
+
+
+def _room_voice_volume_view(rec):
+    """The room's voice volume and whether its speaker can take one (register 970xx)."""
+    from proos import roommic as _rmic
+    spk = next((e for e in ((rec or {}).get("audio") or []) if e), None)
+    plat = None
+    if spk:
+        try:
+            plat = next((e.get("platform") for e in (_client.entity_registry() or [])
+                         if e.get("entity_id") == spk), None)
+        except Exception:                                        # noqa: BLE001
+            plat = None
+    return {"voice_volume": _rmic.voice_volume(rec),
+            "voice_volume_ok": bool(spk) and _rmic.takes_voice_volume(plat)}
 
 
 def _mic_reopen(speaker, mic, where, spoke=None):
@@ -5975,7 +6010,8 @@ class Handler(BaseHTTPRequestHandler):
                     "speaker": bool(next((e for e in (rec.get("audio") or [])
                                           if e), None)),
                     "engine": bool(_tts_engine()),
-                    "mics": _mics})
+                    "mics": _mics,
+                    **_room_voice_volume_view(rec)})
             if len(parts) == 3 and parts[0] == "rooms" and parts[2] == "journal":
                 if _journal_mod is None:
                     return self._send(503, {"error": "journal unavailable"})
@@ -7995,6 +8031,38 @@ class Handler(BaseHTTPRequestHandler):
                         pass
                 return self._send(200, {"ok": True,
                                         "enabled": rec["assist_voice"]})
+            if len(parts) == 3 and parts[0] == "rooms" and parts[2] == "voice-volume":
+                # THE ROOM'S VOICE VOLUME (register 970xx; Dave, 24 Oct): {"volume": 10-100 | null}, or {"test": true}
+                # to hear the room's voice at its level. Room settings are the trade's — journaled to the room.
+                u = getattr(self, "_user", None)
+                if not (users and u and (u.get("is_admin") or u.get("is_owner")
+                                         or users.is_tech(u.get("id")))):
+                    return self._send(403, {"error": "installer access required"})
+                b = self._body() or {}
+                from proos import roommic as _rmic
+                proj = project.load() or {}
+                rec, slug = None, parts[1]
+                for key, r0 in (proj.get("areas") or {}).items():
+                    if r0 and (key == parts[1] or r0.get("area_id") == parts[1]):
+                        rec, slug = r0, (r0.get("area_id") or key)
+                        break
+                if not rec:
+                    return self._send(404, {"error": "room not found"})
+                if b.get("test"):
+                    return self._send(200, {"spoke": _assist_speak(
+                        {"area_id": slug}, "This is how loud ProOS will speak in this room.")})
+                try:
+                    _rmic.set_voice_volume(rec, b.get("volume"))
+                except ValueError as e:
+                    return self._send(400, {"error": str(e)})
+                project.save(proj)
+                if _journal_mod is not None:
+                    try:
+                        _journal_mod.emit(slug, "voice_volume", {
+                            "volume": _rmic.voice_volume(rec), "by": u.get("name") or u.get("id")})
+                    except Exception:                            # noqa: BLE001
+                        pass
+                return self._send(200, {"ok": True, **_room_voice_volume_view(rec)})
             if len(parts) == 3 and parts[0] == "rooms" and parts[2] == "mic-replies":
                 # REPLIES THROUGH, per room mic (register 970vv; Dave, 24 Oct): Room Speakers or This Device.
                 # Room settings are the trade's — installer/tech/owner only, journaled to the room.

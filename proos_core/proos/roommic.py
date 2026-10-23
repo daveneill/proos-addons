@@ -205,3 +205,46 @@ def reopen(state_of, start_conversation, mic: str, sleep=time.sleep, now=time.mo
     except Exception as e:  # noqa: BLE001 — said, never raised
         out["done"] = "could not reopen: %s" % str(e)[:160]
     return out
+
+
+# ── THE ROOM'S VOICE VOLUME (register 970xx) ──────────────────────────────────────────────────────────────────────
+# Dave, 24 Oct 10:10: "the volume the voice comes through the speakers is low … it does not seem to be the volume of
+# the music … make it part of pro as a room adjustment". ProOS speaks as an ANNOUNCEMENT (the platform's tts.speak →
+# play_media announce), which plays over the music and ducks it; the announcement's own volume was never set. The
+# platform's way to set it is play_media(announce, extra.volume) — read in the platform's Sonos integration
+# (media_player.py: extra "volume" → the speaker's audio-clip volume) and its documentation (examples 20 and 80: a
+# 0-100 scale; my first try sent 0.5 and played silently, 24 Oct 10:12). Only speakers whose integration is READ to
+# take it are listed; any other speaker keeps its own level and Pro says so.
+VOLUME_MIN, VOLUME_MAX = 10, 100
+ANNOUNCE_VOLUME_PLATFORMS = ("sonos",)
+
+
+def voice_volume(rec):
+    v = (rec or {}).get("voice_volume")
+    return v if isinstance(v, int) and not isinstance(v, bool) and VOLUME_MIN <= v <= VOLUME_MAX else None
+
+
+def set_voice_volume(rec: dict, v) -> dict:
+    """None = the speaker's own level (stored as absent); otherwise a whole percent, 10-100."""
+    if v is None:
+        rec.pop("voice_volume", None)
+        return rec
+    if not (isinstance(v, int) and not isinstance(v, bool) and VOLUME_MIN <= v <= VOLUME_MAX):
+        raise ValueError("voice volume must be a whole number from %d to %d" % (VOLUME_MIN, VOLUME_MAX))
+    rec["voice_volume"] = v
+    return rec
+
+
+def takes_voice_volume(platform) -> bool:
+    return str(platform or "") in ANNOUNCE_VOLUME_PLATFORMS
+
+
+def tts_media_id(engine: str, message: str, language=None, options=None) -> str:
+    """The platform's own text-to-speech media id (tts/media_source.py generate_media_source_id's shape)."""
+    import json as _json
+    from urllib.parse import urlencode
+    q = {"message": message}
+    if language:
+        q["language"] = language
+    q["tts_options"] = _json.dumps(options or {}, separators=(",", ":"))
+    return "media-source://tts/%s?%s" % (engine, urlencode(q))
