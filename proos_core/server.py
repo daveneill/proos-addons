@@ -556,6 +556,26 @@ _SPEAK_TAIL = " — the rest is on screen."
 _tts_cache = {"ts": 0.0, "engine": None}
 
 
+def _speak_plain(msg):
+    """WHAT A SPEAKER IS GIVEN IS SPEECH, NEVER MARKDOWN (register 970uu).
+
+    Dave, 24 Oct 08:32, the Office's new room microphone: "replys but says asterix asterix its pronuncing these".
+    The screens render **bold** and strip it before THEY speak (dashboard _speakPlain); the box's own spoken road —
+    a room's speaker answering a room microphone — handed the answer to the speech engine as written, so the voice
+    read the stars aloud. The same whitelist as the dashboard's: code fences, inline code, bold/italic markers,
+    heading hashes and list bullets come off; the words stay."""
+    s = str(msg or "")
+    s = re.sub(r"```[\s\S]*?```", " ", s)
+    s = re.sub(r"`([^`]*)`", r"\1", s)
+    s = re.sub(r"\*\*([^*]+)\*\*", r"\1", s)
+    s = re.sub(r"__([^_]+)__", r"\1", s)
+    s = re.sub(r"(^|[\s(])\*([^*\n]+)\*", r"\1\2", s)
+    s = re.sub(r"(?m)^\s*#+\s*", "", s)
+    s = re.sub(r"(?m)^\s*(?:[-*•]|\d+[.)])\s+", "", s)
+    s = s.replace("**", "").replace("*", "")
+    return re.sub(r"[ \t]+", " ", s).strip()
+
+
 def _speak_trim(msg):
     """WHAT THE HOME SAYS OUT LOUD, AND WHERE IT STOPS.
 
@@ -576,7 +596,7 @@ def _speak_trim(msg):
       4. and only when there is no sentence end to stop at does it fall back
          to a word boundary, exactly as it always did.
     """
-    msg = str(msg or "").strip()
+    msg = _speak_plain(msg)          # 970uu: speech, never markdown — every spoken road passes here
     room = _SPEAK_CAP + _SPEAK_SLACK
     if len(msg) <= room:
         return msg, False
