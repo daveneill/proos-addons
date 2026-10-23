@@ -2878,7 +2878,7 @@ body.v3 .rh-card{border-radius:22px}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102304';
+const PROOS_BUILD='2026102401';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -19277,8 +19277,25 @@ async function v2RoomVoice(){
       +(d.engine?'':' <span style="color:var(--t3)">· no speech engine on the box</span>');
     setHTML(body,'<div style="display:flex;align-items:center;gap:10px">'
       +'<span style="flex:1;min-width:0">Assist used from this room’s page speaks its reply through the room’s speaker.'+caps+'</span>'
-      +'<button class="btn-ghost" onclick="v2RoomVoiceSet('+(d.enabled?'false':'true')+')">'+(d.enabled?'Turn off':'Turn on')+'</button></div>');
+      +'<button class="btn-ghost" onclick="v2RoomVoiceSet('+(d.enabled?'false':'true')+')">'+(d.enabled?'Turn off':'Turn on')+'</button></div>'
+      // ROOM MICS (register 970vv; Dave, 24 Oct): where each room mic's answers are heard.
+      +(d.mics||[]).map(function(m){
+        const nm=m.name||((_allStates||[]).find(x=>x.entity_id===m.entity)||{attributes:{}}).attributes.friendly_name||m.entity.split('.').pop().replace(/_/g,' ');
+        const seg=[['room','Room Speakers'],['device','This Device']].map(function(o){ const on=(m.replies===o[0]);
+          return '<button onclick="v2RoomMicSet('+JSON.stringify(m.entity).replace(/"/g,'&quot;')+',\''+o[0]+'\')" style="border:0;cursor:pointer;font:inherit;font-size:12px;padding:5px 10px;border-radius:8px;background:'+(on?'rgba(255,255,255,.18)':'transparent')+';color:'+(on?'#fff':'var(--t2)')+';font-weight:'+(on?'600':'400')+'">'+o[1]+'</button>'; }).join('');
+        return '<div style="display:flex;align-items:center;gap:10px;margin-top:10px;padding-top:10px;border-top:0.5px solid rgba(255,255,255,.06)">'
+          +'<span style="flex:1;min-width:0"><span style="color:var(--t1)">'+esc(proosWords(nm))+'</span><br>Replies Through</span>'
+          +'<span style="display:inline-flex;background:rgba(255,255,255,.07);border-radius:10px;padding:3px;gap:2px">'+seg+'</span></div>';
+      }).join(''));
   }catch(e){ setHTML(body,'Unavailable.'); }
+}
+async function v2RoomMicSet(ent, v){
+  try{
+    const r=await fetch(proCoreUrl()+'/rooms/'+encodeURIComponent(_roomHubArea)+'/mic-replies',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({entity:ent,replies:v})});
+    if(r.status===403) toast('Only installer accounts can change this');
+    else if(!r.ok){ const d=await r.json().catch(()=>({})); toast(d.error||'Could not save'); }
+  }catch(e){ toast('Could not save'); }
+  v2RoomVoice();
 }
 async function v2RoomVoiceSet(v){
   try{

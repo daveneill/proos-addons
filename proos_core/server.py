@@ -868,6 +868,34 @@ def _assist_speak(where, reply):
     return out
 
 
+def _mic_reopen(speaker, mic, where):
+    """A question went out through the room speaker: open the room mic again once the speaker has finished
+    (register 970vv; proos/roommic.py says why and how). Runs on its own thread; journals what it saw."""
+    from proos import roommic as _rmic
+    try:
+        _rmic.ensure_silence(os.path.join(_HA_CONFIG_DIR, "www"))
+    except Exception:                                            # noqa: BLE001
+        pass
+
+    def _state(eid):
+        try:
+            return str(((_client.snapshot([eid]) or {}).get(eid) or {}).get("state") or "")
+        except Exception:                                        # noqa: BLE001
+            return ""
+
+    def _start(m):
+        _client.call_service("assist_satellite", "start_conversation", m,
+                             {"start_media_id": _rmic.SILENCE_URL, "preannounce": False})
+
+    res = _rmic.reopen(_state, _start, speaker, mic)
+    if _journal_mod is not None:
+        try:
+            _journal_mod.emit((where or {}).get("area_id") or "site", "mic_reopen", res)
+        except Exception:                                        # noqa: BLE001
+            pass
+    return res
+
+
 # ── THE VOICE IS MADE WHILE THE ANSWER IS STILL BEING WRITTEN (register 487) ─
 # Dave: "it does something then voice comes like 10 seconds later saying what it
 # did." Four hops ran AFTER the whole turn had finished: the page posted the
@@ -5927,11 +5955,23 @@ class Handler(BaseHTTPRequestHandler):
                 rec = _assist_room_rec(parts[1])
                 if not rec:
                     return self._send(404, {"error": "room not found"})
+                # …and the room mics in it, each with where its answers are heard (register 970vv).
+                _mics = []
+                try:
+                    from proos import roommic as _rmic
+                    _aid = rec.get("area_id") or parts[1]
+                    for _m in _rmic.mics_in_room(_aid, _client.entity_registry() or [],
+                                                 _client.device_registry() or []):
+                        _m["replies"] = _rmic.replies_for(rec, _m["entity"])
+                        _mics.append(_m)
+                except Exception:                                # noqa: BLE001
+                    _mics = []
                 return self._send(200, {
                     "enabled": rec.get("assist_voice") is not False,
                     "speaker": bool(next((e for e in (rec.get("audio") or [])
                                           if e), None)),
-                    "engine": bool(_tts_engine())})
+                    "engine": bool(_tts_engine()),
+                    "mics": _mics})
             if len(parts) == 3 and parts[0] == "rooms" and parts[2] == "journal":
                 if _journal_mod is None:
                     return self._send(503, {"error": "journal unavailable"})
@@ -7951,6 +7991,45 @@ class Handler(BaseHTTPRequestHandler):
                         pass
                 return self._send(200, {"ok": True,
                                         "enabled": rec["assist_voice"]})
+            if len(parts) == 3 and parts[0] == "rooms" and parts[2] == "mic-replies":
+                # REPLIES THROUGH, per room mic (register 970vv; Dave, 24 Oct): Room Speakers or This Device.
+                # Room settings are the trade's — installer/tech/owner only, journaled to the room.
+                u = getattr(self, "_user", None)
+                if not (users and u and (u.get("is_admin") or u.get("is_owner")
+                                         or users.is_tech(u.get("id")))):
+                    return self._send(403, {"error": "installer access required"})
+                b = self._body() or {}
+                from proos import roommic as _rmic
+                proj = project.load() or {}
+                rec, slug = None, parts[1]
+                for key, r0 in (proj.get("areas") or {}).items():
+                    if r0 and (key == parts[1] or r0.get("area_id") == parts[1]):
+                        rec, slug = r0, (r0.get("area_id") or key)
+                        break
+                if not rec:
+                    return self._send(404, {"error": "room not found"})
+                ent = str(b.get("entity") or "")
+                try:
+                    inroom = {m["entity"] for m in _rmic.mics_in_room(
+                        slug, _client.entity_registry() or [], _client.device_registry() or [])}
+                except Exception:                                # noqa: BLE001
+                    inroom = set()
+                if ent not in inroom:
+                    return self._send(400, {"error": "that mic is not in this room"})
+                try:
+                    _rmic.set_replies(rec, ent, str(b.get("replies") or ""))
+                except ValueError as e:
+                    return self._send(400, {"error": str(e)})
+                project.save(proj)
+                if _journal_mod is not None:
+                    try:
+                        _journal_mod.emit(slug, "mic_replies", {
+                            "mic": ent, "replies": _rmic.replies_for(rec, ent),
+                            "by": u.get("name") or u.get("id")})
+                    except Exception:                            # noqa: BLE001
+                        pass
+                return self._send(200, {"ok": True, "entity": ent,
+                                        "replies": _rmic.replies_for(rec, ent)})
             if parts == ["journal", "note"]:
                 # Pro-originated journal entries (commission commits, icon
                 # changes, assist actions) — the audit half of the journal.
@@ -10029,7 +10108,28 @@ class Handler(BaseHTTPRequestHandler):
                     # …and speaks the reply in the caller's room (or says why
                     # not) — the room toggle and every capability gap answer
                     # honestly inside `spoke`.
-                    _res["spoke"] = _assist_speak(where, _res.get("reply"))
+                    # ROOM MICS (register 970vv): a turn from a room mic arrives as session "panel-<device id>".
+                    # The room says where that mic's answers are heard — Room Speakers (default) or This Device;
+                    # This Device = nothing is said here and the door hands the words to the mic to say itself.
+                    _mic = ""
+                    if str(_sess).startswith("panel-"):
+                        try:
+                            _mic = next((e.get("entity_id") for e in (_client.entity_registry() or [])
+                                         if e.get("device_id") == str(_sess)[6:]
+                                         and str(e.get("entity_id", "")).startswith("assist_satellite.")), "") or ""
+                        except Exception:                        # noqa: BLE001
+                            _mic = ""
+                    from proos import roommic as _rmic
+                    _mrec = _assist_room_rec(where.get("area_id")) if where.get("area_id") else None
+                    if _mic and _rmic.replies_for(_mrec, _mic) == "device":
+                        _res["spoke"] = {"sent": False, "why": "replies through the room mic itself",
+                                         "device": _mic}
+                    else:
+                        _res["spoke"] = _assist_speak(where, _res.get("reply"))
+                        _sp = _res["spoke"] or {}
+                        if _mic and _sp.get("sent") and _rmic.asks(_res.get("reply")):
+                            threading.Thread(target=_mic_reopen, args=(_sp.get("via"), _mic, where),
+                                             daemon=True).start()
                     # THE PANEL'S SCREEN SHOWS WHAT IT HEARD AND WHAT WAS SAID (register 932, panel build 3).
                     # A turn from a room's own microphone arrives through ProOS Assist with session
                     # "panel-<the satellite's device id>" (928). Every open dashboard is told, over the live
