@@ -6374,6 +6374,29 @@ def _web_tool_openai(runner) -> dict:
     return t
 
 
+_MD_LINK = re.compile(r"\(?\[([^\]\n]{1,200})\]\((https?://[^)\s]+)\)\)?")
+
+
+def _unlink(runner, text: str) -> str:
+    """970mm: a web answer's inline links — "([timeanddate.com](https://…))" — become the site's name alone, and the
+    address joins the sources shown under the reply. Seen on Dave's box (ChatGPT, 23 Oct): the raw link sat in the
+    answer, unrendered, and the home's voice would have read the address aloud."""
+    if not text or "](" not in text:
+        return text
+    found = []
+
+    def one(m):
+        found.append({"url": m.group(2), "title": m.group(1)})
+        whole = m.group(0)
+        # a link in brackets is a citation tacked on — it goes to the sources, out of the sentence; a link in the
+        # sentence keeps its words
+        return "" if whole.startswith("(") and whole.endswith(")") else m.group(1)
+    out = _MD_LINK.sub(one, text)
+    _note_sources(runner, found)
+    out = re.sub(r"[ \t]+([.,;:!?])", r"\1", out)
+    return re.sub(r"[ \t]{2,}", " ", out).strip()
+
+
 def _note_sources(runner, found) -> None:
     """Keep the pages an answer drew on — title and address — for the reply (shown as links under it). Deduped,
     at most five, in the order they were cited."""
@@ -6662,7 +6685,7 @@ def _chat_claude(cfg, doctrine, context, history, runner):
             # off at the cap is still a whole message — it goes in.
             messages.append({"role": "assistant", "content": content})
             _stamp()
-            return text.strip() or "(no reply)", messages
+            return _unlink(runner, text.strip()) or "(no reply)", messages
         if resp.get("stop_reason") == "max_tokens":
             # THE TOOL CALL IS UNFINISHED — its arguments were still being
             # written when the room ran out. Running it would act on half an
@@ -6777,7 +6800,7 @@ def _chat_openai(cfg, system, history, runner):
                                   for c in calls]
         stored.append(turn)
         if not calls:
-            return text.strip() or "(no reply)", stored
+            return _unlink(runner, text.strip()) or "(no reply)", stored
         items.extend(output)          # the provider's own items back, as it documents
         for c in calls:
             try:
