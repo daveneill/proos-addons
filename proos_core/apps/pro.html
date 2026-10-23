@@ -2878,7 +2878,7 @@ body.v3 .rh-card{border-radius:22px}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102302';
+const PROOS_BUILD='2026102303';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -17179,7 +17179,15 @@ async function ahRenderPairing(opts){
     // Core can't brand (older build) — fall through to a neutral manual card.
   }
   if(info && info.code){ ahShowPairing(host, info); return; }
-  // No code in memory — could be a post-restart/reload gap, NOT necessarily paired.
+  // 970ll: no code — ask the platform's own pairing record before saying anything. Paired → say so, in green; the
+  // amber "No code" read as a fault on a home that was published and paired.
+  const n=_ahBridge ? (await ahPairedCounts())[_ahBridge.entry_id] : null;
+  if(n>0){
+    host.innerHTML='<div class="wiz-hint" style="margin:0">This home is paired to Apple Home — '+n+' Apple '+(n===1?'pairing':'pairings')+' on record. To add someone else, invite them to the home from the Apple Home app — they do not need a code.</div>';
+    ahStep('pair','ok','Paired');
+    return;
+  }
+  // No code in memory and no pairing on record (or the record cannot be read) — could be a post-restart gap.
   host.innerHTML=
     '<div class="wiz-hint" style="margin:0 0 12px">No pairing code is in memory right now — Apple Home holds it there, so it clears after a restart or a settings change. If you haven\'t paired this home yet, regenerate it below.</div>'
     +'<button class="btn-primary" id="ah-regen-btn" onclick="ahRegenPairing()">Show Pairing Code</button>';
@@ -17393,7 +17401,7 @@ async function ahRenderPc(){
     !_ahPc.installed?'Not installed yet — switch a camera on and Update':_ahPc.state==='started'?'Running · version '+esc(_ahPc.version||''):'Installed · '+esc(_ahPc.state||'stopped');
   host.style.display='block';
   host.innerHTML='<div class="section-label" style="margin-top:22px">ProOS Cameras</div>'
-    +'<div class="wiz-hint" style="margin:0 0 6px">ProOS publishes these cameras to Apple Home itself — live view, snapshots and motion now; the doorbell with two-way talk and HomeKit Secure Video (People, Animals, Vehicles, Packages in the Home app) as they are finished. Each is added in the Home app with its own code.</div>'
+    +'<div class="wiz-hint" style="margin:0 0 6px">ProOS publishes these UniFi cameras to Apple Home itself — live view, motion, and the doorbell with its ring and two-way talk. Switch on <b>Secure Video</b> for recording to iCloud and People, Vehicles, Animals and Packages alerts in the Home app; it needs the camera set to H.265 in UniFi Protect (Super Encoding or Enhanced Encoding). Each camera is added in the Home app with its own code; changing Secure Video means adding it again.</div>'
     +'<div class="es" style="font-size:11px;color:var(--t3);margin:0 0 8px">'+st+'</div>'
     +cams.map(c=>{
       const info=ahParsePairing(notes, 'proos_cameras_'+c.mac); const isOn=on.has(c.eid);
@@ -17427,11 +17435,15 @@ async function ahSavePc(){
 }
 
 // 970p: each own accessory's pairing code, under the bridge's.
+// 970ll: {entry_id: pairings} from the platform's own HAP state (ProOS Core reads it; counts only). {} if unknown.
+async function ahPairedCounts(){
+  try{ const r=await fetch(proCoreUrl()+'/homekit/paired'); if(!r.ok) return {}; const j=await r.json(); return (j&&j.paired)||{}; }catch(e){ return {}; }
+}
 async function ahRenderOwn(){
   const host=document.getElementById('ah-own'); if(!host) return;
   const mine=(_ahOwn||[]).filter(x=>x.entity_id);
   if(!mine.length){ host.style.display='none'; host.innerHTML=''; return; }
-  const notes=await ahFetchNotifications();
+  const notes=await ahFetchNotifications(); const paired=await ahPairedCounts();
   host.style.display='block';
   host.innerHTML='<div class="section-label" style="margin-top:18px">Paired On Their Own</div>'
     +'<div class="wiz-hint" style="margin:0 0 10px">Apple pairs these one at a time. After the bridge, add each in the Home app with its own code.</div>'
@@ -17439,9 +17451,9 @@ async function ahRenderOwn(){
       const info=ahParsePairing(notes, x.entry_id); const nm=ahNiceName(x.entity_id);
       const qr=ahQrSrc(info);
       return '<div class="row"><div class="rl">'+esc(nm)+'<div class="es" style="font-size:11px;color:var(--t3);font-weight:300;margin-top:3px">'
-        +(info&&info.code ? 'Code <b style="color:var(--t1)">'+esc(info.code)+'</b>' : 'No code in memory — paired, or tap Show Code')+'</div>'
+        +(info&&info.code ? 'Code <b style="color:var(--t1)">'+esc(info.code)+'</b>' : paired[x.entry_id]>0 ? 'Paired' : paired[x.entry_id]===0 ? 'Not paired yet — tap Show Code' : 'No code in memory — paired, or tap Show Code')+'</div>'
         +(qr?'<img src="'+esc(qr)+'" alt="Pairing QR code" style="width:120px;height:120px;border-radius:10px;background:#fff;padding:6px;margin-top:8px">':'')
-        +'</div><div class="rr">'+(info&&info.code?'':'<button class="mstep-hbtn" onclick="ahRegenOwn(\''+esc(x.entry_id)+'\',this)">Show Code</button>')+'</div></div>';
+        +'</div><div class="rr">'+(info&&info.code||paired[x.entry_id]>0?'':'<button class="mstep-hbtn" onclick="ahRegenOwn(\''+esc(x.entry_id)+'\',this)">Show Code</button>')+'</div></div>';
     }).join('');
 }
 async function ahRegenOwn(entryId, btn){

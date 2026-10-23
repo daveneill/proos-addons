@@ -161,6 +161,24 @@ def resolve_alerts(alerts: dict, group_entries: list, req, entity_of_entry, slee
     return links, made, gone, errors
 
 
+def paired_counts(storage_dir: str, entry_ids) -> dict:
+    """970ll: how many Apple Home pairings each HomeKit entry holds — the platform's own record, the `paired_clients`
+    of its HAP state file `.storage/homekit.<entry_id>.state` (HAP-python keeps every pairing there). {entry_id: n},
+    None when the file cannot be read. Only counts leave this function: the file also holds the accessory's keys."""
+    out = {}
+    for eid in entry_ids or []:
+        if not isinstance(eid, str) or not re.fullmatch(r"[A-Za-z0-9_]+", eid):
+            continue
+        try:
+            with open(os.path.join(storage_dir, "homekit.%s.state" % eid)) as fh:
+                d = json.load(fh)
+            d = d.get("data", d) if isinstance(d, dict) else {}
+            out[eid] = len(d.get("paired_clients") or {})
+        except (OSError, ValueError):
+            out[eid] = None
+    return out
+
+
 def is_accessory_entry(e: dict) -> bool:
     return _mode_entity(e)[0] == "accessory"
 

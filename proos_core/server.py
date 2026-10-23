@@ -6110,6 +6110,12 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, _pc.status(_sv))
                 except Exception as e:                               # noqa: BLE001
                     return self._send(502, {"error": str(e)[:200]})
+            if parts == ["homekit", "paired"]:
+                # 970ll: how many Apple Home pairings each HomeKit entry holds (the platform's own HAP state record) —
+                # so Pro can say "Paired" from a reading instead of guessing from a missing code. Counts only.
+                from proos import platform_entries as _pe
+                ids = [e.get("entry_id") for e in (_pe.entries("homekit") or [])]
+                return self._send(200, {"paired": _hkacc.paired_counts(_HA_STORAGE_DIR, ids)})
             if parts == ["homekit", "accessories"]:
                 # 970p: the devices that are their own Apple Home accessory, and which entry each is.
                 from proos import platform_entries as _pe
