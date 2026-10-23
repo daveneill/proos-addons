@@ -9078,8 +9078,9 @@ class Handler(BaseHTTPRequestHandler):
                 cams = body.get("cameras")
                 if not isinstance(cams, list):
                     return self._send(400, {"error": "cameras must be a list"})
+                sec = body.get("secure_video")          # 970jj: which are Secure Video; absent = keep the add-on's own
                 try:
-                    return self._send(200, _pc.apply(_sv, cams))
+                    return self._send(200, _pc.apply(_sv, cams, secure=sec if isinstance(sec, list) else None))
                 except Exception as e:                               # noqa: BLE001
                     return self._send(502, {"error": str(e)[:200]})
             if parts == ["homekit", "accessories"]:

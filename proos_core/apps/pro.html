@@ -2878,7 +2878,7 @@ body.v3 .rh-card{border-radius:22px}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102204';
+const PROOS_BUILD='2026102301';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -17384,7 +17384,7 @@ async function ahRenderPc(){
   try{ const r=await fetch(proCoreUrl()+'/homekit/cameras'); _ahPc=r.ok?await r.json():null; }catch(e){ _ahPc=null; }
   if(!_ahPc){ host.style.display='none'; return; }
   const cams=ahPcCams(); if(!cams.length){ host.style.display='none'; return; }
-  const on=new Set(_ahPc.cameras||[]); const notes=await ahFetchNotifications();
+  const on=new Set(_ahPc.cameras||[]); const sv=new Set(_ahPc.secure_video||[]); const notes=await ahFetchNotifications();
   const haOwn=new Set((_ahOwn||[]).map(x=>x.entity_id));
   const st=_ahPc.installing?'Installing — the box is building it, a few minutes':_ahPc.error?('Last attempt: '+esc(_ahPc.error)):
     !_ahPc.installed?'Not installed yet — switch a camera on and Update':_ahPc.state==='started'?'Running · version '+esc(_ahPc.version||''):'Installed · '+esc(_ahPc.state||'stopped');
@@ -17394,10 +17394,14 @@ async function ahRenderPc(){
     +'<div class="es" style="font-size:11px;color:var(--t3);margin:0 0 8px">'+st+'</div>'
     +cams.map(c=>{
       const info=ahParsePairing(notes, 'proos_cameras_'+c.mac); const isOn=on.has(c.eid);
-      const dup=isOn && haOwn.has(c.eid);
+      const dup=isOn && haOwn.has(c.eid); const isSv=isOn && sv.has(c.eid);
+      // 970jj: Secure Video per camera — Apple's recording to iCloud with People / Vehicles / Animals / Packages. Kept
+      // when the list is saved (Core used to drop it). Changing it means pairing the camera again in the Home app.
+      const svChip='<button type="button" class="ah-chip ah-sv'+(isSv?' on':'')+'" data-sv="'+esc(c.eid)+'" onclick="event.stopPropagation();ahChipTiles(this)" style="margin-top:8px;padding:5px 10px;border-radius:999px;border:0.5px solid var(--line-soft);background:'+(isSv?'var(--t1)':'transparent')+';color:'+(isSv?'#000':'var(--t2)')+';font:inherit;font-size:11px">Secure Video</button>';
       return '<div class="row"><div class="rl">'+esc(c.name)
         +'<div class="es" style="font-size:11px;color:var(--t3);font-weight:300;margin-top:3px">'
-        +(isOn ? (info&&info.code ? 'Code <b style="color:var(--t1)">'+esc(info.code)+'</b>' : (_ahPc.state==='started'?'Paired':'Code shows once it is running')) : 'Off')+'</div>'
+        +(isOn ? (info&&info.code ? 'Code <b style="color:var(--t1)">'+esc(info.code)+'</b>' : (_ahPc.state==='started'?'Paired':'Code shows once it is running'))+(isSv?' · Secure Video':'') : 'Off')+'</div>'
+        +(isOn?'<div>'+svChip+'</div>':'')
         +(dup?'<div class="es" style="font-size:11px;color:#f5a623;margin-top:3px">Also switched on in the list above — switch that one off so it is not in Apple Home twice</div>':'')
         +'</div><div class="rr"><button type="button" class="sw '+(isOn?'on':'')+'" role="switch" aria-checked="'+isOn+'" data-pc="'+esc(c.eid)+'" onclick="ahToggleOne(this)"><span class="sw-knob"></span></button></div></div>';
     }).join('')
@@ -17406,9 +17410,11 @@ async function ahRenderPc(){
 async function ahSavePc(){
   const btn=document.getElementById('ah-pc-save');
   const cams=[...document.querySelectorAll('#ah-pc .sw.on[data-pc]')].map(b=>b.getAttribute('data-pc'));
+  // 970jj: which are Secure Video, from the chips on screen — only cameras still switched on
+  const secure=[...document.querySelectorAll('#ah-pc .ah-sv.on[data-sv]')].map(b=>b.getAttribute('data-sv')).filter(id=>cams.indexOf(id)>=0);
   if(btn){ btn.disabled=true; btn.textContent='Updating…'; }
   try{
-    const r=await fetch(proCoreUrl()+'/homekit/cameras',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cameras:cams})});
+    const r=await fetch(proCoreUrl()+'/homekit/cameras',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cameras:cams, secure_video:secure})});
     const j=await r.json().catch(()=>({}));
     if(!r.ok) toast("Couldn't update ProOS Cameras · "+String(j.error||r.status).slice(0,80));
     else toast(j.installing?'Installing ProOS Cameras · a few minutes':'ProOS Cameras updated · '+cams.length+' camera'+(cams.length===1?'':'s'));

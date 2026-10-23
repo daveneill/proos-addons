@@ -30,17 +30,19 @@ def status(sv) -> dict:
     return {"slug": s, "available": bool(info), "installed": installed, "state": info.get("state"),
             "version": info.get("version"), "latest": info.get("version_latest"),
             "cameras": list(((info.get("options") or {}).get("cameras")) or []) if installed else [],
+            # 970jj: which of them are Apple's Secure Video cameras (the add-on's own option, read back)
+            "secure_video": list(((info.get("options") or {}).get("secure_video")) or []) if installed else [],
             "installing": _busy["installing"], "error": _busy["error"]}
 
 
-def _install_then(sv, s, cameras, sleep):
+def _install_then(sv, s, cameras, sleep, secure=None):
     try:
         try:
             sv("POST", "/store/reload", None)
         except Exception:  # noqa: BLE001
             pass
         sv("POST", "/store/addons/%s/install" % s, None)
-        _configure(sv, s, cameras)
+        _configure(sv, s, cameras, secure)
         _busy["error"] = None
     except Exception as e:  # noqa: BLE001
         _busy["error"] = str(e)[:300]
@@ -48,8 +50,17 @@ def _install_then(sv, s, cameras, sleep):
         _busy["installing"] = False
 
 
-def _configure(sv, s, cameras):
-    sv("POST", "/addons/%s/options" % s, {"options": {"cameras": list(cameras), "log_level": "info"}})
+def _configure(sv, s, cameras, secure=None):
+    """970jj: the add-on's options are WRITTEN WHOLE by the Supervisor, so every option it already has is kept and only
+    the list (and, when Pro says so, which are Secure Video) changes. Before this, saving the list wrote
+    {cameras, log_level} and silently dropped `secure_video` — Front Door and Backyard went back to standard cameras.
+    `secure`: None keeps the add-on's own choice; a list replaces it. Either way only cameras in the list stay in it."""
+    now = (sv("GET", "/addons/%s/info" % s) or {}).get("options") or {}
+    keep = (now.get("secure_video") or []) if secure is None else secure
+    opts = dict(now)
+    opts.update({"cameras": list(cameras), "log_level": now.get("log_level") or "info",
+                 "secure_video": [c for c in dict.fromkeys(keep) if isinstance(c, str) and c in cameras]})
+    sv("POST", "/addons/%s/options" % s, {"options": opts})
     info = sv("GET", "/addons/%s/info" % s) or {}
     if cameras:
         sv("POST", "/addons/%s/%s" % (s, "restart" if info.get("state") == "started" else "start"), None)
@@ -57,7 +68,7 @@ def _configure(sv, s, cameras):
         sv("POST", "/addons/%s/stop" % s, None)
 
 
-def apply(sv, cameras, spawn=None, sleep=None) -> dict:
+def apply(sv, cameras, spawn=None, sleep=None, secure=None) -> dict:
     """Make ProOS Cameras publish exactly `cameras` (camera entity ids). Installs it first if needed — that builds
     on the box and takes minutes, so it runs in the background and status() says so."""
     cams = [c for c in dict.fromkeys(cameras or []) if isinstance(c, str) and c.startswith("camera.")]
@@ -68,7 +79,7 @@ def apply(sv, cameras, spawn=None, sleep=None) -> dict:
         if not _busy["installing"]:
             _busy["installing"], _busy["error"] = True, None
             (spawn or (lambda f: threading.Thread(target=f, daemon=True).start()))(
-                lambda: _install_then(sv, st["slug"], cams, sleep))
+                lambda: _install_then(sv, st["slug"], cams, sleep, secure))
         return dict(status(sv), ok=True)
-    _configure(sv, st["slug"], cams)
+    _configure(sv, st["slug"], cams, secure)
     return dict(status(sv), ok=True)
