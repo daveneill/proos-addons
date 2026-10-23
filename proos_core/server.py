@@ -3801,6 +3801,7 @@ def factory_reset(clear_proos_data=False, keep_auth=False):
                    # the fourteen that used to survive
                    "music_genres.json", "consent.json", "shortcuts.json",
                    "watch_learned.json",          # 970oo: which box went straight to a show — this home's entity ids
+                   "account_copies.json",         # 970rr: the box's one-way copies of this home's ProOS accounts
                    "room_order.json", "layouts.json", "channels.json", "atv_apps.json",
                    "display_apps.json", "assist_scene_music.json",
                    "appart_brands.json", "appart_hidden.json",
@@ -5499,6 +5500,10 @@ class Handler(BaseHTTPRequestHandler):
             # A remote saying hello carries no login yet (register 969j): it can only ever create a WAITING entry an
             # installer must accept, or collect the sign-in made for the app that holds its own secret.
             if path == "remote/hello":
+                return True
+            # 970rr: the platform's ProOS sign-in program carries no login — it carries the box's own sign-in key,
+            # checked in the handler before anything else. Only the POST.
+            if path == "signin/check" and self.command == "POST":
                 return True
             if path not in auth.PUBLIC_PATHS:
                 self._send(401, {"error": "authentication required"})
@@ -7598,7 +7603,8 @@ class Handler(BaseHTTPRequestHandler):
     # dashboard's homeowner writes (music, providers/oauth, scenes/photo,
     # room_order, navcaps, areas, assist) are all HOUSEHOLD class.
     _POST_OPEN = ("auth/login", "dashboard/ack",   # auth/claim left 16 Oct 2026 (register 902 — the sign-in QR is gone)
-                  "remote/hello")   # a remote asking to join — it can only make a WAITING entry (register 969j)
+                  "remote/hello",   # a remote asking to join — it can only make a WAITING entry (register 969j)
+                  "signin/check")   # the platform's ProOS sign-in program, with the box's sign-in key (register 970rr)
     _POST_INSTALLER = (
         "dashboard/publish", "sync", "provision/claim", "credentials/",
         "auth/qr",               # minting a homeowner sign-in code — reg 438
@@ -7652,6 +7658,17 @@ class Handler(BaseHTTPRequestHandler):
                     _u.get("is_admin") or _u.get("is_owner")
                     or (users and users.is_tech(_u.get("id")))):
                 return self._send(403, {"error": "installer access required"})
+        if _p == "signin/check":
+            # 970rr — the platform's ProOS sign-in program: the box's own sign-in key, then Core asks Connect (or, with
+            # Connect unreachable, its own one-way copy). The answer is yes/no and a display name — never why to the caller.
+            from proos import accountsignin as _acs
+            if not _acs.key_ok(self.headers.get(_acs.HEADER) or ""):
+                return self._send(403, {"ok": False})
+            _sb = self._body()
+            _sr = _acs.check(_sb.get("u"), _sb.get("pw"))
+            print("  accounts · ProOS sign-in %s: %s" % ("let in" if _sr.get("ok") else "refused",
+                                                        _sr.get("by") or _sr.get("why")), flush=True)
+            return self._send(200, {"ok": True, "name": _sr.get("name")} if _sr.get("ok") else {"ok": False})
         try:
             # ── Avatar write-shim: the ONLY privileged step. The browser has
             # already uploaded the image to HA's native store and passes us the
@@ -11125,6 +11142,32 @@ def main():
     global BACKUP_PASSWORD
     if cfg.get("backup_password"):
         BACKUP_PASSWORD = cfg["backup_password"]
+    # ONE PROOS ACCOUNT (register 970rr). The platform's own command-line sign-in provider asks Core about a ProOS
+    # account; Core asks Connect. The program and its key go in the platform's config folder on every start; the
+    # platform's configuration gets the ProOS sign-in once — checked by the platform itself before its one restart, and
+    # put back exactly as it was if the platform's check refuses it.
+    try:
+        from proos import accountsignin as _acs
+        _acs_prog = _acs.write_program()
+        _acs_cfg = _acs.ensure_config()
+        print(f"  accounts · ProOS sign-in program {_acs_prog}; platform configuration {_acs_cfg}", flush=True)
+        if _acs_cfg == "added":
+            def _acs_take():
+                try:
+                    _sv("POST", "/core/check", None, 300)
+                except Exception as _ce:                                     # noqa: BLE001
+                    print(f"  accounts · the platform's check refused the ProOS sign-in ({str(_ce)[:160]}) — "
+                          f"configuration {_acs.undo_config()}, NOT restarted", flush=True)
+                    return
+                print("  accounts · the platform checked its configuration; restarting it once to take the ProOS "
+                      "sign-in", flush=True)
+                try:
+                    _sv("POST", "/core/restart", None, 300)
+                except Exception as _re:                                     # noqa: BLE001
+                    print(f"  accounts · restart: {str(_re)[:120]}", flush=True)
+            threading.Thread(target=_acs_take, name="proos-accounts", daemon=True).start()
+    except Exception as _acse:                                               # noqa: BLE001
+        print(f"  accounts · ProOS sign-in not set up: {_acse}", flush=True)
     # THE PROOS VOICE FROM PROOS CONNECT (register 969u). Core answers the platform's Wyoming protocol on its own
     # add-on network, joins Connect, and once Dave has approved the box there gives the platform the engine. A pass
     # a minute until the voice is in force, then every ten minutes (a right box gets no writes).
@@ -11154,6 +11197,16 @@ def main():
                             _dr = _cvm.publish_directory(_cvm.usernames(_ws_call), _loc)
                             if _dr.get("sent") or _dr.get("error"):
                                 print(f"  remote · ProOS Connect directory: {_dr}", flush=True)
+                            # 970rr: this home's ProOS accounts → their users on the box switched on or off to match
+                            try:
+                                from proos import accountsignin as _acs2
+                                _pl = (_cvm._call("POST", "/v1/people", {}) or {}).get("people")
+                                if isinstance(_pl, list):
+                                    _up = _acs2.upkeep(_pl, _ws_call)
+                                    if _up.get("changed") or _up.get("copies_dropped") or _up.get("error"):
+                                        print(f"  accounts · ProOS accounts kept right: {_up}", flush=True)
+                            except Exception as _upe:                        # noqa: BLE001
+                                print(f"  accounts · ProOS accounts not checked: {str(_upe)[:120]}", flush=True)
                         _now = (_cr.get("status") or {}).get("status"), bool(_cvm.engine())
                         if _now != last:
                             print(f"  voice · ProOS Connect: {_cr.get('status')} engine={_cvm.engine()}", flush=True)
