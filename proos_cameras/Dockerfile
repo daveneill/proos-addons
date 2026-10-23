@@ -6,7 +6,7 @@ FROM $BUILD_FROM
 # (Apache-2.0); homekit-audio-proxy is the piece Home Assistant uses to correct Opus timing for Apple (Apache-2.0).
 RUN apk add --no-cache python3 py3-pip py3-cryptography py3-orjson ffmpeg
 RUN pip install --no-cache-dir --break-system-packages \
-      "HAP-python==5.0.0" "homekit-audio-proxy==1.2.1" "zeroconf>=0.36.2" h11 chacha20poly1305-reuseable
+      "HAP-python==5.0.0" "homekit-audio-proxy==1.2.1" "zeroconf>=0.36.2" h11 chacha20poly1305-reuseable "segno==1.6.1"
 
 COPY app /app
 COPY run.sh /run.sh

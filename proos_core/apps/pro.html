@@ -2878,7 +2878,7 @@ body.v3 .rh-card{border-radius:22px}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102301';
+const PROOS_BUILD='2026102302';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -16954,13 +16954,16 @@ async function ahFetchNotifications(){
   }catch(e){}
   return [];
 }
+function ahQrSrc(info){ const q=info&&info.qr; if(!q) return ''; return q.indexOf('data:image/')===0 ? q : (HA.replace(/\/$/,'')+q); }
 function ahParsePairing(notes, entryId){
   for(const n of (notes||[])){
     const id=String((n&&n.notification_id)||''); const title=String((n&&n.title)||''); const msg=String((n&&n.message)||'');
     if(entryId ? id!==entryId : !(/homekit\s*pairing/i.test(title) || /homekit/i.test(id))) continue;   // 970p: several entries now — only this one's code
     const code=(msg.match(/(\d{3}-\d{2}-\d{3})/)||[])[1];
     const nm=(msg.match(/set up\s+(.+?)\s+in the Home App/i)||[])[1];
-    if(code){ const qr=(msg.match(/\/api\/homekit\/pairingqr[^\s)"'\]]+/)||[])[0]; return {code:code, qr:qr, name:nm||''}; }
+    // 970kk: ProOS Cameras' notice carries its setup QR itself, as an SVG data image (the platform's QR address only
+    // serves the platform's own entries); the platform's notice links its own address.
+    if(code){ const qr=(msg.match(/data:image\/svg\+xml;base64,[A-Za-z0-9+\/=]+/)||msg.match(/\/api\/homekit\/pairingqr[^\s)"'\]]+/)||[])[0]; return {code:code, qr:qr, name:nm||''}; }
   }
   return null;
 }
@@ -17142,7 +17145,7 @@ async function ahLoadStatus(){
 
 // ── step 2 — pairing ──
 function ahShowPairing(host, info){
-  const qr = info.qr ? (HA.replace(/\/$/,'')+info.qr) : '';
+  const qr = ahQrSrc(info);
   const badName = ahIsBadName(info.name);
   const rename = badName ? (
     '<div class="wiz-hint" style="margin:14px 0 0;border-left:2px solid rgba(245,166,35,0.5);padding-left:12px">'
@@ -17401,6 +17404,7 @@ async function ahRenderPc(){
       return '<div class="row"><div class="rl">'+esc(c.name)
         +'<div class="es" style="font-size:11px;color:var(--t3);font-weight:300;margin-top:3px">'
         +(isOn ? (info&&info.code ? 'Code <b style="color:var(--t1)">'+esc(info.code)+'</b>' : (_ahPc.state==='started'?'Paired':'Code shows once it is running'))+(isSv?' · Secure Video':'') : 'Off')+'</div>'
+        +(isOn && info && info.qr ? '<img src="'+esc(ahQrSrc(info))+'" alt="Pairing QR code" style="width:120px;height:120px;border-radius:10px;background:#fff;padding:6px;margin-top:8px;display:block">' : '')
         +(isOn?'<div>'+svChip+'</div>':'')
         +(dup?'<div class="es" style="font-size:11px;color:#f5a623;margin-top:3px">Also switched on in the list above — switch that one off so it is not in Apple Home twice</div>':'')
         +'</div><div class="rr"><button type="button" class="sw '+(isOn?'on':'')+'" role="switch" aria-checked="'+isOn+'" data-pc="'+esc(c.eid)+'" onclick="ahToggleOne(this)"><span class="sw-knob"></span></button></div></div>';
@@ -17433,7 +17437,7 @@ async function ahRenderOwn(){
     +'<div class="wiz-hint" style="margin:0 0 10px">Apple pairs these one at a time. After the bridge, add each in the Home app with its own code.</div>'
     +mine.map(x=>{
       const info=ahParsePairing(notes, x.entry_id); const nm=ahNiceName(x.entity_id);
-      const qr=info&&info.qr ? (HA.replace(/\/$/,'')+info.qr) : '';
+      const qr=ahQrSrc(info);
       return '<div class="row"><div class="rl">'+esc(nm)+'<div class="es" style="font-size:11px;color:var(--t3);font-weight:300;margin-top:3px">'
         +(info&&info.code ? 'Code <b style="color:var(--t1)">'+esc(info.code)+'</b>' : 'No code in memory — paired, or tap Show Code')+'</div>'
         +(qr?'<img src="'+esc(qr)+'" alt="Pairing QR code" style="width:120px;height:120px;border-radius:10px;background:#fff;padding:6px;margin-top:8px">':'')

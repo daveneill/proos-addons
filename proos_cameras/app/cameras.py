@@ -176,10 +176,44 @@ def notice_id(mac: str) -> str:
     return "proos_cameras_%s" % mac.lower()
 
 
-def notice_message(name: str, code: str) -> str:
-    """The platform's own HomeKit pairing notice wording, so Pro reads it the same way (`ahParsePairing`)."""
-    return ("To set up %s in the Home App, scan the QR code or enter the following code:\n### %s\n"
-            "Published by ProOS Cameras." % (name, code))
+def setup_uri(category: int, pincode, setup_id: str) -> str:
+    """970kk: the X-HM:// setup URI the Home app reads from a QR code — HAP-python 5.0.0's own `Accessory.xhm_uri`,
+    ported because that one only exists when its optional QR packages are installed (it needs `base36` and
+    `pyqrcode`; the second does not build here). Same bits: version 0, reserved 0, category, flags 2 (IP), pincode."""
+    pin = int(str(pincode.decode() if isinstance(pincode, bytes) else pincode).replace("-", ""), 10)
+    payload = ((((0 << 4 | 0) << 8 | (category & 0xFF)) << 4 | 2) << 27) | (pin & 0x7FFFFFFF)
+    digits, out = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ", ""
+    while payload:
+        payload, r = divmod(payload, 36)
+        out = digits[r] + out
+    return "X-HM://" + (out or "0").rjust(9, "0") + str(setup_id)
+
+
+def setup_qr(uri: str) -> str:
+    """970kk: the Apple Home setup QR code for an X-HM:// setup URI (HAP-python's `xhm_uri`), as an SVG data URI —
+    what the platform's own pairing notice shows, made here because the platform's QR address only serves its own
+    entries. "" when it cannot be made (the notice still carries the code)."""
+    if not uri or not str(uri).startswith("X-HM://"):
+        return ""
+    try:
+        import base64
+        import io
+        import segno
+        buf = io.BytesIO()
+        segno.make(uri, error="l", micro=False).save(buf, kind="svg", scale=5, border=2, dark="#000", light="#fff",
+                                                      xmldecl=False)
+        return "data:image/svg+xml;base64," + base64.b64encode(buf.getvalue()).decode()
+    except Exception as e:  # noqa: BLE001
+        log.warning("setup QR not made: %s", e)
+        return ""
+
+
+def notice_message(name: str, code: str, setup_uri: str = None) -> str:
+    """The platform's own HomeKit pairing notice wording, so Pro reads it the same way (`ahParsePairing`); with the
+    setup QR as an image when the accessory's setup URI is known (970kk)."""
+    qr = setup_qr(setup_uri)
+    return ("To set up %s in the Home App, scan the QR code or enter the following code:\n### %s\n%s"
+            "Published by ProOS Cameras." % (name, code, ("![QR Code](%s)\n" % qr) if qr else ""))
 
 
 # ── the platform, through Core's own connection code ────────────────────────────────────────────────────────────
@@ -196,14 +230,14 @@ def ha_rest(method: str, path: str, body=None):
         return json.loads(raw.decode()) if raw else {}
 
 
-def notify(mac: str, name: str, code: str, paired: bool) -> None:
+def notify(mac: str, name: str, code: str, paired: bool, setup_uri: str = None) -> None:
     try:
         if paired:
             ha_rest("POST", "/api/services/persistent_notification/dismiss", {"notification_id": notice_id(mac)})
         else:
             ha_rest("POST", "/api/services/persistent_notification/create",
                     {"notification_id": notice_id(mac), "title": "HomeKit Pairing",
-                     "message": notice_message(name, code)})
+                     "message": notice_message(name, code, setup_uri)})
     except Exception as e:  # noqa: BLE001
         log.warning("pairing notice for %s not written: %s", name, e)
 
@@ -608,7 +642,11 @@ def main():
         for p in published:      # a pairing made or removed in the Home app updates the notice Pro reads — once
             if p.driver and last.get(p.cam["mac"]) is not p.driver.state.paired:
                 last[p.cam["mac"]] = p.driver.state.paired
-                notify(p.cam["mac"], p.cam["name"], code_for(p.cam["mac"]), p.driver.state.paired)
+                try:
+                    uri = setup_uri(p.acc.category, p.driver.state.pincode, p.driver.state.setup_id) if p.acc else None
+                except Exception:  # noqa: BLE001
+                    uri = None
+                notify(p.cam["mac"], p.cam["name"], code_for(p.cam["mac"]), p.driver.state.paired, uri)
     for p in published:
         if p.driver:
             p.loop.call_soon_threadsafe(lambda d=p.driver: asyncio.ensure_future(d.async_stop()))
