@@ -6879,6 +6879,21 @@ def _chat_openai(cfg, system, history, runner):
     items = _responses_input(history)
     stored = list(history)
     _partial = ""
+    # WHERE THE TIME GOES, ON THIS ROAD TOO (register 977). Register 484 measured the Claude road only; Dave's box runs
+    # OpenAI, so its 10.8 s weather answer (24 Oct 21:12, the home's own forecast, no web) could not be taken apart.
+    # Now the same record: rounds, time waiting on the model, time running tools — and per round what the provider
+    # itself reports (its thinking tokens, its web searches, how much of the request it read from its cache). How
+    # much, never what.
+    _t_turn = time.time()
+    _tm = {"rounds": 0, "model_ms": 0, "tool_ms": 0, "cache_read": 0, "steps": []}
+
+    def _stamp():
+        runner.timing = {"rounds": _tm["rounds"], "total_ms": int((time.time() - _t_turn) * 1000),
+                         "model_ms": _tm["model_ms"], "tool_ms": _tm["tool_ms"],
+                         "cache_read": _tm["cache_read"], "cache_written": 0, "model": model,
+                         "steps": _tm["steps"]}
+        return runner.timing
+
     for _ in range(_MAX_TOOL_ROUNDS):
         # THE LIST IS REBUILT EVERY ROUND (plan item 7, G-43): it was built
         # once before the loop, so more_tools answered "loaded" and the next
@@ -6888,9 +6903,15 @@ def _chat_openai(cfg, system, history, runner):
                   "parameters": t["input_schema"]} for t in _active_tools(runner)]
         if _web_on(cfg):
             tools.append(_web_tool_openai(runner))       # 970mm: the provider's own web search, last
+        _t0 = time.time()
         resp = _http_json(_OPENAI_RESPONSES,
                           {"model": model, "instructions": system, "input": items,
                            "tools": tools, "tool_choice": "auto"}, hdrs)
+        _step = _openai_step(resp, int((time.time() - _t0) * 1000))
+        _tm["rounds"] += 1
+        _tm["model_ms"] += _step["model_ms"]
+        _tm["cache_read"] += _step["cached"]
+        _tm["steps"].append(_step)
         output = resp.get("output") or []
         text = "".join(c.get("text") or "" for o in output if o.get("type") == "message"
                        for c in (o.get("content") or []) if c.get("type") == "output_text")
@@ -6907,8 +6928,10 @@ def _chat_openai(cfg, system, history, runner):
                                   for c in calls]
         stored.append(turn)
         if not calls:
+            _stamp()
             return _unlink(runner, text.strip()) or "(no reply)", stored
         items.extend(output)          # the provider's own items back, as it documents
+        _t1 = time.time()
         for c in calls:
             try:
                 args = json.loads(c.get("arguments") or "{}")
@@ -6919,8 +6942,26 @@ def _chat_openai(cfg, system, history, runner):
                           "call_id": c.get("call_id") or "", "output": out})
             stored.append({"role": "tool", "tool_call_id": c.get("call_id") or "",
                            "content": out})
+        _step["tool_ms"] = int((time.time() - _t1) * 1000)
+        _tm["tool_ms"] += _step["tool_ms"]
         _partial = text
+    _stamp()
     return _ran_out(runner, _partial), stored
+
+
+def _openai_step(resp, model_ms):
+    """One round as the provider reports it (register 977): how long it took, its thinking tokens, its web searches,
+    the tools it asked for, and how much of the request it read from its own cache. Never the words."""
+    usage = (resp or {}).get("usage") or {}
+    output = (resp or {}).get("output") or []
+    return {"model_ms": model_ms,
+            "input": int(usage.get("input_tokens") or 0),
+            "cached": int(((usage.get("input_tokens_details") or {}).get("cached_tokens")) or 0),
+            "output": int(usage.get("output_tokens") or 0),
+            "thinking": int(((usage.get("output_tokens_details") or {}).get("reasoning_tokens")) or 0),
+            "web": sum(1 for o in output if o.get("type") == "web_search_call"),
+            "tools": [o.get("name") or "" for o in output if o.get("type") == "function_call"],
+            "tool_ms": 0}
 
 
 # ── entry point ──────────────────────────────────────────────────────────────
