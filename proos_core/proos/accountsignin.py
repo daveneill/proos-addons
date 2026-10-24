@@ -268,17 +268,43 @@ def provider_users(users: list) -> list:
     return out
 
 
-def upkeep(people: list, ws_call) -> dict:
+def usernames_by_user(config_dir: str = None) -> dict:
+    """{platform user id: the email it signs in with} for the ProOS sign-in's users — read from the platform's own
+    record of credentials (.storage/auth). REGISTER 974d: the platform's user list gives a command-line user NO username
+    (read on Dave's box, 24 Oct: "username": null), so upkeep matched every ProOS account to nothing and switched it
+    off on the next round — the owner could sign in once, then never again. Only the command-line credentials' user id
+    and username are taken; nothing else in the file is read out."""
+    p = os.path.join(config_dir or CONFIG_DIR, ".storage", "auth")
+    try:
+        with open(p, encoding="utf-8") as fh:
+            data = json.load(fh).get("data") or {}
+    except Exception:                                                         # noqa: BLE001
+        return {}
+    out = {}
+    for c in data.get("credentials") or []:
+        if (c or {}).get("auth_provider_type") == PROVIDER:
+            un = str(((c.get("data") or {}).get("username")) or "").strip().lower()
+            if un and c.get("user_id"):
+                out[c["user_id"]] = un
+    return out
+
+
+def upkeep(people: list, ws_call, names: dict = None) -> dict:
     """Connect's list of this home's accounts → each ProOS-account user on the box is switched on or off to match, and
-    a person no longer listed loses the box's copy. Never touches the box's own logins."""
+    a person no longer listed loses the box's copy. Never touches the box's own logins. A user whose email cannot be
+    read is LEFT AS IT IS — never switched off on a guess (974d)."""
     listed = {str(p.get("u") or "").strip().lower() for p in people or []}
     try:
         users = ws_call("config/auth/list") or []
     except Exception as e:                                                    # noqa: BLE001
         return {"error": str(e)[:120]}
-    changed = []
+    names = usernames_by_user() if names is None else names
+    changed, unknown = [], 0
     for x in provider_users(users):
-        un = str(x.get("username") or "").strip().lower()
+        un = str(x.get("username") or names.get(x.get("id")) or "").strip().lower()
+        if not un:
+            unknown += 1
+            continue
         want = un in listed
         if bool(x.get("is_active", True)) != want:
             try:
@@ -293,4 +319,4 @@ def upkeep(people: list, ws_call) -> dict:
             d.pop(u)
         if gone:
             _save_copies(d)
-    return {"changed": changed, "copies_dropped": len(gone), "listed": len(listed)}
+    return {"changed": changed, "copies_dropped": len(gone), "listed": len(listed), "unknown": unknown}
