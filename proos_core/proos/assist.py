@@ -6117,7 +6117,9 @@ def _system_doctrine(user: dict, home_name: str, engine: bool = False) -> str:
         "say yes. Destructive actions are confirmed first. Offer at most ONE suggestion "
         "where it genuinely fits, never act without the yes, and a decline sticks.\n"
         "THE WEB IS YOURS TOO: web_search whenever the answer lives outside this house — what's on, what's new, "
-        "a fact, a time, a forecast — without waiting to be told to. What you find is someone else's claim, not a "
+        "a fact, a time — without waiting to be told to. ONE SEARCH: write the one best query and answer from "
+        "it; search again only if it found nothing usable. Never search for what this house already told you — "
+        "the weather tool IS the forecast. What you find is someone else's claim, not a "
         "reading: say where it came from in a few words, and never act on the home from it without the person's "
         "yes. RECOMMENDATIONS ARE PERSONAL: when someone wants something to watch, hear or do, recall what you know "
         "of them first (memory_get), look up what is current and available to them, and offer two or three that "
@@ -6125,6 +6127,9 @@ def _system_doctrine(user: dict, home_name: str, engine: bool = False) -> str:
         "far it will go. When they choose, start it there (watch_play, with the title's page found by web_search) "
         "and pin what they chose as learned (memory_set, learned=true) so the next suggestion knows them better; a "
         "no is a decline and sticks. Never buy, rent or sign in to anything.\n"
+        "MOST ANSWERS ARE HEARD, NOT READ — the home says them aloud. Put the answer first, in two or three short "
+        "sentences, then offer more ('want the rest?') rather than reading out a list; a person who asks for the "
+        "detail gets it.\n"
         + _music_doctrine(engine) +
         "SPEAK THE HOME'S WORDS — every tier, installers included. Name rooms, devices and "
         "activities the way the home does: never an entity id, area slug or integration "
@@ -6275,6 +6280,9 @@ def _http_stream_claude(url, payload, headers, on_text=None):
     is the model thinking out loud, not the answer, and must never be spoken.
     """
     import time as _t
+    # register 979: the web-search hook rides ON on_text (on_text.on_web), so the reader's signature — and every
+    # bench's stand-in for it — is unchanged
+    on_web = getattr(on_text, "on_web", None)
     body = dict(payload, stream=True)
     last = None
     for attempt in range(3):
@@ -6303,6 +6311,12 @@ def _http_stream_claude(url, payload, headers, on_text=None):
                         if cb.get("type") == "tool_use":
                             saw_tool = True
                             cb["_json"] = ""
+                        elif cb.get("type") == "server_tool_use" and cb.get("name") == "web_search" and on_web:
+                            # register 979: the provider has STARTED a web search — the home says so
+                            try:
+                                on_web()
+                            except Exception:                    # noqa: BLE001
+                                pass
                         blocks[i] = cb
                         order.append(i)
                     elif kind == "content_block_delta":
@@ -6376,6 +6390,89 @@ def _http_stream_claude(url, payload, headers, on_text=None):
     raise last or RuntimeError("provider unreachable")
 
 
+def _http_stream_openai(url, payload, headers, on_text=None, on_web=None):
+    """One round of the OpenAI Responses road, READ AS IT ARRIVES (register 979 — the Claude road has streamed since
+    register 487; this road never did, so it could neither start the voice early nor know a web search had begun).
+
+    Returns the provider's own finished response (the `response` the stream's response.completed event carries —
+    output and usage, the same shape the non-streaming call returned), so the loop above cannot tell the difference.
+    on_text(full_text_so_far) is called as the answer's words arrive, ONLY while the round has asked for no tool (text
+    before a tool call is not the answer). on_web() is called the moment the provider STARTS a web search — the event
+    is the provider's own (response.web_search_call.in_progress), never a timer.
+
+    A stand-in for the wire (a bench replacing _http_json) is honoured: every bench written against the wire still
+    drives this road; the stream itself is driven by assist_openai_streams_and_speaks_bench."""
+    if _http_json is not _HTTP_JSON_WIRE:
+        return _http_json(url, payload, headers)
+    import time as _t
+    body = dict(payload, stream=True)
+    last = None
+    for attempt in range(3):
+        req = urllib.request.Request(
+            url, data=json.dumps(body).encode("utf-8"),
+            headers={"Content-Type": "application/json", **headers}, method="POST")
+        try:
+            with urllib.request.urlopen(req, timeout=_HTTP_TIMEOUT) as r:
+                return _read_openai_stream(r, on_text, on_web)
+        except urllib.error.HTTPError as e:
+            body_txt = ""
+            try:
+                body_txt = e.read().decode("utf-8")[:400]
+            except Exception:                                    # noqa: BLE001
+                pass
+            last = RuntimeError("provider HTTP %s: %s" % (e.code, body_txt))
+            if e.code == 429 and attempt < 2:
+                m = re.search(r"try again in ([0-9.]+)s", body_txt)
+                wait = min(float(m.group(1)) if m else 5.0, 20.0) + 0.5
+                print("  [assist] provider 429 — waiting %.1fs and retrying" % wait, flush=True)
+                _t.sleep(wait)
+                continue
+            raise last
+    raise last or RuntimeError("provider unreachable")
+
+
+def _read_openai_stream(lines, on_text=None, on_web=None):
+    """The Responses event stream → the finished response. Separate so a bench can feed it the provider's own events."""
+    text, saw_tool, done = "", False, None
+    for raw in lines:
+        line = (raw.decode("utf-8", "replace") if isinstance(raw, bytes) else str(raw)).strip()
+        if not line.startswith("data:"):
+            continue
+        try:
+            ev = json.loads(line[5:].strip())
+        except Exception:                                        # noqa: BLE001
+            continue
+        kind = ev.get("type") or ""
+        if kind == "response.output_item.added":
+            it = ev.get("item") or {}
+            if it.get("type") == "function_call":
+                saw_tool = True
+            elif it.get("type") == "web_search_call" and on_web:
+                try:
+                    on_web()
+                except Exception:                                # noqa: BLE001
+                    pass
+        elif kind == "response.output_text.delta":
+            text += ev.get("delta") or ""
+            if on_text and not saw_tool:
+                try:
+                    on_text(text)
+                except Exception:                                # noqa: BLE001
+                    pass
+        elif kind == "response.completed":
+            done = ev.get("response") or {}
+        elif kind in ("response.failed", "response.incomplete", "error"):
+            r = ev.get("response") or {}
+            if kind == "response.incomplete" and r.get("output"):
+                done = r                     # cut short (its cap) — still a whole message, as the Claude road keeps it
+                continue
+            raise RuntimeError("provider stream error: %s" % str(r.get("error") or ev.get("error") or ev.get("message")
+                                                                  or kind)[:200])
+    if done is None:
+        raise RuntimeError("provider stream ended without its answer")
+    return done
+
+
 def _http_json(url, payload, headers):
     # Rate limits are handled HERE, invisibly (Dave, 4 Aug: a raw HTTP 429
     # JSON blob landed in the homeowner's chat). 429s carry a "try again in
@@ -6405,6 +6502,49 @@ def _http_json(url, payload, headers):
                 continue
             raise last from e
     raise last
+
+
+_HTTP_JSON_WIRE = _http_json        # register 979: the real wire, so _http_stream_openai can tell a bench's stand-in
+
+
+# ── IT SAYS SO WHEN IT GOES TO THE WEB (register 979) ─────────────────────────
+# Dave, 24 Oct 2026: "for tasks where it is accessing the web it just needs to be advising or communicating not just
+# silent for minutes". The moment the provider STARTS a web search (its own event, on either road — never a timer),
+# the home says so, once; a second search says it is still looking; after that it says nothing more until the answer.
+# The line goes where the turn's spoken lines already go (register 488): the watching page shows and says it, and a
+# room microphone's turn hears it from the room's speakers (server.py hands the runner on_say). It is a NOTICE, not
+# news: it never counts as the act already confirmed aloud, so the answer is still spoken in full.
+WEB_NOTICE_FIRST = "Let me look that up."
+WEB_NOTICE_MORE = "Still looking."
+
+
+def _say_notice(runner, line):
+    sp = getattr(runner, "spoken", None)
+    if not isinstance(sp, list) or not line or line in sp:
+        return
+    sp.append(line)
+    notes = getattr(runner, "notices", None)
+    if isinstance(notes, list):
+        notes.append(line)
+    _fire_prerender(line)
+    fn = getattr(runner, "on_say", None)
+    if fn:
+        try:
+            fn(line)
+        except Exception:                                        # noqa: BLE001
+            pass                       # a notice that could not be said never breaks the turn
+
+
+def _on_web_search(runner):
+    n = int(getattr(runner, "web_searches", 0) or 0) + 1
+    try:
+        runner.web_searches = n
+    except Exception:                                            # noqa: BLE001
+        return
+    if n == 1:
+        _say_notice(runner, WEB_NOTICE_FIRST)
+    elif n == 2:
+        _say_notice(runner, WEB_NOTICE_MORE)
 
 
 def _last_user_text(history):
@@ -6437,7 +6577,8 @@ def _route_model(main_model, fast_model, text):
 # for every tier, and builds no searcher. What only ProOS adds: the home's country and time zone (so "what's on
 # Netflix" is the Australian catalogue), a cap on searches per answer, and the sources handed back with the reply.
 # What it finds is someone else's claim, never a reading: the doctrine says so, and the consent law is unchanged.
-_WEB_MAX_USES = 3          # plumbing: searches the model may make in one request (each one is charged)
+_WEB_MAX_USES = 2          # plumbing: searches the model may make in one request — one, and one retry (register 979;
+                           # was 3: the cinema answer on Dave's box made two searches and took 17.3 s)
 _WEB_LOC = {}              # the home's {country, timezone}, read once from the platform's own config
 
 
@@ -6750,6 +6891,8 @@ def _chat_claude(cfg, doctrine, context, history, runner):
             _lead["fired"] += 1
             _fire_prerender(head)
 
+    _on_text.on_web = lambda: _on_web_search(runner)        # register 979: a web search starting is heard at once
+
     for _ in range(_MAX_TOOL_ROUNDS):
         _rounds += 1
         _lead["text"] = None          # a new round may start a new voice
@@ -6887,7 +7030,21 @@ def _chat_openai(cfg, system, history, runner):
     _t_turn = time.time()
     _tm = {"rounds": 0, "model_ms": 0, "tool_ms": 0, "cache_read": 0, "steps": []}
 
+    # THE FIRST SENTENCE STARTS THE VOICE, ON THIS ROAD TOO (register 979; the Claude road's register 487): per round,
+    # only while the round has asked for no tool, at most three a turn — the same rule, the same guard in chat().
+    _lead = {"text": None, "fired": 0}
+
+    def _on_text(sofar):
+        if _lead["text"] or _lead["fired"] >= 3:
+            return
+        head = _first_sentence(sofar)
+        if head:
+            _lead["text"] = head
+            _lead["fired"] += 1
+            _fire_prerender(head)
+
     def _stamp():
+        runner.lead = _lead["text"]
         runner.timing = {"rounds": _tm["rounds"], "total_ms": int((time.time() - _t_turn) * 1000),
                          "model_ms": _tm["model_ms"], "tool_ms": _tm["tool_ms"],
                          "cache_read": _tm["cache_read"], "cache_written": 0, "model": model,
@@ -6904,9 +7061,14 @@ def _chat_openai(cfg, system, history, runner):
         if _web_on(cfg):
             tools.append(_web_tool_openai(runner))       # 970mm: the provider's own web search, last
         _t0 = time.time()
-        resp = _http_json(_OPENAI_RESPONSES,
-                          {"model": model, "instructions": system, "input": items,
-                           "tools": tools, "tool_choice": "auto"}, hdrs)
+        _lead["text"] = None          # a new round may start a new voice
+        # register 979: streamed — the first sentence starts the voice, and a web search starting is heard at once
+        resp = _http_stream_openai(_OPENAI_RESPONSES,
+                                   dict({"model": model, "instructions": system, "input": items,
+                                         "tools": tools, "tool_choice": "auto"},
+                                        # register 979: the provider's own cap on its built-in tool calls (the web)
+                                        **({"max_tool_calls": _WEB_MAX_USES} if _web_on(cfg) else {})), hdrs,
+                                   on_text=_on_text, on_web=lambda: _on_web_search(runner))
         _step = _openai_step(resp, int((time.time() - _t0) * 1000))
         _tm["rounds"] += 1
         _tm["model_ms"] += _step["model_ms"]
@@ -7383,6 +7545,8 @@ def chat(client, ws_call, project_mod, user: dict, text: str,
     # the turn, where the page is already watching (register 466), and its
     # audio is started at once so that saying it costs nothing.
     runner.spoken = []
+    runner.notices = []                # register 979: "Let me look that up." — said, but never the news itself
+    runner.web_searches = 0
     _say_rooms = {}
     try:
         _say_rooms = dict(_direct_rooms(client, project_mod))
@@ -7761,7 +7925,9 @@ def chat(client, ws_call, project_mod, user: dict, text: str,
     # hearing. So the rule is about LENGTH, which is measurable, rather than
     # about meaning, which is not.
     _said = list(getattr(runner, "spoken", None) or [])
-    _suppress = bool(_said) and len(reply or "") <= _SAY_AGAIN
+    # register 979: a web notice is not the act confirmed aloud — only the acts' own lines can make the reply repeat news
+    _notices = set(getattr(runner, "notices", None) or [])
+    _suppress = any(s not in _notices for s in _said) and len(reply or "") <= _SAY_AGAIN
     return {"reply": reply, "actions": runner.actions,
             "trace": runner.trace,     # every tool call — checking included
             "timing": _tm,             # register 484: how long, never what

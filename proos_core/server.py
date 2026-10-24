@@ -10415,11 +10415,28 @@ class Handler(BaseHTTPRequestHandler):
                     return _res
 
                 def _turn(on_runner=None):
+                    # REGISTER 979: a room mic's turn has no page to show "Let me look that up." — the room's speakers
+                    # say it, the moment the web search starts (the runner's on_say), unless that mic's answers are
+                    # heard through the mic itself (then only the answer is said, by the mic).
+                    def _hand(rnr):
+                        if str(_sess).startswith("panel-") and where.get("area_id"):
+                            try:
+                                from proos import roommic as _rmic2
+                                _m = next((e.get("entity_id") for e in (_client.entity_registry() or [])
+                                           if e.get("device_id") == str(_sess)[6:]
+                                           and str(e.get("entity_id", "")).startswith("assist_satellite.")), "") or ""
+                                if not (_m and _rmic2.replies_for(_assist_room_rec(where.get("area_id")), _m) == "device"):
+                                    rnr.on_say = lambda line: threading.Thread(
+                                        target=_assist_speak, args=(where, line), daemon=True).start()
+                            except Exception:                    # noqa: BLE001 — a notice never stops the turn
+                                pass
+                        if on_runner is not None:
+                            on_runner(rnr)
                     return _assist.chat(
                         _client, _ws_call, project, uinfo, _text, session=_sess,
                         home_name=_ASSIST_HOME_NAME, ma=_ma, where=where,
                         awareness=_assist_awareness(), mcp=_mcp_client(),
-                        on_runner=on_runner)
+                        on_runner=_hand)
 
                 # THE TURN IS STARTED, NOT WAITED ON (register 466). The app
                 # asks for this by saying so, and an older app that does not —
