@@ -68,7 +68,7 @@ _TODAY_OFFSET = {"today": 0, "tomorrow": 1}
 
 # Jinja: find the provider's forecast for the asked date and say it. `fc` is the day list, `ask` the trigger's id.
 SAY = r"""{%- set ask = said[trigger.id] -%}
-{%- set fc = (wx[provider].forecast if wx is defined and provider in wx else []) or [] -%}
+{%- set fc = ((wx.get(provider) or {}).get('forecast') if wx is defined and wx is mapping else []) or [] -%}
 {%- if ask.weekday is not none -%}
   {%- set off = (ask.weekday - now().weekday()) % 7 -%}
 {%- else -%}
@@ -77,22 +77,22 @@ SAY = r"""{%- set ask = said[trigger.id] -%}
 {%- set want = (now() + timedelta(days=off)).date() -%}
 {%- set ns = namespace(f=none) -%}
 {%- for f in fc -%}
-  {%- if ns.f is none and (as_local(as_datetime(f.datetime))).date() == want -%}{%- set ns.f = f -%}{%- endif -%}
+  {%- if ns.f is none and f.get('datetime') and (as_local(as_datetime(f.get('datetime')))).date() == want -%}{%- set ns.f = f -%}{%- endif -%}
 {%- endfor -%}
 {%- set name = ask.name -%}
 {%- if ns.f is none -%}
 There's no forecast for {{ ask.bare }} yet.
 {%- else -%}
   {%- set f = ns.f -%}
-  {%- set cond = words.get(f.condition, (f.condition or '') | replace('-', ' ')) -%}
-  {%- set hi = f.temperature -%}{%- set lo = f.templow -%}
-  {%- set pp = f.precipitation_probability -%}{%- set mm = f.precipitation -%}
+  {%- set cond = words.get(f.get('condition'), (f.get('condition') or '') | replace('-', ' ')) -%}
+  {%- set hi = f.get('temperature') -%}{%- set lo = f.get('templow') -%}
+  {%- set pp = f.get('precipitation_probability') -%}{%- set mm = f.get('precipitation') -%}
   {%- if ask.rain -%}
     {%- if pp is not none -%}
       {%- if pp | float(0) >= 50 -%}Rain is likely {{ name }}, {{ pp | round(0) | int }}% chance{%- elif pp | float(0) >= 20 -%}There's a {{ pp | round(0) | int }}% chance of rain {{ name }}{%- else -%}Rain isn't expected {{ name }}, {{ pp | round(0) | int }}% chance{%- endif -%}
       {%- if mm is not none and mm | float(0) > 0 -%}, about {{ mm | round(0) | int if mm | float(0) >= 1 else mm }} millimetres{%- endif -%}.
     {%- elif mm is not none -%}
-      {%- if mm | float(0) > 0 -%}Rain is forecast {{ name }}, about {{ mm }} millimetres.{%- else -%}No rain is forecast {{ name }}.{%- endif -%}
+      {%- if mm | float(0) > 0 -%}Rain is forecast {{ name }}, about {{ mm | round(0) | int if mm | float(0) >= 1 else mm }} millimetres.{%- else -%}No rain is forecast {{ name }}.{%- endif -%}
     {%- else -%}
       {{ ask.title }}: {{ cond }}. The forecast doesn't say how likely rain is.
     {%- endif -%}
@@ -100,7 +100,7 @@ There's no forecast for {{ ask.bare }} yet.
 {{ ask.title }}: {{ cond }}
     {%- if hi is not none -%}, a high of {{ hi | round(0) | int }}{%- endif -%}
     {%- if lo is not none -%}{{ ' and' if hi is not none else ', a' }} low of {{ lo | round(0) | int }}{%- endif -%}
-    {%- if pp is not none and pp | float(0) >= 20 -%}, {{ pp | round(0) | int }}% chance of rain{%- endif -%}.
+    {%- if pp is not none and pp | float(0) >= 20 -%}, {{ pp | round(0) | int }}% chance of rain{%- elif pp is none and mm is not none and mm | float(0) >= 1 -%}, about {{ mm | round(0) | int }} millimetres of rain{%- endif -%}.
   {%- endif -%}
 {%- endif -%}"""
 
