@@ -11239,6 +11239,15 @@ def main():
             except Exception as _vq_e:
                 print(f"  voice · phrases skipped: {_vq_e}")
             try:
+                # REGISTER 978: the weather for today, tomorrow and each weekday, said at once from the home's own
+                # forecast — the platform matches the sentence and reads the forecast; no AI (12.1 s → the platform's).
+                from proos import voiceweather as _vwx
+                _vw = _vwx.voice_weather(_client)
+                print(f"  voice · weather: {_vw.get('action')} ({_vw.get('sentences', 0)} sentences, "
+                      f"{_vw.get('provider') or 'no weather provider'})" + (f" ({_vw.get('error')})" if _vw.get('error') else ""))
+            except Exception as _vw_e:
+                print(f"  voice · weather skipped: {_vw_e}")
+            try:
                 # REGISTER 866: music by name from ANY voice door — the platform's own wildcard sentence, answered with Core's words.
                 from proos import voicemusic as _vmus
                 _vm = _vmus.voice_music(_client)
