@@ -4680,7 +4680,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102403';
+const PROOS_BUILD='2026102501';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -9512,24 +9512,16 @@ function _roomHasActivities(r){
    its speaker, its climate, its blinds, its cameras; Home draws what is playing, the weather, the scenes, the alarm and
    who is home. Nothing is written — the moment somebody adds, removes or resizes a widget, that layout is theirs. */
 function _wDefaultLayout(){
-  const out=[], add=(id,o)=>{ const def=WIDGET_LIBRARY.find(x=>x.id===id); if(!def) return; out.push(Object.assign({uid:'dflt-'+id+'-'+out.length, id:id}, o||{})); };
+  /* 984 (Dave, 25 Oct 09:04, after commissioning a new box: "widgets were on the home page and area pages ?? Now playing
+     on every area page and a people widget. All widgets need to be gone by default for new box"). 968o filled every page
+     nobody had laid out from what the room has; Dave rules every page starts EMPTY — the installer lays it out — with
+     the one exception he kept (09:1x, "Keep Activities only"): a room with a display keeps its Activities widget, the
+     door into its activities (register 571/594). Home starts empty. Nothing is written. */
+  const out=[];
   if(curRoom>=0){
     const r=CONFIG.rooms[curRoom]; if(!r) return out;
-    try{ if(_roomHasActivities(r)) add('activities'); }catch(e){}
-    if((r.lights||[]).length) add('lights', r.lights.length>2?{size:2, rows:2}:{size:2});
-    if(r.sonos||r.media) add('media', {size:2});
-    if(r.climate) add('climate', {size:1});
-    if((r.covers||[]).length) add('covers', {size:r.covers.length>1?2:1});
-    (r.cameras||[]).forEach(c=>{ const i=(CONFIG.cameras||[]).findIndex(x=>x.entity===c); if(i>=0) add('camera', {cam:i}); });
-    return out;
+    try{ if(_roomHasActivities(r)) out.push({uid:'dflt-activities-0', id:'activities'}); }catch(e){}
   }
-  const anyPlayer=(CONFIG.rooms||[]).some(x=>x&&(x.sonos||x.media));
-  if(anyPlayer) add('media', {size:3});
-  // the weather only when it reads (seen on the box: a weather entity that was unavailable drew "Unavailable" on Home)
-  if(CONFIG.weather && !['unavailable','unknown',''].includes(String(st(CONFIG.weather)||''))) add('weather', {size:2});
-  if((CONFIG.scenes||[]).length) add('scene', {size:2});
-  if(CONFIG.security&&CONFIG.security.alarm) add('security', {size:1});
-  try{ if(_peopleList().length) add('people', {size:2}); }catch(e){}
   return out;
 }
 // Save widget layout (to this form factor's key)
@@ -23671,13 +23663,10 @@ function _ppLayoutLoad(){
 function _ppRoomWidgets(r){
   var lay=_pp.layout && _pp.layout['room_'+r.id];
   if(Array.isArray(lay)) return lay;
+  // 984 (Dave, 25 Oct): a room nobody laid out starts EMPTY on the wall panel too — the same rule as the app — keeping
+  // only a room-with-a-display's Activities widget (its door into its activities, 571/594).
   var out=[];
-  if((r.lights||[]).length) out.push({id:'lights'});
-  if(_ppPlayer(r)) out.push({id:'media'});
-  if(r.climate) out.push({id:'climate'});
-  if((r.covers||[]).length) out.push({id:'covers'});
-  (r.cameras||[]).forEach(function(c){ var i=(CONFIG.cameras||[]).findIndex(function(x){ return x.entity===c; }); if(i>=0) out.push({id:'camera', cam:i}); });
-  if(typeof _roomHasActivities==='function' && _roomHasActivities(r)) out.unshift({id:'activities'});
+  if(typeof _roomHasActivities==='function' && _roomHasActivities(r)) out.push({id:'activities'});
   return out;
 }
 function _ppColour(e){ var m=att(e,'supported_color_modes'); return Array.isArray(m) && m.some(function(x){ return /^(hs|xy|rgb|rgbw|rgbww)$/.test(x); }); }

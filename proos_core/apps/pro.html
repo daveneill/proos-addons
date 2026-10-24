@@ -2880,7 +2880,7 @@ body.v3 .rh-card{border-radius:22px}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102407';
+const PROOS_BUILD='2026102501';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -12362,12 +12362,12 @@ function _wpeKindOf(eid){ const d=eid.split('.')[0]; if(d==='light') return _wpe
   return ({media_player:'Music',cover:'Shade',climate:'Climate',camera:'Camera',lock:'Lock',scene:'Scene',script:'Activity',fan:'Fan',switch:'Switch'})[d]||d; }
 /* what the panel draws for a room with no layout anywhere — the same composition the panel uses (962, _ppRoomWidgets) */
 function _wpeRoomDefault(area){
-  const out=[];
-  if(_wpeRoomEnts(area,'light').length) out.push({id:'lights'});
-  if(_wpeRoomEnts(area,'media_player').length) out.push({id:'media'});
-  if(_wpeRoomEnts(area,'climate').length) out.push({id:'climate'});
-  if(_wpeRoomEnts(area,'cover').length) out.push({id:'covers'});
-  _wpeRoomEnts(area,'camera').forEach(function(c){ out.push({id:'camera', entity:c}); });
+  // 984 (Dave, 25 Oct: "All widgets need to be gone by default for new box"; "Keep Activities only"): what a panel shows
+  // for a room nobody laid out — and so where editing starts — is EMPTY, but for a room with a display's Activities
+  // widget (Core's verdict names a display, the dashboard's own test, 594).
+  const out=[], v=_wpeSt('sensor.proos_activity_'+area), devs=(v&&v.attributes&&v.attributes.devices)||{};
+  if(v && !['unknown','unavailable'].includes(v.state) && !(v.attributes||{}).provisional
+     && Object.values(devs).some(function(x){ return x && x.role==='display'; })) out.push({id:'activities'});
   return out;
 }
 function _wpeUid(){ return 'w'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
@@ -12402,12 +12402,12 @@ async function _wpeLoad(area){
 /* where this room's layout comes from, for this panel (or for All Wall Panels) */
 function _wpeSource(){
   const res=_wpe.res||{}, pg=_wpe.page;
-  if(!_wpe.screen){ const d=(res.default||{})[pg]; return Array.isArray(d)?['own','Set for All Wall Panels']:['room','Nothing set yet — every panel draws what the room has']; }
+  if(!_wpe.screen){ const d=(res.default||{})[pg]; return Array.isArray(d)?['own','Set for All Wall Panels']:['room','Nothing set yet — every panel starts empty (a room with a display shows its Activities)']; }
   const sc=(res.scopes||{})[pg];
   if(sc==='screen') return ['own','This panel\'s own layout'];
   if(sc==='default') return ['all','From All Wall Panels'];
   if(sc==='fallback') return ['ipad','From the iPad layout (no wall layout set for this room yet)'];
-  return ['room','Nothing set yet — the panel draws what the room has'];
+  return ['room','Nothing set yet — the panel starts empty (a room with a display shows its Activities)'];
 }
 function _wpeCurrent(){
   const res=_wpe.res||{}, pg=_wpe.page, area=pg.replace(/^room_/,'');
