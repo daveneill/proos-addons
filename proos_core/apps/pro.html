@@ -2880,7 +2880,7 @@ body.v3 .rh-card{border-radius:22px}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102502';
+const PROOS_BUILD='2026102503';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -5787,11 +5787,10 @@ function renderDeviceManage(deviceId){
   // 709 (Dave, 7 Oct 2026: "you have done nothing with integration/ device settings pages still so cant change anything"):
   // what the integration switched off can be turned on from here, all at once — the Ness M1 ships its 26 zone on/off
   // sensors off, and turning them on one by one was 26 trips three screens deep.
-  const _offByInt=G.disabled.filter(e=>e.disabled_by==='integration');
-  if(_offByInt.length>1) _dpCols.top+=`<div class="dp-banner"><span>${_offByInt.length} ${_offByInt.length===1?'entity was':'entities were'} left off by the integration. Turn them on to use them${_Z.zones.length?' and set each zone\u2019s <b>Shows As</b>':''}.</span><button type="button" class="ip-btn p" onclick="enableOffByIntegration('${esc(deviceId)}')">Turn On All ${_offByInt.length}</button></div>`;
+  // 986 (Dave, 25 Oct: "remove the blanket enable all disabled button as thats confusing"): the banner and row that turned on everything the integration left off
+  // are gone — what an integration ships off stays off unless someone turns ONE on, on its own page. A zone's Shows As no
+  // longer needs its on/off copy (986).
   if(G.disabled.length) rows+=card(ghead('Disabled',G.disabled.length)
-    +(_offByInt.length>1?`<div class="row tappable" onclick="enableOffByIntegration('${esc(deviceId)}')"><div class="erow-l"><div class="rl">Turn On All ${_offByInt.length}</div>`
-      +`<div class="rsub">The ones the integration left off</div></div><div class="rr">&rsaquo;</div></div>`:'')
     +G.disabled.slice().sort((a,b)=>_entLabel(a,d).localeCompare(_entLabel(b,d))).map(e=>
       `<div class="row dimrow" onclick="openEntityPage('${esc(e.entity_id)}')">`
       +`<div class="erow-l"><div class="rl">${esc(_entLabel(e,d))}</div>`
@@ -5911,6 +5910,7 @@ const _DP_ZKIND={door:'door',opening:'door',window:'window',garage_door:'garage_
   smoke:'smoke',heat:'smoke',carbon_monoxide:'smoke',gas:'smoke',moisture:'moisture',sound:'sound',vibration:'sound',safety:'safety',tamper:'tamper'};
 function _dpTwin(z){ const t=_showsAsTarget(z); return t?(_ents.find(x=>x.entity_id===t)||null):null; }
 function _dpZoneKind(z){
+  const _lk=_showsLabelKind(z); if(_lk&&_DP_ZKIND[_lk]) return _DP_ZKIND[_lk];   // 986: the installer's choice, on the zone
   const tw=_dpTwin(z);
   const c=tw?(attrOf(tw.entity_id,'device_class')||tw.device_class||tw.original_device_class):'';
   if(c&&_DP_ZKIND[c]) return _DP_ZKIND[c];
@@ -6183,7 +6183,7 @@ function renderEntityManage(entityId){
     // 709 · SHOWS AS (Dave: "change to if they are a motion sensor or a door or smoke etc"; "A" — the platform's own Show as).
     // The platform's own setting (the entity registry's device_class), in plain words, the kinds an alarm zone can be first.
     // A Ness zone's status sensor has no Show as of its own: it is set on its on/off twin (same identity).
-    const cur=(tw&&tw.device_class)||'';
+    const cur=_showsAsKind(tw);
     const orig=tw&&tw.original_device_class?(' — '+_showsAsWord(tw.original_device_class)):'';
     const ord=SHOWS_AS_FIRST.concat(DEVICE_CLASSES.binary_sensor.filter(c=>!SHOWS_AS_FIRST.includes(c)));
     const opts='<option value="">As the Integration Says'+orig+'</option>'+ord.map(c=>`<option value="${c}"${cur===c?' selected':''}>${_showsAsWord(c)}</option>`).join('');
@@ -6193,9 +6193,7 @@ function renderEntityManage(entityId){
     const _zk=(dom==='sensor'&&attrOf(entityId,'logical_status')!=null)?_dpZoneKind(e):'';
     const eff=cur||(tw&&tw.original_device_class)||(_zk&&_zk!=='zone'?_zk:'');
     const pics=_SP_KINDS.map(([c,l])=>`<button type="button" class="sp-k${cur===c?' on':(!cur&&eff===c?' dflt':'')}" data-c="${c}" onclick="spKind('${c}')"><svg viewBox="0 0 24 24" aria-hidden="true">${_DP_ZICO[_DP_ZKIND[c]||'zone']}</svg>${esc(l)}</button>`).join('');
-    dcField=(tw&&tw.disabled_by)
-      ?`<div class="field"><div class="field-label">Shows As</div><div class="wiz-hint">Set on this zone's on/off sensor, which is off.</div><button class="rp-cancel" onclick="enableEntity('${esc(tw.entity_id)}',true)">Turn On Its On/Off Sensor</button></div>`
-      :`<div class="field"><div class="field-label">Shows As</div><div class="sp-kinds">${pics}</div>`
+    dcField=`<div class="field"><div class="field-label">Shows As</div><div class="sp-kinds">${pics}</div>`
         +`<select id="ent-showsas" class="fsel sp-more" data-target="${esc(_sa)}" onchange="spKindSync()" aria-label="More kinds">${opts}</select></div>`;
   } else if(DEVICE_CLASSES[dom]){ const cur=e.device_class||''; const orig=e.original_device_class?(' — '+e.original_device_class.replace(/_/g,' ')):''; const opts='<option value="">Default'+orig+'</option>'+DEVICE_CLASSES[dom].map(c=>`<option value="${c}"${cur===c?' selected':''}>${c.replace(/_/g,' ')}</option>`).join(''); dcField=`<div class="field"><div class="field-label">Show as (Type)</div><select id="ent-dc" class="fsel">${opts}</select></div>`; }
   let precField='';
@@ -6258,7 +6256,7 @@ function renderEntityManage(entityId){
       +(dom==='cover'?`<div id="gd-cover-link"></div>`:'');
   const hist=`<div class="bld-sec-h">Today</div><div id="sp-hist"><div class="ip-kv"><span>Reading…</span></div></div>`
     +(attrs.length?`<div class="bld-sec-h sp-gap">Details</div>`+attrs.map(k=>`<div class="ip-kv"><span>${esc(_ipCap(k))}</span><span class="rsub">${esc(String(A[k]))}</span></div>`).join(''):'')
-    +(_sa&&_sa!==entityId?`<div class="bld-sec-h sp-gap">This Zone Is Made of Two Parts</div><div class="wiz-hint sp-note">The panel’s status (${esc(_ipCap(ls)||'Normal')}) and its on/off sensor. They share one identity, so they are shown and set as one zone. Shows As is kept on the on/off part — the platform’s own setting.</div>`:'');
+    ;
   const _keep=_scrollKeep('#dev-body .sp-cols>section');   // tapping Hidden low in the settings does not jump to the top
   setHTML(document.getElementById('dev-body'),
     `<button class="back" onclick="renderDeviceManage(_devSheet.id)">‹ ${esc(d?devName(d):'Device')}</button>`
@@ -6421,23 +6419,24 @@ function _showsAsWord(c){ const w={moisture:'Water Leak',sound:'Glass Break (Sou
 // Which entity carries this one's Shows As: itself for an on/off sensor; for a status sensor, its on/off twin under the SAME
 // identity from the same integration (the Ness: sensor.* and binary_sensor.* both elkm1_zone_NNN). Otherwise none.
 function _showsAsTarget(e){
+  // 986 (Dave, 25 Oct: "needs to be done the proper way"): Shows As is set on the thing itself. An on/off sensor keeps it in
+  // the platform's own Show as; an alarm zone that reads words (the Ness: "Normal") — which the platform cannot give a kind
+  // — keeps it as the installer's choice in ProOS's record (a ProOS label on the zone). Its disabled on/off copy is no
+  // longer needed or touched.
   if(!e||!e.entity_id) return null;
   if(DOM(e)==='binary_sensor') return e.entity_id;
-  if(DOM(e)!=='sensor'||!e.unique_id) return null;
-  const tw=(_ents||[]).find(x=>x.entity_id!==e.entity_id && DOM(x)==='binary_sensor' && x.unique_id===e.unique_id && x.platform===e.platform);
-  return tw?tw.entity_id:null;
+  if(DOM(e)==='sensor' && attrOf(e.entity_id,'logical_status')!=null) return e.entity_id;
+  return null;
 }
+// 986: the installer's kind for a zone the platform cannot type, kept as a ProOS label (proos_shows_<kind>) — the
+// platform's own way to attach a fact to an entity, read by the dashboard and Core with everything else.
+const SHOWS_LABEL='proos_shows_';
+function _showsLabelKind(e){ const l=((e&&e.labels)||[]).find(x=>String(x).indexOf(SHOWS_LABEL)===0); return l?String(l).slice(SHOWS_LABEL.length):''; }
+function _showsAsKind(e){ return !e?'':(DOM(e)==='binary_sensor'?(e.device_class||''):_showsLabelKind(e)); }
 async function enableEntity(eid, stayOnPage){
   try{ await snd({type:'config/entity_registry/update', entity_id:eid, disabled_by:null}); toast('Turned on — the integration brings it in within about 30 seconds');
     await loadSite(); closeEntityInfo(); if(stayOnPage && _devSheet && _devSheet.entId) renderEntityManage(_devSheet.entId); else if(_devSheet && _devSheet.id) renderDeviceManage(_devSheet.id); rerenderConfig(); }
   catch(err){ toast("Couldn't turn it on"); }
-}
-async function enableOffByIntegration(deviceId){
-  const off=(_ents||[]).filter(x=>x.device_id===deviceId && x.disabled_by==='integration');
-  let ok=0;
-  for(const x of off){ try{ await snd({type:'config/entity_registry/update', entity_id:x.entity_id, disabled_by:null}); ok++; }catch(err){} }
-  toast(ok===off.length?('Turned on '+ok+' — the integration brings them in within about 30 seconds'):('Turned on '+ok+' of '+off.length));
-  await loadSite(); renderDeviceManage(deviceId); rerenderConfig();
 }
 async function exposeEnt(on){ const id=_devSheet&&_devSheet.entId; if(!id) return; try{ await snd({type:'homeassistant/expose_entity', assistants:['conversation'], entity_ids:[id], should_expose:!!on}); toast(on?'Exposed to voice':'Hidden from voice'); await loadSite(); renderEntityManage(id); }catch(e){ toast("Couldn't change exposure"); } }
 async function saveEntSettings(){
@@ -6448,7 +6447,13 @@ async function saveEntSettings(){
   if(document.getElementById('ent-dc')){ const dc=(gv('ent-dc')||'').trim(); msg.device_class=dc||null; }
   const sa=document.getElementById('ent-showsas'); let saMsg=null;
   if(sa){ const t=sa.getAttribute('data-target'), v=(sa.value||'').trim();
-    if(t===id) msg.device_class=v||null; else saMsg={type:'config/entity_registry/update', entity_id:t, device_class:v||null}; }
+    if(DOM(e)==='binary_sensor'){ if(t===id) msg.device_class=v||null; else saMsg={type:'config/entity_registry/update', entity_id:t, device_class:v||null}; }
+    else {
+      // 986: a zone that reads words keeps its kind as a ProOS label on itself (made once if this home has none yet)
+      const keep=(Array.isArray(e.labels)?e.labels:[]).filter(l=>String(l).indexOf(SHOWS_LABEL)!==0);
+      if(v){ const lid=SHOWS_LABEL+v; if(!(_labels||[]).some(l=>l.label_id===lid)){ try{ await snd({type:'config/label_registry/create', name:lid, color:'grey', icon:'mdi:shape-outline'}); }catch(_){ } } keep.push(lid); }
+      msg.labels=keep;
+    } }
   // 714: the entity's own room, or none (its device's). REGISTER 817: sent ONLY when it changed (an unchanged room no
   // longer rides along with an icon edit), and for an entity that stands for its device (no name of its own) it goes
   // through Core, which puts the DEVICE in the room — platform 2026.10.1 refuses such an entity a room of its own.
@@ -16887,7 +16892,7 @@ async function catDeleteDo(){ if(!CT||!CT.id) return; const scope=CT.scope; docu
 
 // ── label assignment toggle (entity settings sheet) ──
 function entLabelsField(e){
-  const labels=(_labels||[]).filter(l=>l.label_id!==SCENE_LABEL&&l.label_id!==SYSTEM_LABEL).slice().sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+  const labels=(_labels||[]).filter(l=>l.label_id!==SCENE_LABEL&&l.label_id!==SYSTEM_LABEL&&String(l.label_id).indexOf('proos_shows_')!==0).slice().sort((a,b)=>(a.name||'').localeCompare(b.name||''));
   if(!labels.length) return '<div class="field"><div class="field-label">Labels</div><div class="wiz-hint" style="opacity:.6;margin:0">No labels yet — create them under Labels &amp; categories.</div></div>';
   const cur=Array.isArray(e.labels)?e.labels:[];
   const chips=labels.map(l=>{ const on=cur.includes(l.label_id); return '<button class="chip'+(on?' on':'')+'" onclick="toggleEntLabel(\''+esc(l.label_id)+'\')"><span class="ldot" style="background:'+labelColorHex(l.color)+'"></span>'+esc(l.name||l.label_id)+'</button>'; }).join('');

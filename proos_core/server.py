@@ -6059,12 +6059,18 @@ class Handler(BaseHTTPRequestHandler):
                     shows_as = None
                     try:
                         se = next((e for e in ents if e.get("entity_id") == sensor), {}) or {}
-                        twin = sensor if sensor.startswith("binary_sensor.") else next(
-                            (e.get("entity_id") for e in ents if e.get("unique_id") and e.get("unique_id") == se.get("unique_id")
-                             and str(e.get("entity_id", "")).startswith("binary_sensor.")), None)
-                        if twin:
-                            full = _ws_call("config/entity_registry/get", entity_id=twin) or {}
-                            shows_as = full.get("device_class") or full.get("original_device_class")
+                        # register 986: the installer's Shows As on a zone the platform cannot type is a ProOS label on the
+                        # zone itself (proos_shows_<kind>) — first; then the platform's own Show as on an on/off sensor; a
+                        # zone's on/off copy is read only where a box already has it switched on (set up before 986).
+                        shows_as = next((str(l)[len("proos_shows_"):] for l in (se.get("labels") or [])
+                                         if str(l).startswith("proos_shows_")), None)
+                        if not shows_as:
+                            twin = sensor if sensor.startswith("binary_sensor.") else next(
+                                (e.get("entity_id") for e in ents if e.get("unique_id") and e.get("unique_id") == se.get("unique_id")
+                                 and str(e.get("entity_id", "")).startswith("binary_sensor.") and not e.get("disabled_by")), None)
+                            if twin:
+                                full = _ws_call("config/entity_registry/get", entity_id=twin) or {}
+                                shows_as = full.get("device_class") or full.get("original_device_class")
                     except Exception:                            # noqa: BLE001
                         shows_as = None
                     out.update({"sensor": sensor, "door": d, "shows_as": shows_as,

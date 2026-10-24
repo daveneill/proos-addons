@@ -4680,7 +4680,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102501';
+const PROOS_BUILD='2026102502';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -13350,6 +13350,10 @@ function _zoneTwin(z){
   return Object.keys(states).find(e=>e!==z && entityUniqueId[e]===u && entityPlatformMap[e]===p && e.startsWith('binary_sensor.'))||null;
 }
 function _zoneKind(z){
+  // 986 (Dave, 25 Oct: "needs to be done the proper way"): the installer's Shows As for a zone the platform cannot type
+  // (the Ness's "Normal" sensors) is a ProOS label on the zone itself, set in Pro — read first. Then the platform's own Show
+  // as (an on/off sensor's kind). A zone's on/off copy is read only if a box already has it switched on (set up before 986).
+  for(const l in labelledEntities){ if(l.indexOf('proos_shows_')===0 && (labelledEntities[l]||[]).includes(z)){ const k=_ZONE_KIND_OF[l.slice(12)]; if(k) return k; } }
   const tw=z.startsWith('binary_sensor.')?z:_zoneTwin(z);
   const dc=tw&&att(tw,'device_class'); if(dc&&_ZONE_KIND_OF[dc]) return _ZONE_KIND_OF[dc];
   const d=String(att(z,'definition')||'').toLowerCase();
