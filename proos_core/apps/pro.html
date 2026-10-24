@@ -876,6 +876,8 @@ html.proos-has-bg #landing::before,html.proos-has-bg #proos-reboot::before,html.
 /* 719 (Dave: "font is too large needs to be standardised"): the sensor head wears the integration head's
    own scale — the same 16/18 padding, 54 px mark, 22 px title, small grey sub-lines. */
 .sp-headcard{display:flex;align-items:center;gap:16px;padding:16px 18px;border-radius:16px;background:var(--card);border:0.5px solid var(--line-soft)}
+.gd-card{margin-top:14px;padding:14px 16px;border-radius:16px;background:var(--card);border:0.5px solid var(--line-soft)}
+.gd-now{font-size:20px;font-weight:500;margin:6px 0 4px;color:var(--t1)}
 .sp-ic{width:54px;height:54px;border-radius:13px;background:rgba(255,255,255,0.06);border:0.5px solid var(--line-soft);display:flex;align-items:center;justify-content:center;flex:0 0 auto}
 .sp-ic svg{width:28px;height:28px;stroke:rgba(255,255,255,0.8);fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
 .sp-hbody{flex:1;min-width:0}
@@ -2878,7 +2880,7 @@ body.v3 .rh-card{border-radius:22px}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102404';
+const PROOS_BUILD='2026102405';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -3349,8 +3351,8 @@ async function loadSite(){
 
     const homeAreaCount=_areas.filter(a=>!_systemAreas.has(a.area_id)).length;
     const showing=_areas.filter(a=>!_systemAreas.has(a.area_id)&&roomShows(a.area_id)).length;
-    const sceneEnts=_ents.filter(e=>DOM(e)==='scene');
-    const scenesTotal=Math.max(sceneEnts.length, _states.filter(s=>DOM(s)==='scene').length);
+    const sceneEnts=_ents.filter(e=>DOM(e)==='scene' && e.platform==='homeassistant');   // register 974
+    const scenesTotal=sceneEnts.length;
     const scenesPublished=definedLabels.has('dashboard_scene') ? sceneEnts.filter(e=>(e.labels||[]).includes('dashboard_scene')).length : 0;
     const cameras=_states.filter(s=>DOM(s)==='camera').length;
 
@@ -6243,8 +6245,12 @@ function renderEntityManage(entityId){
   const A=((stOf(entityId)||{}).attributes)||{};
   const skip={friendly_name:1,icon:1,entity_picture:1,supported_features:1};
   const attrs=Object.keys(A).filter(k=>!skip[k]&&A[k]!==null&&A[k]!==''&&typeof A[k]!=='object').slice(0,12);
+  const _gdHere=!!((_sa&&((tw&&tw.device_class)==='garage_door'||(!(tw&&tw.device_class)&&(tw&&tw.original_device_class)==='garage_door')))||(dom==='binary_sensor'&&(e.device_class||e.original_device_class)==='garage_door'));
   const left=`<div class="sp-headcard"><div class="sp-ic"><svg viewBox="0 0 24 24" aria-hidden="true">${icon}</svg></div>`
-      +`<div class="sp-hbody"><div class="sp-nm">${esc(nm)}</div><div class="sp-word">${esc(word)}</div><div class="rsub">${esc(sub)}</div></div>${pill}</div>${ctl}`;
+      +`<div class="sp-hbody"><div class="sp-nm">${esc(nm)}</div><div class="sp-word">${esc(word)}</div><div class="rsub">${esc(sub)}</div></div>${pill}</div>${ctl}`
+      // register 974: a door sensor shown as a Garage Door gets the Garage Door card
+      +(_gdHere
+        ?`<div class="gd-card" id="gd-card" data-sensor="${esc(entityId)}"><div class="bld-sec-h">Garage Door</div><div class="wiz-hint">Reading…</div></div>`:'');
   const hist=`<div class="bld-sec-h">Today</div><div id="sp-hist"><div class="ip-kv"><span>Reading…</span></div></div>`
     +(attrs.length?`<div class="bld-sec-h sp-gap">Details</div>`+attrs.map(k=>`<div class="ip-kv"><span>${esc(_ipCap(k))}</span><span class="rsub">${esc(String(A[k]))}</span></div>`).join(''):'')
     +(_sa&&_sa!==entityId?`<div class="bld-sec-h sp-gap">This Zone Is Made of Two Parts</div><div class="wiz-hint sp-note">The panel’s status (${esc(_ipCap(ls)||'Normal')}) and its on/off sensor. They share one identity, so they are shown and set as one zone. Shows As is kept on the on/off part — the platform’s own setting.</div>`:'');
@@ -6256,6 +6262,7 @@ function renderEntityManage(entityId){
   _scrollPut('#dev-body .sp-cols>section', _keep, entityId);
   _spLayout();
   _spHistory(entityId);
+  if(_gdHere) gdLoad(entityId);
   // 719: the bulk entity list Pro loads does not carry Shows As (device_class) — read on the box: it said
   // nothing while the platform's own record said garage_door, so the page showed "As the Integration Says"
   // after a save that had worked. Read this entity's (and its twin's) own record once, then draw again.
@@ -6272,6 +6279,90 @@ async function _spRegLoad(ids){
 }
 // The eight kinds an alarm zone most often is, shown as pictures (register 714).
 const _SP_KINDS=[['door','Door'],['window','Window'],['garage_door','Garage Door'],['motion','Motion'],['smoke','Smoke'],['moisture','Water Leak'],['sound','Glass Break'],['safety','Panic']];
+// ── GARAGE DOORS AND GATES (register 974; Dave, 24 Oct 12:17–12:46) ──────────────────────────────────────────────
+// One proper door from a driver's pieces: what opens it (a panel task, an output/relay, a button), the sensor that says
+// where it is, the wiring. ProOS Core makes it as the platform's own template cover — a Garage Door (or Gate) in Apple
+// Home, never a blind. One-button openers are pressed only when the sensor says it will do what was asked.
+let _gd=null;
+const GD_OPEN=['on','open','violated','opening'], GD_CLOSED=['off','closed','normal'];
+function gdReads(raw, inv){ const s=String(raw==null?'':raw).toLowerCase(); let v=GD_OPEN.includes(s)?'Open':GD_CLOSED.includes(s)?'Closed':null; if(v&&inv) v=(v==='Open')?'Closed':'Open'; return v; }
+async function gdLoad(sensor){
+  const host=document.getElementById('gd-card'); if(!host) return;
+  try{ const r=await fetch(proCoreUrl()+'/garage?sensor='+encodeURIComponent(sensor)); const d=await r.json(); if(!r.ok) throw new Error(d.error||r.status); _gd=d; }
+  catch(e){ setHTML(host,'<div class="bld-sec-h">Garage Door</div><div class="wiz-hint">'+esc(_coreFailWords('',e))+'</div>'); return; }
+  _gd.edit=!_gd.door; gdRender();
+}
+function gdName(eid){ const c=((_gd&&_gd.candidates)||[]).find(x=>x.entity===eid); const st=(_states||[]).find(x=>x.entity_id===eid); return (c&&c.name)||(st&&st.attributes&&st.attributes.friendly_name)||eid; }
+function gdVal(id, dflt){ const el=document.getElementById(id); return el?el.value:dflt; }
+function gdSeg(id, opts, cur, onchange){ return '<div class="seg" id="'+id+'" data-v="'+esc(cur)+'">'+opts.map(o=>'<button type="button" class="'+(o[0]===cur?'on':'')+'" onclick="gdPick(\''+id+'\',\''+o[0]+'\''+(onchange?',true':'')+')">'+esc(o[1])+'</button>').join('')+'</div>'; }
+function gdPick(id, v, rerender){ const el=document.getElementById(id); if(!el) return; el.dataset.v=v; [...el.children].forEach(b=>b.classList.toggle('on', b.getAttribute('onclick').indexOf("'"+v+"'")>0)); if(rerender) gdRender(true); else gdLive(); }
+function gdForm(){ // the values on screen, or the saved door's, or the suggestion
+  const d=_gd.door||{}; const c=(_gd.candidates||[])[0];
+  const segv=(id,dflt)=>{ const el=document.getElementById(id); return el?el.dataset.v:dflt; };
+  return { sensor:_gd.sensor, kind:segv('gd-kind', d.kind||'garage'), name:gdVal('gd-name', d.name||''),
+    opener:gdVal('gd-opener', d.opener||(c&&c.entity)||''), closer:(segv('gd-buttons', d.closer?'two':'one')==='two')?gdVal('gd-closer', d.closer||''):'',
+    pulse_s:parseFloat(gdVal('gd-pulse', d.pulse_s||1)), contact:segv('gd-contact', d.contact||'NO'),
+    invert:segv('gd-invert', d.invert?'inv':'as')==='inv', travel_s:parseInt(gdVal('gd-travel', d.travel_s||20),10) };
+}
+function gdLive(){ const el=document.getElementById('gd-live'); if(!el) return; const f=gdForm(); const w=gdReads(_gd.raw, f.invert);
+  setHTML(el, w?('Reads now: <b>'+w+'</b> — if that is wrong for where the door is, flip Sensor.'):'Reads now: <b>no reading</b> — the door will not be pressed until its sensor answers.'); }
+function gdRender(keepForm){
+  const host=document.getElementById('gd-card'); if(!host||!_gd) return;
+  const prev=keepForm?gdForm():null; const d=Object.assign({}, _gd.door||{}, prev||{});
+  const C=_gd.candidates||[]; const kw={task:'Task',output:'Output',button:'Button',activity:'Activity'};
+  const opt=(sel)=>C.map(c=>'<option value="'+esc(c.entity)+'"'+(c.entity===sel?' selected':'')+'>'+esc(c.name)+' — '+kw[c.kind]+'</option>').join('');
+  const head='<div class="bld-sec-h">'+(d.kind==='gate'?'Gate':'Garage Door')+'</div>';
+  if(_gd.door && !_gd.edit){
+    const cov=_gd.door.cover; const st=cov?stState(cov):null; const w=st==='open'?'Open':st==='closed'?'Closed':st==='opening'?'Opening…':st==='closing'?'Closing…':'No reading';
+    setHTML(host, head+'<div class="wiz-hint">Made as <b>'+esc(_gd.door.name||'Garage Door')+'</b>. It shows on the dashboard and in Apple Home as a '+(_gd.door.kind==='gate'?'gate':'garage door')+'. Opens with '+esc(gdName(_gd.door.opener))+(_gd.door.closer?(', closes with '+esc(gdName(_gd.door.closer))):'')+'.</div>'
+      +'<div class="gd-now" id="gd-now">'+esc(w)+'</div>'
+      +'<div class="cred-actions"><button class="btn-ghost" onclick="gdTest(\'open\')">Test Open</button><button class="btn-ghost" onclick="gdTest(\'close\')">Test Close</button></div>'
+      +'<div class="cred-actions"><button class="btn-ghost" onclick="_gd.edit=true;gdRender()">Change Settings</button><button class="btn-ghost" onclick="gdUndo()">Undo</button></div>');
+    return;
+  }
+  if(!C.length){ setHTML(host, head+'<div class="wiz-hint">Nothing in this home looks like it opens this door — no task, output or button shares its name or its panel. Add the opener’s integration first.</div>'); return; }
+  const relay=String(d.opener||(C[0]&&C[0].entity)||'').indexOf('switch.')===0;
+  const two=!!(d.closer) || (prev && prev.closer!=='' && document.getElementById('gd-buttons') && document.getElementById('gd-buttons').dataset.v==='two');
+  setHTML(host, head
+    +'<div class="field"><div class="field-label">This Is a</div>'+gdSeg('gd-kind',[['garage','Garage Door'],['gate','Gate']], d.kind||'garage', true)+'</div>'
+    +'<div class="field"><div class="field-label">Name</div><input id="gd-name" type="text" value="'+esc(d.name||'')+'" placeholder="'+(d.kind==='gate'?'Gate':'Garage Door')+'" autocomplete="off"/></div>'
+    +'<div class="field"><div class="field-label">Opens With</div><select id="gd-opener" class="fsel" onchange="gdRender(true)">'+opt(d.opener||(C[0]&&C[0].entity))+'</select><div class="field-hint">Suggested from its name and panel — check it is the right door.</div></div>'
+    +(relay?('<div class="field"><div class="field-label">Pulse Time</div><select id="gd-pulse" class="fsel">'+[0.5,1,1.5,2,3,5].map(v=>'<option value="'+v+'"'+(Number(d.pulse_s||1)===v?' selected':'')+'>'+v+' s</option>').join('')+'</select><div class="field-hint">How long the relay closes for one press.</div></div>'
+      +'<div class="field"><div class="field-label">Relay Contact</div>'+gdSeg('gd-contact',[['NO','Normally Open'],['NC','Normally Closed']], d.contact||'NO')+'</div>'
+      +'<div class="field"><div class="field-label">Buttons</div>'+gdSeg('gd-buttons',[['one','One for Open and Close'],['two','Separate Close Relay']], two?'two':'one', true)+'</div>'
+      +(two?'<div class="field"><div class="field-label">Closes With</div><select id="gd-closer" class="fsel">'+C.filter(c=>c.kind==='output').map(c=>'<option value="'+esc(c.entity)+'"'+(c.entity===d.closer?' selected':'')+'>'+esc(c.name)+'</option>').join('')+'</select></div>':'')):'')
+    +'<div class="field"><div class="field-label">Sensor</div>'+gdSeg('gd-invert',[['as','As Wired'],['inv','Inverted']], d.invert?'inv':'as')+'<div class="field-hint" id="gd-live"></div></div>'
+    +'<div class="field"><div class="field-label">Travel Time</div><select id="gd-travel" class="fsel">'+[10,15,20,30,45,60,90,120].map(v=>'<option value="'+v+'"'+(Number(d.travel_s||20)===v?' selected':'')+'>'+v+' s</option>').join('')+'</select><div class="field-hint">If the sensor has not changed by then, ProOS says the door didn’t finish.</div></div>'
+    +'<div class="wiz-hint">'+(two?'Open and Close each press their own relay.':'One button opens and closes, so ProOS presses Open only when the door reads Closed, and Close only when it reads Open.')+'</div>'
+    +'<div class="cred-actions">'+(_gd.door?'<button class="rp-cancel" onclick="_gd.edit=false;gdRender()">Cancel</button>':'')+'<button class="btn-primary" onclick="gdSave()">'+(_gd.door?'Save Changes':'Make the Door')+'</button></div>');
+  gdLive();
+}
+async function gdSave(){
+  const f=gdForm(); if(!f.name) delete f.name;
+  try{ const r=await fetch(proCoreUrl()+'/garage/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(f)}); const d=await r.json().catch(()=>({}));
+    if(!r.ok){ toast(d.error||'Could not make the door'); return; } toast((f.kind==='gate'?'Gate':'Garage door')+' saved — test it below'); }
+  catch(e){ toast(_coreFailWords('',e)); return; }
+  await gdLoad(f.sensor);
+}
+async function gdUndo(){
+  if(!await proAsk('Undo this door? The pieces go back to how they were.')) return;
+  try{ const r=await fetch(proCoreUrl()+'/garage/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sensor:_gd.sensor})}); const d=await r.json().catch(()=>({}));
+    if(!r.ok){ toast(d.error||'Could not undo'); return; } toast('Door removed'); }
+  catch(e){ toast(_coreFailWords('',e)); return; }
+  await gdLoad(_gd.sensor);
+}
+async function gdTest(dir){
+  const cov=_gd&&_gd.door&&_gd.door.cover; if(!cov) return;
+  const now=document.getElementById('gd-now'); const before=stState(cov);
+  try{ await snd({type:'call_service',domain:'cover',service:dir==='open'?'open_cover':'close_cover',target:{entity_id:cov}}); }catch(e){ toast('The platform refused: '+String(e&&e.message||e).slice(0,80)); return; }
+  if(dir==='open'&&before!=='closed' || dir==='close'&&before!=='open'){ if(now) setHTML(now, before==='open'||before==='closed'?('Already '+before+' — not pressed (one-button safety).'):'No reading — not pressed.'); return; }
+  if(now) setHTML(now, dir==='open'?'Opening…':'Closing…');
+  const t0=Date.now(), lim=(_gd.door.travel_s||20)*1000;
+  const tick=()=>{ const s=stState(cov); if(s!==before&&(s==='open'||s==='closed')){ if(now) setHTML(now, (s==='open'?'Open':'Closed')+' — read from the sensor after '+Math.round((Date.now()-t0)/1000)+' s'); return; }
+    if(Date.now()-t0>lim){ if(now) setHTML(now, 'Didn’t finish — the sensor still says '+esc(before||'nothing')+' after '+Math.round(lim/1000)+' s. Check the opener, the wiring, or Sensor (As Wired / Inverted).'); return; }
+    setTimeout(tick, 700); };
+  setTimeout(tick, 700);
+}
 function spKind(c){ const s=document.getElementById('ent-showsas'); if(!s) return; s.value=(s.value===c)?'':c; spKindSync(); }
 function spKindSync(){ const s=document.getElementById('ent-showsas'); if(!s) return;
   document.querySelectorAll('#dev-body .sp-k').forEach(b=>{ b.classList.toggle('on', b.getAttribute('data-c')===s.value); if(s.value) b.classList.remove('dflt'); }); }
@@ -7742,7 +7833,9 @@ function roomsSectionHTML(){
     +`<button class="btn-primary" onclick="openRoomEdit(null)" style="margin-bottom:14px">Add Room</button>`+cards;
 }
 function activitiesSectionHTML(){
-  const r=_readiness||{}; const sceneEnts=_ents.filter(e=>DOM(e)==='scene');
+  // register 974 (Dave, 24 Oct): Scenes are the scenes MADE here (the platform's own scene config, platform
+  // "homeassistant"). A driver's panel tasks (the Ness's elkm1_task_*) are not scenes; they stay usable as actions.
+  const r=_readiness||{}; const sceneEnts=_ents.filter(e=>DOM(e)==='scene' && e.platform==='homeassistant');
   const pub=e=>(e.labels||[]).includes(SCENE_LABEL);
   const cards=sceneEnts.length
     ? '<div class="scene-grid">'+sceneEnts.slice().sort((a,b)=>entName(a.entity_id).localeCompare(entName(b.entity_id))).map(e=>{ const eid=esc(e.entity_id); const p=pub(e); return `<div class="scene-card" data-scene-bg="${eid}" onclick="editScene('${eid}')"><div class="scene-card-top"><button class="scene-card-test" onclick="event.stopPropagation();openSceneArt('${eid}')">Art</button><button class="scene-card-test" onclick="event.stopPropagation();openManage('scene','${eid}')">⋯</button><button class="scene-card-test" onclick="event.stopPropagation();testScene('${eid}')">Test</button></div><div class="scene-card-body"><div class="scene-card-name">${esc(dispName(e.entity_id))}</div><div class="scene-card-pub"><span class="sw-lbl">Dashboard</span><button class="sw ${p?'on':''}" role="switch" aria-checked="${p}" onclick="event.stopPropagation();togglePublish('${eid}')"><span class="sw-knob"></span></button></div></div></div>`; }).join('')+'</div>'
@@ -17089,10 +17182,12 @@ function ahHomeKitType(eid){
   return null;
 }
 // every entity ProOS can publish (Apple TVs/HomePods/Ubiquiti media auto-hidden)
+let _ahGarPieces=new Set();   // register 974: what only presses a garage door — the door is published, never its parts
 function ahBridgeableEntities(){
   return _ents.filter(e=>{
     const dom=DOM(e);
-    if(e.disabled_by) return false;   // 970r: switched off in the platform (e.g. Protect's medium/low camera streams) — nothing to publish
+    if(e.disabled_by) return false;
+    if(_ahGarPieces.has(e.entity_id)) return false;   // 970r: switched off in the platform (e.g. Protect's medium/low camera streams) — nothing to publish
     if(AH_BRIDGEABLE.indexOf(dom)<0) return false;
     if(dom==='media_player' && ahMediaSuppressReason(e)) return false;
     return !!ahHomeKitType(e.entity_id);
@@ -17244,6 +17339,7 @@ async function ahRegenPairing(){
 async function ahLoadInventory(){
   const wrap=document.getElementById('ah-inv'), list=document.getElementById('ah-inv-list'), save=document.getElementById('ah-inv-save');
   if(!wrap||!list) return;
+  try{ const gr=await fetch(proCoreUrl()+'/garage'); if(gr.ok){ const gj=await gr.json(); _ahGarPieces=new Set(gj.pieces||[]); } }catch(e){}
   wrap.style.display='block';
   list.innerHTML='<div class="empty"><div class="et">Reading devices…</div></div>';
   let enabled=new Set();
@@ -17276,6 +17372,8 @@ async function ahLoadInventory(){
     const camBlock=(String(e.entity_id).indexOf('camera.')===0)?ahCamBlock(e.entity_id, rawEnabled):'';
     return '<div class="row" data-eid-row="1" data-search="'+search+'"><div class="rl">'+esc(nm)
       +'<div class="es" style="font-size:11px;color:var(--t3);font-weight:300;margin-top:3px">Appears as '+esc(t)+(ahNeedsOwn(e.entity_id)?' · Paired On Its Own':'')+'</div>'
+      // register 974: a cover nobody said the kind of is a blind to Apple Home — the garage-door-as-a-blind fault
+      +((DOM(e)==='cover' && !((ahState(e.entity_id)||{}).attributes||{}).device_class)?'<div class="es" style="font-size:11px;color:#f5a623;margin-top:3px">No type set — Apple Home will show this as a blind. If it is a garage door or gate, set it up on its sensor’s page (Garage Door card).</div>':'')
       +camBlock+'</div><div class="rr"><button type="button" class="sw '+(on?'on':'')+'" role="switch" aria-checked="'+on+'" data-eid="'+esc(e.entity_id)+'" data-area="'+esc(ahAreaOf(e)||'_')+'" onclick="ahToggleOne(this)"><span class="sw-knob"></span></button></div></div>';
   };
   const section=(title, arr, areaKey, warn)=>{

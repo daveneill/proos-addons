@@ -4642,7 +4642,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102302';
+const PROOS_BUILD='2026102401';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -9291,6 +9291,7 @@ document.addEventListener('visibilitychange',()=>{
 
 // Widget library — all available widget types
 const W_SVG = {
+  garage:    '<svg viewBox="0 0 24 24"><path d="M3 21V9l9-5 9 5v12"/><rect x="6" y="11" width="12" height="10"/><path d="M6 14h12M6 17h12"/></svg>',   // register 974
   camera:    '<svg viewBox="0 0 24 24"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>',
   lights:    '<svg viewBox="0 0 24 24"><line x1="9" y1="18" x2="15" y2="18"/><line x1="10" y1="22" x2="14" y2="22"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14z"/></svg>',
   climate:   '<svg viewBox="0 0 24 24"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></svg>',
@@ -9342,6 +9343,7 @@ const WIDGET_LIBRARY = [
   {id:'sun',       name:'Sun',         size:1, phone:['S','M'], sizes:[[1,1],[2,1]], requires:()=>true,                           desc:'Sunrise, sunset and daylight'},
   {id:'people',    name:'People',      size:2, phone:['M'], single:true, sizes:[[2,1],[3,1]], requires:()=>_peopleList().length>0, desc:'Who\'s home and where'},
   {id:'security',  name:'Security',    size:1, phone:['S','M'], sizes:[[1,1],[2,1],[2,2]], requires:()=>!!CONFIG.security.alarm, desc:'The alarm and its sensors'},
+  {id:'garage',    name:'Garage Doors', size:1, phone:['S','M'], sizes:[[1,1],[2,1]], requires:()=>_garageDoors().length>0, desc:'Garage doors and gates, read from their sensors'},   // register 974
   {id:'covers',    name:'Covers',      size:1, phone:['S','M'], sizes:[[1,1],[2,1]], requires:r=>r&&r.covers&&r.covers.length>0,  desc:'Blinds & shutters'},
   {id:'media',     name:'Now Playing', size:2, phone:['M','L'], min:2, sizes:[[2,1],[3,1],[2,2],[3,2]], requires:r=>true, desc:'Music and TV playing in the house'},
   {id:'protect_detect',   name:'Latest Detection', size:2, phone:['M'], min:2, sizes:[[2,1],[3,1]], requires:()=>_detectEventIds().length>0,   desc:'The newest thing a camera saw'},
@@ -10857,6 +10859,19 @@ function renderWidgetContent(w){
           +`<div class="wv-mt">${_hold}</div></div>`;
       }
       return {icon, label:'Security', value:_panelDead?'No signal':cap(alarm.replace(/_/g,' ')), sub:_panelDead?'The panel isn’t answering':subTxt, on:!_panelDead&&(alarm!=='disarmed'||open.length>0), html, onclickFn:()=>showPage('security')};
+    }
+    case 'garage': {
+      // GARAGE DOORS AND GATES (register 974; Dave, 24 Oct): every garage door or gate in the home, by the platform's own
+      // device class. The word is the door's READING (its sensor, through ProOS's door), never the last tap; a tap opens
+      // Doors & Gates, where a press shows as "Opening…" until the sensor says it got there.
+      const doors=_garageDoors();
+      const word=e=>{ const v=st(e); return v==='open'?'Open':v==='closed'?'Closed':v==='opening'?'Opening…':v==='closing'?'Closing…':'No reading'; };
+      const openD=doors.filter(d=>['open','opening','closing'].includes(st(d.entity)));
+      const unread=doors.filter(d=>{ const v=st(d.entity); return !v||v==='unavailable'||v==='unknown'; });
+      const value=doors.length===1?word(doors[0].entity):(openD.length?openD.length+' Open':(unread.length?(unread.length===doors.length?'No reading':unread.length+' not reporting'):'All Closed'));
+      const sub=doors.length===1?doors[0].name:(doors.length+' doors');
+      const html=`<div class="wc wv"><div class="wv-hd"><div class="wv-tx"><div class="wv-t">${_hEsc(doors.length===1?doors[0].name:'Garage Doors')}</div><div class="wv-s"><b>${_hEsc(value)}</b>${doors.length>1?' · '+_hEsc(sub):''}</div></div><span style="display:inline-flex;width:38px;height:38px;stroke:rgba(255,255,255,.7);fill:none;stroke-width:1.6">${icon.replace('<svg ','<svg width="38" height="38" ')}</span></div></div>`;
+      return {icon, label:'Garage', value, sub, on:openD.length>0, html, onclickFn:()=>showPage('access')};
     }
     case 'covers': {
       const covers=r?.covers||[];
@@ -13300,6 +13315,8 @@ function _zonesHTML(eid){
 // (the page is called Doors & Gates and carries a padlock glyph, and the
 // lock domain appeared nowhere in the app).
 const ACCESS_CLASSES = ['garage','gate','door','shutter','awning'];
+// register 974: the home's garage doors and gates — covers whose platform device class says so
+function _garageDoors(){ return accessEntities().filter(x=>x.kind==='cover' && ['garage','gate'].includes(String(((states[x.entity]||{}).attributes||{}).device_class||''))); }
 function accessEntities(){
   const out=[];
   try{

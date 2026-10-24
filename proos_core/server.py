@@ -947,6 +947,9 @@ def _room_voice_volume_view(rec):
             "committed": bool((rec or {}).get("committed"))}
 
 
+_garage_watch = None   # register 974 — set where the platform's live stream is wired
+
+
 def _mic_reopen(speaker, mic, where, spoke=None):
     """A question went out through the room speaker: open the room mic again once the speaker has finished
     (register 970vv; proos/roommic.py says why and how). Runs on its own thread; journals what it saw."""
@@ -3933,6 +3936,7 @@ def factory_reset(clear_proos_data=False, keep_auth=False):
                    "music_genres.json", "consent.json", "shortcuts.json",
                    "watch_learned.json",          # 970oo: which box went straight to a show — this home's entity ids
                    "account_copies.json",         # 970rr: the box's one-way copies of this home's ProOS accounts
+                   "garage_doors.json",           # 974: which pieces make this home's garage doors
                    "room_order.json", "layouts.json", "channels.json", "atv_apps.json",
                    "display_apps.json", "assist_scene_music.json",
                    "appart_brands.json", "appart_hidden.json",
@@ -6031,6 +6035,33 @@ class Handler(BaseHTTPRequestHandler):
                     if _why:
                         out["why"] = _why
                 return self._send(200, out)
+            if parts == ["garage"]:
+                # GARAGE DOORS AND GATES (register 974): every door ProOS made, the pieces that only press one, and — for
+                # one sensor — its door (if made), what it reads now, and what could open it, best first.
+                from proos import garage as _gar
+                q = parse_qs(urlparse(self.path).query)
+                sensor = (q.get("sensor") or [""])[0]
+                doors = _gar.load()
+                out = {"doors": doors, "pieces": sorted(_gar.pieces())}
+                if sensor:
+                    try:
+                        ents = _client.entity_registry() or []
+                        devs = _client.device_registry() or []
+                        snap = _client.snapshot([sensor]) or {}
+                    except Exception as e:                       # noqa: BLE001
+                        return self._send(503, {"error": "the platform did not answer: %s" % str(e)[:120]})
+                    names = {}
+                    try:
+                        for st in (_ha_stream.all_states() if _ha_stream else []) or []:
+                            names[st.get("entity_id")] = (st.get("attributes") or {}).get("friendly_name") or ""
+                    except Exception:                            # noqa: BLE001
+                        names = {}
+                    d = doors.get(sensor)
+                    out.update({"sensor": sensor, "door": d,
+                                "reads": _gar.reads(((snap.get(sensor) or {}).get("state")), (d or {}).get("invert")),
+                                "raw": (snap.get(sensor) or {}).get("state"),
+                                "candidates": _gar.candidates(sensor, ents, devs, names)})
+                return self._send(200, out)
             if len(parts) == 3 and parts[0] == "rooms" and parts[2] == "assist-voice":
                 # The room's voice-reply setting AND its capability, read
                 # honestly: enabled is the installer's choice (default on),
@@ -8075,6 +8106,90 @@ class Handler(BaseHTTPRequestHandler):
                         pass
                 return self._send(200, {"ok": True,
                                         "enabled": rec["assist_voice"]})
+            if parts in (["garage", "save"], ["garage", "remove"]):
+                # GARAGE DOORS AND GATES (register 974). Made, changed and undone through the platform's own Template →
+                # Cover flow; the trade's only; journaled to the door's room.
+                u = getattr(self, "_user", None)
+                if not (users and u and (u.get("is_admin") or u.get("is_owner")
+                                         or users.is_tech(u.get("id")))):
+                    return self._send(403, {"error": "installer access required"})
+                from proos import garage as _gar
+                b = self._body() or {}
+                doors = _gar.load()
+                if parts[1] == "remove":
+                    sensor = str(b.get("sensor") or "")
+                    d = doors.get(sensor)
+                    if not d:
+                        return self._send(404, {"error": "no garage door is made from that sensor"})
+                    try:
+                        if d.get("entry_id"):
+                            _gar.remove(_client._req, d["entry_id"])
+                    except Exception as e:                       # noqa: BLE001
+                        return self._send(502, {"error": "the platform did not remove the door: %s" % str(e)[:160]})
+                    doors.pop(sensor, None)
+                    _gar.save_all(doors)
+                    try:
+                        _healthmon_mod._clear(_healthmon_mod._iid("garage_unfinished", "site", sensor))
+                    except Exception:                            # noqa: BLE001
+                        pass
+                    if _journal_mod is not None:
+                        try:
+                            _journal_mod.emit("site", "garage_removed", {"sensor": sensor, "cover": d.get("cover"),
+                                                                         "by": u.get("name") or u.get("id")})
+                        except Exception:                        # noqa: BLE001
+                            pass
+                    return self._send(200, {"ok": True, "removed": d.get("cover")})
+                try:
+                    door = _gar.clean(b)
+                except ValueError as e:
+                    return self._send(400, {"error": str(e)})
+                try:
+                    ents = _client.entity_registry() or []
+                    devs = _client.device_registry() or []
+                except Exception as e:                           # noqa: BLE001
+                    return self._send(503, {"error": "the platform did not answer: %s" % str(e)[:120]})
+                se = next((e for e in ents if e.get("entity_id") == door["sensor"]), None)
+                if not se:
+                    return self._send(400, {"error": "that sensor is not in the platform's registry"})
+                if not any(e.get("entity_id") == door["opener"] for e in ents):
+                    return self._send(400, {"error": "what opens the door is not in the platform's registry"})
+                room = se.get("area_id") or next((d.get("area_id") for d in devs if d.get("id") == se.get("device_id")), None)
+                name = door.get("name") or ("Garage Door" if door["kind"] == "garage" else "Gate")
+                prev = doors.get(door["sensor"])
+                try:
+                    if prev and prev.get("entry_id"):
+                        _gar.update(_client._req, prev["entry_id"], door, name)
+                        entry_id = prev["entry_id"]
+                    else:
+                        entry_id = _gar.create(_client._req, door, name)
+                except Exception as e:                           # noqa: BLE001
+                    return self._send(502, {"error": str(e)[:200]})
+                cover = None
+                for _ in range(10):
+                    try:
+                        cover = next((e.get("entity_id") for e in (_client.entity_registry() or [])
+                                      if e.get("config_entry_id") == entry_id and str(e.get("entity_id", "")).startswith("cover.")), None)
+                    except Exception:                            # noqa: BLE001
+                        cover = None
+                    if cover:
+                        break
+                    time.sleep(0.5)
+                if cover and room:
+                    try:
+                        _ws_call("config/entity_registry/update", entity_id=cover, area_id=room)
+                    except Exception:                            # noqa: BLE001
+                        pass
+                door.update({"entry_id": entry_id, "cover": cover, "room": room, "name": name,
+                             "at": time.time(), "by": u.get("name") or u.get("id")})
+                doors[door["sensor"]] = door
+                _gar.save_all(doors)
+                if _journal_mod is not None:
+                    try:
+                        _journal_mod.emit(room or "site", "garage_saved", {k: door.get(k) for k in (
+                            "sensor", "opener", "closer", "kind", "invert", "pulse_s", "contact", "travel_s", "cover", "by")})
+                    except Exception:                            # noqa: BLE001
+                        pass
+                return self._send(200, {"ok": True, "door": door})
             if len(parts) == 3 and parts[0] == "rooms" and parts[2] == "voice-volume":
                 # THE ROOM'S VOICE VOLUME (register 970xx; Dave, 24 Oct): {"volume": 10-100 | null}, or {"test": true}
                 # to hear the room's voice at its level. Room settings are the trade's — journaled to the room.
@@ -10990,6 +11105,33 @@ def main():
         # everything ProOS is responsible for (watched + committed AV;
         # tech/installer scope). Fail-open each: one consumer breaking
         # never starves the other.
+        from proos import garage as _gar_w
+
+        def _gar_state(e):
+            try:
+                return ((_ha_stream.snapshot([e]) or {}).get(e) or {}).get("state")
+            except Exception:                                    # noqa: BLE001
+                return None
+
+        def _gar_raise(k, d, before):
+            _healthmon_mod._ensure(_healthmon_mod._iid("garage_unfinished", "site", k), {
+                "kind": "garage_unfinished", "room": d.get("room") or "site", "slug": d.get("room") or "site",
+                "severity": "warning", "audience": _healthmon_mod.AUD_HOME, "subject": d.get("cover") or k,
+                "title": "%s didn't finish" % (d.get("name") or "The garage door"),
+                "cause": ("It was pressed, and after %d seconds its sensor still says %s. Check the door — something may be "
+                          "in the way, or the opener did not respond." % (int(d.get("travel_s") or 20), before or "nothing")),
+                "actions": []})
+            if _journal_mod is not None:
+                _journal_mod.emit(d.get("room") or "site", "garage_unfinished", {"sensor": k, "reads": before})
+
+        def _gar_clear(k, d):
+            try:
+                _healthmon_mod._clear(_healthmon_mod._iid("garage_unfinished", "site", k))
+            except Exception:                                    # noqa: BLE001
+                pass
+        global _garage_watch
+        _garage_watch = _gar_w.TravelWatch(_gar_state, _gar_raise, _gar_clear)
+
         def _on_state_change(eid, _w=_watcher):
             try:
                 _w.poke_if_watched(eid)
@@ -10997,6 +11139,10 @@ def main():
                 pass
             try:
                 _activity_record(eid)
+            except Exception:                                    # noqa: BLE001
+                pass
+            try:
+                _garage_watch.on_change(eid)                     # register 974: a press seen → its travel watched
             except Exception:                                    # noqa: BLE001
                 pass
         _ha_stream.on_change = _on_state_change
