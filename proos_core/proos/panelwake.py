@@ -13,9 +13,14 @@ and its option cannot say "off" either. Every restart of the add-on (a box resta
 
 THE PLATFORM FIRST — and why it is not enough here: the platform's own control (the select) is the way to choose, and
 ProOS keeps using it. What it lacks is memory for one value. So ProOS adds only that: the last wake word a PERSON chose
-for the panel (a change with a user behind it), and when the panel's satellite COMES BACK (its select returning from
-unavailable) saying something else, ProOS puts the person's choice back through the same select. A change made while the
-panel is up — by a person, an automation, anyone — is never touched. No choice ever made → nothing is ever written.
+for the panel (a change with a user behind it), and when the PANEL ITSELF reports something else (a change with no person
+and no automation behind it — what the satellite says when it starts again), ProOS puts the person's choice back through
+the same select. A change an automation made is never touched. No choice ever made → nothing is ever written.
+
+FIRST BUILD WRONG (1.0.1107, seen on the box 25 Oct): it waited for the select to come back FROM "unavailable". Read
+after a restart of the satellite: the select went straight from no_wake_word to Hey Jarvis — the platform keeps the
+entity available while the add-on restarts — so nothing was put back. The panel's own report is told by its context:
+no user, no parent (an automation's change carries its trigger as parent).
 """
 from __future__ import annotations
 
@@ -61,17 +66,17 @@ def heard(data: dict, panel_selects, call) -> dict:
     if eid not in mine:
         return {}
     new = data.get("new_state") or {}
-    old = data.get("old_state") or {}
     val = new.get("state")
     if val in _BACK_FROM:
         return {}
-    who = ((new.get("context") or {}).get("user_id"))
+    ctx = new.get("context") or {}
+    who = ctx.get("user_id")
     if who:
         d = _load()
         d.setdefault("chosen", {})[eid] = val
         _save(d)
         return {"remembered": val, "entity": eid}
-    if (old.get("state") if old else None) in _BACK_FROM:
+    if not ctx.get("parent_id"):            # the panel's own report — no person, no automation behind it
         want = choices().get(eid)
         if want and want != val:
             call("select", "select_option", {"entity_id": eid, "option": want})
