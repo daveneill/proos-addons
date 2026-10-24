@@ -2878,7 +2878,7 @@ body.v3 .rh-card{border-radius:22px}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102403';
+const PROOS_BUILD='2026102404';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -7938,9 +7938,34 @@ function automationsSectionHTML(){
     ? '<div class="itile-grid">'+items.map(x=>{ const on=x.state==='on'; return `<div class="itile" onclick="editAutomation('${esc(x.entity_id)}')"><div class="itile-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 4v3M12 17v3M4 12h3M17 12h3M6.3 6.3l2 2M15.7 15.7l2 2M17.7 6.3l-2 2M8.3 15.7l-2 2"/></svg></div><div class="itile-foot"><div class="itile-body"><div class="itile-nm">${esc(entName(x.entity_id))}</div></div><div class="itile-act"><button class="row-more" onclick="event.stopPropagation();openManage('automation','${esc(x.entity_id)}')">\u22ef</button><button class="sw ${on?'on':''}" role="switch" aria-checked="${on}" onclick="event.stopPropagation();toggleAutomation('${esc(x.entity_id)}')"><span class="sw-knob"></span></button></div></div></div>`; }).join('')+'</div>'
     : '<div class="empty"><div class="et">No automations yet</div><div class="es">Create one below — it appears here, and you can reopen it to edit.</div></div>';
   if(all.length) setTimeout(probeAutomations,0);
-  const note=hidden>0?`<div class="wiz-hint" style="margin-top:14px;color:var(--t3)">${hidden} system automation${hidden===1?'':'s'} hidden — managed outside the builder.</div>`:'';
+  // ProOS's own automations (the voice ones Core writes: Music, Favourites, Activities, Apps, Learned — register 973) are never
+  // offered to edit or delete: Core rewrites them on every start. A Developer may READ them, in their own group.
+  const sys=all.filter(x=>_isProosSystemObject(String(x.entity_id).split('.').pop()));
+  const devGroup=(_me&&_me.developer&&sys.length)
+    ? `<div class="bld-sec" style="margin-top:18px"><div class="bld-sec-h">Managed by ProOS</div><div class="wiz-hint">Written by ProOS and rewritten on every start — read-only here. Change them in ProOS, not by hand.</div><div class="itile-grid">`
+      +sys.map(x=>`<div class="itile" onclick="viewSystemAutomation('${esc(x.entity_id)}')"><div class="itile-ico"><svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div><div class="itile-name">${esc(entName(x.entity_id))}</div></div>`).join('')+`</div></div>`
+    : '';
+  const _hid=hidden-(devGroup?sys.length:0);
+  const note=_hid>0?`<div class="wiz-hint" style="margin-top:14px;color:var(--t3)">${_hid} system automation${_hid===1?'':'s'} hidden — managed by ProOS.</div>`:'';
   return `<div class="wiz-hint">Automations run rules in the background. Build one by hand — it shows here and stays editable.</div>`
-    +`<button class="btn-primary" onclick="newAutomation()" style="margin-bottom:14px">New Automation</button>`+rows+note;
+    +`<button class="btn-primary" onclick="newAutomation()" style="margin-bottom:14px">New Automation</button>`+rows+note+devGroup;
+}
+// register 973: a Developer reads a ProOS-managed automation — its contents and when it last ran. Nothing to edit or delete.
+async function viewSystemAutomation(eid){
+  if(!(_me&&_me.developer)) return;
+  document.getElementById('cfg-title').textContent=entName(eid);
+  document.getElementById('cfg-sub').textContent='Managed by ProOS';
+  setHTML(document.getElementById('cfg-note'), '<div class="g-key">ProOS writes this automation and rewrites it on every start, so a change made here would be lost. It is shown read-only.</div>');
+  setHTML(document.getElementById('cfg-actions'), '<button class="rp-cancel" onclick="closeCfgEdit()">Close</button>');
+  setHTML(document.getElementById('cfg-build'), '<div class="wiz-hint">Loading…</div>');
+  document.getElementById('cfg-edit').classList.add('open');
+  const st=(_states||[]).find(x=>x.entity_id===eid)||{attributes:{}};
+  const last=st.attributes.last_triggered?new Date(st.attributes.last_triggered).toLocaleString():'Never';
+  let body='';
+  try{ const cfg=await haRest('GET', cfgPath('automation', automationConfigId(eid)), undefined, 15000); body=JSON.stringify(cfg,null,2); }
+  catch(e){ body='Could not read it: '+String(e&&e.message||e); }
+  setHTML(document.getElementById('cfg-build'), '<div class="wiz-hint">Last Ran: '+esc(last)+' · '+(st.state==='on'?'On':'Off')+'</div>'
+    +'<pre style="white-space:pre-wrap;word-break:break-word;max-height:55vh;overflow:auto;font-size:11.5px;background:rgba(255,255,255,.05);border-radius:10px;padding:12px">'+esc(body)+'</pre>');
 }
 const PROOS_LABEL='proos_managed';
 function autoIsProos(eid){ const e=_ents.find(x=>x.entity_id===eid); return !!(e&&(e.labels||[]).includes(PROOS_LABEL)); }
@@ -15979,7 +16004,7 @@ function openHelpers(){ show('helpers'); loadHelpers(); }
 // object_ids under proos_dashboard_* (today) or proos_sys_* (future) are system.
 function _isProosSystemObject(objId){
   const s=String(objId||'');
-  return /^proos_dashboard_/.test(s) || /^proos_sys_/.test(s);
+  return /^proos_dashboard_/.test(s) || /^proos_sys_/.test(s) || /^proos_voice_/.test(s);   // proos_voice_: register 973
 }
 async function loadHelpers(){
   const body=document.getElementById('helpers-body'); if(body&&!_helpers.length) setHTML(body, '<div class="wiz-hint">Loading…</div>');
