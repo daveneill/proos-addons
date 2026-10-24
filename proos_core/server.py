@@ -947,9 +947,6 @@ def _room_voice_volume_view(rec):
             "committed": bool((rec or {}).get("committed"))}
 
 
-_garage_watch = None   # register 974 — set where the platform's live stream is wired
-
-
 def _mic_reopen(speaker, mic, where, spoke=None):
     """A question went out through the room speaker: open the room mic again once the speaker has finished
     (register 970vv; proos/roommic.py says why and how). Runs on its own thread; journals what it saw."""
@@ -6057,7 +6054,20 @@ class Handler(BaseHTTPRequestHandler):
                     except Exception:                            # noqa: BLE001
                         names = {}
                     d = doors.get(sensor)
-                    out.update({"sensor": sensor, "door": d,
+                    # What it SHOWS AS, from the platform's own full record (the bulk registry list does not carry it —
+                    # register 719): the sensor's, or its on/off twin's under the same identity (a Ness zone).
+                    shows_as = None
+                    try:
+                        se = next((e for e in ents if e.get("entity_id") == sensor), {}) or {}
+                        twin = sensor if sensor.startswith("binary_sensor.") else next(
+                            (e.get("entity_id") for e in ents if e.get("unique_id") and e.get("unique_id") == se.get("unique_id")
+                             and str(e.get("entity_id", "")).startswith("binary_sensor.")), None)
+                        if twin:
+                            full = _ws_call("config/entity_registry/get", entity_id=twin) or {}
+                            shows_as = full.get("device_class") or full.get("original_device_class")
+                    except Exception:                            # noqa: BLE001
+                        shows_as = None
+                    out.update({"sensor": sensor, "door": d, "shows_as": shows_as,
                                 "reads": _gar.reads(((snap.get(sensor) or {}).get("state")), (d or {}).get("invert")),
                                 "raw": (snap.get(sensor) or {}).get("state"),
                                 "candidates": _gar.candidates(sensor, ents, devs, names)})
@@ -8128,10 +8138,6 @@ class Handler(BaseHTTPRequestHandler):
                         return self._send(502, {"error": "the platform did not remove the door: %s" % str(e)[:160]})
                     doors.pop(sensor, None)
                     _gar.save_all(doors)
-                    try:
-                        _healthmon_mod._clear(_healthmon_mod._iid("garage_unfinished", "site", sensor))
-                    except Exception:                            # noqa: BLE001
-                        pass
                     if _journal_mod is not None:
                         try:
                             _journal_mod.emit("site", "garage_removed", {"sensor": sensor, "cover": d.get("cover"),
@@ -8186,7 +8192,7 @@ class Handler(BaseHTTPRequestHandler):
                 if _journal_mod is not None:
                     try:
                         _journal_mod.emit(room or "site", "garage_saved", {k: door.get(k) for k in (
-                            "sensor", "opener", "closer", "kind", "invert", "pulse_s", "contact", "travel_s", "cover", "by")})
+                            "sensor", "opener", "closer", "kind", "invert", "mode", "pulse_s", "contact", "cover", "by")})
                     except Exception:                            # noqa: BLE001
                         pass
                 return self._send(200, {"ok": True, "door": door})
@@ -11105,33 +11111,6 @@ def main():
         # everything ProOS is responsible for (watched + committed AV;
         # tech/installer scope). Fail-open each: one consumer breaking
         # never starves the other.
-        from proos import garage as _gar_w
-
-        def _gar_state(e):
-            try:
-                return ((_ha_stream.snapshot([e]) or {}).get(e) or {}).get("state")
-            except Exception:                                    # noqa: BLE001
-                return None
-
-        def _gar_raise(k, d, before):
-            _healthmon_mod._ensure(_healthmon_mod._iid("garage_unfinished", "site", k), {
-                "kind": "garage_unfinished", "room": d.get("room") or "site", "slug": d.get("room") or "site",
-                "severity": "warning", "audience": _healthmon_mod.AUD_HOME, "subject": d.get("cover") or k,
-                "title": "%s didn't finish" % (d.get("name") or "The garage door"),
-                "cause": ("It was pressed, and after %d seconds its sensor still says %s. Check the door — something may be "
-                          "in the way, or the opener did not respond." % (int(d.get("travel_s") or 20), before or "nothing")),
-                "actions": []})
-            if _journal_mod is not None:
-                _journal_mod.emit(d.get("room") or "site", "garage_unfinished", {"sensor": k, "reads": before})
-
-        def _gar_clear(k, d):
-            try:
-                _healthmon_mod._clear(_healthmon_mod._iid("garage_unfinished", "site", k))
-            except Exception:                                    # noqa: BLE001
-                pass
-        global _garage_watch
-        _garage_watch = _gar_w.TravelWatch(_gar_state, _gar_raise, _gar_clear)
-
         def _on_state_change(eid, _w=_watcher):
             try:
                 _w.poke_if_watched(eid)
@@ -11139,10 +11118,6 @@ def main():
                 pass
             try:
                 _activity_record(eid)
-            except Exception:                                    # noqa: BLE001
-                pass
-            try:
-                _garage_watch.on_change(eid)                     # register 974: a press seen → its travel watched
             except Exception:                                    # noqa: BLE001
                 pass
         _ha_stream.on_change = _on_state_change

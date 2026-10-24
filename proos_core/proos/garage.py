@@ -14,11 +14,13 @@ through the platform's own config flow; the door IS a platform cover. With devic
 HomeKit bridge makes it a GarageDoorOpener (homekit/accessories.py, read: garage|gate + open/close → GarageDoorOpener;
 any other cover without a position → WindowCoveringBasic, i.e. a blind — the fault Dave once hit).
 
-WHAT ONLY PROOS KNOWS stays here: which pieces make which door, the wiring settings, and the travel watch.
+WHAT ONLY PROOS KNOWS stays here: which pieces make which door, and the wiring settings.
 
-SAFETY (single-button openers press open/stop/close alike): Open presses only when the sensor reads Closed, Close only
-when it reads Open; a sensor with no reading presses nothing. Written into the door's own actions as conditions, so it
-holds from every surface — the dashboard, Apple Home, voice.
+PRESSING (Dave, 13:32–13:36): ONE relay or task works the opener's own button — each press cycles up, stop, down — so
+every Open or Close is simply a press; the door's STATE is only ever the sensor's. With SEPARATE Open and Close relays,
+Open fires only when the sensor does not read Open and Close only when it does not read Closed. An output is PULSED
+(closed for the Pulse Time, NO or NC) or TOGGLED (flipped each press). No travel timer: the sensor says where it is
+(Dave 13:32: "travel time should be irrelevent as the sensor it telling you").
 """
 from __future__ import annotations
 
@@ -26,12 +28,11 @@ import json
 import os
 import re
 import threading
-import time
 
 KINDS = ("garage", "gate")
 CONTACTS = ("NO", "NC")
+MODES = ("pulse", "toggle")                                   # an output pressed for a moment, or flipped each press
 PULSE_MIN, PULSE_MAX, PULSE_DEFAULT = 0.5, 5.0, 1.0          # seconds a relay is closed for one press
-TRAVEL_MIN, TRAVEL_MAX, TRAVEL_DEFAULT = 5, 120, 20           # seconds a door normally takes; then "Didn't Finish"
 OPENER_DOMAINS = ("scene", "switch", "button", "script")      # a panel task, a relay, a button, a script
 OPEN_WORDS = ("on", "open", "violated", "opening")            # what a door sensor says when the door is open
 CLOSED_WORDS = ("off", "closed", "normal")                    # … and when it is closed
@@ -84,23 +85,21 @@ def clean(raw: dict) -> dict:
            "name": str(raw.get("name") or "").strip()[:60] or None}
     relay = opener.split(".", 1)[0] == "switch"
     if relay:
-        try:
-            pulse = float(raw.get("pulse_s", PULSE_DEFAULT))
-        except (TypeError, ValueError):
-            raise ValueError("Pulse Time is a number of seconds") from None
-        if not PULSE_MIN <= pulse <= PULSE_MAX:
-            raise ValueError("Pulse Time is from %.1f to %.0f seconds" % (PULSE_MIN, PULSE_MAX))
-        contact = raw.get("contact") or "NO"
-        if contact not in CONTACTS:
-            raise ValueError("Relay Contact is NO or NC")
-        out.update({"pulse_s": round(pulse, 1), "contact": contact})
-    try:
-        travel = int(raw.get("travel_s", TRAVEL_DEFAULT))
-    except (TypeError, ValueError):
-        raise ValueError("Travel Time is a whole number of seconds") from None
-    if not TRAVEL_MIN <= travel <= TRAVEL_MAX:
-        raise ValueError("Travel Time is from %d to %d seconds" % (TRAVEL_MIN, TRAVEL_MAX))
-    out["travel_s"] = travel
+        mode = raw.get("mode") or "pulse"
+        if mode not in MODES:
+            raise ValueError("Output Mode is Pulse or Toggle")
+        out["mode"] = mode
+        if mode == "pulse":
+            try:
+                pulse = float(raw.get("pulse_s", PULSE_DEFAULT))
+            except (TypeError, ValueError):
+                raise ValueError("Pulse Time is a number of seconds") from None
+            if not PULSE_MIN <= pulse <= PULSE_MAX:
+                raise ValueError("Pulse Time is from %.1f to %.0f seconds" % (PULSE_MIN, PULSE_MAX))
+            contact = raw.get("contact") or "NO"
+            if contact not in CONTACTS:
+                raise ValueError("Relay Contact is NO or NC")
+            out.update({"pulse_s": round(pulse, 1), "contact": contact})
     return out
 
 
@@ -140,6 +139,8 @@ def _press(entity: str, door: dict) -> list:
         return [{"action": "button.press", "target": {"entity_id": entity}}]
     if dom == "script":
         return [{"action": "script.turn_on", "target": {"entity_id": entity}}]
+    if door.get("mode") == "toggle":
+        return [{"action": "switch.toggle", "target": {"entity_id": entity}}]
     first, then = ("turn_on", "turn_off") if door.get("contact", "NO") == "NO" else ("turn_off", "turn_on")
     return [{"action": "switch." + first, "target": {"entity_id": entity}},
             {"delay": {"milliseconds": int(round(float(door.get("pulse_s", PULSE_DEFAULT)) * 1000))}},
@@ -154,17 +155,17 @@ def _inline(door: dict) -> str:
 
 
 def open_actions(door: dict) -> list:
-    """Open: one press — and with one button for everything, only when the door reads Closed."""
+    """Open: with separate relays, the Open relay — not when it already reads Open. With one relay or task, a press."""
     if door.get("closer"):
         return [{"condition": "template", "value_template": "{{ %s != 'open' }}" % _inline(door)}] + _press(door["opener"], door)
-    return [{"condition": "template", "value_template": "{{ %s == 'closed' }}" % _inline(door)}] + _press(door["opener"], door)
+    return _press(door["opener"], door)
 
 
 def close_actions(door: dict) -> list:
-    """Close: the Close relay when there is one; otherwise the same button, only when the door reads Open."""
+    """Close: with separate relays, the Close relay — not when it already reads Closed. With one relay or task, a press."""
     if door.get("closer"):
         return [{"condition": "template", "value_template": "{{ %s != 'closed' }}" % _inline(door)}] + _press(door["closer"], door)
-    return [{"condition": "template", "value_template": "{{ %s == 'open' }}" % _inline(door)}] + _press(door["opener"], door)
+    return _press(door["opener"], door)
 
 
 def cover_form(door: dict, name: str) -> dict:
@@ -250,61 +251,3 @@ def pieces() -> set:
             out.add(d["closer"])
     out.discard(None)
     return out
-
-
-# ── the travel watch: "Didn't Finish" ──────────────────────────────────────────────────────────────────────────────
-class TravelWatch:
-    """A press is SEEN (the opener's own state changes — a task's timestamp, a relay closing); if the door's sensor has
-    not changed within its Travel Time, say so; when it changes, clear. Never inferred from a tap on a screen."""
-
-    def __init__(self, state_of, raise_fn, clear_fn, now=time.time, timer=threading.Timer):
-        self.state_of, self.raise_fn, self.clear_fn, self.now, self.timer = state_of, raise_fn, clear_fn, now, timer
-        self._last = {}
-        self._pending = {}
-
-    def _door_for_opener(self, eid):
-        for k, d in load().items():
-            if eid in (d.get("opener"), d.get("closer")):
-                return k, d
-        return None, None
-
-    def _door_for_sensor(self, eid):
-        d = load().get(eid)
-        return (eid, d) if d else (None, None)
-
-    def on_change(self, eid: str) -> None:
-        new = self.state_of(eid)
-        old = self._last.get(eid)
-        self._last[eid] = new
-        k, d = self._door_for_sensor(eid)
-        if d:
-            p = self._pending.pop(k, None)
-            if p:
-                try:
-                    p["t"].cancel()
-                except Exception:  # noqa: BLE001
-                    pass
-            self.clear_fn(k, d)
-            return
-        k, d = self._door_for_opener(eid)
-        if not d or old is None or new == old:
-            return
-        dom = eid.split(".", 1)[0]
-        pressed = (dom in ("scene", "button", "script")) or \
-                  (dom == "switch" and new == ("on" if d.get("contact", "NO") == "NO" else "off"))
-        if not pressed or k in self._pending:
-            return
-        before = reads(self.state_of(d["sensor"]), d.get("invert"))
-        t = self.timer(float(d.get("travel_s", TRAVEL_DEFAULT)), self._expire, args=(k, before))
-        t.daemon = True
-        self._pending[k] = {"t": t, "before": before, "at": self.now()}
-        t.start()
-
-    def _expire(self, k, before):
-        self._pending.pop(k, None)
-        d = load().get(k)
-        if not d:
-            return
-        now = reads(self.state_of(d["sensor"]), d.get("invert"))
-        if now == before:
-            self.raise_fn(k, d, before)
