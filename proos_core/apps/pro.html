@@ -2880,7 +2880,7 @@ body.v3 .rh-card{border-radius:22px}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102501';
+const PROOS_BUILD='2026102502';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -7076,7 +7076,20 @@ function openFlowSheet(name, title){
   document.getElementById('flow-actions').innerHTML='';
   document.getElementById('flow-sheet').classList.add('open');
 }
-function closeFlow(){ document.getElementById('flow-sheet').classList.remove('open'); _flow=null; }
+function closeFlow(){
+  document.getElementById('flow-sheet').classList.remove('open');
+  // 985 (Dave, 25 Oct 09:35: an Apple TV setup failed on one of its codes, he cancelled, and every new try opened the SAME
+  // half-finished step — "no way to reset config"). Closing the sheet left the platform's setup running. A setup that is
+  // still open when the sheet closes is now ended on the platform — the platform's own way (its setup dialog does the
+  // same on close) — so the next try starts from the beginning.
+  const f=_flow; _flow=null;
+  if(f && f.live && f.flowId && f.base){
+    haRest('DELETE','/api/config/'+f.base+'/'+f.flowId,undefined,10000)
+      .then(function(){ if(f.base==='config_entries/flow' && typeof loadDiscoveredFlows==='function')
+        return loadDiscoveredFlows().then(function(){ if(typeof renderDiscoveredFlows==='function') renderDiscoveredFlows(); }); })
+      .catch(function(){});
+  }
+}
 async function addFlow(flowId){
   const f=_flows.find(x=>x.flow_id===flowId)||(_flowsAll||[]).find(x=>x.flow_id===flowId); _flow={flowId, handler:f?f.handler:'', base:'config_entries/flow'};
   openFlowSheet(f?flowName(f):'');
@@ -7110,6 +7123,7 @@ function _flowPlatformWords(kind, code){   // kind: 'error' | 'abort'
 function _flowIsSamsung(){ return /samsung/i.test((_flow&&_flow.handler)||''); }
 function renderFlowStep(step){
   if(!step||!step.type){ flowMessage('Unexpected response from setup.'); return; }
+  if(_flow) _flow.live=!(step.type==='create_entry'||step.type==='abort');   // 985: still open on the platform?
   // 690: have the integration's own words ready before anything is drawn from this step.
   const _h=_flow&&_flow.handler;
   if(_h && !_flowTr[_h] && (step.type==='form'||step.type==='abort')){ _flowLoadTr(_h).then(()=>renderFlowStep(step)); return; }
