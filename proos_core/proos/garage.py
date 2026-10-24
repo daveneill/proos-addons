@@ -233,6 +233,9 @@ def update(req, entry_id: str, door: dict, name: str) -> None:
         raise RuntimeError("the platform would not open the door's settings")
     form = cover_form(door, name)
     form.pop("name", None)
+    # read on Dave's box, 24 Oct: the platform's options form for a template cover has no name and no device_class —
+    # a garage/gate change after making is set on the entity instead (server: entity registry device_class).
+    form.pop("device_class", None)
     r = req("POST", "/api/config/config_entries/options/flow/" + fid, form) or {}
     if r.get("type") != "create_entry":
         raise RuntimeError("the platform did not change the door: %s" % (r.get("errors") or r.get("type")))

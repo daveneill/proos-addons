@@ -8185,6 +8185,12 @@ class Handler(BaseHTTPRequestHandler):
                         _ws_call("config/entity_registry/update", entity_id=cover, area_id=room)
                     except Exception:                            # noqa: BLE001
                         pass
+                if cover and prev and prev.get("kind") != door["kind"]:
+                    # the options form cannot change the device class (read on the box) — the entity's own setting does
+                    try:
+                        _ws_call("config/entity_registry/update", entity_id=cover, device_class=door["kind"])
+                    except Exception:                            # noqa: BLE001
+                        pass
                 door.update({"entry_id": entry_id, "cover": cover, "room": room, "name": name,
                              "at": time.time(), "by": u.get("name") or u.get("id")})
                 doors[door["sensor"]] = door
