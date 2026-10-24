@@ -91,6 +91,27 @@ def _call(method: str, path: str, body=None, st=None, timeout=10):
         return json.loads(r.read() or b"{}")
 
 
+HW_PREFIX = "proos-hw-v1:"
+
+
+def hw_fingerprint(hwid: str | None = None) -> str:
+    """REGISTER 983: a one-way fingerprint of THIS physical box — sha256 of its factory id (the cpu serial on a Pi, the
+    lowest built-in network port's factory MAC on a PC: provision._hardware_id, the same id the servicing login comes
+    from). It survives a reflash, so ProOS Connect knows the box when it comes back. Never the id itself; "" when the
+    box has no hardware id (a random stand-in identifies nothing)."""
+    import hashlib
+    if hwid is None:
+        try:
+            from proos import provision as _prov
+            hwid = _prov._hardware_id()
+        except Exception:  # noqa: BLE001
+            return ""
+    hwid = str(hwid or "")
+    if not hwid.startswith(("mac:", "cpu:")):
+        return ""
+    return hashlib.sha256((HW_PREFIX + hwid).encode("utf-8")).hexdigest()
+
+
 def enroll(home_id: str, name: str, core: str) -> dict:
     """Ask to join (or say we are still here). Returns Connect's answer: pending / approved / revoked."""
     st = identity()
@@ -101,6 +122,9 @@ def enroll(home_id: str, name: str, core: str) -> dict:
             body["ssh_key"] = _ct.public_key()
         except Exception:  # noqa: BLE001
             pass
+        hw = hw_fingerprint()
+        if hw:                                       # register 983: the same box, known again after a reflash
+            body["hw"] = hw
         got = _call("POST", "/v1/enroll", body, st)
     except urllib.error.HTTPError as e:
         got = {"status": "refused", "why": "Connect answered %s" % e.code}
