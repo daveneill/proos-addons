@@ -1,30 +1,36 @@
 #!/bin/bash
-# ProOS AI Test (register 976). One run: what graphics chip the add-on sees, then each model timed on the graphics chip
-# and on the processor alone. Results to /config/www/proos_ai_test.txt (served as /local/proos_ai_test.txt).
+# ProOS AI Test 0.2.0 (register 976). The three spoken takes from the G-Flip microphone test (24 Oct; L1 boost off /
+# capture 35 %, L2 boost off / 60 %, L3 boost +10 dB / 35 %) heard by each Whisper size on the graphics chip, and the
+# smallest and largest on the processor too. What was read aloud:
+REF="Hey Jarvis, turn the office light on and play some music in the kitchen. What is the weather like in Melbourne tomorrow?"
 OUT=/config/www/proos_ai_test.txt
-mkdir -p /config/www /data/models
+mkdir -p /config/www /data/models /tmp/takes
 : > "$OUT"
 log() { echo "$@" | tee -a "$OUT"; }
-log "ProOS AI test — $(date -u '+%Y-%m-%d %H:%M UTC')"
-log "== processor: $(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2) · $(nproc) threads · $(awk '/MemTotal/{printf "%.1f GB", $2/1048576}' /proc/meminfo)"
-log "== graphics chip (Vulkan)"
-vulkaninfo --summary 2>&1 | grep -E "deviceName|driverName|driverInfo|apiVersion|deviceType" | head -12 | tee -a "$OUT"
-BENCH=$(command -v llama-bench || ls /app/llama-bench 2>/dev/null || find / -name llama-bench -type f 2>/dev/null | head -1)
-log "== bench tool: $BENCH"
+log "ProOS AI test 0.2.0 — speech — $(date -u '+%Y-%m-%d %H:%M UTC')"
+log "read aloud: $REF"
+vulkaninfo --summary 2>&1 | grep -m2 -E "deviceName" | tee -a "$OUT"
+for f in /takes/*.wav; do ffmpeg -loglevel error -y -i "$f" -ar 16000 -ac 1 "/tmp/takes/$(basename "$f")"; done
+CLI=$(command -v whisper-cli)
 get() {
   [ -s "/data/models/$1" ] && return 0
-  log "downloading $1"
-  curl -sSL --retry 3 -o "/data/models/$1.part" "$2" && mv "/data/models/$1.part" "/data/models/$1"
-  log "  $(du -h "/data/models/$1" | cut -f1)"
+  curl -sSL --retry 3 -o "/data/models/$1.part" "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/$1" \
+    && mv "/data/models/$1.part" "/data/models/$1"
+  log "downloaded $1 $(du -h "/data/models/$1" | cut -f1)"
 }
-get qwen2.5-3b-q4.gguf "https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf"
-get qwen2.5-7b-q4.gguf "https://huggingface.co/bartowski/Qwen2.5-7B-Instruct-GGUF/resolve/main/Qwen2.5-7B-Instruct-Q4_K_M.gguf"
-# -p 1500: reading a home's worth of context (the request + what the home has); -n 64: a spoken reply's length.
-for m in qwen2.5-3b-q4 qwen2.5-7b-q4; do
-  log ""; log "== $m — graphics chip"
-  "$BENCH" -m "/data/models/$m.gguf" -ngl 99 -p 1500 -n 64 -r 2 2>&1 | grep -vE "^load_tensors|^llama_model_loader|^print_info" | tail -12 | tee -a "$OUT"
-  log ""; log "== $m — processor only"
-  "$BENCH" -m "/data/models/$m.gguf" -ngl 0 -p 1500 -n 64 -r 1 2>&1 | grep -vE "^load_tensors|^llama_model_loader|^print_info" | tail -8 | tee -a "$OUT"
-done
+run() {   # model, where (gpu|cpu)
+  local flag=""; [ "$2" = cpu ] && flag="-ng"
+  log ""; log "== $1 — $([ "$2" = cpu ] && echo processor || echo 'graphics chip')"
+  for t in /tmp/takes/*.wav; do
+    local start=$(date +%s%N)
+    local text=$("$CLI" -m "/data/models/$1" -f "$t" -l en -nt -t 8 $flag 2>/dev/null | tr -s ' \n' ' ' | sed 's/^ //')
+    local ms=$(( ($(date +%s%N) - start) / 1000000 ))
+    log "$(basename "$t" .wav | sed 's/speech_1_0_//')  $((ms/1000)).$(printf '%03d' $((ms%1000)))s  \"$text\""
+  done
+}
+for m in ggml-base.en.bin ggml-small.en.bin ggml-medium.en.bin ggml-large-v3-turbo.bin; do get "$m"; done
+for m in ggml-base.en.bin ggml-small.en.bin ggml-medium.en.bin ggml-large-v3-turbo.bin; do run "$m" gpu; done
+run ggml-base.en.bin cpu
+run ggml-large-v3-turbo.bin cpu
 log ""; log "DONE"
 exec sleep infinity
