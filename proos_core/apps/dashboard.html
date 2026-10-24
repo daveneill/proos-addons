@@ -4180,7 +4180,8 @@ async function autoDiscover(haUrl, token) {
     const _avMembers = _mediaAll.filter(e => (labelledEntities[LABEL_AV]||[]).includes(e));
     const media = _avMembers.length ? _avMembers : _mediaAll;
     const climate = entities.filter(e => domain(e)==='climate' && !hiddenEntities.has(e));
-    const covers = entities.filter(e => domain(e)==='cover' && !hiddenEntities.has(e));
+    // register 974e: a garage door or gate is a door (Doors & Gates, the Garage Doors widget), not a blind
+    const covers = entities.filter(e => domain(e)==='cover' && !hiddenEntities.has(e) && !_isGarageCover(e));
     const cameras = entities.filter(e => domain(e)==='camera' && !hiddenEntities.has(e) && !/low_resolution|_insecure|package_camera/i.test(e));
     // Security-type sensors by device_class ONLY (HA's typed classification).
     // Identity standard: entity_id/friendly_name are display-only — a sensor
@@ -4642,7 +4643,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102401';
+const PROOS_BUILD='2026102402';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -13316,6 +13317,7 @@ function _zonesHTML(eid){
 // lock domain appeared nowhere in the app).
 const ACCESS_CLASSES = ['garage','gate','door','shutter','awning'];
 // register 974: the home's garage doors and gates — covers whose platform device class says so
+function _isGarageCover(e){ return String(e).indexOf('cover.')===0 && ['garage','gate'].includes(String(((states[e]||{}).attributes||{}).device_class||'')); }
 function _garageDoors(){ return accessEntities().filter(x=>x.kind==='cover' && ['garage','gate'].includes(String(((states[x.entity]||{}).attributes||{}).device_class||''))); }
 function accessEntities(){
   const out=[];
@@ -13369,7 +13371,10 @@ function renderAccessPage(){
     if(p0 && ((p0.want==='open'&&sv==='open')||(p0.want==='closed'&&sv==='closed'))){
       clearTimeout(p0.t); delete _accessPending[a.entity];
     }
-    const pend=_accessPending[a.entity];
+    // REGISTER 974e (Dave, 24 Oct 16:15): a garage door or gate's word is its SENSOR'S, never a guess from the tap — a
+    // one-button opener goes up, stops, goes down on successive presses, so "Closing…" after a press that stopped it was
+    // a lie, and the tile then ignored taps for 25 s.
+    const pend=_isGarageCover(a.entity)?null:_accessPending[a.entity];
     // A DOOR NOBODY CAN READ IS NOT A CLOSED DOOR (register 233). This
     // said "Closed" for anything that was not open — including a cover
     // that has never reported, and every one of Dave's own garage doors
@@ -13420,6 +13425,13 @@ function togAccess(entity,tile){
     return;
   }
   const isOpen=sv==='open';
+  if(_isGarageCover(entity)){
+    // REGISTER 974e: a garage door or gate — every tap is ONE press (its own button: up, stop, down; or its Open or Close
+    // relay). Nothing is guessed and no tap is refused; the tile shows what the sensor says.
+    svc('cover',isOpen?'close_cover':'open_cover',{entity_id:entity});
+    if(typeof showToast==='function') showToast('Pressed \u2014 the door shows where it is when its sensor changes');
+    return;
+  }
   svc('cover',isOpen?'close_cover':'open_cover',{entity_id:entity});
   // ~20s travel: the pending label rides until the reading confirms or the
   // deadline passes — real updates repaint the whole time.
