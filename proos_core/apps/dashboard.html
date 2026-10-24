@@ -849,6 +849,39 @@ body[data-home-state="noticing"] .home-state-go,body[data-home-state="attention"
 @keyframes cvw-up{0%{transform:translateY(0)}100%{transform:translateY(-14px)}}
 @keyframes cvw-down{0%{transform:translateY(-14px)}100%{transform:translateY(0)}}
 @media (prefers-reduced-motion:reduce){.widget-cell[data-mo] .cvw-slats{animation:none!important}}
+/* garage doors and gates (974f): the door drawn where its sensor says, rolled once when the reading changes */
+.gdw-open .secw-wash{background:linear-gradient(180deg,rgba(232,160,75,0.20),rgba(232,160,75,0.04))}
+.gdw-b.big{width:52px;height:52px}
+.gdw-g{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;overflow:hidden}
+.gdw-b.big .gdw-g{width:30px;height:30px}
+.gdw-g .gdw-panel{fill:currentColor;fill-opacity:.18}
+.gdw-g .gdw-door{transform-origin:12px 11.6px}
+.gdw-g.is-open .gdw-door{transform:translateY(-7.6px) scaleY(.12)}
+.gdw-g .gdw-car{opacity:0}
+.gdw-g.is-open .gdw-car{opacity:1}
+.gdw-g.gdw-up .gdw-door{animation:gdw-up var(--m-door) var(--e-standard)}
+.gdw-g.gdw-down .gdw-door{animation:gdw-down var(--m-door) var(--e-standard)}
+.gdw-g.gdw-up .gdw-car{animation:gdw-carin var(--m-door) var(--e-standard)}
+@keyframes gdw-up{from{transform:none}to{transform:translateY(-7.6px) scaleY(.12)}}
+@keyframes gdw-down{from{transform:translateY(-7.6px) scaleY(.12)}to{transform:none}}
+@keyframes gdw-carin{0%,30%{opacity:0}100%{opacity:1}}
+.gdw-g.gate.is-open .gdw-run{transform:translateX(15px)}
+.gdw-g.gate.gdw-up .gdw-run{animation:gdw-gopen var(--m-gate) var(--e-standard)}
+.gdw-g.gate.gdw-down .gdw-run{animation:gdw-gshut var(--m-gate) var(--e-standard)}
+@keyframes gdw-gopen{from{transform:none}to{transform:translateX(15px)}}
+@keyframes gdw-gshut{from{transform:translateX(15px)}to{transform:none}}
+.gdw-wait{color:#e8a04b;animation:wc-pulse var(--m-door) var(--e-standard) infinite}
+.gdw .gdw-hold svg{width:14px;height:14px}
+.gdw-grid{display:grid;grid-template-columns:repeat(var(--n),minmax(0,1fr));gap:8px;position:relative;z-index:1;margin-top:auto;min-height:0}
+.gdw-cell{position:relative;overflow:hidden;border:0;border-radius:12px;background:rgba(255,255,255,.06);box-shadow:inset 0 0 0 .5px rgba(255,255,255,.1);padding:7px 10px;display:flex;flex-direction:column;align-items:flex-start;gap:1px;color:rgba(255,255,255,.62);font:inherit;font-size:11px;text-align:left;cursor:pointer;min-width:0;-webkit-tap-highlight-color:transparent}
+.gdw-cell.open{background:rgba(232,160,75,.12)}
+.gdw-cell b{color:#fff;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.gdw-cell i{font-style:normal}
+.gdw-cell .gdw-cg{display:block;margin-bottom:1px}
+.gdw-cell .gdw-g{width:22px;height:22px}
+.gdw-cell::before{content:'';position:absolute;inset:0;width:0;background:rgba(255,255,255,0.18)}
+.gdw-cell.holding::before{animation:sec-hold-fill var(--m-hold) linear forwards}
+@media (prefers-reduced-motion:reduce){.gdw-g *{animation:none!important}}
 /* ── size grammar (widget step 3, 3 Aug): 1×1 · 2×1 · 2×2 · 3×1 · 3×2 ─────── */
 .w-span3{grid-column:span 3}
 .w-rows2{grid-row:span 2}
@@ -3009,6 +3042,10 @@ select option,select optgroup{background:#1a1c20;color:#fff}
      past the system. It is deliberately absent from the remote and
      reduced-motion blocks below. */
   --m-listen:1100ms;
+  /* 974f: a garage door's roll and a gate's slide are pictures of a reading that changed, named here (the ratchet). */
+  --m-door:1600ms;
+  --m-gate:2000ms;
+  --m-hold:900ms;
 }
 html[data-link="remote"]{--m-tap:90ms;--m-move:200ms;--m-page:300ms}
 /* last, and matching the remote rule's specificity so it wins over both — a
@@ -4643,7 +4680,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102402';
+const PROOS_BUILD='2026102403';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -9648,6 +9685,19 @@ function addWidget(widgetId, sz){
     });
     return;
   }
+  // A GARAGE DOORS WIDGET IS POINTED AT ONE DOOR OR AT ALL OF THEM (974f) — asked only when there is more than one.
+  if(widgetId==='garage'){
+    const gd=_garageDoors();
+    if(gd.length>1){
+      _openRoomChooser([{id:'all',name:'All Garage Doors and Gates'}].concat(gd.map(d=>({id:d.entity,name:d.name}))), 'Which door?', id=>{
+        if(!id) return;
+        if(id!=='all') inst.entity=id;
+        const list=loadWidgetLayout(); list.push(inst); saveWidgetLayout(list);
+        closeWidgetPicker(); renderWidgetGrid();
+      });
+      return;
+    }
+  }
   // ON HOME, YOU CHOOSE THE ROOM (register 611): with more than one room that
   // has a thermostat, the climate tile is pointed at one before it is added.
   if(widgetId==='climate' && curRoom===-1){
@@ -10862,17 +10912,58 @@ function renderWidgetContent(w){
       return {icon, label:'Security', value:_panelDead?'No signal':cap(alarm.replace(/_/g,' ')), sub:_panelDead?'The panel isn’t answering':subTxt, on:!_panelDead&&(alarm!=='disarmed'||open.length>0), html, onclickFn:()=>showPage('security')};
     }
     case 'garage': {
-      // GARAGE DOORS AND GATES (register 974; Dave, 24 Oct): every garage door or gate in the home, by the platform's own
-      // device class. The word is the door's READING (its sensor, through ProOS's door), never the last tap; a tap opens
-      // Doors & Gates, where a press shows as "Opening…" until the sensor says it got there.
-      const doors=_garageDoors();
-      const word=e=>{ const v=st(e); return v==='open'?'Open':v==='closed'?'Closed':v==='opening'?'Opening…':v==='closing'?'Closing…':'No reading'; };
-      const openD=doors.filter(d=>['open','opening','closing'].includes(st(d.entity)));
-      const unread=doors.filter(d=>{ const v=st(d.entity); return !v||v==='unavailable'||v==='unknown'; });
-      const value=doors.length===1?word(doors[0].entity):(openD.length?openD.length+' Open':(unread.length?(unread.length===doors.length?'No reading':unread.length+' not reporting'):'All Closed'));
-      const sub=doors.length===1?doors[0].name:(doors.length+' doors');
-      const html=`<div class="wc wv"><div class="wv-hd"><div class="wv-tx"><div class="wv-t">${_hEsc(doors.length===1?doors[0].name:'Garage Doors')}</div><div class="wv-s"><b>${_hEsc(value)}</b>${doors.length>1?' · '+_hEsc(sub):''}</div></div><span style="display:inline-flex;width:38px;height:38px;stroke:rgba(255,255,255,.7);fill:none;stroke-width:1.6">${icon.replace('<svg ','<svg width="38" height="38" ')}</span></div></div>`;
-      return {icon, label:'Garage', value, sub, on:openD.length>0, html, onclickFn:()=>showPage('access')};
+      // GARAGE DOORS AND GATES (register 974; redrawn 974f, Dave 24 Oct 17:21: "need it to match the look and feel of our
+      // current look"). Drawn in the Security widget's own parts: the round badge (.wv-shield), the facts line, the
+      // Hold button (.sec-hold). The door is drawn where its SENSOR says (the cover's state, which ProOS's door reads
+      // from the sensor); it rolls once, on the redraw where the reading changed — never on a timer, never on a tap.
+      // A hold is ONE press of the cover's own service and reads "Pressed · waiting for the sensor" until the
+      // platform's last_changed moves. One door (w.entity, picked when added) or every door and gate in the home.
+      const all=_garageDoors();
+      const pinned=w.entity?all.filter(d=>d.entity===w.entity):[];
+      const doors=pinned.length?pinned:all;
+      const mid=_widgetDims(w).w>=2;
+      const raw=e=>st(e);
+      const rd=e=>{ const v=raw(e); return (!v||v==='unavailable'||v==='unknown')?'none':((v==='closed'||v==='closing')?'closed':'open'); };
+      const word=e=>{ const v=raw(e); return v==='opening'?'Opening…':v==='closing'?'Closing…':({open:'Open',closed:'Closed',none:'No signal'})[rd(e)]; };
+      const col=e=>({open:'#e8a04b',closed:'#6fbf8f',none:'rgba(255,255,255,0.5)'})[rd(e)];
+      const moved=(e,k)=>{ const key=(w.uid||'')+'|'+e+'|'+(k||''), r=rd(e), was=_garSeen[key]; _garSeen[key]=r; return was!==undefined&&was!==r&&r!=='none'&&was!=='none'; };
+      const pressed=e=>{ const p=_garPressed[e]; if(!p) return false; const o=states[e]; const t=o&&o.last_changed?Date.parse(o.last_changed):0; return t<p; };
+      const glyph=(e,big,k)=>{ const r=rd(e), gate=att(e,'device_class')==='gate';
+        const cls=`gdw-g${big?' big':''} ${r==='open'?'is-open':'is-shut'}${moved(e,k)?(r==='open'?' gdw-up':' gdw-down'):''}`;
+        return gate
+          ?`<svg class="${cls} gate" viewBox="0 0 24 24"><path d="M3 4v17M21 4v17M1.5 21h21"/><g class="gdw-run"><path d="M4.5 8h15M4.5 18h15M7 7v12M10.5 7v12M14 7v12M17.5 7v12"/></g></svg>`
+          :`<svg class="${cls}" viewBox="0 0 24 24"><path d="M3 21V9l9-5 9 5v12"/><g class="gdw-car"><path d="M7.6 20v-2.3l1.3-2.4h6.2l1.3 2.4V20z"/><path d="M8.8 20v1M15.2 20v1"/></g><path d="M6 21V11h12v10"/><g class="gdw-door"><rect class="gdw-panel" x="6.6" y="11.6" width="10.8" height="9"/><path d="M6.6 14.6h10.8M6.6 17.6h10.8"/></g></svg>`; };
+      const badge=(e,big)=>`<span class="wv-shield gdw-b${big?' big':''}" style="--sc:${col(e)};color:${col(e)}">${glyph(e,big)}</span>`;
+      const since=e=>{ if(pressed(e)) return `<span class="gdw-wait">Pressed · waiting for the sensor</span>`;
+        if(rd(e)==='none') return `<span>The sensor isn’t reporting</span>`;
+        const at=_wvAt(e); return at?`<span>${_hEsc(word(e))} since <b>${_hEsc(at)}</b></span>`:''; };
+      const holdOn=e=>`onpointerdown="_wGarHold(event,this,'${e}')" onpointerup="_wSecHoldEnd(this)" onpointercancel="_wSecHoldEnd(this)" onpointerleave="_wSecHoldEnd(this)" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()" onclick="event.stopPropagation()"`;
+      const hold=e=>`<button class="sec-hold gdw-hold" type="button" ${holdOn(e)}>${W_SVG.garage}<span>Hold to ${rd(e)==='open'?'close':(rd(e)==='closed'?'open':'press')}</span></button>`;
+      const nOpen=doors.filter(d=>rd(d.entity)==='open').length, nNone=doors.filter(d=>rd(d.entity)==='none').length;
+      const single=doors.length===1, d0=doors[0]&&doors[0].entity;
+      const sum=single?word(d0):(nOpen?nOpen+' Open':(nNone?(nNone===doors.length?'No signal':nNone+' not reporting'):'All Closed'));
+      const wash='<div class="secw-wash"></div>', wcls=`wc wv secw sew gdw${nOpen?' gdw-open':''}`;
+      let html;
+      if(!doors.length){
+        html=`<div class="wc wv"><div class="wv-hd"><div class="wv-tx"><div class="wv-t">Garage Doors</div><div class="wv-s">None set up</div></div></div></div>`;
+      } else if(single&&!mid){
+        html=`<div class="${wcls}">${wash}<div class="wv-hd"><div class="wv-tx"><div class="wv-t">${_hEsc(doors[0].name)}</div><div class="wv-s"><b class="sew-v" style="color:${col(d0)}">${_hEsc(word(d0))}</b></div></div>${badge(d0)}</div>`
+          +`<div class="wv-facts">${since(d0)}</div><div class="wv-mt">${hold(d0)}</div></div>`;
+      } else if(single){
+        html=`<div class="${wcls} sew-m sew-mid">${wash}<div class="wv-hd"><div class="wv-tx"><div class="wv-t sew-v big" style="color:${col(d0)}">${_hEsc(word(d0))}</div><div class="wv-s sew-s">${_hEsc(doors[0].name)}</div></div>${badge(d0,true)}</div>`
+          +`<div class="wv-facts">${since(d0)}</div><div class="wv-mt">${hold(d0)}</div></div>`;
+      } else if(!mid){
+        const firstOpen=doors.find(d=>rd(d.entity)==='open');
+        html=`<div class="${wcls}">${wash}<div class="wv-hd"><div class="wv-tx"><div class="wv-t">Garage Doors</div><div class="wv-s"><b class="sew-v">${_hEsc(sum)}</b></div></div>${badge(firstOpen?firstOpen.entity:d0)}</div>`
+          +`<div class="wv-facts">${firstOpen?`<span><b>${_hEsc(firstOpen.name)}</b> open${_wvAt(firstOpen.entity)?' since '+_hEsc(_wvAt(firstOpen.entity)):''}</span>`:`<span>${doors.length} doors and gates</span>`}</div>`
+          +`<div class="wv-mt wv-facts"><span>Tap to see them all</span></div></div>`;
+      } else {
+        const cells=doors.slice(0,4).map(d=>{ const e=d.entity, r=rd(e);
+          return `<button class="gdw-cell ${r}" type="button" ${holdOn(e)}><span class="gdw-cg" style="color:${col(e)}">${glyph(e,false,'cell')}</span><b>${_hEsc(d.name)}</b><i${r==='open'?' style="color:#e8a04b"':''}>${pressed(e)?'Pressed…':_hEsc(word(e))}</i></button>`; }).join('');
+        html=`<div class="${wcls} sew-m">${wash}<div class="wv-hd"><div class="wv-tx"><div class="wv-t">Garage Doors</div><div class="wv-s"><b class="sew-v">${_hEsc(sum)}</b><span>· hold a door to press it</span></div></div></div>`
+          +`<div class="gdw-grid" style="--n:${Math.min(4,doors.length)}">${cells}</div></div>`;
+      }
+      return {icon, label:'Garage', value:sum, sub:single?doors[0].name:(doors.length+' doors'), on:nOpen>0, html, onclickFn:()=>showPage('access')};
     }
     case 'covers': {
       const covers=r?.covers||[];
@@ -11805,6 +11896,22 @@ function _wSecHold(ev,btn,service,label){
     btn.classList.remove('holding');
     _proosHaptic('lift');
     openPinOverlay(service,label);
+  },900);
+}
+// GARAGE DOOR: a hold is ONE press of the cover's own service (974f). The tile then says "Pressed · waiting for the
+// sensor" until the platform's last_changed moves; what it shows as open or closed is still only the sensor.
+let _garPressed={}, _garSeen={};
+function _wGarHold(ev,btn,e){
+  ev.stopPropagation();
+  if(_widgetEditMode) return;
+  btn.classList.add('holding');
+  clearTimeout(_wSecT);
+  _wSecT=setTimeout(()=>{
+    btn.classList.remove('holding');
+    _proosHaptic('lift');
+    _garPressed[e]=Date.now();
+    svc('cover', st(e)==='open'?'close_cover':'open_cover', {entity_id:e});
+    renderWidgetGrid();
   },900);
 }
 function _wSecHoldEnd(btn){
