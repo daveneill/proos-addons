@@ -297,6 +297,39 @@ def kiosk_rest() -> dict:
     return {"ip": ip, "port": KIOSK_REST_PORT, "token": kept["token"]}
 
 
+# THE PANEL'S OWN SCREEN, WHATEVER ELSE IS PLUGGED IN — one list 10.17, register 981. Dave, 24 Oct (974g): a monitor on
+# the G-Flip's HDMI port left the 5" panel's touch dead — the kiosk picks its screen by NUMBER among the connected ports
+# ("output_number", 1) and maps touch to the screen it picked. The kiosk's own fix (its xorg_conf option, appended to its
+# own Xorg config): the box's other ports are IGNORED by the screen server, so the built-in panel is the only screen there
+# is to pick and to map touch to. READ ON THE BOX 25 Oct: the kernel lists eDP-1 (the panel, connected), HDMI-A-1 and
+# DP-1…DP-6; the kiosk's log named "All video outputs: eDP-1 … HDMI-1 … DP-1…6". With the ignore written: "All video
+# outputs: eDP-1", "*[1] eDP-1". Only when the box HAS a built-in panel connector: a box driving a wall screen over HDMI
+# is never told to ignore it.
+DRM_PATH = "/sys/class/drm"
+_BUILT_IN = ("eDP", "LVDS", "DSI")
+
+
+def _x_name(kernel_name: str) -> str:
+    """The kernel's connector name as the screen server names it: 'card0-HDMI-A-1' → 'HDMI-1', 'card0-DP-3' → 'DP-3'."""
+    n = re.sub(r"^card\d+-", "", kernel_name)
+    return re.sub(r"^HDMI-[AB]-", "HDMI-", n)
+
+
+def other_screens_ignored(drm_path: str | None = None) -> str:
+    """The Xorg lines that make the screen server ignore every port but the built-in panel — "" when the box has no
+    built-in panel connector (or its ports cannot be read): then nothing is changed."""
+    try:
+        names = sorted(os.listdir(drm_path or DRM_PATH))
+    except Exception:  # noqa: BLE001
+        return ""
+    ports = [n for n in names if re.match(r"^card\d+-", n) and not re.match(r"^card\d+-Writeback", n)]
+    if not any(_x_name(p).startswith(_BUILT_IN) for p in ports):
+        return ""
+    others = [_x_name(p) for p in ports if not _x_name(p).startswith(_BUILT_IN)]
+    return "\n".join('Section "Monitor"\n    Identifier "%s"\n    Option "Ignore" "true"\nEndSection' % o
+                     for o in others)
+
+
 def kiosk_options(sat_entity: str | None, port: int = 80) -> dict:
     login = _read_login()
     dash = "local/dashboard.html?panel=1" + (("&sat=" + sat_entity) if sat_entity else "")
@@ -305,6 +338,9 @@ def kiosk_options(sat_entity: str | None, port: int = 80) -> dict:
            "onscreen_keyboard": False, "ha_sidebar": "none", "dark_mode": True, "screen_timeout": 0,
            "ha_username": login.get("username") or PANEL_USERNAME, "ha_password": login.get("password") or "",
            "gestures": list(KIOSK_GESTURES)}
+    ignored = other_screens_ignored()
+    if ignored:                       # register 981: the built-in panel is the only screen (10.17)
+        out.update({"xorg_conf": ignored, "xorg_append_replace": "append"})
     door = kiosk_rest()
     if door:
         out.update({"rest_ip": door["ip"], "rest_port": door["port"], "rest_bearer_token": door["token"]})
