@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import secrets
 import time
 
@@ -310,13 +311,44 @@ def kiosk_options(sat_entity: str | None, port: int = 80) -> dict:
     return out
 
 
-def satellite_entity(ws):
+SATELLITE_NAME = "ProOS Panel"     # the name this pass gives the panel's own microphone add-on (its device's name)
+
+
+def panel_device(ws):
+    """THE PANEL'S OWN MICROPHONE, BY ITS DEVICE — one list 10.11, register 980. This took the FIRST ESPHome satellite
+    in the registry as the panel's; with a room mic added (Office Voice, an ESPHome board, 24 Oct) that could be the room
+    mic. The panel's microphone is the add-on this pass names SATELLITE_NAME, so its device carries that name. None when
+    no such device exists — then nothing is guessed."""
+    try:
+        devs = ws("config/device_registry/list") or []
+    except Exception:  # noqa: BLE001
+        return None
+    for d in devs:
+        if (d.get("name_by_user") or d.get("name") or "") == SATELLITE_NAME or d.get("name") == SATELLITE_NAME:
+            return d.get("id")
+    return None
+
+
+def _panel_entities(ws):
+    dev = panel_device(ws)
+    if not dev:
+        return []
     try:
         ents = ws("config/entity_registry/list") or []
     except Exception:  # noqa: BLE001
-        return None
-    return next((e.get("entity_id") for e in ents
+        return []
+    return [e for e in ents if e.get("device_id") == dev]
+
+
+def satellite_entity(ws):
+    return next((e.get("entity_id") for e in _panel_entities(ws)
                  if str(e.get("entity_id", "")).startswith("assist_satellite.") and e.get("platform") == "esphome"), None)
+
+
+def wake_selects(ws) -> list:
+    """The panel's own wake-word controls (the platform's selects on the panel's device)."""
+    return [e.get("entity_id") for e in _panel_entities(ws)
+            if re.match(r"^select\.[a-z0-9_]+_wake_word(_\d+)?$", str(e.get("entity_id", "")))]
 
 
 def run(sup, ws, req, door_state=None, restart_core=None) -> dict:
@@ -337,7 +369,7 @@ def run(sup, ws, req, door_state=None, restart_core=None) -> dict:
     step("matter", lambda: ensure_addon(sup, "core_matter_server"))
     if slugs.get("satellite"):
         step("satellite", lambda: ensure_addon(sup, slugs["satellite"], {
-            "name": "ProOS Panel", "wake_word": WAKE_WORD, "mic_auto_gain": 31, "mic_noise_suppression": 2}))
+            "name": SATELLITE_NAME, "wake_word": WAKE_WORD, "mic_auto_gain": 31, "mic_noise_suppression": 2}))
     step("input_level", lambda: ensure_input_level(sup))
     step("discovered", lambda: confirm_discovered(req, ws))
     step("satellite_entry", lambda: ensure_satellite_entry(req, ws))

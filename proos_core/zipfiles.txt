@@ -5507,6 +5507,7 @@ proos/navconfig.py
 proos/netevidence.py
 proos/netmap.py
 proos/panelsetup.py
+proos/panelwake.py
 proos/panelshot.py
 proos/platform_backup.py
 proos/platform_entries.py

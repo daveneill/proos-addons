@@ -3947,7 +3947,7 @@ def factory_reset(clear_proos_data=False, keep_auth=False):
                    "music_order.json",
                    # the wall panel's set-up record and the screen login it made (register 940) — the reset deletes the
                    # platform's users, so the login it names is gone; the panel's next pass makes a new one
-                   "panel_setup.json", "panel_login.json",
+                   "panel_setup.json", "panel_login.json", "panel_wake.json",
                    # the key to the kiosk screen app's internal door (register 963) — the next pass makes a new one and
                    # gives it to the kiosk
                    "kiosk_rest.json",
@@ -11058,6 +11058,25 @@ def main():
                         pass
             threading.Thread(target=_go, daemon=True, name="voice-app").start()
         _ha_stream.on_voice = _voice_event
+
+        def _panel_wake(data):
+            # REGISTER 980 (one list 10.18): the panel's wake word stays what a person set it to — the platform's
+            # satellite forgets "off" at every restart (measured). Only wake-word selects get past the first test.
+            if not str((data or {}).get("entity_id") or "").endswith(("_wake_word", "_wake_word_2")):
+                return
+
+            def _go():
+                try:
+                    from proos import panelwake as _pw
+                    from proos import panelsetup as _psu
+                    r = _pw.heard(data, lambda: _psu.wake_selects(_ws_call),
+                                  lambda d, s, b: _client._req("POST", "/api/services/%s/%s" % (d, s), b))
+                    if r:
+                        print("  panel · wake word: %s" % r, flush=True)
+                except Exception as _pwe:                        # noqa: BLE001
+                    print("  panel · wake word keeper failed: %s" % _pwe, flush=True)
+            threading.Thread(target=_go, daemon=True, name="panel-wake").start()
+        _ha_stream.on_state = _panel_wake
         try:
             from proos import assist as _assist_mod
             _assist_mod.CORRECTION_HOOK = lambda words: _dash_ping("voice", words)   # register 857

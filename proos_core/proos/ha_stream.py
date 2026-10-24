@@ -100,6 +100,9 @@ class HaStream(threading.Thread):
         # REGISTER 853: the home's own voice events (proos_voice — a sentence the platform matched, fired by the
         # automation ProOS wrote). Called with the event's data; a broken hook must never kill the stream.
         self.on_voice = None
+        # REGISTER 980: a consumer that needs the whole change (old and new state, who made it) — the panel's wake word
+        # (panelwake). Called with the event's data; a broken hook must never kill the stream.
+        self.on_state = None
         # ── THE REGISTRY EPOCH (19 Aug 2026, register 242) ─────────────────
         # MEASURED ON DAVE'S BOX, not guessed: the Supervisor log showed
         # THREE full websocket connections — connect, upgrade, auth, one
@@ -423,3 +426,9 @@ class HaStream(threading.Thread):
                 cb(eid)
             except Exception:                                    # noqa: BLE001
                 pass          # a consumer's bug never stops the stream
+        cb2 = self.on_state
+        if cb2 is not None:
+            try:
+                cb2(data)
+            except Exception:                                    # noqa: BLE001
+                pass          # register 980: the same rule
