@@ -1,0 +1,773 @@
+"""Constants for the Ajax Security integration."""
+
+from enum import IntEnum, StrEnum
+
+DOMAIN = "aegis_ajax"
+
+# FCM rejection marker (#227, #464). Records the SHA-256 fingerprint of the
+# most recent credential set that Firebase Installations terminally rejected,
+# so the integration does not re-hit the Firebase project on every restart
+# with a key it already knows is wrong. Lives here because two modules that
+# must not import each other need it: `notification.py` writes and reads it,
+# `repairs.py` clears it when the user re-submits the Repair card (#464).
+FCM_STORAGE_VERSION = 1
+FCM_REJECTED_STORAGE_KEY = f"{DOMAIN}_fcm_rejected"
+
+
+def fcm_store_key(base: str, entry_id: str) -> str:
+    """Storage key for one config entry: two accounts must not share FCM state (#605)."""
+    return f"{base}_{entry_id}" if entry_id else base
+
+
+MANUFACTURER = "Ajax Systems"
+
+# Labels for automatic entity categorization
+LABEL_PREFIX = "aegis"
+LABELS: dict[str, dict[str, str]] = {
+    "aegis_door": {
+        "name": "Aegis: Doors & Windows",
+        "icon": "mdi:door",
+        "color": "#1E88E5",
+    },
+    "aegis_motion": {
+        "name": "Aegis: Motion",
+        "icon": "mdi:motion-sensor",
+        "color": "#FB8C00",
+    },
+    "aegis_camera": {
+        "name": "Aegis: Cameras",
+        "icon": "mdi:cctv",
+        "color": "#8E24AA",
+    },
+    "aegis_battery": {
+        "name": "Aegis: Batteries",
+        "icon": "mdi:battery",
+        "color": "#43A047",
+    },
+    "aegis_temperature": {
+        "name": "Aegis: Temperature",
+        "icon": "mdi:thermometer",
+        "color": "#E53935",
+    },
+    "aegis_tamper": {
+        "name": "Aegis: Tamper",
+        "icon": "mdi:shield-alert",
+        "color": "#D81B60",
+    },
+    "aegis_connectivity": {
+        "name": "Aegis: Connectivity",
+        "icon": "mdi:access-point-network",
+        "color": "#00ACC1",
+    },
+    "aegis_hub": {
+        "name": "Aegis: Hub",
+        "icon": "mdi:server-network",
+        "color": "#546E7A",
+    },
+    "aegis_alarm": {
+        "name": "Aegis: Alarm",
+        "icon": "mdi:shield-home",
+        "color": "#C62828",
+    },
+}
+
+GRPC_HOST = "mobile-gw.prod.ajax.systems"
+GRPC_PORT = 443
+
+CLIENT_OS = "Android"
+# The Ajax server gates parts of the snapshot response on
+# `client-version-major` (newer values dropped `monitoring_companies` from
+# `SpaceService.stream`, so we stayed on "3.30"), but on 2026-10-07 Ajax
+# started rejecting "3.30" with PERMISSION_DENIED "Request is blacklisted"
+# (#559). "3.57" is a real Android app version confirmed to log in.
+CLIENT_VERSION = "3.57"
+APPLICATION_LABEL = "Ajax"  # default (main Ajax app labelName)
+KNOWN_APP_LABELS = [
+    "Ajax",
+    "AIKO",
+    "3dAlarma",
+    "E-Pro",
+    "esahome",
+    "G4S_SHIELDalarm",
+    "GSS_Home",
+    "HomeSecure",
+    "Hus_Smart",
+    "Novus_alarm",
+    "Protegim_alarma",
+    "SecureAjax",
+    "Smart_Secure",
+    "Verux",
+    "Videotech_alarm",
+    "kale_alarm_x",
+    "ADT_Alarm",
+    "ADT_Secure",
+    "Yoigo_ADT_Alarma",
+    "Masmovil_ADT_Alarma",
+    "Euskaltel_ADT_Alarma",
+    "Elotec",
+    "Yavir",
+    "Oryggi",
+    "acacio",
+    "Protecta",
+    "ajax_pro",
+]
+# Maps `app_label` (the gRPC `application-label` header value the user
+# picked in the config flow) to the Android package id of the
+# corresponding co-branded APK. Used as the `X-Android-Package` header
+# the integration sends on Firebase Installations calls so Google's
+# api-key package restriction doesn't refuse the request with
+# `API_KEY_ANDROID_APP_BLOCKED` + `androidPackage: <empty>` (#155,
+# #182). The `firebase_messaging` library doesn't send that header
+# itself — for api-keys without restriction it works fine, but the
+# Ajax co-branded key on Project B (`elite-dreamer-676`,
+# `mws-mobile-client---2` for some variants) has package restriction
+# enabled and blocks blank-package requests outright.
+#
+# Verified end-to-end: only "Ajax" → `com.ajaxsystems` (zwagerzaken's
+# beta.8 capture in #182, alt-BadBatch's original). The other entries
+# are best-effort derived from the libnative-lib.so catalogue
+# documented in the cobranded-firebase project memory. Add an entry
+# only after confirming with the user that their `strings.xml` is in
+# the actual APK named here. Missing entries fall back to no header,
+# i.e. the pre-1.5.3-beta.10 behaviour.
+APP_LABEL_TO_ANDROID_PACKAGE: dict[str, str] = {
+    "Ajax": "com.ajaxsystems",
+    "ajax_pro": "com.ajaxsystems.pro",
+    "AIKO": "com.ajaxsystems.aiko",
+    "Protegim_alarma": "com.ajaxsystems.protegim",
+}
+
+CLIENT_DEVICE_MODEL = "SM-A536B"  # Galaxy A53
+CLIENT_DEVICE_TYPE = "MOBILE"
+CLIENT_APP_TYPE = "USER"
+
+SESSION_REFRESH_INTERVAL = 780  # 13 minutes in seconds
+STREAM_RECONNECT_MAX_BACKOFF = 60  # seconds
+MIN_POLL_INTERVAL = 60  # seconds
+MAX_POLL_INTERVAL = 300  # seconds
+DEFAULT_POLL_INTERVAL = 300  # seconds fallback (stream handles real-time updates)
+# Cooldown for the dedicated debouncer that re-reads `security_state` after a
+# space arm/disarm HTS event (#270). HA's default request-refresh debouncer
+# uses a 10 s cooldown, which coalesces a rapid arm→disarm→arm burst into a
+# single trailing re-read that can lag the alarm panel by up to ~10 s when FCM
+# push doesn't deliver promptly. A short dedicated cooldown keeps the panel
+# responsive while still collapsing true sub-second duplicate frames; the small
+# trailing settle also gives the gRPC snapshot time to propagate the new state.
+SECURITY_EVENT_REFRESH_COOLDOWN = 1.0  # seconds
+# Auto-off window for a device `motion_detected` status set from an FCM motion
+# push (#173). Video-edge devices only report motion over FCM, so the binary
+# sensor has no "cleared" event — we self-clear it like a PIR detector.
+MOTION_PUSH_AUTO_OFF_SECONDS = 30
+GRPC_TIMEOUT = 10.0  # seconds
+GRPC_STREAM_TIMEOUT = 30.0  # seconds
+MAX_RETRIES = 3
+RATE_LIMIT_REQUESTS = 60
+RATE_LIMIT_WINDOW = 60  # seconds
+
+# Per-device internal temperature (#220, #229, #269, #312). Some devices report
+# their temperature only in the rich per-device `StreamHubDevice` snapshot, not
+# in the lighter `StreamLightDevices` stream we run continuously: sirens (#220),
+# outdoor curtain motion detectors (#229) and the MotionProtect Outdoor (#269).
+# The Curtain Outdoor *Mini* is the
+# only family still pulled over gRPC (a throttled one-shot snapshot — temperature
+# is slow-moving and a persistent per-device stream would contradict how the
+# Ajax app uses that endpoint). Sirens and the Curtain Plus/Base are sourced from
+# HTS sub-key 0x02 instead (see api/hts/hub_state.HTS_TEMPERATURE_DEVICE_TYPES),
+# which matches the Ajax app and updates live.
+HUB_DEVICE_TEMP_REFRESH_INTERVAL = 900  # seconds (15 min)
+# Device types whose temperature comes from a per-device source (gRPC or HTS)
+# rather than the `StreamLightDevices` stream. Used as the carry-forward set so
+# the merged value survives a fresh stream snapshot that lacks it. The gRPC fetch
+# only runs for the members NOT in `HTS_TEMPERATURE_DEVICE_TYPES` (i.e. the Mini).
+# Indoor motion/door sensors are NOT here — they carry `temperature` in the
+# light stream.
+HUB_DEVICE_TEMPERATURE_DEVICE_TYPES = frozenset(
+    {
+        "street_siren",
+        "street_siren_plus_g3",
+        "street_siren_double_deck",
+        "street_siren_s_double_deck",
+        "street_siren_double_deck_fibra",
+        "street_siren_fibra",
+        "home_siren",
+        "home_siren_g3",
+        "home_siren_s",
+        "home_siren_fibra",
+        "motion_protect_curtain_outdoor_base",
+        "motion_protect_curtain_outdoor_mini",
+        "motion_protect_curtain_outdoor_plus",
+        "motion_protect_outdoor",
+        "motion_cam_outdoor_phod",
+    }
+)
+
+
+class SecurityState(IntEnum):
+    """Maps DisplayedSpaceSecurityState proto enum."""
+
+    NONE = 0
+    ARMED = 1
+    DISARMED = 2
+    NIGHT_MODE = 3
+    PARTIALLY_ARMED = 4
+    AWAITING_EXIT_TIMER = 5
+    AWAITING_SECOND_STAGE = 6
+    TWO_STAGE_INCOMPLETE = 7
+    AWAITING_VDS = 8
+
+
+class ConnectionStatus(IntEnum):
+    """Maps mobile v2 ConnectionStatus proto enum."""
+
+    UNSPECIFIED = 0
+    ONLINE = 1
+    OFFLINE = 2
+
+
+class ChimeStatus(IntEnum):
+    """Maps the mobile v2 `DisplayedChimeStatus` proto enum (#239).
+
+    The hub-wide Chime on/off setting the Ajax app exposes (bottom-left of
+    the security screen). Read off `StandaloneDevice.hub.chime_status` inside
+    a space — the same field the official app maps (`tqs.a(space).getChimeStatus()`).
+    `CAN_BE_ENABLED` means Chime is supported and currently off; `UNSPECIFIED`
+    means the hub doesn't expose the feature at all, so no switch is created.
+    """
+
+    UNSPECIFIED = 0
+    ENABLED = 1
+    CAN_BE_ENABLED = 2
+    MALFUNCTION = 3
+    DISABLED = 4
+
+    @property
+    def is_supported(self) -> bool:
+        """True when the hub exposes the Chime feature (any state but UNSPECIFIED)."""
+        return self != ChimeStatus.UNSPECIFIED
+
+    @property
+    def is_on(self) -> bool:
+        """True only when Chime is actively enabled."""
+        return self == ChimeStatus.ENABLED
+
+
+class UserRole(IntEnum):
+    """Maps UserRole proto enum."""
+
+    UNSPECIFIED = 0
+    USER = 1
+    PRO = 2
+
+
+class DeviceState(StrEnum):
+    """Simplified device states from LightDeviceState."""
+
+    ONLINE = "online"
+    OFFLINE = "offline"
+    LOCKED = "locked"
+    SUSPENDED = "suspended"
+    UPDATING = "updating"
+    BATTERY_SAVING = "battery_saving"
+    WALK_TEST = "walk_test"
+    ADDING = "adding"
+    NOT_MIGRATED = "not_migrated"
+    UNKNOWN = "unknown"
+
+
+# Controls whether per-device bypass switches are created (#bypass).
+# `auto` only creates them if the logged-in user has the DEVICE_EDIT space
+# permission (deactivating a device requires it server-side); `always` and
+# `never` skip the permission check.
+CONF_BYPASS_SWITCHES = "bypass_switches"
+BYPASS_SWITCHES_AUTO = "auto"
+BYPASS_SWITCHES_ALWAYS = "always"
+BYPASS_SWITCHES_NEVER = "never"
+DEFAULT_BYPASS_SWITCHES = BYPASS_SWITCHES_AUTO
+# The SpacePermission the Ajax server requires to deactivate (bypass) a device.
+# Confirmed empirically: an account lacking exactly this permission gets
+# `permission_denied` on the bypass command.
+BYPASS_REQUIRED_PERMISSION = "DEVICE_EDIT"
+
+# --- Siren settings entities (#310, #354) -------------------------------
+# Status keys under which the writable siren settings are surfaced by the
+# device parser. `number`/`select` create their entities from the presence of
+# these keys, so every siren SKU that embeds a `common_siren_part` is covered
+# without a per-device-type table.
+SIREN_ALARM_DURATION_KEY = "siren_alarm_duration"
+SIREN_VOLUME_LEVEL_KEY = "siren_volume_level"
+
+# `CommonSirenPart.SirenVolumeLevel` enum value → stable select option string
+# (also the translation key). Ordered loud→quiet→disabled for the UI.
+SIREN_VOLUME_LEVELS: dict[int, str] = {
+    1: "very_loud",
+    18: "loud",
+    29: "quiet",
+    32: "disabled",
+}
+SIREN_VOLUME_LEVEL_VALUES: dict[str, int] = {v: k for k, v in SIREN_VOLUME_LEVELS.items()}
+
+# Alarm-duration number bounds (seconds). Ajax's StreetSiren app UI offers
+# 3 s – 3 min; used as advisory slider limits (the hub accepts other values).
+SIREN_ALARM_DURATION_MIN = 3
+SIREN_ALARM_DURATION_MAX = 180
+SIREN_ALARM_DURATION_STEP = 1
+
+# Settle delay (seconds) before the targeted settings re-read that follows a
+# successful siren-settings write. An immediate re-read can still return the
+# pre-write snapshot (server-side propagation lag, same lesson as the #239
+# event re-reads), so give the hub a moment; the 900 s timer remains the
+# fallback if the confirm read still races the write.
+SIREN_SETTINGS_CONFIRM_DELAY = 5.0
+
+# Status oneof cases that mean "this device is deactivated on the panel", i.e.
+# excluded from protection (#338). They are what the wire actually carries —
+# `profile.bypassed` stays False for a device deactivated from the Ajax app,
+# so without reading these HA reported a disabled sensor as live protection.
+#
+# READ THE NAMES BACKWARDS — Ajax's wording is inverted relative to English
+# intuition, and this has been verified against the app's own labels:
+#   * `temporary_*` / "forzata"  = the PERMANENT deactivation (until re-enabled)
+#   * `one_time_*`  / "unica"    = lasts a single arming cycle
+# Do not "fix" this mapping to match the English adjectives.
+#
+# `*_deactivation_tamper` means the device's TAMPER PROTECTION is disabled.
+# It is NOT a tamper alarm and must never feed the shared `tamper` key the
+# tamper binary_sensor binds to (#339/#340).
+#
+# The four `whole`/`tamper` variants are hardware-confirmed (#338, four-mode
+# mapping on a live fixture). The bare and `alarms`/`timer` variants exist in
+# the same oneof but have not been observed on hardware; they are folded the
+# same way because every one of them means "protection is off here", and
+# under-reporting that is the failure mode this fix exists to remove.
+DEACTIVATION_STATUS_KEYS: tuple[str, ...] = (
+    "temporary_deactivation_whole",
+    "temporary_deactivation_tamper",
+    "one_time_deactivation_whole",
+    "one_time_deactivation_tamper",
+    "temporary_deactivation_alarms",
+    "temporary_deactivation_timer",
+    "temporary_deactivation",
+    "one_time_deactivation",
+)
+
+# Shared status key every `DEACTIVATION_STATUS_KEYS` case folds into — the
+# bypass switch binds to it, so the entity reads `on` regardless of which
+# deactivation mode the panel applied or who applied it (#338).
+DEACTIVATED_KEY = "deactivated"
+
+# Settle delay (seconds) before the post-write bypass read-back (#338). The
+# bypass write has a real accept-but-inert failure mode (the hub returns
+# success and does nothing when the account can't apply the requested mode),
+# so a successful command is not evidence of a state change — only an
+# independent read is. Same rationale and cadence as the siren confirm above.
+BYPASS_CONFIRM_DELAY = 5.0
+
+# Opt-out for users who deliberately run without push notifications. When set,
+# the integration does not raise the recurring `fcm_not_configured` Repair card
+# or the WARNING log when the four FCM fields are empty, and clears any card
+# raised on a prior start. A durable alternative to HA's per-issue dismissal,
+# which is easy to miss on a fixable repair (#252). Real-time push still stays
+# off until FCM is configured; this only silences the reminder.
+CONF_DISABLE_PUSH_WARNING = "disable_push_warning"
+DEFAULT_DISABLE_PUSH_WARNING = False
+
+CONF_FORCE_ARM = "force_arm"
+# Whether the alarm panel advertises ARM_HOME. ARM_HOME duplicates Ajax's
+# single partial ("Night") mode and exists mainly so the Nabu Casa / Alexa
+# skill discovers the panel (#221). Users without Alexa/Cloud see a redundant
+# "Arm Home" button on the Lovelace card and can hide it via this option (#259).
+# Defaults to True to preserve the discovery path for existing Alexa users.
+CONF_EXPOSE_ARM_HOME = "expose_arm_home"
+DEFAULT_EXPOSE_ARM_HOME = True
+# Show the hub's exit / entry delays as the panel's `arming` / `pending`
+# states (#454), driven by the hub's own HTS delay events. Opt-in and default
+# OFF: with it on, automations keyed on `armed_*` fire once the exit delay
+# completes (seconds later than today), which is a behaviour change nobody
+# should get by upgrading.
+CONF_DELAY_PANEL_STATES = "delay_panel_states"
+DEFAULT_DELAY_PANEL_STATES = False
+# Experimental cloud live view for Ajax video devices (#322): a camera entity
+# per video channel whose WebRTC session is negotiated through the Ajax cloud,
+# as the app does off-LAN. Off by default until a real camera confirms it; each
+# view opens one signalling stream, nothing runs while nobody watches.
+CONF_CLOUD_VIDEO = "cloud_video"
+DEFAULT_CLOUD_VIDEO = False
+CONF_PHOTO_RETENTION_DAYS = "photo_retention_days"
+CONF_PHOTO_MAX_PER_DEVICE = "photo_max_per_device"
+CONF_AUTO_CREATE_LABELS = "auto_create_labels"
+DEFAULT_PHOTO_RETENTION_DAYS = 30
+DEFAULT_PHOTO_MAX_PER_DEVICE = 100
+DEFAULT_AUTO_CREATE_LABELS = True
+
+# Persistent-notification service (2.2). When enabled, selected security
+# events are surfaced as Home Assistant persistent notifications so an alarm
+# stays visible in the UI until dismissed — a lightweight alternative to
+# wiring a `persistent_notification.create` automation off the event entity.
+# Off by default so existing installs don't suddenly grow notifications; the
+# default event set (see `DEFAULT_PERSISTENT_NOTIFICATION_EVENTS` below) is
+# scoped to real incidents rather than routine arm/disarm/motion noise.
+CONF_PERSISTENT_NOTIFICATIONS = "persistent_notifications"
+DEFAULT_PERSISTENT_NOTIFICATIONS = False
+CONF_PERSISTENT_NOTIFICATION_EVENTS = "persistent_notification_events"
+
+EVENT_DOMAIN = f"{DOMAIN}_event"
+
+# Map HubEventTag oneof field names to the resulting space `security_state`
+# when the corresponding push event arrives. Used to refresh the alarm panel
+# instantly from the FCM payload instead of waiting for the next poll.
+# `space_group_*` tags are intentionally omitted from this map — they only
+# affect a single subgroup, so the resulting *space-level* state (PARTIALLY_
+# ARMED, ARMED, …) depends on the other groups; let the next poll resolve
+# space-level. The same tags are mapped per-group in
+# `RAW_TAG_TO_GROUP_SECURITY_STATE` below for the group-level panels (#148).
+RAW_TAG_TO_SECURITY_STATE: dict[str, SecurityState] = {
+    # HubEventTag tags (sub-incidents that imply a space-level transition)
+    "arm": SecurityState.ARMED,
+    "arm_attempt": SecurityState.ARMED,
+    "arm_with_malfunctions": SecurityState.ARMED,
+    "disarm": SecurityState.DISARMED,
+    "duress_disarm": SecurityState.DISARMED,
+    "night_mode_on": SecurityState.NIGHT_MODE,
+    "night_mode_off": SecurityState.DISARMED,
+    "duress_night_mode_off": SecurityState.DISARMED,
+    # SpaceEventTag tags (the actual primary arm/disarm push from co-brand
+    # FCM payloads — see #68; HubEventQualifier candidates in the same payload
+    # only carry secondary zone-incident info such as `ext_contact_opened`).
+    "space_armed": SecurityState.ARMED,
+    "space_armed_with_malfunctions": SecurityState.ARMED,
+    "space_auto_armed": SecurityState.ARMED,
+    "space_auto_armed_with_malfunctions": SecurityState.ARMED,
+    "space_disarmed": SecurityState.DISARMED,
+    "space_auto_disarmed": SecurityState.DISARMED,
+    "space_duress_disarmed": SecurityState.DISARMED,
+    "space_night_mode_on": SecurityState.NIGHT_MODE,
+    "space_night_mode_on_with_malfunctions": SecurityState.NIGHT_MODE,
+    "space_night_mode_off": SecurityState.DISARMED,
+    "space_duress_night_mode_off": SecurityState.DISARMED,
+}
+
+
+# Map `space_group_*` SpaceEventTag oneof field names to the resulting
+# *group-level* `security_state`. Used to refresh the per-group alarm panel
+# (`AjaxGroupAlarmControlPanel`) instantly from the FCM payload instead of
+# waiting for the next poll (#148). The group_id comes from the
+# `SpaceNotificationSource` wrapping the qualifier — see
+# `notification.py::_extract_space_source_info`. Night-mode tags are absent
+# because per-group panels intentionally don't expose night mode (the
+# underlying flag is space-wide on Ajax).
+RAW_TAG_TO_GROUP_SECURITY_STATE: dict[str, SecurityState] = {
+    "space_group_armed": SecurityState.ARMED,
+    "space_group_armed_with_malfunctions": SecurityState.ARMED,
+    "space_group_auto_armed": SecurityState.ARMED,
+    "space_group_auto_armed_with_malfunctions": SecurityState.ARMED,
+    "space_group_disarmed": SecurityState.DISARMED,
+    "space_group_auto_disarmed": SecurityState.DISARMED,
+    "space_group_duress_disarmed": SecurityState.DISARMED,
+}
+
+# Push raw_tags that mean an intrusion alarm is FIRING in the space (#426).
+# The served `SecurityState` enum has no alarm value — Ajax models arming
+# state and alarm events separately — so the panel's `triggered` can only be
+# derived client-side from the alarm push itself (the same way SIA panels
+# synthesize it from the alarm event), held until the space is next seen
+# DISARMED. A named allowlist on purpose: `panic`/`fire`/`tamper` map to HA
+# events too, but which of those should drive the panel state is a scope
+# decision, not a default.
+INTRUSION_ALARM_RAW_TAGS: frozenset[str] = frozenset(
+    {"intrusion_alarm", "intrusion_alarm_confirmed"}
+)
+
+# HA event types that signal a security-state change. Used by the FCM event
+# path to nudge the snapshot-backed re-read (#284/#287): a push tells (at
+# most) one group's new state, while a scenario / keypad / fob action can
+# flip several groups at once plus `night_mode_enabled` — both only carried
+# by the heavier `get_space_snapshot`.
+SECURITY_STATE_EVENT_TYPES: frozenset[str] = frozenset(
+    {"arm", "disarm", "arm_night", "disarm_night"}
+)
+
+
+# Map HubEventTag oneof field names to simplified HA event types
+HUB_EVENT_TAG_MAP: dict[str, str] = {
+    # Arming
+    "arm": "arm",
+    "arm_attempt": "arm",
+    "arm_with_malfunctions": "arm",
+    "group_arm": "arm",
+    "group_arm_with_malfunctions": "arm",
+    # Disarming
+    "disarm": "disarm",
+    "duress_disarm": "disarm",
+    "group_disarm": "disarm",
+    # Night mode
+    "night_mode_on": "arm_night",
+    "night_mode_off": "disarm_night",
+    "duress_night_mode_off": "disarm_night",
+    # Alarms
+    "intrusion_alarm": "alarm",
+    "intrusion_alarm_confirmed": "alarm",
+    # Tamper
+    "tamper_opened": "tamper",
+    "front_tamper_opened": "tamper",
+    "back_tamper_opened": "tamper",
+    # Panic
+    "panic_button_pressed": "panic",
+    # Battery
+    "battery_low": "battery_low",
+    # Connection
+    "device_communication_loss": "connection_lost",
+    "server_connection_loss": "connection_lost",
+    "gsm_connection_loss": "connection_lost",
+    "ethernet_connection_loss": "connection_lost",
+    # Malfunction
+    "malfunction": "malfunction",
+    # Fire/smoke
+    "smoke_detected": "fire",
+    # CO
+    "high_co_level_detected": "co_alarm",
+    # Water
+    "leak_detected": "flood",
+    # Glass
+    "glass_break_detected": "glass_break",
+    # Motion
+    "motion_detected": "motion",
+    # Door
+    "door_opened": "door_open",
+    # Doorbell — Wireless DoorBell SKU (#119). The MotionCam Video
+    # Doorbell fires its own ring through `VideoEventQualifier` instead;
+    # see `VIDEO_EVENT_TAG_MAP` below.
+    "ring_button_pressed": "doorbell_pressed",
+}
+
+# Map SpaceEventTag oneof field names to simplified HA event types. Used in
+# parallel to HUB_EVENT_TAG_MAP because arm/disarm pushes carry a
+# SpaceEventQualifier (in SpaceNotificationContent.qualifier), not a
+# HubEventQualifier — the former is what we need for #68 to fire.
+# Group-level events (`space_group_*`) also map to `arm` / `disarm` so the
+# logbook / event entity render the same wording as space-wide events; the
+# `raw_tag` field on the event payload still distinguishes them, and the
+# per-group alarm panel is updated from `RAW_TAG_TO_GROUP_SECURITY_STATE`
+# (#148).
+SPACE_EVENT_TAG_MAP: dict[str, str] = {
+    "space_armed": "arm",
+    "space_armed_with_malfunctions": "arm",
+    "space_auto_armed": "arm",
+    "space_auto_armed_with_malfunctions": "arm",
+    "space_disarmed": "disarm",
+    "space_auto_disarmed": "disarm",
+    "space_duress_disarmed": "disarm",
+    "space_night_mode_on": "arm_night",
+    "space_night_mode_on_with_malfunctions": "arm_night",
+    "space_night_mode_off": "disarm_night",
+    "space_duress_night_mode_off": "disarm_night",
+    "space_panic_button_pressed": "panic",
+    # Group-level arm/disarm (#148). Same downstream event_type as space-wide
+    # so existing automations keep working; `raw_tag` differentiates.
+    "space_group_armed": "arm",
+    "space_group_armed_with_malfunctions": "arm",
+    "space_group_auto_armed": "arm",
+    "space_group_auto_armed_with_malfunctions": "arm",
+    "space_group_disarmed": "disarm",
+    "space_group_auto_disarmed": "disarm",
+    "space_group_duress_disarmed": "disarm",
+}
+
+# Map VideoEventTag oneof field names to simplified HA event types. The
+# MotionCam Video Doorbell (and any other Ajax video device) fires its
+# events through `VideoEventQualifier` — distinct from the hub-level
+# `HubEventQualifier` we already parse. Pass 4 of
+# `_extract_event_with_compiled_protos` walks this. Only the events that
+# have a HA-meaningful destination are mapped; the long tail of
+# storage/temporary-access/firmware-update tags from `VideoEventTag` is
+# intentionally left unmapped (we'd just be inflating `ALL_EVENT_TYPES`
+# for events nobody automates on). Add more entries here when a real
+# automation use case shows up.
+VIDEO_EVENT_TAG_MAP: dict[str, str] = {
+    "ring_button_pressed": "doorbell_pressed",
+    "motion_detected": "motion",
+    "human_detected": "motion",
+    "car_detected": "motion",
+    "pet_detected": "motion",
+}
+
+# Map SmartLockEventTag oneof field names to simplified HA event types. Ajax
+# SmartLock / LockBridge (Yale) variants with an integrated ring button fire
+# the press through `SmartLockEventQualifier` — disjoint from
+# `HubEventQualifier` and `VideoEventQualifier`. Pass 4 of
+# `_extract_event_with_compiled_protos` walks this. The rest of the SmartLock
+# tag vocabulary (locked_by_keypad, locked_automatically, …) is intentionally
+# unmapped here: those transitions already surface via the `lock` entity's
+# state, mirroring how `VIDEO_EVENT_TAG_MAP` only mirrors the events with a
+# distinct automation hook.
+SMARTLOCK_EVENT_TAG_MAP: dict[str, str] = {
+    "doorbell_pressed": "doorbell_pressed",
+}
+
+
+# Semantic weight of each push tag. Used by the parser to pick the right
+# match when a single FCM payload carries multiple valid qualifiers — most
+# notably "sensor tripped while system was armed", where Ajax bundles a
+# `SpaceEventQualifier` carrying the state context (e.g. `space_night_mode_
+# on`) together with a `HubEventQualifier` carrying the sensor activity
+# (e.g. `motion_detected`). Higher number wins; tags absent from this map
+# default to weight 0, which preserves the previous "first match wins"
+# fallback for anything not yet ranked.
+#
+# Tiers:
+#   100 — confirmed incident: someone needs to act now
+#    90 — critical detector: would normally trigger an alarm
+#    80 — sensor activity worth surfacing (motion, doorbell, door open)
+#    50 — space-level state change driven by a user action
+#    40 — HubEventTag legacy arm/disarm — Ajax mostly sends these as
+#         secondary context to the SpaceEventTag equivalents
+#    30 — informational health signals (battery, connection loss)
+TAG_PRIORITY: dict[str, int] = {
+    # Tier 100 — confirmed incidents
+    "intrusion_alarm": 100,
+    "intrusion_alarm_confirmed": 100,
+    "panic_button_pressed": 100,
+    "space_panic_button_pressed": 100,
+    # Tier 90 — critical detection
+    "tamper_opened": 90,
+    "front_tamper_opened": 90,
+    "back_tamper_opened": 90,
+    "smoke_detected": 90,
+    "high_co_level_detected": 90,
+    "leak_detected": 90,
+    "glass_break_detected": 90,
+    # Tier 80 — sensor / device activity
+    "motion_detected": 80,
+    "human_detected": 80,
+    "car_detected": 80,
+    "pet_detected": 80,
+    "door_opened": 80,
+    "ring_button_pressed": 80,
+    "doorbell_pressed": 80,
+    # Tier 50 — user-driven space transitions
+    "space_armed": 50,
+    "space_armed_with_malfunctions": 50,
+    "space_auto_armed": 50,
+    "space_auto_armed_with_malfunctions": 50,
+    "space_disarmed": 50,
+    "space_auto_disarmed": 50,
+    "space_duress_disarmed": 50,
+    "space_night_mode_on": 50,
+    "space_night_mode_on_with_malfunctions": 50,
+    "space_night_mode_off": 50,
+    "space_duress_night_mode_off": 50,
+    "space_group_armed": 50,
+    "space_group_armed_with_malfunctions": 50,
+    "space_group_auto_armed": 50,
+    "space_group_auto_armed_with_malfunctions": 50,
+    "space_group_disarmed": 50,
+    "space_group_auto_disarmed": 50,
+    "space_group_duress_disarmed": 50,
+    # Tier 40 — HubEventTag legacy arm/disarm (Ajax sends these as
+    # secondary context; the SpaceEventTag variants above are the
+    # canonical signal for the user action).
+    "arm": 40,
+    "arm_attempt": 40,
+    "arm_with_malfunctions": 40,
+    "group_arm": 40,
+    "group_arm_with_malfunctions": 40,
+    "disarm": 40,
+    "duress_disarm": 40,
+    "group_disarm": 40,
+    "night_mode_on": 40,
+    "night_mode_off": 40,
+    "duress_night_mode_off": 40,
+    # Tier 30 — informational
+    "battery_low": 30,
+    "device_communication_loss": 30,
+    "server_connection_loss": 30,
+    "gsm_connection_loss": 30,
+    "ethernet_connection_loss": 30,
+    "malfunction": 30,
+}
+
+
+ALL_EVENT_TYPES: list[str] = sorted(
+    set(HUB_EVENT_TAG_MAP.values())
+    | set(SPACE_EVENT_TAG_MAP.values())
+    | set(VIDEO_EVENT_TAG_MAP.values())
+    | set(SMARTLOCK_EVENT_TAG_MAP.values())
+)
+
+# Default event types that trigger a persistent notification when the feature
+# (CONF_PERSISTENT_NOTIFICATIONS) is enabled. Scoped to genuine incidents a
+# user would want to keep seeing until acknowledged — not routine
+# arm/disarm/motion/doorbell traffic, which would bury the alarm ones. Users
+# can widen or narrow this via the multi-select in Options. Intersected with
+# ALL_EVENT_TYPES so a typo here can't ship an event type that never fires.
+DEFAULT_PERSISTENT_NOTIFICATION_EVENTS: list[str] = [
+    e
+    for e in (
+        "alarm",
+        "panic",
+        "tamper",
+        "fire",
+        "co_alarm",
+        "flood",
+        "glass_break",
+    )
+    if e in ALL_EVENT_TYPES
+]
+
+# Dispatcher signal for entities discovered at runtime (after platform setup),
+# rather than from the gRPC `coordinator.devices` snapshot available at setup.
+# Payload is the discovered device id (str); subscribers filter for what they
+# create. Currently only SpaceControl keyfobs (HTS-only, discovered seconds after
+# startup) use it; kept generic so future runtime discovery can reuse it.
+SIGNAL_NEW_DEVICE = f"{DOMAIN}_new_device"
+
+# Internal routing key for doorbell pushes (used by the parser, the coordinator
+# dispatch, and the hub-level security event entity). Not the type the
+# doorbell-device-class entity emits — see DOORBELL_RING_EVENT_TYPE.
+DOORBELL_EVENT_TYPE = "doorbell_pressed"
+# Event type the per-device doorbell entity emits. HA requires an entity with
+# `device_class=doorbell` to support the canonical "ring" type (it warns and,
+# from HA 2027.4, rejects anything else). See #173.
+DOORBELL_RING_EVENT_TYPE = "ring"
+# HA event_type for motion pushes; used to flip a device's motion sensor (#173).
+MOTION_EVENT_TYPE = "motion"
+
+# --- Button control-mode press event (#348) ------------------------------
+# A Button in *control* mode (as opposed to panic mode, which already fires
+# `panic`) produces no push and no gRPC status change. The only signal the hub
+# emits is HTS sub-key 0x39 on the Button's row: a big-endian Unix epoch of the
+# moment it was pressed.
+#
+# Evidence it is a press and not a supervision ping, from @raven2k24's captures
+# on a UTC+3 install (#348):
+#   - 14 presses produced 14 transitions, each within 1-2 s of the press;
+#   - 64 minutes and 61 snapshot cycles afterwards with no movement;
+#   - and the decisive one, which needs no log coverage at all: the value
+#     present at boot was 20 hours old. An Ajax peripheral pings its hub every
+#     12-36 minutes, so a contact-tracking key would have moved hundreds of
+#     times in that window. It moved zero.
+#
+# **Short and long click are indistinguishable** — both move only this key, to
+# the same kind of value — so this is one "pressed" event, not two. The hub does
+# not push control-mode presses at all, confirmed on an install with push
+# configured, so no richer source exists to tell them apart.
+#
+# Only the single Button exposes the button-press capability. The DoubleButton
+# is panic-only and its reporter confirmed pressing it emits nothing at all.
+# Keyfobs (`space_control`) do not carry this key: a press there produced no
+# 0x39 whatsoever on a 13-device install, so this remains capability-gated —
+# the same sub-key means unrelated things on other families (on a DoorProtect
+# Plus it is a roller-shutter-online flag).
+BUTTON_PRESS_EVENT_TYPE = "pressed"
+
+# Maps a DeviceCommand failure-oneof case (what the hub returned) to a
+# translated `exceptions.*` message key. Unmapped reasons fall back to
+# `command_failed`, which echoes the raw reason. Messages stay factual —
+# they state what the hub reported, without guessing the cause or remedy.
+COMMAND_ERROR_TRANSLATION_KEYS: dict[str, str] = {
+    "permission_denied": "command_permission_denied",
+    "hub_offline": "command_hub_offline",
+    "hub_wrong_state": "command_hub_wrong_state",
+    "alarm_reset_needed": "command_alarm_reset_needed",
+    "command_not_performed": "command_not_performed",
+    "unknown_command": "command_unknown",
+}

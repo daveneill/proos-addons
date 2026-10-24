@@ -1,0 +1,605 @@
+"""Binary sensor entities for Ajax Security."""
+
+from __future__ import annotations
+
+import logging
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, cast
+
+from homeassistant.components.binary_sensor import BinarySensorDeviceClass, BinarySensorEntity
+from homeassistant.const import EntityCategory
+from homeassistant.core import callback
+from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
+
+from custom_components.aegis_ajax.const import DOMAIN, MANUFACTURER, SIGNAL_NEW_DEVICE
+from custom_components.aegis_ajax.coordinator import AjaxCobrandedCoordinator
+from custom_components.aegis_ajax.device_handlers import capabilities_for
+from custom_components.aegis_ajax.entity import build_device_info, via_device_fields
+
+if TYPE_CHECKING:
+    from homeassistant.config_entries import ConfigEntry
+    from homeassistant.core import HomeAssistant
+    from homeassistant.helpers.entity_platform import AddEntitiesCallback
+
+    from custom_components.aegis_ajax.api.models import Device
+
+_LOGGER = logging.getLogger(__name__)
+
+# Entities only read coordinator data; nothing to throttle.
+PARALLEL_UPDATES = 0
+
+
+@dataclass(frozen=True)
+class BinarySensorTypeInfo:
+    device_class: BinarySensorDeviceClass | None
+    translation_key: str | None = None
+    entity_category: EntityCategory | None = None
+    enabled_default: bool = True
+
+
+BINARY_SENSOR_TYPES: dict[str, BinarySensorTypeInfo] = {
+    "door_opened": BinarySensorTypeInfo(BinarySensorDeviceClass.DOOR),
+    "motion_detected": BinarySensorTypeInfo(BinarySensorDeviceClass.MOTION),
+    "smoke_detected": BinarySensorTypeInfo(BinarySensorDeviceClass.SMOKE),
+    "leak_detected": BinarySensorTypeInfo(BinarySensorDeviceClass.MOISTURE),
+    "tamper": BinarySensorTypeInfo(BinarySensorDeviceClass.TAMPER, "tamper"),
+    "co_detected": BinarySensorTypeInfo(BinarySensorDeviceClass.CO),
+    "high_temperature": BinarySensorTypeInfo(BinarySensorDeviceClass.HEAT),
+    "gsm_connected": BinarySensorTypeInfo(BinarySensorDeviceClass.CONNECTIVITY, "gsm"),
+    "lid_opened": BinarySensorTypeInfo(BinarySensorDeviceClass.TAMPER, "lid"),
+    "external_contact_broken": BinarySensorTypeInfo(BinarySensorDeviceClass.PROBLEM, "ext_contact"),
+    "external_contact_alert": BinarySensorTypeInfo(BinarySensorDeviceClass.SAFETY, "ext_alert"),
+    "case_drilling": BinarySensorTypeInfo(BinarySensorDeviceClass.TAMPER, "drilling"),
+    "anti_masking": BinarySensorTypeInfo(BinarySensorDeviceClass.TAMPER, "anti_mask"),
+    "malfunction": BinarySensorTypeInfo(BinarySensorDeviceClass.PROBLEM, "malfunction"),
+    "interference": BinarySensorTypeInfo(BinarySensorDeviceClass.PROBLEM, "interference"),
+    "relay_stuck": BinarySensorTypeInfo(BinarySensorDeviceClass.PROBLEM, "relay_stuck"),
+    "glass_break": BinarySensorTypeInfo(BinarySensorDeviceClass.SAFETY, "glass_break"),
+    "vibration": BinarySensorTypeInfo(BinarySensorDeviceClass.VIBRATION, "vibration"),
+    # DoorProtect Plus accelerometer fires `tilt` for sustained off-axis
+    # movement (sensor pulled / pried). Modeled as TAMPER because the firmware
+    # treats it as anti-removal, distinct from VIBRATION (door knocks).
+    "tilt": BinarySensorTypeInfo(BinarySensorDeviceClass.TAMPER, "tilt"),
+    # FireProtect 2 steam discriminator — true while the smoke chamber is
+    # reading steam rather than smoke (e.g. shower/cooking false-positive).
+    "steam": BinarySensorTypeInfo(BinarySensorDeviceClass.PROBLEM, "steam"),
+    "wire_input_alert": BinarySensorTypeInfo(BinarySensorDeviceClass.SAFETY, "wire_input_alert"),
+    # #413: the MT wire input's contact state — open = the app's Alerte,
+    # closed = OK, in BOTH NO and NC wiring (the hub applies the polarity
+    # itself; four-state capture, see the coordinator applier's docstring).
+    # OPENING, not SAFETY: the ask is a door/garage state
+    # usable independently of the alarm. Sourced from HTS `0x33`
+    # (`coordinator._maybe_apply_hts_contact_state`); reads closed until the
+    # first status row after a cold install (the persisted device cache
+    # keeps it across restarts). An input with nothing wired reads
+    # permanently open (broken loop) — same as the app shows Alerte for it.
+    "external_contact_open": BinarySensorTypeInfo(
+        BinarySensorDeviceClass.OPENING, "external_contact_open"
+    ),
+    # #443: read-only mirror of the detector's "Delay when leaving" setting,
+    # which rides the light-device stream as a presence-only status. A
+    # configuration flag, not a state: no device class fits, diagnostic, and
+    # off by default like the hub siren settings (#438). The running delay
+    # itself is a separate, opt-in thing: `delay_panel_states` (#454) turns
+    # the hub's delay events into the panel's `arming` / `pending`.
+    "delay_when_leaving": BinarySensorTypeInfo(
+        None,
+        "delay_when_leaving",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        enabled_default=False,
+    ),
+    # #597: read-only mirror of the detector's "Always active" setting, same
+    # presence-only status shape and same treatment as `delay_when_leaving`.
+    "always_active": BinarySensorTypeInfo(
+        None,
+        "always_active",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        enabled_default=False,
+    ),
+}
+
+# Devices whose single "alert" entity should OR-reduce several hub status
+# oneofs into one state, because Ajax hub firmwares disagree on which oneof
+# carries the open/closed transition for wired inputs.
+# Every family with a `wire_input_alert` entity belongs here; a test guards it.
+_WIRE_INPUT_DEVICE_TYPES: frozenset[str] = frozenset(
+    {"wire_input", "wire_input_mt", "wire_input_rs", "transmitter"}
+)
+_WIRE_INPUT_ALERT_SOURCES: tuple[str, ...] = (
+    "wire_input_alert",
+    "external_contact_broken",
+    "external_contact_alert",
+)
+
+
+async def async_setup_entry(
+    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
+) -> None:
+    coordinator: AjaxCobrandedCoordinator = entry.runtime_data
+    entities: list[BinarySensorEntity] = []
+    for device_id, device in coordinator.devices.items():
+        sensor_keys = capabilities_for(device).binary_sensor_keys
+        # #231 data probe: CO presence on the FireProtect 2 line is decided by
+        # the object_type variant, but the cloud reports several units under
+        # generic/non-sensor-encoded types (`fire_protect_two`, `_base`,
+        # `_plus`, `_plus_sb`, `_sb`) where we can only guess whether a CO cell
+        # exists. Log the exact type + our CO decision so a diagnostic from a
+        # CO-equipped detector tells us which type it actually reports — the one
+        # piece of data needed to confirm the `_base`/`_plus`/`_sb` mappings
+        # (and whether a CO model can ever land on the generic case).
+        if device.device_type.startswith(("fire_protect_two", "fire_protect_2")):
+            _LOGGER.debug(
+                "FireProtect 2 setup: device_type=%s co_sensor=%s (sensors=%s)",
+                device.device_type,
+                "co_detected" in sensor_keys,
+                sensor_keys,
+            )
+        for key in sensor_keys:
+            if key in BINARY_SENSOR_TYPES:
+                entities.append(
+                    AjaxBinarySensor(coordinator=coordinator, device_id=device_id, status_key=key)
+                )
+        entities.append(AjaxConnectivitySensor(coordinator=coordinator, device_id=device_id))
+        entities.append(AjaxProblemSensor(coordinator=coordinator, device_id=device_id))
+
+    # Hub-level network sensors from HTS
+    for space in coordinator.spaces.values():
+        if space.hub_id:
+            hub_device = coordinator.devices.get(space.hub_id)
+            if hub_device:
+                entities.append(AjaxCraConnectionSensor(coordinator, space.id, space.hub_id))
+                entities.append(AjaxHubEthernetSensor(coordinator, space.hub_id))
+                entities.append(AjaxHubWifiSensor(coordinator, space.hub_id))
+                entities.append(AjaxHubPowerSensor(coordinator, space.hub_id))
+                entities.append(
+                    AjaxHubNetworkBinarySensor(coordinator, space.hub_id, "siren_on_panic_button")
+                )
+                entities.append(
+                    AjaxHubNetworkBinarySensor(coordinator, space.hub_id, "siren_on_any_tamper")
+                )
+
+    # #231: a previous version attached a CO sensor to the generic FireProtect 2
+    # mapping. HA never evicts an entity its platform stopped providing, so on
+    # upgrade those phantom CO sensors would linger as `unavailable`. Mirror the
+    # bypass-switch eviction (switch.py) and drop CO entities this run no longer
+    # provides. Only runs when devices are loaded so a transient empty snapshot
+    # can't wipe a legitimate CO sensor (it would be recreated next setup anyway).
+    if coordinator.devices:
+        _evict_orphan_co_sensors(
+            hass,
+            entry,
+            provided={
+                e.unique_id
+                for e in entities
+                if isinstance(e, AjaxBinarySensor)
+                and e._status_key == "co_detected"
+                and e.unique_id is not None
+            },
+        )
+    async_add_entities(entities)
+
+    # SpaceControl keyfobs are HTS-only and discovered seconds after setup (when
+    # the first SETTINGS_BODY arrives), so they are not in `coordinator.devices`
+    # here. Add any already known, then listen on the generic SIGNAL_NEW_DEVICE
+    # dispatcher to add each new one as it is discovered at runtime.
+    seen_keyfobs: set[str] = set()
+
+    def _add_keyfobs(keyfob_ids: list[str]) -> None:
+        new = [
+            AjaxKeyfobActiveSensor(coordinator, kid)
+            for kid in keyfob_ids
+            if kid not in seen_keyfobs and kid in coordinator.keyfobs
+        ]
+        if new:
+            seen_keyfobs.update(e._keyfob_id for e in new)
+            async_add_entities(new)
+
+    # MUST be a @callback: the dispatcher classifies a plain function as
+    # HassJobType.Executor and runs it on a SyncWorker thread, where
+    # async_add_entities' eager task creation raises "loop is not the
+    # running loop" and the entity is silently lost. Boot usually escapes
+    # (platform setup finishes after HTS discovery, so keyfobs go through
+    # the direct call above), but every config-entry RELOAD hit it: keyfob
+    # entities vanished until the next restart. Found via #284's report.
+    @callback
+    def _async_add_discovered_keyfob(device_id: str) -> None:
+        _add_keyfobs([device_id])
+
+    _add_keyfobs(list(coordinator.keyfobs))
+    entry.async_on_unload(
+        async_dispatcher_connect(hass, SIGNAL_NEW_DEVICE, _async_add_discovered_keyfob)
+    )
+
+
+def _evict_orphan_co_sensors(
+    hass: HomeAssistant, entry: ConfigEntry, *, provided: set[str]
+) -> None:
+    """Remove `co_detected` binary sensors this run no longer provides (#231).
+
+    FireProtect 2 detectors without a CO cell used to get a phantom CO sensor
+    from the generic device-type mapping. HA leaves an entity its platform
+    stopped providing in the registry as `unavailable` until the user deletes
+    it by hand, so evict the stale CO entities at the registry level — same
+    approach as the orphan bypass-switch cleanup.
+    """
+    entity_reg = er.async_get(hass)
+    for reg_entry in er.async_entries_for_config_entry(entity_reg, entry.entry_id):
+        if (
+            reg_entry.domain == "binary_sensor"
+            and reg_entry.unique_id.endswith("_co_detected")
+            and reg_entry.unique_id not in provided
+        ):
+            _LOGGER.info(
+                "Removing orphaned CO sensor %s — the device has no CO cell (#231)",
+                reg_entry.entity_id,
+            )
+            entity_reg.async_remove(reg_entry.entity_id)
+
+
+class AjaxBinarySensor(CoordinatorEntity[AjaxCobrandedCoordinator], BinarySensorEntity):
+    _attr_has_entity_name = True
+
+    def __init__(
+        self, coordinator: AjaxCobrandedCoordinator, device_id: str, status_key: str
+    ) -> None:
+        super().__init__(coordinator)
+        self._device_id = device_id
+        self._status_key = status_key
+        self._type_info = BINARY_SENSOR_TYPES[status_key]
+        self._attr_unique_id = f"aegis_ajax_{device_id}_{status_key}"
+        self._attr_device_class = self._type_info.device_class
+        self._attr_translation_key = self._type_info.translation_key
+        if self._type_info.entity_category is not None:
+            self._attr_entity_category = self._type_info.entity_category
+        self._attr_entity_registry_enabled_default = self._type_info.enabled_default
+        device = coordinator.devices.get(device_id)
+        if device:
+            self._attr_device_info = build_device_info(
+                device, coordinator.rooms, via_device_id=coordinator.hub_registry_id(device.hub_id)
+            )
+
+    @property
+    def _device(self) -> Device | None:
+        return self.coordinator.devices.get(self._device_id)
+
+    @property
+    def available(self) -> bool:
+        device = self._device
+        return device is not None and device.is_online
+
+    @property
+    def is_on(self) -> bool:
+        device = self._device
+        if device is None:
+            return False
+        if (
+            self._status_key == "wire_input_alert"
+            and device.device_type in _WIRE_INPUT_DEVICE_TYPES
+        ):
+            # Different hub firmwares signal the wired-input trigger through
+            # different oneofs. Treat any of them as "alert active".
+            return any(
+                bool(device.statuses.get(source, False)) for source in _WIRE_INPUT_ALERT_SOURCES
+            )
+        return bool(device.statuses.get(self._status_key, False))
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        device = self._device
+        if device is None:
+            return {}
+        if self._status_key == "motion_detected":
+            detected_at = device.statuses.get("motion_detected_at")
+            if detected_at is not None:
+                return {"detected_at": detected_at}
+            return {}
+        if self._status_key == "wire_input_alert":
+            alarm_type = device.statuses.get("wire_input_alarm_type")
+            if alarm_type is not None:
+                return {"alarm_type": alarm_type}
+            return {}
+        return {}
+
+
+class AjaxConnectivitySensor(CoordinatorEntity[AjaxCobrandedCoordinator], BinarySensorEntity):
+    """Binary sensor reporting per-device online/offline connectivity."""
+
+    _attr_has_entity_name = True
+    _attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_translation_key = "connectivity"
+    _attr_entity_registry_enabled_default = False
+
+    def __init__(self, coordinator: AjaxCobrandedCoordinator, device_id: str) -> None:
+        super().__init__(coordinator)
+        self._device_id = device_id
+        self._attr_unique_id = f"aegis_ajax_{device_id}_connectivity"
+        device = coordinator.devices.get(device_id)
+        if device:
+            self._attr_device_info = build_device_info(
+                device, coordinator.rooms, via_device_id=coordinator.hub_registry_id(device.hub_id)
+            )
+
+    @property
+    def is_on(self) -> bool:
+        device = self.coordinator.devices.get(self._device_id)
+        return device is not None and device.is_online
+
+
+class AjaxProblemSensor(CoordinatorEntity[AjaxCobrandedCoordinator], BinarySensorEntity):
+    """Binary sensor reporting per-device malfunction/problem state."""
+
+    _attr_has_entity_name = True
+    _attr_device_class = BinarySensorDeviceClass.PROBLEM
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_translation_key = "problem"
+    _attr_entity_registry_enabled_default = False
+
+    def __init__(self, coordinator: AjaxCobrandedCoordinator, device_id: str) -> None:
+        super().__init__(coordinator)
+        self._device_id = device_id
+        self._attr_unique_id = f"aegis_ajax_{device_id}_problem"
+        device = coordinator.devices.get(device_id)
+        if device:
+            self._attr_device_info = build_device_info(
+                device, coordinator.rooms, via_device_id=coordinator.hub_registry_id(device.hub_id)
+            )
+
+    @property
+    def available(self) -> bool:
+        device = self.coordinator.devices.get(self._device_id)
+        return device is not None and device.is_online
+
+    @property
+    def is_on(self) -> bool:
+        device = self.coordinator.devices.get(self._device_id)
+        return device is not None and device.malfunctions > 0
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        device = self.coordinator.devices.get(self._device_id)
+        if device:
+            return {"malfunctions_count": device.malfunctions}
+        return {}
+
+
+class AjaxKeyfobActiveSensor(CoordinatorEntity[AjaxCobrandedCoordinator], BinarySensorEntity):
+    """EXPERIMENTAL "Active" state for an Ajax SpaceControl keyfob.
+
+    Keyfobs are HTS-only (not in the gRPC device snapshot). They carry no
+    per-device data (no battery/online), so rather than one HA device each they
+    are grouped under a single virtual "Keyfobs" device (one per hub), with one
+    entity per keyfob named after it. The `active` value is derived from an
+    UNVERIFIED flag byte (`0x0b`) — every observed keyfob reads "active" and we
+    have no deactivated sample, so the value is surfaced experimentally.
+    `flags_hex` is exposed as an attribute so a user with a CRA-deactivated
+    keyfob can confirm which byte actually flips.
+    """
+
+    _attr_has_entity_name = True
+    _attr_device_class = BinarySensorDeviceClass.RUNNING
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coordinator: AjaxCobrandedCoordinator, keyfob_id: str) -> None:
+        super().__init__(coordinator)
+        self._keyfob_id = keyfob_id
+        self._attr_unique_id = f"aegis_ajax_{keyfob_id}_active"
+        keyfob = coordinator.keyfobs.get(keyfob_id)
+        if keyfob:
+            # The entity's own name is the keyfob name; with has_entity_name the
+            # device page lists it (e.g. "Front fob") under the "Keyfobs" device.
+            self._attr_name = keyfob.name
+            info = DeviceInfo(
+                identifiers={(DOMAIN, f"{keyfob.hub_id}_keyfobs")},
+                translation_key="keyfobs",
+                manufacturer=MANUFACTURER,
+                model="SpaceControl keyfobs (experimental)",
+            )
+            info.update(
+                cast(
+                    "DeviceInfo",
+                    via_device_fields(keyfob.hub_id, coordinator.hub_registry_id(keyfob.hub_id)),
+                )
+            )
+            self._attr_device_info = info
+
+    @property
+    def available(self) -> bool:
+        return self._keyfob_id in self.coordinator.keyfobs
+
+    @property
+    def is_on(self) -> bool:
+        keyfob = self.coordinator.keyfobs.get(self._keyfob_id)
+        return keyfob is not None and keyfob.active
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        keyfob = self.coordinator.keyfobs.get(self._keyfob_id)
+        if keyfob is None:
+            return {}
+        return {
+            "index": keyfob.index,
+            "flags_hex": keyfob.flags_hex,
+            "experimental": True,
+        }
+
+
+class AjaxCraConnectionSensor(CoordinatorEntity[AjaxCobrandedCoordinator], BinarySensorEntity):
+    """Live "Central receptora de alarmas → Conectada" status for a hub.
+
+    The Ajax mobile app renders that same row from `monitoring.cms_active`
+    on the hub's status snapshot — a real-time per-hub boolean of whether
+    the CMS channel is currently up. We keep `space.has_monitoring` as a
+    fallback for installs whose hub firmware doesn't emit `monitoring`
+    in its statuses (some older / cobranded firmwares), so the entity
+    still reflects "a monitoring company is on the account" in that path.
+
+    The diagnostic `sensor.<hub>_compania_cra` exposes the actual company
+    names + statuses for accounts that need to inspect approvals.
+    """
+
+    _attr_has_entity_name = True
+    _attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
+    _attr_translation_key = "monitoring"
+
+    def __init__(self, coordinator: AjaxCobrandedCoordinator, space_id: str, hub_id: str) -> None:
+        super().__init__(coordinator)
+        self._space_id = space_id
+        self._hub_id = hub_id
+        self._attr_unique_id = f"aegis_ajax_{hub_id}_monitoring_active"
+        hub_device = coordinator.devices.get(hub_id)
+        if hub_device:
+            self._attr_device_info = build_device_info(hub_device, coordinator.rooms)
+
+    @property
+    def available(self) -> bool:
+        hub = self.coordinator.devices.get(self._hub_id)
+        # Primary signal is on the hub — available once we have a fresh
+        # snapshot that includes its `monitoring` status oneof. Fall back
+        # to the space-level snapshot for firmwares that don't emit it,
+        # avoiding a misleading `off` before either source has loaded.
+        if hub is not None and "monitoring_active" in hub.statuses:
+            return True
+        space = self.coordinator.spaces.get(self._space_id)
+        return space is not None and space.monitoring_companies_loaded
+
+    @property
+    def is_on(self) -> bool:
+        hub = self.coordinator.devices.get(self._hub_id)
+        if hub is not None and "monitoring_active" in hub.statuses:
+            return bool(hub.statuses["monitoring_active"])
+        space = self.coordinator.spaces.get(self._space_id)
+        return space.has_monitoring if space is not None else False
+
+
+class _HubNetworkBinarySensor(CoordinatorEntity[AjaxCobrandedCoordinator], BinarySensorEntity):
+    """Base for hub-level binary sensors sourced from HTS network data."""
+
+    _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_entity_registry_enabled_default = False
+
+    def __init__(self, coordinator: AjaxCobrandedCoordinator, hub_id: str) -> None:
+        super().__init__(coordinator)
+        self._hub_id = hub_id
+        hub_device = coordinator.devices.get(hub_id)
+        if hub_device:
+            self._attr_device_info = build_device_info(hub_device, coordinator.rooms)
+
+    @property
+    def available(self) -> bool:
+        return self._hub_id in self.coordinator.hub_network
+
+
+@dataclass(frozen=True)
+class _HubBinSpec:
+    """Describes one hub-network binary sensor.
+
+    `translation_key` doubles as the unique_id suffix (per
+    `aegis_ajax_{hub_id}_{translation_key}`). `require_hts_alive`
+    means the entity reports `unavailable` when HTS is disconnected
+    instead of returning the cached last-known state — see #146 for
+    why mains_power needs that and the connectivity sensors don't.
+    `none_is_unavailable` is for attributes typed `bool | None`, where
+    None means "this hub's firmware never reported the sub-key": the
+    entity must go unavailable rather than render a misleading `off`
+    (#438).
+    """
+
+    translation_key: str
+    state_attr: str
+    device_class: BinarySensorDeviceClass | None
+    require_hts_alive: bool = False
+    none_is_unavailable: bool = False
+
+
+_HUB_BIN_SPECS_BY_KEY: dict[str, _HubBinSpec] = {
+    "ethernet": _HubBinSpec(
+        translation_key="ethernet",
+        state_attr="ethernet_connected",
+        device_class=BinarySensorDeviceClass.CONNECTIVITY,
+    ),
+    "wifi": _HubBinSpec(
+        translation_key="wifi",
+        state_attr="wifi_connected",
+        device_class=BinarySensorDeviceClass.CONNECTIVITY,
+    ),
+    "mains_power": _HubBinSpec(
+        translation_key="mains_power",
+        state_attr="externally_powered",
+        device_class=BinarySensorDeviceClass.PLUG,
+        require_hts_alive=True,
+    ),
+    # #438 — hub-owned siren behaviour settings, sourced from the hub's
+    # SETTINGS_BODY row (loaded at startup/reload; the 60 s STATUS_BODY
+    # refresh doesn't carry them, and they don't change at runtime).
+    # No device class: neither CONNECTIVITY nor PLUG describes an
+    # "is this behaviour enabled" flag. Read-only by design — the panic
+    # request carries no siren field, the hub owns this behaviour.
+    "siren_on_panic_button": _HubBinSpec(
+        translation_key="siren_on_panic_button",
+        state_attr="siren_on_panic_button",
+        device_class=None,
+        none_is_unavailable=True,
+    ),
+    "siren_on_any_tamper": _HubBinSpec(
+        translation_key="siren_on_any_tamper",
+        state_attr="siren_on_any_tamper",
+        device_class=None,
+        none_is_unavailable=True,
+    ),
+}
+
+
+class AjaxHubNetworkBinarySensor(_HubNetworkBinarySensor):
+    """Generic descriptor-driven hub-network binary sensor."""
+
+    def __init__(self, coordinator: AjaxCobrandedCoordinator, hub_id: str, spec_key: str) -> None:
+        super().__init__(coordinator, hub_id)
+        spec = _HUB_BIN_SPECS_BY_KEY[spec_key]
+        self._spec = spec
+        self._attr_device_class = spec.device_class
+        self._attr_translation_key = spec.translation_key
+        self._attr_unique_id = f"aegis_ajax_{hub_id}_{spec.translation_key}"
+
+    @property
+    def available(self) -> bool:
+        base = super().available
+        if self._spec.require_hts_alive:
+            # #146: don't keep reporting cached "on" through an HTS outage
+            # for sensors whose stale value could silence an automation.
+            base = base and self.coordinator.is_hts_alive
+        if base and self._spec.none_is_unavailable:
+            state = self.coordinator.hub_network.get(self._hub_id)
+            base = state is not None and getattr(state, self._spec.state_attr, None) is not None
+        return base
+
+    @property
+    def is_on(self) -> bool | None:
+        state = self.coordinator.hub_network.get(self._hub_id)
+        if state is None:
+            return False
+        value = getattr(state, self._spec.state_attr, False)
+        # None = the hub hasn't reported it yet (#594): unknown, not off.
+        return None if value is None else bool(value)
+
+
+# Backwards-compatible aliases — async_setup_entry and tests instantiate
+# these by name and stored entity unique_ids depend on the constructor
+# wiring up the right spec.
+class AjaxHubEthernetSensor(AjaxHubNetworkBinarySensor):
+    def __init__(self, coordinator: AjaxCobrandedCoordinator, hub_id: str) -> None:
+        super().__init__(coordinator, hub_id, "ethernet")
+
+
+class AjaxHubWifiSensor(AjaxHubNetworkBinarySensor):
+    def __init__(self, coordinator: AjaxCobrandedCoordinator, hub_id: str) -> None:
+        super().__init__(coordinator, hub_id, "wifi")
+
+
+class AjaxHubPowerSensor(AjaxHubNetworkBinarySensor):
+    def __init__(self, coordinator: AjaxCobrandedCoordinator, hub_id: str) -> None:
+        super().__init__(coordinator, hub_id, "mains_power")

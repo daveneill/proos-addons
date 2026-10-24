@@ -1173,7 +1173,7 @@ _AVR_PLATFORMS = {"denonavr", "onkyo", "yamaha_musiccast", "arcam_fmj"}
 # always be available, so an unreachable panel is a real, high‑priority fault.
 _LIGHT_PLATFORMS = {"lifx", "shelly", "wiz"}
 _CLIMATE_PLATFORMS = {"coolmaster"}
-_SECURITY_PLATFORMS = {"elkm1"}
+_SECURITY_PLATFORMS = {"elkm1", "aegis_ajax"}   # aegis_ajax: register 971, the interim Ajax driver
 
 # REGISTER 449: the integration's NAME is the platform's — read from its
 # manifests (live_ha.integration_names) when discovery runs with a client and

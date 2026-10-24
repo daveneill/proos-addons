@@ -1,0 +1,773 @@
+{
+    "config": {
+        "step": {
+            "user": {
+                "title": "Вхід до Aegis for Ajax",
+                "description": "Введіть облікові дані вашого акаунту Aegis for Ajax.",
+                "data": {
+                    "email": "Електронна пошта",
+                    "password": "Пароль",
+                    "app_label": "Назва додатку (co-branded назва)"
+                },
+                "data_description": {
+                    "email": "Електронна пошта, з якою ви входите в застосунок Ajax.",
+                    "password": "Пароль облікового запису Ajax. Home Assistant зберігає лише його хеш.",
+                    "app_label": "Застосунок, до якого належить обліковий запис: Ajax або co-branded застосунок. Якщо не впевнені, дивіться README."
+                }
+            },
+            "2fa": {
+                "title": "Двофакторна автентифікація",
+                "description": "Введіть 6-значний код з вашого додатку автентифікації.",
+                "data": {
+                    "totp_code": "Код TOTP"
+                },
+                "data_description": {
+                    "totp_code": "6-значний код із вашого застосунку автентифікації."
+                }
+            },
+            "select_spaces": {
+                "title": "Вибір просторів",
+                "description": "Виберіть простори (хаби) для додавання.",
+                "data": {
+                    "spaces": "Простори"
+                },
+                "data_description": {
+                    "spaces": "Простори (хаби), які слід додати до Home Assistant. Виберіть хоча б один."
+                }
+            },
+            "reconfigure": {
+                "title": "Переналаштувати Aegis for Ajax",
+                "description": "Оновіть облікові дані.",
+                "data": {
+                    "email": "E-mail",
+                    "password": "Пароль",
+                    "app_label": "Мітка додатку"
+                },
+                "data_description": {
+                    "email": "Електронна пошта, з якою ви входите в застосунок Ajax.",
+                    "password": "Пароль облікового запису Ajax. Home Assistant зберігає лише його хеш.",
+                    "app_label": "Застосунок, до якого належить обліковий запис: Ajax або co-branded застосунок. Якщо не впевнені, дивіться README."
+                }
+            },
+            "reconfigure_2fa": {
+                "title": "Двофакторна автентифікація",
+                "description": "Введіть 6-значний код з вашого додатку автентифікації.",
+                "data": {
+                    "totp_code": "Код TOTP"
+                },
+                "data_description": {
+                    "totp_code": "6-значний код із вашого застосунку автентифікації."
+                }
+            },
+            "reauth_confirm": {
+                "title": "Повторна автентифікація Aegis for Ajax",
+                "description": "Ваша сесія Ajax для {email} вже недійсна. Введіть поточний пароль облікового запису, щоб відновити доступ.",
+                "data": {
+                    "password": "Пароль"
+                },
+                "data_description": {
+                    "password": "Пароль облікового запису Ajax. Home Assistant зберігає лише його хеш."
+                }
+            },
+            "reauth_2fa": {
+                "title": "Двофакторна автентифікація",
+                "description": "Введіть 6-значний код з вашого додатка автентифікатора.",
+                "data": {
+                    "totp_code": "Код TOTP"
+                },
+                "data_description": {
+                    "totp_code": "6-значний код із вашого застосунку автентифікації."
+                }
+            }
+        },
+        "error": {
+            "invalid_auth": "Невірна електронна пошта або пароль.",
+            "invalid_totp": "Невірний код TOTP. Спробуйте ще раз.",
+            "cannot_connect": "Не вдається підключитися до серверів Ajax.",
+            "client_rejected": "Ajax відхиляє цю версію Aegis for Ajax. Оновіть інтеграцію в HACS, перезапустіть Home Assistant і спробуйте ще раз.",
+            "unknown": "Виникла непередбачена помилка."
+        },
+        "abort": {
+            "already_configured": "Цей акаунт вже налаштовано.",
+            "account_locked": "Акаунт заблоковано. Спробуйте пізніше.",
+            "reauth_successful": "Повторна автентифікація успішна.",
+            "already_in_progress": "Налаштування вже виконується. Завершіть або скасуйте поточний процес.",
+            "reconfigure_successful": "Облікові дані успішно оновлено.",
+            "cannot_connect": "Не вдається підключитися до серверів Ajax."
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "Налаштування Aegis for Ajax",
+                "data": {
+                    "poll_interval": "Резервний інтервал опитування (секунди, 60-300)",
+                    "force_arm": "Примусове увімкнення (ігнорувати відкриті датчики та несправності)",
+                    "expose_arm_home": "Показувати кнопку «Охорона вдома»",
+                    "delay_panel_states": "Показувати затримки на вихід / вхід як стани панелі",
+                    "cloud_video": "Перегляд наживо через хмару для відеокамер (експериментально)",
+                    "use_pin_code": "Вимагати PIN-код для постановки/зняття з охорони",
+                    "pin_code": "PIN-код",
+                    "fcm_project_id": "ID проекту FCM (для push-сповіщень)",
+                    "fcm_app_id": "ID додатку FCM",
+                    "fcm_api_key": "Ключ API FCM",
+                    "fcm_sender_id": "ID відправника FCM",
+                    "clear_fcm_credentials": "Видалити облікові дані FCM (очищає всі чотири поля)",
+                    "disable_push_warning": "Я не використовую push-сповіщення",
+                    "photo_retention_days": "Зберігання фото (днів)",
+                    "photo_max_per_device": "Макс. фото на пристрій (0 = необмежено)",
+                    "auto_create_labels": "Автоматично створювати та призначати мітки Aegis сутностям",
+                    "bypass_switches": "Створювати перемикачі обходу пристроїв",
+                    "persistent_notifications": "Показувати події безпеки як постійні сповіщення",
+                    "persistent_notification_events": "Події, що створюють постійне сповіщення"
+                },
+                "data_description": {
+                    "bypass_switches": "Перемикачі обходу дозволяють деактивувати пристрій перед взяттям під охорону. «Авто» створює їх лише якщо ваш обліковий запис Ajax має дозвіл деактивувати пристрої.",
+                    "expose_arm_home": "Додає до панелі сигналізації режим «Охорона вдома». Він дублює нічний режим і потрібен переважно для Amazon Alexa або Nabu Casa Cloud. Вимкніть, щоб приховати дубльовану кнопку, якщо ви ними не користуєтесь.",
+                    "delay_panel_states": "Якщо увімкнено, панель сигналізації показує \"arming\", поки хаб відлічує \"Затримку на вихід\" датчика, і \"pending\", поки триває \"Затримка на вхід\" — обидва за сигналами самого хаба, а не за нашим таймером. Датчики без затримки (миттєва тривога) уже активні під час \"arming\". Автоматизації, що чекають на \"armed_away\", спрацюють після завершення затримки на вихід. Необроблений стан хаба залишається в атрибуті \"hub_state\".",
+                    "cloud_video": "Додає камеру перегляду наживо для кожної відеокамери Ajax, яка транслюється через хмару Ajax так само, як у застосунку поза домом, тож працює й тоді, коли Home Assistant не в мережі камери. Експериментально: може ще не працювати з кожною камерою. Кожен перегляд відкриває одну відеосесію; коли ніхто не дивиться, нічого не працює.",
+                    "disable_push_warning": "Увімкніть, якщо ви свідомо працюєте без push. Приховує повторюване нагадування «FCM не налаштовано» та картку відновлення. Події в реальному часі (дзвінок, увімкнення/вимкнення, тривога, рух) не надходитимуть до Home Assistant, доки ви не налаштуєте FCM.",
+                    "persistent_notifications": "Якщо ввімкнено, вибрані події з'являються як постійні сповіщення Home Assistant, які залишаються видимими, доки їх не закрити або Home Assistant не перезапуститься. Ці події надходять через push (FCM), тому push має бути налаштований, щоб вони надходили.",
+                    "persistent_notification_events": "Які події створюють постійне сповіщення. Типово — реальні інциденти (тривога, паніка, саботаж, пожежа, CO, затоплення, розбиття скла). Додайте постановку/зняття з охорони, рух або дзвінок, якщо потрібно."
+                }
+            }
+        }
+    },
+    "system_health": {
+        "info": {
+            "can_reach_server": "Доступ до хмари Ajax (gRPC-хост)",
+            "configured_accounts": "Налаштовані акаунти",
+            "spaces": "Простори (хаби)",
+            "hts_connected": "Підключені HTS-потоки",
+            "fcm_connected": "Підключені FCM-клієнти",
+            "pushes_received": "Отримані push-повідомлення",
+            "last_push": "Останнє push-повідомлення",
+            "last_poll": "Останнє успішне опитування"
+        }
+    },
+    "services": {
+        "force_arm": {
+            "name": "Примусова постановка на охорону",
+            "description": "Поставити на охорону, ігноруючи відкриті датчики та активні тривоги.",
+            "fields": {
+                "entity_id": {
+                    "name": "Сутність",
+                    "description": "Панель сигналізації для примусового увімкнення. Якщо не вказано, вмикає всі панелі."
+                }
+            }
+        },
+        "force_arm_night": {
+            "name": "Примусовий нічний режим",
+            "description": "Увімкнути нічний режим, ігноруючи відкриті датчики та активні тривоги.",
+            "fields": {
+                "entity_id": {
+                    "name": "Сутність",
+                    "description": "Панель сигналізації для примусового увімкнення. Якщо не вказано, вмикає всі панелі."
+                }
+            }
+        },
+        "disarm_night_mode": {
+            "name": "Зняти з охорони нічний режим",
+            "description": "Виходить з нічного режиму, залишаючи озброєними групи, озброєні незалежно (режим «не вдома»). На відміну від повного зняття з охорони, вимикає лише групи нічного режиму — нативна операція Ajax «зняти з охорони нічний режим».",
+            "fields": {
+                "entity_id": {
+                    "name": "Сутність",
+                    "description": "Сутність панелі сигналізації простору, який потрібно зняти з нічного режиму. Якщо не вказано, застосовується до всіх панелей."
+                }
+            }
+        },
+        "press_panic_button": {
+            "name": "Натиснути кнопку паніки (SOS)",
+            "description": "Активує кнопку SOS / паніки Ajax у просторі. Викликає той самий ендпойнт, що й червона кнопка SOS в офіційному мобільному застосунку, і надсилає паніку до пульта централізованого спостереження (ПЦС), що згідно з більшістю договорів викликає негайний наряд поліції без часу на верифікацію. Використовуйте лише у справжніх надзвичайних ситуаціях. Поле confirm має бути true, інакше виклик відхиляється.",
+            "fields": {
+                "confirm": {
+                    "name": "Підтвердити паніку",
+                    "description": "Має бути встановлено в true. Працює як запобіжник, щоб автоматизації не спрацьовували випадково."
+                },
+                "entity_id": {
+                    "name": "Сутність",
+                    "description": "Сутність панелі сигналізації простору, у якому натискатиметься кнопка паніки. Якщо опущено, паніка надсилається до всіх налаштованих просторів."
+                },
+                "latitude": {
+                    "name": "Широта",
+                    "description": "Необов'язкова широта абонента, передана Ajax. Використовуйте разом із довготою."
+                },
+                "longitude": {
+                    "name": "Довгота",
+                    "description": "Необов'язкова довгота абонента, передана Ajax. Використовуйте разом із широтою."
+                }
+            }
+        },
+        "set_photo_on_demand_mode": {
+            "name": "Установити режим «Фото на вимогу»",
+            "description": "Увімкніть або вимкніть режим «Фото на вимогу» на хабі. Два незалежні канали можна перемикати окремо: запитати користувачів (чи можуть користувачі хаба запитувати фото з застосунку Ajax) і сценарії (чи можуть сценарії / автоматизації запускати зйомку). Залиште поле незаповненим, щоб зберегти його поточне значення. Потрібне принаймні одне поле.",
+            "fields": {
+                "user": {
+                    "name": "Запити користувачів",
+                    "description": "Якщо встановлено, вмикає або вимикає запити на фото на вимогу, ініційовані користувачами хаба. Залиште незаповненим, щоб зберегти поточне значення."
+                },
+                "scenario": {
+                    "name": "Сценарії",
+                    "description": "Якщо встановлено, вмикає або вимикає зйомку «Фото на вимогу», запущену сценаріями / автоматизаціями Ajax. Залиште незаповненим, щоб зберегти поточне значення."
+                },
+                "entity_id": {
+                    "name": "Сутність",
+                    "description": "Сутність панелі сигналізації простору, для хаба якого слід оновити режим. Якщо не вказано, застосовується до кожного налаштованого простору."
+                }
+            }
+        },
+        "refresh_alarm_images": {
+            "name": "Refresh alarm camera images",
+            "description": "Import recent alarm photos into local albums without taking a new photo. New alarm pushes import automatically. Manual backfill is limited to once per five minutes per space, with one history query and at most ten media streams; completed local albums are skipped.",
+            "fields": {
+                "entity_id": {
+                    "name": "Entity",
+                    "description": "Alarm panel entity for the space to import. If omitted, imports from every configured space."
+                }
+            }
+        },
+        "list_client_sessions": {
+            "name": "Показати сесії облікового запису",
+            "description": "Повертає активні сесії облікового запису Ajax на вимогу для ручної перевірки. Ця служба викликає внутрішній ендпоінт Ajax, який може обмежувати часті запити; не опитуйте його в автоматизаціях. Поточна активна сесія Aegis позначається як is_current, якщо її можна визначити.",
+            "fields": {
+                "entry_id": {
+                    "name": "Ідентифікатор запису конфігурації",
+                    "description": "Потрібно, якщо налаштовано більше одного облікового запису Aegis."
+                }
+            }
+        },
+        "terminate_client_session": {
+            "name": "Завершити сесію облікового запису",
+            "description": "Негайно вийти з облікового запису Ajax на вибраному іншому пристрої. Отримайте ідентифікатор його сесії через list_client_sessions. Інтеграція ніколи не завершує власну сесію.",
+            "fields": {
+                "session_id": {
+                    "name": "Ідентифікатор сесії",
+                    "description": "Ідентифікатор сесії, повернений list_client_sessions."
+                },
+                "confirm": {
+                    "name": "Підтвердити завершення",
+                    "description": "Має бути true, щоб негайно завершити вибрану сесію."
+                },
+                "entry_id": {
+                    "name": "Ідентифікатор запису конфігурації",
+                    "description": "Потрібно, якщо налаштовано більше одного облікового запису Aegis."
+                }
+            }
+        },
+        "terminate_other_client_sessions": {
+            "name": "Завершити всі інші сесії облікового запису",
+            "description": "Негайно вийти з облікового запису Ajax на всіх інших пристроях. Це завершує сеанси в інших активних мобільних і настільних застосунках Ajax. Інтеграція ніколи не завершує власну сесію.",
+            "fields": {
+                "confirm": {
+                    "name": "Підтвердити завершення",
+                    "description": "Має бути true, щоб негайно завершити всі інші сесії."
+                },
+                "entry_id": {
+                    "name": "Ідентифікатор запису конфігурації",
+                    "description": "Потрібно, якщо налаштовано більше одного облікового запису Aegis."
+                }
+            }
+        }
+    },
+    "issues": {
+        "hub_offline_24h": {
+            "title": "Хаб {hub_name} офлайн понад {hours_offline} год",
+            "description": "Aegis отримує статус OFFLINE для хаба {hub_name} вже {hours_offline} годин поспіль. Сутності залишатимуться застарілими, доки хаб не підключиться знову. Поширені причини: хаб від'єднано, збій мережі, або вихідне з'єднання хаба до хмари Ajax заблоковано фаєрволом. Виправлення закриється автоматично, як тільки Aegis побачить хаб знову онлайн."
+        },
+        "hts_chronic_failure": {
+            "title": "Мережеві сенсори хаба деградували",
+            "description": "З'єднання HTS (яке живить сенсори Ethernet / Wi-Fi / GSM / живлення) для простору {space_id} вже {minutes_failing} хвилин не може триматись активним. Мережеві сенсори хаба будуть недоступні до відновлення. Найчастіша причина: фаєрвол блокує вихідний трафік до HTS-ендпоінтів Ajax, або тривала нестабільність мережі між Home Assistant і хмарою Ajax. Виправлення закриється автоматично після повторного підключення HTS."
+        },
+        "fcm_push_stuck": {
+            "title": "Push-повідомлення перервано — те саме повідомлення щоразу розриває з'єднання",
+            "description": "З'єднання push було розірвано {terminations} разів підряд під час обробки того самого повідомлення. Оскільки це повідомлення ніколи не підтверджується, служба push від Ajax надсилає його знову, і кожне нове з'єднання завершується так само, тож саме собою це не зникне. Стан сигналізації не постраждав (він надходить від опитування та зі з'єднання з хабом, а не з push), але тим часом втрачаються події в реальному часі, наприклад дзвінок у двері. Aegis замінив свою реєстрацію push, щоб розірвати цикл; push має відновитися протягом хвилини. Це попередження зникне саме, коли з'єднання певний час буде стабільним. Якщо воно повернеться, повідомте на GitHub (issue #373)."
+        },
+        "grpcio_version_mismatch": {
+            "title": "Aegis потребує grpcio {required} або новішого (знайдено {current})",
+            "description": "Aegis залежить від `grpcio` для каналу gRPC, що спілкується з хмарою Ajax, а ваша інсталяція Home Assistant постачає `grpcio` {current}. Нижче за {required} вхід може зазнати невдачі з незрозумілими помилками HTTP/2. У Home Assistant Core або Container маніфест інтеграції фіксує версію під час встановлення, але в Home Assistant OS середовище використовує загальносистемний grpcio, на який цей маніфест не може впливати — зазвичай потрібно оновити Home Assistant OS до збірки з новішим grpcio. Виправлення закриється автоматично під час наступного перезавантаження, коли версія перевищить {required}."
+        },
+        "client_rejected": {
+            "title": "Ajax відхиляє цю версію Aegis for Ajax",
+            "description": "Сервери Ajax перестали приймати запити від цієї версії інтеграції, тому вона не може увійти, оновлювати стани чи надсилати команди. Ваш обліковий запис і облікові дані в порядку. Оновіть Aegis for Ajax у HACS до найновішої версії та перезапустіть Home Assistant. Це сповіщення зникне саме, щойно Ajax знову прийме інтеграцію."
+        },
+        "fcm_credentials_invalid": {
+            "title": "Push-сповіщення вимкнено — облікові дані FCM відхилено",
+            "fix_flow": {
+                "step": {
+                    "init": {
+                        "title": "Відновити облікові дані FCM для Aegis",
+                        "description": "Реєстрація Firebase Cloud Messaging не вдалась для цього облікового запису. Налаштовані FCM Project ID / App ID / API Key / Sender ID, ймовірно, не відповідають вашому co-branded додатку Ajax, або API-ключ було відкликано. Функції, що залежать від push (миттєвий стан armed/disarmed, сутність security_event, URL-адреси фото з MotionCam), повернуться до повільнішого polling, доки це не буде виправлено. розділ 'How to obtain FCM credentials' у README. Повторно введіть усі чотири значення нижче. Інтеграція буде перезавантажена, і Repair закриється автоматично, якщо нові облікові дані працюють; якщо ні, форма з'явиться знову. Див. розділ 'How to obtain FCM credentials' у README.",
+                        "data": {
+                            "fcm_project_id": "FCM Project ID",
+                            "fcm_app_id": "FCM App ID",
+                            "fcm_api_key": "FCM API Key",
+                            "fcm_sender_id": "FCM Sender ID"
+                        }
+                    }
+                },
+                "abort": {
+                    "entry_missing": "Обліковий запис Aegis, для якого було створено цей Repair, більше не налаштований. Немає чого відновлювати."
+                }
+            }
+        },
+        "fcm_credentials_malformed": {
+            "title": "Push-povidomlennya vimkneni — dani FCM neviernyi ({problem})",
+            "fix_flow": {
+                "step": {
+                    "init": {
+                        "title": "Vidnovyty dani FCM dlya Aegis",
+                        "description": "Aegis vyiavyv strukturnu problemu u nalashtovanykh danykh FCM do zviazku z Google: {problem}. Vsi chotyry znachennia povynni pokhodyty z odnogo proektu Firebase. Vyluchy yikh znovu z dodatka Ajax co-branded zgidno z rozdilom 'Where the values live' u README ta vvedy vsi chotyry nyzhche. Integratsiya zaviantazhytsya znovu, perevirka zapustyt'sya znovu, i Repair zakryietsya, koly znachennia budut' uzgodzheni.",
+                        "data": {
+                            "fcm_project_id": "FCM Project ID",
+                            "fcm_app_id": "FCM App ID",
+                            "fcm_api_key": "FCM API Key",
+                            "fcm_sender_id": "FCM Sender ID"
+                        }
+                    }
+                },
+                "abort": {
+                    "entry_missing": "Akkaunt Aegis, dlya yakogo bulo stvoreno tsei Repair, vzhe ne nalashtovanyi. Nichogo vidnovluvaty."
+                }
+            }
+        },
+        "fcm_not_configured": {
+            "title": "Push-povidomlennia ne nalashtovano — podii v realnomu chasi vimkneno",
+            "fix_flow": {
+                "step": {
+                    "init": {
+                        "title": "Nalashtuvaty FCM-poslidninnia dlia Aegis",
+                        "description": "FCM-poslidninnia nikoli ne buly nalashtovani dlia tsoho oblikovoho zapisu, tomu podii v realnomu chasi vid Ajax (dzvinok, armuvannia/rozarmuvannia, alarm, rukh) ne mozhut dosiahty Home Assistant — intehratsiia perekhodyt na opytuvannia kozhni 5 khvylyn. Vvedit nyzhche chotyry znachennia FCM dlia vashoho co-brand dodatka Ajax, i intehratsiia bude perezavantazhena. Dyvit sektsiiu 'How to obtain FCM credentials' u README, shchob yikh vydobuty.",
+                        "data": {
+                            "fcm_project_id": "FCM Project ID",
+                            "fcm_app_id": "FCM App ID",
+                            "fcm_api_key": "FCM API Key",
+                            "fcm_sender_id": "FCM Sender ID"
+                        }
+                    }
+                },
+                "abort": {
+                    "entry_missing": "Oblikovyi zapys Aegis, dlia yakoho bulo stvoreno tsei Repair, bilshe ne nalashtovanyi. Nichoho remontuvaty."
+                }
+            }
+        },
+        "fcm_never_delivered": {
+            "title": "Push notifications are not arriving",
+            "description": "Aegis has seen {events} events from your hub while the push client was running, and not one of them arrived over push. Your alarm state is not affected — it comes from the hub connection and from polling, never from push — but real-time events such as doorbell rings and intrusion alarms reach Home Assistant only over push, so those are being lost.\n\nThree things produce this and they look identical from here: the four FCM values may belong to a Firebase project your co-branded app's push provider does not send through, another registration may be holding your Ajax account's push destination, or the push connection may never have completed.\n\nWhat helps: re-enter the four values for your co-branded app, under Settings > Repairs or in the integration options. If the same Ajax account is used by another Home Assistant instance, try a separate account for this integration. This notice clears by itself as soon as one push arrives."
+        },
+        "pin_code_update": {
+            "title": "Задайте PIN-код тривоги ще раз",
+            "description": "PIN-код тривоги для цього облікового запису збережено в старішому форматі. Відкрийте параметри інтеграції та введіть PIN-код ще раз, щоб оновити його. Тим часом він і далі працює."
+        }
+    },
+    "entity": {
+        "button": {
+            "capture_photo": {
+                "name": "Зробити фото"
+            },
+            "refresh_hub": {
+                "name": "Оновити хаб"
+            },
+            "restore_after_alarm": {
+                "name": "Відновити після тривоги"
+            },
+            "siren_sound_test": {
+                "name": "Перевірка звуку"
+            }
+        },
+        "event": {
+            "security_event": {
+                "name": "Подія безпеки",
+                "state_attributes": {
+                    "event_type": {
+                        "state": {
+                            "alarm": "Тривога",
+                            "arm": "Під охороною",
+                            "arm_night": "Нічний режим увімкнено",
+                            "battery_low": "Низький заряд батареї",
+                            "co_alarm": "Тривога CO",
+                            "connection_lost": "З'єднання втрачено",
+                            "disarm": "Знято з охорони",
+                            "disarm_night": "Нічний режим вимкнено",
+                            "door_open": "Двері відчинені",
+                            "doorbell_pressed": "Натиснуто дзвінок",
+                            "fire": "Пожежа",
+                            "flood": "Затоплення",
+                            "glass_break": "Розбиття скла",
+                            "malfunction": "Несправність",
+                            "motion": "Рух",
+                            "panic": "Паніка",
+                            "tamper": "Втручання"
+                        }
+                    }
+                }
+            },
+            "doorbell": {
+                "name": "Дзвінок",
+                "state_attributes": {
+                    "event_type": {
+                        "state": {
+                            "ring": "Натиснуто дзвінок"
+                        }
+                    }
+                }
+            },
+            "button_press": {
+                "name": "Кнопка",
+                "state_attributes": {
+                    "event_type": {
+                        "state": {
+                            "pressed": "Натиснуто"
+                        }
+                    }
+                }
+            }
+        },
+        "binary_sensor": {
+            "monitoring": {
+                "name": "Підключення до ЦМО"
+            },
+            "gsm": {
+                "name": "Стільниковий зв'язок"
+            },
+            "lid": {
+                "name": "Кришка відкрита"
+            },
+            "ext_contact": {
+                "name": "Зовнішній контакт розімкнений"
+            },
+            "ext_alert": {
+                "name": "Тривога зовнішнього контакту"
+            },
+            "drilling": {
+                "name": "Свердління корпусу"
+            },
+            "anti_mask": {
+                "name": "Антизамаскування"
+            },
+            "malfunction": {
+                "name": "Несправність"
+            },
+            "interference": {
+                "name": "Перешкоди"
+            },
+            "relay_stuck": {
+                "name": "Реле застрягло"
+            },
+            "always_active": {
+                "name": "Завжди активний"
+            },
+            "glass_break": {
+                "name": "Розбиття скла"
+            },
+            "vibration": {
+                "name": "Вібрація"
+            },
+            "tilt": {
+                "name": "Нахил"
+            },
+            "steam": {
+                "name": "Пара"
+            },
+            "wire_input_alert": {
+                "name": "Сповіщення дротового входу"
+            },
+            "tamper": {
+                "name": "Зламування корпусу"
+            },
+            "connectivity": {
+                "name": "Підключення"
+            },
+            "problem": {
+                "name": "Проблема пристрою"
+            },
+            "ethernet": {
+                "name": "Ethernet"
+            },
+            "wifi": {
+                "name": "Wi-Fi"
+            },
+            "mains_power": {
+                "name": "Зовнішнє живлення"
+            },
+            "external_contact_open": {
+                "name": "Контакт"
+            },
+            "delay_when_leaving": {
+                "name": "Затримка при виході"
+            },
+            "siren_on_panic_button": {
+                "name": "Сирена при тривожній кнопці"
+            },
+            "siren_on_any_tamper": {
+                "name": "Сирена при зламуванні"
+            }
+        },
+        "sensor": {
+            "monitoring_company": {
+                "name": "Компанія ЦМО"
+            },
+            "signal_strength": {
+                "name": "Рівень сигналу"
+            },
+            "mobile_network_type": {
+                "name": "Тип мобільної мережі"
+            },
+            "wifi_signal_level": {
+                "name": "Рівень сигналу Wi-Fi"
+            },
+            "sim_status": {
+                "name": "Стан SIM-карти"
+            },
+            "sim_imei": {
+                "name": "IMEI"
+            },
+            "connection_type": {
+                "name": "Тип з'єднання"
+            },
+            "wifi_ssid": {
+                "name": "SSID Wi-Fi"
+            },
+            "wifi_ip": {
+                "name": "IP-адреса Wi-Fi"
+            },
+            "ethernet_ip": {
+                "name": "IP-адреса Ethernet"
+            },
+            "ethernet_gateway": {
+                "name": "Шлюз Ethernet"
+            },
+            "ethernet_dns": {
+                "name": "DNS Ethernet"
+            },
+            "cellular_signal": {
+                "name": "Сигнал мобільної мережі"
+            },
+            "cellular_network": {
+                "name": "Мобільна мережа"
+            },
+            "current": {
+                "name": "Струм"
+            },
+            "voltage": {
+                "name": "Напруга"
+            },
+            "energy_consumed": {
+                "name": "Спожита електроенергія"
+            },
+            "power_derived": {
+                "name": "Потужність"
+            },
+            "power": {
+                "name": "Потужність"
+            },
+            "channels_online": {
+                "name": "Канали онлайн"
+            },
+            "channels_total": {
+                "name": "Всього каналів"
+            }
+        },
+        "switch": {
+            "channel_1": {
+                "name": "Канал 1"
+            },
+            "channel_2": {
+                "name": "Канал 2"
+            },
+            "bypass": {
+                "name": "Обхід"
+            },
+            "night_mode_arm": {
+                "name": "Ставити на охорону в нічному режимі"
+            },
+            "chime": {
+                "name": "Гонг"
+            }
+        },
+        "number": {
+            "siren_alarm_duration": {
+                "name": "Тривалість тривоги"
+            }
+        },
+        "select": {
+            "siren_volume_level": {
+                "name": "Гучність сирени",
+                "state": {
+                    "very_loud": "Дуже гучно",
+                    "loud": "Гучно",
+                    "quiet": "Тихо",
+                    "disabled": "Вимкнено"
+                }
+            }
+        },
+        "update": {
+            "hub_firmware": {
+                "name": "Прошивка"
+            },
+            "device_firmware": {
+                "name": "Прошивка"
+            }
+        },
+        "camera": {
+            "cloud_video": {
+                "name": "Перегляд наживо"
+            }
+        },
+        "alarm_control_panel": {
+            "group": {
+                "name": "Група {group_id}"
+            }
+        }
+    },
+    "exceptions": {
+        "manual_refresh_hts_unavailable": {
+            "message": "Мережеве з'єднання хаба (HTS) зараз не активне; ручне оновлення не може бути виконане."
+        },
+        "alarm_backfill_rate_limited": {
+            "message": "Alarm photos were recently refreshed for this space; wait {seconds} more seconds and try again."
+        },
+        "manual_refresh_rate_limited": {
+            "message": "Оновлення хаба щойно було запитано; зачекайте ще {seconds} секунд і спробуйте знову."
+        },
+        "photo_capture_failed": {
+            "message": "Захоплення фото не завершено. Хаб міг відхилити запит або не повернув зображення; перевірте журнали для деталей."
+        },
+        "photo_no_push": {
+            "message": "Фото на вимогу потребує push-сповіщень FCM, які не налаштовані для цієї інтеграції."
+        },
+        "photo_capture_timeout": {
+            "message": "Час очікування доставки зробленого фото від камери вичерпано. Спробуйте ще раз і перевірте, чи камера онлайн."
+        },
+        "command_permission_denied": {
+            "message": "Ваш обліковий запис Ajax не має дозволу виконати цю дію."
+        },
+        "command_hub_offline": {
+            "message": "Хаб офлайн, тому команду не вдалося надіслати."
+        },
+        "command_hub_wrong_state": {
+            "message": "Хаб зараз не в стані, який дозволяє цю дію."
+        },
+        "night_mode_arm_while_armed": {
+            "message": "Неможливо змінити «Ставити на охорону в нічному режимі», поки датчик на охороні. Спочатку зніміть з охорони й спробуйте знову."
+        },
+        "command_alarm_reset_needed": {
+            "message": "Активну тривогу потрібно скинути перед виконанням цієї дії."
+        },
+        "command_not_performed": {
+            "message": "Хаб не виконав команду."
+        },
+        "command_unknown": {
+            "message": "Хаб не розпізнав команду."
+        },
+        "command_failed": {
+            "message": "Не вдалося завершити команду. Хаб повернув: {reason}."
+        },
+        "session_entry_not_found": {
+            "message": "Для вказаного entry_id не знайдено облікового запису Aegis."
+        },
+        "session_entry_required": {
+            "message": "entry_id обов'язковий, якщо налаштовано більше одного облікового запису Aegis."
+        },
+        "confirm_required": {
+            "message": "Для запуску {service} потрібно `confirm: true`."
+        },
+        "panic_confirm_required": {
+            "message": "press_panic_button потрібно `confirm: true`: він надсилає тривожний сигнал на пульт охорони, який за більшістю договорів одразу викликає поліцію."
+        },
+        "session_id_invalid": {
+            "message": "session_id має бути додатним цілим числом."
+        },
+        "no_panel_for_target": {
+            "message": "{service}: для вказаної цілі не знайдено панелі тривоги Aegis."
+        },
+        "photo_mode_option_required": {
+            "message": "set_photo_on_demand_mode потребує принаймні `user` або `scenario`."
+        },
+        "sessions_list_failed": {
+            "message": "Не вдалося отримати список сеансів облікового запису Ajax: {error}"
+        },
+        "session_terminate_failed": {
+            "message": "Не вдалося завершити сеанс облікового запису Ajax: {error}"
+        },
+        "sessions_terminate_failed": {
+            "message": "Не вдалося завершити інші сеанси облікового запису Ajax: {error}"
+        },
+        "security_hub_detected_malfunctions": {
+            "message": "Неможливо увімкнути: відкриті датчики або несправності{details}"
+        },
+        "security_hub_not_connected": {
+            "message": "Неможливо увімкнути: хаб офлайн"
+        },
+        "security_hub_busy": {
+            "message": "Хаб зайнятий, спробуйте через кілька секунд"
+        },
+        "security_another_transition_is_in_progress": {
+            "message": "Інша операція увімкнення/вимкнення в процесі"
+        },
+        "security_disarm_rejected": {
+            "message": "Неможливо вимкнути: команду відхилено хабом"
+        },
+        "invalid_alarm_code": {
+            "message": "Невірний код тривоги"
+        },
+        "not_loaded": {
+            "message": "Жодного облікового запису Aegis for Ajax не завантажено. Перевірте інтеграцію на сторінці «Пристрої та служби»."
+        }
+    },
+    "device_automation": {
+        "trigger_type": {
+            "alarm": "Тривога",
+            "arm": "Під охороною",
+            "arm_night": "Нічний режим увімкнено",
+            "battery_low": "Низький заряд батареї",
+            "co_alarm": "Тривога CO",
+            "connection_lost": "З'єднання втрачено",
+            "disarm": "Знято з охорони",
+            "disarm_night": "Нічний режим вимкнено",
+            "door_open": "Двері відчинені",
+            "doorbell_pressed": "Натиснуто дзвінок",
+            "fire": "Пожежа",
+            "flood": "Затоплення",
+            "glass_break": "Розбиття скла",
+            "malfunction": "Несправність",
+            "motion": "Рух",
+            "panic": "Паніка",
+            "tamper": "Втручання"
+        }
+    },
+    "selector": {
+        "bypass_switches": {
+            "options": {
+                "auto": "Авто (лише якщо ваш обліковий запис може деактивувати пристрої)",
+                "always": "Завжди",
+                "never": "Ніколи"
+            }
+        },
+        "persistent_notification_events": {
+            "options": {
+                "alarm": "Тривога",
+                "arm": "Під охороною",
+                "arm_night": "Нічний режим увімкнено",
+                "battery_low": "Низький заряд батареї",
+                "co_alarm": "Тривога CO",
+                "connection_lost": "З'єднання втрачено",
+                "disarm": "Знято з охорони",
+                "disarm_night": "Нічний режим вимкнено",
+                "door_open": "Двері відчинені",
+                "doorbell_pressed": "Натиснуто дзвінок",
+                "fire": "Пожежа",
+                "flood": "Затоплення",
+                "glass_break": "Розбиття скла",
+                "malfunction": "Несправність",
+                "motion": "Рух",
+                "panic": "Паніка",
+                "tamper": "Втручання"
+            }
+        }
+    },
+    "device": {
+        "keyfobs": {
+            "name": "Брелоки"
+        }
+    }
+}

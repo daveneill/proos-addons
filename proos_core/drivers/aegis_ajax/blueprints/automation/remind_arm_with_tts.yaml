@@ -1,0 +1,110 @@
+blueprint:
+  name: Ajax Remind to Arm with Voice Announcement
+  description: >-
+    When someone is home and the alarm has been disarmed for a configurable
+    number of minutes, send a push notification and optionally announce via
+    TTS on a media player.
+  domain: automation
+  input:
+    alarm_entity:
+      name: Alarm Control Panel
+      description: The Ajax alarm control panel entity.
+      selector:
+        entity:
+          filter:
+            domain: alarm_control_panel
+    person_entities:
+      name: Person Entities
+      description: >-
+        List of person entities to monitor. The reminder triggers only when
+        at least one person is home.
+      selector:
+        entity:
+          filter:
+            domain: person
+          multiple: true
+    delay_minutes:
+      name: Delay (minutes)
+      description: >-
+        Minutes to wait after the alarm is disarmed before sending the reminder.
+      default: 3
+      selector:
+        number:
+          min: 1
+          max: 60
+          unit_of_measurement: minutes
+          mode: slider
+    notify_service:
+      name: Notification Service
+      description: The notification service to call (e.g. notify.mobile_app_phone).
+      default: "notify.mobile_app_ibasi"
+      selector:
+        text: {}
+    tts_service:
+      name: TTS Service
+      description: TTS service to use (e.g. tts.speak).
+      default: "tts.speak"
+      selector:
+        text: {}
+    media_player:
+      name: Media Player
+      description: Optional media player for TTS voice announcements.
+      default: {}
+      selector:
+        entity:
+          filter:
+            domain: media_player
+    tts_message:
+      name: TTS Message
+      description: The message announced via TTS on the media player.
+      default: "La alarma está desactivada. ¿Quieres ponerla en modo casa?"
+      selector:
+        text: {}
+    push_message:
+      name: Push Notification Message
+      description: The message sent in the push notification.
+      default: "You're home but the alarm is disarmed! Arm it?"
+      selector:
+        text: {}
+
+variables:
+  persons: !input person_entities
+  media_player_input: !input media_player
+  tts_service_input: !input tts_service
+
+triggers:
+  - trigger: state
+    entity_id: !input alarm_entity
+    not_from:
+      - "unavailable"
+      - "unknown"
+    to: "disarmed"
+    for:
+      minutes: !input delay_minutes
+
+conditions:
+  - condition: template
+    value_template: >-
+      {{ persons | map('states') | select('eq', 'home') | list | length > 0 }}
+
+actions:
+  - action: !input notify_service
+    data:
+      title: "Ajax Security Reminder"
+      message: !input push_message
+      data:
+        push:
+          sound: default
+        tag: ajax-remind-arm-tts
+        actions:
+          - action: ARM_HOME
+            title: "Arm Home"
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ media_player_input is defined and media_player_input not in ['', none, {}] }}"
+        sequence:
+          - action: "{{ tts_service_input }}"
+            data:
+              entity_id: !input media_player
+              message: !input tts_message

@@ -1,0 +1,52 @@
+{
+    "entity": {
+        "alarm_control_panel": {
+            "ajax_security": {
+                "default": "mdi:shield-home",
+                "state": {
+                    "armed_away": "mdi:shield-lock",
+                    "armed_night": "mdi:shield-moon",
+                    "disarmed": "mdi:shield-off",
+                    "arming": "mdi:shield-sync",
+                    "triggered": "mdi:shield-alert"
+                }
+            }
+        },
+        "binary_sensor": {
+            "monitoring": { "default": "mdi:shield-check", "state": { "on": "mdi:shield-check", "off": "mdi:shield-off-outline" } },
+            "gsm": { "default": "mdi:signal-cellular-3", "state": { "on": "mdi:signal-cellular-3", "off": "mdi:signal-off" } },
+            "lid": { "default": "mdi:lock", "state": { "on": "mdi:lock-open-alert", "off": "mdi:lock" } },
+            "ext_contact": { "default": "mdi:electric-switch", "state": { "on": "mdi:electric-switch-closed", "off": "mdi:electric-switch" } },
+            "ext_alert": { "default": "mdi:alert", "state": { "on": "mdi:alert", "off": "mdi:alert-outline" } },
+            "drilling": { "default": "mdi:tools", "state": { "on": "mdi:tools", "off": "mdi:shield-check" } },
+            "anti_mask": { "default": "mdi:eye-off", "state": { "on": "mdi:eye-off", "off": "mdi:eye" } },
+            "malfunction": { "default": "mdi:alert-circle", "state": { "on": "mdi:alert-circle", "off": "mdi:check-circle" } },
+            "interference": { "default": "mdi:access-point-off", "state": { "on": "mdi:access-point-off", "off": "mdi:access-point" } },
+            "relay_stuck": { "default": "mdi:electric-switch", "state": { "on": "mdi:alert", "off": "mdi:electric-switch" } },
+            "always_active": { "default": "mdi:shield-lock", "state": { "on": "mdi:shield-lock", "off": "mdi:shield-off" } },
+            "connectivity": { "default": "mdi:wifi", "state": { "on": "mdi:wifi", "off": "mdi:wifi-off" } },
+            "problem": { "default": "mdi:alert-circle-outline", "state": { "on": "mdi:alert-circle", "off": "mdi:check-circle-outline" } },
+            "glass_break": { "default": "mdi:window-closed-variant", "state": { "on": "mdi:window-shutter-alert", "off": "mdi:window-closed-variant" } },
+            "vibration": { "default": "mdi:vibrate-off", "state": { "on": "mdi:vibrate", "off": "mdi:vibrate-off" } },
+            "delay_when_leaving": { "default": "mdi:timer-outline", "state": { "on": "mdi:timer-outline", "off": "mdi:timer-off-outline" } }
+        },
+        "sensor": {
+            "signal_strength": { "default": "mdi:signal" },
+            "mobile_network_type": { "default": "mdi:signal-cellular-3" },
+            "wifi_signal_level": { "default": "mdi:wifi" },
+            "sim_status": { "default": "mdi:sim" },
+            "sim_imei": { "default": "mdi:sim" }
+        },
+        "switch": {
+            "channel_1": { "default": "mdi:electric-switch", "state": { "on": "mdi:electric-switch-closed", "off": "mdi:electric-switch" } },
+            "channel_2": { "default": "mdi:electric-switch", "state": { "on": "mdi:electric-switch-closed", "off": "mdi:electric-switch" } },
+            "chime": { "default": "mdi:bell", "state": { "on": "mdi:bell-ring", "off": "mdi:bell-off" } },
+            "night_mode_arm": { "default": "mdi:weather-night" }
+        },
+        "button": {
+            "capture_photo": { "default": "mdi:camera" },
+            "restore_after_alarm": { "default": "mdi:restore-alert" },
+            "siren_sound_test": { "default": "mdi:bullhorn" }
+        }
+    }
+}

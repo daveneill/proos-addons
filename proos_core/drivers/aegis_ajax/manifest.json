@@ -1,0 +1,17 @@
+{
+    "domain": "aegis_ajax",
+    "name": "Ajax",
+    "after_dependencies": ["web_rtc"],
+    "codeowners": ["@protech-proos"],
+    "config_flow": true,
+    "dependencies": ["media_source"],
+    "dhcp": [
+        {"macaddress": "9C756E*"}
+    ],
+    "documentation": "https://github.com/bvis/aegis-hass",
+    "integration_type": "hub",
+    "iot_class": "cloud_push",
+    "issue_tracker": "https://github.com/bvis/aegis-hass/issues",
+    "requirements": ["grpcio>=1.75.1", "protobuf>=6.31.1", "firebase-messaging>=0.4.5"],
+    "version": "1.27.2+proos.1"
+}

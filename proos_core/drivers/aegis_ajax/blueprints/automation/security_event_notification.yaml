@@ -1,0 +1,104 @@
+blueprint:
+  name: Ajax Security Event Notification
+  description: >-
+    Send a detailed notification on any Ajax security event, using enriched
+    event data (device_name, room_name, device_type). Optionally filter by
+    a specific event type, override the per-event-type display labels (for
+    translations) and set a click-through URL.
+  domain: automation
+  input:
+    event_entity:
+      name: Security Event Entity
+      description: The Ajax security event entity to monitor.
+      selector:
+        entity:
+          filter:
+            domain: event
+    notify_service:
+      name: Notification Service
+      description: The notification service to call (e.g. notify.mobile_app_phone).
+      selector:
+        text: {}
+    event_type_filter:
+      name: Event Type Filter (optional)
+      description: >-
+        Leave empty to receive all events. Set to a specific event type
+        (alarm, tamper, arm, disarm, arm_night, disarm_night, panic,
+        battery_low, connection_lost, malfunction, fire, co_alarm, flood,
+        glass_break, motion, door_open) to filter.
+      default: ""
+      selector:
+        text: {}
+    notification_url:
+      name: Notification URL (optional)
+      description: >-
+        Path opened by the mobile app when the notification is tapped
+        (e.g. /lovelace/seguridad). Leave empty to omit.
+      default: ""
+      selector:
+        text: {}
+    event_labels:
+      name: Event labels (optional)
+      description: >-
+        Mapping of event_type to display label. Edit values to translate or
+        customise the title prefix. Unknown event types fall back to a
+        prettified version of the event_type.
+      default:
+        alarm: "🚨 Alarm"
+        arm: "🔒 Armed"
+        arm_night: "🌙 Night mode"
+        disarm: "🔓 Disarmed"
+        disarm_night: "🔓 Night mode off"
+        tamper: "⚠️ Tamper"
+        panic: "🆘 Panic"
+        battery_low: "🪫 Low battery"
+        connection_lost: "📡 Connection lost"
+        malfunction: "⚙️ Malfunction"
+        fire: "🔥 Fire"
+        co_alarm: "☁️ CO alarm"
+        flood: "💧 Flood"
+        glass_break: "💔 Glass break"
+        motion: "🏃 Motion"
+        door_open: "🚪 Door open"
+
+variables:
+  event_type_filter: !input event_type_filter
+  event_labels: !input event_labels
+  notification_url: !input notification_url
+
+triggers:
+  - trigger: state
+    entity_id: !input event_entity
+    # Do not fire when the entity is restored on integration reload or HA
+    # restart (the transition from unavailable/unknown re-delivers the last
+    # event state with a fresh last_changed, so time-based conditions can't
+    # catch it). Same guard as the state-trigger blueprints (#293).
+    not_from:
+      - unavailable
+      - unknown
+
+conditions:
+  - condition: template
+    value_template: >-
+      {{ trigger.to_state.attributes.event_type is defined }}
+  - condition: template
+    value_template: >-
+      {{ event_type_filter == '' or trigger.to_state.attributes.event_type == event_type_filter }}
+  - condition: template
+    value_template: >-
+      {{ (now() - trigger.to_state.last_changed).total_seconds() < 10 }}
+
+actions:
+  - action: !input notify_service
+    data:
+      title: >-
+        {{ event_labels.get(trigger.to_state.attributes.event_type, trigger.to_state.attributes.event_type | replace('_', ' ') | title) }}
+      message: >-
+        {% set attrs = trigger.to_state.attributes %}
+        {{ attrs.get('device_name', 'Unknown device') }}
+        {%- if attrs.get('room_name') %} ({{ attrs.room_name }}){% endif %}
+      data:
+        push:
+          sound: default
+        tag: "ajax-event-{{ trigger.to_state.attributes.event_type }}"
+        url: "{{ notification_url }}"

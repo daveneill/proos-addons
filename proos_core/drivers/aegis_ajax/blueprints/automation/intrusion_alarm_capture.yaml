@@ -1,0 +1,100 @@
+blueprint:
+  name: Ajax Intrusion Alarm — Capture & Notify
+  description: >-
+    When an intrusion alarm fires on the Ajax security event entity,
+    capture photos from configured cameras and send a critical notification
+    with the device name that triggered the alarm.
+  domain: automation
+  input:
+    event_entity:
+      name: Security Event Entity
+      description: The Ajax security event entity to monitor.
+      selector:
+        entity:
+          filter:
+            domain: event
+    notify_service:
+      name: Notification Service
+      description: The notification service to call (e.g. notify.mobile_app_phone).
+      selector:
+        text: {}
+    camera_buttons:
+      name: Camera Capture Buttons (optional override)
+      description: >-
+        Leave empty to auto-detect all Ajax capture buttons via the
+        aegis_camera label (filtered to button. entities). Provide a
+        manual list here to override.
+      default: []
+      selector:
+        entity:
+          filter:
+            domain: button
+          multiple: true
+    notification_title:
+      name: Notification Title
+      description: Custom title for the notification.
+      default: "INTRUSION ALARM"
+      selector:
+        text: {}
+    notification_message:
+      name: Custom Message Prefix (optional)
+      description: >-
+        Optional prefix for the notification message. The device name will
+        be appended automatically. Leave empty for the default message.
+      default: ""
+      selector:
+        text: {}
+
+variables:
+  custom_message: !input notification_message
+  buttons_input: !input camera_buttons
+  capture_buttons: >-
+    {{ buttons_input if buttons_input | length > 0
+       else label_entities('aegis_camera')
+            | select('match', 'button\\.') | list }}
+
+triggers:
+  - trigger: state
+    entity_id: !input event_entity
+    # Do not fire when the entity is restored on integration reload or HA
+    # restart (the transition from unavailable/unknown re-delivers the last
+    # event state with a fresh last_changed, so time-based conditions can't
+    # catch it). Same guard as the state-trigger blueprints (#293).
+    not_from:
+      - unavailable
+      - unknown
+
+conditions:
+  - condition: template
+    value_template: >-
+      {{ trigger.to_state.attributes.event_type is defined
+         and trigger.to_state.attributes.event_type == 'alarm' }}
+  - condition: template
+    value_template: >-
+      {{ (now() - trigger.to_state.last_changed).total_seconds() < 10 }}
+
+actions:
+  - parallel:
+      - action: button.press
+        target:
+          entity_id: "{{ capture_buttons }}"
+      - action: !input notify_service
+        data:
+          title: !input notification_title
+          message: >-
+            {% set device = trigger.to_state.attributes.get('device_name', 'unknown device') %}
+            {% set room = trigger.to_state.attributes.get('room_name', '') %}
+            {% if custom_message != '' %}
+            {{ custom_message }} — {{ device }}{% if room %} in {{ room }}{% endif %}
+            {% else %}
+            Alarm triggered by {{ device }}{% if room %} in {{ room }}{% endif %}. Photos captured.
+            {% endif %}
+          data:
+            push:
+              sound:
+                name: default
+                critical: 1
+                volume: 1.0
+            tag: ajax-intrusion-alarm
+            priority: high
+            ttl: 0

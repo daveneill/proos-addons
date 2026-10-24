@@ -1,0 +1,102 @@
+blueprint:
+  name: Ajax Low Battery Weekly Summary
+  description: >-
+    Send a weekly summary listing all Ajax devices with battery level
+    below a configurable threshold.
+  domain: automation
+  input:
+    battery_sensors:
+      name: Battery Sensor Entities (optional override)
+      description: >-
+        Leave empty to auto-detect all Ajax battery sensors via the
+        aegis_battery label. Provide a manual list here to override.
+      default: []
+      selector:
+        entity:
+          filter:
+            domain: sensor
+            device_class: battery
+          multiple: true
+    threshold:
+      name: Battery Threshold (%)
+      description: Devices with battery below this percentage will be reported.
+      default: 20
+      selector:
+        number:
+          min: 5
+          max: 50
+          unit_of_measurement: "%"
+          mode: slider
+    notify_service:
+      name: Notification Service
+      description: The notification service to call (e.g. notify.mobile_app_phone).
+      selector:
+        text: {}
+    send_day:
+      name: Day of the Week
+      description: Day of the week to send the summary (0 = Monday, 6 = Sunday).
+      default: 0
+      selector:
+        select:
+          options:
+            - label: Monday
+              value: "0"
+            - label: Tuesday
+              value: "1"
+            - label: Wednesday
+              value: "2"
+            - label: Thursday
+              value: "3"
+            - label: Friday
+              value: "4"
+            - label: Saturday
+              value: "5"
+            - label: Sunday
+              value: "6"
+    send_time:
+      name: Time to Send
+      description: Time of day to send the summary.
+      default: "09:00:00"
+      selector:
+        time: {}
+
+variables:
+  sensors_input: !input battery_sensors
+  sensors: >-
+    {{ sensors_input if sensors_input | length > 0
+       else label_entities('aegis_battery') | list }}
+  battery_threshold: !input threshold
+  target_day: !input send_day
+
+triggers:
+  - trigger: time
+    at: !input send_time
+
+conditions:
+  - condition: template
+    value_template: >-
+      {{ now().weekday() | string == target_day }}
+
+actions:
+  - variables:
+      low_devices: >-
+        {% set ns = namespace(items=[]) %}
+        {% for sensor in sensors %}
+          {% set level = states(sensor) | float(-1) %}
+          {% if level >= 0 and level < battery_threshold %}
+            {% set ns.items = ns.items + [state_attr(sensor, 'friendly_name') ~ ': ' ~ level | int ~ '%'] %}
+          {% endif %}
+        {% endfor %}
+        {{ ns.items }}
+  - condition: template
+    value_template: "{{ low_devices | length > 0 }}"
+  - action: !input notify_service
+    data:
+      title: "Ajax Battery Report"
+      message: >-
+        {{ low_devices | length }} device(s) below {{ battery_threshold }}%:
+        {% for item in low_devices %}
+        - {{ item }}
+        {% endfor %}
+      data:
+        tag: ajax-battery-weekly

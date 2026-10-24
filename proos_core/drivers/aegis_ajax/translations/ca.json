@@ -1,0 +1,773 @@
+{
+    "config": {
+        "step": {
+            "user": {
+                "title": "Inici de sessio Aegis for Ajax",
+                "description": "Introdueix les credencials del teu compte Aegis for Ajax.",
+                "data": {
+                    "email": "Correu electronic",
+                    "password": "Contrasenya",
+                    "app_label": "Etiqueta d'app (nom de l'app co-branded)"
+                },
+                "data_description": {
+                    "email": "El correu amb què entres a l'app d'Ajax.",
+                    "password": "La contrasenya del teu compte d'Ajax. Home Assistant només en desa un hash.",
+                    "app_label": "L'app a la qual pertany el teu compte: Ajax o una app co-branded. Consulta el README si no n'estàs segur."
+                }
+            },
+            "2fa": {
+                "title": "Autenticacio de dos factors",
+                "description": "Introdueix el codi de 6 digits de la teva app d'autenticacio.",
+                "data": {
+                    "totp_code": "Codi TOTP"
+                },
+                "data_description": {
+                    "totp_code": "El codi de 6 dígits de la teva app d'autenticació."
+                }
+            },
+            "select_spaces": {
+                "title": "Seleccionar espais",
+                "description": "Tria quins espais (hubs) afegir.",
+                "data": {
+                    "spaces": "Espais"
+                },
+                "data_description": {
+                    "spaces": "Els espais (hubs) que vols afegir a Home Assistant. Tria'n almenys un."
+                }
+            },
+            "reconfigure": {
+                "title": "Reconfigurar Aegis for Ajax",
+                "description": "Actualitza les credencials del compte.",
+                "data": {
+                    "email": "Correu electrònic",
+                    "password": "Contrasenya",
+                    "app_label": "Etiqueta de l'aplicació"
+                },
+                "data_description": {
+                    "email": "El correu amb què entres a l'app d'Ajax.",
+                    "password": "La contrasenya del teu compte d'Ajax. Home Assistant només en desa un hash.",
+                    "app_label": "L'app a la qual pertany el teu compte: Ajax o una app co-branded. Consulta el README si no n'estàs segur."
+                }
+            },
+            "reconfigure_2fa": {
+                "title": "Autenticacio de dos factors",
+                "description": "Introdueix el codi de 6 digits de la teva app d'autenticacio.",
+                "data": {
+                    "totp_code": "Codi TOTP"
+                },
+                "data_description": {
+                    "totp_code": "El codi de 6 dígits de la teva app d'autenticació."
+                }
+            },
+            "reauth_confirm": {
+                "title": "Reautenticar Aegis for Ajax",
+                "description": "La sessio Ajax per a {email} ja no es valida. Introdueix la contrasenya actual del compte per restaurar l'acces.",
+                "data": {
+                    "password": "Contrasenya"
+                },
+                "data_description": {
+                    "password": "La contrasenya del teu compte d'Ajax. Home Assistant només en desa un hash."
+                }
+            },
+            "reauth_2fa": {
+                "title": "Autenticacio de dos factors",
+                "description": "Introdueix el codi de 6 digits de la teva app d'autenticacio.",
+                "data": {
+                    "totp_code": "Codi TOTP"
+                },
+                "data_description": {
+                    "totp_code": "El codi de 6 dígits de la teva app d'autenticació."
+                }
+            }
+        },
+        "error": {
+            "invalid_auth": "Correu o contrasenya incorrectes.",
+            "invalid_totp": "Codi TOTP incorrecte. Torna-ho a provar.",
+            "cannot_connect": "No es pot connectar als servidors d'Ajax.",
+            "client_rejected": "Ajax està rebutjant aquesta versió d'Aegis for Ajax. Actualitza la integració a HACS, reinicia Home Assistant i torna-ho a provar.",
+            "unknown": "S'ha produit un error inesperat."
+        },
+        "abort": {
+            "already_configured": "Aquest compte ja esta configurat.",
+            "account_locked": "Compte bloquejat. Torna-ho a provar mes tard.",
+            "reauth_successful": "Reautenticacio correcta.",
+            "already_in_progress": "La configuració ja està en curs. Completeu o cancel·leu el flux existent.",
+            "reconfigure_successful": "Credencials actualitzades correctament.",
+            "cannot_connect": "No es pot connectar als servidors d'Ajax."
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "Opcions d'Aegis for Ajax",
+                "data": {
+                    "poll_interval": "Interval de sondeig de reserva (segons, 60-300)",
+                    "force_arm": "Armar forçat (ignorar sensors oberts i avaries)",
+                    "expose_arm_home": "Mostra el botó \"Arma a casa\"",
+                    "delay_panel_states": "Mostrar els retards de sortida / entrada com a estats del panell",
+                    "cloud_video": "Visualització en directe pel núvol per a càmeres de vídeo (experimental)",
+                    "use_pin_code": "Requerir codi PIN per armar/desarmar",
+                    "pin_code": "Codi PIN",
+                    "fcm_project_id": "ID de projecte FCM (per a notificacions push)",
+                    "fcm_app_id": "ID d'app FCM",
+                    "fcm_api_key": "Clau d'API FCM",
+                    "fcm_sender_id": "ID de remitent FCM",
+                    "clear_fcm_credentials": "Eliminar credencials FCM (esborra els quatre camps)",
+                    "disable_push_warning": "No faig servir notificacions push",
+                    "photo_retention_days": "Retenció de fotos (dies)",
+                    "photo_max_per_device": "Màxim de fotos per dispositiu (0 = il·limitat)",
+                    "auto_create_labels": "Crear i assignar automàticament etiquetes Aegis a les entitats",
+                    "bypass_switches": "Crear switches de bypass de dispositius",
+                    "persistent_notifications": "Mostra els esdeveniments de seguretat com a notificacions persistents",
+                    "persistent_notification_events": "Esdeveniments que creen una notificació persistent"
+                },
+                "data_description": {
+                    "bypass_switches": "Els switches de bypass permeten desactivar un dispositiu abans d'armar. 'Auto' només els crea si el teu compte d'Ajax té permís per desactivar dispositius.",
+                    "expose_arm_home": "Afegeix un mode Arma a casa al tauler d'alarma. Replica el mode Nit i només cal per a Amazon Alexa o Nabu Casa Cloud. Desactiva'l per amagar el botó duplicat si no els fas servir.",
+                    "delay_panel_states": "Quan és actiu, el panell d'alarma mostra \"arming\" mentre el hub executa el \"Retard en sortir\" d'un detector i \"pending\" mentre corre un \"Retard en entrar\", tots dos a partir dels senyals del mateix hub, no d'un temporitzador nostre. Els detectors sense retard (alarma instantània) ja estan actius durant \"arming\". Les automatitzacions que esperen \"armed_away\" es dispararan quan acabi el retard de sortida. L'estat brut del hub es manté a l'atribut \"hub_state\".",
+                    "cloud_video": "Afegeix una càmera de visualització en directe per a cada càmera de vídeo Ajax, transmesa a través del núvol d'Ajax com fa l'app fora de casa, de manera que també funciona quan Home Assistant no és a la xarxa de la càmera. Experimental: potser encara no funciona amb totes les càmeres. Cada visualització obre una sessió de vídeo; no s'executa res mentre ningú no mira.",
+                    "disable_push_warning": "Activa'l si funciones expressament sense push. Amaga el recordatori recurrent \"FCM no configurat\" i la targeta de reparació. Els esdeveniments en temps real (timbre, armar/desarmar, alarma, moviment) continuaran sense arribar a Home Assistant fins que configuris FCM.",
+                    "persistent_notifications": "Quan s'activa, els esdeveniments seleccionats apareixen com a notificacions persistents de Home Assistant que romanen visibles fins que es descarten o Home Assistant es reinicia. Aquests esdeveniments arriben per push (FCM), així que el push ha d'estar configurat perquè arribin.",
+                    "persistent_notification_events": "Quins esdeveniments generen una notificació persistent. Per defecte, incidents reals (alarma, pànic, sabotatge, foc, CO, inundació, trencament de vidre). Afegeix armat/desarmat, moviment o timbre si també els vols."
+                }
+            }
+        }
+    },
+    "system_health": {
+        "info": {
+            "can_reach_server": "Acces al nuvol Ajax (host gRPC)",
+            "configured_accounts": "Comptes configurats",
+            "spaces": "Espais (hubs)",
+            "hts_connected": "Streams HTS connectats",
+            "fcm_connected": "Clients FCM connectats",
+            "pushes_received": "Pushes rebuts",
+            "last_push": "Ultim push rebut",
+            "last_poll": "Ultim sondeig correcte"
+        }
+    },
+    "services": {
+        "force_arm": {
+            "name": "Forcar armat",
+            "description": "Armar el sistema ignorant sensors oberts i alarmes actives.",
+            "fields": {
+                "entity_id": {
+                    "name": "Entitat",
+                    "description": "Panell d'alarma per armar forçat. Si s'omet, arma tots els panells."
+                }
+            }
+        },
+        "force_arm_night": {
+            "name": "Forcar armat nocturn",
+            "description": "Armar mode nocturn ignorant sensors oberts i alarmes actives.",
+            "fields": {
+                "entity_id": {
+                    "name": "Entitat",
+                    "description": "Panell d'alarma per armar nocturn forçat. Si s'omet, arma tots els panells."
+                }
+            }
+        },
+        "disarm_night_mode": {
+            "name": "Desarmar mode nit",
+            "description": "Surt del mode nit deixant armats els grups armats de manera independent (mode absent). A diferència d'un desarmat total, només desactiva els grups en mode nit: l'operació nativa d'Ajax \"desarmar mode nit\".",
+            "fields": {
+                "entity_id": {
+                    "name": "Entitat",
+                    "description": "Entitat del panell d'alarma de l'espai que es desarmarà del mode nit. Si s'omet, s'aplica a tots els panells."
+                }
+            }
+        },
+        "press_panic_button": {
+            "name": "Premer botó de pànic (SOS)",
+            "description": "Activa el botó SOS / pànic d'Ajax en un espai. Crida el mateix endpoint que el botó SOS vermell de l'aplicació oficial i envia una alarma de pànic a la central receptora d'alarmes (CRA), que a la majoria de contractes activa el desplegament policial immediat saltant els temps de verificació. Utilitza-ho només en emergències reals. El camp confirm ha d'estar a true o la crida es rebutja.",
+            "fields": {
+                "confirm": {
+                    "name": "Confirma el pànic",
+                    "description": "Ha d'estar a true. Actua com a bloqueig de seguretat per evitar que les automatitzacions activin aquest servei per error."
+                },
+                "entity_id": {
+                    "name": "Entitat",
+                    "description": "Entitat del panell d'alarma de l'espai del qual es prem el botó de pànic. Si s'omet, el pànic s'envia a tots els espais configurats."
+                },
+                "latitude": {
+                    "name": "Latitud",
+                    "description": "Latitud opcional de qui truca, reenviada a Ajax. Usa-la amb longitud."
+                },
+                "longitude": {
+                    "name": "Longitud",
+                    "description": "Longitud opcional de qui truca, reenviada a Ajax. Usa-la amb latitud."
+                }
+            }
+        },
+        "set_photo_on_demand_mode": {
+            "name": "Configurar el mode Foto sota demanda",
+            "description": "Activa o desactiva el mode Foto sota demanda en un hub. Dos canals independents que es poden alternar per separat: peticions d'usuari (si els usuaris del hub poden demanar fotos des de l'app Ajax) i escenaris (si els escenaris / automatitzacions poden disparar captures). Deixa un camp sense valor per mantenir-ne l'estat actual. Almenys un dels dos és obligatori.",
+            "fields": {
+                "user": {
+                    "name": "Peticions d'usuari",
+                    "description": "Si està marcat, activa o desactiva les peticions de foto sota demanda iniciades pels usuaris del hub. Deixa-ho sense valor per mantenir l'estat actual."
+                },
+                "scenario": {
+                    "name": "Escenaris",
+                    "description": "Si està marcat, activa o desactiva les captures de Foto sota demanda disparades per escenaris / automatitzacions d'Ajax. Deixa-ho sense valor per mantenir l'estat actual."
+                },
+                "entity_id": {
+                    "name": "Entitat",
+                    "description": "Entitat del panell d'alarma de l'espai el mode de hub del qual s'ha d'actualitzar. Si s'omet, s'aplica a tots els espais configurats."
+                }
+            }
+        },
+        "refresh_alarm_images": {
+            "name": "Refresh alarm camera images",
+            "description": "Import recent alarm photos into local albums without taking a new photo. New alarm pushes import automatically. Manual backfill is limited to once per five minutes per space, with one history query and at most ten media streams; completed local albums are skipped.",
+            "fields": {
+                "entity_id": {
+                    "name": "Entity",
+                    "description": "Alarm panel entity for the space to import. If omitted, imports from every configured space."
+                }
+            }
+        },
+        "list_client_sessions": {
+            "name": "Llistar les sessions del compte",
+            "description": "Retorna a demanda les sessions actives del compte Ajax, per inspeccionar-les manualment. Aquest servei crida un endpoint intern d'Ajax que pot limitar la freqüència de les peticions: no el consultis periòdicament en automatitzacions. La sessió d'Aegis actualment activa es marca amb is_current quan es pot identificar.",
+            "fields": {
+                "entry_id": {
+                    "name": "ID de l'entrada de configuració",
+                    "description": "Obligatori quan hi ha més d'un compte d'Aegis configurat."
+                }
+            }
+        },
+        "terminate_client_session": {
+            "name": "Tancar una sessió del compte",
+            "description": "Tanca immediatament la sessió del dispositiu seleccionat al compte Ajax. Obtén el seu ID de sessió amb list_client_sessions. La integració no tanca mai la seva pròpia sessió.",
+            "fields": {
+                "session_id": {
+                    "name": "ID de sessió",
+                    "description": "ID de sessió retornat per list_client_sessions."
+                },
+                "confirm": {
+                    "name": "Confirmar el tancament",
+                    "description": "Ha de ser true per tancar immediatament la sessió seleccionada."
+                },
+                "entry_id": {
+                    "name": "ID de l'entrada de configuració",
+                    "description": "Obligatori quan hi ha més d'un compte d'Aegis configurat."
+                }
+            }
+        },
+        "terminate_other_client_sessions": {
+            "name": "Tancar totes les altres sessions del compte",
+            "description": "Tanca immediatament la sessió de tots els altres dispositius al compte Ajax. Això expulsa les altres apps d'Ajax mòbils i d'escriptori que estiguin actives. La integració no tanca mai la seva pròpia sessió.",
+            "fields": {
+                "confirm": {
+                    "name": "Confirmar el tancament",
+                    "description": "Ha de ser true per tancar immediatament totes les altres sessions."
+                },
+                "entry_id": {
+                    "name": "ID de l'entrada de configuració",
+                    "description": "Obligatori quan hi ha més d'un compte d'Aegis configurat."
+                }
+            }
+        }
+    },
+    "issues": {
+        "hub_offline_24h": {
+            "title": "Hub {hub_name} fora de linia durant mes de {hours_offline}h",
+            "description": "Aegis esta rebent un estat OFFLINE per al hub {hub_name} des de fa {hours_offline} hores seguides. Les entitats romandran obsoletes fins que el hub torni a connectar-se. Causes habituals: hub desendollat, tall de xarxa, o connexio sortint del hub al nuvol d'Ajax bloquejada per un tallafocs. La incidencia es tanca automaticament quan Aegis vegi el hub novament en linia."
+        },
+        "hts_chronic_failure": {
+            "title": "Sensors de xarxa del hub degradats",
+            "description": "La connexio HTS (que alimenta els sensors d'Ethernet / Wi-Fi / GSM / alimentacio) de l'espai {space_id} fa {minutes_failing} minuts que no aconsegueix mantenir-se activa. Els sensors de xarxa del hub estaran no disponibles fins que es recuperi. Causa habitual: tallafocs que bloqueja el transit sortint cap als endpoints HTS d'Ajax, o inestabilitat de xarxa sostinguda entre Home Assistant i el nuvol d'Ajax. La incidencia es tanca automaticament quan HTS reconnecti."
+        },
+        "fcm_push_stuck": {
+            "title": "Notificacions push interrompudes: el mateix missatge talla la connexió un cop i un altre",
+            "description": "La connexió push s'ha tallat {terminations} vegades seguides mentre processava el mateix missatge. Com que aquest missatge no es confirma mai, el proveïdor push d'Ajax el reenvia i cada connexió nova acaba igual, així que això no es resol sol. L'estat de la teva alarma no es veu afectat (prové del sondeig i de la connexió amb el hub, mai del push), però mentre duri es perden els esdeveniments en temps real, com el timbre. Aegis ha substituït el seu registre push per trencar el bucle i el push hauria de tornar en un minut. Aquest avís desapareix tot sol quan la connexió es mantingui estable una estona. Si torna a aparèixer, informa'n a GitHub (issue #373)."
+        },
+        "grpcio_version_mismatch": {
+            "title": "Aegis necessita grpcio {required} o superior (trobat {current})",
+            "description": "Aegis depen de `grpcio` per al canal gRPC que parla amb el nuvol d'Ajax, i la teva instal·lacio de Home Assistant porta `grpcio` {current}. Per sota de {required} l'inici de sessio pot fallar amb errors HTTP/2 poc descriptius. A Home Assistant Core o Container el manifest de la integracio fixa la versio en instal·lar, pero a Home Assistant OS el runtime porta un grpcio del sistema que aquest manifest no pot tocar — normalment cal actualitzar Home Assistant OS a una build que inclogui un grpcio mes recent. La incidencia es tanca automaticament en la seguent recarrega quan la versio creui {required}."
+        },
+        "client_rejected": {
+            "title": "Ajax està rebutjant aquesta versió d'Aegis for Ajax",
+            "description": "Els servidors d'Ajax han deixat d'acceptar peticions d'aquesta versió de la integració, així que no pot iniciar sessió, actualitzar estats ni enviar ordres. El teu compte i les teves credencials estan bé. Actualitza Aegis for Ajax a HACS a la darrera versió i reinicia Home Assistant. Aquest avís desapareix sol quan Ajax torni a acceptar la integració."
+        },
+        "fcm_credentials_invalid": {
+            "title": "Notificacions push desactivades: credencials FCM rebutjades",
+            "fix_flow": {
+                "step": {
+                    "init": {
+                        "title": "Reparar les credencials FCM d'Aegis",
+                        "description": "El registre a Firebase Cloud Messaging ha fallat per a aquest compte. Probablement, el FCM Project ID / App ID / API Key / Sender ID configurats no es corresponen amb la teva app Ajax co-branded, o la API key s'ha revocat. Les funcions que depenen del push (estat instantani d'armat/desarmat, entitat security_event, URL de fotos de MotionCam) cauran a polling mes lent fins que es corregeixi. Reintrodueix els quatre valors a sota. La integracio es recarregara i el Repair es tancara automaticament si les credencials noves funcionen; si no, el formulari tornara a apareixer. Consulta la seccio 'How to obtain FCM credentials' del README.",
+                        "data": {
+                            "fcm_project_id": "FCM Project ID",
+                            "fcm_app_id": "FCM App ID",
+                            "fcm_api_key": "FCM API Key",
+                            "fcm_sender_id": "FCM Sender ID"
+                        }
+                    }
+                },
+                "abort": {
+                    "entry_missing": "El compte d'Aegis pel qual s'ha aixecat aquest Repair ja no esta configurat. No hi ha res a reparar."
+                }
+            }
+        },
+        "fcm_credentials_malformed": {
+            "title": "Notificacions push desactivades: credencials FCM mal formades ({problem})",
+            "fix_flow": {
+                "step": {
+                    "init": {
+                        "title": "Reparar les credencials FCM d'Aegis",
+                        "description": "Aegis ha detectat un problema estructural a les credencials FCM configurades abans de contactar Google: {problem}. Els quatre valors han de venir del mateix projecte Firebase. Torna a extreure'ls de la teva app Ajax co-branded segons la seccio 'Where the values live' del README i reintrodueix els quatre a sota. La integracio es recarregara, la comprovacio s'executara de nou i el Repair es tancara quan els valors siguin coherents.",
+                        "data": {
+                            "fcm_project_id": "FCM Project ID",
+                            "fcm_app_id": "FCM App ID",
+                            "fcm_api_key": "FCM API Key",
+                            "fcm_sender_id": "FCM Sender ID"
+                        }
+                    }
+                },
+                "abort": {
+                    "entry_missing": "El compte d'Aegis pel qual s'ha aixecat aquest Repair ja no esta configurat. No hi ha res a reparar."
+                }
+            }
+        },
+        "fcm_not_configured": {
+            "title": "Notificacions push no configurades — esdeveniments en temps real desactivats",
+            "fix_flow": {
+                "step": {
+                    "init": {
+                        "title": "Configurar credencials FCM d'Aegis",
+                        "description": "Les credencials FCM no s'han configurat mai per a aquest compte, de manera que els esdeveniments en temps real d'Ajax (timbre, armat/desarmat, alarma, moviment) no poden arribar a Home Assistant — la integracio recau en el sondeig cada 5 minuts. Introdueix els quatre valors FCM de la teva app Ajax co-branded a continuacio i la integracio es recarregara. Consulta la seccio 'How to obtain FCM credentials' del README.",
+                        "data": {
+                            "fcm_project_id": "FCM Project ID",
+                            "fcm_app_id": "FCM App ID",
+                            "fcm_api_key": "FCM API Key",
+                            "fcm_sender_id": "FCM Sender ID"
+                        }
+                    }
+                },
+                "abort": {
+                    "entry_missing": "El compte d'Aegis per al qual s'ha generat aquest Repair ja no esta configurat. No hi ha res a reparar."
+                }
+            }
+        },
+        "fcm_never_delivered": {
+            "title": "Les notificacions push no arriben",
+            "description": "Aegis ha vist {events} esdeveniments del teu hub mentre el client push estava en marxa, i cap d'ells no ha arribat per push. L'estat de l'alarma no està afectat: ve de la connexió amb el hub i del sondeig, mai del push. Però els esdeveniments en temps real, com el timbre o una alarma d'intrusió, només arriben a Home Assistant per push, així que s'estan perdent.\n\nHi ha tres causes que ho produeixen i des d'aquí són indistingibles: els quatre valors FCM poden pertànyer a un projecte de Firebase pel qual el proveïdor de push de la teva app no envia, un altre registre pot estar ocupant la destinació de push del teu compte d'Ajax, o la connexió de push pot no haver-se completat mai.\n\nQuè ajuda: torna a introduir els quatre valors de la teva app, a Configuració > Reparacions o a les opcions de la integració. Si el mateix compte d'Ajax l'utilitza una altra instància de Home Assistant, prova un compte separat per a aquesta integració. Aquest avís desapareix tot sol tan bon punt arribi un push."
+        },
+        "pin_code_update": {
+            "title": "Torna a posar el PIN de l'alarma",
+            "description": "El PIN de l'alarma d'aquest compte està desat en un format antic. Obre les opcions de la integració i torna a introduir el PIN per actualitzar-lo. Mentrestant continua funcionant."
+        }
+    },
+    "entity": {
+        "button": {
+            "capture_photo": {
+                "name": "Capturar foto"
+            },
+            "refresh_hub": {
+                "name": "Actualitza el hub"
+            },
+            "restore_after_alarm": {
+                "name": "Restaurar després de l'alarma"
+            },
+            "siren_sound_test": {
+                "name": "Prova de so"
+            }
+        },
+        "event": {
+            "security_event": {
+                "name": "Esdeveniment de seguretat",
+                "state_attributes": {
+                    "event_type": {
+                        "state": {
+                            "alarm": "Alarma",
+                            "arm": "Armat",
+                            "arm_night": "Armat nocturn",
+                            "battery_low": "Bateria baixa",
+                            "co_alarm": "Alarma CO",
+                            "connection_lost": "Connexio perduda",
+                            "disarm": "Desarmat",
+                            "disarm_night": "Desarmat nocturn",
+                            "door_open": "Porta oberta",
+                            "doorbell_pressed": "Timbre premut",
+                            "fire": "Foc",
+                            "flood": "Inundacio",
+                            "glass_break": "Trencament de vidre",
+                            "malfunction": "Avaria",
+                            "motion": "Moviment",
+                            "panic": "Panic",
+                            "tamper": "Manipulacio"
+                        }
+                    }
+                }
+            },
+            "doorbell": {
+                "name": "Timbre",
+                "state_attributes": {
+                    "event_type": {
+                        "state": {
+                            "ring": "Timbre premut"
+                        }
+                    }
+                }
+            },
+            "button_press": {
+                "name": "Botó",
+                "state_attributes": {
+                    "event_type": {
+                        "state": {
+                            "pressed": "Premut"
+                        }
+                    }
+                }
+            }
+        },
+        "binary_sensor": {
+            "monitoring": {
+                "name": "Connexio CRA"
+            },
+            "gsm": {
+                "name": "Mobil connectat"
+            },
+            "lid": {
+                "name": "Tapa oberta"
+            },
+            "ext_contact": {
+                "name": "Contacte extern trencat"
+            },
+            "ext_alert": {
+                "name": "Alerta contacte extern"
+            },
+            "drilling": {
+                "name": "Perforacio de caixa"
+            },
+            "anti_mask": {
+                "name": "Anti-enmascarament"
+            },
+            "malfunction": {
+                "name": "Avaria"
+            },
+            "interference": {
+                "name": "Interferencia"
+            },
+            "relay_stuck": {
+                "name": "Rele bloquejat"
+            },
+            "always_active": {
+                "name": "Sempre actiu"
+            },
+            "glass_break": {
+                "name": "Trencament de vidre"
+            },
+            "vibration": {
+                "name": "Vibració"
+            },
+            "tilt": {
+                "name": "Inclinació"
+            },
+            "steam": {
+                "name": "Vapor"
+            },
+            "wire_input_alert": {
+                "name": "Alerta d'entrada cablejada"
+            },
+            "tamper": {
+                "name": "Manipulació de carcassa"
+            },
+            "connectivity": {
+                "name": "Connectivitat"
+            },
+            "problem": {
+                "name": "Problema del dispositiu"
+            },
+            "ethernet": {
+                "name": "Ethernet"
+            },
+            "wifi": {
+                "name": "Wi-Fi"
+            },
+            "mains_power": {
+                "name": "Alimentació externa"
+            },
+            "external_contact_open": {
+                "name": "Contacte"
+            },
+            "delay_when_leaving": {
+                "name": "Retard en sortir"
+            },
+            "siren_on_panic_button": {
+                "name": "Sirena amb botó de pànic"
+            },
+            "siren_on_any_tamper": {
+                "name": "Sirena amb manipulació"
+            }
+        },
+        "sensor": {
+            "monitoring_company": {
+                "name": "Companyia CRA"
+            },
+            "signal_strength": {
+                "name": "Intensitat de senyal"
+            },
+            "mobile_network_type": {
+                "name": "Tipus de xarxa mòbil"
+            },
+            "wifi_signal_level": {
+                "name": "Nivell de senyal Wi-Fi"
+            },
+            "sim_status": {
+                "name": "Estat SIM"
+            },
+            "sim_imei": {
+                "name": "IMEI"
+            },
+            "connection_type": {
+                "name": "Tipus de connexió"
+            },
+            "wifi_ssid": {
+                "name": "SSID Wi-Fi"
+            },
+            "wifi_ip": {
+                "name": "Adreça IP Wi-Fi"
+            },
+            "ethernet_ip": {
+                "name": "Adreça IP Ethernet"
+            },
+            "ethernet_gateway": {
+                "name": "Porta d'enllaç Ethernet"
+            },
+            "ethernet_dns": {
+                "name": "DNS Ethernet"
+            },
+            "cellular_signal": {
+                "name": "Senyal cel·lular"
+            },
+            "cellular_network": {
+                "name": "Xarxa cel·lular"
+            },
+            "current": {
+                "name": "Corrent"
+            },
+            "voltage": {
+                "name": "Tensió"
+            },
+            "energy_consumed": {
+                "name": "Energia elèctrica consumida"
+            },
+            "power_derived": {
+                "name": "Potència"
+            },
+            "power": {
+                "name": "Potència"
+            },
+            "channels_online": {
+                "name": "Canals en línia"
+            },
+            "channels_total": {
+                "name": "Canals totals"
+            }
+        },
+        "switch": {
+            "channel_1": {
+                "name": "Canal 1"
+            },
+            "channel_2": {
+                "name": "Canal 2"
+            },
+            "bypass": {
+                "name": "Bypass"
+            },
+            "night_mode_arm": {
+                "name": "Armar en mode nit"
+            },
+            "chime": {
+                "name": "Timbre"
+            }
+        },
+        "number": {
+            "siren_alarm_duration": {
+                "name": "Durada de l'alarma"
+            }
+        },
+        "select": {
+            "siren_volume_level": {
+                "name": "Volum de la sirena",
+                "state": {
+                    "very_loud": "Molt alt",
+                    "loud": "Alt",
+                    "quiet": "Baix",
+                    "disabled": "Desactivat"
+                }
+            }
+        },
+        "update": {
+            "hub_firmware": {
+                "name": "Microprogramari"
+            },
+            "device_firmware": {
+                "name": "Microprogramari"
+            }
+        },
+        "camera": {
+            "cloud_video": {
+                "name": "Visualització en directe"
+            }
+        },
+        "alarm_control_panel": {
+            "group": {
+                "name": "Grup {group_id}"
+            }
+        }
+    },
+    "exceptions": {
+        "manual_refresh_hts_unavailable": {
+            "message": "La connexió de xarxa del hub (HTS) no està activa ara mateix; l'actualització manual no es pot executar."
+        },
+        "alarm_backfill_rate_limited": {
+            "message": "Alarm photos were recently refreshed for this space; wait {seconds} more seconds and try again."
+        },
+        "manual_refresh_rate_limited": {
+            "message": "L'actualització del hub s'acaba de demanar; espera {seconds} segons més i torna-ho a provar."
+        },
+        "photo_capture_failed": {
+            "message": "La captura de la foto no s'ha completat. El hub pot haver rebutjat la sol·licitud o no ha retornat cap imatge; consulta els registres per a més detalls."
+        },
+        "photo_no_push": {
+            "message": "La foto sota demanda requereix notificacions push FCM, que no estan configurades per a aquesta integració."
+        },
+        "photo_capture_timeout": {
+            "message": "S'ha esgotat el temps d'espera perquè la càmera lliuri la foto capturada. Torna-ho a provar i comprova que la càmera estigui en línia."
+        },
+        "command_permission_denied": {
+            "message": "El teu compte d'Ajax no té permís per fer aquesta acció."
+        },
+        "command_hub_offline": {
+            "message": "El hub està desconnectat, així que l'ordre no s'ha pogut enviar."
+        },
+        "command_hub_wrong_state": {
+            "message": "El hub no està en un estat que permeti aquesta acció ara mateix."
+        },
+        "night_mode_arm_while_armed": {
+            "message": "No es pot canviar «Armar en mode nit» mentre el detector està armat. Desarma'l primer i torna-ho a provar."
+        },
+        "command_alarm_reset_needed": {
+            "message": "Cal restablir una alarma activa abans de poder fer aquesta acció."
+        },
+        "command_not_performed": {
+            "message": "El hub no ha executat l'ordre."
+        },
+        "command_unknown": {
+            "message": "El hub no ha reconegut l'ordre."
+        },
+        "command_failed": {
+            "message": "No s'ha pogut completar l'ordre. El hub ha retornat: {reason}."
+        },
+        "session_entry_not_found": {
+            "message": "No s'ha trobat cap compte d'Aegis per a l'entry_id indicat."
+        },
+        "session_entry_required": {
+            "message": "entry_id és obligatori quan hi ha més d'un compte d'Aegis configurat."
+        },
+        "confirm_required": {
+            "message": "{service} necessita `confirm: true` per executar-se."
+        },
+        "panic_confirm_required": {
+            "message": "press_panic_button necessita `confirm: true`: envia una alarma de pànic a la central receptora, que en la majoria de contractes avisa la policia immediatament."
+        },
+        "session_id_invalid": {
+            "message": "session_id ha de ser un nombre enter positiu."
+        },
+        "no_panel_for_target": {
+            "message": "{service}: no s'ha trobat cap panell d'alarma d'Aegis per al destí indicat."
+        },
+        "photo_mode_option_required": {
+            "message": "set_photo_on_demand_mode necessita almenys `user` o `scenario`."
+        },
+        "sessions_list_failed": {
+            "message": "No s'han pogut llistar les sessions del compte d'Ajax: {error}"
+        },
+        "session_terminate_failed": {
+            "message": "No s'ha pogut tancar la sessió del compte d'Ajax: {error}"
+        },
+        "sessions_terminate_failed": {
+            "message": "No s'han pogut tancar les altres sessions del compte d'Ajax: {error}"
+        },
+        "security_hub_detected_malfunctions": {
+            "message": "No es pot armar: sensors oberts o avaries detectades{details}"
+        },
+        "security_hub_not_connected": {
+            "message": "No es pot armar: hub desconnectat"
+        },
+        "security_hub_busy": {
+            "message": "Hub ocupat, torna-ho a provar en uns segons"
+        },
+        "security_another_transition_is_in_progress": {
+            "message": "Una altra operació d'armat/desarmat en curs"
+        },
+        "security_disarm_rejected": {
+            "message": "No es pot desarmar: comanda rebutjada pel hub"
+        },
+        "invalid_alarm_code": {
+            "message": "Codi d'alarma incorrecte"
+        },
+        "not_loaded": {
+            "message": "No hi ha cap compte d'Aegis for Ajax carregat. Revisa la integració a la pàgina Dispositius i serveis."
+        }
+    },
+    "device_automation": {
+        "trigger_type": {
+            "alarm": "Alarma",
+            "arm": "Armat",
+            "arm_night": "Armat nocturn",
+            "battery_low": "Bateria baixa",
+            "co_alarm": "Alarma CO",
+            "connection_lost": "Connexio perduda",
+            "disarm": "Desarmat",
+            "disarm_night": "Desarmat nocturn",
+            "door_open": "Porta oberta",
+            "doorbell_pressed": "Timbre premut",
+            "fire": "Foc",
+            "flood": "Inundacio",
+            "glass_break": "Trencament de vidre",
+            "malfunction": "Avaria",
+            "motion": "Moviment",
+            "panic": "Panic",
+            "tamper": "Manipulacio"
+        }
+    },
+    "selector": {
+        "bypass_switches": {
+            "options": {
+                "auto": "Auto (només si el teu compte pot desactivar dispositius)",
+                "always": "Sempre",
+                "never": "Mai"
+            }
+        },
+        "persistent_notification_events": {
+            "options": {
+                "alarm": "Alarma",
+                "arm": "Armat",
+                "arm_night": "Armat nocturn",
+                "battery_low": "Bateria baixa",
+                "co_alarm": "Alarma CO",
+                "connection_lost": "Connexio perduda",
+                "disarm": "Desarmat",
+                "disarm_night": "Desarmat nocturn",
+                "door_open": "Porta oberta",
+                "doorbell_pressed": "Timbre premut",
+                "fire": "Foc",
+                "flood": "Inundacio",
+                "glass_break": "Trencament de vidre",
+                "malfunction": "Avaria",
+                "motion": "Moviment",
+                "panic": "Panic",
+                "tamper": "Manipulacio"
+            }
+        }
+    },
+    "device": {
+        "keyfobs": {
+            "name": "Comandaments"
+        }
+    }
+}

@@ -1,0 +1,85 @@
+blueprint:
+  name: Ajax Door Opened While Armed — Preventive Alert
+  description: >-
+    When a door sensor opens while the alarm is armed (armed_away, armed_home,
+    or arming), send an urgent notification warning to disarm before the alarm
+    triggers. Optionally run a script (e.g., local siren warning).
+  domain: automation
+  input:
+    alarm_entity:
+      name: Alarm Control Panel
+      description: The Ajax alarm control panel entity.
+      selector:
+        entity:
+          filter:
+            domain: alarm_control_panel
+    door_sensor:
+      name: Door Sensor
+      description: The binary sensor for the door to monitor.
+      selector:
+        entity:
+          filter:
+            domain: binary_sensor
+    notify_service:
+      name: Notification Service
+      description: The notification service to call (e.g. notify.mobile_app_phone).
+      default: "notify.mobile_app_ibasi"
+      selector:
+        text: {}
+    warning_script:
+      name: Warning Script
+      description: >-
+        Optional script to run when the door opens while armed
+        (e.g., script.sirena_armed_alarm).
+      default: {}
+      selector:
+        entity:
+          filter:
+            domain: script
+    message:
+      name: Notification Message
+      description: The message sent in the push notification.
+      default: "Door opened while alarm is armed! Remember to disarm to avoid triggering."
+      selector:
+        text: {}
+
+triggers:
+  - trigger: state
+    entity_id: !input door_sensor
+    not_from:
+      - "unavailable"
+      - "unknown"
+    to: "on"
+
+conditions:
+  - condition: state
+    entity_id: !input alarm_entity
+    state:
+      - armed_away
+      - armed_home
+      - arming
+
+actions:
+  - action: !input notify_service
+    data:
+      title: "Ajax Security Warning"
+      message: !input message
+      data:
+        push:
+          sound:
+            name: default
+            critical: 1
+            volume: 1.0
+        url: /lovelace/seguridad
+        tag: ajax-door-while-armed
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ warning_script is defined and warning_script not in ['', none, {}] }}"
+        sequence:
+          - action: script.turn_on
+            target:
+              entity_id: !input warning_script
+
+variables:
+  warning_script: !input warning_script

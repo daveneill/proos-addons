@@ -1,0 +1,59 @@
+blueprint:
+  name: Ajax Tamper Alert
+  description: >-
+    Send a critical notification when a tamper event is detected on any
+    Ajax device, including the device name and type.
+  domain: automation
+  input:
+    event_entity:
+      name: Security Event Entity
+      description: The Ajax security event entity to monitor.
+      selector:
+        entity:
+          filter:
+            domain: event
+    notify_service:
+      name: Notification Service
+      description: The notification service to call (e.g. notify.mobile_app_phone).
+      selector:
+        text: {}
+
+triggers:
+  - trigger: state
+    entity_id: !input event_entity
+    # Do not fire when the entity is restored on integration reload or HA
+    # restart (the transition from unavailable/unknown re-delivers the last
+    # event state with a fresh last_changed, so time-based conditions can't
+    # catch it). Same guard as the state-trigger blueprints (#293).
+    not_from:
+      - unavailable
+      - unknown
+
+conditions:
+  - condition: template
+    value_template: >-
+      {{ trigger.to_state.attributes.event_type is defined
+         and trigger.to_state.attributes.event_type == 'tamper' }}
+  - condition: template
+    value_template: >-
+      {{ (now() - trigger.to_state.last_changed).total_seconds() < 10 }}
+
+actions:
+  - action: !input notify_service
+    data:
+      title: "TAMPER ALERT"
+      message: >-
+        Device tampered: {{ trigger.to_state.attributes.get('device_name', 'Unknown device') }}
+        {% set dtype = trigger.to_state.attributes.get('device_type', '') %}
+        {% if dtype %}({{ dtype | replace('_', ' ') | title }}){% endif %}
+        {% set room = trigger.to_state.attributes.get('room_name', '') %}
+        {% if room %} in {{ room }}{% endif %}
+      data:
+        push:
+          sound:
+            name: default
+            critical: 1
+            volume: 1.0
+        tag: "ajax-tamper-{{ trigger.to_state.attributes.get('device_name', 'unknown') | slugify }}"
+        priority: high
+        ttl: 0

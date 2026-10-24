@@ -1,0 +1,773 @@
+{
+    "config": {
+        "step": {
+            "user": {
+                "title": "Aegis for Ajax Anmeldung",
+                "description": "Geben Sie die Anmeldedaten Ihres Aegis for Ajax-Kontos ein.",
+                "data": {
+                    "email": "E-Mail",
+                    "password": "Passwort",
+                    "app_label": "App-Bezeichnung (Co-Branded App-Name)"
+                },
+                "data_description": {
+                    "email": "Die E-Mail, mit der du dich in der Ajax-App anmeldest.",
+                    "password": "Das Passwort deines Ajax-Kontos. Home Assistant speichert nur einen Hash davon.",
+                    "app_label": "Die App, zu der dein Konto gehört: Ajax oder eine Co-Branded-App. Im README steht, wie du das herausfindest."
+                }
+            },
+            "2fa": {
+                "title": "Zwei-Faktor-Authentifizierung",
+                "description": "Geben Sie den 6-stelligen Code aus Ihrer Authentifizierungs-App ein.",
+                "data": {
+                    "totp_code": "TOTP-Code"
+                },
+                "data_description": {
+                    "totp_code": "Der 6-stellige Code aus deiner Authenticator-App."
+                }
+            },
+            "select_spaces": {
+                "title": "Bereiche auswählen",
+                "description": "Wählen Sie aus, welche Bereiche (Hubs) hinzugefügt werden sollen.",
+                "data": {
+                    "spaces": "Bereiche"
+                },
+                "data_description": {
+                    "spaces": "Die Bereiche (Hubs), die zu Home Assistant hinzugefügt werden. Wähle mindestens einen."
+                }
+            },
+            "reconfigure": {
+                "title": "Aegis for Ajax neu konfigurieren",
+                "description": "Aktualisieren Sie Ihre Zugangsdaten.",
+                "data": {
+                    "email": "E-Mail",
+                    "password": "Passwort",
+                    "app_label": "App-Label"
+                },
+                "data_description": {
+                    "email": "Die E-Mail, mit der du dich in der Ajax-App anmeldest.",
+                    "password": "Das Passwort deines Ajax-Kontos. Home Assistant speichert nur einen Hash davon.",
+                    "app_label": "Die App, zu der dein Konto gehört: Ajax oder eine Co-Branded-App. Im README steht, wie du das herausfindest."
+                }
+            },
+            "reconfigure_2fa": {
+                "title": "Zwei-Faktor-Authentifizierung",
+                "description": "Geben Sie den 6-stelligen Code aus Ihrer Authentifizierungs-App ein.",
+                "data": {
+                    "totp_code": "TOTP-Code"
+                },
+                "data_description": {
+                    "totp_code": "Der 6-stellige Code aus deiner Authenticator-App."
+                }
+            },
+            "reauth_confirm": {
+                "title": "Aegis for Ajax neu authentifizieren",
+                "description": "Ihre Ajax-Sitzung für {email} ist nicht mehr gültig. Geben Sie das aktuelle Konto-Passwort ein, um den Zugriff wiederherzustellen.",
+                "data": {
+                    "password": "Passwort"
+                },
+                "data_description": {
+                    "password": "Das Passwort deines Ajax-Kontos. Home Assistant speichert nur einen Hash davon."
+                }
+            },
+            "reauth_2fa": {
+                "title": "Zwei-Faktor-Authentifizierung",
+                "description": "Geben Sie den 6-stelligen Code aus Ihrer Authenticator-App ein.",
+                "data": {
+                    "totp_code": "TOTP-Code"
+                },
+                "data_description": {
+                    "totp_code": "Der 6-stellige Code aus deiner Authenticator-App."
+                }
+            }
+        },
+        "error": {
+            "invalid_auth": "Ungültige E-Mail-Adresse oder falsches Passwort.",
+            "invalid_totp": "Ungültiger TOTP-Code. Bitte versuchen Sie es erneut.",
+            "cannot_connect": "Verbindung zu Ajax-Servern nicht möglich.",
+            "client_rejected": "Ajax lehnt diese Version von Aegis for Ajax ab. Aktualisiere die Integration in HACS, starte Home Assistant neu und versuche es erneut.",
+            "unknown": "Ein unerwarteter Fehler ist aufgetreten."
+        },
+        "abort": {
+            "already_configured": "Dieses Konto ist bereits konfiguriert.",
+            "account_locked": "Konto ist gesperrt. Bitte versuchen Sie es später erneut.",
+            "reauth_successful": "Erneute Authentifizierung erfolgreich.",
+            "already_in_progress": "Konfiguration läuft bereits. Bitte schließen Sie den vorhandenen Vorgang ab.",
+            "reconfigure_successful": "Zugangsdaten erfolgreich aktualisiert.",
+            "cannot_connect": "Verbindung zu Ajax-Servern nicht möglich."
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "Aegis for Ajax Einstellungen",
+                "data": {
+                    "poll_interval": "Ersatz-Abfrageintervall (Sekunden, 60-300)",
+                    "force_arm": "Scharfschalten erzwingen (offene Sensoren und Störungen ignorieren)",
+                    "expose_arm_home": "Schaltfläche „Zu Hause scharfschalten“ anzeigen",
+                    "delay_panel_states": "Ausgangs-/Eingangsverzögerung als Panel-Zustände anzeigen",
+                    "cloud_video": "Cloud-Liveansicht für Videokameras (experimentell)",
+                    "use_pin_code": "PIN-Code für Scharf-/Unscharfschalten erforderlich",
+                    "pin_code": "PIN-Code",
+                    "fcm_project_id": "FCM-Projekt-ID (für Push-Benachrichtigungen)",
+                    "fcm_app_id": "FCM-App-ID",
+                    "fcm_api_key": "FCM-API-Schlüssel",
+                    "fcm_sender_id": "FCM-Absender-ID",
+                    "clear_fcm_credentials": "FCM-Anmeldedaten löschen (alle vier Felder leeren)",
+                    "disable_push_warning": "Ich nutze keine Push-Benachrichtigungen",
+                    "photo_retention_days": "Foto-Aufbewahrung (Tage)",
+                    "photo_max_per_device": "Max. Fotos pro Gerät (0 = unbegrenzt)",
+                    "auto_create_labels": "Aegis-Labels automatisch erstellen und Entitäten zuweisen",
+                    "bypass_switches": "Geräte-Überbrückungsschalter erstellen",
+                    "persistent_notifications": "Sicherheitsereignisse als dauerhafte Benachrichtigungen anzeigen",
+                    "persistent_notification_events": "Ereignisse, die eine dauerhafte Benachrichtigung erzeugen"
+                },
+                "data_description": {
+                    "bypass_switches": "Überbrückungsschalter ermöglichen das Deaktivieren eines Geräts vor dem Scharfschalten. „Auto“ erstellt sie nur, wenn dein Ajax-Konto die Berechtigung zum Deaktivieren von Geräten hat.",
+                    "expose_arm_home": "Fügt dem Alarmfeld einen Modus „Zu Hause scharfschalten“ hinzu. Er entspricht dem Nachtmodus und wird hauptsächlich für Amazon Alexa oder Nabu Casa Cloud benötigt. Deaktivieren, um die doppelte Schaltfläche auszublenden, wenn Sie diese nicht verwenden.",
+                    "delay_panel_states": "Wenn aktiv, zeigt das Alarmpanel \"arming\", während der Hub die \"Verzögerung beim Verlassen\" eines Melders ausführt, und \"pending\", während eine \"Verzögerung beim Betreten\" läuft — beides anhand der Signale des Hubs selbst, nicht eines eigenen Timers. Melder ohne Verzögerung (Sofortalarm) sind während \"arming\" bereits aktiv. Automationen, die auf \"armed_away\" warten, lösen aus, sobald die Ausgangsverzögerung abgelaufen ist. Der Rohzustand des Hubs bleibt im Attribut \"hub_state\" erhalten.",
+                    "cloud_video": "Fügt für jede Ajax-Videokamera eine Liveansicht-Kamera hinzu, die wie in der App unterwegs über die Ajax-Cloud gestreamt wird. Sie funktioniert daher auch, wenn Home Assistant nicht im Netzwerk der Kamera ist. Experimentell: funktioniert eventuell noch nicht mit jeder Kamera. Jede Ansicht öffnet eine Videositzung; solange niemand zusieht, läuft nichts.",
+                    "disable_push_warning": "Aktivieren, wenn Sie absichtlich ohne Push arbeiten. Blendet die wiederkehrende Erinnerung „FCM nicht konfiguriert“ und die Reparaturkarte aus. Echtzeit-Ereignisse (Türklingel, Scharf-/Unscharfschalten, Alarm, Bewegung) erreichen Home Assistant erst, wenn FCM konfiguriert ist.",
+                    "persistent_notifications": "Wenn aktiviert, erscheinen die ausgewählten Ereignisse als dauerhafte Home-Assistant-Benachrichtigungen, die sichtbar bleiben, bis sie verworfen werden oder Home Assistant neu startet. Diese Ereignisse werden per Push (FCM) zugestellt — Push muss also konfiguriert sein, damit sie ankommen.",
+                    "persistent_notification_events": "Welche Ereignisse eine dauerhafte Benachrichtigung auslösen. Standard sind echte Vorfälle (Alarm, Panik, Sabotage, Feuer, CO, Überflutung, Glasbruch). Füge Scharf-/Unscharfschalten, Bewegung oder Türklingel hinzu, wenn du diese auch möchtest."
+                }
+            }
+        }
+    },
+    "system_health": {
+        "info": {
+            "can_reach_server": "Erreichbarkeit der Ajax-Cloud (gRPC-Host)",
+            "configured_accounts": "Konfigurierte Konten",
+            "spaces": "Bereiche (Hubs)",
+            "hts_connected": "HTS-Streams verbunden",
+            "fcm_connected": "FCM-Push-Clients verbunden",
+            "pushes_received": "Empfangene Pushes",
+            "last_push": "Letzter Push empfangen",
+            "last_poll": "Letzte erfolgreiche Abfrage"
+        }
+    },
+    "services": {
+        "force_arm": {
+            "name": "Erzwungenes Scharfschalten",
+            "description": "System scharfschalten und offene Sensoren sowie aktive Alarme ignorieren.",
+            "fields": {
+                "entity_id": {
+                    "name": "Entität",
+                    "description": "Alarmzentrale zum Scharfschalten. Ohne Angabe werden alle Zentralen scharf geschaltet."
+                }
+            }
+        },
+        "force_arm_night": {
+            "name": "Erzwungener Nachtmodus",
+            "description": "Nachtmodus aktivieren und offene Sensoren sowie aktive Alarme ignorieren.",
+            "fields": {
+                "entity_id": {
+                    "name": "Entität",
+                    "description": "Alarmzentrale zum Scharfschalten. Ohne Angabe werden alle Zentralen scharf geschaltet."
+                }
+            }
+        },
+        "disarm_night_mode": {
+            "name": "Nachtmodus deaktivieren",
+            "description": "Beendet den Nachtmodus, während unabhängig (abwesend) scharf geschaltete Gruppen scharf bleiben. Anders als ein vollständiges Unscharfschalten werden nur die Nachtmodus-Gruppen deaktiviert – die native Ajax-Funktion „Nachtmodus deaktivieren\".",
+            "fields": {
+                "entity_id": {
+                    "name": "Entität",
+                    "description": "Alarmpanel-Entität des Bereichs, der aus dem Nachtmodus genommen werden soll. Wenn nicht angegeben, gilt für alle Panels."
+                }
+            }
+        },
+        "press_panic_button": {
+            "name": "Notfalltaste drücken (SOS)",
+            "description": "Löst die Ajax-SOS-/Panik-Taste in einem Bereich aus. Ruft denselben Endpunkt auf wie die rote SOS-Taste in der offiziellen App und sendet einen Panik-Alarm an die Notrufzentrale (NSL), was in den meisten Verträgen einen sofortigen Polizeieinsatz auslöst und Verifikationsfenster umgeht. Nur für echte Notfälle verwenden. Das Feld confirm muss true sein, sonst wird der Aufruf abgelehnt.",
+            "fields": {
+                "confirm": {
+                    "name": "Panik bestätigen",
+                    "description": "Muss auf true gesetzt sein. Dient als Sicherheitssperre, damit Automatisierungen diesen Dienst nicht versehentlich auslösen."
+                },
+                "entity_id": {
+                    "name": "Entität",
+                    "description": "Alarm-Panel-Entität des Bereichs, dessen Notfalltaste gedrückt werden soll. Wird sie ausgelassen, wird der Panik-Alarm an jeden konfigurierten Bereich gesendet."
+                },
+                "latitude": {
+                    "name": "Breitengrad",
+                    "description": "Optionaler Breitengrad des Anrufers, der an Ajax weitergegeben wird. Mit Längengrad verwenden."
+                },
+                "longitude": {
+                    "name": "Längengrad",
+                    "description": "Optionaler Längengrad des Anrufers, der an Ajax weitergegeben wird. Mit Breitengrad verwenden."
+                }
+            }
+        },
+        "set_photo_on_demand_mode": {
+            "name": "Foto-auf-Anfrage-Modus festlegen",
+            "description": "Aktiviert oder deaktiviert den Modus „Foto auf Anfrage“ auf einem Hub. Zwei unabhängige Kanäle lassen sich getrennt umschalten: Benutzeranfragen (ob Hub-Benutzer Fotos über die Ajax-App anfordern können) und Szenarien (ob Szenarien / Automatisierungen Aufnahmen auslösen können). Lassen Sie ein Feld leer, um den aktuellen Wert beizubehalten. Mindestens eines der beiden ist erforderlich.",
+            "fields": {
+                "user": {
+                    "name": "Benutzeranfragen",
+                    "description": "Wenn gesetzt, aktiviert oder deaktiviert dies Fotoanfragen, die von Hub-Benutzern ausgelöst werden. Leer lassen, um den aktuellen Wert beizubehalten."
+                },
+                "scenario": {
+                    "name": "Szenarien",
+                    "description": "Wenn gesetzt, aktiviert oder deaktiviert dies Foto-auf-Anfrage-Aufnahmen, die von Ajax-Szenarien / Automatisierungen ausgelöst werden. Leer lassen, um den aktuellen Wert beizubehalten."
+                },
+                "entity_id": {
+                    "name": "Entität",
+                    "description": "Alarmzentrale des Bereichs, dessen Hub-Modus geändert werden soll. Ohne Angabe gilt dies für alle konfigurierten Bereiche."
+                }
+            }
+        },
+        "refresh_alarm_images": {
+            "name": "Refresh alarm camera images",
+            "description": "Import recent alarm photos into local albums without taking a new photo. New alarm pushes import automatically. Manual backfill is limited to once per five minutes per space, with one history query and at most ten media streams; completed local albums are skipped.",
+            "fields": {
+                "entity_id": {
+                    "name": "Entity",
+                    "description": "Alarm panel entity for the space to import. If omitted, imports from every configured space."
+                }
+            }
+        },
+        "list_client_sessions": {
+            "name": "Kontositzungen auflisten",
+            "description": "Gibt die aktiven Sitzungen des Ajax-Kontos zur manuellen Prüfung auf Abruf zurück. Dieser Dienst ruft einen internen Ajax-Endpunkt auf, der häufige Anfragen begrenzen kann; nicht in Automatisierungen regelmäßig abfragen. Die aktuell aktive Aegis-Sitzung wird als is_current markiert, wenn sie erkannt werden kann.",
+            "fields": {
+                "entry_id": {
+                    "name": "ID des Konfigurationseintrags",
+                    "description": "Erforderlich, wenn mehr als ein Aegis-Konto konfiguriert ist."
+                }
+            }
+        },
+        "terminate_client_session": {
+            "name": "Kontositzung beenden",
+            "description": "Meldet das ausgewählte andere Gerät sofort vom Ajax-Konto ab. Die Sitzungs-ID erhalten Sie über list_client_sessions. Die Integration beendet niemals ihre eigene Sitzung.",
+            "fields": {
+                "session_id": {
+                    "name": "Sitzungs-ID",
+                    "description": "Von list_client_sessions zurückgegebene Sitzungs-ID."
+                },
+                "confirm": {
+                    "name": "Beenden bestätigen",
+                    "description": "Muss true sein, um die ausgewählte Sitzung sofort zu beenden."
+                },
+                "entry_id": {
+                    "name": "ID des Konfigurationseintrags",
+                    "description": "Erforderlich, wenn mehr als ein Aegis-Konto konfiguriert ist."
+                }
+            }
+        },
+        "terminate_other_client_sessions": {
+            "name": "Alle anderen Kontositzungen beenden",
+            "description": "Meldet alle anderen Geräte sofort vom Ajax-Konto ab. Dadurch werden andere aktive Ajax-Mobil- und Desktop-Apps abgemeldet. Die Integration beendet niemals ihre eigene Sitzung.",
+            "fields": {
+                "confirm": {
+                    "name": "Beenden bestätigen",
+                    "description": "Muss true sein, um alle anderen Sitzungen sofort zu beenden."
+                },
+                "entry_id": {
+                    "name": "ID des Konfigurationseintrags",
+                    "description": "Erforderlich, wenn mehr als ein Aegis-Konto konfiguriert ist."
+                }
+            }
+        }
+    },
+    "issues": {
+        "hub_offline_24h": {
+            "title": "Hub {hub_name} seit ueber {hours_offline} h offline",
+            "description": "Aegis empfaengt seit {hours_offline} Stunden durchgehend den Status OFFLINE fuer den Hub {hub_name}. Die Entitaeten bleiben veraltet, bis der Hub wieder verbunden ist. Haeufige Ursachen: Hub vom Strom getrennt, Netzwerkausfall, oder die ausgehende Verbindung des Hubs zur Ajax-Cloud wird von einer Firewall blockiert. Die Reparatur wird automatisch geschlossen, sobald Aegis den Hub wieder online sieht."
+        },
+        "hts_chronic_failure": {
+            "title": "Hub-Netzwerksensoren beeintraechtigt",
+            "description": "Die HTS-Verbindung (die die Sensoren fuer Ethernet / Wi-Fi / GSM / Stromversorgung speist) fuer den Bereich {space_id} bleibt seit {minutes_failing} Minuten nicht stabil. Die Hub-Netzwerksensoren sind nicht verfuegbar, bis sie sich erholt. Haeufigste Ursache: eine Firewall blockiert den ausgehenden Verkehr zu den Ajax-HTS-Endpunkten, oder anhaltende Netzwerkinstabilitaet zwischen Home Assistant und der Ajax-Cloud. Die Reparatur wird automatisch geschlossen, sobald HTS wieder verbunden ist."
+        },
+        "fcm_push_stuck": {
+            "title": "Push-Benachrichtigungen unterbrochen — dieselbe Nachricht beendet die Verbindung immer wieder",
+            "description": "Die Push-Verbindung wurde {terminations} Mal hintereinander beim Verarbeiten derselben Nachricht beendet. Da diese Nachricht nie bestätigt wird, sendet der Push-Dienst von Ajax sie erneut, und jede neue Verbindung endet genauso — das behebt sich also nicht von selbst. Der Alarmzustand ist nicht betroffen (er kommt vom Abfragen und von der Hub-Verbindung, nie von Push), aber Echtzeit-Ereignisse wie das Klingeln der Türklingel gehen währenddessen verloren. Aegis hat seine Push-Registrierung ersetzt, um die Schleife zu durchbrechen; Push sollte innerhalb einer Minute wieder laufen. Dieser Hinweis verschwindet automatisch, sobald die Verbindung eine Weile stabil geblieben ist. Falls er erneut auftaucht, melde ihn bitte auf GitHub (Issue #373)."
+        },
+        "grpcio_version_mismatch": {
+            "title": "Aegis benoetigt grpcio {required} oder neuer (gefunden {current})",
+            "description": "Aegis benoetigt `grpcio` fuer den gRPC-Kanal, der mit der Ajax-Cloud spricht; Ihre Home-Assistant-Installation liefert `grpcio` {current}. Unterhalb von {required} kann der Login mit kryptischen HTTP/2-Fehlern fehlschlagen. Auf Home Assistant Core oder Container fixiert das Manifest der Integration die Version bei der Installation, aber auf Home Assistant OS wird das system-weite grpcio verwendet und das Manifest hat keinen Einfluss darauf — typischerweise muessen Sie Home Assistant OS auf einen Build aktualisieren, der ein neueres grpcio enthaelt. Die Reparatur wird beim naechsten Reload automatisch geschlossen, sobald die Version {required} ueberschreitet."
+        },
+        "client_rejected": {
+            "title": "Ajax lehnt diese Version von Aegis for Ajax ab",
+            "description": "Die Ajax-Server akzeptieren keine Anfragen mehr von dieser Version der Integration. Sie kann sich daher weder anmelden noch Zustände aktualisieren oder Befehle senden. Dein Konto und deine Zugangsdaten sind in Ordnung. Aktualisiere Aegis for Ajax in HACS auf die neueste Version und starte Home Assistant neu. Diese Reparatur verschwindet von selbst, sobald Ajax die Integration wieder akzeptiert."
+        },
+        "fcm_credentials_invalid": {
+            "title": "Push-Benachrichtigungen deaktiviert - FCM-Anmeldedaten abgelehnt",
+            "fix_flow": {
+                "step": {
+                    "init": {
+                        "title": "Aegis FCM-Anmeldedaten reparieren",
+                        "description": "Die Firebase-Cloud-Messaging-Registrierung ist fuer dieses Konto fehlgeschlagen. Die konfigurierten Werte FCM Project ID / App ID / API Key / Sender ID passen vermutlich nicht zu Ihrer Co-Branding-Ajax-App oder der API-Schluessel wurde widerrufen. Push-basierte Funktionen (sofortiger Arm/Disarm-Status, security_event-Entitaet, Foto-URLs von MotionCam) fallen auf langsameres Polling zurueck, bis dies behoben ist. Geben Sie die vier Werte unten erneut ein. Die Integration wird neu geladen und der Repair schliesst sich automatisch, wenn die neuen Anmeldedaten funktionieren; andernfalls erscheint das Formular erneut. Siehe Abschnitt 'How to obtain FCM credentials' in der README.",
+                        "data": {
+                            "fcm_project_id": "FCM Project ID",
+                            "fcm_app_id": "FCM App ID",
+                            "fcm_api_key": "FCM API Key",
+                            "fcm_sender_id": "FCM Sender ID"
+                        }
+                    }
+                },
+                "abort": {
+                    "entry_missing": "Das Aegis-Konto, fuer das dieser Repair erstellt wurde, ist nicht mehr konfiguriert. Nichts zu reparieren."
+                }
+            }
+        },
+        "fcm_credentials_malformed": {
+            "title": "Push-Benachrichtigungen deaktiviert — FCM-Anmeldedaten fehlerhaft ({problem})",
+            "fix_flow": {
+                "step": {
+                    "init": {
+                        "title": "Aegis FCM-Anmeldedaten reparieren",
+                        "description": "Aegis hat ein strukturelles Problem mit den konfigurierten FCM-Anmeldedaten festgestellt, bevor Google kontaktiert wurde: {problem}. Die vier Werte muessen aus demselben Firebase-Projekt stammen. Extrahiere sie erneut aus deiner co-branded Ajax-App gemaess dem Abschnitt 'Where the values live' der README und gib alle vier unten erneut ein. Die Integration wird neu geladen, die Pruefung erneut ausgefuehrt, und der Repair schliesst sich, sobald die Werte stimmig sind.",
+                        "data": {
+                            "fcm_project_id": "FCM Project ID",
+                            "fcm_app_id": "FCM App ID",
+                            "fcm_api_key": "FCM API Key",
+                            "fcm_sender_id": "FCM Sender ID"
+                        }
+                    }
+                },
+                "abort": {
+                    "entry_missing": "Das Aegis-Konto, fuer das dieser Repair erstellt wurde, ist nicht mehr konfiguriert. Nichts zu reparieren."
+                }
+            }
+        },
+        "fcm_not_configured": {
+            "title": "Push-Benachrichtigungen nicht konfiguriert — Echtzeit-Ereignisse deaktiviert",
+            "fix_flow": {
+                "step": {
+                    "init": {
+                        "title": "Aegis FCM-Zugangsdaten konfigurieren",
+                        "description": "Fur dieses Konto wurden nie FCM-Zugangsdaten festgelegt, daher koennen Echtzeit-Ereignisse von Ajax (Tuerklingel, Aktivieren/Deaktivieren, Alarm, Bewegung) Home Assistant nicht erreichen — die Integration faellt auf Abfragen alle 5 Minuten zurueck. Gib unten die vier FCM-Werte fuer deine Co-Brand-Ajax-App ein und die Integration wird neu geladen. Siehe den Abschnitt 'How to obtain FCM credentials' im README zum Auslesen.",
+                        "data": {
+                            "fcm_project_id": "FCM Project ID",
+                            "fcm_app_id": "FCM App ID",
+                            "fcm_api_key": "FCM API Key",
+                            "fcm_sender_id": "FCM Sender ID"
+                        }
+                    }
+                },
+                "abort": {
+                    "entry_missing": "Das Aegis-Konto, fuer das diese Reparatur ausgeloest wurde, ist nicht mehr konfiguriert. Nichts zu reparieren."
+                }
+            }
+        },
+        "fcm_never_delivered": {
+            "title": "Push-Benachrichtigungen kommen nicht an",
+            "description": "Aegis hat {events} Ereignisse Ihres Hubs gesehen, während der Push-Client lief, und keines davon kam über Push an. Ihr Alarmzustand ist nicht betroffen — er kommt aus der Hub-Verbindung und aus der Abfrage, niemals aus Push. Ereignisse in Echtzeit wie ein Türklingeln oder ein Einbruchalarm erreichen Home Assistant jedoch ausschließlich über Push und gehen daher verloren.\n\nDrei Ursachen führen dazu und sind von hier aus nicht zu unterscheiden: die vier FCM-Werte können zu einem Firebase-Projekt gehören, über das der Push-Anbieter Ihrer App nicht sendet, eine andere Registrierung kann das Push-Ziel Ihres Ajax-Kontos belegen, oder die Push-Verbindung wurde nie vollständig aufgebaut.\n\nWas hilft: Geben Sie die vier Werte Ihrer App erneut ein, unter Einstellungen > Reparaturen oder in den Optionen der Integration. Wird dasselbe Ajax-Konto von einer weiteren Home-Assistant-Instanz verwendet, versuchen Sie ein separates Konto für diese Integration. Dieser Hinweis verschwindet von selbst, sobald ein Push ankommt."
+        },
+        "pin_code_update": {
+            "title": "Alarm-PIN erneut festlegen",
+            "description": "Die Alarm-PIN dieses Kontos ist in einem älteren Format gespeichert. Öffne die Optionen der Integration und gib die PIN erneut ein, um sie zu aktualisieren. Bis dahin funktioniert sie weiter."
+        }
+    },
+    "entity": {
+        "button": {
+            "capture_photo": {
+                "name": "Foto aufnehmen"
+            },
+            "refresh_hub": {
+                "name": "Hub aktualisieren"
+            },
+            "restore_after_alarm": {
+                "name": "Nach Alarm wiederherstellen"
+            },
+            "siren_sound_test": {
+                "name": "Ton testen"
+            }
+        },
+        "event": {
+            "security_event": {
+                "name": "Sicherheitsereignis",
+                "state_attributes": {
+                    "event_type": {
+                        "state": {
+                            "alarm": "Alarm",
+                            "arm": "Scharfgeschaltet",
+                            "arm_night": "Nachtmodus aktiviert",
+                            "battery_low": "Batterie schwach",
+                            "co_alarm": "CO-Alarm",
+                            "connection_lost": "Verbindung verloren",
+                            "disarm": "Unscharfgeschaltet",
+                            "disarm_night": "Nachtmodus deaktiviert",
+                            "door_open": "Tür geöffnet",
+                            "doorbell_pressed": "Klingel gedrückt",
+                            "fire": "Feuer",
+                            "flood": "Überflutung",
+                            "glass_break": "Glasbruch",
+                            "malfunction": "Fehlfunktion",
+                            "motion": "Bewegung",
+                            "panic": "Panik",
+                            "tamper": "Sabotage"
+                        }
+                    }
+                }
+            },
+            "doorbell": {
+                "name": "Türklingel",
+                "state_attributes": {
+                    "event_type": {
+                        "state": {
+                            "ring": "Klingel gedrückt"
+                        }
+                    }
+                }
+            },
+            "button_press": {
+                "name": "Taster",
+                "state_attributes": {
+                    "event_type": {
+                        "state": {
+                            "pressed": "Gedrückt"
+                        }
+                    }
+                }
+            }
+        },
+        "binary_sensor": {
+            "monitoring": {
+                "name": "Notruf-Leitstelle verbunden"
+            },
+            "gsm": {
+                "name": "Mobilfunk verbunden"
+            },
+            "lid": {
+                "name": "Gehäusedeckel geöffnet"
+            },
+            "ext_contact": {
+                "name": "Externer Kontakt unterbrochen"
+            },
+            "ext_alert": {
+                "name": "Externer Kontaktalarm"
+            },
+            "drilling": {
+                "name": "Gehäusebohrung erkannt"
+            },
+            "anti_mask": {
+                "name": "Abdeckungsschutz"
+            },
+            "malfunction": {
+                "name": "Fehlfunktion"
+            },
+            "interference": {
+                "name": "Störung"
+            },
+            "relay_stuck": {
+                "name": "Relais blockiert"
+            },
+            "always_active": {
+                "name": "Immer aktiv"
+            },
+            "glass_break": {
+                "name": "Glasbruch"
+            },
+            "vibration": {
+                "name": "Vibration"
+            },
+            "tilt": {
+                "name": "Neigung"
+            },
+            "steam": {
+                "name": "Dampf"
+            },
+            "wire_input_alert": {
+                "name": "Drahteingang ausgelöst"
+            },
+            "tamper": {
+                "name": "Gehäusemanipulation"
+            },
+            "connectivity": {
+                "name": "Konnektivität"
+            },
+            "problem": {
+                "name": "Geräteproblem"
+            },
+            "ethernet": {
+                "name": "Ethernet"
+            },
+            "wifi": {
+                "name": "WLAN"
+            },
+            "mains_power": {
+                "name": "Netzstrom"
+            },
+            "external_contact_open": {
+                "name": "Kontakt"
+            },
+            "delay_when_leaving": {
+                "name": "Verzögerung beim Verlassen"
+            },
+            "siren_on_panic_button": {
+                "name": "Sirene bei Panikknopf"
+            },
+            "siren_on_any_tamper": {
+                "name": "Sirene bei Manipulation"
+            }
+        },
+        "sensor": {
+            "monitoring_company": {
+                "name": "Leitstellenanbieter"
+            },
+            "signal_strength": {
+                "name": "Signalstärke"
+            },
+            "mobile_network_type": {
+                "name": "Mobilfunknetztyp"
+            },
+            "wifi_signal_level": {
+                "name": "WLAN-Signalstärke"
+            },
+            "sim_status": {
+                "name": "SIM-Status"
+            },
+            "sim_imei": {
+                "name": "IMEI"
+            },
+            "connection_type": {
+                "name": "Verbindungstyp"
+            },
+            "wifi_ssid": {
+                "name": "WLAN-SSID"
+            },
+            "wifi_ip": {
+                "name": "WLAN-IP-Adresse"
+            },
+            "ethernet_ip": {
+                "name": "Ethernet IP-Adresse"
+            },
+            "ethernet_gateway": {
+                "name": "Ethernet-Gateway"
+            },
+            "ethernet_dns": {
+                "name": "Ethernet-DNS"
+            },
+            "cellular_signal": {
+                "name": "Mobilfunksignal"
+            },
+            "cellular_network": {
+                "name": "Mobilfunknetz"
+            },
+            "current": {
+                "name": "Strom"
+            },
+            "voltage": {
+                "name": "Spannung"
+            },
+            "energy_consumed": {
+                "name": "Verbrauchte elektrische Energie"
+            },
+            "power_derived": {
+                "name": "Leistung"
+            },
+            "power": {
+                "name": "Leistung"
+            },
+            "channels_online": {
+                "name": "Kanäle online"
+            },
+            "channels_total": {
+                "name": "Kanäle gesamt"
+            }
+        },
+        "switch": {
+            "channel_1": {
+                "name": "Kanal 1"
+            },
+            "channel_2": {
+                "name": "Kanal 2"
+            },
+            "bypass": {
+                "name": "Überbrückung"
+            },
+            "night_mode_arm": {
+                "name": "Im Nachtmodus scharf schalten"
+            },
+            "chime": {
+                "name": "Gong"
+            }
+        },
+        "number": {
+            "siren_alarm_duration": {
+                "name": "Alarmdauer"
+            }
+        },
+        "select": {
+            "siren_volume_level": {
+                "name": "Sirenenlautstärke",
+                "state": {
+                    "very_loud": "Sehr laut",
+                    "loud": "Laut",
+                    "quiet": "Leise",
+                    "disabled": "Deaktiviert"
+                }
+            }
+        },
+        "update": {
+            "hub_firmware": {
+                "name": "Firmware"
+            },
+            "device_firmware": {
+                "name": "Firmware"
+            }
+        },
+        "camera": {
+            "cloud_video": {
+                "name": "Liveansicht"
+            }
+        },
+        "alarm_control_panel": {
+            "group": {
+                "name": "Gruppe {group_id}"
+            }
+        }
+    },
+    "exceptions": {
+        "manual_refresh_hts_unavailable": {
+            "message": "Die Hub-Netzwerkverbindung (HTS) ist derzeit nicht aktiv; die manuelle Aktualisierung kann nicht ausgeführt werden."
+        },
+        "alarm_backfill_rate_limited": {
+            "message": "Alarm photos were recently refreshed for this space; wait {seconds} more seconds and try again."
+        },
+        "manual_refresh_rate_limited": {
+            "message": "Eine Hub-Aktualisierung wurde gerade angefordert; warte noch {seconds} Sekunden und versuche es erneut."
+        },
+        "photo_capture_failed": {
+            "message": "Die Fotoaufnahme wurde nicht abgeschlossen. Der Hub hat die Anfrage möglicherweise abgelehnt oder kein Bild zurückgegeben; Details findest du in den Protokollen."
+        },
+        "photo_no_push": {
+            "message": "Foto auf Anfrage erfordert FCM-Push-Benachrichtigungen, die für diese Integration nicht konfiguriert sind."
+        },
+        "photo_capture_timeout": {
+            "message": "Zeitüberschreitung beim Warten darauf, dass die Kamera das aufgenommene Foto liefert. Versuche es erneut und prüfe, ob die Kamera online ist."
+        },
+        "command_permission_denied": {
+            "message": "Dein Ajax-Konto hat keine Berechtigung für diese Aktion."
+        },
+        "command_hub_offline": {
+            "message": "Der Hub ist offline, daher konnte der Befehl nicht gesendet werden."
+        },
+        "command_hub_wrong_state": {
+            "message": "Der Hub ist derzeit nicht in einem Zustand, der diese Aktion zulässt."
+        },
+        "night_mode_arm_while_armed": {
+            "message": "„Im Nachtmodus scharf schalten“ kann nicht geändert werden, solange der Melder scharf ist. Zuerst unscharf schalten und erneut versuchen."
+        },
+        "command_alarm_reset_needed": {
+            "message": "Ein aktiver Alarm muss zurückgesetzt werden, bevor diese Aktion ausgeführt werden kann."
+        },
+        "command_not_performed": {
+            "message": "Der Hub hat den Befehl nicht ausgeführt."
+        },
+        "command_unknown": {
+            "message": "Der Hub hat den Befehl nicht erkannt."
+        },
+        "command_failed": {
+            "message": "Der Befehl konnte nicht abgeschlossen werden. Der Hub meldete: {reason}."
+        },
+        "session_entry_not_found": {
+            "message": "Für die angegebene entry_id wurde kein Aegis-Konto gefunden."
+        },
+        "session_entry_required": {
+            "message": "entry_id ist erforderlich, wenn mehr als ein Aegis-Konto eingerichtet ist."
+        },
+        "confirm_required": {
+            "message": "{service} benötigt `confirm: true`, um ausgeführt zu werden."
+        },
+        "panic_confirm_required": {
+            "message": "press_panic_button benötigt `confirm: true`: Es sendet einen Panikalarm an die Notrufzentrale, die bei den meisten Verträgen sofort die Polizei schickt."
+        },
+        "session_id_invalid": {
+            "message": "session_id muss eine positive ganze Zahl sein."
+        },
+        "no_panel_for_target": {
+            "message": "{service}: Für das angegebene Ziel wurde keine Aegis-Alarmzentrale gefunden."
+        },
+        "photo_mode_option_required": {
+            "message": "set_photo_on_demand_mode benötigt mindestens `user` oder `scenario`."
+        },
+        "sessions_list_failed": {
+            "message": "Die Sitzungen des Ajax-Kontos konnten nicht abgerufen werden: {error}"
+        },
+        "session_terminate_failed": {
+            "message": "Die Sitzung des Ajax-Kontos konnte nicht beendet werden: {error}"
+        },
+        "sessions_terminate_failed": {
+            "message": "Die anderen Sitzungen des Ajax-Kontos konnten nicht beendet werden: {error}"
+        },
+        "security_hub_detected_malfunctions": {
+            "message": "Scharfschalten nicht möglich: offene Sensoren oder Störungen{details}"
+        },
+        "security_hub_not_connected": {
+            "message": "Scharfschalten nicht möglich: Hub offline"
+        },
+        "security_hub_busy": {
+            "message": "Hub beschäftigt, versuchen Sie es in einigen Sekunden erneut"
+        },
+        "security_another_transition_is_in_progress": {
+            "message": "Eine andere Scharf-/Unscharfschaltung läuft"
+        },
+        "security_disarm_rejected": {
+            "message": "Unscharfschalten nicht möglich: Befehl vom Hub abgelehnt"
+        },
+        "invalid_alarm_code": {
+            "message": "Ungültiger Alarmcode"
+        },
+        "not_loaded": {
+            "message": "Kein Aegis for Ajax-Konto ist geladen. Prüfe die Integration auf der Seite Geräte & Dienste."
+        }
+    },
+    "device_automation": {
+        "trigger_type": {
+            "alarm": "Alarm",
+            "arm": "Scharfgeschaltet",
+            "arm_night": "Nachtmodus aktiviert",
+            "battery_low": "Batterie schwach",
+            "co_alarm": "CO-Alarm",
+            "connection_lost": "Verbindung verloren",
+            "disarm": "Unscharfgeschaltet",
+            "disarm_night": "Nachtmodus deaktiviert",
+            "door_open": "Tür geöffnet",
+            "doorbell_pressed": "Klingel gedrückt",
+            "fire": "Feuer",
+            "flood": "Überflutung",
+            "glass_break": "Glasbruch",
+            "malfunction": "Fehlfunktion",
+            "motion": "Bewegung",
+            "panic": "Panik",
+            "tamper": "Sabotage"
+        }
+    },
+    "selector": {
+        "bypass_switches": {
+            "options": {
+                "auto": "Auto (nur wenn dein Konto Geräte deaktivieren darf)",
+                "always": "Immer",
+                "never": "Nie"
+            }
+        },
+        "persistent_notification_events": {
+            "options": {
+                "alarm": "Alarm",
+                "arm": "Scharfgeschaltet",
+                "arm_night": "Nachtmodus aktiviert",
+                "battery_low": "Batterie schwach",
+                "co_alarm": "CO-Alarm",
+                "connection_lost": "Verbindung verloren",
+                "disarm": "Unscharfgeschaltet",
+                "disarm_night": "Nachtmodus deaktiviert",
+                "door_open": "Tür geöffnet",
+                "doorbell_pressed": "Klingel gedrückt",
+                "fire": "Feuer",
+                "flood": "Überflutung",
+                "glass_break": "Glasbruch",
+                "malfunction": "Fehlfunktion",
+                "motion": "Bewegung",
+                "panic": "Panik",
+                "tamper": "Sabotage"
+            }
+        }
+    },
+    "device": {
+        "keyfobs": {
+            "name": "Fernbedienungen"
+        }
+    }
+}

@@ -1,0 +1,119 @@
+blueprint:
+  name: Ajax Hub Connectivity Loss Escalation
+  description: >-
+    Progressive alerts on hub connectivity loss: warning after a
+    configurable delay, critical alert after a longer delay, and a
+    restored notification when connectivity returns.
+  domain: automation
+  input:
+    connectivity_entity:
+      name: Connectivity Entity
+      description: >-
+        The binary sensor that tracks hub connectivity
+        (e.g. binary_sensor.my_hub_connectivity).
+      selector:
+        entity:
+          filter:
+            domain: binary_sensor
+            device_class: connectivity
+    warning_delay:
+      name: Warning Delay (minutes)
+      description: Minutes of connectivity loss before sending a warning.
+      default: 2
+      selector:
+        number:
+          min: 1
+          max: 30
+          unit_of_measurement: minutes
+          mode: slider
+    critical_delay:
+      name: Critical Delay (minutes)
+      description: Minutes of connectivity loss before sending a critical alert.
+      default: 10
+      selector:
+        number:
+          min: 2
+          max: 60
+          unit_of_measurement: minutes
+          mode: slider
+    notify_service:
+      name: Notification Service
+      description: The notification service to call (e.g. notify.mobile_app_phone).
+      selector:
+        text: {}
+
+variables:
+  warn_minutes: !input warning_delay
+  crit_minutes: !input critical_delay
+
+triggers:
+  - trigger: state
+    entity_id: !input connectivity_entity
+    not_from:
+      - "unavailable"
+      - "unknown"
+    to: "off"
+    for:
+      minutes: !input warning_delay
+    id: warning
+  - trigger: state
+    entity_id: !input connectivity_entity
+    not_from:
+      - "unavailable"
+      - "unknown"
+    to: "off"
+    for:
+      minutes: !input critical_delay
+    id: critical
+  - trigger: state
+    entity_id: !input connectivity_entity
+    from: "off"
+    to: "on"
+    id: restored
+
+actions:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id: warning
+        sequence:
+          - action: !input notify_service
+            data:
+              title: "Ajax Hub — Connectivity Warning"
+              message: >-
+                Hub connectivity lost for {{ warn_minutes }} minutes.
+                Check your internet connection and power supply.
+              data:
+                push:
+                  sound: default
+                tag: ajax-connectivity-loss
+                priority: high
+      - conditions:
+          - condition: trigger
+            id: critical
+        sequence:
+          - action: !input notify_service
+            data:
+              title: "Ajax Hub — CONNECTIVITY LOST"
+              message: >-
+                Hub has been offline for {{ crit_minutes }} minutes!
+                The security system may be unreachable. Immediate attention required.
+              data:
+                push:
+                  sound:
+                    name: default
+                    critical: 1
+                    volume: 1.0
+                tag: ajax-connectivity-loss
+                priority: high
+                ttl: 0
+      - conditions:
+          - condition: trigger
+            id: restored
+        sequence:
+          - action: !input notify_service
+            data:
+              title: "Ajax Hub — Connectivity Restored"
+              message: "Hub connectivity has been restored."
+              data:
+                tag: ajax-connectivity-loss

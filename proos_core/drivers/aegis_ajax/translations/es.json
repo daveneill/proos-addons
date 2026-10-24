@@ -1,0 +1,773 @@
+{
+    "config": {
+        "step": {
+            "user": {
+                "title": "Inicio de sesion Aegis for Ajax",
+                "description": "Introduce las credenciales de tu cuenta Aegis for Ajax.",
+                "data": {
+                    "email": "Correo electronico",
+                    "password": "Contrasena",
+                    "app_label": "Etiqueta de app (nombre de la app co-branded)"
+                },
+                "data_description": {
+                    "email": "El correo con el que entras en la app de Ajax.",
+                    "password": "La contraseña de tu cuenta de Ajax. Home Assistant solo guarda un hash.",
+                    "app_label": "La app a la que pertenece tu cuenta: Ajax o una app co-branded. Consulta el README si no estás seguro."
+                }
+            },
+            "2fa": {
+                "title": "Autenticacion de dos factores",
+                "description": "Introduce el codigo de 6 digitos de tu app de autenticacion.",
+                "data": {
+                    "totp_code": "Codigo TOTP"
+                },
+                "data_description": {
+                    "totp_code": "El código de 6 dígitos de tu app de autenticación."
+                }
+            },
+            "select_spaces": {
+                "title": "Seleccionar espacios",
+                "description": "Elige que espacios (hubs) anadir.",
+                "data": {
+                    "spaces": "Espacios"
+                },
+                "data_description": {
+                    "spaces": "Los espacios (hubs) que añadir a Home Assistant. Elige al menos uno."
+                }
+            },
+            "reconfigure": {
+                "title": "Reconfigurar Aegis for Ajax",
+                "description": "Actualiza las credenciales de la cuenta.",
+                "data": {
+                    "email": "Correo electrónico",
+                    "password": "Contraseña",
+                    "app_label": "Etiqueta de la aplicación"
+                },
+                "data_description": {
+                    "email": "El correo con el que entras en la app de Ajax.",
+                    "password": "La contraseña de tu cuenta de Ajax. Home Assistant solo guarda un hash.",
+                    "app_label": "La app a la que pertenece tu cuenta: Ajax o una app co-branded. Consulta el README si no estás seguro."
+                }
+            },
+            "reconfigure_2fa": {
+                "title": "Autenticacion de dos factores",
+                "description": "Introduce el codigo de 6 digitos de tu app de autenticacion.",
+                "data": {
+                    "totp_code": "Codigo TOTP"
+                },
+                "data_description": {
+                    "totp_code": "El código de 6 dígitos de tu app de autenticación."
+                }
+            },
+            "reauth_confirm": {
+                "title": "Reautenticar Aegis for Ajax",
+                "description": "La sesion de Ajax para {email} ya no es valida. Introduce la contrasena actual de la cuenta para restaurar el acceso.",
+                "data": {
+                    "password": "Contrasena"
+                },
+                "data_description": {
+                    "password": "La contraseña de tu cuenta de Ajax. Home Assistant solo guarda un hash."
+                }
+            },
+            "reauth_2fa": {
+                "title": "Autenticacion de dos factores",
+                "description": "Introduce el codigo de 6 digitos de tu app de autenticacion.",
+                "data": {
+                    "totp_code": "Codigo TOTP"
+                },
+                "data_description": {
+                    "totp_code": "El código de 6 dígitos de tu app de autenticación."
+                }
+            }
+        },
+        "error": {
+            "invalid_auth": "Correo o contrasena incorrectos.",
+            "invalid_totp": "Codigo TOTP incorrecto. Intentalo de nuevo.",
+            "cannot_connect": "No se puede conectar a los servidores de Ajax.",
+            "client_rejected": "Ajax está rechazando esta versión de Aegis for Ajax. Actualiza la integración en HACS, reinicia Home Assistant y vuelve a intentarlo.",
+            "unknown": "Ha ocurrido un error inesperado."
+        },
+        "abort": {
+            "already_configured": "Esta cuenta ya esta configurada.",
+            "account_locked": "Cuenta bloqueada. Intentalo mas tarde.",
+            "reauth_successful": "Reautenticacion exitosa.",
+            "already_in_progress": "La configuración ya está en curso. Completa o cancela el flujo existente.",
+            "reconfigure_successful": "Credenciales actualizadas correctamente.",
+            "cannot_connect": "No se puede conectar a los servidores de Ajax."
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "Opciones de Aegis for Ajax",
+                "data": {
+                    "poll_interval": "Intervalo de sondeo de reserva (segundos, 60-300)",
+                    "force_arm": "Armar forzado (ignorar sensores abiertos y averías)",
+                    "expose_arm_home": "Mostrar el botón \"Armar en casa\"",
+                    "delay_panel_states": "Mostrar los retardos de salida / entrada como estados del panel",
+                    "cloud_video": "Vista en directo por la nube para cámaras de vídeo (experimental)",
+                    "use_pin_code": "Requerir codigo PIN para armar/desarmar",
+                    "pin_code": "Codigo PIN",
+                    "fcm_project_id": "ID de proyecto FCM (para notificaciones push)",
+                    "fcm_app_id": "ID de app FCM",
+                    "fcm_api_key": "Clave de API FCM",
+                    "fcm_sender_id": "ID de remitente FCM",
+                    "clear_fcm_credentials": "Eliminar credenciales FCM (borra los cuatro campos)",
+                    "disable_push_warning": "No uso notificaciones push",
+                    "photo_retention_days": "Retención de fotos (días)",
+                    "photo_max_per_device": "Máximo de fotos por dispositivo (0 = ilimitado)",
+                    "auto_create_labels": "Crear y asignar automáticamente etiquetas Aegis a las entidades",
+                    "bypass_switches": "Crear switches de bypass de dispositivos",
+                    "persistent_notifications": "Mostrar eventos de seguridad como notificaciones persistentes",
+                    "persistent_notification_events": "Eventos que crean una notificación persistente"
+                },
+                "data_description": {
+                    "bypass_switches": "Los switches de bypass permiten desactivar un dispositivo antes de armar. 'Auto' solo los crea si tu cuenta de Ajax tiene permiso para desactivar dispositivos.",
+                    "expose_arm_home": "Añade un modo Armar en casa al panel de alarma. Duplica el modo Noche y solo hace falta para Amazon Alexa o Nabu Casa Cloud. Desactívalo para ocultar el botón duplicado si no los usas.",
+                    "delay_panel_states": "Al activarlo, el panel de alarma muestra \"arming\" mientras el hub ejecuta el \"Retardo al salir\" de un detector y \"pending\" mientras corre un \"Retardo al entrar\", ambos a partir de las señales del propio hub, no de un temporizador nuestro. Los detectores sin retardo (alarma instantánea) ya están activos durante \"arming\". Las automatizaciones que esperan \"armed_away\" se dispararán cuando termine el retardo de salida. El estado bruto del hub queda en el atributo \"hub_state\".",
+                    "cloud_video": "Añade una cámara de vista en directo por cada cámara de vídeo Ajax, transmitida a través de la nube de Ajax como hace la app fuera de casa, así que también funciona cuando Home Assistant no está en la red de la cámara. Experimental: puede que aún no funcione con todas las cámaras. Cada visualización abre una sesión de vídeo; no se ejecuta nada mientras nadie mira.",
+                    "disable_push_warning": "Actívalo si funcionas a propósito sin push. Oculta el recordatorio recurrente \"FCM no configurado\" y su tarjeta de reparación. Los eventos en tiempo real (timbre, armar/desarmar, alarma, movimiento) seguirán sin llegar a Home Assistant hasta que configures FCM.",
+                    "persistent_notifications": "Al activarlo, los eventos seleccionados aparecen como notificaciones persistentes de Home Assistant que permanecen visibles hasta que se descartan o Home Assistant se reinicia. Estos eventos llegan por push (FCM), así que push debe estar configurado para que lleguen.",
+                    "persistent_notification_events": "Qué eventos generan una notificación persistente. Por defecto, incidentes reales (alarma, pánico, sabotaje, fuego, CO, inundación, rotura de cristal). Añade armado/desarmado, movimiento o timbre si también los quieres."
+                }
+            }
+        }
+    },
+    "system_health": {
+        "info": {
+            "can_reach_server": "Acceso a la nube de Ajax (host gRPC)",
+            "configured_accounts": "Cuentas configuradas",
+            "spaces": "Espacios (hubs)",
+            "hts_connected": "Streams HTS conectados",
+            "fcm_connected": "Clientes FCM conectados",
+            "pushes_received": "Pushes recibidos",
+            "last_push": "Ultimo push recibido",
+            "last_poll": "Ultimo poll correcto"
+        }
+    },
+    "services": {
+        "force_arm": {
+            "name": "Forzar armado",
+            "description": "Armar el sistema ignorando sensores abiertos y alarmas activas.",
+            "fields": {
+                "entity_id": {
+                    "name": "Entidad",
+                    "description": "Panel de alarma a armar forzado. Si se omite, arma todos los paneles."
+                }
+            }
+        },
+        "force_arm_night": {
+            "name": "Forzar armado nocturno",
+            "description": "Armar modo nocturno ignorando sensores abiertos y alarmas activas.",
+            "fields": {
+                "entity_id": {
+                    "name": "Entidad",
+                    "description": "Panel de alarma a armar nocturno forzado. Si se omite, arma todos los paneles."
+                }
+            }
+        },
+        "disarm_night_mode": {
+            "name": "Desarmar modo noche",
+            "description": "Sal del modo noche dejando armados los grupos armados de forma independiente (modo ausente). A diferencia de un desarmado total, solo desactiva los grupos en modo noche: la operación nativa de Ajax \"desarmar modo noche\".",
+            "fields": {
+                "entity_id": {
+                    "name": "Entidad",
+                    "description": "Entidad del panel de alarma del espacio que se desarmará del modo noche. Si se omite, se aplica a todos los paneles."
+                }
+            }
+        },
+        "press_panic_button": {
+            "name": "Pulsar botón de pánico (SOS)",
+            "description": "Activa el botón SOS / pánico de Ajax en un espacio. Llama al mismo endpoint que el botón SOS rojo de la app oficial y envía una alarma de pánico a la central receptora de alarmas (CRA), que en la mayoría de contratos activa despacho policial inmediato saltándose los tiempos de verificación. Úsalo solo en emergencias reales. El campo confirm debe estar a true o la llamada se rechaza.",
+            "fields": {
+                "confirm": {
+                    "name": "Confirmar pánico",
+                    "description": "Debe estar en true. Actúa como bloqueo de seguridad para evitar que automatizaciones lo disparen por error."
+                },
+                "entity_id": {
+                    "name": "Entidad",
+                    "description": "Entidad del panel de alarma del espacio cuyo botón de pánico se va a pulsar. Si se omite, el pánico se envía a todos los espacios configurados."
+                },
+                "latitude": {
+                    "name": "Latitud",
+                    "description": "Latitud opcional de quien llama, reenviada a Ajax. Úsala junto con longitud."
+                },
+                "longitude": {
+                    "name": "Longitud",
+                    "description": "Longitud opcional de quien llama, reenviada a Ajax. Úsala junto con latitud."
+                }
+            }
+        },
+        "set_photo_on_demand_mode": {
+            "name": "Configurar modo Foto bajo demanda",
+            "description": "Activa o desactiva el modo Foto bajo demanda en un hub. Dos canales independientes que se pueden alternar por separado: peticiones de usuario (si los usuarios del hub pueden pedir fotos desde la app Ajax) y escenarios (si los escenarios / automatizaciones pueden disparar capturas). Deja un campo sin valor para mantener su estado actual. Al menos uno de los dos es obligatorio.",
+            "fields": {
+                "user": {
+                    "name": "Peticiones de usuario",
+                    "description": "Si está marcado, activa o desactiva las peticiones de foto bajo demanda iniciadas por los usuarios del hub. Déjalo sin valor para mantener el estado actual."
+                },
+                "scenario": {
+                    "name": "Escenarios",
+                    "description": "Si está marcado, activa o desactiva las capturas Foto bajo demanda disparadas por escenarios / automatizaciones de Ajax. Déjalo sin valor para mantener el estado actual."
+                },
+                "entity_id": {
+                    "name": "Entidad",
+                    "description": "Entidad del panel de alarma del espacio cuyo modo de hub actualizar. Si se omite, se aplica a todos los espacios configurados."
+                }
+            }
+        },
+        "refresh_alarm_images": {
+            "name": "Refresh alarm camera images",
+            "description": "Import recent alarm photos into local albums without taking a new photo. New alarm pushes import automatically. Manual backfill is limited to once per five minutes per space, with one history query and at most ten media streams; completed local albums are skipped.",
+            "fields": {
+                "entity_id": {
+                    "name": "Entity",
+                    "description": "Alarm panel entity for the space to import. If omitted, imports from every configured space."
+                }
+            }
+        },
+        "list_client_sessions": {
+            "name": "Listar sesiones de la cuenta",
+            "description": "Devuelve bajo demanda las sesiones activas de la cuenta Ajax, para inspeccionarlas manualmente. Este servicio llama a un endpoint interno de Ajax que puede limitar la frecuencia de las peticiones: no lo consultes de forma periódica en automatizaciones. La sesión de Aegis actualmente activa se marca con is_current cuando se puede identificar.",
+            "fields": {
+                "entry_id": {
+                    "name": "ID de entrada de configuración",
+                    "description": "Obligatorio cuando hay más de una cuenta de Aegis configurada."
+                }
+            }
+        },
+        "terminate_client_session": {
+            "name": "Cerrar una sesión de la cuenta",
+            "description": "Cierra inmediatamente la sesión del dispositivo seleccionado en la cuenta Ajax. Obtén su ID de sesión con list_client_sessions. La integración nunca cierra su propia sesión.",
+            "fields": {
+                "session_id": {
+                    "name": "ID de sesión",
+                    "description": "ID de sesión devuelto por list_client_sessions."
+                },
+                "confirm": {
+                    "name": "Confirmar cierre",
+                    "description": "Debe ser true para cerrar inmediatamente la sesión seleccionada."
+                },
+                "entry_id": {
+                    "name": "ID de entrada de configuración",
+                    "description": "Obligatorio cuando hay más de una cuenta de Aegis configurada."
+                }
+            }
+        },
+        "terminate_other_client_sessions": {
+            "name": "Cerrar todas las demás sesiones de la cuenta",
+            "description": "Cierra inmediatamente la sesión de todos los demás dispositivos en la cuenta Ajax. Esto expulsa a las demás apps de Ajax móviles y de escritorio que estén activas. La integración nunca cierra su propia sesión.",
+            "fields": {
+                "confirm": {
+                    "name": "Confirmar cierre",
+                    "description": "Debe ser true para cerrar inmediatamente todas las demás sesiones."
+                },
+                "entry_id": {
+                    "name": "ID de entrada de configuración",
+                    "description": "Obligatorio cuando hay más de una cuenta de Aegis configurada."
+                }
+            }
+        }
+    },
+    "issues": {
+        "hub_offline_24h": {
+            "title": "Hub {hub_name} fuera de linea durante mas de {hours_offline}h",
+            "description": "Aegis lleva {hours_offline} horas recibiendo estado OFFLINE para el hub {hub_name}. Las entidades quedan obsoletas hasta que el hub vuelva a conectarse. Causas habituales: hub desenchufado, corte de red, o la salida del hub hacia la nube de Ajax esta bloqueada por un firewall. La incidencia se cierra automaticamente cuando Aegis vea el hub de nuevo online."
+        },
+        "hts_chronic_failure": {
+            "title": "Sensores de red del hub degradados",
+            "description": "La conexion HTS (que alimenta los sensores de Ethernet / Wi-Fi / GSM / alimentacion) del espacio {space_id} lleva {minutes_failing} minutos sin lograr mantenerse en pie. Los sensores de red del hub estaran no disponibles hasta que se recupere. La causa habitual es un firewall que bloquea el trafico saliente a los endpoints HTS de Ajax, o una inestabilidad de red sostenida entre Home Assistant y la nube de Ajax. La incidencia se cierra automaticamente cuando HTS reconecte."
+        },
+        "fcm_credentials_invalid": {
+            "title": "Notificaciones push desactivadas: credenciales FCM rechazadas",
+            "fix_flow": {
+                "step": {
+                    "init": {
+                        "title": "Reparar credenciales FCM de Aegis",
+                        "description": "El registro en Firebase Cloud Messaging ha fallado para esta cuenta. Lo mas probable es que el FCM Project ID / App ID / API Key / Sender ID configurados no correspondan a tu app Ajax co-branded, o que la API key haya sido revocada. Reintroduce los cuatro valores y la integracion se recargara — si las nuevas credenciales funcionan el Repair se cierra solo; si no, este formulario reaparece. Consulta la seccion 'How to obtain FCM credentials' del README.",
+                        "data": {
+                            "fcm_project_id": "FCM Project ID",
+                            "fcm_app_id": "FCM App ID",
+                            "fcm_api_key": "FCM API Key",
+                            "fcm_sender_id": "FCM Sender ID"
+                        }
+                    }
+                },
+                "abort": {
+                    "entry_missing": "La cuenta de Aegis para la que se levanto este Repair ya no esta configurada. No hay nada que reparar."
+                }
+            }
+        },
+        "fcm_credentials_malformed": {
+            "title": "Notificaciones push desactivadas: credenciales FCM mal formadas ({problem})",
+            "fix_flow": {
+                "step": {
+                    "init": {
+                        "title": "Reparar credenciales FCM de Aegis",
+                        "description": "Aegis ha detectado un problema estructural en las credenciales FCM configuradas antes de contactar con Google: {problem}. Los cuatro valores deben venir del mismo proyecto Firebase. Vuelve a extraerlos de tu app Ajax co-branded segun la seccion 'Where the values live' del README y reintroduce los cuatro abajo. La integracion se recargara, la comprobacion se ejecutara de nuevo y el Repair se cerrara cuando los valores sean coherentes.",
+                        "data": {
+                            "fcm_project_id": "FCM Project ID",
+                            "fcm_app_id": "FCM App ID",
+                            "fcm_api_key": "FCM API Key",
+                            "fcm_sender_id": "FCM Sender ID"
+                        }
+                    }
+                },
+                "abort": {
+                    "entry_missing": "La cuenta de Aegis para la que se levanto este Repair ya no esta configurada. No hay nada que reparar."
+                }
+            }
+        },
+        "fcm_not_configured": {
+            "title": "Notificaciones push sin configurar: eventos en tiempo real desactivados",
+            "fix_flow": {
+                "step": {
+                    "init": {
+                        "title": "Configurar credenciales FCM de Aegis",
+                        "description": "Las credenciales FCM nunca se han configurado para esta cuenta, por lo que los eventos en tiempo real de Ajax (timbre, armado/desarmado, alarma, movimiento) no llegan a Home Assistant — la integracion cae a polling cada 5 minutos. Introduce abajo los cuatro valores FCM de tu app Ajax co-branded y la integracion se recargara. Consulta la seccion 'How to obtain FCM credentials' del README para extraerlos.",
+                        "data": {
+                            "fcm_project_id": "FCM Project ID",
+                            "fcm_app_id": "FCM App ID",
+                            "fcm_api_key": "FCM API Key",
+                            "fcm_sender_id": "FCM Sender ID"
+                        }
+                    }
+                },
+                "abort": {
+                    "entry_missing": "La cuenta de Aegis para la que se levanto este Repair ya no esta configurada. No hay nada que reparar."
+                }
+            }
+        },
+        "fcm_push_stuck": {
+            "title": "Notificaciones push interrumpidas: el mismo mensaje corta la conexión una y otra vez",
+            "description": "La conexión push se ha cortado {terminations} veces seguidas al procesar el mismo mensaje. Como ese mensaje nunca se confirma, el proveedor push de Ajax lo reenvía y cada conexión nueva termina igual, así que esto no se resuelve solo. El estado de tu alarma no se ve afectado (viene del sondeo y de la conexión con el hub, nunca del push), pero mientras dure se pierden los eventos en tiempo real, como el timbre. Aegis ha sustituido su registro push para romper el bucle y el push debería volver en un minuto. Este aviso desaparece solo cuando la conexión se mantenga estable un rato. Si vuelve a aparecer, infórmalo en GitHub (issue #373)."
+        },
+        "grpcio_version_mismatch": {
+            "title": "Aegis necesita grpcio {required} o superior (encontrado {current})",
+            "description": "Aegis depende de `grpcio` para el canal gRPC que habla con la nube de Ajax, y tu instalacion de Home Assistant trae `grpcio` {current}. Por debajo de {required} el login puede fallar con errores HTTP/2 poco descriptivos. En Home Assistant Core o Container el manifest de la integracion fija la version al instalar, pero en Home Assistant OS el runtime trae un grpcio del sistema que este manifest no puede tocar — normalmente toca actualizar Home Assistant OS a una build que incluya un grpcio mas reciente. La incidencia se cierra automaticamente en la siguiente recarga cuando la version cruce {required}."
+        },
+        "client_rejected": {
+            "title": "Ajax está rechazando esta versión de Aegis for Ajax",
+            "description": "Los servidores de Ajax han dejado de aceptar peticiones de esta versión de la integración, así que no puede iniciar sesión, actualizar estados ni enviar comandos. Tu cuenta y tus credenciales están bien. Actualiza Aegis for Ajax en HACS a la última versión y reinicia Home Assistant. Este aviso desaparece solo cuando Ajax vuelva a aceptar la integración."
+        },
+        "fcm_never_delivered": {
+            "title": "Las notificaciones push no llegan",
+            "description": "Aegis ha visto {events} eventos de tu hub mientras el cliente push estaba en marcha, y ninguno de ellos ha llegado por push. El estado de la alarma no está afectado: viene de la conexión con el hub y del sondeo, nunca del push. Pero los eventos en tiempo real, como el timbre o una alarma de intrusión, solo llegan a Home Assistant por push, así que se están perdiendo.\n\nHay tres causas que producen esto y desde aquí son indistinguibles: los cuatro valores FCM pueden pertenecer a un proyecto de Firebase por el que el proveedor de push de tu app no envía, otro registro puede estar ocupando el destino de push de tu cuenta Ajax, o la conexión de push puede no haberse completado nunca.\n\nQué ayuda: vuelve a introducir los cuatro valores de tu app, en Ajustes > Reparaciones o en las opciones de la integración. Si la misma cuenta de Ajax la usa otra instancia de Home Assistant, prueba con una cuenta separada para esta integración. Este aviso desaparece por sí solo en cuanto llegue un push."
+        },
+        "pin_code_update": {
+            "title": "Vuelve a poner el PIN de la alarma",
+            "description": "El PIN de la alarma de esta cuenta está guardado en un formato antiguo. Abre las opciones de la integración y vuelve a introducir el PIN para actualizarlo. Mientras tanto sigue funcionando."
+        }
+    },
+    "entity": {
+        "button": {
+            "capture_photo": {
+                "name": "Capturar foto"
+            },
+            "refresh_hub": {
+                "name": "Actualizar hub"
+            },
+            "restore_after_alarm": {
+                "name": "Restaurar tras alarma"
+            },
+            "siren_sound_test": {
+                "name": "Probar sonido"
+            }
+        },
+        "event": {
+            "security_event": {
+                "name": "Evento de seguridad",
+                "state_attributes": {
+                    "event_type": {
+                        "state": {
+                            "alarm": "Alarma",
+                            "arm": "Armado",
+                            "arm_night": "Armado nocturno",
+                            "battery_low": "Bateria baja",
+                            "co_alarm": "Alarma CO",
+                            "connection_lost": "Conexion perdida",
+                            "disarm": "Desarmado",
+                            "disarm_night": "Desarmado nocturno",
+                            "door_open": "Puerta abierta",
+                            "doorbell_pressed": "Timbre pulsado",
+                            "fire": "Fuego",
+                            "flood": "Inundacion",
+                            "glass_break": "Rotura de cristal",
+                            "malfunction": "Averia",
+                            "motion": "Movimiento",
+                            "panic": "Panico",
+                            "tamper": "Manipulacion"
+                        }
+                    }
+                }
+            },
+            "doorbell": {
+                "name": "Timbre",
+                "state_attributes": {
+                    "event_type": {
+                        "state": {
+                            "ring": "Timbre pulsado"
+                        }
+                    }
+                }
+            },
+            "button_press": {
+                "name": "Botón",
+                "state_attributes": {
+                    "event_type": {
+                        "state": {
+                            "pressed": "Pulsado"
+                        }
+                    }
+                }
+            }
+        },
+        "binary_sensor": {
+            "monitoring": {
+                "name": "Conexion CRA"
+            },
+            "gsm": {
+                "name": "Celular conectado"
+            },
+            "lid": {
+                "name": "Tapa abierta"
+            },
+            "ext_contact": {
+                "name": "Contacto externo roto"
+            },
+            "ext_alert": {
+                "name": "Alerta contacto externo"
+            },
+            "drilling": {
+                "name": "Taladrado de caja"
+            },
+            "anti_mask": {
+                "name": "Anti-enmascaramiento"
+            },
+            "malfunction": {
+                "name": "Averia"
+            },
+            "interference": {
+                "name": "Interferencia"
+            },
+            "relay_stuck": {
+                "name": "Rele bloqueado"
+            },
+            "always_active": {
+                "name": "Siempre activo"
+            },
+            "glass_break": {
+                "name": "Rotura de cristal"
+            },
+            "vibration": {
+                "name": "Vibración"
+            },
+            "tilt": {
+                "name": "Inclinación"
+            },
+            "steam": {
+                "name": "Vapor"
+            },
+            "wire_input_alert": {
+                "name": "Alerta de entrada cableada"
+            },
+            "tamper": {
+                "name": "Manipulación de carcasa"
+            },
+            "connectivity": {
+                "name": "Conectividad"
+            },
+            "problem": {
+                "name": "Problema del dispositivo"
+            },
+            "ethernet": {
+                "name": "Ethernet"
+            },
+            "wifi": {
+                "name": "Wi-Fi"
+            },
+            "mains_power": {
+                "name": "Alimentación externa"
+            },
+            "external_contact_open": {
+                "name": "Contacto"
+            },
+            "delay_when_leaving": {
+                "name": "Retardo al salir"
+            },
+            "siren_on_panic_button": {
+                "name": "Sirena ante botón de pánico"
+            },
+            "siren_on_any_tamper": {
+                "name": "Sirena ante manipulación"
+            }
+        },
+        "sensor": {
+            "monitoring_company": {
+                "name": "Compañía CRA"
+            },
+            "signal_strength": {
+                "name": "Intensidad de señal"
+            },
+            "mobile_network_type": {
+                "name": "Tipo de red móvil"
+            },
+            "wifi_signal_level": {
+                "name": "Nivel de señal Wi-Fi"
+            },
+            "sim_status": {
+                "name": "Estado SIM"
+            },
+            "sim_imei": {
+                "name": "IMEI"
+            },
+            "connection_type": {
+                "name": "Tipo de conexión"
+            },
+            "wifi_ssid": {
+                "name": "SSID Wi-Fi"
+            },
+            "wifi_ip": {
+                "name": "IP Wi-Fi"
+            },
+            "ethernet_ip": {
+                "name": "IP Ethernet"
+            },
+            "ethernet_gateway": {
+                "name": "Puerta de enlace Ethernet"
+            },
+            "ethernet_dns": {
+                "name": "DNS Ethernet"
+            },
+            "cellular_signal": {
+                "name": "Señal celular"
+            },
+            "cellular_network": {
+                "name": "Red celular"
+            },
+            "current": {
+                "name": "Corriente"
+            },
+            "voltage": {
+                "name": "Voltaje"
+            },
+            "energy_consumed": {
+                "name": "Energía eléctrica consumida"
+            },
+            "power_derived": {
+                "name": "Potencia"
+            },
+            "power": {
+                "name": "Potencia"
+            },
+            "channels_online": {
+                "name": "Canales en línea"
+            },
+            "channels_total": {
+                "name": "Canales totales"
+            }
+        },
+        "switch": {
+            "channel_1": {
+                "name": "Canal 1"
+            },
+            "channel_2": {
+                "name": "Canal 2"
+            },
+            "bypass": {
+                "name": "Bypass"
+            },
+            "night_mode_arm": {
+                "name": "Armar en modo noche"
+            },
+            "chime": {
+                "name": "Timbre"
+            }
+        },
+        "number": {
+            "siren_alarm_duration": {
+                "name": "Duración de la alarma"
+            }
+        },
+        "select": {
+            "siren_volume_level": {
+                "name": "Volumen de la sirena",
+                "state": {
+                    "very_loud": "Muy alto",
+                    "loud": "Alto",
+                    "quiet": "Bajo",
+                    "disabled": "Desactivado"
+                }
+            }
+        },
+        "update": {
+            "hub_firmware": {
+                "name": "Firmware"
+            },
+            "device_firmware": {
+                "name": "Firmware"
+            }
+        },
+        "camera": {
+            "cloud_video": {
+                "name": "Vista en directo"
+            }
+        },
+        "alarm_control_panel": {
+            "group": {
+                "name": "Grupo {group_id}"
+            }
+        }
+    },
+    "exceptions": {
+        "manual_refresh_hts_unavailable": {
+            "message": "La conexión de red del hub (HTS) no está activa ahora mismo; la actualización manual no puede ejecutarse."
+        },
+        "alarm_backfill_rate_limited": {
+            "message": "Alarm photos were recently refreshed for this space; wait {seconds} more seconds and try again."
+        },
+        "manual_refresh_rate_limited": {
+            "message": "Acabas de pedir una actualización del hub; espera {seconds} segundos más e inténtalo de nuevo."
+        },
+        "photo_capture_failed": {
+            "message": "La captura de la foto no se completó. El hub puede haber rechazado la solicitud o no devolvió ninguna imagen; consulta los registros para más detalles."
+        },
+        "photo_no_push": {
+            "message": "La foto bajo demanda requiere notificaciones push FCM, que no están configuradas para esta integración."
+        },
+        "photo_capture_timeout": {
+            "message": "Se agotó el tiempo de espera para que la cámara entregara la foto capturada. Inténtalo de nuevo y comprueba que la cámara esté en línea."
+        },
+        "command_permission_denied": {
+            "message": "Tu cuenta de Ajax no tiene permiso para realizar esta acción."
+        },
+        "command_hub_offline": {
+            "message": "El hub está desconectado, así que el comando no se pudo enviar."
+        },
+        "command_hub_wrong_state": {
+            "message": "El hub no está en un estado que permita esta acción ahora mismo."
+        },
+        "night_mode_arm_while_armed": {
+            "message": "No se puede cambiar «Armar en modo noche» mientras el detector está armado. Desarma primero y vuelve a intentarlo."
+        },
+        "command_alarm_reset_needed": {
+            "message": "Hay que resetear una alarma activa antes de realizar esta acción."
+        },
+        "command_not_performed": {
+            "message": "El hub no ejecutó el comando."
+        },
+        "command_unknown": {
+            "message": "El hub no reconoció el comando."
+        },
+        "command_failed": {
+            "message": "No se pudo completar el comando. El hub devolvió: {reason}."
+        },
+        "session_entry_not_found": {
+            "message": "No se ha encontrado ninguna cuenta de Aegis para el entry_id indicado."
+        },
+        "session_entry_required": {
+            "message": "entry_id es obligatorio cuando hay más de una cuenta de Aegis configurada."
+        },
+        "confirm_required": {
+            "message": "{service} necesita `confirm: true` para ejecutarse."
+        },
+        "panic_confirm_required": {
+            "message": "press_panic_button necesita `confirm: true`: envía una alarma de pánico a la central receptora, que en la mayoría de contratos avisa a la policía de inmediato."
+        },
+        "session_id_invalid": {
+            "message": "session_id debe ser un número entero positivo."
+        },
+        "no_panel_for_target": {
+            "message": "{service}: no se ha encontrado ningún panel de alarma de Aegis para el destino indicado."
+        },
+        "photo_mode_option_required": {
+            "message": "set_photo_on_demand_mode necesita al menos `user` o `scenario`."
+        },
+        "sessions_list_failed": {
+            "message": "No se han podido listar las sesiones de la cuenta de Ajax: {error}"
+        },
+        "session_terminate_failed": {
+            "message": "No se ha podido cerrar la sesión de la cuenta de Ajax: {error}"
+        },
+        "sessions_terminate_failed": {
+            "message": "No se han podido cerrar las demás sesiones de la cuenta de Ajax: {error}"
+        },
+        "security_hub_detected_malfunctions": {
+            "message": "No se puede armar: sensores abiertos o averías detectadas{details}"
+        },
+        "security_hub_not_connected": {
+            "message": "No se puede armar: hub desconectado"
+        },
+        "security_hub_busy": {
+            "message": "Hub ocupado, inténtalo en unos segundos"
+        },
+        "security_another_transition_is_in_progress": {
+            "message": "Otra operación de armado/desarmado en curso"
+        },
+        "security_disarm_rejected": {
+            "message": "No se puede desarmar: comando rechazado por el hub"
+        },
+        "invalid_alarm_code": {
+            "message": "Código de alarma incorrecto"
+        },
+        "not_loaded": {
+            "message": "No hay ninguna cuenta de Aegis for Ajax cargada. Revisa la integración en la página Dispositivos y servicios."
+        }
+    },
+    "device_automation": {
+        "trigger_type": {
+            "alarm": "Alarma",
+            "arm": "Armado",
+            "arm_night": "Armado nocturno",
+            "battery_low": "Bateria baja",
+            "co_alarm": "Alarma CO",
+            "connection_lost": "Conexion perdida",
+            "disarm": "Desarmado",
+            "disarm_night": "Desarmado nocturno",
+            "door_open": "Puerta abierta",
+            "doorbell_pressed": "Timbre pulsado",
+            "fire": "Fuego",
+            "flood": "Inundacion",
+            "glass_break": "Rotura de cristal",
+            "malfunction": "Averia",
+            "motion": "Movimiento",
+            "panic": "Panico",
+            "tamper": "Manipulacion"
+        }
+    },
+    "selector": {
+        "bypass_switches": {
+            "options": {
+                "auto": "Auto (solo si tu cuenta puede desactivar dispositivos)",
+                "always": "Siempre",
+                "never": "Nunca"
+            }
+        },
+        "persistent_notification_events": {
+            "options": {
+                "alarm": "Alarma",
+                "arm": "Armado",
+                "arm_night": "Armado nocturno",
+                "battery_low": "Bateria baja",
+                "co_alarm": "Alarma CO",
+                "connection_lost": "Conexion perdida",
+                "disarm": "Desarmado",
+                "disarm_night": "Desarmado nocturno",
+                "door_open": "Puerta abierta",
+                "doorbell_pressed": "Timbre pulsado",
+                "fire": "Fuego",
+                "flood": "Inundacion",
+                "glass_break": "Rotura de cristal",
+                "malfunction": "Averia",
+                "motion": "Movimiento",
+                "panic": "Panico",
+                "tamper": "Manipulacion"
+            }
+        }
+    },
+    "device": {
+        "keyfobs": {
+            "name": "Mandos"
+        }
+    }
+}

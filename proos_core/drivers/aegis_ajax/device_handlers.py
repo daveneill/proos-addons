@@ -1,0 +1,499 @@
+"""Per-device-family capability handlers for Ajax Security."""
+
+from __future__ import annotations
+
+import dataclasses
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Protocol
+
+from custom_components.aegis_ajax.api.hts.hub_state import (
+    DIRECT_POWER_DEVICE_TYPES,
+    ELECTRICAL_DEVICE_TYPES,
+    HTS_TEMPERATURE_DEVICE_TYPES,
+)
+
+if TYPE_CHECKING:
+    from custom_components.aegis_ajax.api.models import Device
+
+
+@dataclass(frozen=True)
+class DeviceCapabilities:
+    """Capabilities provided by a device family."""
+
+    binary_sensor_keys: tuple[str, ...] = ()
+    is_lock: bool = False
+    is_camera: bool = False
+    is_phod: bool = False
+    is_light: bool = False
+    is_valve: bool = False
+    is_doorbell: bool = False
+    is_button_press: bool = False
+    has_siren_settings: bool = False
+    has_electrical_readings: bool = False
+    has_direct_power: bool = False
+    has_hts_temperature: bool = False
+    has_night_mode_arm: bool = False
+
+
+class DeviceHandler(Protocol):
+    """Protocol for per-device-type capability handlers."""
+
+    device_types: frozenset[str]
+
+    def capabilities(self, device: Device) -> DeviceCapabilities:
+        """Return capabilities for the given device."""
+        ...
+
+
+class StaticDeviceHandler:
+    """Handler returning static capabilities for a set of device types."""
+
+    def __init__(
+        self,
+        device_types: tuple[str, ...],
+        binary_sensor_keys: tuple[str, ...],
+        *,
+        is_lock: bool = False,
+        is_camera: bool = False,
+        is_phod: bool = False,
+        is_light: bool = False,
+        is_valve: bool = False,
+        is_doorbell: bool = False,
+        is_button_press: bool = False,
+        has_siren_settings: bool = False,
+    ) -> None:
+        self.device_types = frozenset(device_types)
+        self._capabilities = DeviceCapabilities(
+            binary_sensor_keys=binary_sensor_keys,
+            is_lock=is_lock,
+            is_camera=is_camera,
+            is_phod=is_phod,
+            is_light=is_light,
+            is_valve=is_valve,
+            is_doorbell=is_doorbell,
+            is_button_press=is_button_press,
+            has_siren_settings=has_siren_settings,
+        )
+
+    def capabilities(self, device: Device) -> DeviceCapabilities:
+        """Return static capabilities for this device family."""
+        return self._capabilities
+
+
+_DEFAULT_CAPABILITIES = DeviceCapabilities(binary_sensor_keys=("tamper",))
+
+
+class DefaultDeviceHandler:
+    """Fallback handler for unmapped device types (#434)."""
+
+    device_types: frozenset[str] = frozenset()
+
+    def capabilities(self, device: Device) -> DeviceCapabilities:
+        """Return fallback capabilities (tamper only)."""
+        return _DEFAULT_CAPABILITIES
+
+
+_HANDLERS: tuple[DeviceHandler, ...] = (
+    # DoorProtect
+    StaticDeviceHandler(
+        ("door_protect", "door_protect_fibra", "door_protect_s", "door_protect_g3"),
+        (
+            "door_opened",
+            "tamper",
+            "external_contact_broken",
+            "external_contact_alert",
+            "delay_when_leaving",
+        ),
+    ),
+    # DoorProtect Plus
+    StaticDeviceHandler(
+        (
+            "door_protect_plus",
+            "door_protect_s_plus",
+            "door_protect_plus_fibra",
+            "door_protect_plus_g3_fibra",
+        ),
+        (
+            "door_opened",
+            "tamper",
+            "vibration",
+            "tilt",
+            "external_contact_broken",
+            "external_contact_alert",
+            "delay_when_leaving",
+        ),
+    ),
+    # MotionProtect
+    StaticDeviceHandler(
+        (
+            "motion_protect",
+            "motion_protect_plus",
+            "motion_protect_fibra",
+            "motion_protect_plus_fibra",
+            "motion_protect_outdoor",
+            "motion_protect_curtain",
+            "motion_protect_curtain_base",
+            "motion_protect_curtain_outdoor_base",
+            "motion_protect_curtain_outdoor_mini",
+            "motion_protect_curtain_outdoor_plus",
+            "dual_curtain_outdoor",
+            "motion_protect_g3",
+            "motion_protect_g3_fibra",
+            "motion_protect_g3_fibra_new",
+            "motion_protect_plus_g3",
+            "motion_protect_s",
+            "motion_protect_s_plus",
+        ),
+        ("motion_detected", "tamper", "delay_when_leaving", "always_active"),
+    ),
+    # MotionCam
+    StaticDeviceHandler(
+        ("motion_cam", "motion_cam_outdoor", "motion_cam_fibra"),
+        ("motion_detected", "tamper", "delay_when_leaving", "always_active"),
+        is_camera=True,
+    ),
+    # `motion_cam_outdoor_two_four_phod` joined this group on field evidence
+    # rather than on its name: #499 reported an install whose Ajax app offers
+    # Photo on Demand for it, and the same diagnostics dump carries a working
+    # `motion_cam_phod` on the same hub — same account, same permissions, one
+    # family getting the entities and the other not. `motion_cam_phod_fibra`
+    # joined on the same evidence from #507 (two of them alongside four working
+    # `motion_cam_outdoor_phod` on one hub, with the reporter confirming the
+    # Ajax app offers Photo on Demand for them). The remaining unmapped
+    # MotionCam families in the group below still await that confirmation (#472).
+    # Adding a family here is not enough on its own: `is_phod` creates the
+    # capture button, whose wire request carries a SEPARATE device-type map in
+    # `api/devices.PHOD_V2_DEVICE_TYPES`, and an unlisted family there ships a
+    # button that can only fail (#503). `tests/unit/test_devices.py` pins them.
+    StaticDeviceHandler(
+        (
+            "motion_cam_phod",
+            "motion_cam_outdoor_phod",
+            "motion_cam_fibra_base",
+            "motion_cam_outdoor_two_four_phod",
+            "motion_cam_phod_fibra",
+        ),
+        ("motion_detected", "tamper", "delay_when_leaving"),
+        is_camera=True,
+        is_phod=True,
+    ),
+    StaticDeviceHandler(
+        (
+            "motion_cam_g3",
+            "motion_cam_hd",
+            "motion_cam_s_phod",
+            "motion_cam_s_phod_am",
+            "motion_cam_superior_phod",
+            "motion_cam_video_base",
+            "motion_cam_video_indoor",
+        ),
+        ("motion_detected", "tamper", "delay_when_leaving"),
+    ),
+    # Split out of the group above only to carry `is_doorbell`; the binary
+    # sensors are identical.
+    StaticDeviceHandler(
+        ("motion_cam_video_doorbell",),
+        ("motion_detected", "tamper", "delay_when_leaving"),
+        is_doorbell=True,
+    ),
+    # VideoEdge
+    StaticDeviceHandler(
+        (
+            "video_edge_bullet",
+            "video_edge_indoor",
+            "video_edge_minidome",
+            "video_edge_turret",
+            "video_edge_unknown",
+        ),
+        ("motion_detected", "tamper"),
+    ),
+    # Split out of the group above only to carry `is_doorbell`; the binary
+    # sensors are identical.
+    StaticDeviceHandler(
+        ("video_edge_doorbell",),
+        ("motion_detected", "tamper"),
+        is_doorbell=True,
+    ),
+    # CombiProtect
+    StaticDeviceHandler(
+        ("combi_protect", "combi_protect_s", "combi_protect_fibra"),
+        ("motion_detected", "glass_break", "tamper", "delay_when_leaving", "always_active"),
+    ),
+    # GlassProtect
+    StaticDeviceHandler(
+        ("glass_protect", "glass_protect_s", "glass_protect_fibra"),
+        ("glass_break", "tamper"),
+    ),
+    # FireProtect legacy
+    StaticDeviceHandler(
+        ("fire_protect",),
+        ("smoke_detected", "high_temperature", "tamper"),
+    ),
+    StaticDeviceHandler(
+        ("fire_protect_plus",),
+        ("smoke_detected", "co_detected", "high_temperature", "tamper"),
+    ),
+    # FireProtect 2
+    StaticDeviceHandler(
+        (
+            "fire_protect_2",
+            "fire_protect_two",
+            "fire_protect_two_hs_ac",
+            "fire_protect_two_hs_ac_ul",
+            "fire_protect_two_hs_rb_ul",
+            "fire_protect_two_hs_sb_ul",
+        ),
+        ("smoke_detected", "steam", "high_temperature", "tamper"),
+    ),
+    StaticDeviceHandler(
+        (
+            "fire_protect_two_base",
+            "fire_protect_two_plus",
+            "fire_protect_two_plus_sb",
+            "fire_protect_two_sb",
+            "fire_protect_two_hcrb",
+            "fire_protect_two_hcsb",
+            "fire_protect_two_hsc_ac",
+            "fire_protect_two_hsc_ac_ul",
+            "fire_protect_two_hsc_rb_ul",
+            "fire_protect_two_hsc_sb_ul",
+        ),
+        ("smoke_detected", "steam", "co_detected", "high_temperature", "tamper"),
+    ),
+    StaticDeviceHandler(
+        (
+            "fire_protect_two_hrb",
+            "fire_protect_two_hsb",
+            "fire_protect_two_h_ac",
+            "fire_protect_two_h_rb_ul",
+        ),
+        ("high_temperature", "tamper"),
+    ),
+    StaticDeviceHandler(
+        (
+            "fire_protect_two_crb",
+            "fire_protect_two_csb",
+            "fire_protect_two_c_ac",
+            "fire_protect_two_c_rb_ul",
+        ),
+        ("co_detected", "tamper"),
+    ),
+    StaticDeviceHandler(
+        ("fire_protect_two_hc_ac",),
+        ("co_detected", "high_temperature", "tamper"),
+    ),
+    # LeakProtect
+    StaticDeviceHandler(
+        ("leak_protect",),
+        ("leak_detected", "tamper"),
+    ),
+    # Sirens
+    # These are the siren families whose `HubDevice` proto oneof includes a
+    # writable `common_siren_part.siren_settings`. A SKU missing from that
+    # oneof decodes as unknown, leaving its settings unreadable and its
+    # `number` / `select` entities permanently empty. Keep this registration
+    # aligned with the proto oneof.
+    #
+    # The DoubleDeck, Fibra, and S variants include only
+    # `common_siren_part`, not temperature, tamper, or battery parts, so their
+    # internal temperature comes from HTS 0x02 instead of this snapshot.
+    #
+    # Writing is independent of this capability: `UpdateHubDevice` addresses
+    # the device by `ObjectType`, so a SKU absent from the oneof remains
+    # writable but unreadable. `home_siren_plus` is intentionally absent:
+    # although its proto oneof exists, `ObjectType` has no corresponding
+    # value, so `parse_device` cannot produce that device type.
+    StaticDeviceHandler(
+        (
+            "home_siren",
+            "home_siren_s",
+            "home_siren_fibra",
+            "home_siren_g3",
+            "street_siren",
+            "street_siren_fibra",
+            "street_siren_plus_fibra",
+            "street_siren_plus_g3",
+            "street_siren_s",
+            "street_siren_double_deck",
+            "street_siren_s_double_deck",
+            "street_siren_double_deck_fibra",
+        ),
+        ("tamper",),
+        has_siren_settings=True,
+    ),
+    # `street_siren_plus` is a siren, but its oneof case is missing from the
+    # HubDevice proto, so its settings are unreadable and `number` / `select`
+    # would sit permanently empty. Same binary sensors, no settings entities.
+    StaticDeviceHandler(
+        ("street_siren_plus",),
+        ("tamper",),
+    ),
+    # ReX / ReX 2 / LifeQuality / WaterStop — explicit no-capability handlers (#332)
+    StaticDeviceHandler(
+        (
+            "rex",
+            "rex_2",
+            "range_extender",
+            "range_extender_2",
+            "life_quality",
+            "life_quality_plus",
+        ),
+        (),
+    ),
+    # WaterStop — no binary sensors, one valve entity. Ajax ships two buckets,
+    # `water_stop` (Jeweller, wireless) and `water_stop_base` (Fibra, wired):
+    # same `WaterStopChannel` payload, same parser path, same entity surface.
+    StaticDeviceHandler(
+        ("water_stop", "water_stop_base"),
+        (),
+        is_valve=True,
+    ),
+    StaticDeviceHandler(
+        ("range_extender_2_fire",),
+        ("smoke_detected", "high_temperature", "tamper"),
+    ),
+    # SmartLock / LockBridge
+    StaticDeviceHandler(
+        ("smart_lock", "smart_lock_yale"),
+        ("tamper",),
+        is_lock=True,
+    ),
+    # Wired inputs
+    StaticDeviceHandler(
+        ("transmitter", "wire_input"),
+        ("tamper", "wire_input_alert"),
+    ),
+    StaticDeviceHandler(
+        ("multi_transmitter", "multi_transmitter_fibra"),
+        ("tamper",),
+    ),
+    StaticDeviceHandler(
+        ("wire_input_mt", "wire_input_rs"),
+        ("tamper", "wire_input_alert", "external_contact_open"),
+    ),
+    # LightSwitch dimmer — previously unmapped, so it fell through to the
+    # tamper-only default. Registered with that same tamper-only set so the
+    # binary sensors do not move; the registration exists to carry `is_light`.
+    StaticDeviceHandler(
+        ("light_switch_dimmer",),
+        ("tamper",),
+        is_light=True,
+    ),
+    # Button — previously unmapped, same tamper-only default preserved; the
+    # registration exists to carry `is_button_press`.
+    StaticDeviceHandler(
+        ("button",),
+        ("tamper",),
+        is_button_press=True,
+    ),
+    # Keypads
+    StaticDeviceHandler(
+        (
+            "keypad_combi",
+            "keypad_plus",
+            "keypad_plus_g3",
+            "keypad_s_plus",
+            "keypad_outdoor",
+            "keypad_outdoor_fibra",
+            "keypad_touchscreen",
+            "keypad_touchscreen_fibra",
+            "keypad_touchscreen_g3",
+        ),
+        ("tamper",),
+    ),
+    # Hubs
+    StaticDeviceHandler(
+        (
+            "hub",
+            "hub_plus",
+            "hub_4g",
+            "hub_lite",
+            "hub_two",
+            "hub_two_plus",
+            "hub_two_4g",
+            "hub_two_lte_rtk",
+            "hub_three",
+            "hub_fibra",
+            "hub_hybrid_2",
+            "hub_hybrid_4g",
+            "hub_mega",
+            "hub_void_4g",
+            "hub_yavir",
+            "hub_yavir_plus",
+            "hub_fire",
+            "hub_superior",
+        ),
+        ("gsm_connected", "lid_opened"),
+    ),
+)
+
+
+def _build_handler_map() -> dict[str, DeviceHandler]:
+    handler_map: dict[str, DeviceHandler] = {}
+    for handler in _HANDLERS:
+        for device_type in handler.device_types:
+            if device_type in handler_map:
+                msg = f"Duplicate device handler registration for {device_type!r}"
+                raise ValueError(msg)
+            handler_map[device_type] = handler
+    return handler_map
+
+
+_DEVICE_HANDLERS: dict[str, DeviceHandler] = _build_handler_map()
+_DEFAULT_HANDLER: DeviceHandler = DefaultDeviceHandler()
+
+
+def get_device_handler(device_type: str) -> DeviceHandler:
+    """Return the handler registered for device_type, falling back to DefaultDeviceHandler."""
+    return _DEVICE_HANDLERS.get(device_type, _DEFAULT_HANDLER)
+
+
+# These three capabilities are deliberately NOT declared in `_HANDLERS`: the
+# fact each one encodes already lives in the HTS layer, and retyping the family
+# list here is exactly the drift this registry exists to remove.
+#
+# Which families report electrical readings is decided by the per-family sub-key
+# map in `api/hts/hub_state.py` — a family with no key map has nothing to read,
+# and a family added to the key map already carries everything its sensors need.
+# `DIRECT_POWER_DEVICE_TYPES` is the subset whose firmware reports instantaneous
+# power instead of leaving it to be derived, and `HTS_TEMPERATURE_DEVICE_TYPES`
+# is the set whose internal temperature has no gRPC source at all (see #229,
+# #269, #312). So the flags are derived from those tables: add a family there
+# and its sensor entities follow, with nothing to keep in step by hand.
+
+
+# Intrusion detectors with an "Arm in Night Mode" setting (#579) that don't
+# expose `delay_when_leaving`, which marks the rest of them.
+_NIGHT_MODE_ARM_EXTRA_TYPES = frozenset(
+    {
+        "glass_protect",
+        "glass_protect_fibra",
+        "glass_protect_s",
+        "transmitter",
+        "wire_input",
+        "wire_input_rs",
+        "wire_input_mt",
+    }
+)
+
+
+def capabilities_for(device: Device) -> DeviceCapabilities:
+    """Return device capabilities for the given device."""
+    capabilities = get_device_handler(device.device_type).capabilities(device)
+    device_type = device.device_type
+    if device_type in ELECTRICAL_DEVICE_TYPES:
+        capabilities = dataclasses.replace(
+            capabilities,
+            has_electrical_readings=True,
+            # A subset of the electrical families: the rest leave `power_w`
+            # empty and get the derived-from-current sensor instead.
+            has_direct_power=device_type in DIRECT_POWER_DEVICE_TYPES,
+        )
+    if device_type in HTS_TEMPERATURE_DEVICE_TYPES:
+        capabilities = dataclasses.replace(capabilities, has_hts_temperature=True)
+    if (
+        "delay_when_leaving" in capabilities.binary_sensor_keys
+        or device_type in _NIGHT_MODE_ARM_EXTRA_TYPES
+    ):
+        capabilities = dataclasses.replace(capabilities, has_night_mode_arm=True)
+    return capabilities

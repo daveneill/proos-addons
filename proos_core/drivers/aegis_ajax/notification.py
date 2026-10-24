@@ -1,0 +1,1706 @@
+"""FCM push notification listener for Ajax Security."""
+
+from __future__ import annotations
+
+import asyncio
+import base64
+import logging
+import re
+import time
+from typing import TYPE_CHECKING, Any
+from urllib.parse import urlparse
+
+from homeassistant.helpers.storage import Store
+from homeassistant.util import dt as dt_util
+
+from custom_components.aegis_ajax import notification_event_parser
+from custom_components.aegis_ajax.const import (
+    DOMAIN,
+    DOORBELL_EVENT_TYPE,
+    FCM_REJECTED_STORAGE_KEY,
+    FCM_STORAGE_VERSION,
+    INTRUSION_ALARM_RAW_TAGS,
+    MOTION_EVENT_TYPE,
+    RAW_TAG_TO_GROUP_SECURITY_STATE,
+    RAW_TAG_TO_SECURITY_STATE,
+    SECURITY_STATE_EVENT_TYPES,
+    fcm_store_key,
+)
+from custom_components.aegis_ajax.device_handlers import capabilities_for
+from custom_components.aegis_ajax.notification_fcm_guard import (
+    attach_fcm_log_guard,
+    install_fcm_decrypt_guard,
+)
+from custom_components.aegis_ajax.repairs import (
+    async_clear_fcm_credentials_invalid,
+    async_clear_fcm_credentials_malformed,
+    async_clear_fcm_never_delivered,
+    async_clear_fcm_not_configured,
+    async_clear_fcm_push_stuck,
+    async_register_fcm_credentials_invalid,
+    async_register_fcm_credentials_malformed,
+    async_register_fcm_never_delivered,
+    async_register_fcm_not_configured,
+    async_register_fcm_push_stuck,
+)
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    import aiohttp
+    from homeassistant.core import HomeAssistant
+
+    from custom_components.aegis_ajax.coordinator import AjaxCobrandedCoordinator
+
+_LOGGER = logging.getLogger(__name__)
+
+STORAGE_KEY = f"{DOMAIN}_fcm_credentials"
+# Records the SHA-256 fingerprint of the most recent credential set that
+# Google terminally rejected, so we don't re-hit the Firebase project on every
+# restart with a key we already know is wrong (#227). Defined in `const.py`
+# so the Repair flow can clear it without importing this module (#464).
+REJECTED_STORAGE_KEY = FCM_REJECTED_STORAGE_KEY
+DELIVERY_STORAGE_KEY = f"{DOMAIN}_fcm_delivery"
+STORAGE_VERSION = FCM_STORAGE_VERSION
+_LEGACY_ADOPT_LOCK = asyncio.Lock()
+
+
+async def async_remove_fcm_stores(hass: HomeAssistant, entry_id: str) -> None:
+    """Delete an entry's FCM stores when the entry is removed (#605)."""
+    for key in (STORAGE_KEY, REJECTED_STORAGE_KEY, DELIVERY_STORAGE_KEY):
+        await Store[dict[str, Any]](
+            hass, STORAGE_VERSION, fcm_store_key(key, entry_id)
+        ).async_remove()
+
+
+# Ajax dispatches two FCM messages per security transition (one user-facing
+# Notification + one silent DispatchEvent), separated by ~20-30 ms server-side.
+# Both share the same Ajax notification_id, so we suppress duplicate event-fire
+# and refresh paths within this window. See #80.
+NOTIFICATION_DEDUPE_WINDOW_SECONDS = 5.0
+
+# #285: supervision of the FCM push client. firebase-messaging terminates
+# itself (`do_listen = False`) after `abort_on_sequential_error_count`
+# sequential errors or repeated failed reconnects; without supervision push
+# silently stays dead until the next HA restart. The restart is delayed with
+# a doubling backoff (5 → 10 → 15 min cap) so a Google-side outage can't be
+# turned into a reconnect storm by our own retries.
+FCM_SUPERVISE_INTERVAL_SECONDS = 60
+FCM_RESTART_BACKOFF_INITIAL_SECONDS = 300.0
+FCM_RESTART_BACKOFF_MAX_SECONDS = 900.0
+# A client that has stayed alive this long earns the backoff reset, so the
+# next incident starts again at the 5-minute delay.
+FCM_HEALTHY_RUN_RESET_SECONDS = 1800.0
+# #570: how long a stop waits for the client's reader and monitor to finish.
+FCM_STOP_TIMEOUT_SECONDS = 5.0
+
+# Issue #174: when the underlying TCP socket against `mtalk.google.com:5228`
+# (FCM's MCS endpoint) gets reset, Google replays any push that wasn't acked
+# before the disconnect — sometimes hours after Ajax originally sent it. The
+# notif_id dedupe above is bounded to 5 s, so a replay arriving minutes later
+# slips through and fires a stale `desarmada` (or other security event) on
+# the user's phone. The Notification proto carries a `server_timestamp` set
+# by Ajax cloud at dispatch time, so we drop anything older than this window.
+# 120 s is comfortably longer than the worst Ajax→FCM→client latency we've
+# measured (sub-second) but short enough that a replay from any prior session
+# is rejected.
+STALE_PUSH_THRESHOLD_SECONDS = 120.0
+
+# #373: a push frame the library can't decrypt kills the client *before* it
+# acks the message, so the server replays it and kills every restart the
+# supervisor above performs. The decrypt guard removes the known cause, but
+# any future undecodable frame would loop the same way, and the loop is
+# invisible (the panel stays correct via polling + HTS). So when this many
+# consecutive supervised deaths happen with the same last-received
+# persistent_id, raise a Repair naming the recovery.
+FCM_STUCK_TERMINATION_THRESHOLD = 3
+
+# Hub-side space events observed with the push client up, and zero pushes ever
+# delivered for these credentials, before the Repair is raised (#437). The
+# hub's status stream and push carry the same space event about a second apart
+# on a healthy install, so each of these is one demonstrated opportunity that
+# push did not take. Set well past the point of doubt on purpose: the failure
+# it reports is invisible and slow, while a false positive tells a correctly
+# configured user their system is broken. Twenty arm/disarm-class events is
+# days of ordinary use, and by then zero deliveries is not a quiet house.
+FCM_NEVER_DELIVERED_EVENT_THRESHOLD = 20
+
+# A run of this many consecutive printable-ASCII bytes in a redacted hex dump
+# is treated as text (likely a device name / label) and masked. Shorter runs
+# stay as hex — too short to leak meaningful PII, and often coincidental.
+_MIN_PRINTABLE_RUN = 3
+
+
+def _redact_printable(data: bytes) -> str:
+    """Hex-encode `data`, masking runs of >=3 printable-ASCII bytes as
+    `<text:Nb>` (#173). Debug payload dumps can carry user device labels;
+    this keeps the binary shape visible for diagnosis without leaking PII
+    when a user pastes the log publicly. See [[feedback_pii_in_debug_logs]].
+    """
+    out: list[str] = []
+    run: list[int] = []
+
+    def flush() -> None:
+        if not run:
+            return
+        if len(run) >= _MIN_PRINTABLE_RUN:
+            out.append(f"<text:{len(run)}b>")
+        else:
+            out.append(bytes(run).hex())
+        run.clear()
+
+    for byte in data:
+        if 0x20 <= byte <= 0x7E:
+            run.append(byte)
+        else:
+            flush()
+            out.append(f"{byte:02x}")
+    flush()
+    return "".join(out)
+
+
+# FCM credentials validation + library-error classifier extracted to
+# `notification_fcm_creds.py`. Re-exported here so callers (tests + the
+# listener inside this module) keep working unchanged.
+from custom_components.aegis_ajax.notification_fcm_creds import (  # noqa: E402, F401
+    _FCM_API_KEY_RE,
+    _FCM_APP_ID_RE,
+    _classify_fcm_failure,
+    _fcm_creds_hash,
+    _is_terminal_fcm_failure,
+    _validate_fcm_shape,
+    async_probe_fcm_refusal_reason,
+)
+
+
+class AjaxNotificationListener:
+    """Manages FCM push notification registration and listening."""
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        coordinator: AjaxCobrandedCoordinator,
+        *,
+        fcm_project_id: str,
+        fcm_app_id: str,
+        fcm_api_key: str,
+        fcm_sender_id: str,
+        entry_id: str = "",
+        app_label: str = "",
+        disable_push_warning: bool = False,
+    ) -> None:
+        self._hass = hass
+        self._coordinator = coordinator
+        self._fcm_project_id = fcm_project_id
+        self._fcm_app_id = fcm_app_id
+        self._fcm_api_key = fcm_api_key
+        self._fcm_sender_id = fcm_sender_id
+        self._entry_id = entry_id
+        self._app_label = app_label
+        self._disable_push_warning = disable_push_warning
+        self._push_client: Any = None
+        # FCM register config kept for supervised client restarts (#285).
+        self._fcm_config: Any = None
+        self._fcm_supervisor_unsub: Callable[[], None] | None = None
+        self._fcm_restart_at: float | None = None
+        # Set when the last registration failed retryably: the next restart
+        # registers again instead of starting a client (#553).
+        self._registration_failed = False
+        self._fcm_restart_backoff: float = FCM_RESTART_BACKOFF_INITIAL_SECONDS
+        self._fcm_client_started_at: float | None = None
+        # #373: last persistent_id handed to us, plus which id the client was
+        # sitting on when it last died and how many deaths in a row shared it.
+        self._last_persistent_id: str | None = None
+        self._death_persistent_id: str | None = None
+        self._death_repeat_count: int = 0
+        self._stuck_recovery_done: bool = False
+        self._store: Store[dict[str, Any]] = Store(
+            hass, STORAGE_VERSION, fcm_store_key(STORAGE_KEY, entry_id)
+        )
+        self._rejected_store: Store[dict[str, Any]] = Store(
+            hass, STORAGE_VERSION, fcm_store_key(REJECTED_STORAGE_KEY, entry_id)
+        )
+        self._credentials: dict[str, Any] | None = None
+        self._photo_callbacks: dict[str, asyncio.Future[str | None]] = {}
+        self._notification_id_callbacks: dict[str, asyncio.Future[str | None]] = {}
+        self._last_notification_id: str | None = None
+        # notification_id → time.monotonic() of first sighting; used to suppress
+        # the second of the two FCM messages Ajax sends per event (#80).
+        self._recent_notification_ids: dict[str, float] = {}
+        # Counters surfaced by system_health.py for in-UI diagnostics.
+        # Incremented inside `_on_notification` after the dedupe gate so
+        # only "real" pushes are counted; the dedupe-suppressed twin
+        # doesn't double-count.
+        self._pushes_received: int = 0
+        self._last_push_at: float | None = None
+        # #437: the two counters above are per-process, so after every restart
+        # a registration that Ajax accepts and never delivers to is
+        # indistinguishable from one that simply hasn't seen an event yet.
+        # That is the mechanical reason #359 could stay in total silence for a
+        # month without producing any observable signal. This record survives
+        # restarts, and it is keyed to the credential fingerprint so that
+        # re-entering the four values resets the evidence by construction.
+        self._delivery_store: Store[dict[str, Any]] = Store(
+            hass, STORAGE_VERSION, fcm_store_key(DELIVERY_STORAGE_KEY, entry_id)
+        )
+        self._creds_fingerprint: str = _fcm_creds_hash(
+            fcm_project_id=fcm_project_id,
+            fcm_app_id=fcm_app_id,
+            fcm_api_key=fcm_api_key,
+            fcm_sender_id=fcm_sender_id,
+        )[:16]
+        self._ever_delivered: bool = False
+        self._first_delivery_at: str | None = None
+        self._delivery_record_unsaved: bool = False
+        # Hub-side space events seen with the push client up while this
+        # credential set has never delivered (#437). The denominator: zero
+        # deliveries means nothing without knowing how many chances there were.
+        self._hub_events_while_connected: int = 0
+        # Counter value the Repair was last raised for: the review runs every
+        # supervisor tick, and re-logging an unchanged count each minute
+        # buried the warning under 194 copies of itself in a field log.
+        self._reviewed_hub_events: int | None = None
+
+    @property
+    def pushes_received(self) -> int:
+        """Total non-deduped push notifications received since startup."""
+        return self._pushes_received
+
+    @property
+    def last_push_at(self) -> float | None:
+        """`time.monotonic()` of the most recent non-deduped push, or None."""
+        return self._last_push_at
+
+    @property
+    def creds_fingerprint(self) -> str:
+        """Short digest of the four FCM values — never the values themselves.
+
+        Truncated to 16 chars deliberately: it only ever has to answer "are
+        these the same credentials the stored record was written for", and a
+        fingerprint that short is not a re-derivable digest of the secret.
+        """
+        return self._creds_fingerprint
+
+    @property
+    def cache_creds_fingerprint(self) -> str | None:
+        """Short digest of the cached credential set, or None if not cached."""
+        if isinstance(self._credentials, dict):
+            creds_hash = self._credentials.get("creds_hash")
+            if isinstance(creds_hash, str):
+                return creds_hash[:16]
+        return None
+
+    @property
+    def hub_events_while_connected(self) -> int:
+        """Demonstrated push opportunities this credential set has not taken."""
+        return self._hub_events_while_connected
+
+    @property
+    def ever_delivered(self) -> bool:
+        """True if this credential set has ever delivered a push (#437)."""
+        return self._ever_delivered
+
+    @property
+    def first_delivery_at(self) -> str | None:
+        """ISO timestamp of the first push this credential set ever delivered."""
+        return self._first_delivery_at
+
+    async def _async_load_store(
+        self, store: Store[dict[str, Any]], legacy_key: str
+    ) -> dict[str, Any] | None:
+        """Load this entry's store, adopting the pre-#605 shared one once.
+
+        Before #605 every entry used one key. The first entry to start takes
+        that data over and removes it, so a second account starts clean.
+        """
+        data = await store.async_load()
+        if data is not None or store.key == legacy_key:
+            return data
+        async with _LEGACY_ADOPT_LOCK:
+            legacy: Store[dict[str, Any]] = Store(self._hass, STORAGE_VERSION, legacy_key)
+            try:
+                data = await legacy.async_load()
+                if data is None:
+                    return None
+                await store.async_save(data)
+                await legacy.async_remove()
+            except Exception:  # noqa: BLE001 - a storage problem must not stop push
+                _LOGGER.debug("Could not adopt the shared FCM store %s", legacy_key, exc_info=True)
+                return None
+            return data
+
+    @property
+    def has_fcm_credentials(self) -> bool:
+        """True if FCM credentials are configured for this entry (#507).
+
+        The distinction the diagnostics dump needs: a listener always exists
+        once the entry is set up, credentials or not. Without them `async_start`
+        raises `fcm_not_configured` and returns before a client is ever built,
+        so every other field in the push block reads as an inert zero.
+        """
+        return bool(self._fcm_api_key)
+
+    @property
+    def is_fcm_connected(self) -> bool:
+        """True if the FCM push client is alive."""
+        return self._push_client is not None
+
+    async def async_start(self) -> None:
+        """Register with FCM and start listening for push notifications."""
+        # The "credentials present but rejected/malformed" repairs are cleared
+        # at every start so a fresh credentials roundtrip re-raises them from a
+        # clean slate. `fcm_not_configured` is deliberately NOT cleared here:
+        # clearing deletes the registry entry, which wipes any dismissal the
+        # user set, so the card reappeared after every reboot for users who
+        # chose to leave push off (#252). We re-register it idempotently below
+        # (HA preserves a prior dismissal) and only clear it once credentials
+        # are actually present.
+        if self._entry_id:
+            async_clear_fcm_credentials_invalid(self._hass, entry_id=self._entry_id)
+            async_clear_fcm_credentials_malformed(self._hass, entry_id=self._entry_id)
+        if not self._fcm_api_key:
+            # Opt-out (#252): a user who deliberately runs without push set the
+            # `disable_push_warning` option. Don't nag (no WARNING, no Repair),
+            # and clear any card raised on a prior start so it doesn't linger.
+            if self._disable_push_warning:
+                _LOGGER.debug(
+                    "FCM credentials not configured, but the push reminder is "
+                    "disabled by option — staying silent."
+                )
+                if self._entry_id:
+                    async_clear_fcm_not_configured(self._hass, entry_id=self._entry_id)
+                return
+            _LOGGER.warning(
+                "FCM credentials not configured — push notifications disabled, "
+                "real-time events (doorbell ring, arm/disarm, alarm) will not reach HA. "
+                "Configure them in Settings → Devices & Services → Aegis for Ajax → Configure, "
+                "or open the Repair card surfaced under Settings → Repairs. "
+                "If you intentionally run without push, enable "
+                "'I don't use push notifications' in Configure to hide this reminder."
+            )
+            if self._entry_id:
+                async_register_fcm_not_configured(self._hass, entry_id=self._entry_id)
+            return
+        # Credentials are present — clear the "not configured" repair if it was
+        # raised on a prior credential-less start.
+        if self._entry_id:
+            async_clear_fcm_not_configured(self._hass, entry_id=self._entry_id)
+
+        # Pre-flight shape check on the four values. A malformed
+        # `fcm_app_id` (truncated hash tail) surfaces server-side as
+        # `API_KEY_ANDROID_APP_BLOCKED` / `androidPackage: <empty>`,
+        # which accurately reports the symptom but hides the culprit —
+        # the user concludes the API key is wrong and keeps re-pasting
+        # it (#155, #182). Catching it offline lets the Repair card
+        # name `fcm_app_id` directly.
+        shape_problem = _validate_fcm_shape(
+            fcm_project_id=self._fcm_project_id,
+            fcm_app_id=self._fcm_app_id,
+            fcm_api_key=self._fcm_api_key,
+            fcm_sender_id=self._fcm_sender_id,
+        )
+        if shape_problem is not None:
+            _LOGGER.warning(
+                "FCM credentials malformed — push notifications disabled. %s. "
+                "Re-extract per the README's 'Where the values live' section "
+                "and re-enter all four values via the Repair card under "
+                "Settings → Repairs.",
+                shape_problem,
+            )
+            if self._entry_id:
+                async_register_fcm_credentials_malformed(
+                    self._hass, entry_id=self._entry_id, problem=shape_problem
+                )
+            return
+
+        try:
+            from firebase_messaging.fcmregister import (  # noqa: PLC0415
+                FcmRegister,
+                FcmRegisterConfig,
+            )
+        except ImportError:
+            _LOGGER.warning(
+                "firebase_messaging package not installed — push notifications disabled. "
+                "This is unexpected; reinstall the integration via HACS."
+            )
+            return
+
+        # Load or create FCM credentials
+        stored = await self._async_load_store(self._store, STORAGE_KEY)
+        self._credentials = dict(stored) if stored else None
+        await self._async_load_delivery_record()
+
+        fcm_config = FcmRegisterConfig(
+            project_id=self._fcm_project_id,
+            app_id=self._fcm_app_id,
+            api_key=self._fcm_api_key,
+            messaging_sender_id=self._fcm_sender_id,
+        )
+
+        creds_hash = _fcm_creds_hash(
+            fcm_project_id=self._fcm_project_id,
+            fcm_app_id=self._fcm_app_id,
+            fcm_api_key=self._fcm_api_key,
+            fcm_sender_id=self._fcm_sender_id,
+        )
+
+        stored_registration = (
+            self._credentials.get("fcm", {}).get("registration")
+            if isinstance(self._credentials, dict)
+            and isinstance(self._credentials.get("fcm"), dict)
+            else None
+        )
+        stored_token = (
+            stored_registration.get("token") if isinstance(stored_registration, dict) else None
+        )
+        stored_creds_hash = (
+            self._credentials.get("creds_hash") if isinstance(self._credentials, dict) else None
+        )
+
+        # A cache written before 1.19.0 carries no fingerprint. It is ADOPTED,
+        # not discarded (#487): stamp the current fingerprint on it and keep the
+        # token. Discarding it forced every upgrading install through a fresh
+        # registration, and registration is the fragile step — a transient GCM
+        # failure there (the very failure #464 documents as common and
+        # retryable) takes push down on an install where it had been working
+        # for months. Adopting is exactly what 1.18.0 did with the same cache,
+        # so it cannot be worse, and from here on the fingerprint is present,
+        # which is what makes a real credential change detectable at all.
+        legacy_cache = bool(stored_token) and stored_creds_hash is None
+        if legacy_cache and isinstance(self._credentials, dict):
+            self._credentials["creds_hash"] = creds_hash
+            await self._store.async_save(self._credentials)
+            _LOGGER.info(
+                "cached push registration carries no credential fingerprint "
+                "(made before 1.19.0); adopting it for the configured credentials "
+                "instead of registering again"
+            )
+            stored_creds_hash = creds_hash
+
+        valid_cache = (
+            bool(stored_token)
+            and isinstance(stored_creds_hash, str)
+            and stored_creds_hash == creds_hash
+        )
+
+        if not valid_cache:
+            if self._credentials:
+                if not stored_token:
+                    _LOGGER.info("Stored FCM registration has no token; registering again")
+                else:
+                    _LOGGER.info(
+                        "cached push registration belongs to a different credential set; "
+                        "registering again"
+                    )
+                self._credentials = None
+            # Short-circuit if this exact credential set was already rejected
+            # by Google (#227). Without working credentials, `async_start` runs
+            # the registration again on every restart / reload; for a
+            # well-formed-but-wrong api-key that means an unbounded series of
+            # failed requests against the Firebase project. We remember the
+            # rejected set by hash (never the secret) and skip the network
+            # attempt until the user changes the values.
+            rejected = await self._async_load_store(self._rejected_store, REJECTED_STORAGE_KEY)
+            if rejected and rejected.get("hash") == creds_hash:
+                _LOGGER.warning(
+                    "FCM credentials were already rejected by Google and haven't "
+                    "changed — skipping re-registration to avoid repeated failed "
+                    "requests against the Firebase project. Re-enter the four values "
+                    "via the Repair card under Settings → Repairs to try again."
+                )
+                if self._entry_id:
+                    async_register_fcm_credentials_invalid(self._hass, entry_id=self._entry_id)
+                return
+            _LOGGER.debug("Registering with FCM...")
+            # Inject `X-Android-Package` on Firebase Installations calls when
+            # we know the user's co-branded Android package. The Ajax co-brand
+            # api-key on Project B has Google package restriction enabled, so
+            # the default `firebase_messaging` request (no package header)
+            # gets refused with `API_KEY_ANDROID_APP_BLOCKED` /
+            # `androidPackage: <empty>` (#155, #182). We attach the header as
+            # a default on a session passed via `http_client_session` —
+            # aiohttp merges per-request headers on top, so the library's own
+            # `x-firebase-client` / `x-goog-api-key` keys are untouched and
+            # every request we initiate (`fcm_install`, refresh, register)
+            # carries the package id. Co-brands without a mapping fall back
+            # to the pre-1.5.3-beta.10 behaviour (no header, no session).
+            from homeassistant.helpers.aiohttp_client import (  # noqa: PLC0415
+                async_create_clientsession,
+            )
+
+            from custom_components.aegis_ajax.const import (  # noqa: PLC0415
+                APP_LABEL_TO_ANDROID_PACKAGE,
+            )
+
+            android_package = APP_LABEL_TO_ANDROID_PACKAGE.get(self._app_label)
+            fcm_session: aiohttp.ClientSession | None = None
+            if android_package:
+                # HA's shared connector; detached (not closed) once registration ends (#612)
+                fcm_session = async_create_clientsession(
+                    self._hass,
+                    auto_cleanup=False,
+                    headers={"X-Android-Package": android_package},
+                )
+                _LOGGER.debug(
+                    "FCM registration will carry X-Android-Package: %s",
+                    android_package,
+                )
+            try:
+                if fcm_session is not None:
+                    registerer = FcmRegister(config=fcm_config, http_client_session=fcm_session)
+                else:
+                    registerer = FcmRegister(config=fcm_config)
+                # register() may be sync or async depending on library version
+                if asyncio.iscoroutinefunction(registerer.register):
+                    raw_result: Any = await registerer.register()  # noqa: ANN401
+                else:
+                    raw_result = await self._hass.async_add_executor_job(registerer.register)
+                self._credentials = dict(raw_result)
+                self._credentials["creds_hash"] = creds_hash
+                await self._store.async_save(self._credentials)
+                if rejected:
+                    # These values worked — drop any stale rejection marker.
+                    await self._rejected_store.async_remove()
+                self._registration_failed = False
+                _LOGGER.info("FCM registration successful")
+            except Exception as exc:
+                # Remember a terminal credential rejection so we don't re-hit
+                # the Firebase project on every restart (#227). Transient /
+                # host-unreachable errors stay retryable.
+                if _is_terminal_fcm_failure(exc):
+                    await self._rejected_store.async_save({"hash": creds_hash})
+                _LOGGER.warning(_classify_fcm_failure(exc), exc_info=True)
+                await self._async_log_fcm_refusal_reason(exc, android_package)
+                if self._entry_id:
+                    async_register_fcm_credentials_invalid(self._hass, entry_id=self._entry_id)
+                if not _is_terminal_fcm_failure(exc):
+                    # Retried with the regular backoff, or push stays down until
+                    # a reload once the stuck-push recovery fails offline (#553).
+                    self._registration_failed = True
+                    self._start_push_client_supervisor()
+                    self._schedule_fcm_restart(time.monotonic())
+                return
+            finally:
+                if fcm_session is not None:
+                    fcm_session.detach()
+
+        # Extract FCM token and register with Ajax servers
+        assert self._credentials is not None
+        fcm_data = self._credentials.get("fcm", {})
+        registration = fcm_data.get("registration", {}) if isinstance(fcm_data, dict) else {}
+        fcm_token = registration.get("token") if isinstance(registration, dict) else None
+        if fcm_token:
+            _LOGGER.debug("FCM token obtained, registering with Ajax servers")
+            await self._register_push_token(str(fcm_token))
+        else:
+            _LOGGER.warning(
+                "FCM registration returned no token — push delivery will not work. "
+                "Most often caused by malformed FCM credentials (project_id / app_id / "
+                "api_key / sender_id mismatch). Re-extract the four values per the "
+                "integration README and re-enter them in Options."
+            )
+
+        # Start push client (supervised, #285). The supervisor is installed
+        # even when the first start fails: "push silently dead until the next
+        # HA restart" is exactly the state #285 eliminates, so a failed
+        # initial start seeds a delayed retry with the regular backoff
+        # instead of giving up. (The failure already logged a WARNING and,
+        # on the initial path, raised the credentials Repair.)
+        self._fcm_config = fcm_config
+        started = await self._async_start_push_client()
+        self._start_push_client_supervisor()
+        if not started:
+            self._schedule_fcm_restart(time.monotonic())
+
+    async def _async_log_fcm_refusal_reason(
+        self, exc: BaseException, android_package: str | None
+    ) -> None:
+        """Log the reason Google actually gave for refusing the api-key (#344).
+
+        Only runs for the api-key refusal branch — the other failures already
+        say everything they can. One extra request on a path that has already
+        failed, in exchange for turning "FCM credentials rejected" from a
+        multi-day conversation with the reporter into a single log line that
+        names the fix.
+
+        Best-effort throughout: an unanswered probe logs nothing extra rather
+        than adding noise, and never interferes with the registration failure
+        that is already being handled.
+        """
+        if "unable to register with fcm" not in str(exc).lower():
+            return
+        from homeassistant.helpers.aiohttp_client import async_get_clientsession  # noqa: PLC0415
+
+        try:
+            reason, message = await async_probe_fcm_refusal_reason(
+                async_get_clientsession(self._hass),
+                fcm_project_id=self._fcm_project_id,
+                fcm_app_id=self._fcm_app_id,
+                fcm_api_key=self._fcm_api_key,
+                android_package=android_package,
+            )
+        except Exception:  # noqa: BLE001
+            _LOGGER.debug("FCM refusal-reason probe failed", exc_info=True)
+            return
+        if reason is None and message is None:
+            _LOGGER.debug("FCM refusal-reason probe returned no reason")
+            return
+        if reason == "API_KEY_INVALID":
+            advice = (
+                "Google does not recognise this string as one of its api-keys "
+                "at all — so this is neither a wrong-scope nor a restriction "
+                "problem. Check the value was copied whole (no truncation or "
+                "stray whitespace); if it was, that `AIza…` is not a live key "
+                "and another string from the same source has to be tried, "
+                "re-extracted from the app version you actually run"
+            )
+        elif reason == "API_KEY_SERVICE_BLOCKED":
+            advice = (
+                "this key is not scoped for FCM — extract a different `AIza…` "
+                "and re-enter the four values via the Repair card"
+            )
+        elif reason == "API_KEY_ANDROID_APP_BLOCKED":
+            advice = (
+                "the key's Android restriction rejected this request; the key "
+                "itself may be correct. The request identified itself as "
+                f"package {android_package or '<none sent>'} — if that is not "
+                "the package of the app your credentials came from, the app "
+                "label chosen during setup is the thing to fix, not the key"
+            )
+        elif reason == "PERMISSION_DENIED":
+            advice = (
+                "Google recognises this string as one of its api-keys but will "
+                "not authorise it for this project's app — so unlike "
+                "API_KEY_INVALID the key itself is real, and unlike the two "
+                "BLOCKED reasons it is not a scope or restriction problem. The "
+                "usual cause is that the four values do not all come from the "
+                "same app build: the api-key is the one value nothing can be "
+                "cross-checked against offline (fcm_sender_id is verified "
+                "against fcm_app_id, but no local check can tie the key to "
+                "either). Re-read all four from a single build and enter them "
+                "together, rather than swapping the key alone"
+            )
+        else:
+            advice = "please include this line when reporting the problem"
+        _LOGGER.warning(
+            "Google refused the FCM api-key with reason=%s (%s) — %s. "
+            "Context: https://github.com/bvis/aegis-hass/issues/344",
+            reason or "unspecified",
+            message or "no message",
+            advice,
+        )
+
+    async def _async_start_push_client(self, *, register_repair_on_failure: bool = True) -> bool:
+        """Create and start the FcmPushClient; True when it started.
+
+        Shared by the initial `async_start` path and supervised restarts
+        (#285). Restarts pass `register_repair_on_failure=False`: a transient
+        network failure during a backoff retry must not raise the
+        "credentials invalid" Repair card — the credentials already worked.
+        """
+        try:
+            from firebase_messaging import (  # noqa: PLC0415
+                FcmPushClient,
+                FcmPushClientConfig,
+            )
+        except ImportError:
+            return False
+
+        # Defuse the traceback CPU bomb before the listen loop exists (#285).
+        attach_fcm_log_guard()
+        # Only a frame this client was handed can be the one it died on: an
+        # outage death after an earlier push must not count as a replay (#553).
+        self._last_persistent_id = None
+        try:
+            self._push_client = FcmPushClient(
+                callback=self._on_notification,
+                fcm_config=self._fcm_config,
+                credentials=self._credentials,
+                # Explicit so supervision can rely on the library terminating
+                # itself (do_listen → False) instead of erroring forever; the
+                # supervisor then owns the restart cadence (#285).
+                config=FcmPushClientConfig(abort_on_sequential_error_count=3),
+            )
+            # Contain undecodable push frames before any can arrive (#373).
+            install_fcm_decrypt_guard(self._push_client)
+            if asyncio.iscoroutinefunction(self._push_client.start):
+                await self._push_client.start()
+            else:
+                await self._hass.async_add_executor_job(self._push_client.start)
+            self._fcm_client_started_at = time.monotonic()
+            _LOGGER.info("FCM push client started — push notifications active")
+        except Exception as exc:
+            _LOGGER.warning(_classify_fcm_failure(exc), exc_info=True)
+            self._push_client = None
+            if register_repair_on_failure and self._entry_id:
+                async_register_fcm_credentials_invalid(self._hass, entry_id=self._entry_id)
+            return False
+        return True
+
+    def _start_push_client_supervisor(self) -> None:
+        """Start the periodic liveness check for the push client (#285)."""
+        if self._fcm_supervisor_unsub is not None:
+            return
+        from datetime import timedelta  # noqa: PLC0415
+
+        from homeassistant.helpers.event import async_track_time_interval  # noqa: PLC0415
+
+        async def _tick(_now: Any) -> None:  # noqa: ANN401
+            await self._async_supervise_push_client()
+
+        self._fcm_supervisor_unsub = async_track_time_interval(
+            self._hass, _tick, timedelta(seconds=FCM_SUPERVISE_INTERVAL_SECONDS)
+        )
+
+    async def _async_note_push_client_death(self) -> None:
+        """Track deaths that keep landing on the same message (#373).
+
+        A client killed by an undecodable frame dies within milliseconds of
+        receiving it, so the last persistent_id we were handed identifies the
+        message it choked on. The same id across several consecutive deaths
+        means the server is replaying something we cannot get past — the loop
+        cannot break on its own, because the frame is never acked.
+
+        Deaths with no push seen during that client's run (an ordinary network
+        outage, even after earlier pushes) carry no id and must not accumulate,
+        or a long connectivity problem would discard a working registration
+        over a poisoned message that does not exist (#553).
+        """
+        persistent_id = self._last_persistent_id
+        if persistent_id is None:
+            self._death_persistent_id = None
+            self._death_repeat_count = 0
+            return
+        if persistent_id == self._death_persistent_id:
+            self._death_repeat_count += 1
+        else:
+            self._death_persistent_id = persistent_id
+            self._death_repeat_count = 1
+        if self._death_repeat_count < FCM_STUCK_TERMINATION_THRESHOLD:
+            return
+        _LOGGER.warning(
+            "FCM push client has now been terminated %d times in a row while "
+            "handling the same replayed message. This cannot recover on its "
+            "own: the message is never acknowledged, so Ajax's push provider "
+            "redelivers it and it kills the client again. Alarm state is "
+            "unaffected (it comes from polling and the hub connection), but "
+            "doorbell ring and other real-time events are lost. Replacing the "
+            "push registration to break the loop. See issue #373.",
+            self._death_repeat_count,
+        )
+        if self._entry_id:
+            async_register_fcm_push_stuck(
+                self._hass,
+                entry_id=self._entry_id,
+                terminations=self._death_repeat_count,
+            )
+        await self._async_replace_poisoned_registration()
+
+    async def _async_replace_poisoned_registration(self) -> None:
+        """Discard the FCM identity the poisoned message is queued against.
+
+        The replayed frame is queued server-side for *this* registration, so
+        the only way out is a new one — which is what the reporter of #373 did
+        by hand. Doing it here keeps the user out of `.storage`.
+
+        Runs **once** per streak. If something other than a poisoned frame is
+        killing the client, re-registering will not help, and an unbounded
+        loop of registrations against the Firebase project is exactly the
+        failure #227 taught us to avoid.
+        """
+        if self._stuck_recovery_done:
+            return
+        self._stuck_recovery_done = True
+        try:
+            await self._store.async_remove()
+        except Exception:
+            _LOGGER.debug("Could not remove stored FCM credentials", exc_info=True)
+            return
+        self._credentials = None
+        # Cancel the pending backoff: `async_start` owns the restart from here.
+        self._fcm_restart_at = None
+        _LOGGER.warning(
+            "Discarded the stored FCM registration and requesting a new one. "
+            "Real-time push should resume within a minute; the Repair notice "
+            "stays until it has run cleanly for a while."
+        )
+        try:
+            await self.async_start()
+        except Exception:
+            _LOGGER.warning(
+                "Re-registering with FCM after the stuck-push recovery failed; "
+                "push stays on the supervised retry path.",
+                exc_info=True,
+            )
+
+    def _clear_stuck_push_state(self) -> None:
+        """Retire the death streak and its Repair after a healthy run."""
+        had_streak = self._death_repeat_count >= FCM_STUCK_TERMINATION_THRESHOLD
+        self._death_persistent_id = None
+        self._death_repeat_count = 0
+        self._stuck_recovery_done = False
+        if had_streak and self._entry_id:
+            async_clear_fcm_push_stuck(self._hass, entry_id=self._entry_id)
+
+    def _schedule_fcm_restart(self, now: float) -> float:
+        """Arm the next restart attempt and advance the backoff; returns the delay."""
+        delay = self._fcm_restart_backoff
+        self._fcm_restart_at = now + delay
+        self._fcm_restart_backoff = min(
+            self._fcm_restart_backoff * 2, FCM_RESTART_BACKOFF_MAX_SECONDS
+        )
+        return delay
+
+    async def _async_supervise_push_client(self, now: float | None = None) -> None:
+        """Detect a dead FCM client and restart it with backoff (#285).
+
+        firebase-messaging 0.4.5 has two distinct death modes:
+
+        - `_terminate()` lowers `do_listen` (sequential-error abort, or
+          reconnect exhaustion inside `_reset()`).
+        - `_listen()` silently returns when the INITIAL `_connect_with_retry`
+          exhausts its tries — `do_listen` stays True and `run_state` parks in
+          STARTING_CONNECTION, where the library's own `_do_monitor` never
+          acts. The only observable signal is the finished listen task in
+          `client.tasks` ([] until `start()` runs, so pre-start ticks don't
+          read as dead).
+
+        Liveness therefore requires `do_listen` AND no finished task. Routine
+        RESETTING cycles keep both, so a normal reconnect never triggers a
+        restart here. Tearing the client down also flips `is_fcm_connected`,
+        so the hub reachability logic (#236) correctly reports push as down
+        during the backoff window.
+        """
+        if now is None:
+            now = time.monotonic()
+        # Flush a first-delivery mark made on the worker thread (#437). Before
+        # the liveness branches below, all of which can return early.
+        if self._delivery_record_unsaved:
+            await self._async_persist_delivery_record()
+        # Same reason it sits here: every branch below can return early (#437).
+        await self._async_review_push_delivery()
+        client = self._push_client
+        if client is not None:
+            tasks = getattr(client, "tasks", None) or []
+            task_finished = any(task.done() for task in tasks)
+            if getattr(client, "do_listen", True) and not task_finished:
+                if (
+                    self._fcm_client_started_at is not None
+                    and now - self._fcm_client_started_at >= FCM_HEALTHY_RUN_RESET_SECONDS
+                ):
+                    self._fcm_restart_backoff = FCM_RESTART_BACKOFF_INITIAL_SECONDS
+                    # A long healthy run means we are not stuck on a replayed
+                    # message, so retire the streak and any Repair it raised.
+                    self._clear_stuck_push_state()
+                return
+            delay = self._schedule_fcm_restart(now)
+            _LOGGER.warning(
+                "FCM push client terminated after repeated connection errors — "
+                "restarting in %.0f minutes. Until then real-time events "
+                "(doorbell ring, arm/disarm, alarm) fall back to polling.",
+                delay / 60,
+            )
+            try:
+                stop_result = client.stop()
+                if hasattr(stop_result, "__await__"):
+                    await stop_result
+            except Exception:
+                _LOGGER.debug("Error stopping terminated FCM client", exc_info=True)
+            self._push_client = None
+            # Last, because the stuck-push recovery may start a replacement
+            # client and the teardown above would otherwise discard it.
+            await self._async_note_push_client_death()
+            return
+        if self._fcm_restart_at is None or now < self._fcm_restart_at:
+            return
+        self._fcm_restart_at = None
+        if self._registration_failed:
+            # No registration to start a client with: register again. A failure
+            # re-arms the backoff inside `async_start` (#553).
+            await self.async_start()
+            return
+        if await self._async_start_push_client(register_repair_on_failure=False):
+            _LOGGER.info("FCM push client restarted — push notifications active again")
+        else:
+            delay = self._schedule_fcm_restart(now)
+            _LOGGER.warning(
+                "FCM push client restart failed — next attempt in %.0f minutes.",
+                delay / 60,
+            )
+
+    async def _register_push_token(self, fcm_token: str) -> None:
+        """Register the FCM token with Ajax servers via gRPC."""
+        try:
+            from v3.mobilegwsvc.commonmodels.type import user_role_pb2  # noqa: PLC0415
+            from v3.mobilegwsvc.service.upsert_push_token import (  # noqa: PLC0415
+                endpoint_pb2_grpc,
+                request_pb2,
+            )
+
+            client = self._coordinator._client
+            channel = client._get_channel()
+            metadata = client._session.get_call_metadata()
+
+            stub = endpoint_pb2_grpc.UpsertPushTokenServiceStub(channel)
+            request = request_pb2.UpsertPushTokenRequest(
+                user_hex_id=client.session.user_hex_id or "",
+                user_role=user_role_pb2.USER_ROLE_USER,
+                push_token=fcm_token,
+                push_token_type=5,  # PUSH_TOKEN_TYPE_AOS_FCM
+            )
+
+            response = await stub.execute(request, metadata=metadata, timeout=15)
+            if response.HasField("success"):
+                _LOGGER.debug("Push token registered with Ajax servers")
+            else:
+                _LOGGER.warning(
+                    "Ajax server rejected the push-token registration — push delivery "
+                    "may be silent. Response did not carry a `success` field."
+                )
+        except Exception:
+            _LOGGER.exception("Error registering push token with Ajax servers")
+
+    def _on_notification(
+        self,
+        notification: dict[str, Any],
+        persistent_id: str,
+        obj: object = None,  # noqa: ARG002
+    ) -> None:
+        """Handle incoming FCM push notification."""
+        _LOGGER.debug("Push notification received: persistent_id=%s", persistent_id)
+        # Remembered so the supervisor can tell a client killed by a replayed
+        # message from one killed by a network outage (#373).
+        self._last_persistent_id = persistent_id
+
+        # Try to extract photo URL from push data
+        # The key might be "ENCODED_DATA" (top-level) or nested inside "data"
+        encoded_data = notification.get("ENCODED_DATA")
+        if not encoded_data:
+            data_field = notification.get("data")
+            if isinstance(data_field, dict):
+                encoded_data = data_field.get("ENCODED_DATA")
+            elif isinstance(data_field, str):
+                encoded_data = data_field
+
+        # Drop FCM replays of pushes Ajax dispatched in a prior session (#174).
+        # Done before any side effect — photo-URL futures and notif_id dedupe
+        # state must stay untouched by a stale replay. Fail-open: pushes whose
+        # `server_timestamp` we can't recover fall through unchanged so a
+        # parser miss never silences a real event.
+        if encoded_data and self._is_stale_push(encoded_data):
+            return
+
+        if encoded_data:
+            try:
+                raw = base64.b64decode(encoded_data)
+                # Search for HTTPS URLs in the decoded protobuf
+                urls = re.findall(rb'https://[^\x00-\x1f\x7f-\x9f"\'\\]+', raw)
+                for raw_url in urls:
+                    photo_url = raw_url.decode("utf-8", errors="ignore")
+                    parsed = urlparse(photo_url)
+                    is_ajax = parsed.hostname and parsed.hostname.endswith(".ajax.systems")
+                    # Anchor S3 to the real bucket host (SSRF — a substring would
+                    # also accept `hubs-uploaded-resources.attacker.com`).
+                    is_s3 = (
+                        parsed.hostname
+                        and "hubs-uploaded-resources" in parsed.hostname
+                        and parsed.hostname.endswith(".amazonaws.com")
+                    )
+                    if not is_ajax and not is_s3:
+                        _LOGGER.debug("Rejected photo URL from unexpected domain")
+                        continue
+                    # Log host + path only — the query string carries the S3
+                    # signature (X-Amz-Signature, …) which grants object read.
+                    _LOGGER.debug(
+                        "Extracted photo URL from push: %s%s", parsed.hostname or "?", parsed.path
+                    )
+                    # Resolve the photo future for the matching device
+                    resolved = False
+                    for device_id, future in list(self._photo_callbacks.items()):
+                        if not future.done() and device_id.upper() in photo_url.upper():
+                            self._resolve_future_on_loop(
+                                self._photo_callbacks, device_id, photo_url
+                            )
+                            resolved = True
+                            break
+                    if not resolved:
+                        # Fallback: resolve first pending (single-device case)
+                        for device_id, future in list(self._photo_callbacks.items()):
+                            if not future.done():
+                                self._resolve_future_on_loop(
+                                    self._photo_callbacks, device_id, photo_url
+                                )
+                                break
+                    break
+            except Exception:
+                _LOGGER.debug("Failed to parse ENCODED_DATA from push")
+
+        # Extract notification_id for photo URL retrieval
+        notif_id: str | None = None
+        if encoded_data:
+            notif_id = self.extract_notification_id(encoded_data)
+            if notif_id:
+                self._last_notification_id = notif_id
+                _LOGGER.debug("Extracted notification_id: %s", notif_id[:20])
+                # Resolve the future for the matching device_id
+                # notification_id contains the device_id (e.g., ...A1B2C3D4...)
+                for device_id, future in list(self._notification_id_callbacks.items()):
+                    if not future.done() and device_id.upper() in notif_id.upper():
+                        self._resolve_future_on_loop(
+                            self._notification_id_callbacks, device_id, notif_id
+                        )
+                        _LOGGER.debug("Resolved notification_id for device %s", device_id)
+                        break
+
+        # Dedupe Ajax's two-FCM-per-event dispatch (#80). Pushes without an
+        # extractable notification_id fall through unchanged so a parser miss
+        # never silences an unrelated event.
+        if notif_id and self._is_duplicate_notification(notif_id):
+            _LOGGER.debug(
+                "Duplicate notification_id %s within %.0fs window; skipping fire/refresh",
+                notif_id[:20],
+                NOTIFICATION_DEDUPE_WINDOW_SECONDS,
+            )
+            return
+
+        # Count only real (non-dedupe-suppressed) pushes. Surfaced in the
+        # System Health card so users can confirm push delivery is alive.
+        self._pushes_received += 1
+        self._last_push_at = time.monotonic()
+        self._note_push_delivered()
+
+        # Parse event from ENCODED_DATA using compiled protos
+        if encoded_data:
+            self._parse_and_fire_event(encoded_data, notification_id=notif_id)
+
+        # Always trigger refresh
+        if self._hass.loop and self._hass.loop.is_running():
+            self._hass.loop.call_soon_threadsafe(
+                self._hass.async_create_task,
+                self._coordinator.async_request_refresh(),
+            )
+
+    async def _async_load_delivery_record(self) -> None:
+        """Restore the delivery record for the CURRENT credential set (#437).
+
+        A record written for other credentials is ignored rather than
+        migrated: after someone re-enters the four values, "delivery already
+        worked once" is no longer a claim about the registration in force, and
+        keeping it would permanently silence the detector this record feeds.
+
+        Never raises. The record is diagnostic, so a storage problem must not
+        be able to stop push from starting.
+        """
+        try:
+            stored = await self._async_load_store(self._delivery_store, DELIVERY_STORAGE_KEY)
+        except Exception:
+            _LOGGER.debug("Could not load the FCM delivery record", exc_info=True)
+            return
+        if not stored or stored.get("hash") != self._creds_fingerprint:
+            return
+        # `first_delivery_at` is the delivery flag. Records written by the
+        # version that introduced this store carry no explicit one, and a
+        # record now also exists BEFORE any delivery, to hold the event
+        # counter — so inferring "delivered" from the record merely existing
+        # would be wrong in one direction and inferring "not delivered" from a
+        # missing flag would be wrong in the other, resetting the evidence on
+        # every install that already has one. Adopt the shipped shape.
+        self._first_delivery_at = stored.get("first_delivery_at")
+        self._ever_delivered = self._first_delivery_at is not None
+        self._hub_events_while_connected = int(stored.get("hub_events_while_connected") or 0)
+
+    def _note_push_delivered(self) -> None:
+        """Mark that this credential set has now delivered at least one push.
+
+        Runs on the `firebase_messaging` worker thread, so it touches plain
+        attributes only and does not schedule anything: the supervisor tick,
+        which is already on the event loop, picks the write up within a minute.
+        Deliberately NOT marshalled from here — `_on_notification` marshals
+        exactly one call to the loop (the refresh) and adding a second hop per
+        push buys nothing for a record that is written once per credential set.
+
+        Idempotent: the first delivery is the one worth dating, and a later
+        push must not move the timestamp.
+
+        Worst case, a restart inside that minute loses the record and the next
+        delivered push re-marks it. Acceptable — the record's job is to make a
+        registration that NEVER delivers visible, and that case has no push to
+        race with.
+        """
+        if self._ever_delivered:
+            return
+        self._ever_delivered = True
+        self._first_delivery_at = dt_util.utcnow().isoformat()
+        self._delivery_record_unsaved = True
+
+    def note_hub_space_event(self) -> None:
+        """Count a space event the hub reported while push was up (#437).
+
+        Called from the coordinator's HTS space-event path, which runs on the
+        event loop. Attributes only, and nothing scheduled — the same contract
+        as `_note_push_delivered`, for the same reason: the tests around that
+        path assert exactly what each event schedules, and the supervisor tick
+        already flushes this record within a minute.
+
+        Stops counting once a push has arrived. The question is answered at
+        that point, and the record's remaining job is only to stay answered.
+        """
+        if self._ever_delivered or not self.is_fcm_connected:
+            return
+        self._hub_events_while_connected += 1
+        self._delivery_record_unsaved = True
+
+    async def _async_review_push_delivery(self) -> None:
+        """Raise or clear the never-delivered Repair (#437).
+
+        Runs on the supervisor tick rather than at the counting site so the
+        Repair is created on the event loop from one predictable place, and so
+        a burst of space events cannot produce a burst of issue writes.
+        """
+        if not self._entry_id:
+            # Every other repair in this class guards the same way: without an
+            # entry id the issue id would not identify anything.
+            return
+        if self._ever_delivered:
+            async_clear_fcm_never_delivered(self._hass, entry_id=self._entry_id)
+            return
+        if self._hub_events_while_connected < FCM_NEVER_DELIVERED_EVENT_THRESHOLD:
+            return
+        if self._hub_events_while_connected == self._reviewed_hub_events:
+            return
+        self._reviewed_hub_events = self._hub_events_while_connected
+        # "running", not "connected": `is_fcm_connected` only knows the client
+        # object exists, not that its connection to Google is up.
+        _LOGGER.warning(
+            "Push notifications appear not to be delivering: %d hub space event(s) "
+            "have been seen with the push client running and this credential set "
+            "has never delivered a push. Alarm state is unaffected; real-time "
+            "events are not arriving. See the Repair under Settings > Repairs.",
+            self._hub_events_while_connected,
+        )
+        async_register_fcm_never_delivered(
+            self._hass,
+            entry_id=self._entry_id,
+            events=self._hub_events_while_connected,
+        )
+
+    async def _async_persist_delivery_record(self) -> None:
+        """Write the delivery record.
+
+        Called from the supervisor tick when something changed: the first
+        delivery, or the event counter moving. Writes are bounded by that tick
+        rather than by push volume, and the counter stops moving the moment a
+        push is delivered, so a healthy install writes this once per credential
+        set and then never again.
+        """
+        try:
+            await self._delivery_store.async_save(
+                {
+                    "hash": self._creds_fingerprint,
+                    "first_delivery_at": self._first_delivery_at,
+                    "hub_events_while_connected": self._hub_events_while_connected,
+                }
+            )
+        except Exception:
+            _LOGGER.debug("Could not persist the FCM delivery record", exc_info=True)
+            return
+        self._delivery_record_unsaved = False
+
+    def _is_stale_push(self, encoded_data: str) -> bool:
+        """Return True when an FCM push carries a `Notification.server_timestamp`
+        older than `STALE_PUSH_THRESHOLD_SECONDS`.
+
+        Parses just the top-level `PushNotificationDispatchEvent` to recover
+        the timestamp Ajax stamped at dispatch time. Any decode error, a
+        non-`notification` oneof, or a missing `server_timestamp` returns
+        False — the caller treats the push as fresh so a parser miss never
+        silences a real event (#174 fail-open).
+        """
+        try:
+            from systems.ajax.api.ecosystem.v2.communicationsvc.mobile.service.push_notification_dispatch import (  # noqa: PLC0415, E501
+                event_pb2,
+            )
+        except ImportError:
+            return False
+        try:
+            raw = base64.b64decode(encoded_data)
+        except Exception:
+            return False
+        try:
+            dispatch = event_pb2.PushNotificationDispatchEvent()
+            dispatch.ParseFromString(raw)
+        except Exception:
+            return False
+        if dispatch.WhichOneof("push") != "notification":
+            return False
+        if not dispatch.notification.HasField("server_timestamp"):
+            return False
+        ts = dispatch.notification.server_timestamp
+        # `Timestamp.seconds` + `.nanos` → POSIX seconds. Compare against
+        # `time.time()` (wall clock) — `time.monotonic` would be wrong here
+        # because the FCM timestamp is absolute.
+        push_unix = ts.seconds + ts.nanos / 1_000_000_000
+        age = time.time() - push_unix
+        if age > STALE_PUSH_THRESHOLD_SECONDS:
+            _LOGGER.warning(
+                "Dropping stale FCM push: server_timestamp is %.0fs old "
+                "(threshold %.0fs). Likely an FCM-server replay after a "
+                "reconnect (#174); the integration will resync on the next "
+                "snapshot refresh.",
+                age,
+                STALE_PUSH_THRESHOLD_SECONDS,
+            )
+            return True
+        return False
+
+    def _is_duplicate_notification(self, notif_id: str) -> bool:
+        """Return True if *notif_id* was seen within the dedupe window.
+
+        Records the sighting on first call so the second push within the
+        window is suppressed. Stale entries are pruned on every call to
+        keep the dict bounded.
+        """
+        now = time.monotonic()
+        cutoff = now - NOTIFICATION_DEDUPE_WINDOW_SECONDS
+        # Prune expired entries.
+        self._recent_notification_ids = {
+            k: v for k, v in self._recent_notification_ids.items() if v > cutoff
+        }
+        if notif_id in self._recent_notification_ids:
+            return True
+        self._recent_notification_ids[notif_id] = now
+        return False
+
+    async def wait_for_photo_url(self, device_id: str, timeout: float = 15.0) -> str | None:
+        """Wait for a photo URL to arrive via push notification."""
+        loop = asyncio.get_running_loop()
+        future: asyncio.Future[str | None] = loop.create_future()
+        self._photo_callbacks[device_id] = future
+        try:
+            return await asyncio.wait_for(future, timeout=timeout)
+        except TimeoutError:
+            _LOGGER.debug("Timeout waiting for photo URL from push")
+            return None
+        finally:
+            self._photo_callbacks.pop(device_id, None)
+
+    async def wait_for_notification_id(self, device_id: str, timeout: float = 15.0) -> str | None:
+        """Wait for a notification_id to arrive via push notification after photo capture."""
+        loop = asyncio.get_running_loop()
+        future: asyncio.Future[str | None] = loop.create_future()
+        self._notification_id_callbacks[device_id] = future
+        try:
+            return await asyncio.wait_for(future, timeout=timeout)
+        except TimeoutError:
+            _LOGGER.debug("Timeout waiting for notification_id from push")
+            return None
+        finally:
+            self._notification_id_callbacks.pop(device_id, None)
+
+    @staticmethod
+    def extract_notification_id(encoded_data: str) -> str | None:
+        return notification_event_parser.extract_notification_id(encoded_data)
+
+    def _parse_and_fire_event(
+        self, encoded_data: str, *, notification_id: str | None = None
+    ) -> None:
+        """Parse event from base64-encoded push notification data."""
+        try:
+            raw = base64.b64decode(encoded_data)
+            event_info = self._extract_event_from_proto(raw)
+            if event_info:
+                event_type, event_data = event_info
+                # Enrich with source device info (name, room, type). For
+                # group-level events the source is a SpaceNotificationSource
+                # carrying the group_id; extract that too so the per-group
+                # alarm panel can be updated (#148).
+                source_info = self._extract_source_info(raw)
+                if source_info:
+                    event_data.update(source_info)
+                if event_data.get("raw_tag") in RAW_TAG_TO_GROUP_SECURITY_STATE:
+                    # Ajax actually encodes the group context in
+                    # `additional_data.space_display_groups` as a
+                    # `DisplayGroups.Group(group_hex_id, group_name)` —
+                    # not in the `SpaceNotificationSource` we used to scan
+                    # (#148 wire capture in beta.6). Try DisplayGroups
+                    # first; fall back to the legacy SpaceNotificationSource
+                    # path in case a future Ajax build also emits it there.
+                    group_info = self._extract_space_group_info(
+                        raw
+                    ) or self._extract_space_source_info(raw)
+                    if group_info:
+                        event_data.update(group_info)
+                    else:
+                        # Diagnostic path: parser confirmed a `space_group_*`
+                        # event but neither extractor located the group_id,
+                        # so the per-group panel only updates on next poll.
+                        # The hex dump survives in case Ajax ships yet another
+                        # wire shape down the road. WARNING is intentional —
+                        # degraded user-visible behaviour.
+                        _LOGGER.warning(
+                            "Group push %s parsed without group_id; "
+                            "per-group panel will only update on next poll. "
+                            "Raw payload (hex, capped 2048 bytes): %s",
+                            event_data.get("raw_tag"),
+                            raw[:2048].hex(),
+                        )
+                _LOGGER.debug(
+                    "Push event parsed: event_type=%s raw_tag=%s group_id=%s",
+                    event_type,
+                    event_data.get("raw_tag"),
+                    event_data.get("group_id"),
+                )
+                # Route to the space the push itself names (#358). This used to
+                # scan the payload for the hub id as raw bytes, which never
+                # matched a genuine push — the id travels as ASCII text — so
+                # every event took the fallback below and was delivered to every
+                # space. Don't reintroduce a byte scan here.
+                target_space = self._find_space_for_event(raw)
+                # The space this push was actually delivered to, or None when it
+                # could not be routed. Device attribution below is scoped to it
+                # so a ring can never surface on another space's doorbell (#494).
+                delivered_space: str | None = None
+                photo_context = (
+                    notification_event_parser.extract_alarm_photo_context(raw, notification_id)
+                    if event_type == "alarm" and notification_id
+                    else None
+                )
+                if target_space:
+                    delivered_space = target_space
+                    self._dispatch_to_loop(
+                        self._coordinator.fire_push_event, target_space, event_type, event_data
+                    )
+                    if photo_context is not None:
+                        self._dispatch_to_loop(
+                            self._coordinator.schedule_alarm_image_import,
+                            target_space,
+                            notification_id,
+                            *photo_context,
+                        )
+                    self._apply_security_state_from_event(target_space, event_data)
+                elif len(self._coordinator._space_ids) == 1:
+                    # One space: the destination is unambiguous even when the
+                    # payload didn't name it, so route there rather than drop.
+                    only_space = self._coordinator._space_ids[0]
+                    delivered_space = only_space
+                    self._dispatch_to_loop(
+                        self._coordinator.fire_push_event, only_space, event_type, event_data
+                    )
+                    if photo_context is not None:
+                        self._dispatch_to_loop(
+                            self._coordinator.schedule_alarm_image_import,
+                            only_space,
+                            notification_id,
+                            *photo_context,
+                        )
+                    self._apply_security_state_from_event(only_space, event_data)
+                elif named_space := notification_event_parser.extract_space_id(raw):
+                    # The push names a space this entry doesn't manage. The FCM
+                    # stream is per account, so a user who added 2 of their 5
+                    # systems keeps receiving the other 3 — expected, not a
+                    # defect, and deliberately not a warning.
+                    _LOGGER.debug(
+                        "Push event %s belongs to space %s, which is not configured "
+                        "in this entry; not delivered",
+                        event_type,
+                        named_space,
+                    )
+                else:
+                    # Several spaces and the payload named none of them:
+                    # dropping the event beats the pre-#358 fan-out. Fanning out
+                    # fired *every* hub's event entity, each stamping its own
+                    # genuine hub_id, so device triggers scoped to an untouched
+                    # system ran and every panel took the state of whichever hub
+                    # moved. The unconditional snapshot nudge below still
+                    # settles state. WARNING, not DEBUG: an event is discarded.
+                    _LOGGER.warning(
+                        "Push event %s could not be routed to any of the %d spaces on this "
+                        "account and was not delivered; alarm state will follow from the "
+                        "snapshot refresh instead. Please report this at "
+                        "https://github.com/bvis/aegis-hass/issues/358 with debug logs.",
+                        event_type,
+                        len(self._coordinator._space_ids),
+                    )
+                # A security-state event can change several groups at once
+                # (scenario / keypad / fob) plus `night_mode_enabled` — state
+                # only the heavier snapshot carries. Nudge the same
+                # authoritative re-read the HTS 0x08 path uses (#284/#287):
+                # the push state applied above keeps the space panel instant;
+                # the nudge settles group panels + armed_night ~1 s later
+                # instead of waiting for the hourly snapshot.
+                if event_type in SECURITY_STATE_EVENT_TYPES:
+                    self._dispatch_to_loop(self._coordinator.request_security_snapshot_refresh)
+                # Surface doorbell ring / motion on the source device's own
+                # card, in addition to the hub-level event entity (#173).
+                self._dispatch_event_to_device(event_type, event_data, raw, delivered_space)
+        except Exception:
+            _LOGGER.debug("Failed to parse event from push notification", exc_info=True)
+
+    def _doorbell_fallback_candidates(
+        self, devices: dict[str, Any], space_id: str | None
+    ) -> list[str]:
+        """Doorbells eligible to receive a ring the push did not attribute (#494).
+
+        A doorbell belongs to the space whose hub it is paired to, so the
+        candidates are the doorbells sharing the delivered space's `hub_id`.
+        When the push could not be routed at all, guessing is only safe on an
+        account with a single space — there the account-wide set *is* that
+        space's set, which is what kept #173's single-doorbell case working.
+        """
+        doorbells = [dev_id for dev_id, dev in devices.items() if capabilities_for(dev).is_doorbell]
+        spaces = getattr(self._coordinator, "spaces", {}) or {}
+        if space_id and space_id in spaces:
+            hub_id = spaces[space_id].hub_id
+            return [dev_id for dev_id in doorbells if devices[dev_id].hub_id == hub_id]
+        if len(getattr(self._coordinator, "_space_ids", []) or []) > 1:
+            _LOGGER.debug(
+                "Unrouted doorbell push on a %d-space account: not guessing a device",
+                len(self._coordinator._space_ids),
+            )
+            return []
+        return doorbells
+
+    def _dispatch_event_to_device(
+        self,
+        event_type: str,
+        event_data: dict[str, Any],
+        raw: bytes,
+        space_id: str | None = None,
+    ) -> None:
+        """Mirror a doorbell ring / motion push onto the source device (#173).
+
+        Resolves the source device from the `device_id` carried in the push
+        (`_extract_source_info`). For doorbell rings, when no usable device id
+        is present we fall back to the sole doorbell device of the space the push
+        was delivered to — the common single-doorbell case — so users still
+        see the ring on the doorbell card. Motion has no such fallback: the
+        `motion` event_type is shared with PIR detectors, so an unattributed
+        motion push must not be guessed onto an arbitrary device.
+
+        The fallback is scoped because it used to search every device on the
+        account (#494). A PRO account managing several client spaces with one
+        registered doorbell between them attributed every unrouted ring to that
+        doorbell, so a press at one client fired the ring on another client's
+        entity. Same shape as #358: invisible with a single space.
+
+        The instrumentation log below is intentional: it records exactly what
+        device attribution the parser resolved (or failed to), so if a user's
+        firmware turns out to ship a source shape we don't decode, the next
+        debug capture shows it without another code round-trip.
+        """
+        if event_type not in (DOORBELL_EVENT_TYPE, MOTION_EVENT_TYPE):
+            return
+
+        devices = getattr(self._coordinator, "devices", {}) or {}
+        device_id = event_data.get("device_id")
+        resolved = device_id if device_id in devices else None
+
+        # The push carries the Jeweller twin id, but after the #173 dedup the
+        # device set holds the `video_edge` sibling instead. Resolve via the
+        # twin→sibling alias so BOTH doorbell rings and motion attribute to the
+        # real device — without this, motion (which has no single-doorbell
+        # fallback below) always lands on the hub.
+        if resolved is None and device_id is not None:
+            alias = self._coordinator.doorbell_twin_aliases.get(device_id)
+            if alias in devices:
+                resolved = alias
+
+        if resolved is None and event_type == DOORBELL_EVENT_TYPE:
+            doorbells = self._doorbell_fallback_candidates(devices, space_id)
+            if len(doorbells) == 1:
+                resolved = doorbells[0]
+
+        # device_name is intentionally omitted — it's a user label (PII) and
+        # debug logs get pasted publicly. The hardware id + type are enough to
+        # confirm attribution.
+        _LOGGER.debug(
+            "Push device attribution: event_type=%s extracted_device_id=%s "
+            "device_type=%s resolved=%s",
+            event_type,
+            device_id,
+            event_data.get("device_type"),
+            resolved,
+        )
+
+        if resolved is None:
+            # Capped, PII-redacted hex of the payload so an unattributed
+            # doorbell/motion push can still be diagnosed from a debug log.
+            _LOGGER.debug(
+                "Push %s not attributed to a device; source missing or unknown. "
+                "Payload (hex, redacted, capped 512b): %s",
+                event_type,
+                _redact_printable(raw[:512]),
+            )
+            return
+
+        if event_type == DOORBELL_EVENT_TYPE:
+            self._dispatch_to_loop(
+                self._coordinator.fire_push_device_event, resolved, event_type, event_data
+            )
+        elif event_type == MOTION_EVENT_TYPE:
+            self._dispatch_to_loop(self._coordinator.apply_push_device_motion, resolved)
+
+    def _resolve_future_on_loop(
+        self,
+        callbacks: dict[str, asyncio.Future[str | None]],
+        device_id: str,
+        value: str,
+    ) -> None:
+        """Resolve a `wait_for_*` future from the FCM worker thread (#274).
+
+        `Future.set_result` is loop-only, and the future may be cancelled by
+        a `wait_for_*` timeout racing this push — so the done-check, the
+        set_result and the dict cleanup all run on the HA event loop. The
+        worker-side match that selected `device_id` is only a best-effort
+        filter over a snapshot.
+        """
+
+        def _resolve() -> None:
+            future = callbacks.pop(device_id, None)
+            if future is not None and not future.done():
+                future.set_result(value)
+
+        self._dispatch_to_loop(_resolve)
+
+    def _dispatch_to_loop(self, func: Callable[..., object], *args: object) -> None:
+        """Marshal a coordinator state-write from the FCM worker thread onto the
+        HA event loop.
+
+        `_on_notification` runs on the firebase_messaging worker thread; the
+        coordinator handlers it calls touch `async_write_ha_state` /
+        `bus.async_fire`, which are loop-only and not thread-safe. Schedule them
+        on the loop instead of calling them inline. No-op if the loop isn't
+        running (shutdown / teardown) — dropping a push beats an off-loop write.
+        """
+        if self._hass.loop and self._hass.loop.is_running():
+            self._hass.loop.call_soon_threadsafe(func, *args)
+
+    def _apply_security_state_from_event(self, space_id: str, event_data: dict[str, Any]) -> None:
+        """If the push event implies a new security_state, push it now (#68 / #148).
+
+        Routes space-wide tags to the space-level `apply_push_security_state`
+        and `space_group_*` tags (when accompanied by a `group_id` extracted
+        from the SpaceNotificationSource) to the per-group equivalent.
+
+        The FCM callback runs on the firebase_messaging worker thread, so we
+        dispatch the update to the HA event loop via call_soon_threadsafe.
+        """
+        raw_tag = event_data.get("raw_tag")
+        if not isinstance(raw_tag, str):
+            return
+        if not (self._hass.loop and self._hass.loop.is_running()):
+            return
+        # An intrusion alarm implies no arm-state transition — the space stays
+        # armed while the siren fires — so it marks the space in-alarm (#426)
+        # instead of writing a security_state.
+        if raw_tag in INTRUSION_ALARM_RAW_TAGS:
+            self._hass.loop.call_soon_threadsafe(
+                self._coordinator.note_intrusion_alarm,
+                space_id,
+            )
+            return
+        group_state = RAW_TAG_TO_GROUP_SECURITY_STATE.get(raw_tag)
+        group_id = event_data.get("group_id")
+        if group_state is not None and isinstance(group_id, str) and group_id:
+            self._hass.loop.call_soon_threadsafe(
+                self._coordinator.apply_push_group_security_state,
+                space_id,
+                group_id,
+                group_state,
+            )
+            return
+        new_state = RAW_TAG_TO_SECURITY_STATE.get(raw_tag)
+        if new_state is None:
+            return
+        self._hass.loop.call_soon_threadsafe(
+            self._coordinator.apply_push_security_state,
+            space_id,
+            new_state,
+        )
+
+    def _find_space_for_event(self, raw: bytes) -> str | None:
+        """Resolve which space a push belongs to, or None (#358).
+
+        Reads `Notification.space.id` structurally and matches it against
+        the spaces this entry knows about. The legacy hub-id byte scan is
+        kept as a fallback for payload shapes the structural path can't
+        decode, but it never matched a real capture — the hub id travels
+        as ASCII text, not as the raw bytes it looked for.
+        """
+        space_id = notification_event_parser.extract_space_id(raw)
+        if space_id and space_id in self._coordinator.spaces:
+            return space_id
+        for space in self._coordinator.spaces.values():
+            if space.hub_id:
+                try:
+                    hub_bytes = bytes.fromhex(space.hub_id)
+                except ValueError:
+                    continue
+                if hub_bytes in raw:
+                    return space.id
+        return None
+
+    def _extract_event_from_proto(self, raw: bytes) -> tuple[str, dict[str, Any]] | None:
+        """Extract event type and data from raw protobuf bytes.
+
+        Attempts to decode using compiled protos. Falls back to raw parsing
+        if proto imports fail.
+        """
+        try:
+            return self._extract_event_with_compiled_protos(raw)
+        except Exception:
+            _LOGGER.debug("Compiled proto parsing failed, trying raw extraction")
+            return self._extract_event_raw(raw)
+
+    # Parsing delegators. The base64/protobuf event-decoding logic lives in the
+    # pure, listener-free `notification_event_parser` module; these thin
+    # forwarders preserve the historical `AjaxNotificationListener._extract_*` /
+    # `.extract_notification_id` call surface relied on by `_parse_and_fire_event`
+    # and the test suite. `_extract_event_with_compiled_protos` stays an instance
+    # method because the tests call it as `listener._extract_event_with_compiled_protos`.
+
+    def _extract_event_with_compiled_protos(self, raw: bytes) -> tuple[str, dict[str, Any]] | None:
+        return notification_event_parser._extract_event_with_compiled_protos(raw)
+
+    @staticmethod
+    def _extract_source_info(raw: bytes) -> dict[str, Any]:
+        return notification_event_parser._extract_source_info(raw)
+
+    @staticmethod
+    def _extract_space_source_info(raw: bytes) -> dict[str, Any]:
+        return notification_event_parser._extract_space_source_info(raw)
+
+    @staticmethod
+    def _extract_space_group_info(raw: bytes) -> dict[str, Any]:
+        return notification_event_parser._extract_space_group_info(raw)
+
+    @staticmethod
+    def _extract_event_raw(raw: bytes) -> tuple[str, dict[str, Any]] | None:
+        return notification_event_parser._extract_event_raw(raw)
+
+    async def async_stop(self) -> None:
+        """Stop the FCM push client."""
+        if self._fcm_supervisor_unsub is not None:
+            self._fcm_supervisor_unsub()
+            self._fcm_supervisor_unsub = None
+        self._fcm_restart_at = None
+        if self._push_client:
+            client = self._push_client
+            try:
+                # #570: the library cancels its tasks without waiting, and the
+                # reader's cleanup then waits for a TLS close Google can take
+                # tens of seconds to send, outliving HA's shutdown. Drop the
+                # connection first so that cleanup ends at once, then wait.
+                writer = getattr(client, "writer", None)
+                if writer is not None:
+                    writer.transport.abort()
+                tasks = [t for t in getattr(client, "tasks", None) or [] if not t.done()]
+                stop_result = client.stop()
+                if hasattr(stop_result, "__await__"):
+                    await stop_result
+                if tasks:
+                    await asyncio.wait(tasks, timeout=FCM_STOP_TIMEOUT_SECONDS)
+                _LOGGER.debug("FCM push client stopped")
+            except Exception:
+                _LOGGER.exception("Error stopping FCM push client")
+            self._push_client = None

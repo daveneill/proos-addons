@@ -1,0 +1,773 @@
+{
+    "config": {
+        "step": {
+            "user": {
+                "title": "Přihlášení Aegis for Ajax",
+                "description": "Zadejte přihlašovací údaje svého účtu Aegis for Ajax.",
+                "data": {
+                    "email": "E-mail",
+                    "password": "Heslo",
+                    "app_label": "Označení aplikace (název co-branded aplikace)"
+                },
+                "data_description": {
+                    "email": "E-mail, kterým se přihlašujete do aplikace Ajax.",
+                    "password": "Heslo k účtu Ajax. Home Assistant ukládá jen jeho hash.",
+                    "app_label": "Aplikace, ke které účet patří: Ajax nebo co-branded aplikace. Pokud si nejste jisti, podívejte se do README."
+                }
+            },
+            "2fa": {
+                "title": "Dvoufaktorové ověření",
+                "description": "Zadejte 6místný kód z vaší ověřovací aplikace.",
+                "data": {
+                    "totp_code": "Kód TOTP"
+                },
+                "data_description": {
+                    "totp_code": "Šestimístný kód z vaší ověřovací aplikace."
+                }
+            },
+            "select_spaces": {
+                "title": "Vyberte prostory",
+                "description": "Zvolte, které prostory (huby) chcete přidat.",
+                "data": {
+                    "spaces": "Prostory"
+                },
+                "data_description": {
+                    "spaces": "Prostory (huby), které se mají přidat do Home Assistant. Vyberte alespoň jeden."
+                }
+            },
+            "reconfigure": {
+                "title": "Překonfigurovat Aegis for Ajax",
+                "description": "Aktualizujte přihlašovací údaje.",
+                "data": {
+                    "email": "E-mail",
+                    "password": "Heslo",
+                    "app_label": "Štítek aplikace"
+                },
+                "data_description": {
+                    "email": "E-mail, kterým se přihlašujete do aplikace Ajax.",
+                    "password": "Heslo k účtu Ajax. Home Assistant ukládá jen jeho hash.",
+                    "app_label": "Aplikace, ke které účet patří: Ajax nebo co-branded aplikace. Pokud si nejste jisti, podívejte se do README."
+                }
+            },
+            "reconfigure_2fa": {
+                "title": "Dvoufaktorové ověření",
+                "description": "Zadejte 6místný kód z vaší ověřovací aplikace.",
+                "data": {
+                    "totp_code": "Kód TOTP"
+                },
+                "data_description": {
+                    "totp_code": "Šestimístný kód z vaší ověřovací aplikace."
+                }
+            },
+            "reauth_confirm": {
+                "title": "Opětovné ověření Aegis for Ajax",
+                "description": "Vaše Ajax relace pro {email} již není platná. Zadejte aktuální heslo k účtu pro obnovení přístupu.",
+                "data": {
+                    "password": "Heslo"
+                },
+                "data_description": {
+                    "password": "Heslo k účtu Ajax. Home Assistant ukládá jen jeho hash."
+                }
+            },
+            "reauth_2fa": {
+                "title": "Dvoufaktorové ověření",
+                "description": "Zadejte 6místný kód z vaší ověřovací aplikace.",
+                "data": {
+                    "totp_code": "Kód TOTP"
+                },
+                "data_description": {
+                    "totp_code": "Šestimístný kód z vaší ověřovací aplikace."
+                }
+            }
+        },
+        "error": {
+            "invalid_auth": "Neplatný e-mail nebo heslo.",
+            "invalid_totp": "Neplatný kód TOTP. Zkuste to znovu.",
+            "cannot_connect": "Nelze se připojit k serverům Ajax.",
+            "client_rejected": "Ajax odmítá tuto verzi Aegis for Ajax. Aktualizujte integraci v HACS, restartujte Home Assistant a zkuste to znovu.",
+            "unknown": "Došlo k neočekávané chybě."
+        },
+        "abort": {
+            "already_configured": "Tento účet je již nakonfigurován.",
+            "account_locked": "Účet je uzamčen. Zkuste to prosím později.",
+            "reauth_successful": "Opětovné ověření proběhlo úspěšně.",
+            "already_in_progress": "Konfigurace již probíhá. Dokončete nebo zrušte stávající postup.",
+            "reconfigure_successful": "Přihlašovací údaje úspěšně aktualizovány.",
+            "cannot_connect": "Nelze se připojit k serverům Ajax."
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "Nastavení Aegis for Ajax",
+                "data": {
+                    "poll_interval": "Záložní interval dotazování (sekundy, 60-300)",
+                    "force_arm": "Nucené zastřežení (ignorovat otevřené senzory a poruchy)",
+                    "expose_arm_home": "Zobrazit tlačítko „Aktivovat doma“",
+                    "delay_panel_states": "Zobrazovat odchodové / příchodové zpoždění jako stavy panelu",
+                    "cloud_video": "Živý náhled přes cloud pro videokamery (experimentální)",
+                    "use_pin_code": "Vyžadovat PIN kód pro střežení/odstřežení",
+                    "pin_code": "PIN kód",
+                    "fcm_project_id": "ID projektu FCM (pro push notifikace)",
+                    "fcm_app_id": "ID aplikace FCM",
+                    "fcm_api_key": "API klíč FCM",
+                    "fcm_sender_id": "ID odesílatele FCM",
+                    "clear_fcm_credentials": "Smazat FCM přihlašovací údaje (vymaže všechna čtyři pole)",
+                    "disable_push_warning": "Nepoužívám push oznámení",
+                    "photo_retention_days": "Uchovávání fotografií (dny)",
+                    "photo_max_per_device": "Max fotografií na zařízení (0 = neomezeno)",
+                    "auto_create_labels": "Automaticky vytvářet a přiřazovat štítky Aegis entitám",
+                    "bypass_switches": "Vytvořit přepínače vyřazení zařízení",
+                    "persistent_notifications": "Zobrazovat bezpečnostní události jako trvalá oznámení",
+                    "persistent_notification_events": "Události, které vytvoří trvalé oznámení"
+                },
+                "data_description": {
+                    "bypass_switches": "Přepínače vyřazení umožňují deaktivovat zařízení před zastřežením. 'Auto' je vytvoří jen tehdy, má-li tvůj účet Ajax oprávnění deaktivovat zařízení.",
+                    "expose_arm_home": "Přidá na panel alarmu režim Aktivovat doma. Kopíruje noční režim a je potřeba hlavně pro Amazon Alexa nebo Nabu Casa Cloud. Vypněte pro skrytí duplicitního tlačítka, pokud je nepoužíváte.",
+                    "delay_panel_states": "Je-li zapnuto, panel alarmu zobrazuje \"arming\", dokud hub odpočítává \"Zpoždění při odchodu\" detektoru, a \"pending\", dokud běží \"Zpoždění při příchodu\" — obojí podle signálů samotného hubu, nikoli našeho časovače. Detektory bez zpoždění (okamžitý alarm) jsou během \"arming\" již aktivní. Automatizace čekající na \"armed_away\" se spustí po dokončení odchodového zpoždění. Surový stav hubu zůstává v atributu \"hub_state\".",
+                    "cloud_video": "Přidá kameru s živým náhledem pro každou videokameru Ajax, streamovanou přes cloud Ajax stejně jako v aplikaci mimo domov, takže funguje i tehdy, když Home Assistant není v síti kamery. Experimentální: zatím nemusí fungovat se všemi kamerami. Každé sledování otevře jednu video relaci; když se nikdo nedívá, nic neběží.",
+                    "disable_push_warning": "Zapněte, pokud záměrně běžíte bez push. Skryje opakující se připomínku „FCM není nakonfigurováno“ i kartu opravy. Události v reálném čase (zvonek, aktivace/deaktivace, poplach, pohyb) se do Home Assistant nedostanou, dokud nenastavíte FCM.",
+                    "persistent_notifications": "Po zapnutí se vybrané události zobrazí jako trvalá oznámení Home Assistant, která zůstanou viditelná, dokud je nezavřete nebo se Home Assistant nerestartuje. Tyto události přicházejí přes push (FCM), takže push musí být nakonfigurován, aby dorazily.",
+                    "persistent_notification_events": "Které události vyvolají trvalé oznámení. Výchozí jsou skutečné incidenty (alarm, panika, sabotáž, požár, CO, zaplavení, rozbití skla). Přidejte zapnutí/vypnutí ostrahy, pohyb nebo zvonek, pokud je chcete také."
+                }
+            }
+        }
+    },
+    "system_health": {
+        "info": {
+            "can_reach_server": "Dostupnost Ajax cloudu (gRPC host)",
+            "configured_accounts": "Nakonfigurovane ucty",
+            "spaces": "Prostory (huby)",
+            "hts_connected": "Pripojene HTS streamy",
+            "fcm_connected": "Pripojene FCM klienty",
+            "pushes_received": "Prijate push zpravy",
+            "last_push": "Posledni push prijat",
+            "last_poll": "Posledni uspesny dotaz"
+        }
+    },
+    "services": {
+        "force_arm": {
+            "name": "Nucene zastrezeni",
+            "description": "Zastrezit system a ignorovat otevrene senzory a aktivni alarmy.",
+            "fields": {
+                "entity_id": {
+                    "name": "Entita",
+                    "description": "Alarmový panel k nucenému zastřežení. Pokud je vynecháno, zastřeží všechny panely."
+                }
+            }
+        },
+        "force_arm_night": {
+            "name": "Nuceny nocni rezim",
+            "description": "Aktivovat nocni rezim a ignorovat otevrene senzory a aktivni alarmy.",
+            "fields": {
+                "entity_id": {
+                    "name": "Entita",
+                    "description": "Alarmový panel k nucenému zastřežení. Pokud je vynecháno, zastřeží všechny panely."
+                }
+            }
+        },
+        "disarm_night_mode": {
+            "name": "Odjistit noční režim",
+            "description": "Ukončí noční režim a ponechá nezávisle zastřežené (odchodové) skupiny zastřežené. Na rozdíl od úplného odjištění deaktivuje pouze skupiny nočního režimu – nativní operace Ajax „odjistit noční režim\".",
+            "fields": {
+                "entity_id": {
+                    "name": "Entita",
+                    "description": "Entita poplachového panelu prostoru, který se má odjistit z nočního režimu. Pokud je vynecháno, platí pro všechny panely."
+                }
+            }
+        },
+        "press_panic_button": {
+            "name": "Stisknout panikové tlačítko (SOS)",
+            "description": "Spustí tlačítko SOS / paniky Ajaxu v prostoru. Volá stejný endpoint jako červené SOS tlačítko v oficiální mobilní aplikaci a předává poplach do pultu centralizované ochrany (CRA), což u většiny smluv znamená okamžitý zásah policie bez ověřovací doby. Používejte pouze v reálných nouzích. Pole confirm musí být true, jinak je volání odmítnuto.",
+            "fields": {
+                "confirm": {
+                    "name": "Potvrdit paniku",
+                    "description": "Musí být nastaveno na true. Funguje jako bezpečnostní zámek bránící náhodnému spuštění automatizací."
+                },
+                "entity_id": {
+                    "name": "Entita",
+                    "description": "Entita alarmového panelu prostoru, jehož panikové tlačítko se má stisknout. Pokud je vynecháno, panika se odešle do všech nakonfigurovaných prostorů."
+                },
+                "latitude": {
+                    "name": "Zeměpisná šířka",
+                    "description": "Volitelná zeměpisná šířka volajícího předávaná Ajaxu. Použijte společně s délkou."
+                },
+                "longitude": {
+                    "name": "Zeměpisná délka",
+                    "description": "Volitelná zeměpisná délka volajícího předávaná Ajaxu. Použijte společně se šířkou."
+                }
+            }
+        },
+        "set_photo_on_demand_mode": {
+            "name": "Nastavit režim Fotografie na vyžádání",
+            "description": "Zapne nebo vypne režim Fotografie na vyžádání na hubu. Samostatně lze přepínat dva nezávislé kanály: požadavky uživatelů (zda mohou uživatelé hubu vyžádat fotografie z aplikace Ajax) a scénáře (zda mohou pořízení snímku spustit scénáře / automatizace). Pole ponechte nevyplněné, chcete-li zachovat jeho aktuální hodnotu. Alespoň jedno je povinné.",
+            "fields": {
+                "user": {
+                    "name": "Požadavky uživatelů",
+                    "description": "Je-li nastaveno, zapne nebo vypne požadavky na fotografie zadané uživateli hubu. Ponechte nevyplněné pro zachování aktuální hodnoty."
+                },
+                "scenario": {
+                    "name": "Scénáře",
+                    "description": "Je-li nastaveno, zapne nebo vypne pořizování fotografií na vyžádání spouštěné scénáři nebo automatizacemi Ajax. Ponechte nevyplněné pro zachování aktuální hodnoty."
+                },
+                "entity_id": {
+                    "name": "Entita",
+                    "description": "Entita alarmového panelu prostoru, jehož režim hubu se má změnit. Pokud je vynecháno, platí pro všechny nakonfigurované prostory."
+                }
+            }
+        },
+        "refresh_alarm_images": {
+            "name": "Refresh alarm camera images",
+            "description": "Import recent alarm photos into local albums without taking a new photo. New alarm pushes import automatically. Manual backfill is limited to once per five minutes per space, with one history query and at most ten media streams; completed local albums are skipped.",
+            "fields": {
+                "entity_id": {
+                    "name": "Entity",
+                    "description": "Alarm panel entity for the space to import. If omitted, imports from every configured space."
+                }
+            }
+        },
+        "list_client_sessions": {
+            "name": "Vypsat relace účtu",
+            "description": "Vrátí na vyžádání aktivní relace účtu Ajax pro ruční kontrolu. Tato služba volá interní endpoint Ajaxu, který může omezovat četnost požadavků; nedotazujte se jí cyklicky v automatizacích. Aktuálně aktivní relace Aegis je označena příznakem is_current, pokud ji lze identifikovat.",
+            "fields": {
+                "entry_id": {
+                    "name": "ID položky nastavení",
+                    "description": "Nutné, pokud je nakonfigurován více než jeden účet Aegis."
+                }
+            }
+        },
+        "terminate_client_session": {
+            "name": "Ukončit relaci účtu",
+            "description": "Okamžitě odhlásí vybrané jiné zařízení z účtu Ajax. Jeho ID relace získáte pomocí list_client_sessions. Integrace nikdy neukončí vlastní relaci.",
+            "fields": {
+                "session_id": {
+                    "name": "ID relace",
+                    "description": "ID relace vrácené službou list_client_sessions."
+                },
+                "confirm": {
+                    "name": "Potvrdit ukončení",
+                    "description": "Musí být true, aby se vybraná relace okamžitě ukončila."
+                },
+                "entry_id": {
+                    "name": "ID položky nastavení",
+                    "description": "Nutné, pokud je nakonfigurován více než jeden účet Aegis."
+                }
+            }
+        },
+        "terminate_other_client_sessions": {
+            "name": "Ukončit všechny ostatní relace účtu",
+            "description": "Okamžitě odhlásí všechna ostatní zařízení z účtu Ajax. Tím se odhlásí ostatní aktivní mobilní i desktopové aplikace Ajax. Integrace nikdy neukončí vlastní relaci.",
+            "fields": {
+                "confirm": {
+                    "name": "Potvrdit ukončení",
+                    "description": "Musí být true, aby se okamžitě ukončily všechny ostatní relace."
+                },
+                "entry_id": {
+                    "name": "ID položky nastavení",
+                    "description": "Nutné, pokud je nakonfigurován více než jeden účet Aegis."
+                }
+            }
+        }
+    },
+    "issues": {
+        "hub_offline_24h": {
+            "title": "Hub {hub_name} offline dele nez {hours_offline} h",
+            "description": "Aegis prijima stav OFFLINE pro hub {hub_name} jiz {hours_offline} hodin v kuse. Entity zustanou zastarale, dokud se hub znovu nepripoji. Caste priciny: odpojeny hub, vypadek site, nebo blokovane odchozi spojeni hubu k cloudu Ajax firewallem. Oprava se vyresi automaticky, jakmile Aegis uvidi hub znovu online."
+        },
+        "hts_chronic_failure": {
+            "title": "Sitove senzory hubu zhorseny",
+            "description": "Spojeni HTS (ktere dodava data senzorum Ethernet / Wi-Fi / GSM / napajeni) pro prostor {space_id} se {minutes_failing} minut nedari udrzet aktivni. Sitove senzory hubu budou nedostupne, dokud se nezotavi. Nejcasteji je to zpusobeno firewallem, ktery blokuje odchozi provoz na HTS endpointy Ajax, nebo trvalou nestabilitou site mezi Home Assistant a cloudem Ajax. Oprava se vyresi automaticky, jakmile se HTS znovu pripoji."
+        },
+        "fcm_push_stuck": {
+            "title": "Push oznámení přerušena — stejná zpráva opakovaně ukončuje připojení",
+            "description": "Push připojení bylo {terminations}krát v řadě ukončeno při zpracování stejné zprávy. Protože tato zpráva není nikdy potvrzena, push služba Ajax ji znovu doručuje a každé nové připojení skončí stejně, takže se to samo nevyřeší. Stav alarmu to neovlivňuje (pochází z dotazování a z připojení k hubu, nikdy z push), ale zatím se ztrácejí události v reálném čase, například zvonek. Aegis vyměnil svou push registraci, aby smyčku přerušil; push by se měl obnovit během minuty. Toto upozornění zmizí samo, jakmile připojení chvíli vydrží. Pokud se vrátí, nahlaste to prosím na GitHubu (issue #373)."
+        },
+        "grpcio_version_mismatch": {
+            "title": "Aegis potrebuje grpcio {required} nebo novejsi (nalezeno {current})",
+            "description": "Aegis je zavisly na `grpcio` pro gRPC kanal, ktery komunikuje s cloudem Ajax, a vase instalace Home Assistant ma `grpcio` {current}. Pod {required} muze prihlaseni selhat s krytickymi HTTP/2 chybami. Na Home Assistant Core nebo Container manifest integrace zafixuje verzi pri instalaci, ale na Home Assistant OS bezi system-wide grpcio, ktere tento manifest nemuze ovlivnit — obvykle je potreba aktualizovat Home Assistant OS na build s novejsim grpcio. Oprava se vyresi automaticky pri pristim nacteni, jakmile verze prekroci {required}."
+        },
+        "client_rejected": {
+            "title": "Ajax odmítá tuto verzi Aegis for Ajax",
+            "description": "Servery Ajax přestaly přijímat požadavky z této verze integrace, takže se nemůže přihlásit, aktualizovat stavy ani odesílat příkazy. Váš účet a přihlašovací údaje jsou v pořádku. Aktualizujte Aegis for Ajax v HACS na nejnovější verzi a restartujte Home Assistant. Tato oprava zmizí sama, jakmile Ajax integraci opět přijme."
+        },
+        "fcm_credentials_invalid": {
+            "title": "Push oznameni vypnuta - prihlasovaci udaje FCM odmitnuty",
+            "fix_flow": {
+                "step": {
+                    "init": {
+                        "title": "Oprava udaju FCM pro Aegis",
+                        "description": "Registrace Firebase Cloud Messaging selhala pro tento ucet. Funkce zavisle na pushi (okamzity stav armed/disarmed, entita security_event, URL fotek z MotionCam) prejdou na pomalejsi polling, dokud to nenapravite. Zadej znovu vsechny ctyri hodnoty nize. Integrace se znovu nacte a Repair se uzavre automaticky, pokud nove udaje funguji; pokud ne, formular se zobrazi znovu. Viz sekce 'How to obtain FCM credentials' v README.",
+                        "data": {
+                            "fcm_project_id": "FCM Project ID",
+                            "fcm_app_id": "FCM App ID",
+                            "fcm_api_key": "FCM API Key",
+                            "fcm_sender_id": "FCM Sender ID"
+                        }
+                    }
+                },
+                "abort": {
+                    "entry_missing": "Ucet Aegis, pro ktery byl tento Repair vytvoren, jiz neni nakonfigurovan. Neni co opravovat."
+                }
+            }
+        },
+        "fcm_credentials_malformed": {
+            "title": "Push oznameni vypnuta — udaje FCM jsou poskozene ({problem})",
+            "fix_flow": {
+                "step": {
+                    "init": {
+                        "title": "Oprava udaju FCM pro Aegis",
+                        "description": "Aegis zjistil strukturalni problem v nakonfigurovanych udajich FCM jeste pred kontaktem na Google: {problem}. Vsechny ctyri hodnoty musi pochazet ze stejneho projektu Firebase. Znovu je extrahuj ze sve co-branded Ajax aplikace podle sekce 'Where the values live' v README a opet zadej vsechny ctyri nize. Integrace se znovu nacte, kontrola se zopakuje a Repair se uzavre, jakmile budou hodnoty konzistentni.",
+                        "data": {
+                            "fcm_project_id": "FCM Project ID",
+                            "fcm_app_id": "FCM App ID",
+                            "fcm_api_key": "FCM API Key",
+                            "fcm_sender_id": "FCM Sender ID"
+                        }
+                    }
+                },
+                "abort": {
+                    "entry_missing": "Ucet Aegis, pro ktery byl tento Repair vytvoren, jiz neni nakonfigurovan. Neni co opravovat."
+                }
+            }
+        },
+        "fcm_not_configured": {
+            "title": "Push notifikace nejsou nakonfigurovany — udalosti v realnem case zakazany",
+            "fix_flow": {
+                "step": {
+                    "init": {
+                        "title": "Nakonfigurovat FCM prihlasovaci udaje pro Aegis",
+                        "description": "FCM prihlasovaci udaje nikdy nebyly pro tento ucet nastaveny, takze udalosti v realnem case od Ajax (zvoneni dvernich zvonku, zapnuti/vypnuti alarmu, alarm, pohyb) nemohou dorazit do Home Assistant — integrace se vraci k pollingu kazdych 5 minut. Nize zadejte ctyri hodnoty FCM pro vasi co-brandovou aplikaci Ajax a integrace se znovu nacte. Postup ziskani najdete v sekci 'How to obtain FCM credentials' v README.",
+                        "data": {
+                            "fcm_project_id": "FCM Project ID",
+                            "fcm_app_id": "FCM App ID",
+                            "fcm_api_key": "FCM API Key",
+                            "fcm_sender_id": "FCM Sender ID"
+                        }
+                    }
+                },
+                "abort": {
+                    "entry_missing": "Ajaxsky ucet, pro ktery byl tento Repair vyvolan, jiz neni nakonfigurovan. Neni co opravovat."
+                }
+            }
+        },
+        "fcm_never_delivered": {
+            "title": "Push notifications are not arriving",
+            "description": "Aegis has seen {events} events from your hub while the push client was running, and not one of them arrived over push. Your alarm state is not affected — it comes from the hub connection and from polling, never from push — but real-time events such as doorbell rings and intrusion alarms reach Home Assistant only over push, so those are being lost.\n\nThree things produce this and they look identical from here: the four FCM values may belong to a Firebase project your co-branded app's push provider does not send through, another registration may be holding your Ajax account's push destination, or the push connection may never have completed.\n\nWhat helps: re-enter the four values for your co-branded app, under Settings > Repairs or in the integration options. If the same Ajax account is used by another Home Assistant instance, try a separate account for this integration. This notice clears by itself as soon as one push arrives."
+        },
+        "pin_code_update": {
+            "title": "Znovu nastavte PIN alarmu",
+            "description": "PIN alarmu pro tento účet je uložen ve starším formátu. Otevřete možnosti integrace a zadejte PIN znovu, aby se aktualizoval. Do té doby funguje dál."
+        }
+    },
+    "entity": {
+        "button": {
+            "capture_photo": {
+                "name": "Pořídit fotografii"
+            },
+            "refresh_hub": {
+                "name": "Aktualizovat hub"
+            },
+            "restore_after_alarm": {
+                "name": "Obnovit po poplachu"
+            },
+            "siren_sound_test": {
+                "name": "Test zvuku"
+            }
+        },
+        "event": {
+            "security_event": {
+                "name": "Bezpečnostní událost",
+                "state_attributes": {
+                    "event_type": {
+                        "state": {
+                            "alarm": "Alarm",
+                            "arm": "Zastřeženo",
+                            "arm_night": "Noční režim zapnut",
+                            "battery_low": "Nízká baterie",
+                            "co_alarm": "Alarm CO",
+                            "connection_lost": "Spojení ztraceno",
+                            "disarm": "Odstřeženo",
+                            "disarm_night": "Noční režim vypnut",
+                            "door_open": "Dveře otevřeny",
+                            "doorbell_pressed": "Stisknutí zvonku",
+                            "fire": "Požár",
+                            "flood": "Záplava",
+                            "glass_break": "Rozbití skla",
+                            "malfunction": "Porucha",
+                            "motion": "Pohyb",
+                            "panic": "Panika",
+                            "tamper": "Sabotáž"
+                        }
+                    }
+                }
+            },
+            "doorbell": {
+                "name": "Zvonek",
+                "state_attributes": {
+                    "event_type": {
+                        "state": {
+                            "ring": "Stisknutí zvonku"
+                        }
+                    }
+                }
+            },
+            "button_press": {
+                "name": "Tlačítko",
+                "state_attributes": {
+                    "event_type": {
+                        "state": {
+                            "pressed": "Stisknuto"
+                        }
+                    }
+                }
+            }
+        },
+        "binary_sensor": {
+            "monitoring": {
+                "name": "Připojení k pultu centrální ochrany"
+            },
+            "gsm": {
+                "name": "Mobilní síť připojena"
+            },
+            "lid": {
+                "name": "Kryt otevřen"
+            },
+            "ext_contact": {
+                "name": "Externí kontakt přerušen"
+            },
+            "ext_alert": {
+                "name": "Poplach externího kontaktu"
+            },
+            "drilling": {
+                "name": "Vrtání skříně detekováno"
+            },
+            "anti_mask": {
+                "name": "Ochrana proti maskování"
+            },
+            "malfunction": {
+                "name": "Porucha"
+            },
+            "interference": {
+                "name": "Rušení"
+            },
+            "relay_stuck": {
+                "name": "Relé zaseknuté"
+            },
+            "always_active": {
+                "name": "Vždy aktivní"
+            },
+            "glass_break": {
+                "name": "Rozbití skla"
+            },
+            "vibration": {
+                "name": "Vibrace"
+            },
+            "tilt": {
+                "name": "Náklon"
+            },
+            "steam": {
+                "name": "Pára"
+            },
+            "wire_input_alert": {
+                "name": "Výstraha drátového vstupu"
+            },
+            "tamper": {
+                "name": "Sabotáž krytu"
+            },
+            "connectivity": {
+                "name": "Připojení"
+            },
+            "problem": {
+                "name": "Problém zařízení"
+            },
+            "ethernet": {
+                "name": "Ethernet"
+            },
+            "wifi": {
+                "name": "Wi-Fi"
+            },
+            "mains_power": {
+                "name": "Napájení ze sítě"
+            },
+            "external_contact_open": {
+                "name": "Kontakt"
+            },
+            "delay_when_leaving": {
+                "name": "Zpoždění při odchodu"
+            },
+            "siren_on_panic_button": {
+                "name": "Siréna při tísňovém tlačítku"
+            },
+            "siren_on_any_tamper": {
+                "name": "Siréna při sabotáži"
+            }
+        },
+        "sensor": {
+            "monitoring_company": {
+                "name": "Společnost PCO"
+            },
+            "signal_strength": {
+                "name": "Síla signálu"
+            },
+            "mobile_network_type": {
+                "name": "Typ mobilní sítě"
+            },
+            "wifi_signal_level": {
+                "name": "Úroveň Wi-Fi signálu"
+            },
+            "sim_status": {
+                "name": "Stav SIM karty"
+            },
+            "sim_imei": {
+                "name": "IMEI"
+            },
+            "connection_type": {
+                "name": "Typ připojení"
+            },
+            "wifi_ssid": {
+                "name": "Wi-Fi SSID"
+            },
+            "wifi_ip": {
+                "name": "Wi-Fi IP adresa"
+            },
+            "ethernet_ip": {
+                "name": "IP adresa Ethernet"
+            },
+            "ethernet_gateway": {
+                "name": "Brána Ethernet"
+            },
+            "ethernet_dns": {
+                "name": "DNS Ethernet"
+            },
+            "cellular_signal": {
+                "name": "Signál mobilní sítě"
+            },
+            "cellular_network": {
+                "name": "Mobilní síť"
+            },
+            "current": {
+                "name": "Proud"
+            },
+            "voltage": {
+                "name": "Napětí"
+            },
+            "energy_consumed": {
+                "name": "Spotřebovaná elektrická energie"
+            },
+            "power_derived": {
+                "name": "Výkon"
+            },
+            "power": {
+                "name": "Výkon"
+            },
+            "channels_online": {
+                "name": "Kanály online"
+            },
+            "channels_total": {
+                "name": "Celkem kanálů"
+            }
+        },
+        "switch": {
+            "channel_1": {
+                "name": "Kanál 1"
+            },
+            "channel_2": {
+                "name": "Kanál 2"
+            },
+            "bypass": {
+                "name": "Vyřazení"
+            },
+            "night_mode_arm": {
+                "name": "Zabezpečit v nočním režimu"
+            },
+            "chime": {
+                "name": "Gong"
+            }
+        },
+        "number": {
+            "siren_alarm_duration": {
+                "name": "Doba trvání poplachu"
+            }
+        },
+        "select": {
+            "siren_volume_level": {
+                "name": "Hlasitost sirény",
+                "state": {
+                    "very_loud": "Velmi hlasitá",
+                    "loud": "Hlasitá",
+                    "quiet": "Tichá",
+                    "disabled": "Vypnuto"
+                }
+            }
+        },
+        "update": {
+            "hub_firmware": {
+                "name": "Firmware"
+            },
+            "device_firmware": {
+                "name": "Firmware"
+            }
+        },
+        "camera": {
+            "cloud_video": {
+                "name": "Živý náhled"
+            }
+        },
+        "alarm_control_panel": {
+            "group": {
+                "name": "Skupina {group_id}"
+            }
+        }
+    },
+    "exceptions": {
+        "manual_refresh_hts_unavailable": {
+            "message": "Síťové spojení huba (HTS) momentálně není aktivní; ruční aktualizaci nelze spustit."
+        },
+        "alarm_backfill_rate_limited": {
+            "message": "Alarm photos were recently refreshed for this space; wait {seconds} more seconds and try again."
+        },
+        "manual_refresh_rate_limited": {
+            "message": "Aktualizace huba byla právě vyžádána; počkejte ještě {seconds} sekund a zkuste to znovu."
+        },
+        "photo_capture_failed": {
+            "message": "Pořízení fotografie nebylo dokončeno. Hub mohl požadavek odmítnout nebo nevrátil žádný snímek; podrobnosti najdete v protokolech."
+        },
+        "photo_no_push": {
+            "message": "Fotografie na vyžádání vyžaduje FCM push oznámení, která nejsou pro tuto integraci nakonfigurována."
+        },
+        "photo_capture_timeout": {
+            "message": "Vypršel časový limit při čekání, až kamera doručí pořízenou fotografii. Zkuste to znovu a zkontrolujte, zda je kamera online."
+        },
+        "command_permission_denied": {
+            "message": "Tvůj účet Ajax nemá oprávnění k provedení této akce."
+        },
+        "command_hub_offline": {
+            "message": "Hub je offline, proto nebylo možné příkaz odeslat."
+        },
+        "command_hub_wrong_state": {
+            "message": "Hub momentálně není ve stavu, který tuto akci umožňuje."
+        },
+        "night_mode_arm_while_armed": {
+            "message": "Nastavení „Zabezpečit v nočním režimu“ nelze změnit, když je detektor zabezpečený. Nejprve zrušte zabezpečení a zkuste to znovu."
+        },
+        "command_alarm_reset_needed": {
+            "message": "Aktivní alarm musí být resetován, než bude možné tuto akci provést."
+        },
+        "command_not_performed": {
+            "message": "Hub příkaz neprovedl."
+        },
+        "command_unknown": {
+            "message": "Hub příkaz nerozpoznal."
+        },
+        "command_failed": {
+            "message": "Příkaz se nepodařilo dokončit. Hub vrátil: {reason}."
+        },
+        "session_entry_not_found": {
+            "message": "Pro zadané entry_id nebyl nalezen žádný účet Aegis."
+        },
+        "session_entry_required": {
+            "message": "Pokud je nastaveno více účtů Aegis, je entry_id povinné."
+        },
+        "confirm_required": {
+            "message": "{service} vyžaduje ke spuštění `confirm: true`."
+        },
+        "panic_confirm_required": {
+            "message": "press_panic_button vyžaduje `confirm: true`: odešle tísňový poplach na pult centralizované ochrany, který u většiny smluv ihned volá policii."
+        },
+        "session_id_invalid": {
+            "message": "session_id musí být kladné celé číslo."
+        },
+        "no_panel_for_target": {
+            "message": "{service}: pro zadaný cíl nebyl nalezen žádný panel alarmu Aegis."
+        },
+        "photo_mode_option_required": {
+            "message": "set_photo_on_demand_mode vyžaduje alespoň `user` nebo `scenario`."
+        },
+        "sessions_list_failed": {
+            "message": "Nepodařilo se vypsat relace účtu Ajax: {error}"
+        },
+        "session_terminate_failed": {
+            "message": "Relaci účtu Ajax se nepodařilo ukončit: {error}"
+        },
+        "sessions_terminate_failed": {
+            "message": "Ostatní relace účtu Ajax se nepodařilo ukončit: {error}"
+        },
+        "security_hub_detected_malfunctions": {
+            "message": "Nelze zastřežit: otevřené senzory nebo poruchy{details}"
+        },
+        "security_hub_not_connected": {
+            "message": "Nelze zastřežit: hub offline"
+        },
+        "security_hub_busy": {
+            "message": "Hub je zaneprázdněn, zkuste to za několik sekund"
+        },
+        "security_another_transition_is_in_progress": {
+            "message": "Probíhá jiná operace zastřežení/odstřežení"
+        },
+        "security_disarm_rejected": {
+            "message": "Nelze odstřežit: příkaz odmítnut hubem"
+        },
+        "invalid_alarm_code": {
+            "message": "Neplatný kód alarmu"
+        },
+        "not_loaded": {
+            "message": "Není načten žádný účet Aegis for Ajax. Zkontrolujte integraci na stránce Zařízení a služby."
+        }
+    },
+    "device_automation": {
+        "trigger_type": {
+            "alarm": "Alarm",
+            "arm": "Zastřeženo",
+            "arm_night": "Noční režim zapnut",
+            "battery_low": "Nízká baterie",
+            "co_alarm": "Alarm CO",
+            "connection_lost": "Spojení ztraceno",
+            "disarm": "Odstřeženo",
+            "disarm_night": "Noční režim vypnut",
+            "door_open": "Dveře otevřeny",
+            "doorbell_pressed": "Stisknutí zvonku",
+            "fire": "Požár",
+            "flood": "Záplava",
+            "glass_break": "Rozbití skla",
+            "malfunction": "Porucha",
+            "motion": "Pohyb",
+            "panic": "Panika",
+            "tamper": "Sabotáž"
+        }
+    },
+    "selector": {
+        "bypass_switches": {
+            "options": {
+                "auto": "Auto (jen pokud tvůj účet může deaktivovat zařízení)",
+                "always": "Vždy",
+                "never": "Nikdy"
+            }
+        },
+        "persistent_notification_events": {
+            "options": {
+                "alarm": "Alarm",
+                "arm": "Zastřeženo",
+                "arm_night": "Noční režim zapnut",
+                "battery_low": "Nízká baterie",
+                "co_alarm": "Alarm CO",
+                "connection_lost": "Spojení ztraceno",
+                "disarm": "Odstřeženo",
+                "disarm_night": "Noční režim vypnut",
+                "door_open": "Dveře otevřeny",
+                "doorbell_pressed": "Stisknutí zvonku",
+                "fire": "Požár",
+                "flood": "Záplava",
+                "glass_break": "Rozbití skla",
+                "malfunction": "Porucha",
+                "motion": "Pohyb",
+                "panic": "Panika",
+                "tamper": "Sabotáž"
+            }
+        }
+    },
+    "device": {
+        "keyfobs": {
+            "name": "Klíčenky"
+        }
+    }
+}

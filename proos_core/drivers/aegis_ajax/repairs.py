@@ -1,0 +1,455 @@
+"""HA Repairs integration — surface diagnosable problems in the UI.
+
+Each helper wraps `homeassistant.helpers.issue_registry` with the
+domain pre-bound and a stable issue id per category, so callers don't
+have to repeat boilerplate.
+
+The FCM-credentials repair is fixable: the user clicks "Submit" on
+the Repair card, fills the four FCM fields in a dedicated form, and
+the integration reloads with the new credentials — no Options-menu
+detour. Hub-offline / HTS-chronic stay informational because their
+fix is physical (check hub power, firewall, etc.).
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
+import voluptuous as vol
+from homeassistant.components.repairs import RepairsFlow
+from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers.selector import (
+    TextSelector,
+    TextSelectorConfig,
+    TextSelectorType,
+)
+from homeassistant.helpers.storage import Store
+
+from custom_components.aegis_ajax.const import (
+    DOMAIN,
+    FCM_REJECTED_STORAGE_KEY,
+    FCM_STORAGE_VERSION,
+    fcm_store_key,
+)
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+
+    from homeassistant.core import HomeAssistant
+    from homeassistant.data_entry_flow import FlowResult
+
+DOCS_BASE_URL = "https://github.com/bvis/aegis-hass#"
+
+ISSUE_HUB_OFFLINE_24H = "hub_offline_24h"
+ISSUE_HTS_CHRONIC_FAILURE = "hts_chronic_failure"
+ISSUE_FCM_CREDENTIALS_INVALID = "fcm_credentials_invalid"
+ISSUE_FCM_CREDENTIALS_MALFORMED = "fcm_credentials_malformed"
+ISSUE_FCM_NOT_CONFIGURED = "fcm_not_configured"
+ISSUE_FCM_PUSH_STUCK = "fcm_push_stuck"
+ISSUE_FCM_NEVER_DELIVERED = "fcm_never_delivered"
+ISSUE_GRPCIO_VERSION_MISMATCH = "grpcio_version_mismatch"
+ISSUE_CLIENT_REJECTED = "client_rejected"
+ISSUE_PIN_CODE_UPDATE = "pin_code_update"
+
+# Floor below which the integration's gRPC calls have historically failed
+# in ways that surface as cryptic stack traces (HTTP/2 framing errors,
+# UNKNOWN status, etc) rather than clean errors. Matches the manifest's
+# `grpcio>=1.60.0` requirement; bump in lockstep with manifest.json.
+MIN_GRPCIO_VERSION = "1.60.0"
+
+
+def _issue_id(prefix: str, scope: str | None) -> str:
+    """Build a stable per-scope issue id (e.g. one per space)."""
+    return f"{prefix}:{scope}" if scope else prefix
+
+
+def async_register_hub_offline(
+    hass: HomeAssistant,
+    *,
+    space_id: str,
+    hub_name: str,
+    hours_offline: int,
+) -> None:
+    """Hub has been reported offline for >= 24h on a healthy snapshot poll."""
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        _issue_id(ISSUE_HUB_OFFLINE_24H, space_id),
+        is_fixable=False,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key=ISSUE_HUB_OFFLINE_24H,
+        translation_placeholders={
+            "hub_name": hub_name,
+            "hours_offline": str(hours_offline),
+        },
+        learn_more_url=f"{DOCS_BASE_URL}troubleshooting",
+    )
+
+
+def async_clear_hub_offline(hass: HomeAssistant, *, space_id: str) -> None:
+    ir.async_delete_issue(hass, DOMAIN, _issue_id(ISSUE_HUB_OFFLINE_24H, space_id))
+
+
+def async_register_hts_chronic_failure(
+    hass: HomeAssistant,
+    *,
+    space_id: str,
+    minutes_failing: int,
+) -> None:
+    """HTS reconnect has failed for an extended window."""
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        _issue_id(ISSUE_HTS_CHRONIC_FAILURE, space_id),
+        is_fixable=False,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key=ISSUE_HTS_CHRONIC_FAILURE,
+        translation_placeholders={
+            "space_id": space_id,
+            "minutes_failing": str(minutes_failing),
+        },
+        learn_more_url=f"{DOCS_BASE_URL}hub-network",
+    )
+
+
+def async_clear_hts_chronic_failure(hass: HomeAssistant, *, space_id: str) -> None:
+    ir.async_delete_issue(hass, DOMAIN, _issue_id(ISSUE_HTS_CHRONIC_FAILURE, space_id))
+
+
+def async_register_fcm_credentials_invalid(hass: HomeAssistant, *, entry_id: str) -> None:
+    """FCM credentials were configured but registration / push start failed.
+
+    Scoped per entry_id so multi-account installs see one repair per
+    affected account. Fixable in-place via `FcmCredentialsRepairFlow`
+    so users don't have to detour through the Options menu.
+    """
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        _issue_id(ISSUE_FCM_CREDENTIALS_INVALID, entry_id),
+        is_fixable=True,
+        severity=ir.IssueSeverity.ERROR,
+        translation_key=ISSUE_FCM_CREDENTIALS_INVALID,
+        # Fix-flow needs the entry id to write the new creds back; the
+        # issue_id already encodes it but `data` is the canonical channel.
+        data={"entry_id": entry_id},
+        learn_more_url=f"{DOCS_BASE_URL}push-notifications-fcm",
+    )
+
+
+def async_clear_fcm_credentials_invalid(hass: HomeAssistant, *, entry_id: str) -> None:
+    ir.async_delete_issue(hass, DOMAIN, _issue_id(ISSUE_FCM_CREDENTIALS_INVALID, entry_id))
+
+
+def async_register_fcm_credentials_malformed(
+    hass: HomeAssistant, *, entry_id: str, problem: str
+) -> None:
+    """FCM credentials failed pre-flight shape validation.
+
+    Distinct from `fcm_credentials_invalid` (Firebase rejected
+    structurally-valid credentials): this fires when the four values
+    can't possibly be a coherent set — e.g. a truncated `fcm_app_id`
+    hash tail (#155, #182) or `fcm_sender_id` that doesn't match the
+    digit chunk inside `fcm_app_id`. The card surfaces the specific
+    problem so the user knows which field to re-paste instead of
+    debugging Google's opaque 403. Same fix-flow as the runtime
+    rejection — re-enter the four values.
+    """
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        _issue_id(ISSUE_FCM_CREDENTIALS_MALFORMED, entry_id),
+        is_fixable=True,
+        severity=ir.IssueSeverity.ERROR,
+        translation_key=ISSUE_FCM_CREDENTIALS_MALFORMED,
+        translation_placeholders={"problem": problem},
+        data={"entry_id": entry_id},
+        learn_more_url=f"{DOCS_BASE_URL}where-the-values-live",
+    )
+
+
+def async_clear_fcm_credentials_malformed(hass: HomeAssistant, *, entry_id: str) -> None:
+    ir.async_delete_issue(hass, DOMAIN, _issue_id(ISSUE_FCM_CREDENTIALS_MALFORMED, entry_id))
+
+
+def async_register_fcm_not_configured(hass: HomeAssistant, *, entry_id: str) -> None:
+    """FCM credentials are not set on this entry, so real-time pushes are off.
+
+    Distinct from `fcm_credentials_invalid` (which means keys were tried and
+    rejected): this fires when the four FCM fields are empty. Real-time
+    events (doorbell ring, arm/disarm pushes, alarm) won't reach HA until
+    keys are entered. Fixable in-place via `FcmCredentialsRepairFlow`,
+    same form as the invalid-credentials repair.
+    """
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        _issue_id(ISSUE_FCM_NOT_CONFIGURED, entry_id),
+        is_fixable=True,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key=ISSUE_FCM_NOT_CONFIGURED,
+        data={"entry_id": entry_id},
+        learn_more_url=f"{DOCS_BASE_URL}push-notifications-fcm",
+    )
+
+
+def async_clear_fcm_not_configured(hass: HomeAssistant, *, entry_id: str) -> None:
+    ir.async_delete_issue(hass, DOMAIN, _issue_id(ISSUE_FCM_NOT_CONFIGURED, entry_id))
+
+
+def async_register_fcm_push_stuck(
+    hass: HomeAssistant,
+    *,
+    entry_id: str,
+    terminations: int,
+) -> None:
+    """The push client keeps dying on the same replayed message (#373).
+
+    Not fixable in-place: the recovery is to discard the FCM registration so
+    the server stops replaying the message that kills the client, and that is
+    destructive enough to belong to the user rather than to a Submit button.
+
+    This exists because the failure is otherwise **silent** — the alarm panel
+    stays correct throughout (state comes from polling and HTS, never from
+    push), so nothing looks broken while real-time events are gone.
+    """
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        _issue_id(ISSUE_FCM_PUSH_STUCK, entry_id),
+        is_fixable=False,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key=ISSUE_FCM_PUSH_STUCK,
+        translation_placeholders={"terminations": str(terminations)},
+        learn_more_url=f"{DOCS_BASE_URL}push-notifications-fcm",
+    )
+
+
+def async_clear_fcm_push_stuck(hass: HomeAssistant, *, entry_id: str) -> None:
+    ir.async_delete_issue(hass, DOMAIN, _issue_id(ISSUE_FCM_PUSH_STUCK, entry_id))
+
+
+def async_register_fcm_never_delivered(
+    hass: HomeAssistant,
+    *,
+    entry_id: str,
+    events: int,
+) -> None:
+    """Credentials accepted at every checkpoint, and not one push delivered (#437).
+
+    The gap this closes: the four values can pass the offline shape check, mint
+    a token, be accepted by Ajax's `UpsertPushToken`, connect and heartbeat
+    indefinitely, and never carry a single message. Nothing else notices,
+    because the alarm panel never depends on push — so the only symptom is the
+    absence of real-time events, which a user has no baseline for.
+
+    Not fixable in place. The wording deliberately names the candidate causes
+    without claiming to tell them apart, because we cannot: a coherent set of
+    values belonging to a Firebase project the account's push provider does not
+    route through, another registration holding the account's push destination,
+    and a connection that never actually completed all look identical from
+    here. Suggesting one fix confidently would be worse than describing three
+    honestly.
+    """
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        _issue_id(ISSUE_FCM_NEVER_DELIVERED, entry_id),
+        is_fixable=False,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key=ISSUE_FCM_NEVER_DELIVERED,
+        translation_placeholders={"events": str(events)},
+        learn_more_url=f"{DOCS_BASE_URL}push-notifications-fcm",
+    )
+
+
+def async_clear_fcm_never_delivered(hass: HomeAssistant, *, entry_id: str) -> None:
+    ir.async_delete_issue(hass, DOMAIN, _issue_id(ISSUE_FCM_NEVER_DELIVERED, entry_id))
+
+
+def async_register_client_rejected(hass: HomeAssistant) -> None:
+    """Ajax refuses this integration build (#559); only an update fixes it.
+
+    One issue for the whole domain: every entry sends the same client
+    version, so they are rejected together and recover together.
+    """
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        ISSUE_CLIENT_REJECTED,
+        is_fixable=False,
+        severity=ir.IssueSeverity.ERROR,
+        translation_key=ISSUE_CLIENT_REJECTED,
+        learn_more_url="https://github.com/bvis/aegis-hass/releases",
+    )
+
+
+def async_clear_client_rejected(hass: HomeAssistant) -> None:
+    ir.async_delete_issue(hass, DOMAIN, ISSUE_CLIENT_REJECTED)
+
+
+def _parse_version(value: str) -> tuple[int, ...]:
+    """Parse '1.60.0' / '1.60.0rc1' / etc into a comparable int tuple.
+
+    Strips PEP-440 pre/post/dev suffixes by keeping only leading digits per
+    component. Bad shapes ('foo', '') return `(0,)` so the caller treats them
+    as definitely-too-old and surfaces the repair (better loud than silent).
+    """
+    parts: list[int] = []
+    for raw in value.split("."):
+        digits = ""
+        for ch in raw:
+            if ch.isdigit():
+                digits += ch
+            else:
+                break
+        if not digits:
+            break
+        parts.append(int(digits))
+    return tuple(parts) if parts else (0,)
+
+
+def async_check_pin_code_format(
+    hass: HomeAssistant, *, entry_id: str, options: Mapping[str, Any]
+) -> None:
+    """Ask the user to set the alarm PIN again when it's stored in the old format."""
+    from custom_components.aegis_ajax.service_security import (  # noqa: PLC0415
+        is_legacy_pin_hash,
+    )
+
+    issue_id = _issue_id(ISSUE_PIN_CODE_UPDATE, entry_id)
+    if options.get("use_pin_code", False) and is_legacy_pin_hash(options.get("pin_code_hash")):
+        ir.async_create_issue(
+            hass,
+            DOMAIN,
+            issue_id,
+            is_fixable=False,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key=ISSUE_PIN_CODE_UPDATE,
+        )
+    else:
+        ir.async_delete_issue(hass, DOMAIN, issue_id)
+
+
+def async_check_grpcio_version(hass: HomeAssistant) -> None:
+    """Surface a Repair when the installed grpcio is below `MIN_GRPCIO_VERSION`.
+
+    Mostly hits HA OS users — Core / Container installs honour the
+    manifest's `grpcio>=1.60.0` requirement at install time; HA OS ships
+    grpcio system-wide and ignores per-integration manifest pins. When
+    that mismatch caused real-user failures (#26) the symptom was a
+    stack trace at first login. With this check the user gets a
+    one-line Repair card naming the version they need to install.
+
+    Idempotent and self-clearing: a later HA upgrade calls back through
+    here and the Repair vanishes once `grpc.__version__` crosses the
+    floor.
+    """
+    try:
+        import grpc  # noqa: PLC0415
+    except ImportError:
+        # Manifest forces grpcio to be installed; if the import itself
+        # fails the user has bigger problems and HA core will surface
+        # them. Don't shadow with our own repair.
+        return
+    current = getattr(grpc, "__version__", "0")
+    if _parse_version(current) >= _parse_version(MIN_GRPCIO_VERSION):
+        ir.async_delete_issue(hass, DOMAIN, ISSUE_GRPCIO_VERSION_MISMATCH)
+        return
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        ISSUE_GRPCIO_VERSION_MISMATCH,
+        is_fixable=False,
+        severity=ir.IssueSeverity.ERROR,
+        translation_key=ISSUE_GRPCIO_VERSION_MISMATCH,
+        translation_placeholders={
+            "current": current,
+            "required": MIN_GRPCIO_VERSION,
+        },
+        learn_more_url=f"{DOCS_BASE_URL}troubleshooting",
+    )
+
+
+_FCM_FIX_SCHEMA = vol.Schema(
+    {
+        vol.Required("fcm_project_id"): str,
+        vol.Required("fcm_app_id"): str,
+        vol.Required("fcm_api_key"): TextSelector(
+            TextSelectorConfig(type=TextSelectorType.PASSWORD)
+        ),
+        vol.Required("fcm_sender_id"): str,
+    }
+)
+
+
+class FcmCredentialsRepairFlow(RepairsFlow):
+    """Guided repair flow for `fcm_credentials_invalid`.
+
+    Re-prompts the four FCM fields, writes them to the entry data, and
+    reloads — which kicks `notification.async_start()` and either
+    re-raises the repair (creds still wrong) or clears it (creds work
+    now).
+
+    Submitting also clears the `fcm_rejected` marker (#464). Without that,
+    a user who re-submits the same values — the form pre-fills them — gets
+    the same fingerprint and the same short-circuit in `async_start`, so the
+    registration is never attempted and the marker is never reached to be
+    removed: the remedy the warning prescribes could not undo the state it
+    reports. Submitting the card is the user asking for a retry, and it is a
+    single bounded attempt, so it is always honoured.
+    """
+
+    def __init__(self, entry_id: str) -> None:
+        self._entry_id = entry_id
+
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        if user_input is not None:
+            entry = self.hass.config_entries.async_get_entry(self._entry_id)
+            if entry is None:
+                # The entry vanished between the repair being raised and
+                # the user clicking Submit. Nothing to fix.
+                return self.async_abort(reason="entry_missing")
+            self.hass.config_entries.async_update_entry(entry, data={**entry.data, **user_input})
+            # Drop the rejection marker BEFORE the reload runs the
+            # registration, or an unchanged set short-circuits it (#464).
+            await Store(
+                self.hass,
+                FCM_STORAGE_VERSION,
+                fcm_store_key(FCM_REJECTED_STORAGE_KEY, self._entry_id),
+            ).async_remove()
+            await self.hass.config_entries.async_reload(self._entry_id)
+            return self.async_create_entry(data={})
+
+        # Pre-fill with the currently-stored values so the user only
+        # changes what's wrong, instead of re-typing everything.
+        suggested: dict[str, Any] = {}
+        entry = self.hass.config_entries.async_get_entry(self._entry_id)
+        if entry is not None:
+            for key in ("fcm_project_id", "fcm_app_id", "fcm_api_key", "fcm_sender_id"):
+                value = entry.data.get(key, entry.options.get(key, ""))
+                if value:
+                    suggested[key] = value
+        schema = self.add_suggested_values_to_schema(_FCM_FIX_SCHEMA, suggested)
+        return self.async_show_form(step_id="init", data_schema=schema)
+
+
+async def async_create_fix_flow(
+    hass: HomeAssistant,
+    issue_id: str,
+    data: dict[str, str | int | float | None] | None,
+) -> RepairsFlow:
+    """HA discovery hook — returns the right flow for each fixable issue."""
+    for prefix in (
+        ISSUE_FCM_CREDENTIALS_INVALID,
+        ISSUE_FCM_CREDENTIALS_MALFORMED,
+        ISSUE_FCM_NOT_CONFIGURED,
+    ):
+        if issue_id.startswith(f"{prefix}:"):
+            entry_id = (data or {}).get("entry_id") or issue_id.split(":", 1)[1]
+            return FcmCredentialsRepairFlow(str(entry_id))
+    # Fall back: HA's built-in confirm-only flow. Should not be hit since
+    # we only mark FCM as fixable today.
+    from homeassistant.components.repairs import ConfirmRepairFlow  # noqa: PLC0415
+
+    return ConfirmRepairFlow()

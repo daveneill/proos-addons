@@ -1,0 +1,105 @@
+blueprint:
+  name: Ajax Remind to Arm When Nobody Home
+  description: >-
+    If nobody is home (all configured person entities are not_home) and the
+    alarm has been disarmed for a configurable number of minutes, send a
+    reminder notification to arm the system.
+  domain: automation
+  input:
+    alarm_entity:
+      name: Alarm Control Panel
+      description: The Ajax alarm control panel entity.
+      selector:
+        entity:
+          filter:
+            domain: alarm_control_panel
+    person_entities:
+      name: Person Entities
+      description: >-
+        List of person entities to monitor. The reminder triggers only when
+        ALL persons are not_home.
+      selector:
+        entity:
+          filter:
+            domain: person
+          multiple: true
+    delay_minutes:
+      name: Delay (minutes)
+      description: >-
+        Minutes to wait after all persons leave before sending the reminder.
+      default: 10
+      selector:
+        number:
+          min: 1
+          max: 120
+          unit_of_measurement: minutes
+          mode: slider
+    notify_service:
+      name: Notification Service
+      description: The notification service to call (e.g. notify.mobile_app_phone).
+      selector:
+        text: {}
+    tts_service:
+      name: TTS Service
+      description: Optional TTS service (e.g. tts.google_translate_say).
+      default: ""
+      selector:
+        text: {}
+    media_player:
+      name: Media Player
+      description: Optional media player for TTS voice reminders.
+      default: {}
+      selector:
+        entity:
+          filter:
+            domain: media_player
+
+variables:
+  persons: !input person_entities
+  delay: !input delay_minutes
+  tts_service_input: !input tts_service
+  media_player_input: !input media_player
+
+triggers:
+  - trigger: state
+    entity_id: !input person_entities
+    not_from:
+      - "unavailable"
+      - "unknown"
+    to: "not_home"
+    for:
+      minutes: !input delay_minutes
+
+conditions:
+  - condition: state
+    entity_id: !input alarm_entity
+    state: "disarmed"
+  - condition: template
+    value_template: >-
+      {{ persons | map('states') | select('ne', 'not_home') | list | length == 0 }}
+
+actions:
+  - action: !input notify_service
+    data:
+      title: "Ajax Security Reminder"
+      message: >-
+        Nobody is home and the alarm is disarmed. Consider arming the system.
+      data:
+        push:
+          sound: default
+        tag: ajax-remind-arm
+        actions:
+          - action: ARM_AWAY
+            title: "Arm Now"
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: >-
+              {{ media_player_input is defined and media_player_input not in ['', none, {}]
+                 and tts_service_input not in ['', none] }}
+        sequence:
+          - action: "{{ tts_service_input }}"
+            data:
+              entity_id: !input media_player
+              message: >-
+                Nobody is home and the alarm is disarmed. Consider arming the system.

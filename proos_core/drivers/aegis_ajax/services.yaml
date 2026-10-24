@@ -1,0 +1,247 @@
+force_arm:
+  name: Force arm
+  description: Arm the system ignoring open sensors and active alarms.
+  target:
+    entity:
+      domain: alarm_control_panel
+      integration: aegis_ajax
+  fields:
+    entity_id:
+      name: Entity
+      description: Alarm panel entity to force arm. If omitted, arms all panels.
+      required: false
+      selector:
+        entity:
+          domain: alarm_control_panel
+          integration: aegis_ajax
+
+force_arm_night:
+  name: Force arm night mode
+  description: Arm night mode ignoring open sensors and active alarms.
+  target:
+    entity:
+      domain: alarm_control_panel
+      integration: aegis_ajax
+  fields:
+    entity_id:
+      name: Entity
+      description: Alarm panel entity to force arm night. If omitted, arms all panels.
+      required: false
+      selector:
+        entity:
+          domain: alarm_control_panel
+          integration: aegis_ajax
+
+disarm_night_mode:
+  name: Disarm night mode
+  description: >-
+    Exit night mode while leaving any independently armed (away) groups
+    armed. Unlike a full disarm, this only stands down the night-mode
+    groups — the native Ajax "disarm night mode" operation.
+  target:
+    entity:
+      domain: alarm_control_panel
+      integration: aegis_ajax
+  fields:
+    entity_id:
+      name: Entity
+      description: Alarm panel entity for the space to disarm from night mode. If omitted, applies to all panels.
+      required: false
+      selector:
+        entity:
+          domain: alarm_control_panel
+          integration: aegis_ajax
+
+press_panic_button:
+  name: Press panic button (SOS)
+  description: >-
+    Trigger the Ajax SOS / panic button on a space. This calls the same
+    endpoint as the red panic button in the official Ajax mobile app and
+    forwards a Panic / Hold-up alarm to your monitoring station (CRA),
+    which on most contracts triggers police dispatch immediately and
+    bypasses verification windows. Use only for genuine emergencies — false
+    panic alarms can have legal and financial consequences. The `confirm`
+    field must be set to true or the call is rejected.
+  target:
+    entity:
+      domain: alarm_control_panel
+      integration: aegis_ajax
+  fields:
+    confirm:
+      name: Confirm panic
+      description: >-
+        Must be set to true. Acts as a safety lock to prevent automations
+        from triggering this service accidentally.
+      required: true
+      example: true
+      selector:
+        boolean:
+    entity_id:
+      name: Entity
+      description: >-
+        Alarm panel entity for the space whose panic button to press. If
+        omitted, the panic is sent to every space configured in the
+        integration.
+      required: false
+      selector:
+        entity:
+          domain: alarm_control_panel
+          integration: aegis_ajax
+    latitude:
+      name: Latitude
+      description: >-
+        Optional caller latitude forwarded to Ajax. Use with longitude.
+      required: false
+      example: 40.4168
+      selector:
+        number:
+          min: -90
+          max: 90
+          step: any
+          mode: box
+    longitude:
+      name: Longitude
+      description: >-
+        Optional caller longitude forwarded to Ajax. Use with latitude.
+      required: false
+      example: -3.7038
+      selector:
+        number:
+          min: -180
+          max: 180
+          step: any
+          mode: box
+
+set_photo_on_demand_mode:
+  name: Set Photo on Demand mode
+  description: >-
+    Enable or disable Photo on Demand mode on a hub. Two independent
+    channels can be toggled separately — `user` (whether hub users can
+    request photos on demand from the Ajax app) and `scenario` (whether
+    scenarios / automations can trigger captures). Leave a field unset to
+    keep its current value. At least one of the two is required.
+  target:
+    entity:
+      domain: alarm_control_panel
+      integration: aegis_ajax
+  fields:
+    user:
+      name: User requests
+      description: >-
+        When set, enables or disables on-demand photo requests initiated
+        by hub users. Leave unset to keep the current value.
+      required: false
+      selector:
+        boolean:
+    scenario:
+      name: Scenarios
+      description: >-
+        When set, enables or disables Photo on Demand captures triggered
+        by Ajax scenarios / automations. Leave unset to keep the current
+        value.
+      required: false
+      selector:
+        boolean:
+    entity_id:
+      name: Entity
+      description: >-
+        Alarm panel entity for the space whose hub mode to update. If
+        omitted, applies to every configured space.
+      required: false
+      selector:
+        entity:
+          domain: alarm_control_panel
+          integration: aegis_ajax
+
+refresh_alarm_images:
+  name: Refresh alarm camera images
+  description: >-
+    Read recent notifications from the Ajax Alarm folder and save attached
+    camera images locally. The saved newest image is exposed by compatible
+    MotionCam camera entities, including models without Photo on Demand. This
+    service does not capture a new photo. New alarm pushes import their own
+    images automatically; use this service to backfill recent history.
+    Limited to once per five minutes per space: one history query and at most
+    ten media streams. Completed local albums are skipped, including after restart.
+  target:
+    entity:
+      domain: alarm_control_panel
+      integration: aegis_ajax
+  fields:
+    entity_id:
+      name: Entity
+      description: >-
+        Alarm panel entity for the space to import. If omitted, imports from
+        every configured space.
+      required: false
+      selector:
+        entity:
+          domain: alarm_control_panel
+          integration: aegis_ajax
+
+list_client_sessions:
+  name: List account sessions
+  description: >-
+    Return active Ajax account sessions for manual inspection on demand. This
+    service calls an internal Ajax endpoint that may rate limit frequent
+    requests; do not poll it in automations. The currently active Aegis
+    session is marked is_current when it can be identified.
+  target: {}
+  fields:
+    entry_id:
+      name: Config entry ID
+      description: >-
+        Required when more than one Aegis account is configured. Use the
+        integration's config entry ID to select the account.
+      required: false
+      selector:
+        text:
+
+terminate_client_session:
+  name: Terminate account session
+  description: >-
+    Immediately log the selected other device out of the Ajax account. Obtain
+    its session ID through list_client_sessions. The integration never
+    terminates its own session.
+  target: {}
+  fields:
+    session_id:
+      name: Session ID
+      description: Session ID returned by list_client_sessions.
+      required: true
+      selector:
+        number:
+          mode: box
+    confirm:
+      name: Confirm termination
+      description: Must be true to immediately terminate the selected session.
+      required: true
+      selector:
+        boolean:
+    entry_id:
+      name: Config entry ID
+      description: Required when more than one Aegis account is configured.
+      required: false
+      selector:
+        text:
+
+terminate_other_client_sessions:
+  name: Terminate all other account sessions
+  description: >-
+    Immediately log all other devices out of the Ajax account. This signs out
+    other active Ajax mobile and desktop apps. The integration never terminates
+    its own session.
+  target: {}
+  fields:
+    confirm:
+      name: Confirm termination
+      description: Must be true to immediately terminate all other sessions.
+      required: true
+      selector:
+        boolean:
+    entry_id:
+      name: Config entry ID
+      description: Required when more than one Aegis account is configured.
+      required: false
+      selector:
+        text:

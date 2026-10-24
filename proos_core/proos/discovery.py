@@ -43,6 +43,10 @@ CLASS_BY_INTEGRATION = {
     "lifx": "lighting", "shelly": "lighting", "wiz": "lighting",
     "coolmaster": "climate",
     "elkm1": "security",
+    # register 971: the INTERIM Ajax driver (Aegis for Ajax, carried in Core, disposable — the official-API build replaces
+    # it). Classed as security so its panel lands where Ness does. NOT certified here: certification is an on-box
+    # capability validation plus Dave's approval, never an edit alone (see CERTIFIED_INTEGRATIONS).
+    "aegis_ajax": "security",
 }
 
 

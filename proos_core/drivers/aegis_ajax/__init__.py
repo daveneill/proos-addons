@@ -1,0 +1,977 @@
+"""Ajax Security Home Assistant integration."""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+from typing import TYPE_CHECKING, Any, cast
+
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import Platform
+from homeassistant.core import ServiceResponse, SupportsResponse, callback
+from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import device_registry as dr
+
+_LOGGER = logging.getLogger(__name__)
+
+
+def _log_proto_descriptor_collision(exc: TypeError) -> None:
+    """Spell out a remediation when protobuf's descriptor pool collides (#151).
+
+    `_descriptor_pool.AddSerializedFile` raises
+    `TypeError("Couldn't build proto file into descriptor pool: duplicate
+    file name ...")` when two `_pb2.py` modules try to register the same
+    proto path in protobuf's global default pool. Two scenarios in the
+    wild:
+
+    1. A stale or backup copy of this integration alongside the live one
+       in `custom_components/` (any folder whose name starts with
+       `aegis_ajax` other than the active install). Most common cause.
+    2. Another custom integration in `custom_components/` (typically a
+       different Ajax-related HACS integration) that compiles the same
+       upstream `systems/ajax/...` proto files into its own
+       `_pb2.py` modules. Python protobuf keeps a single global descriptor
+       pool, so both integrations cannot coexist in the same HA process
+       no matter which loads first.
+
+    HA's UI surfaces the bare TypeError as the cryptic "Invalid handler
+    specified", so we log the fix path for both scenarios before
+    re-raising. No-op for unrelated TypeErrors.
+    """
+    if "duplicate file name" not in str(exc):
+        return
+    _LOGGER.error(
+        "Aegis for Ajax failed to load: duplicate protobuf descriptors "
+        "detected (%s). Two possible causes:\n"
+        "  (a) A stale or backup copy of this integration alongside the "
+        "live one — any folder under custom_components/ whose name starts "
+        "with 'aegis_ajax' other than the active install will trip this. "
+        "Fix: move or rename the extra folder (a clean HACS uninstall + "
+        "reinstall also clears it) and restart Home Assistant.\n"
+        "  (b) A different Ajax-related custom integration in "
+        "custom_components/ that bundles overlapping 'systems/ajax/...' "
+        "proto definitions. Python protobuf has a single global descriptor "
+        "pool, so two integrations both compiling the upstream Ajax protos "
+        "cannot coexist. Fix: list custom_components/, identify the other "
+        "Ajax-related integration (folders like 'ajax', 'ajaxsystems', "
+        "etc.), and choose one — the integrations are mutually exclusive "
+        "in the same HA instance.",
+        exc,
+    )
+
+
+try:
+    from custom_components.aegis_ajax.api.client import AjaxGrpcClient
+except TypeError as exc:
+    _log_proto_descriptor_collision(exc)
+    raise
+from custom_components.aegis_ajax.api.hts.client import HtsConnectionError  # noqa: E402
+from custom_components.aegis_ajax.api.session import log_fingerprint  # noqa: E402
+from custom_components.aegis_ajax.const import (  # noqa: E402
+    APPLICATION_LABEL,
+    CONF_AUTO_CREATE_LABELS,
+    CONF_DELAY_PANEL_STATES,
+    CONF_DISABLE_PUSH_WARNING,
+    CONF_PERSISTENT_NOTIFICATION_EVENTS,
+    CONF_PERSISTENT_NOTIFICATIONS,
+    DEFAULT_AUTO_CREATE_LABELS,
+    DEFAULT_DELAY_PANEL_STATES,
+    DEFAULT_DISABLE_PUSH_WARNING,
+    DEFAULT_PERSISTENT_NOTIFICATION_EVENTS,
+    DEFAULT_PERSISTENT_NOTIFICATIONS,
+    DEFAULT_POLL_INTERVAL,
+    DOMAIN,
+    LABELS,
+)
+from custom_components.aegis_ajax.coordinator import AjaxCobrandedCoordinator  # noqa: E402
+from custom_components.aegis_ajax.entity import build_device_info, is_hub_device  # noqa: E402
+from custom_components.aegis_ajax.repairs import (  # noqa: E402
+    async_check_grpcio_version,
+    async_check_pin_code_format,
+)
+
+if TYPE_CHECKING:
+    from homeassistant.core import HomeAssistant, ServiceCall
+    from homeassistant.helpers.device_registry import DeviceEntry
+    from homeassistant.helpers.typing import ConfigType
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
+_PHOTO_CLEANUP_LOCK = asyncio.Lock()
+
+_FCM_KEYS = {"fcm_project_id", "fcm_app_id", "fcm_api_key", "fcm_sender_id"}
+
+PLATFORMS = [
+    Platform.ALARM_CONTROL_PANEL,
+    Platform.BINARY_SENSOR,
+    Platform.BUTTON,
+    Platform.CAMERA,
+    Platform.EVENT,
+    Platform.NUMBER,
+    Platform.SELECT,
+    Platform.SENSOR,
+    Platform.SWITCH,
+    Platform.LIGHT,
+    Platform.LOCK,
+    Platform.UPDATE,
+    Platform.VALVE,
+]
+
+type AjaxCobrandedConfigEntry = ConfigEntry[AjaxCobrandedCoordinator]
+
+# Domain-level custom services, registered once in async_setup (#603).
+_CUSTOM_SERVICE_NAMES = (
+    "force_arm",
+    "force_arm_night",
+    "disarm_night_mode",
+    "press_panic_button",
+    "set_photo_on_demand_mode",
+    "refresh_alarm_images",
+    "list_client_sessions",
+    "terminate_client_session",
+    "terminate_other_client_sessions",
+)
+
+
+def _loaded_entries(hass: HomeAssistant) -> list[AjaxCobrandedConfigEntry]:
+    """Loaded entries; services fail with a clear error when there are none."""
+    from homeassistant.exceptions import ServiceValidationError  # noqa: PLC0415
+
+    entries = cast(
+        "list[AjaxCobrandedConfigEntry]", hass.config_entries.async_loaded_entries(DOMAIN)
+    )
+    if not entries:
+        raise ServiceValidationError(translation_domain=DOMAIN, translation_key="not_loaded")
+    return entries
+
+
+async def _resolve_target_space_ids(
+    hass: HomeAssistant, call: ServiceCall
+) -> list[tuple[AjaxCobrandedCoordinator, str]]:
+    """Resolve target entity_ids to (coordinator, space_id) pairs.
+
+    If no target is specified, returns all spaces from all entries.
+    """
+    from homeassistant.helpers import entity_registry as er  # noqa: PLC0415
+
+    entity_ids: list[str] = call.data.get("entity_id", [])
+    if isinstance(entity_ids, str):
+        entity_ids = [entity_ids]
+
+    entries = _loaded_entries(hass)
+    if not entity_ids:
+        # No target: operate on all spaces (backwards-compatible)
+        results: list[tuple[AjaxCobrandedCoordinator, str]] = []
+        for entry in entries:
+            coordinator: AjaxCobrandedCoordinator = entry.runtime_data
+            for space_id in coordinator._space_ids:
+                results.append((coordinator, space_id))
+        return results
+
+    # Authorize every explicit target before any service action is performed.
+    from homeassistant.auth.permissions.const import POLICY_CONTROL  # noqa: PLC0415
+    from homeassistant.exceptions import Unauthorized, UnknownUser  # noqa: PLC0415
+
+    if call.context.user_id is not None:
+        user = await hass.auth.async_get_user(call.context.user_id)
+        if user is None or not user.is_active:
+            raise UnknownUser(context=call.context)
+        for entity_id in entity_ids:
+            if not user.permissions.check_entity(entity_id, POLICY_CONTROL):
+                raise Unauthorized(
+                    context=call.context, entity_id=entity_id, permission=POLICY_CONTROL
+                )
+
+    # Map entity_id → space_id via unique_id pattern "aegis_ajax_alarm_{space_id}"
+    entity_reg = er.async_get(hass)
+    results = []
+    for eid in entity_ids:
+        entity_entry = entity_reg.async_get(eid)
+        if entity_entry is None or entity_entry.platform != DOMAIN:
+            continue
+        uid = entity_entry.unique_id or ""
+        # unique_id format: "aegis_ajax_alarm_{space_id}"
+        if not uid.startswith("aegis_ajax_alarm_"):
+            continue
+        space_id = uid.removeprefix("aegis_ajax_alarm_")
+        for entry in entries:
+            coordinator = entry.runtime_data
+            if space_id in coordinator._space_ids:
+                results.append((coordinator, space_id))
+                break
+    return results
+
+
+def _resolve_session_coordinator(
+    hass: HomeAssistant, call: ServiceCall
+) -> AjaxCobrandedCoordinator:
+    """Resolve one account for a session-management service call."""
+    from homeassistant.exceptions import ServiceValidationError  # noqa: PLC0415
+
+    entries = _loaded_entries(hass)
+    entry_id = call.data.get("entry_id")
+    if entry_id is not None:
+        for entry in entries:
+            if entry.entry_id == entry_id:
+                return entry.runtime_data
+        raise ServiceValidationError(
+            translation_domain=DOMAIN, translation_key="session_entry_not_found"
+        )
+    if len(entries) != 1:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN, translation_key="session_entry_required"
+        )
+    return entries[0].runtime_data
+
+
+async def _async_handle_list_client_sessions(
+    hass: HomeAssistant, call: ServiceCall
+) -> ServiceResponse:
+    """Return sessions for one configured Ajax account."""
+    from homeassistant.exceptions import HomeAssistantError  # noqa: PLC0415
+
+    try:
+        sessions = await _resolve_session_coordinator(hass, call).async_list_client_sessions()
+    except (RuntimeError, HtsConnectionError) as exc:
+        raise HomeAssistantError(
+            translation_domain=DOMAIN,
+            translation_key="sessions_list_failed",
+            translation_placeholders={"error": str(exc)},
+        ) from exc
+    return {"sessions": sessions}
+
+
+async def _async_handle_terminate_client_session(hass: HomeAssistant, call: ServiceCall) -> None:
+    """Terminate one selected non-current Ajax account session."""
+    from homeassistant.exceptions import (  # noqa: PLC0415
+        HomeAssistantError,
+        ServiceValidationError,
+    )
+
+    if not call.data.get("confirm"):
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="confirm_required",
+            translation_placeholders={"service": "terminate_client_session"},
+        )
+    session_id = call.data.get("session_id")
+    if isinstance(session_id, bool) or not isinstance(session_id, int) or session_id <= 0:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN, translation_key="session_id_invalid"
+        )
+    try:
+        await _resolve_session_coordinator(hass, call).async_terminate_client_session(session_id)
+    except (RuntimeError, ValueError, HtsConnectionError) as exc:
+        raise HomeAssistantError(
+            translation_domain=DOMAIN,
+            translation_key="session_terminate_failed",
+            translation_placeholders={"error": str(exc)},
+        ) from exc
+
+
+async def _async_handle_terminate_other_client_sessions(
+    hass: HomeAssistant, call: ServiceCall
+) -> ServiceResponse:
+    """Terminate all sessions except the current Aegis account session."""
+    from homeassistant.exceptions import (  # noqa: PLC0415
+        HomeAssistantError,
+        ServiceValidationError,
+    )
+
+    if not call.data.get("confirm"):
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="confirm_required",
+            translation_placeholders={"service": "terminate_other_client_sessions"},
+        )
+    try:
+        terminated = await _resolve_session_coordinator(
+            hass, call
+        ).async_terminate_other_client_sessions()
+    except (RuntimeError, ValueError, HtsConnectionError) as exc:
+        raise HomeAssistantError(
+            translation_domain=DOMAIN,
+            translation_key="sessions_terminate_failed",
+            translation_placeholders={"error": str(exc)},
+        ) from exc
+    return {"terminated_sessions": terminated}
+
+
+async def _async_handle_force_arm(hass: HomeAssistant, call: ServiceCall) -> None:
+    """Handle force_arm service call (arm ignoring open sensors)."""
+    targets = await _resolve_target_space_ids(hass, call)
+    refreshed: set[int] = set()
+    for coordinator, space_id in targets:
+        await coordinator.security_api.arm(space_id, ignore_alarms=True)
+        cid = id(coordinator)
+        if cid not in refreshed:
+            await coordinator.async_request_refresh()
+            refreshed.add(cid)
+
+
+async def _async_handle_force_arm_night(hass: HomeAssistant, call: ServiceCall) -> None:
+    """Handle force_arm_night service call (night mode ignoring open sensors)."""
+    targets = await _resolve_target_space_ids(hass, call)
+    refreshed: set[int] = set()
+    for coordinator, space_id in targets:
+        await coordinator.security_api.arm_night_mode(space_id, ignore_alarms=True)
+        cid = id(coordinator)
+        if cid not in refreshed:
+            await coordinator.async_request_refresh()
+            refreshed.add(cid)
+
+
+async def _async_handle_disarm_night_mode(hass: HomeAssistant, call: ServiceCall) -> None:
+    """Handle disarm_night_mode service call.
+
+    Hits SpaceSecurityService/disarmFromNightMode — the native Ajax "exit
+    night mode" operation. Unlike a full disarm, it only stands down the
+    night-mode groups and leaves any independently armed (away) groups armed,
+    which `alarm_disarm` on the space panel cannot express (#233).
+    """
+    targets = await _resolve_target_space_ids(hass, call)
+    refreshed: set[int] = set()
+    for coordinator, space_id in targets:
+        await coordinator.security_api.disarm_from_night_mode(space_id)
+        cid = id(coordinator)
+        if cid not in refreshed:
+            await coordinator.async_request_refresh()
+            refreshed.add(cid)
+
+
+async def _async_handle_press_panic_button(hass: HomeAssistant, call: ServiceCall) -> None:
+    """Handle press_panic_button service call.
+
+    Hits the SpaceService/pressPanicButton endpoint — the same one the
+    official Ajax app's red SOS button uses. This forwards a Panic / Hold-up
+    alarm to the monitoring station (CRA), which on most contracts triggers
+    police dispatch immediately and bypasses verification windows.
+
+    A `confirm: true` field is required at the service level to prevent
+    automations from triggering it accidentally. Without it the call is
+    rejected via ServiceValidationError.
+    """
+    from homeassistant.exceptions import ServiceValidationError  # noqa: PLC0415
+
+    if not call.data.get("confirm"):
+        raise ServiceValidationError(
+            translation_domain=DOMAIN, translation_key="panic_confirm_required"
+        )
+
+    latitude = call.data.get("latitude")
+    longitude = call.data.get("longitude")
+
+    targets = await _resolve_target_space_ids(hass, call)
+    if not targets:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="no_panel_for_target",
+            translation_placeholders={"service": "press_panic_button"},
+        )
+
+    for coordinator, space_id in targets:
+        await coordinator.spaces_api.press_panic_button(
+            space_id,
+            latitude=latitude,
+            longitude=longitude,
+        )
+
+
+async def _async_handle_set_photo_on_demand_mode(hass: HomeAssistant, call: ServiceCall) -> None:
+    """Handle the set_photo_on_demand_mode service call.
+
+    Toggles the hub-wide Photo on Demand mode that gates camera-equipped
+    devices from delivering on-demand snapshots. Two independent channels:
+    `user` (whether hub users can request photos) and `scenario` (whether
+    scenarios/automations can trigger captures). At least one must be
+    provided; the other is left untouched.
+    """
+    from homeassistant.exceptions import ServiceValidationError  # noqa: PLC0415
+
+    user_enabled = call.data.get("user")
+    scenario_enabled = call.data.get("scenario")
+    if user_enabled is None and scenario_enabled is None:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN, translation_key="photo_mode_option_required"
+        )
+
+    targets = await _resolve_target_space_ids(hass, call)
+    if not targets:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="no_panel_for_target",
+            translation_placeholders={"service": "set_photo_on_demand_mode"},
+        )
+
+    for coordinator, space_id in targets:
+        space = coordinator.spaces.get(space_id)
+        if space is None or not space.hub_id:
+            continue
+        await coordinator.devices_api.set_photo_on_demand_mode(
+            space.hub_id,
+            user_enabled=user_enabled,
+            scenario_enabled=scenario_enabled,
+        )
+
+
+async def _async_handle_refresh_alarm_images(
+    hass: HomeAssistant, call: ServiceCall
+) -> ServiceResponse:
+    """Import recent camera images attached to historical Ajax alarms.
+
+    This service has no device-control side effect. It reads the server's
+    Alarm folder and stores the trusted images locally for Camera entities.
+    It is intentionally manual: do not use it in a frequent automation.
+    """
+    from homeassistant.exceptions import HomeAssistantError  # noqa: PLC0415
+
+    imported_notifications = 0
+    imported_images = 0
+    skipped = 0
+    targets = await _resolve_target_space_ids(hass, call)
+    cooldown: HomeAssistantError | None = None
+    for coordinator, space_id in targets:
+        try:
+            result = await coordinator.async_import_alarm_images(space_id)
+        except HomeAssistantError as err:
+            # A space still inside its backfill cooldown must not discard what
+            # the other spaces returned, nor make the outcome depend on the
+            # order they were resolved in. Any other failure still propagates.
+            if getattr(err, "translation_key", None) != "alarm_backfill_rate_limited":
+                raise
+            cooldown = err
+            skipped += 1
+            continue
+        imported_notifications += result["notifications"]
+        imported_images += result["images"]
+    if cooldown is not None and skipped == len(targets):
+        # Nothing ran, so the cooldown is the whole answer and the caller should
+        # see it as an error rather than as an empty success.
+        raise cooldown
+    return {
+        "spaces": len(targets),
+        "notifications": imported_notifications,
+        "images": imported_images,
+        "skipped": skipped,
+    }
+
+
+@callback
+def _async_register_services(hass: HomeAssistant) -> None:
+    """Register the domain services once, whatever entries are loaded (#603)."""
+
+    async def _force_arm_handler(call: ServiceCall) -> None:
+        await _async_handle_force_arm(hass, call)
+
+    async def _force_arm_night_handler(call: ServiceCall) -> None:
+        await _async_handle_force_arm_night(hass, call)
+
+    async def _disarm_night_mode_handler(call: ServiceCall) -> None:
+        await _async_handle_disarm_night_mode(hass, call)
+
+    async def _press_panic_button_handler(call: ServiceCall) -> None:
+        await _async_handle_press_panic_button(hass, call)
+
+    async def _set_photo_on_demand_mode_handler(call: ServiceCall) -> None:
+        await _async_handle_set_photo_on_demand_mode(hass, call)
+
+    async def _refresh_alarm_images_handler(call: ServiceCall) -> ServiceResponse:
+        return await _async_handle_refresh_alarm_images(hass, call)
+
+    async def _list_client_sessions_handler(call: ServiceCall) -> ServiceResponse:
+        return await _async_handle_list_client_sessions(hass, call)
+
+    async def _terminate_client_session_handler(call: ServiceCall) -> None:
+        await _async_handle_terminate_client_session(hass, call)
+
+    async def _terminate_other_client_sessions_handler(call: ServiceCall) -> ServiceResponse:
+        return await _async_handle_terminate_other_client_sessions(hass, call)
+
+    service_handlers = {
+        "force_arm": _force_arm_handler,
+        "force_arm_night": _force_arm_night_handler,
+        "disarm_night_mode": _disarm_night_mode_handler,
+        "press_panic_button": _press_panic_button_handler,
+        "set_photo_on_demand_mode": _set_photo_on_demand_mode_handler,
+        "refresh_alarm_images": _refresh_alarm_images_handler,
+        "list_client_sessions": _list_client_sessions_handler,
+        "terminate_client_session": _terminate_client_session_handler,
+        "terminate_other_client_sessions": _terminate_other_client_sessions_handler,
+    }
+    # KeyError here means a name was added to _CUSTOM_SERVICE_NAMES without a
+    # handler — fail loudly at setup rather than silently skipping it.
+    for name in _CUSTOM_SERVICE_NAMES:
+        if name == "list_client_sessions":
+            hass.services.async_register(
+                DOMAIN,
+                name,
+                service_handlers[name],
+                supports_response=SupportsResponse.ONLY,
+            )
+        elif name in {"terminate_other_client_sessions", "refresh_alarm_images"}:
+            hass.services.async_register(
+                DOMAIN,
+                name,
+                service_handlers[name],
+                supports_response=SupportsResponse.OPTIONAL,
+            )
+        else:
+            hass.services.async_register(DOMAIN, name, service_handlers[name])
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Set up the integration: services live here, not per entry (#603)."""
+    _async_register_services(hass)
+    return True
+
+
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Migrate config entry to newer version."""
+    if entry.version == 1:
+        # v1 → v2: Move FCM credentials from options to data
+        new_data = dict(entry.data)
+        new_options = dict(entry.options)
+        migrated = False
+        for key in _FCM_KEYS:
+            if key in new_options and new_options[key]:
+                new_data[key] = new_options.pop(key)
+                migrated = True
+            elif key in new_options:
+                new_options.pop(key)
+        if migrated:
+            _LOGGER.info("Migrated FCM credentials from options to data")
+        hass.config_entries.async_update_entry(entry, data=new_data, options=new_options, version=2)
+    if entry.version == 2 and entry.minor_version < 2:
+        # 2.1 → 2.2: plaintext password → hash (#612; used to run on every setup)
+        new_data = dict(entry.data)
+        if "password" in new_data and "password_hash" not in new_data:
+            from custom_components.aegis_ajax.api.session import AjaxSession  # noqa: PLC0415
+
+            new_data["password_hash"] = AjaxSession.hash_password(new_data.pop("password"))
+            _LOGGER.warning(
+                "Migrated plaintext password to hash for entry %s. "
+                "Please reconfigure if issues arise.",
+                entry.entry_id,
+            )
+        hass.config_entries.async_update_entry(entry, data=new_data, minor_version=2)
+    return True
+
+
+async def async_setup_entry(hass: HomeAssistant, entry: AjaxCobrandedConfigEntry) -> bool:
+    # Surface a Repair when HA's runtime grpcio is below the version we
+    # need; mostly hits HA OS where the manifest's pip-level requirement
+    # doesn't apply. Self-clears on the next setup if HA gets upgraded.
+    async_check_grpcio_version(hass)
+    async_check_pin_code_format(hass, entry_id=entry.entry_id, options=entry.options)
+
+    # Support legacy entries that stored plaintext password instead of hash
+    if "password_hash" in entry.data:
+        client = AjaxGrpcClient(
+            email=entry.data["email"],
+            password_hash=entry.data["password_hash"],
+            device_id=entry.data.get("device_id"),
+            app_label=entry.data.get("app_label", APPLICATION_LABEL),
+        )
+    else:
+        _LOGGER.warning(
+            "Entry %s has neither password_hash nor password. Authentication may fail.",
+            entry.entry_id,
+        )
+        client = AjaxGrpcClient(
+            email=entry.data["email"],
+            password=entry.data.get("password", ""),
+            device_id=entry.data.get("device_id"),
+            app_label=entry.data.get("app_label", APPLICATION_LABEL),
+        )
+    # Restore session token from stored data to skip re-login (and 2FA) on restart
+    if entry.data.get("session_token") and entry.data.get("user_hex_id"):
+        _LOGGER.debug(
+            # Ajax binds the session token to the device id, so a restored token
+            # paired with a different id is rejected with UNAUTHENTICATED and the
+            # mismatch is otherwise invisible. Both go through `log_fingerprint`:
+            # they are in `diagnostics.TO_REDACT`, and telling two ids apart is
+            # all a log needs from them. The app label is a brand string, not an
+            # identifier, so it is logged as-is.
+            "Restoring stored Ajax session for entry %s "
+            "(user=%s, device_id=%s, app_label=%r, token=%s)",
+            entry.entry_id,
+            entry.data["user_hex_id"],
+            log_fingerprint(client.session.device_id),
+            client.session.app_label,
+            log_fingerprint(entry.data["session_token"]),
+        )
+        client.session.set_session(str(entry.data["session_token"]), str(entry.data["user_hex_id"]))
+    else:
+        _LOGGER.debug(
+            "No stored Ajax session for entry %s — coordinator will log in on first refresh",
+            entry.entry_id,
+        )
+    await client.connect()
+
+    def _persist_session(token: str, user_hex_id: str) -> None:
+        """Write the latest session token back to the config entry.
+
+        Called by the coordinator after every successful login so that a
+        restart can reuse the freshest token instead of forcing another
+        login (which would create yet another active session in Ajax).
+
+        The device id rides along because Ajax binds the token to it. Entries
+        created before the id was stored get one generated per setup, so
+        without persisting it here the very next restart presents the token
+        under a different id and Ajax rejects it.
+        """
+        device_id = client.session.device_id
+        if (
+            entry.data.get("session_token") == token
+            and entry.data.get("user_hex_id") == user_hex_id
+            and entry.data.get("device_id") == device_id
+        ):
+            return
+        new_data = {
+            **entry.data,
+            "session_token": token,
+            "user_hex_id": user_hex_id,
+            "device_id": device_id,
+        }
+        hass.config_entries.async_update_entry(entry, data=new_data)
+        _LOGGER.debug(
+            "Persisted refreshed Ajax session for entry %s (device_id=%s, token=%s)",
+            entry.entry_id,
+            log_fingerprint(device_id),
+            log_fingerprint(token),
+        )
+
+    coordinator = AjaxCobrandedCoordinator(
+        hass=hass,
+        client=client,
+        space_ids=entry.data.get("spaces", []),
+        poll_interval=entry.options.get("poll_interval", DEFAULT_POLL_INTERVAL),
+        on_session_persist=_persist_session,
+        entry_id=entry.entry_id,
+        delay_panel_states=bool(
+            entry.options.get(CONF_DELAY_PANEL_STATES, DEFAULT_DELAY_PANEL_STATES)
+        ),
+    )
+    try:
+        await coordinator.async_config_entry_first_refresh()
+    except BaseException:
+        # HA retries setup after ConfigEntryNotReady, building a fresh client
+        # each attempt. Close this attempt's channel so retries don't leak one
+        # gRPC channel per failure (also covers cancellation during refresh).
+        await client.close()
+        raise
+    entry.runtime_data = coordinator
+
+    # Attach the persistent-notification manager (2.2). Reads the current
+    # options; the entry reloads on any options change, so this is rebuilt with
+    # fresh settings each setup. Attach None when the feature is off or no event
+    # types are selected, so the coordinator's `_persistent_notifier is None`
+    # fast-path skips all per-event work.
+    pn_enabled = bool(
+        entry.options.get(CONF_PERSISTENT_NOTIFICATIONS, DEFAULT_PERSISTENT_NOTIFICATIONS)
+    )
+    pn_event_types = entry.options.get(
+        CONF_PERSISTENT_NOTIFICATION_EVENTS, DEFAULT_PERSISTENT_NOTIFICATION_EVENTS
+    )
+    if pn_enabled and pn_event_types:
+        from custom_components.aegis_ajax.persistent_notification import (  # noqa: PLC0415
+            AjaxPersistentNotifier,
+        )
+
+        # Only disambiguate the notification title with the account email
+        # when more than one Ajax account is configured — on the common
+        # single-account install it's pure noise in every card.
+        account_name = ""
+        if len(hass.config_entries.async_entries(DOMAIN)) > 1:
+            account_name = str(entry.data.get("email", ""))
+        coordinator.set_persistent_notifier(
+            AjaxPersistentNotifier(
+                hass,
+                entry.entry_id,
+                enabled=True,
+                event_types=pn_event_types,
+                account_name=account_name,
+            )
+        )
+    else:
+        coordinator.set_persistent_notifier(None)
+
+    # Start FCM push notifications if configured (credentials live in data since v2).
+    # Run as a background task — FCM registration + push-client start is a
+    # multi-step network round-trip (Firebase + Ajax push registration) that
+    # would otherwise block setup for several seconds, extending HA's boot
+    # phase past the "integration taking too long" threshold (#112). Push
+    # delivery already tolerates a brief gap between setup and first push.
+    def _get_fcm(key: str) -> str:
+        return str(entry.data.get(key, entry.options.get(key, "")))
+
+    entry.async_create_background_task(
+        hass,
+        coordinator.async_start_push_notifications(
+            fcm_project_id=_get_fcm("fcm_project_id"),
+            fcm_app_id=_get_fcm("fcm_app_id"),
+            fcm_api_key=_get_fcm("fcm_api_key"),
+            fcm_sender_id=_get_fcm("fcm_sender_id"),
+            entry_id=entry.entry_id,
+            app_label=str(entry.data.get("app_label", APPLICATION_LABEL)),
+            disable_push_warning=bool(
+                entry.options.get(CONF_DISABLE_PUSH_WARNING, DEFAULT_DISABLE_PUSH_WARNING)
+            ),
+        ),
+        name=f"aegis_ajax_fcm_start_{entry.entry_id}",
+    )
+
+    # Schedule photo cleanup
+    from datetime import timedelta  # noqa: PLC0415
+
+    from homeassistant.helpers.event import async_track_time_interval  # noqa: PLC0415
+
+    from custom_components.aegis_ajax.photo_storage import cleanup_old_photos  # noqa: PLC0415
+
+    retention_days = entry.options.get("photo_retention_days", 30)
+    max_photos = entry.options.get("photo_max_per_device", 100)
+
+    async def _photo_cleanup(_now: object = None) -> None:
+        # Every entry cleans the same photo folder: one cleanup at a time (#611).
+        async with _PHOTO_CLEANUP_LOCK:
+            deleted = await cleanup_old_photos(hass, retention_days, max_photos)
+        if deleted:
+            _LOGGER.debug("Cleaned up %d old photos", len(deleted))
+
+    # Schedule cleanup every 24h (first run deferred to avoid blocking startup)
+    unsub_cleanup = async_track_time_interval(hass, _photo_cleanup, timedelta(hours=24))
+    entry.async_create_background_task(
+        hass, _photo_cleanup(), name=f"aegis_ajax_photo_cleanup_{entry.entry_id}"
+    )
+    entry.async_on_unload(unsub_cleanup)
+
+    _async_register_hub_devices(hass, entry, coordinator)
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    coordinator.mark_platforms_set_up()
+
+    # Auto-label entities for easy grouping in automations.
+    # Users can disable this from the OptionsFlow when they prefer to manage
+    # labels manually (the label registry is otherwise authoritative and
+    # re-creates removed labels on every restart).
+    if entry.options.get(CONF_AUTO_CREATE_LABELS, DEFAULT_AUTO_CREATE_LABELS):
+        try:
+            await _async_apply_labels(hass, entry)
+        except Exception:
+            _LOGGER.debug("Auto-labeling skipped (labels API not available)")
+
+    # Reload integration when options or credentials change (e.g. FCM credentials)
+    reload_state = _reload_relevant_state(entry)
+
+    async def _async_update_listener(hass: HomeAssistant, entry: AjaxCobrandedConfigEntry) -> None:
+        # A refreshed session token is written to entry.data at runtime; that
+        # alone must not restart everything and call Ajax again (#609).
+        if _reload_relevant_state(entry) == reload_state:
+            return
+        await hass.config_entries.async_reload(entry.entry_id)
+
+    entry.async_on_unload(entry.add_update_listener(_async_update_listener))
+
+    return True
+
+
+_LABEL_RULES: dict[str, set[str]] = {
+    "aegis_alarm": {"alarm_control_panel", "event"},
+    "aegis_hub": {"update"},
+    "aegis_camera": {"camera", "button"},
+}
+
+_DEVICE_CLASS_LABELS: dict[str, str] = {
+    "door": "aegis_door",
+    "window": "aegis_door",
+    "garage_door": "aegis_door",
+    "motion": "aegis_motion",
+    "occupancy": "aegis_motion",
+    "battery": "aegis_battery",
+    "temperature": "aegis_temperature",
+    "tamper": "aegis_tamper",
+    "connectivity": "aegis_connectivity",
+    "plug": "aegis_connectivity",
+    "power": "aegis_connectivity",
+}
+
+# Hub entities by translation_key: stable across renames and languages (#612).
+_HUB_TRANSLATION_KEYS = frozenset(
+    {
+        "ethernet",
+        "wifi",
+        "mains_power",
+        "mobile_network_type",
+        "wifi_signal_level",
+        "sim_status",
+        "sim_imei",
+        "connection_type",
+        "wifi_ssid",
+        "wifi_ip",
+        "ethernet_ip",
+        "ethernet_gateway",
+        "ethernet_dns",
+        "cellular_signal",
+        "cellular_network",
+        "monitoring",
+        "monitoring_company",
+    }
+)
+
+
+@callback
+def _async_register_hub_devices(
+    hass: HomeAssistant, entry: ConfigEntry, coordinator: AjaxCobrandedCoordinator
+) -> None:
+    """Register every hub in the device registry before any platform runs (#444).
+
+    Children link to their hub with `via_device_id`, the hub's registry entry
+    id, and HA rejects a `DeviceInfo` whose via device is not registered yet.
+    Platforms add entities in no guaranteed order, so the hubs go in first;
+    the same identifiers make the hub entities' own `DeviceInfo` an update of
+    this entry, not a duplicate. Non-hub devices are created by their entities
+    as before.
+    """
+    registry = dr.async_get(hass)
+    for device in coordinator.devices.values():
+        if is_hub_device(device):
+            registry.async_get_or_create(
+                config_entry_id=entry.entry_id, **build_device_info(device, coordinator.rooms)
+            )
+
+
+async def _async_apply_labels(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Create labels and assign them to entities based on domain and device_class."""
+    from homeassistant.helpers import entity_registry as er  # noqa: PLC0415
+    from homeassistant.helpers import label_registry as lr  # noqa: PLC0415
+
+    label_reg = lr.async_get(hass)
+    entity_reg = er.async_get(hass)
+
+    # Ensure labels exist
+    for label_id, props in LABELS.items():
+        if not label_reg.async_get_label(label_id):
+            label_reg.async_create(
+                name=props["name"],
+                icon=props.get("icon"),
+                color=props.get("color"),
+            )
+
+    # Assign labels to our entities
+    entries = er.async_entries_for_config_entry(entity_reg, entry.entry_id)
+    for entity_entry in entries:
+        labels_to_add: set[str] = set()
+        domain = entity_entry.entity_id.split(".")[0]
+
+        # Rule 1: platform-based labels
+        for label_id, domains in _LABEL_RULES.items():
+            if domain in domains:
+                labels_to_add.add(label_id)
+
+        # Rule 2: device_class-based labels
+        if entity_entry.original_device_class:
+            dc = str(entity_entry.original_device_class).split(".")[-1]
+            if dc in _DEVICE_CLASS_LABELS:
+                labels_to_add.add(_DEVICE_CLASS_LABELS[dc])
+
+        # Rule 3: hub entities by translation_key
+        if entity_entry.translation_key in _HUB_TRANSLATION_KEYS:
+            labels_to_add.add("aegis_hub")
+
+        # Apply labels (union with existing to preserve user labels)
+        if labels_to_add and not labels_to_add.issubset(entity_entry.labels):
+            entity_reg.async_update_entity(
+                entity_entry.entity_id,
+                labels=entity_entry.labels | labels_to_add,
+            )
+
+
+# Written by _persist_session after a login; not a reason to reload (#609).
+_SESSION_KEYS = frozenset({"session_token", "user_hex_id", "device_id"})
+
+
+def _reload_relevant_state(entry: ConfigEntry) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Options and data minus the session the integration refreshes itself."""
+    data = {k: v for k, v in entry.data.items() if k not in _SESSION_KEYS}
+    return dict(entry.options), data
+
+
+async def async_unload_entry(hass: HomeAssistant, entry: AjaxCobrandedConfigEntry) -> bool:
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    if unload_ok:
+        coordinator: AjaxCobrandedCoordinator = entry.runtime_data
+        await coordinator.async_shutdown()
+    return unload_ok
+
+
+async def async_remove_config_entry_device(
+    hass: HomeAssistant,
+    entry: AjaxCobrandedConfigEntry,
+    device_entry: DeviceEntry,
+) -> bool:
+    """Let the user delete a device the hub no longer reports (#422).
+
+    HA only offers "Delete device" when the integration defines this hook.
+    Anything the coordinator still tracks (the hub, live devices,
+    runtime-discovered keyfobs) is refused; a device the hub stopped
+    reporting may go. If the hub in fact still reports it, the next
+    snapshot legitimately re-creates it — a wrong deletion self-heals.
+    """
+    coordinator: AjaxCobrandedCoordinator | None = getattr(entry, "runtime_data", None)
+    if coordinator is None:
+        # Entry not running — nothing can vouch for the device either way;
+        # allow, for the same self-healing reason.
+        return True
+    our_ids = {id_ for domain, id_ in device_entry.identifiers if domain == DOMAIN}
+    return not any(
+        device_id in coordinator.devices or device_id in coordinator.keyfobs
+        for device_id in our_ids
+    )
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: AjaxCobrandedConfigEntry) -> None:
+    """Invalidate the Ajax session server-side when the user removes the integration.
+
+    Called only on permanent removal, not on reload — reloads route
+    through async_unload_entry which deliberately keeps the session
+    alive so the next setup can reuse the token. Without this hook the
+    Ajax account would keep accumulating "Aegis" devices in its active
+    sessions list every time someone uninstalls and reinstalls.
+    """
+    from custom_components.aegis_ajax.monitoring_companies import (  # noqa: PLC0415
+        async_remove_monitoring_companies,
+    )
+
+    await async_remove_monitoring_companies(hass, entry.entry_id)
+
+    from custom_components.aegis_ajax.notification import (  # noqa: PLC0415
+        async_remove_fcm_stores,
+    )
+
+    await async_remove_fcm_stores(hass, entry.entry_id)
+    if "session_token" not in entry.data or "user_hex_id" not in entry.data:
+        return
+
+    common_kwargs = {
+        "email": entry.data["email"],
+        "device_id": entry.data.get("device_id"),
+        "app_label": entry.data.get("app_label", APPLICATION_LABEL),
+    }
+    try:
+        if entry.data.get("password_hash"):
+            client = AjaxGrpcClient(password_hash=entry.data["password_hash"], **common_kwargs)
+        elif entry.data.get("password"):
+            client = AjaxGrpcClient(password=entry.data["password"], **common_kwargs)
+        else:
+            return
+    except Exception:  # noqa: BLE001
+        _LOGGER.debug("Logout skipped — could not rebuild client", exc_info=True)
+        return
+
+    client.session.set_session(str(entry.data["session_token"]), str(entry.data["user_hex_id"]))
+    try:
+        await client.connect()
+        await client.logout()
+    except Exception:  # noqa: BLE001
+        _LOGGER.debug("Logout call failed during removal (best-effort)", exc_info=True)
+    finally:
+        await client.close()

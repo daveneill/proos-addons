@@ -1,0 +1,773 @@
+"""Config flow for Ajax Security integration."""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+
+    from homeassistant.helpers.service_info.dhcp import DhcpServiceInfo
+
+import voluptuous as vol
+from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
+from homeassistant.core import callback
+from homeassistant.helpers.device_registry import format_mac
+from homeassistant.helpers.selector import (
+    SelectOptionDict,
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
+    TextSelector,
+    TextSelectorConfig,
+    TextSelectorType,
+)
+
+from custom_components.aegis_ajax.api.client import AjaxGrpcClient, is_client_rejected
+from custom_components.aegis_ajax.api.session import (
+    AjaxSession,
+    AuthenticationError,
+    TwoFactorRequiredError,
+    log_fingerprint,
+)
+from custom_components.aegis_ajax.api.spaces import SpacesApi
+from custom_components.aegis_ajax.const import (
+    ALL_EVENT_TYPES,
+    APPLICATION_LABEL,
+    BYPASS_SWITCHES_ALWAYS,
+    BYPASS_SWITCHES_AUTO,
+    BYPASS_SWITCHES_NEVER,
+    CONF_AUTO_CREATE_LABELS,
+    CONF_BYPASS_SWITCHES,
+    CONF_CLOUD_VIDEO,
+    CONF_DELAY_PANEL_STATES,
+    CONF_DISABLE_PUSH_WARNING,
+    CONF_EXPOSE_ARM_HOME,
+    CONF_FORCE_ARM,
+    CONF_PERSISTENT_NOTIFICATION_EVENTS,
+    CONF_PERSISTENT_NOTIFICATIONS,
+    CONF_PHOTO_MAX_PER_DEVICE,
+    CONF_PHOTO_RETENTION_DAYS,
+    DEFAULT_AUTO_CREATE_LABELS,
+    DEFAULT_BYPASS_SWITCHES,
+    DEFAULT_CLOUD_VIDEO,
+    DEFAULT_DELAY_PANEL_STATES,
+    DEFAULT_DISABLE_PUSH_WARNING,
+    DEFAULT_EXPOSE_ARM_HOME,
+    DEFAULT_PERSISTENT_NOTIFICATION_EVENTS,
+    DEFAULT_PERSISTENT_NOTIFICATIONS,
+    DEFAULT_PHOTO_MAX_PER_DEVICE,
+    DEFAULT_PHOTO_RETENTION_DAYS,
+    DEFAULT_POLL_INTERVAL,
+    DOMAIN,
+    KNOWN_APP_LABELS,
+    MAX_POLL_INTERVAL,
+    MIN_POLL_INTERVAL,
+)
+from custom_components.aegis_ajax.service_security import hash_pin
+
+_LOGGER = logging.getLogger(__name__)
+
+USER_SCHEMA = vol.Schema(
+    {
+        vol.Required("email"): TextSelector(TextSelectorConfig(type=TextSelectorType.EMAIL)),
+        vol.Required("password"): TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD)),
+        vol.Optional("app_label", default=APPLICATION_LABEL): SelectSelector(
+            SelectSelectorConfig(options=KNOWN_APP_LABELS, custom_value=True, sort=True)
+        ),
+    }
+)
+
+TOTP_SCHEMA = vol.Schema(
+    {
+        vol.Required("totp_code"): TextSelector(TextSelectorConfig(type=TextSelectorType.TEXT)),
+    }
+)
+
+
+def _unexpected_error_key(err: Exception) -> str:
+    """Form error for an exception no other branch handled.
+
+    The flows only make core calls (login, space list), so UNIMPLEMENTED
+    counts as Ajax retiring the API here.
+    """
+    return "client_rejected" if is_client_rejected(err, api_retired=True) else "unknown"
+
+
+class AjaxCobrandedConfigFlow(ConfigFlow, domain=DOMAIN):
+    """Handle a config flow for Ajax Security."""
+
+    VERSION = 2
+    MINOR_VERSION = 2
+    DOMAIN = DOMAIN
+
+    def __init__(self) -> None:
+        self._client: AjaxGrpcClient | None = None
+        self._email: str = ""
+        self._password_hash: str = ""
+        self._app_label: str = APPLICATION_LABEL
+        self._request_id: str = ""
+        # Snapshot of a freshly issued session, taken before the channel is
+        # closed. `AjaxGrpcClient.close()` clears the session, so reading the
+        # token off the client afterwards yields nothing.
+        self._session_snapshot: dict[str, Any] | None = None
+
+    async def async_step_dhcp(self, discovery_info: DhcpServiceInfo) -> ConfigFlowResult:
+        """Entry point when an Ajax hub is seen on the local network.
+
+        HA invokes this when a DHCP packet matches the manifest's `dhcp`
+        spec (Ajax Systems OUI 9C:75:6E). The flow doesn't have
+        credentials at discovery time — its only job is to surface
+        Aegis as a "Discovered" card with a hint so the user clicks
+        through into the credential prompt instead of having to search
+        for the integration by name.
+        """
+        # Per-MAC unique_id on the *flow* (not the eventual entry, which
+        # uses the email) so HA dedupes repeat DHCP packets and avoids
+        # showing two discovery cards for the same hub.
+        await self.async_set_unique_id(format_mac(discovery_info.macaddress))
+        self._abort_if_unique_id_configured()
+        # Once the user has at least one Aegis account configured we
+        # don't keep nagging on every hub renewal — additional spaces
+        # under the same account already appear automatically.
+        if self._async_current_entries(include_ignore=False):
+            return self.async_abort(reason="already_configured")
+        # Title placeholder is what HA renders on the "Discovered" card.
+        self.context["title_placeholders"] = {
+            "name": discovery_info.hostname or f"Ajax hub ({discovery_info.ip})"
+        }
+        return await self.async_step_user()
+
+    def _capture_session(self) -> None:
+        """Snapshot a freshly issued session before the channel is closed.
+
+        `AjaxGrpcClient.close()` clears the session, so the reauth and
+        reconfigure paths — which close the channel before persisting — used
+        to read an already-wiped token and silently leave the entry on its
+        old, rejected one. That produced an unbreakable UNAUTHENTICATED loop:
+        every retry re-logged in, and every re-login demanded 2FA again.
+        """
+        if self._client is None or not self._client.session.session_token:
+            return
+        session = self._client.session
+        self._session_snapshot = {
+            "session_token": session.session_token,
+            "user_hex_id": session.user_hex_id,
+            "device_id": session.device_id,
+        }
+
+    @callback
+    def async_remove(self) -> None:
+        """Close the client when the flow is abandoned midway (#610)."""
+        if self._client is not None:
+            self.hass.async_create_task(self._async_close_client())
+
+    async def _async_close_client(self) -> None:
+        """Close and drop the in-flight gRPC client after a failed login.
+
+        Each retry of async_step_user builds a fresh client, so the failed
+        attempt's channel must be closed or it leaks until garbage collection.
+        Close errors are swallowed — we're already on an error path.
+        """
+        if self._client is None:
+            return
+        try:
+            await self._client.close()
+        except Exception:  # noqa: BLE001 - best-effort cleanup
+            _LOGGER.debug("Ignoring error while closing config-flow client", exc_info=True)
+        finally:
+            self._client = None
+
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            self._email = user_input["email"]
+            self._password_hash = AjaxSession.hash_password(user_input["password"])
+            self._app_label = user_input.get("app_label", APPLICATION_LABEL)
+            _LOGGER.debug("Config flow: app_label=%s", self._app_label)
+            await self.async_set_unique_id(self._email)
+            self._abort_if_unique_id_configured()
+            try:
+                self._client = AjaxGrpcClient(
+                    email=self._email,
+                    password_hash=self._password_hash,
+                    app_label=self._app_label,
+                )
+                await self._client.connect()
+                await asyncio.wait_for(self._client.login(), timeout=30)
+                return await self.async_step_select_spaces()
+            except TwoFactorRequiredError as e:
+                # Channel must stay open: async_step_2fa reuses this client.
+                self._request_id = e.request_id
+                return await self.async_step_2fa()
+            except asyncio.CancelledError:
+                # Re-raise so HA shutdown/reload cancels cleanly (it's a
+                # BaseException, not a user-facing error), but close the channel
+                # we just opened on the way out.
+                _LOGGER.debug("Login cancelled during config flow")
+                await self._async_close_client()
+                raise
+            except AuthenticationError as e:
+                _LOGGER.error("Authentication failed: %s", e)
+                errors["base"] = "invalid_auth"
+                await self._async_close_client()
+            except (ConnectionError, OSError) as e:
+                _LOGGER.error("Connection failed: %s", e)
+                errors["base"] = "cannot_connect"
+                await self._async_close_client()
+            except TimeoutError:
+                _LOGGER.error("Login timed out")
+                errors["base"] = "cannot_connect"
+                await self._async_close_client()
+            except Exception as e:
+                _LOGGER.error(
+                    "Unexpected error during login: %s: %s",
+                    type(e).__name__,
+                    e,
+                    exc_info=True,
+                )
+                errors["base"] = _unexpected_error_key(e)
+                await self._async_close_client()
+        return self.async_show_form(step_id="user", data_schema=USER_SCHEMA, errors=errors)
+
+    async def async_step_2fa(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            try:
+                if self._client is None:
+                    raise RuntimeError("Client not initialized")
+                await asyncio.wait_for(
+                    self._client.login_totp(
+                        email=self._email,
+                        request_id=self._request_id,
+                        totp_code=user_input["totp_code"],
+                    ),
+                    timeout=30,
+                )
+                return await self.async_step_select_spaces()
+            except AuthenticationError:
+                errors["base"] = "invalid_totp"
+            except TimeoutError:
+                errors["base"] = "cannot_connect"
+            except Exception as err:
+                _LOGGER.exception("Unexpected error during 2FA")
+                errors["base"] = _unexpected_error_key(err)
+        return self.async_show_form(step_id="2fa", data_schema=TOTP_SCHEMA, errors=errors)
+
+    async def async_step_select_spaces(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        if user_input is not None:
+            if self._client is None:
+                raise RuntimeError("Client not initialized")
+            data: dict[str, Any] = {
+                "email": self._email,
+                "password_hash": self._password_hash,
+                "app_label": self._app_label,
+                "spaces": user_input["spaces"],
+                "device_id": self._client.session.device_id,
+            }
+            # Persist session token to avoid re-login (and 2FA) on restart
+            if self._client.session.session_token:
+                data["session_token"] = self._client.session.session_token
+                data["user_hex_id"] = self._client.session.user_hex_id
+            # The entry builds its own client; don't leave this channel open (#610).
+            await self._async_close_client()
+            return self.async_create_entry(title=f"Ajax Security ({self._email})", data=data)
+        if self._client:
+            spaces_api = SpacesApi(self._client)
+            try:
+                spaces = await spaces_api.list_spaces()
+            except Exception:
+                _LOGGER.exception("Could not list Ajax spaces after login")
+                await self._async_close_client()
+                return self.async_abort(reason="cannot_connect")
+            space_options = [SelectOptionDict(value=s.id, label=s.name) for s in spaces]
+        else:
+            space_options = []
+        return self.async_show_form(
+            step_id="select_spaces",
+            data_schema=vol.Schema(
+                {
+                    # `default=[]` is intentional: HA's frontend treats a
+                    # missing default on a `Required` multi-select as
+                    # "everything selected", which is dangerous for
+                    # installers who see many customer spaces in one
+                    # account and could accept the wrong one by inertia
+                    # (#166). Starting empty forces an explicit choice.
+                    # `mode=DROPDOWN` renders the chip-input with the
+                    # built-in name filter, replacing the linear checkbox
+                    # list that doesn't scale past a handful of spaces.
+                    vol.Required("spaces", default=[]): vol.All(
+                        SelectSelector(
+                            SelectSelectorConfig(
+                                options=space_options,
+                                multiple=True,
+                                mode=SelectSelectorMode.DROPDOWN,
+                                sort=True,
+                            )
+                        ),
+                        # The selector accepts an empty list once we add
+                        # `default=[]` (the marker no longer fails on a
+                        # missing key). Without this length check, a user
+                        # could submit with no space chosen and we'd
+                        # create a do-nothing entry. The frontend already
+                        # disables Submit while empty for `Required`, so
+                        # this is the belt-and-braces server-side guard.
+                        vol.Length(min=1),
+                    ),
+                }
+            ),
+        )
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Handle reconfiguration (change credentials)."""
+        errors: dict[str, str] = {}
+        entry = self._get_reconfigure_entry()
+
+        if user_input is not None:
+            self._email = user_input["email"]
+            self._password_hash = AjaxSession.hash_password(user_input["password"])
+            self._app_label = user_input.get(
+                "app_label", entry.data.get("app_label", APPLICATION_LABEL)
+            )
+            try:
+                self._client = AjaxGrpcClient(
+                    email=self._email,
+                    password_hash=self._password_hash,
+                    app_label=self._app_label,
+                    # Same binding as reauth: the token Ajax hands back is
+                    # only valid for the device id that requested it.
+                    device_id=entry.data.get("device_id"),
+                )
+                await self._client.connect()
+                await asyncio.wait_for(self._client.login(), timeout=30)
+                self._capture_session()
+                await self._client.close()
+            except TwoFactorRequiredError as e:
+                self._request_id = e.request_id
+                return await self.async_step_reconfigure_2fa()
+            except AuthenticationError:
+                errors["base"] = "invalid_auth"
+            except (ConnectionError, OSError, TimeoutError):
+                errors["base"] = "cannot_connect"
+            except Exception as err:
+                _LOGGER.exception("Unexpected error during reconfigure")
+                errors["base"] = _unexpected_error_key(err)
+            else:
+                # Outside the try: its already_configured abort must reach the
+                # user, not be caught as an unexpected error.
+                return await self._async_finish_reconfigure()
+
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=vol.Schema(
+                {
+                    vol.Required("email", default=entry.data.get("email", "")): TextSelector(
+                        TextSelectorConfig(type=TextSelectorType.EMAIL)
+                    ),
+                    vol.Required("password"): TextSelector(
+                        TextSelectorConfig(type=TextSelectorType.PASSWORD)
+                    ),
+                    vol.Optional(
+                        "app_label",
+                        default=entry.data.get("app_label", APPLICATION_LABEL),
+                    ): SelectSelector(
+                        SelectSelectorConfig(options=KNOWN_APP_LABELS, custom_value=True, sort=True)
+                    ),
+                }
+            ),
+            errors=errors,
+        )
+
+    async def async_step_reconfigure_2fa(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Handle 2FA during reconfiguration."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            try:
+                if self._client is None:
+                    raise RuntimeError("Client not initialized")
+                await asyncio.wait_for(
+                    self._client.login_totp(
+                        email=self._email,
+                        request_id=self._request_id,
+                        totp_code=user_input["totp_code"],
+                    ),
+                    timeout=30,
+                )
+                self._capture_session()
+                await self._client.close()
+            except AuthenticationError:
+                errors["base"] = "invalid_totp"
+            except TimeoutError:
+                errors["base"] = "cannot_connect"
+            except Exception as err:
+                _LOGGER.exception("Unexpected error during reconfigure 2FA")
+                errors["base"] = _unexpected_error_key(err)
+            else:
+                return await self._async_finish_reconfigure()
+        return self.async_show_form(
+            step_id="reconfigure_2fa", data_schema=TOTP_SCHEMA, errors=errors
+        )
+
+    async def async_step_reauth(self, entry_data: Mapping[str, Any]) -> ConfigFlowResult:
+        """Entry point when HA detects auth has gone stale.
+
+        Triggered by the coordinator raising ``ConfigEntryAuthFailed``;
+        HA shows the orange "Reconfigure" banner that runs this flow.
+        """
+        self._email = str(entry_data.get("email", ""))
+        self._app_label = str(entry_data.get("app_label", APPLICATION_LABEL))
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Re-prompt for the password (and 2FA if required) keeping the same entry."""
+        errors: dict[str, str] = {}
+        entry = self._get_reauth_entry()
+
+        if user_input is not None:
+            self._password_hash = AjaxSession.hash_password(user_input["password"])
+            try:
+                self._client = AjaxGrpcClient(
+                    email=self._email,
+                    password_hash=self._password_hash,
+                    app_label=self._app_label,
+                    # Reuse the entry's device id. Ajax binds the session
+                    # token to the `client-device-id` it was issued for, so a
+                    # throwaway id here yields a token every subsequent call
+                    # rejects with UNAUTHENTICATED.
+                    device_id=entry.data.get("device_id"),
+                )
+                await self._client.connect()
+                await asyncio.wait_for(self._client.login(), timeout=30)
+                self._capture_session()
+                await self._client.close()
+                return await self._async_finish_reauth()
+            except TwoFactorRequiredError as e:
+                self._request_id = e.request_id
+                return await self.async_step_reauth_2fa()
+            except AuthenticationError:
+                errors["base"] = "invalid_auth"
+            except (ConnectionError, OSError, TimeoutError):
+                errors["base"] = "cannot_connect"
+            except Exception as err:
+                _LOGGER.exception("Unexpected error during reauth")
+                errors["base"] = _unexpected_error_key(err)
+
+        return self.async_show_form(
+            step_id="reauth_confirm",
+            data_schema=vol.Schema(
+                {
+                    vol.Required("password"): TextSelector(
+                        TextSelectorConfig(type=TextSelectorType.PASSWORD)
+                    ),
+                }
+            ),
+            description_placeholders={"email": entry.data.get("email", self._email)},
+            errors=errors,
+        )
+
+    async def async_step_reauth_2fa(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Handle 2FA during reauth."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            try:
+                if self._client is None:
+                    raise RuntimeError("Client not initialized")
+                await asyncio.wait_for(
+                    self._client.login_totp(
+                        email=self._email,
+                        request_id=self._request_id,
+                        totp_code=user_input["totp_code"],
+                    ),
+                    timeout=30,
+                )
+                self._capture_session()
+                await self._client.close()
+                return await self._async_finish_reauth()
+            except AuthenticationError:
+                errors["base"] = "invalid_totp"
+            except TimeoutError:
+                errors["base"] = "cannot_connect"
+            except Exception as err:
+                _LOGGER.exception("Unexpected error during reauth 2FA")
+                errors["base"] = _unexpected_error_key(err)
+        return self.async_show_form(step_id="reauth_2fa", data_schema=TOTP_SCHEMA, errors=errors)
+
+    async def _async_finish_reauth(self) -> ConfigFlowResult:
+        """Persist the refreshed credentials onto the existing entry and reload."""
+        entry = self._get_reauth_entry()
+        new_data: dict[str, Any] = {
+            **entry.data,
+            "password_hash": self._password_hash,
+            "app_label": self._app_label,
+        }
+        if self._session_snapshot:
+            new_data.update(self._session_snapshot)
+            _LOGGER.debug(
+                "Reauth persisting session for entry %s (device_id=%s, app_label=%r, token=%s)",
+                entry.entry_id,
+                log_fingerprint(self._session_snapshot["device_id"]),
+                self._app_label,
+                log_fingerprint(self._session_snapshot["session_token"]),
+            )
+        else:
+            _LOGGER.warning(
+                "Reauth finished without a session token for entry %s — "
+                "the entry keeps its previous (rejected) token",
+                entry.entry_id,
+            )
+        return self.async_update_reload_and_abort(entry, data=new_data, reason="reauth_successful")
+
+    async def _async_finish_reconfigure(self) -> ConfigFlowResult:
+        """Persist new credentials and session token, then reload."""
+        entry = self._get_reconfigure_entry()
+        if self._email != entry.unique_id:
+            await self.async_set_unique_id(self._email)
+            self._abort_if_unique_id_configured(updates={"email": self._email})
+        new_data: dict[str, Any] = {
+            **entry.data,
+            "email": self._email,
+            "password_hash": self._password_hash,
+            "app_label": self._app_label,
+        }
+        if self._session_snapshot:
+            # The snapshot carries the device id the token is bound to.
+            # Entries created before it was stored would otherwise keep an id
+            # that does not match the new token.
+            new_data.update(self._session_snapshot)
+            _LOGGER.debug(
+                "Reconfigure persisting session for entry %s "
+                "(device_id=%s, app_label=%r, token=%s)",
+                entry.entry_id,
+                log_fingerprint(self._session_snapshot["device_id"]),
+                self._app_label,
+                log_fingerprint(self._session_snapshot["session_token"]),
+            )
+        else:
+            _LOGGER.warning(
+                "Reconfigure finished without a session token for entry %s — "
+                "the entry keeps its previous (rejected) token",
+                entry.entry_id,
+            )
+        # The reload fetches the CRA companies again (#561): reconfiguring is
+        # how a user picks up a change of CRA.
+        from custom_components.aegis_ajax.monitoring_companies import (  # noqa: PLC0415
+            async_remove_monitoring_companies,
+        )
+
+        await async_remove_monitoring_companies(self.hass, entry.entry_id)
+        # Refresh the visible title and unique_id too, not just the data —
+        # otherwise switching accounts leaves the old email on the entry's
+        # front page until a second reconfigure (#241).
+        return self.async_update_reload_and_abort(
+            entry,
+            unique_id=self._email,
+            title=f"Ajax Security ({self._email})",
+            data=new_data,
+        )
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry: ConfigEntry) -> AjaxCobrandedOptionsFlow:
+        return AjaxCobrandedOptionsFlow(config_entry)
+
+
+_FCM_KEYS = {"fcm_project_id", "fcm_app_id", "fcm_api_key", "fcm_sender_id"}
+
+
+class AjaxCobrandedOptionsFlow(OptionsFlow):
+    def __init__(self, config_entry: ConfigEntry) -> None:
+        super().__init__()
+        self._entry = config_entry
+
+    def _get_fcm(self, key: str) -> str:
+        """Read FCM credential from data (preferred) or legacy options."""
+        return str(self._entry.data.get(key, self._entry.options.get(key, "")))
+
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        if user_input is not None:
+            if "poll_interval" in user_input:
+                user_input["poll_interval"] = max(
+                    MIN_POLL_INTERVAL, min(MAX_POLL_INTERVAL, user_input["poll_interval"])
+                )
+            if user_input.get("pin_code"):
+                user_input["pin_code_hash"] = await self.hass.async_add_executor_job(
+                    hash_pin, user_input.pop("pin_code")
+                )
+            else:
+                user_input.pop("pin_code", None)
+            # FCM credentials live in `entry.data` (encrypted storage).
+            # Two routes can update them:
+            #   1. The dedicated "Delete FCM credentials" toggle wipes all
+            #      four keys unconditionally — the unambiguous deletion
+            #      path, immune to selector-default round-trips.
+            #   2. Otherwise, any non-empty value in a FCM field updates
+            #      that key. An empty `fcm_api_key` submission is treated
+            #      as "leave alone" because that field is a password
+            #      TextSelector — HA's frontend never displays a saved
+            #      secret, so re-opening Options shows the API Key blank
+            #      regardless of what was persisted. Without this guard
+            #      a benign re-submit (e.g. to update the poll interval)
+            #      wiped the saved key (#183). The explicit toggle is
+            #      the only path that clears the API Key. The other
+            #      three FCM fields DO round-trip their saved values
+            #      via `suggested_value`, so an empty submission there
+            #      is a deliberate clear and still pops the key (#138).
+            clear_fcm = user_input.pop("clear_fcm_credentials", False)
+            fcm_input = {k: user_input.pop(k) for k in _FCM_KEYS if k in user_input}
+            new_data = {**self._entry.data}
+            if clear_fcm:
+                for k in _FCM_KEYS:
+                    new_data.pop(k, None)
+            else:
+                for k, v in fcm_input.items():
+                    v = v.strip()
+                    if v:
+                        new_data[k] = v
+                    elif k == "fcm_api_key":
+                        continue
+                    else:
+                        new_data.pop(k, None)
+            if new_data != self._entry.data:
+                self.hass.config_entries.async_update_entry(
+                    self._entry,
+                    data=new_data,
+                )
+                # Explicitly reload — mirror the repair-flow pattern (#148).
+                # The entry update listener would normally pick
+                # this up after `async_finish_flow` writes `options`, but
+                # when only `data` changes (FCM creds, password) and
+                # `options` round-trip identical to the prior values, the
+                # framework's second `async_update_entry(options=...)`
+                # short-circuits without firing a listener — leaving the
+                # FCM client running with the old credentials until the
+                # user manually reloads. `async_reload` is serialised on
+                # `entry.setup_lock`, so racing with the listener is safe.
+                await self.hass.config_entries.async_reload(self._entry.entry_id)
+            return self.async_create_entry(title="", data=user_input)
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(
+                        "poll_interval",
+                        default=self._entry.options.get("poll_interval", DEFAULT_POLL_INTERVAL),
+                    ): vol.All(int, vol.Range(min=MIN_POLL_INTERVAL, max=MAX_POLL_INTERVAL)),
+                    vol.Optional(
+                        CONF_FORCE_ARM,
+                        default=self._entry.options.get(CONF_FORCE_ARM, False),
+                    ): bool,
+                    vol.Optional(
+                        CONF_EXPOSE_ARM_HOME,
+                        default=self._entry.options.get(
+                            CONF_EXPOSE_ARM_HOME, DEFAULT_EXPOSE_ARM_HOME
+                        ),
+                    ): bool,
+                    vol.Optional(
+                        CONF_DELAY_PANEL_STATES,
+                        default=self._entry.options.get(
+                            CONF_DELAY_PANEL_STATES, DEFAULT_DELAY_PANEL_STATES
+                        ),
+                    ): bool,
+                    vol.Optional(
+                        CONF_CLOUD_VIDEO,
+                        default=self._entry.options.get(CONF_CLOUD_VIDEO, DEFAULT_CLOUD_VIDEO),
+                    ): bool,
+                    vol.Optional(
+                        "use_pin_code",
+                        default=self._entry.options.get("use_pin_code", False),
+                    ): bool,
+                    vol.Optional("pin_code"): TextSelector(
+                        TextSelectorConfig(type=TextSelectorType.PASSWORD)
+                    ),
+                    vol.Optional(
+                        "fcm_project_id",
+                        description={"suggested_value": self._get_fcm("fcm_project_id")},
+                    ): str,
+                    vol.Optional(
+                        "fcm_app_id",
+                        description={"suggested_value": self._get_fcm("fcm_app_id")},
+                    ): str,
+                    vol.Optional(
+                        "fcm_api_key",
+                        description={"suggested_value": self._get_fcm("fcm_api_key")},
+                    ): TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD)),
+                    vol.Optional(
+                        "fcm_sender_id",
+                        description={"suggested_value": self._get_fcm("fcm_sender_id")},
+                    ): str,
+                    vol.Optional("clear_fcm_credentials", default=False): bool,
+                    vol.Optional(
+                        CONF_DISABLE_PUSH_WARNING,
+                        default=self._entry.options.get(
+                            CONF_DISABLE_PUSH_WARNING, DEFAULT_DISABLE_PUSH_WARNING
+                        ),
+                    ): bool,
+                    vol.Optional(
+                        CONF_PHOTO_RETENTION_DAYS,
+                        default=self._entry.options.get(
+                            CONF_PHOTO_RETENTION_DAYS, DEFAULT_PHOTO_RETENTION_DAYS
+                        ),
+                    ): vol.All(vol.Coerce(int), vol.Range(min=1, max=365)),
+                    vol.Optional(
+                        CONF_PHOTO_MAX_PER_DEVICE,
+                        default=self._entry.options.get(
+                            CONF_PHOTO_MAX_PER_DEVICE, DEFAULT_PHOTO_MAX_PER_DEVICE
+                        ),
+                    ): vol.All(vol.Coerce(int), vol.Range(min=0, max=10000)),
+                    vol.Optional(
+                        CONF_AUTO_CREATE_LABELS,
+                        default=self._entry.options.get(
+                            CONF_AUTO_CREATE_LABELS, DEFAULT_AUTO_CREATE_LABELS
+                        ),
+                    ): bool,
+                    vol.Optional(
+                        CONF_BYPASS_SWITCHES,
+                        default=self._entry.options.get(
+                            CONF_BYPASS_SWITCHES, DEFAULT_BYPASS_SWITCHES
+                        ),
+                    ): SelectSelector(
+                        SelectSelectorConfig(
+                            options=[
+                                BYPASS_SWITCHES_AUTO,
+                                BYPASS_SWITCHES_ALWAYS,
+                                BYPASS_SWITCHES_NEVER,
+                            ],
+                            mode=SelectSelectorMode.DROPDOWN,
+                            translation_key="bypass_switches",
+                        )
+                    ),
+                    vol.Optional(
+                        CONF_PERSISTENT_NOTIFICATIONS,
+                        default=self._entry.options.get(
+                            CONF_PERSISTENT_NOTIFICATIONS, DEFAULT_PERSISTENT_NOTIFICATIONS
+                        ),
+                    ): bool,
+                    vol.Optional(
+                        CONF_PERSISTENT_NOTIFICATION_EVENTS,
+                        default=self._entry.options.get(
+                            CONF_PERSISTENT_NOTIFICATION_EVENTS,
+                            DEFAULT_PERSISTENT_NOTIFICATION_EVENTS,
+                        ),
+                    ): SelectSelector(
+                        SelectSelectorConfig(
+                            options=ALL_EVENT_TYPES,
+                            multiple=True,
+                            mode=SelectSelectorMode.DROPDOWN,
+                            translation_key="persistent_notification_events",
+                        )
+                    ),
+                }
+            ),
+        )

@@ -1,0 +1,773 @@
+{
+    "config": {
+        "step": {
+            "user": {
+                "title": "Autentificare Aegis for Ajax",
+                "description": "Introduceți datele de autentificare ale contului Aegis for Ajax.",
+                "data": {
+                    "email": "E-mail",
+                    "password": "Parolă",
+                    "app_label": "Etichetă aplicație (numele aplicației co-branded)"
+                },
+                "data_description": {
+                    "email": "Adresa de e-mail cu care te conectezi în aplicația Ajax.",
+                    "password": "Parola contului Ajax. Home Assistant păstrează doar un hash al ei.",
+                    "app_label": "Aplicația căreia îi aparține contul: Ajax sau o aplicație co-branded. Vezi README dacă nu ești sigur."
+                }
+            },
+            "2fa": {
+                "title": "Autentificare în doi pași",
+                "description": "Introduceți codul de 6 cifre din aplicația de autentificare.",
+                "data": {
+                    "totp_code": "Cod TOTP"
+                },
+                "data_description": {
+                    "totp_code": "Codul de 6 cifre din aplicația de autentificare."
+                }
+            },
+            "select_spaces": {
+                "title": "Selectați spațiile",
+                "description": "Alegeți ce spații (hub-uri) să adăugați.",
+                "data": {
+                    "spaces": "Spații"
+                },
+                "data_description": {
+                    "spaces": "Spațiile (hub-urile) de adăugat în Home Assistant. Alege cel puțin unul."
+                }
+            },
+            "reconfigure": {
+                "title": "Reconfigurare Aegis for Ajax",
+                "description": "Actualizați datele de autentificare.",
+                "data": {
+                    "email": "E-mail",
+                    "password": "Parolă",
+                    "app_label": "Etichetă aplicație"
+                },
+                "data_description": {
+                    "email": "Adresa de e-mail cu care te conectezi în aplicația Ajax.",
+                    "password": "Parola contului Ajax. Home Assistant păstrează doar un hash al ei.",
+                    "app_label": "Aplicația căreia îi aparține contul: Ajax sau o aplicație co-branded. Vezi README dacă nu ești sigur."
+                }
+            },
+            "reconfigure_2fa": {
+                "title": "Autentificare în doi pași",
+                "description": "Introduceți codul de 6 cifre din aplicația de autentificare.",
+                "data": {
+                    "totp_code": "Cod TOTP"
+                },
+                "data_description": {
+                    "totp_code": "Codul de 6 cifre din aplicația de autentificare."
+                }
+            },
+            "reauth_confirm": {
+                "title": "Reautentificare Aegis for Ajax",
+                "description": "Sesiunea Ajax pentru {email} nu mai este validă. Introduceți parola curentă a contului pentru a restabili accesul.",
+                "data": {
+                    "password": "Parolă"
+                },
+                "data_description": {
+                    "password": "Parola contului Ajax. Home Assistant păstrează doar un hash al ei."
+                }
+            },
+            "reauth_2fa": {
+                "title": "Autentificare cu doi factori",
+                "description": "Introduceți codul din 6 cifre din aplicația de autentificare.",
+                "data": {
+                    "totp_code": "Cod TOTP"
+                },
+                "data_description": {
+                    "totp_code": "Codul de 6 cifre din aplicația de autentificare."
+                }
+            }
+        },
+        "error": {
+            "invalid_auth": "E-mail sau parolă invalide.",
+            "invalid_totp": "Cod TOTP invalid. Vă rugăm să încercați din nou.",
+            "cannot_connect": "Nu se poate conecta la serverele Ajax.",
+            "client_rejected": "Ajax respinge această versiune de Aegis for Ajax. Actualizează integrarea în HACS, repornește Home Assistant și încearcă din nou.",
+            "unknown": "A apărut o eroare neașteptată."
+        },
+        "abort": {
+            "already_configured": "Acest cont este deja configurat.",
+            "account_locked": "Contul este blocat. Vă rugăm să încercați mai târziu.",
+            "reauth_successful": "Reautentificare reușită.",
+            "already_in_progress": "Configurarea este deja în curs. Finalizați sau anulați fluxul existent.",
+            "reconfigure_successful": "Datele de autentificare au fost actualizate cu succes.",
+            "cannot_connect": "Nu se poate conecta la serverele Ajax."
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "Opțiuni Aegis for Ajax",
+                "data": {
+                    "poll_interval": "Interval de interogare de rezervă (secunde, 60-300)",
+                    "force_arm": "Armare forțată (ignoră senzorii deschiși și defecțiunile)",
+                    "expose_arm_home": "Afișează butonul „Armare acasă”",
+                    "delay_panel_states": "Afișează întârzierile de ieșire / intrare ca stări ale panoului",
+                    "cloud_video": "Vizualizare live prin cloud pentru camerele video (experimental)",
+                    "use_pin_code": "Necesită cod PIN pentru armare/dezarmare",
+                    "pin_code": "Cod PIN",
+                    "fcm_project_id": "ID proiect FCM (pentru notificări push)",
+                    "fcm_app_id": "ID aplicație FCM",
+                    "fcm_api_key": "Cheie API FCM",
+                    "fcm_sender_id": "ID expeditor FCM",
+                    "clear_fcm_credentials": "Șterge acreditările FCM (golește toate cele patru câmpuri)",
+                    "disable_push_warning": "Nu folosesc notificări push",
+                    "photo_retention_days": "Reținere fotografii (zile)",
+                    "photo_max_per_device": "Max fotografii per dispozitiv (0 = nelimitat)",
+                    "auto_create_labels": "Creează și atribuie automat etichete Aegis entităților",
+                    "bypass_switches": "Creează comutatoare de excludere dispozitiv",
+                    "persistent_notifications": "Afișează evenimentele de securitate ca notificări persistente",
+                    "persistent_notification_events": "Evenimente care creează o notificare persistentă"
+                },
+                "data_description": {
+                    "bypass_switches": "Comutatoarele de excludere permit dezactivarea unui dispozitiv înainte de armare. „Auto” le creează doar dacă contul tău Ajax are permisiunea de a dezactiva dispozitive.",
+                    "expose_arm_home": "Adaugă un mod Armare acasă în panoul de alarmă. Reproduce modul de noapte și este necesar în principal pentru Amazon Alexa sau Nabu Casa Cloud. Dezactivează pentru a ascunde butonul duplicat dacă nu le folosești.",
+                    "delay_panel_states": "Când este activă, panoul de alarmă afișează \"arming\" cât timp hub-ul rulează \"Întârzierea la ieșire\" a unui detector și \"pending\" cât timp rulează o \"Întârziere la intrare\", ambele pe baza semnalelor hub-ului însuși, nu ale unui temporizator al nostru. Detectoarele fără întârziere (alarmă instantanee) sunt deja active în timpul \"arming\". Automatizările care așteaptă \"armed_away\" se vor declanșa când întârzierea de ieșire se încheie. Starea brută a hub-ului rămâne în atributul \"hub_state\".",
+                    "cloud_video": "Adaugă o cameră de vizualizare live pentru fiecare cameră video Ajax, transmisă prin cloudul Ajax așa cum face aplicația când ești plecat de acasă, deci funcționează și când Home Assistant nu este în rețeaua camerei. Experimental: s-ar putea să nu funcționeze încă cu toate camerele. Fiecare vizualizare deschide o sesiune video; nu rulează nimic cât timp nu privește nimeni.",
+                    "disable_push_warning": "Activează dacă rulezi intenționat fără push. Ascunde memento-ul recurent „FCM neconfigurat” și cardul de reparație. Evenimentele în timp real (sonerie, armare/dezarmare, alarmă, mișcare) tot nu vor ajunge în Home Assistant până nu configurezi FCM.",
+                    "persistent_notifications": "Când este activat, evenimentele selectate apar ca notificări persistente Home Assistant care rămân vizibile până sunt închise sau Home Assistant repornește. Aceste evenimente sosesc prin push (FCM), deci push trebuie configurat pentru a ajunge.",
+                    "persistent_notification_events": "Ce evenimente generează o notificare persistentă. Implicit, incidente reale (alarmă, panică, sabotaj, incendiu, CO, inundație, spargere de geam). Adaugă armare/dezarmare, mișcare sau sonerie dacă le vrei și pe acestea."
+                }
+            }
+        }
+    },
+    "system_health": {
+        "info": {
+            "can_reach_server": "Acces la cloud-ul Ajax (host gRPC)",
+            "configured_accounts": "Conturi configurate",
+            "spaces": "Spatii (hub-uri)",
+            "hts_connected": "Stream-uri HTS conectate",
+            "fcm_connected": "Clienti FCM conectati",
+            "pushes_received": "Push-uri primite",
+            "last_push": "Ultimul push primit",
+            "last_poll": "Ultimul poll reusit"
+        }
+    },
+    "services": {
+        "force_arm": {
+            "name": "Armare fortata",
+            "description": "Armeaza sistemul ignorand senzorii deschisi si alarmele active.",
+            "fields": {
+                "entity_id": {
+                    "name": "Entitate",
+                    "description": "Panoul de alarmă de armat forțat. Dacă este omis, armează toate panourile."
+                }
+            }
+        },
+        "force_arm_night": {
+            "name": "Mod noapte fortat",
+            "description": "Activeaza modul noapte ignorand senzorii deschisi si alarmele active.",
+            "fields": {
+                "entity_id": {
+                    "name": "Entitate",
+                    "description": "Panoul de alarmă de armat forțat. Dacă este omis, armează toate panourile."
+                }
+            }
+        },
+        "disarm_night_mode": {
+            "name": "Dezarmează modul de noapte",
+            "description": "Iese din modul de noapte lăsând armate grupurile armate independent (mod plecat). Spre deosebire de o dezarmare totală, dezactivează doar grupurile în modul de noapte — operațiunea nativă Ajax „dezarmează modul de noapte\".",
+            "fields": {
+                "entity_id": {
+                    "name": "Entitate",
+                    "description": "Entitatea panoului de alarmă pentru spațiul care va fi dezarmat din modul de noapte. Dacă este omis, se aplică tuturor panourilor."
+                }
+            }
+        },
+        "press_panic_button": {
+            "name": "Apasă butonul de panică (SOS)",
+            "description": "Declanșează butonul SOS / de panică Ajax într-un spațiu. Apelează același endpoint ca butonul SOS roșu din aplicația oficială și transmite o alarmă de panică către dispeceratul de monitorizare (CRA), ceea ce, în majoritatea contractelor, înseamnă intervenție imediată a poliției, ocolind ferestrele de verificare. Folosește doar în urgențe reale. Câmpul confirm trebuie să fie true sau apelul este respins.",
+            "fields": {
+                "confirm": {
+                    "name": "Confirmă panica",
+                    "description": "Trebuie să fie true. Acționează ca un blocaj de siguranță pentru a împiedica automatizările să declanșeze accidental acest serviciu."
+                },
+                "entity_id": {
+                    "name": "Entitate",
+                    "description": "Entitatea panoului de alarmă a spațiului pentru care se apasă butonul de panică. Dacă este omisă, panica este trimisă către toate spațiile configurate."
+                },
+                "latitude": {
+                    "name": "Latitudine",
+                    "description": "Latitudine opțională a apelantului transmisă către Ajax. Folosiți împreună cu longitudinea."
+                },
+                "longitude": {
+                    "name": "Longitudine",
+                    "description": "Longitudine opțională a apelantului transmisă către Ajax. Folosiți împreună cu latitudinea."
+                }
+            }
+        },
+        "set_photo_on_demand_mode": {
+            "name": "Setează modul Fotografie la cerere",
+            "description": "Activează sau dezactivează modul Fotografie la cerere pe un hub. Două canale independente pot fi comutate separat: cererile utilizatorilor (dacă utilizatorii hub-ului pot cere fotografii din aplicația Ajax) și scenariile (dacă scenariile / automatizările pot declanșa capturi). Lasă un câmp necompletat pentru a-i păstra valoarea curentă. Cel puțin unul este obligatoriu.",
+            "fields": {
+                "user": {
+                    "name": "Cererile utilizatorilor",
+                    "description": "Când este setat, activează sau dezactivează cererile de fotografii inițiate de utilizatorii hub-ului. Lasă necompletat pentru a păstra valoarea curentă."
+                },
+                "scenario": {
+                    "name": "Scenarii",
+                    "description": "Când este setat, activează sau dezactivează capturile Fotografie la cerere declanșate de scenarii sau automatizări Ajax. Lasă necompletat pentru a păstra valoarea curentă."
+                },
+                "entity_id": {
+                    "name": "Entitate",
+                    "description": "Entitatea panoului de alarmă a spațiului al cărui mod al hub-ului se actualizează. Dacă este omisă, se aplică tuturor spațiilor configurate."
+                }
+            }
+        },
+        "refresh_alarm_images": {
+            "name": "Refresh alarm camera images",
+            "description": "Import recent alarm photos into local albums without taking a new photo. New alarm pushes import automatically. Manual backfill is limited to once per five minutes per space, with one history query and at most ten media streams; completed local albums are skipped.",
+            "fields": {
+                "entity_id": {
+                    "name": "Entity",
+                    "description": "Alarm panel entity for the space to import. If omitted, imports from every configured space."
+                }
+            }
+        },
+        "list_client_sessions": {
+            "name": "Listează sesiunile contului",
+            "description": "Returnează la cerere sesiunile active ale contului Ajax, pentru inspecție manuală. Acest serviciu apelează un endpoint intern Ajax care poate limita cererile frecvente; nu îl interoga ciclic în automatizări. Sesiunea Aegis activă în prezent este marcată cu is_current atunci când poate fi identificată.",
+            "fields": {
+                "entry_id": {
+                    "name": "ID intrare de configurare",
+                    "description": "Necesar când este configurat mai mult de un cont Aegis."
+                }
+            }
+        },
+        "terminate_client_session": {
+            "name": "Încheie sesiunea contului",
+            "description": "Deconectează imediat de la contul Ajax celălalt dispozitiv selectat. Obține ID-ul sesiunii sale prin list_client_sessions. Integrarea nu își încheie niciodată propria sesiune.",
+            "fields": {
+                "session_id": {
+                    "name": "ID sesiune",
+                    "description": "ID-ul sesiunii returnat de list_client_sessions."
+                },
+                "confirm": {
+                    "name": "Confirmă încheierea",
+                    "description": "Trebuie să fie true pentru a încheia imediat sesiunea selectată."
+                },
+                "entry_id": {
+                    "name": "ID intrare de configurare",
+                    "description": "Necesar când este configurat mai mult de un cont Aegis."
+                }
+            }
+        },
+        "terminate_other_client_sessions": {
+            "name": "Încheie toate celelalte sesiuni ale contului",
+            "description": "Deconectează imediat de la contul Ajax toate celelalte dispozitive. Aceasta deconectează celelalte aplicații Ajax mobile și desktop active. Integrarea nu își încheie niciodată propria sesiune.",
+            "fields": {
+                "confirm": {
+                    "name": "Confirmă încheierea",
+                    "description": "Trebuie să fie true pentru a încheia imediat toate celelalte sesiuni."
+                },
+                "entry_id": {
+                    "name": "ID intrare de configurare",
+                    "description": "Necesar când este configurat mai mult de un cont Aegis."
+                }
+            }
+        }
+    },
+    "issues": {
+        "hub_offline_24h": {
+            "title": "Hub {hub_name} offline de peste {hours_offline} h",
+            "description": "Aegis primeste un status OFFLINE pentru hub-ul {hub_name} de {hours_offline} ore la rand. Entitatile vor ramane invechite pana cand hub-ul se reconecteaza. Cauze comune: hub deconectat, intrerupere de retea, sau conexiunea de iesire a hub-ului catre cloud-ul Ajax blocata de un firewall. Reparatia se inchide automat de indata ce Aegis vede hub-ul din nou online."
+        },
+        "hts_chronic_failure": {
+            "title": "Senzorii de retea ai hub-ului degradati",
+            "description": "Conexiunea HTS (care alimenteaza senzorii Ethernet / Wi-Fi / GSM / alimentare) pentru spatiul {space_id} nu reuseste sa ramana activa de {minutes_failing} minute. Senzorii de retea ai hub-ului vor fi indisponibili pana la recuperare. Cauza frecventa: un firewall blocheaza traficul de iesire catre endpoint-urile HTS Ajax, sau instabilitate prelungita a retelei intre Home Assistant si cloud-ul Ajax. Reparatia se inchide automat cand HTS se reconecteaza."
+        },
+        "fcm_push_stuck": {
+            "title": "Notificări push întrerupte — același mesaj închide conexiunea de fiecare dată",
+            "description": "Conexiunea push s-a închis de {terminations} ori consecutiv în timpul procesării aceluiași mesaj. Deoarece acel mesaj nu este niciodată confirmat, serviciul push Ajax îl retrimite și fiecare conexiune nouă se termină la fel, așa că problema nu se rezolvă singură. Starea alarmei nu este afectată (provine din interogare și din conexiunea cu hubul, niciodată din push), dar între timp se pierd evenimentele în timp real, cum ar fi soneria. Aegis a înlocuit înregistrarea push pentru a întrerupe bucla, iar push-ul ar trebui să revină într-un minut. Această notificare dispare automat după ce conexiunea rămâne stabilă o vreme. Dacă reapare, raportați pe GitHub (issue #373)."
+        },
+        "grpcio_version_mismatch": {
+            "title": "Aegis are nevoie de grpcio {required} sau mai nou (gasit {current})",
+            "description": "Aegis depinde de `grpcio` pentru canalul gRPC care comunica cu cloud-ul Ajax, iar instalarea ta Home Assistant aduce `grpcio` {current}. Sub {required} autentificarea poate esua cu erori HTTP/2 criptice. Pe Home Assistant Core sau Container manifest-ul integrarii fixeaza versiunea la instalare, dar pe Home Assistant OS runtime-ul foloseste un grpcio la nivel de sistem pe care manifest-ul nu il poate influenta — de obicei trebuie sa actualizezi Home Assistant OS la o build care include un grpcio mai nou. Reparatia se inchide automat la urmatoarea reincarcare cand versiunea depaseste {required}."
+        },
+        "client_rejected": {
+            "title": "Ajax respinge această versiune de Aegis for Ajax",
+            "description": "Serverele Ajax nu mai acceptă cereri de la această versiune a integrării, așa că nu se poate autentifica, nu poate actualiza stările și nu poate trimite comenzi. Contul și datele tale de autentificare sunt în regulă. Actualizează Aegis for Ajax în HACS la cea mai nouă versiune și repornește Home Assistant. Această reparație dispare singură când Ajax acceptă din nou integrarea."
+        },
+        "fcm_credentials_invalid": {
+            "title": "Notificarile push dezactivate - credentiale FCM respinse",
+            "fix_flow": {
+                "step": {
+                    "init": {
+                        "title": "Reparare credentiale FCM Aegis",
+                        "description": "Inregistrarea Firebase Cloud Messaging a esuat pentru acest cont. Valorile configurate FCM Project ID / App ID / API Key / Sender ID probabil nu corespund aplicatiei tale Ajax co-branded, sau cheia API a fost revocata. Functionalitatile bazate pe push (stare instantanee armat/dezarmat, entitatea security_event, URL-uri de fotografii de la MotionCam) vor cadea pe polling mai lent pana la corectare. Reintrodu cele patru valori mai jos. Integrarea va fi reincarcata si Repair-ul se va inchide automat daca noile credentiale functioneaza; daca nu, formularul va reapare. Consulta sectiunea 'How to obtain FCM credentials' din README.",
+                        "data": {
+                            "fcm_project_id": "FCM Project ID",
+                            "fcm_app_id": "FCM App ID",
+                            "fcm_api_key": "FCM API Key",
+                            "fcm_sender_id": "FCM Sender ID"
+                        }
+                    }
+                },
+                "abort": {
+                    "entry_missing": "Contul Aegis pentru care a fost ridicat acest Repair nu mai este configurat. Nimic de reparat."
+                }
+            }
+        },
+        "fcm_credentials_malformed": {
+            "title": "Notificarile push dezactivate — credentiale FCM malformate ({problem})",
+            "fix_flow": {
+                "step": {
+                    "init": {
+                        "title": "Reparare credentiale FCM Aegis",
+                        "description": "Aegis a detectat o problema structurala in credentialele FCM configurate inainte de a contacta Google: {problem}. Cele patru valori trebuie sa provina din acelasi proiect Firebase. Extrage-le din nou din aplicatia ta Ajax co-branded conform sectiunii 'Where the values live' din README si reintroduce toate patru mai jos. Integrarea se va reincarca, verificarea va rula din nou si Repair-ul se inchide cand valorile sunt coerente.",
+                        "data": {
+                            "fcm_project_id": "FCM Project ID",
+                            "fcm_app_id": "FCM App ID",
+                            "fcm_api_key": "FCM API Key",
+                            "fcm_sender_id": "FCM Sender ID"
+                        }
+                    }
+                },
+                "abort": {
+                    "entry_missing": "Contul Aegis pentru care a fost ridicat acest Repair nu mai este configurat. Nimic de reparat."
+                }
+            }
+        },
+        "fcm_not_configured": {
+            "title": "Notificarile push nu sunt configurate — evenimente in timp real dezactivate",
+            "fix_flow": {
+                "step": {
+                    "init": {
+                        "title": "Configureaza credentialele FCM pentru Aegis",
+                        "description": "Credentialele FCM nu au fost niciodata setate pentru acest cont, asa ca evenimentele in timp real de la Ajax (sonerie, armare/dezarmare, alarma, miscare) nu pot ajunge la Home Assistant — integrarea cade pe polling la fiecare 5 minute. Introdu mai jos cele patru valori FCM pentru aplicatia ta Ajax co-brand si integrarea va fi reincarcata. Consulta sectiunea 'How to obtain FCM credentials' din README pentru a le extrage.",
+                        "data": {
+                            "fcm_project_id": "FCM Project ID",
+                            "fcm_app_id": "FCM App ID",
+                            "fcm_api_key": "FCM API Key",
+                            "fcm_sender_id": "FCM Sender ID"
+                        }
+                    }
+                },
+                "abort": {
+                    "entry_missing": "Contul Aegis pentru care a fost generat acest Repair nu mai este configurat. Nu este nimic de reparat."
+                }
+            }
+        },
+        "fcm_never_delivered": {
+            "title": "Push notifications are not arriving",
+            "description": "Aegis has seen {events} events from your hub while the push client was running, and not one of them arrived over push. Your alarm state is not affected — it comes from the hub connection and from polling, never from push — but real-time events such as doorbell rings and intrusion alarms reach Home Assistant only over push, so those are being lost.\n\nThree things produce this and they look identical from here: the four FCM values may belong to a Firebase project your co-branded app's push provider does not send through, another registration may be holding your Ajax account's push destination, or the push connection may never have completed.\n\nWhat helps: re-enter the four values for your co-branded app, under Settings > Repairs or in the integration options. If the same Ajax account is used by another Home Assistant instance, try a separate account for this integration. This notice clears by itself as soon as one push arrives."
+        },
+        "pin_code_update": {
+            "title": "Setează din nou PIN-ul alarmei",
+            "description": "PIN-ul alarmei pentru acest cont este salvat într-un format mai vechi. Deschide opțiunile integrării și introdu din nou PIN-ul pentru a-l actualiza. Între timp funcționează în continuare."
+        }
+    },
+    "entity": {
+        "button": {
+            "capture_photo": {
+                "name": "Capturați fotografie"
+            },
+            "refresh_hub": {
+                "name": "Reîmprospătează hub-ul"
+            },
+            "restore_after_alarm": {
+                "name": "Restabilire după alarmă"
+            },
+            "siren_sound_test": {
+                "name": "Test sunet"
+            }
+        },
+        "event": {
+            "security_event": {
+                "name": "Eveniment de securitate",
+                "state_attributes": {
+                    "event_type": {
+                        "state": {
+                            "alarm": "Alarma",
+                            "arm": "Armat",
+                            "arm_night": "Mod noapte activat",
+                            "battery_low": "Baterie slaba",
+                            "co_alarm": "Alarma CO",
+                            "connection_lost": "Conexiune pierduta",
+                            "disarm": "Dezarmat",
+                            "disarm_night": "Mod noapte dezactivat",
+                            "door_open": "Usa deschisa",
+                            "doorbell_pressed": "Sonerie apăsată",
+                            "fire": "Incendiu",
+                            "flood": "Inundatie",
+                            "glass_break": "Spargere geam",
+                            "malfunction": "Defectiune",
+                            "motion": "Miscare",
+                            "panic": "Panica",
+                            "tamper": "Sabotaj"
+                        }
+                    }
+                }
+            },
+            "doorbell": {
+                "name": "Sonerie",
+                "state_attributes": {
+                    "event_type": {
+                        "state": {
+                            "ring": "Sonerie apăsată"
+                        }
+                    }
+                }
+            },
+            "button_press": {
+                "name": "Buton",
+                "state_attributes": {
+                    "event_type": {
+                        "state": {
+                            "pressed": "Apăsat"
+                        }
+                    }
+                }
+            }
+        },
+        "binary_sensor": {
+            "monitoring": {
+                "name": "Conexiune dispecerat"
+            },
+            "gsm": {
+                "name": "Rețea celulară conectată"
+            },
+            "lid": {
+                "name": "Capac deschis"
+            },
+            "ext_contact": {
+                "name": "Contact extern deschis"
+            },
+            "ext_alert": {
+                "name": "Alertă contact extern"
+            },
+            "drilling": {
+                "name": "Găurire carcasă detectată"
+            },
+            "anti_mask": {
+                "name": "Anti-mascare"
+            },
+            "malfunction": {
+                "name": "Defecțiune"
+            },
+            "interference": {
+                "name": "Interferență"
+            },
+            "relay_stuck": {
+                "name": "Releu blocat"
+            },
+            "always_active": {
+                "name": "Întotdeauna activ"
+            },
+            "glass_break": {
+                "name": "Spargere geam"
+            },
+            "vibration": {
+                "name": "Vibrație"
+            },
+            "tilt": {
+                "name": "Înclinare"
+            },
+            "steam": {
+                "name": "Abur"
+            },
+            "wire_input_alert": {
+                "name": "Alertă intrare cablată"
+            },
+            "tamper": {
+                "name": "Sabotaj carcasă"
+            },
+            "connectivity": {
+                "name": "Conectivitate"
+            },
+            "problem": {
+                "name": "Problemă dispozitiv"
+            },
+            "ethernet": {
+                "name": "Ethernet"
+            },
+            "wifi": {
+                "name": "Wi-Fi"
+            },
+            "mains_power": {
+                "name": "Alimentare rețea"
+            },
+            "external_contact_open": {
+                "name": "Contact"
+            },
+            "delay_when_leaving": {
+                "name": "Întârziere la plecare"
+            },
+            "siren_on_panic_button": {
+                "name": "Sirenă la buton de panică"
+            },
+            "siren_on_any_tamper": {
+                "name": "Sirenă la sabotaj"
+            }
+        },
+        "sensor": {
+            "monitoring_company": {
+                "name": "Companie de monitorizare"
+            },
+            "signal_strength": {
+                "name": "Puterea semnalului"
+            },
+            "mobile_network_type": {
+                "name": "Tip rețea mobilă"
+            },
+            "wifi_signal_level": {
+                "name": "Nivel semnal Wi-Fi"
+            },
+            "sim_status": {
+                "name": "Status SIM"
+            },
+            "sim_imei": {
+                "name": "IMEI"
+            },
+            "connection_type": {
+                "name": "Tip conexiune"
+            },
+            "wifi_ssid": {
+                "name": "SSID Wi-Fi"
+            },
+            "wifi_ip": {
+                "name": "Adresă IP Wi-Fi"
+            },
+            "ethernet_ip": {
+                "name": "Adresă IP Ethernet"
+            },
+            "ethernet_gateway": {
+                "name": "Gateway Ethernet"
+            },
+            "ethernet_dns": {
+                "name": "DNS Ethernet"
+            },
+            "cellular_signal": {
+                "name": "Semnal celular"
+            },
+            "cellular_network": {
+                "name": "Rețea celulară"
+            },
+            "current": {
+                "name": "Curent"
+            },
+            "voltage": {
+                "name": "Tensiune"
+            },
+            "energy_consumed": {
+                "name": "Energie electrică consumată"
+            },
+            "power_derived": {
+                "name": "Putere"
+            },
+            "power": {
+                "name": "Putere"
+            },
+            "channels_online": {
+                "name": "Canale online"
+            },
+            "channels_total": {
+                "name": "Total canale"
+            }
+        },
+        "switch": {
+            "channel_1": {
+                "name": "Canal 1"
+            },
+            "channel_2": {
+                "name": "Canal 2"
+            },
+            "bypass": {
+                "name": "Excludere"
+            },
+            "night_mode_arm": {
+                "name": "Armare în modul de noapte"
+            },
+            "chime": {
+                "name": "Sonerie"
+            }
+        },
+        "number": {
+            "siren_alarm_duration": {
+                "name": "Durata alarmei"
+            }
+        },
+        "select": {
+            "siren_volume_level": {
+                "name": "Volumul sirenei",
+                "state": {
+                    "very_loud": "Foarte tare",
+                    "loud": "Tare",
+                    "quiet": "Încet",
+                    "disabled": "Dezactivat"
+                }
+            }
+        },
+        "update": {
+            "hub_firmware": {
+                "name": "Firmware"
+            },
+            "device_firmware": {
+                "name": "Firmware"
+            }
+        },
+        "camera": {
+            "cloud_video": {
+                "name": "Vizualizare live"
+            }
+        },
+        "alarm_control_panel": {
+            "group": {
+                "name": "Grupul {group_id}"
+            }
+        }
+    },
+    "exceptions": {
+        "manual_refresh_hts_unavailable": {
+            "message": "Conexiunea de rețea a hub-ului (HTS) nu este activă acum; reîmprospătarea manuală nu poate rula."
+        },
+        "alarm_backfill_rate_limited": {
+            "message": "Alarm photos were recently refreshed for this space; wait {seconds} more seconds and try again."
+        },
+        "manual_refresh_rate_limited": {
+            "message": "Reîmprospătarea hub-ului tocmai a fost cerută; așteaptă încă {seconds} secunde și încearcă din nou."
+        },
+        "photo_capture_failed": {
+            "message": "Capturarea fotografiei nu s-a finalizat. Hub-ul ar fi putut respinge cererea sau nu a returnat nicio imagine; verifică jurnalele pentru detalii."
+        },
+        "photo_no_push": {
+            "message": "Fotografia la cerere necesită notificări push FCM, care nu sunt configurate pentru această integrare."
+        },
+        "photo_capture_timeout": {
+            "message": "Timpul de așteptare a expirat în timp ce camera livra fotografia capturată. Încearcă din nou și verifică dacă camera este online."
+        },
+        "command_permission_denied": {
+            "message": "Contul tău Ajax nu are permisiunea de a efectua această acțiune."
+        },
+        "command_hub_offline": {
+            "message": "Hub-ul este offline, așa că comanda nu a putut fi trimisă."
+        },
+        "command_hub_wrong_state": {
+            "message": "Hub-ul nu se află într-o stare care permite această acțiune momentan."
+        },
+        "night_mode_arm_while_armed": {
+            "message": "„Armare în modul de noapte” nu poate fi modificată cât timp detectorul este armat. Dezarmați mai întâi, apoi încercați din nou."
+        },
+        "command_alarm_reset_needed": {
+            "message": "O alarmă activă trebuie resetată înainte de a efectua această acțiune."
+        },
+        "command_not_performed": {
+            "message": "Hub-ul nu a executat comanda."
+        },
+        "command_unknown": {
+            "message": "Hub-ul nu a recunoscut comanda."
+        },
+        "command_failed": {
+            "message": "Comanda nu a putut fi finalizată. Hub-ul a returnat: {reason}."
+        },
+        "session_entry_not_found": {
+            "message": "Nu s-a găsit niciun cont Aegis pentru entry_id-ul indicat."
+        },
+        "session_entry_required": {
+            "message": "entry_id este obligatoriu când sunt configurate mai multe conturi Aegis."
+        },
+        "confirm_required": {
+            "message": "{service} are nevoie de `confirm: true` pentru a rula."
+        },
+        "panic_confirm_required": {
+            "message": "press_panic_button are nevoie de `confirm: true`: trimite o alarmă de panică la dispecerat, care în majoritatea contractelor trimite imediat poliția."
+        },
+        "session_id_invalid": {
+            "message": "session_id trebuie să fie un număr întreg pozitiv."
+        },
+        "no_panel_for_target": {
+            "message": "{service}: nu s-a găsit niciun panou de alarmă Aegis pentru ținta indicată."
+        },
+        "photo_mode_option_required": {
+            "message": "set_photo_on_demand_mode are nevoie de cel puțin `user` sau `scenario`."
+        },
+        "sessions_list_failed": {
+            "message": "Nu s-au putut lista sesiunile contului Ajax: {error}"
+        },
+        "session_terminate_failed": {
+            "message": "Sesiunea contului Ajax nu a putut fi închisă: {error}"
+        },
+        "sessions_terminate_failed": {
+            "message": "Celelalte sesiuni ale contului Ajax nu au putut fi închise: {error}"
+        },
+        "security_hub_detected_malfunctions": {
+            "message": "Nu se poate arma: senzori deschiși sau defecțiuni{details}"
+        },
+        "security_hub_not_connected": {
+            "message": "Nu se poate arma: hub deconectat"
+        },
+        "security_hub_busy": {
+            "message": "Hub ocupat, încercați din nou în câteva secunde"
+        },
+        "security_another_transition_is_in_progress": {
+            "message": "O altă operațiune de armare/dezarmare este în curs"
+        },
+        "security_disarm_rejected": {
+            "message": "Nu se poate dezarma: comandă respinsă de hub"
+        },
+        "invalid_alarm_code": {
+            "message": "Cod de alarmă invalid"
+        },
+        "not_loaded": {
+            "message": "Niciun cont Aegis for Ajax nu este încărcat. Verifică integrarea în pagina Dispozitive și servicii."
+        }
+    },
+    "device_automation": {
+        "trigger_type": {
+            "alarm": "Alarma",
+            "arm": "Armat",
+            "arm_night": "Mod noapte activat",
+            "battery_low": "Baterie slaba",
+            "co_alarm": "Alarma CO",
+            "connection_lost": "Conexiune pierduta",
+            "disarm": "Dezarmat",
+            "disarm_night": "Mod noapte dezactivat",
+            "door_open": "Usa deschisa",
+            "doorbell_pressed": "Sonerie apăsată",
+            "fire": "Incendiu",
+            "flood": "Inundatie",
+            "glass_break": "Spargere geam",
+            "malfunction": "Defectiune",
+            "motion": "Miscare",
+            "panic": "Panica",
+            "tamper": "Sabotaj"
+        }
+    },
+    "selector": {
+        "bypass_switches": {
+            "options": {
+                "auto": "Auto (doar dacă contul tău poate dezactiva dispozitive)",
+                "always": "Întotdeauna",
+                "never": "Niciodată"
+            }
+        },
+        "persistent_notification_events": {
+            "options": {
+                "alarm": "Alarma",
+                "arm": "Armat",
+                "arm_night": "Mod noapte activat",
+                "battery_low": "Baterie slaba",
+                "co_alarm": "Alarma CO",
+                "connection_lost": "Conexiune pierduta",
+                "disarm": "Dezarmat",
+                "disarm_night": "Mod noapte dezactivat",
+                "door_open": "Usa deschisa",
+                "doorbell_pressed": "Sonerie apăsată",
+                "fire": "Incendiu",
+                "flood": "Inundatie",
+                "glass_break": "Spargere geam",
+                "malfunction": "Defectiune",
+                "motion": "Miscare",
+                "panic": "Panica",
+                "tamper": "Sabotaj"
+            }
+        }
+    },
+    "device": {
+        "keyfobs": {
+            "name": "Telecomenzi"
+        }
+    }
+}

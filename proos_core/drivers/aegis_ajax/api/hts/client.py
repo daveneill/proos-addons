@@ -1,0 +1,1675 @@
+"""Async TCP+TLS client for the Ajax HTS binary protocol."""
+
+from __future__ import annotations
+
+import asyncio
+import contextlib
+import logging
+import ssl
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Protocol
+
+from custom_components.aegis_ajax.api.hts.auth import (
+    ConnectedResponse,
+    build_connect_request,
+    parse_connected_response,
+    solve_challenge,
+)
+from custom_components.aegis_ajax.api.hts.crypto import decrypt, encrypt
+from custom_components.aegis_ajax.api.hts.hub_events import (
+    HubEvent,
+    is_hub_event,
+    parse_hub_event,
+)
+from custom_components.aegis_ajax.api.hts.hub_state import (
+    KEY_ACTIVE_CHANNELS,
+    KEY_ETH_ENABLED,
+    KEY_GPRS_ENABLED,
+    KEY_HUB_POWERED,
+    KEY_WIFI_ENABLED,
+    HubNetworkState,
+    _bool_val,
+    parse_hub_params,
+)
+from custom_components.aegis_ajax.api.hts.messages import (
+    ACK_KEY_RECEIVED,
+    AUTH_KEY_AUTHENTICATION_REQUEST,
+    AUTH_KEY_AUTHENTICATION_RESPONSE,
+    HtsMessage,
+    MsgType,
+    build_message,
+    parse_message,
+    tlv_decode,
+    tlv_encode,
+)
+from custom_components.aegis_ajax.api.hts.protocol import (
+    ETX,
+    STX,
+    decode_frame,
+    encode_frame,
+    pad16,
+)
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Mapping
+
+
+class DeviceKvCallback(Protocol):
+    """Signature of the per-device kv callback the coordinator wires in.
+
+    A `Protocol` rather than a `Callable` alias because `from_body` has to be
+    keyword-only, which `Callable` can't express. It matters to the caller:
+    the same kv shape arrives both from a periodic body snapshot and from a
+    live delta, and a consumer that treats a key's first sighting as an event
+    needs to tell the two apart (#348).
+    """
+
+    def __call__(
+        self,
+        hub_id: str,
+        device_id_hex: str,
+        kv: dict[int, bytes],
+        *,
+        from_body: bool = False,
+    ) -> None: ...
+
+
+@dataclass(frozen=True)
+class ClientSession:
+    """One session record returned by USER_REGISTRATION key 0x41."""
+
+    session_id: int | None
+    device_model: str
+    operating_system: str
+    application: str
+    version: str
+    created_at: int | None
+    expires_at: int | None
+    last_active_at: int | None
+    is_current: bool
+    is_self_identity: bool = False
+
+
+_LOGGER = logging.getLogger(__name__)
+
+HTS_HOST = "hts.prod.ajax.systems"
+HTS_PORT = 443
+PING_INTERVAL = 30
+# Periodic STATUS_BODY refresh cadence (#179 follow-up). Outlet Type E /
+# F firmwares emit per-device STATUS_UPDATE deltas extremely sparsely —
+# a 6-hour user capture under varying load saw exactly one push — so
+# without an explicit refresh, electrical sensors stay frozen at
+# whatever the boot snapshot delivered. WallSwitch family pushes on
+# every load transition and is unaffected here but benefits from a
+# periodic re-sync as well. Cost per cycle: ~2.7 KB per hub.
+STATUS_REFRESH_INTERVAL = 60
+READ_TIMEOUT = 40
+SESSION_REQUEST_TIMEOUT = 15
+# Hub commands (#572) go out as a type-0x06 frame addressed to the hub:
+# [key 0x00, object type, object id, command]. The result comes back as an
+# ACK-type (0x16) frame whose key is the answer code below; key 0x00 is only
+# the transport receipt.
+HUB_COMMAND_MSG_TYPE = 0x06
+HUB_COMMAND_KEY = 0x00
+OBJECT_TYPE_HUB = 0x21
+HUB_COMMAND_RESTORE_AFTER_ALARM = 0x16
+HUB_COMMAND_TIMEOUT = 15
+COMMAND_ANSWERS = {
+    0x01: "DELIVERED",
+    0x02: "DELIVERED_COMMAND_PERFORMED",
+    0x03: "DELIVERED_COMMAND_NOT_PERFORMED",
+    0x05: "FAILED_INSUFFICIENT_ACCESS",
+    0x06: "FAILED_UNKNOWN_COMMAND",
+    0x07: "UNDELIVERED_RECEIVER_OFFLINE",
+    0x08: "UNDELIVERED_WRONG_RECEIVER",
+    0x09: "DELIVERED_WAS_ALREADY_PERFORMED",
+    0x0A: "FAILED_WRONG_PARAMETERS",
+    0x0B: "FAILED_WRONG_MESSAGE_TYPE",
+    0x0E: "SERVER_ERROR",
+    0x0F: "BUSY",
+    0x10: "HUB_ERROR",
+    0x11: "WRONG_STATE",
+    0x16: "HUB_BLOCKED_BY_SERVICE_PROVIDER",
+}
+# Bound the full 4-step auth handshake. Without this, a server that keeps the
+# TCP connection alive but feeds bytes slowly can keep `_receive_message()`'s
+# per-chunk reads under READ_TIMEOUT forever, so the coroutine never resolves.
+AUTH_TIMEOUT = 20
+# Tolerance for idle HTS connections in `listen()`: a healthy server can stay
+# quiet beyond READ_TIMEOUT, so we only close the connection after this many
+# back-to-back read timeouts with no inbound data (#76).
+MAX_CONSECUTIVE_READ_TIMEOUTS = 3
+# Hard cap on the inbound frame buffer. A well-formed HTS frame is a few KB;
+# if STX…ETX never completes while bytes keep arriving (a misbehaving or
+# malicious peer), READ_TIMEOUT never fires because data is flowing, so the
+# buffer would grow without bound. Force a reconnect past this size instead.
+MAX_FRAME_BUFFER_BYTES = 256 * 1024
+
+# HTS message type 0x08 is the hub's event/notification channel (not in the
+# documented `MsgType` table). It carries, among others, the frame the hub
+# emits the instant the hub-wide Chime is toggled — including from the Ajax app
+# (#239). We don't decode its meaning from the bytes yet; we recognise the
+# Chime frame by signature and use it only as a trigger to re-read the
+# authoritative gRPC chime_status.
+_MSG_TYPE_EVENT = 0x08
+_USER_REGISTRATION_KEY_GET_CLIENT_SESSIONS = 0x40
+_USER_REGISTRATION_KEY_CLIENT_SESSIONS = 0x41
+_USER_REGISTRATION_KEY_KILL_SESSIONS = 0x42
+_CLIENT_SESSION_RECORD_SEPARATOR = b"\xfe\xfe"
+# A `type=0x08` space event (chime toggle #239, arm/disarm #258/#284) starts
+# with params[0]=0x02, params[1]=<event family>, then params[2]=the 4-byte
+# SOURCE id that triggered it (the keypad/keyfob/app device — VARIES per hub
+# and per trigger, NOT a fixed signature). params[3] is the 1-byte state
+# discriminator (family 0x22: chime 0x38/0x39, security 0x00 disarm / 0x01
+# arm / 0x02 night; family 0x30: 0x22 arm / 0x28 disarm observed). The
+# coordinator decodes params[3]; here we only gate the forward.
+#
+# NOTE: this matcher has been too narrow TWICE. First it hardcoded
+# params[2]==0x33 80 41 a4 (BadFlo's source id from the #239 capture), so it
+# only fired on his hub (#258 fixed that: any 4-byte source id). Then it
+# required params[1]==0x22, which silently dropped the whole
+# peripheral-originated family (#284 keypad capture). Prefer matching on
+# structure (params[0] + known family + 4-byte id + state byte) over exact
+# values from a single capture.
+_SPACE_EVENT_PREFIX: bytes = b"\x02"
+# params[1] is the event FAMILY. 0x22 = hub/app-originated (chime #239,
+# arm/disarm #258). 0x30 = peripheral-originated: dheuts90's #284 capture
+# showed [0x02, 0x30, <keypad id>, 0x22/0x28] for a Keypad Plus night
+# arm/disarm that produced NO FCM push at all — gating on 0x22 alone dropped
+# the family and the authoritative re-read never fired, so the panel lagged
+# until the next poll. SpaceControl fobs (#287) most likely use it too.
+# The same capture also held an [0x0b, 0x21, …] frame (≈30 s after the arm):
+# that is the hub-sourced EVENT family, pinned in #454 as exit-delay complete
+# and routed separately (`api/hts/hub_events.py`).
+# 0x43 = Keypad-originated (bvis-home 2026-09-05: a Keypad arm) and 0x2e =
+# SpaceControl-keyfob-originated (same day: a keyfob disarm) — neither was in
+# the set, so those arms produced no authoritative re-read while the app's
+# 0x22 did. Third time the matcher was too narrow (#454).
+# 0x0b = a SECOND SpaceControl-keyfob family (#460, @wip3out3r on #359):
+# [0x02, 0x0b, <fob id>, 0x20 disarm / 0x21 arm], matching two earlier captures
+# in #359. His 65 h census saw 0x0b on exactly the two fob actions while 0x2e,
+# 0x30 and 0x43 never appeared once on that hub — so fob family is per-hub
+# (firmware / model / region, unknown), and the set is additive by design.
+# Note 0x0b at params[0] followed by 0x21 is the unrelated HUB-sourced family
+# (`hub_events.py`), which is matched first: same byte, two roles by position.
+_SPACE_EVENT_FAMILIES: frozenset[int] = frozenset({0x0B, 0x22, 0x2E, 0x30, 0x43})
+
+
+def _redact_payload_hex(data: bytes) -> str:
+    """Hex-encode `data`, masking runs of >=3 printable-ASCII bytes as
+    `<text:Nb>`.
+
+    Mixed-content frame/UPDATES payload dumps can embed device names / user
+    PII as text runs inside otherwise-binary bytes. Unlike `_redact_if_text`
+    (which only redacts a value that is wholly printable), this masks the text
+    runs *within* a binary buffer so a publicly-pasted debug log keeps the
+    byte shape without leaking PII. See [[feedback_pii_in_debug_logs]].
+    """
+    out: list[str] = []
+    run: list[int] = []
+
+    def flush() -> None:
+        if not run:
+            return
+        out.append(f"<text:{len(run)}b>" if len(run) >= 3 else bytes(run).hex())
+        run.clear()
+
+    for byte in data:
+        if 0x20 <= byte <= 0x7E:
+            run.append(byte)
+        else:
+            flush()
+            out.append(f"{byte:02x}")
+    flush()
+    return "".join(out)
+
+
+def _redact_if_text(value: bytes) -> str:
+    """Return `value.hex()` unless the bytes look like printable ASCII text,
+    in which case return a length-preserving redacted marker.
+
+    SETTINGS sub-keys carry PII as raw text: device names (`0x09`), user
+    names / emails / phones (`0x01`/`0x02`/`0x03` on user records). The
+    previous size-only DEBUG format (`0x09(8b)`) hid that content
+    incidentally; the post-#179 value format would surface it as trivially
+    decodable hex (`0x09=46494e20484142` = "FIN HAB") and end up in
+    publicly-pasted bug reports. Detecting text by "all bytes printable
+    ASCII, length ≥ 3" replaces values like that with `<text:8b>` so the
+    byte-shape information remains useful for protocol analysis while
+    the contents stay private. Numeric readings (electrical counters,
+    flag bytes) always contain at least one non-printable byte (0x00
+    being the most common) so they keep their hex value — exactly what
+    we need to map the unknown Outlet sub-keys.
+    """
+    if len(value) >= 3 and all(0x20 <= b <= 0x7E for b in value):
+        return f"<text:{len(value)}b>"
+    return value.hex()
+
+
+def _active_channels_raw(kv: dict[int, bytes]) -> str:
+    """The raw active-channels value, for #594: a byte mask, no user text."""
+    raw = kv.get(KEY_ACTIVE_CHANNELS)
+    return raw.hex() if raw is not None else "absent"
+
+
+def _format_non_hub_kv_summary(
+    non_hub: list[tuple[bytes, dict[int, bytes]]],
+) -> str:
+    """Render a STATUS/SETTINGS body or per-device push as a one-line DEBUG
+    string with the raw hex value of every sub-key (PII redacted, see
+    `_redact_if_text`).
+
+    Format: `DEVICE_ID=[0x37=00112233,0x09=<text:8b>,0x73=deadbeef…]`.
+    Before #179 the line only showed sub-key sizes; mapping an unknown
+    device family then required a second user round-trip with bespoke
+    tracing. Logging the values directly lets a single capture under a
+    known load pin every reading to its sub-key without leaking the
+    user's device names / contact info.
+    """
+    return ", ".join(
+        f"{did.hex().upper()}=["
+        + ",".join(f"0x{k:02x}={_redact_if_text(kvs[k])}" for k in sorted(kvs))
+        + "]"
+        for did, kvs in non_hub
+    )
+
+
+class HtsConnectionError(Exception):
+    """Raised when the TCP/TLS connection fails."""
+
+
+class HtsTerminationOutcomeUnknownError(HtsConnectionError):
+    """A sent session-termination request lost its confirmation."""
+
+    def __init__(self, session_id: int, succeeded_session_ids: list[int] | None = None) -> None:
+        super().__init__(
+            f"Termination request for session {session_id} was sent, but its result is unknown"
+        )
+        self.session_id = session_id
+        self.succeeded_session_ids = succeeded_session_ids or []
+
+
+class HtsAuthError(Exception):
+    """Raised when the authentication handshake fails."""
+
+
+class HtsClient:
+    """Async TCP+TLS client for the Ajax HTS binary protocol."""
+
+    _ssl_ctx: ssl.SSLContext | None = None
+
+    def __init__(
+        self,
+        login_token: bytes,
+        user_hex_id: str,
+        device_id: str,
+        app_label: str,
+        host: str = HTS_HOST,
+        port: int = HTS_PORT,
+    ) -> None:
+        self._login_token = login_token
+        self._user_hex_id = user_hex_id
+        self._device_id = device_id
+        self._app_label = app_label
+        self._host = host
+        self._port = port
+
+        self._reader: asyncio.StreamReader | None = None
+        self._writer: asyncio.StreamWriter | None = None
+        self._connected = False
+        self._seq_num = 1
+
+        self._sender_id: int = int(user_hex_id, 16) if user_hex_id else 0
+        self._receiver_id: int = 0
+        self._connection_token: bytes = b""
+        from custom_components.aegis_ajax.api.hts.auth import HubInfo  # noqa: PLC0415
+
+        self._hubs: list[HubInfo] = []
+
+        self._ping_task: asyncio.Task[None] | None = None
+        self._data_request_task: asyncio.Task[None] | None = None
+        self._status_refresh_task: asyncio.Task[None] | None = None
+        self._read_buf = bytearray()
+        self._consecutive_read_timeouts = 0
+        self._hub_states: dict[str, HubNetworkState] = {}
+        self._on_state_update: Callable[[str, HubNetworkState], None] | None = None
+        # Per-device kv callback wired by the coordinator for #123. The
+        # client itself does not know which devices emit electrical
+        # readings — it just forwards every non-hub kv block from a
+        # STATUS/SETTINGS body and lets the coordinator filter by type.
+        self._on_device_kv: DeviceKvCallback | None = None
+        # Chime-event callback wired by the coordinator (#239). The hub emits a
+        # `type=0x08` event frame the instant the hub-wide Chime is toggled
+        # (including from the Ajax app); the client recognises that frame and
+        # forwards `(hub_id, redacted_payload_hex, candidate_state_byte)` so the
+        # coordinator can re-read the authoritative gRPC chime_status without
+        # waiting for the hourly snapshot. The byte is forwarded for DEBUG
+        # correlation logging only — never used as the state itself yet.
+        self._on_chime_event: Callable[[str, str, int | None], None] | None = None
+        self._on_hub_event: Callable[[HubEvent], None] | None = None
+        self._refresh_tasks: dict[str, asyncio.Task[None]] = {}
+        # `listen()` exclusively owns the TCP reader, so account-management
+        # requests hand their matching response back through this future.
+        self._user_registration_request_lock = asyncio.Lock()
+        self._pending_user_registration_response: tuple[int, asyncio.Future[list[bytes]]] | None = (
+            None
+        )
+        self._hub_command_lock = asyncio.Lock()
+        self._pending_hub_command: tuple[int | None, asyncio.Future[int]] | None = None
+
+    # ------------------------------------------------------------------
+    # Properties
+    # ------------------------------------------------------------------
+
+    @property
+    def is_connected(self) -> bool:
+        """True when the client is authenticated and connected."""
+        return self._connected
+
+    @property
+    def hub_states(self) -> dict[str, HubNetworkState]:
+        """Current hub network states, keyed by hub_id."""
+        return self._hub_states
+
+    def seed_hub_states(self, states: Mapping[str, HubNetworkState]) -> None:
+        """Pre-populate hub states from a prior client's last-known values.
+
+        A fresh client is created on every HTS (re)connect, so its
+        ``_hub_states`` starts empty. Without seeding, the first snapshot
+        after a reconnect is parsed with ``existing=None`` and every field
+        *not* carried in that particular frame silently resets to its
+        dataclass default — most visibly ``externally_powered`` flips to
+        ``False`` ("Unplugged") whenever a post-reconnect frame happens to
+        omit ``KEY_HUB_POWERED``. During a power/network brownout the hub
+        reconnects repeatedly, producing a burst of spurious
+        Unplugged/Plugged-in toggles (#323). Seeding the states so merges
+        preserve last-known values fixes the root cause; only an explicit
+        key in a later frame can change a field.
+        """
+        for hub_id, state in states.items():
+            self._hub_states.setdefault(hub_id, state)
+
+    # ------------------------------------------------------------------
+    # Sequence number
+    # ------------------------------------------------------------------
+
+    def _next_seq(self) -> int:
+        """Return the current sequence number and advance it, wrapping at 0xFFFFFF."""
+        seq = self._seq_num
+        self._seq_num = (self._seq_num + 1) & 0xFFFFFF
+        return seq
+
+    # ------------------------------------------------------------------
+    # Connection
+    # ------------------------------------------------------------------
+
+    async def connect(self) -> ConnectedResponse:
+        """Open a TCP+TLS connection and perform authentication.
+
+        Returns:
+            ConnectedResponse on success.
+
+        Raises:
+            HtsConnectionError: If the TCP/TLS connection cannot be established.
+            HtsAuthError: If the auth handshake fails.
+        """
+        if HtsClient._ssl_ctx is None:
+            HtsClient._ssl_ctx = ssl.create_default_context()
+        ssl_ctx = HtsClient._ssl_ctx
+        try:
+            self._reader, self._writer = await asyncio.wait_for(
+                asyncio.open_connection(self._host, self._port, ssl=ssl_ctx),
+                timeout=10,
+            )
+        except (TimeoutError, OSError) as exc:
+            raise HtsConnectionError(f"Cannot connect to {self._host}:{self._port}: {exc}") from exc
+
+        try:
+            return await asyncio.wait_for(self._authenticate(), timeout=AUTH_TIMEOUT)
+        except TimeoutError as exc:
+            await self.close()
+            raise HtsConnectionError(f"HTS auth handshake timed out after {AUTH_TIMEOUT}s") from exc
+        except Exception:
+            await self.close()
+            raise
+
+    # ------------------------------------------------------------------
+    # Authentication
+    # ------------------------------------------------------------------
+
+    async def _authenticate(self) -> ConnectedResponse:
+        """Perform the 4-step HTS auth handshake.
+
+        Returns:
+            ConnectedResponse with session token and hub list.
+
+        Raises:
+            HtsAuthError: On any handshake error.
+        """
+        # Step 1: send USER_REGISTRATION with CONNECT_CLIENT_NEW payload
+        payload = build_connect_request(
+            login_token=self._login_token,
+            device_id=self._device_id,
+            app_label=self._app_label,
+        )
+        await self._send_message(MsgType.USER_REGISTRATION, payload)
+
+        # Step 2: receive AUTHENTICATION msg with challenge (skip ACKs)
+        auth_req = await self._receive_message()
+        while auth_req.msg_type == MsgType.ACK:
+            _LOGGER.debug("Skipping ACK during auth handshake")
+            auth_req = await self._receive_message()
+        if auth_req.msg_type != MsgType.AUTHENTICATION:
+            raise HtsAuthError(f"Expected AUTHENTICATION msg, got 0x{int(auth_req.msg_type):02X}")
+
+        params = tlv_decode(auth_req.payload)
+        _LOGGER.debug(
+            "Auth request: %d params, payload=%db",
+            len(params),
+            len(auth_req.payload),
+        )
+
+        # params[0] should be AUTH_KEY_AUTHENTICATION_REQUEST (0x00)
+        # params[1] should be the 2-byte challenge
+        if not params or params[0] != bytes([AUTH_KEY_AUTHENTICATION_REQUEST]):
+            raise HtsAuthError(f"Unexpected auth request: {[p.hex() for p in params]}")
+        if len(params) < 2 or len(params[1]) < 2:
+            raise HtsAuthError(f"Challenge too short: {[p.hex() for p in params]}")
+
+        challenge_a = params[1][0]
+        challenge_b = params[1][1]
+
+        # ACK the auth challenge (required before sending response)
+        await self._send_ack(auth_req)
+
+        # Step 3: send AUTHENTICATION with challenge response
+        response_bytes = solve_challenge(challenge_a, challenge_b)
+        _LOGGER.debug(
+            "Challenge: a=0x%02X b=0x%02X → response=0x%s",
+            challenge_a,
+            challenge_b,
+            response_bytes.hex(),
+        )
+        auth_resp_payload = tlv_encode(
+            [bytes([AUTH_KEY_AUTHENTICATION_RESPONSE]), response_bytes]
+        )  # tlv_encode adds trailing delimiter
+        # Build the auth response message manually for exact control
+        auth_resp_msg = HtsMessage(
+            sender=self._sender_id,
+            receiver=0,
+            seq_num=self._next_seq(),
+            link=0,
+            flags=0,
+            msg_type=MsgType.AUTHENTICATION,
+            payload=auth_resp_payload,
+        )
+        raw = build_message(auth_resp_msg)
+        padded = pad16(raw)
+        encrypted = encrypt(padded)
+        frame = encode_frame(encrypted)
+        _LOGGER.debug(
+            "Auth response: raw=%db padded=%db frame=%db", len(raw), len(padded), len(frame)
+        )
+        if self._writer is None:
+            raise HtsConnectionError("Not connected")
+        self._writer.write(frame)
+        await self._writer.drain()
+
+        # Step 4: receive USER_REGISTRATION (CONNECTED) response (skip ACKs)
+        connected_msg = await self._receive_message()
+        while connected_msg.msg_type == MsgType.ACK:
+            _LOGGER.debug("Skipping ACK during auth handshake")
+            connected_msg = await self._receive_message()
+
+        # Adopt the server's seq range before ACKing
+        self._seq_num = (connected_msg.seq_num + 2) & 0xFFFFFF
+        _LOGGER.debug(
+            "Adopting server seq range: connected seq=%d, our next seq=%d",
+            connected_msg.seq_num,
+            self._seq_num,
+        )
+        await self._send_ack(connected_msg)
+
+        if connected_msg.msg_type != MsgType.USER_REGISTRATION:
+            raise HtsAuthError(
+                f"Expected USER_REGISTRATION (CONNECTED) msg, "
+                f"got 0x{int(connected_msg.msg_type):02X}"
+            )
+
+        params2 = tlv_decode(connected_msg.payload)
+        _LOGGER.debug(
+            "Connected response: %d params, payload=%db", len(params2), len(connected_msg.payload)
+        )
+
+        try:
+            connected = parse_connected_response(connected_msg.payload)
+        except ValueError as exc:
+            raise HtsAuthError(f"Failed to parse CONNECTED response: {exc}") from exc
+
+        self._connection_token = connected.token
+        self._hubs = connected.hubs
+        self._connected = True
+
+        _LOGGER.debug(
+            "HTS authenticated: %d hub(s), token=%s...",
+            len(connected.hubs),
+            connected.token[:4].hex(),
+        )
+        return connected
+
+    # ------------------------------------------------------------------
+    # Send / receive
+    # ------------------------------------------------------------------
+
+    async def _send_message(
+        self, msg_type: MsgType | int, payload: bytes, *, receiver: int | None = None
+    ) -> int:
+        """Build, encrypt and send an HTS message; return its sequence number."""
+        msg = HtsMessage(
+            sender=self._sender_id,
+            receiver=self._receiver_id if receiver is None else receiver,
+            seq_num=self._next_seq(),
+            link=0,
+            flags=0,
+            msg_type=msg_type,
+            payload=payload,
+        )
+        raw = build_message(msg)
+        padded = pad16(raw)
+        encrypted = encrypt(padded)
+        frame = encode_frame(encrypted)
+        _LOGGER.debug(
+            "SEND: type=0x%02X seq=%d raw=%db padded=%db enc=%db frame=%db",
+            int(msg_type),
+            msg.seq_num,
+            len(raw),
+            len(padded),
+            len(encrypted),
+            len(frame),
+        )
+        if self._writer is None:
+            raise HtsConnectionError("Not connected")
+        self._writer.write(frame)
+        await self._writer.drain()
+        return msg.seq_num
+
+    async def _send_response(
+        self,
+        original: HtsMessage,
+        msg_type: MsgType,
+        payload: bytes,
+    ) -> None:
+        """Send a response message, swapping sender/receiver from original."""
+        msg = HtsMessage(
+            sender=original.receiver,
+            receiver=original.sender,
+            seq_num=self._next_seq(),
+            link=original.link,
+            flags=0,
+            msg_type=msg_type,
+            payload=payload,
+        )
+        raw = build_message(msg)
+        padded = pad16(raw)
+        encrypted = encrypt(padded)
+        frame = encode_frame(encrypted)
+        _LOGGER.debug(
+            "SEND response: type=0x%02X seq=%d frame=%db",
+            int(msg_type),
+            msg.seq_num,
+            len(frame),
+        )
+        if self._writer is None:
+            raise HtsConnectionError("Not connected")
+        self._writer.write(frame)
+        await self._writer.drain()
+
+    async def _send_ack(self, original: HtsMessage) -> None:
+        """Send an ACK for *original*."""
+        ack_payload = tlv_encode(
+            [bytes([ACK_KEY_RECEIVED]), original.seq_num.to_bytes(3, "big")]
+        )  # tlv_encode includes trailing delimiter
+        msg = HtsMessage(
+            sender=self._sender_id,
+            receiver=self._receiver_id,
+            seq_num=self._next_seq(),
+            link=original.link,
+            flags=0,
+            msg_type=MsgType.ACK,
+            payload=ack_payload,
+        )
+        raw = build_message(msg)
+        padded = pad16(raw)
+        encrypted = encrypt(padded)
+        frame = encode_frame(encrypted)
+        if self._writer is None:
+            raise HtsConnectionError("Not connected")
+        self._writer.write(frame)
+        await self._writer.drain()
+
+    async def _receive_message(self) -> HtsMessage:
+        """Read and decode the next message from the stream."""
+        frame = await self._read_frame()
+        body = decode_frame(frame)
+        plaintext = decrypt(body)
+        return parse_message(plaintext)
+
+    async def _read_frame(self) -> bytes:
+        """Read a complete STX...ETX frame using buffered chunk reads."""
+        if self._reader is None:
+            raise HtsConnectionError("Not connected")
+
+        while True:
+            # Try to extract a frame from the existing buffer
+            stx_pos = self._read_buf.find(STX)
+            if stx_pos != -1:
+                etx_pos = self._read_buf.find(ETX, stx_pos + 1)
+                if etx_pos != -1:
+                    frame = bytes(self._read_buf[stx_pos : etx_pos + 1])
+                    del self._read_buf[: etx_pos + 1]
+                    return frame
+
+            # Need more data — read a chunk
+            chunk = await asyncio.wait_for(
+                self._reader.read(4096),
+                timeout=READ_TIMEOUT,
+            )
+            if not chunk:
+                raise ConnectionError("Connection closed by remote")
+            self._read_buf.extend(chunk)
+            if len(self._read_buf) > MAX_FRAME_BUFFER_BYTES:
+                # No complete frame within a sane bound — treat as a broken
+                # stream and force a reconnect rather than grow unboundedly.
+                self._read_buf.clear()
+                raise ConnectionError(
+                    f"HTS frame buffer exceeded {MAX_FRAME_BUFFER_BYTES} bytes "
+                    "without a complete frame"
+                )
+
+    # ------------------------------------------------------------------
+    # Listen loop
+    # ------------------------------------------------------------------
+
+    async def request_hub_data(self, hub_id: str) -> None:
+        """Send REQUEST_FULL_SETTINGS *and* REQUEST_FULL_STATUS.
+
+        Used at startup / after the unknown-update fallback path. The
+        periodic refresh loop (#123) uses the lighter
+        `_send_request_full_status` alone — SETTINGS is ~6 KB and only
+        carries config that does not change at runtime, so requesting
+        it every 60s would be pure waste.
+        """
+        await self._send_request_full_settings(hub_id)
+        await self._send_request_full_status(hub_id)
+
+    async def _send_request_full_settings(self, hub_id: str) -> None:
+        """REQUEST_FULL_SETTINGS (sub-key=3) — heavy, ~6 KB response."""
+        await self._send_request_payload(hub_id, sub_key=3, label="REQUEST_FULL_SETTINGS")
+
+    async def _send_request_full_status(self, hub_id: str) -> None:
+        """REQUEST_FULL_STATUS (sub-key=7) — lighter, ~2.7 KB response with live readings."""
+        await self._send_request_payload(hub_id, sub_key=7, label="REQUEST_FULL_STATUS")
+
+    async def request_full_status(self, hub_id: str) -> None:
+        """Public wrapper for one-shot STATUS_BODY refresh requests.
+
+        Same wire shape as the periodic refresh loop, exposed so the
+        coordinator can drive a user-triggered manual refresh through
+        the button entity without reaching into a private method.
+        """
+        await self._send_request_full_status(hub_id)
+
+    async def get_client_sessions(self) -> list[ClientSession]:
+        """Return active Ajax account sessions from the connected HTS channel."""
+        params = await self._request_user_registration(
+            request_key=_USER_REGISTRATION_KEY_GET_CLIENT_SESSIONS,
+            response_key=_USER_REGISTRATION_KEY_CLIENT_SESSIONS,
+        )
+        return self._parse_client_sessions(params)
+
+    async def kill_client_sessions(self, session_ids: list[int]) -> list[int]:
+        """Terminate account sessions identified by their 0x01 creation timestamp.
+
+        The official Ajax Android app sends each selected record's 0x01 value
+        as a signed eight-byte target under USER_REGISTRATION key 0x42 (one
+        frame per session ID). Ajax answers by returning the refreshed
+        CLIENT_SESSIONS (0x41) list.
+
+        Returns the list of session_ids successfully terminated. If a mid-loop
+        request fails, raises HtsConnectionError detailing the partial count —
+        the frames already sent have terminated real sessions, so a bulk call
+        that stops half way must never look like a call that did nothing.
+        """
+        succeeded: list[int] = []
+        for session_id in session_ids:
+            try:
+                params = await self._request_user_registration(
+                    request_key=_USER_REGISTRATION_KEY_KILL_SESSIONS,
+                    response_key=_USER_REGISTRATION_KEY_CLIENT_SESSIONS,
+                    params=[session_id.to_bytes(8, "big", signed=True)],
+                    termination_session_id=session_id,
+                )
+            except HtsTerminationOutcomeUnknownError as exc:
+                raise HtsTerminationOutcomeUnknownError(session_id, succeeded) from exc
+            except Exception as exc:
+                if succeeded:
+                    _LOGGER.info(
+                        "Terminated %d of %d requested Ajax account session(s) before failure",
+                        len(succeeded),
+                        len(session_ids),
+                    )
+                    raise HtsConnectionError(
+                        f"Terminated {len(succeeded)} of {len(session_ids)} session(s) "
+                        f"before request for session {session_id} failed: {exc}"
+                    ) from exc
+                raise
+            else:
+                # The 0x41 the server answers with is the refreshed session
+                # list. Nothing here consumes it — the caller re-lists before
+                # its next decision — so it is deliberately not decoded: a
+                # parse whose result is discarded is work that can only add a
+                # failure mode between the kill and recording it as done.
+                del params
+                succeeded.append(session_id)
+        return succeeded
+
+    async def restore_after_alarm(self, hub_id: str) -> int:
+        """Send the app's "Restore" command to a hub (#572); return the answer code."""
+        hub = int(hub_id, 16)
+        return await self._send_hub_command(
+            hub,
+            [
+                bytes([HUB_COMMAND_KEY]),
+                bytes([OBJECT_TYPE_HUB]),
+                hub.to_bytes(4, "big"),
+                bytes([HUB_COMMAND_RESTORE_AFTER_ALARM]),
+            ],
+        )
+
+    async def _send_hub_command(self, hub: int, params: list[bytes]) -> int:
+        """Send one hub command and wait for its answer code."""
+        if not self._connected:
+            raise HtsConnectionError("HTS is not connected")
+        async with self._hub_command_lock:
+            future: asyncio.Future[int] = asyncio.get_running_loop().create_future()
+            self._pending_hub_command = (None, future)
+            try:
+                seq = await self._send_message(
+                    HUB_COMMAND_MSG_TYPE, tlv_encode(params), receiver=hub
+                )
+                self._pending_hub_command = (seq, future)
+                return await asyncio.wait_for(future, timeout=HUB_COMMAND_TIMEOUT)
+            except TimeoutError as exc:
+                raise HtsConnectionError("Timed out waiting for the hub's answer") from exc
+            finally:
+                self._pending_hub_command = None
+                if not future.done():
+                    future.cancel()
+
+    def _handle_answer(self, msg: HtsMessage) -> None:
+        """Hand a hub command's answer to the waiting request."""
+        pending = self._pending_hub_command
+        if pending is None:
+            return
+        try:
+            params = tlv_decode(msg.payload)
+        except ValueError:
+            return
+        if not params or len(params[0]) != 1 or params[0][0] == ACK_KEY_RECEIVED:
+            return
+        # The answer echoes the command's sequence number; skip answers to
+        # anything else.
+        seq = pending[0]
+        if (
+            seq is not None
+            and len(params) > 1
+            and len(params[1]) == 3
+            and int.from_bytes(params[1]) != seq
+        ):
+            return
+        if not pending[1].done():
+            pending[1].set_result(params[0][0])
+
+    @staticmethod
+    def _parse_client_sessions(params: list[bytes]) -> list[ClientSession]:
+        """Decode the flat, separator-delimited CLIENT_SESSIONS payload.
+
+        Ajax returns alternating one-byte sub-keys and values after the 0x41
+        response key. Records are separated by a ``fe fe`` parameter. A real
+        capture can end with an incomplete record, which is deliberately
+        ignored instead of making this read-only service fail.
+        """
+        records: list[dict[int, bytes]] = []
+        record: dict[int, bytes] = {}
+        index = 1
+        while index < len(params):
+            param = params[index]
+            if param == _CLIENT_SESSION_RECORD_SEPARATOR:
+                if record:
+                    records.append(record)
+                    record = {}
+                index += 1
+                continue
+            if (
+                len(param) == 1
+                and index + 1 < len(params)
+                and params[index + 1] != _CLIENT_SESSION_RECORD_SEPARATOR
+            ):
+                record[param[0]] = params[index + 1]
+                index += 2
+                continue
+            index += 1
+        if record:
+            records.append(record)
+
+        def text(value: bytes | None) -> str:
+            return value.decode("utf-8", errors="replace") if value is not None else ""
+
+        def timestamp(value: bytes | None) -> int | None:
+            return int.from_bytes(value, "big", signed=True) if value and len(value) == 8 else None
+
+        sessions: list[ClientSession] = []
+        for values in records:
+            last_active = timestamp(values.get(0x06))
+            is_self = values.get(0x07) == b"\x01"
+            sessions.append(
+                ClientSession(
+                    session_id=timestamp(values.get(0x01)),
+                    device_model=text(values.get(0x03)),
+                    operating_system=text(values.get(0x04)),
+                    application=text(values.get(0x0A)),
+                    version=text(values.get(0x09)),
+                    created_at=timestamp(values.get(0x01)),
+                    expires_at=timestamp(values.get(0x05)),
+                    last_active_at=last_active,
+                    # 0x07 identifies this client identity. Multiple stale
+                    # sessions can carry it; only the active one is current.
+                    is_current=is_self and last_active not in (None, 0),
+                    is_self_identity=is_self,
+                )
+            )
+        return sessions
+
+    async def _request_user_registration(
+        self,
+        *,
+        request_key: int,
+        response_key: int,
+        params: list[bytes] | None = None,
+        termination_session_id: int | None = None,
+    ) -> list[bytes]:
+        """Send a USER_REGISTRATION request and await its listener-delivered reply."""
+        if not self._connected:
+            raise HtsConnectionError("HTS is not connected")
+        async with self._user_registration_request_lock:
+            future: asyncio.Future[list[bytes]] = asyncio.get_running_loop().create_future()
+            self._pending_user_registration_response = (response_key, future)
+            request_sent = False
+            try:
+                await self._send_message(
+                    MsgType.USER_REGISTRATION,
+                    tlv_encode([bytes([request_key]), *(params or [])]),
+                )
+                request_sent = True
+                return await asyncio.wait_for(
+                    asyncio.shield(future), timeout=SESSION_REQUEST_TIMEOUT
+                )
+            except TimeoutError as exc:
+                if request_sent and termination_session_id is not None:
+                    raise HtsTerminationOutcomeUnknownError(termination_session_id) from exc
+                raise HtsConnectionError(
+                    f"Timed out waiting for USER_REGISTRATION key 0x{response_key:02X} "
+                    "(the Ajax server may be rate limiting requests)"
+                ) from exc
+            except HtsConnectionError as exc:
+                if request_sent and termination_session_id is not None:
+                    raise HtsTerminationOutcomeUnknownError(termination_session_id) from exc
+                raise
+            finally:
+                if self._pending_user_registration_response == (response_key, future):
+                    self._pending_user_registration_response = None
+                if not future.done():
+                    future.cancel()
+
+    async def _send_request_payload(self, hub_id: str, *, sub_key: int, label: str) -> None:
+        """Generic 3-param REQUEST sender shared by SETTINGS and STATUS variants."""
+        if self._writer is None:
+            raise HtsConnectionError("Not connected")
+        hub_id_int = int(hub_id, 16)
+        payload = tlv_encode([bytes([sub_key]), bytes([1]), bytes([1])])
+        msg = HtsMessage(
+            sender=self._sender_id,
+            receiver=hub_id_int,
+            seq_num=self._next_seq(),
+            link=10,
+            flags=0,
+            msg_type=MsgType.UPDATES,
+            payload=payload,
+        )
+        raw = build_message(msg)
+        padded = pad16(raw)
+        encrypted = encrypt(padded)
+        frame = encode_frame(encrypted)
+        if self._writer is None:
+            raise HtsConnectionError("Not connected")
+        self._writer.write(frame)
+        await self._writer.drain()
+        _LOGGER.debug("Sent %s to %s", label, hub_id)
+
+    async def listen(
+        self,
+        on_state_update: Callable[[str, HubNetworkState], None] | None = None,
+        on_device_kv: DeviceKvCallback | None = None,
+        on_chime_event: Callable[[str, str, int | None], None] | None = None,
+        on_hub_event: Callable[[HubEvent], None] | None = None,
+    ) -> None:
+        """Main receive loop: ACK messages and dispatch UPDATES.
+
+        Args:
+            on_state_update: Optional callback invoked with (hub_id, state) whenever
+                             a hub state changes.
+            on_device_kv: Optional callback invoked with (hub_id, device_id_hex, kv)
+                          once per non-hub device row contained in a STATUS_BODY or
+                          SETTINGS_BODY message. `device_id_hex` is upper-case to
+                          match `coordinator.devices` keys. The coordinator decides
+                          which device types consume the kv (#123 electrical
+                          readings live here).
+            on_chime_event: Optional callback invoked with (hub_id, payload_hex,
+                          candidate_state_byte) when a hub Chime-toggle event frame
+                          (`type=0x08`) is recognised (#239).
+            on_hub_event: Optional callback invoked with a parsed `HubEvent`
+                          when a hub-sourced `type=0x08` frame (`0x0b 0x21 <hub>
+                          <code>`, #454) is recognised — exit-delay complete /
+                          entry-delay started. Unknown codes are forwarded too.
+        """
+        self._on_state_update = on_state_update
+        self._on_device_kv = on_device_kv
+        self._on_chime_event = on_chime_event
+        self._on_hub_event = on_hub_event
+        self._ping_task = asyncio.create_task(self._ping_loop())
+        self._status_refresh_task = asyncio.create_task(self._status_refresh_loop())
+
+        # Request hub data immediately (connection is stable now)
+        async def _request_data() -> None:
+            await asyncio.sleep(0.1)
+            for hub in self._hubs:
+                try:
+                    await self.request_hub_data(hub.hub_id)
+                except Exception as e:
+                    _LOGGER.warning("Failed to request hub data: %s", e)
+
+        self._data_request_task = asyncio.create_task(_request_data())
+
+        try:
+            while self._connected:
+                try:
+                    msg = await self._receive_message()
+                except TimeoutError:
+                    self._consecutive_read_timeouts += 1
+                    if self._consecutive_read_timeouts >= MAX_CONSECUTIVE_READ_TIMEOUTS:
+                        _LOGGER.warning(
+                            "HTS read timeout %d times in a row; closing connection",
+                            self._consecutive_read_timeouts,
+                        )
+                        break
+                    _LOGGER.debug(
+                        "HTS read timeout %d/%d with no inbound data; keeping connection open",
+                        self._consecutive_read_timeouts,
+                        MAX_CONSECUTIVE_READ_TIMEOUTS,
+                    )
+                    continue
+                except ConnectionError as exc:
+                    _LOGGER.warning("HTS connection error in listen: %s", exc)
+                    break
+                except ValueError as exc:
+                    # A single corrupt/undecodable frame (bad framing, CRC,
+                    # decrypt, or short header) must not tear down the whole HTS
+                    # connection and blank every hub-network sensor until the
+                    # next poll. The AES layer is per-frame (fixed IV, no
+                    # chaining), so a bad frame doesn't desync later ones —
+                    # skip it and keep listening, mirroring the per-update
+                    # guard in `_handle_update`.
+                    _LOGGER.warning("HTS: skipping undecodable frame: %s", exc)
+                    self._consecutive_read_timeouts = 0
+                    continue
+                self._consecutive_read_timeouts = 0
+
+                if not msg.is_no_ack and msg.msg_type != MsgType.ACK:
+                    try:
+                        await self._send_ack(msg)
+                        _LOGGER.debug("  ACK sent for seq=%d", msg.seq_num)
+                    except Exception as e:
+                        _LOGGER.warning("  ACK failed: %s", e)
+
+                _LOGGER.debug(
+                    "RECV: type=0x%02X seq=%d sender=%08X link=%d payload=%db",
+                    int(msg.msg_type),
+                    msg.seq_num,
+                    msg.sender,
+                    msg.link,
+                    len(msg.payload),
+                )
+                if msg.msg_type == MsgType.UPDATES:
+                    await self._handle_update(msg)
+                elif msg.msg_type == MsgType.USER_REGISTRATION:
+                    self._handle_user_registration_response(msg)
+                elif msg.msg_type == MsgType.ACK:
+                    self._handle_answer(msg)
+                elif int(msg.msg_type) == _MSG_TYPE_EVENT:
+                    self._handle_event_message(msg)
+                else:
+                    _LOGGER.debug("  payload hex: %s", _redact_payload_hex(msg.payload[:80]))
+        finally:
+            await self.close()
+
+    # ------------------------------------------------------------------
+    # Update handler
+    # ------------------------------------------------------------------
+
+    def _handle_user_registration_response(self, msg: HtsMessage) -> None:
+        """Deliver an account-management response to its waiting request."""
+        pending = self._pending_user_registration_response
+        if pending is None:
+            return
+        try:
+            params = tlv_decode(msg.payload)
+        except ValueError:
+            _LOGGER.warning("Could not decode USER_REGISTRATION response")
+            return
+        if not params or len(params[0]) != 1 or params[0][0] != pending[0]:
+            return
+        if not pending[1].done():
+            pending[1].set_result(params)
+
+    async def _handle_update(self, msg: HtsMessage) -> None:
+        """Parse an UPDATES message and update hub state."""
+        # Belt-and-suspenders for #108: even with the lenient
+        # `tlv_unescape_param` (preserves unknown 0x06 0xNN pairs), a
+        # future parser bug or a truly garbled payload should not kill
+        # the listen loop and silently take down hub-network sensors
+        # for hours. Drop the offending message, log payload hex for
+        # post-mortem, and let the next update flow normally.
+        try:
+            params = tlv_decode(msg.payload)
+        except Exception:
+            _LOGGER.debug(
+                "Failed to decode UPDATES payload (first 80 bytes: %s) — dropping message",
+                _redact_payload_hex(msg.payload[:80]),
+                exc_info=True,
+            )
+            return
+        if not params:
+            return
+
+        sub_key = params[0][0] if params[0] else 0
+        hub_id = self._hub_id_from_message(msg)
+
+        # SETTINGS_BODY (5) and STATUS_BODY (9) contain data for all devices.
+        # Hub data is preceded by the hub_id (4 bytes) as a marker param.
+        if sub_key in (5, 9):
+            if not hub_id:
+                return
+            hub_id_bytes = bytes.fromhex(hub_id)
+            kv = self._extract_device_kv(params, hub_id_bytes)
+            # Walk every device row in the body once. Two consumers:
+            #   1. #123 readings — emit each non-hub kv via on_device_kv
+            #      so the coordinator can parse it as `DeviceReadings`
+            #      (current_ma / power_consumed_wh for WallSwitch and
+            #      the Socket family). The client itself stays
+            #      device-type-agnostic.
+            #   2. DEBUG probe — log the sub-keys per device when
+            #      DEBUG logging is on for this module, so the post-
+            #      mortem of an unfamiliar device family is one log
+            #      sample away. Default-level installs pay nothing.
+            non_hub: list[tuple[bytes, dict[int, bytes]]] = [
+                (did, kvs)
+                for did, kvs in self._extract_all_devices_kv(params)
+                if did != hub_id_bytes
+            ]
+            if self._on_device_kv is not None:
+                for did, kvs in non_hub:
+                    if not kvs:
+                        continue
+                    try:
+                        self._on_device_kv(hub_id, did.hex().upper(), kvs, from_body=True)
+                    except Exception:  # noqa: BLE001
+                        _LOGGER.exception(
+                            "on_device_kv callback raised for hub %s device %s",
+                            hub_id,
+                            did.hex().upper(),
+                        )
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                body_label = "SETTINGS_BODY" if sub_key == 5 else "STATUS_BODY"
+                if non_hub:
+                    _LOGGER.debug(
+                        "Hub %s: %s non-hub devices (#123 probe): %s",
+                        hub_id,
+                        body_label,
+                        _format_non_hub_kv_summary(non_hub),
+                    )
+            if kv:
+                # Name the sub-keys, not just how many (#388). A count can't
+                # answer "does this hub report key X", which is the question
+                # whenever we're deciding where a hub-level value lives —
+                # and hub firmwares genuinely differ in what they include.
+                # Keys only, never values: this row carries the Wi-Fi SSID
+                # and other text, and these logs get pasted into public
+                # issues (see `_redact_if_text` for the same concern).
+                _LOGGER.debug(
+                    "Hub %s: parsed %d keys from %s: %s (active channels raw=%s)",
+                    hub_id,
+                    len(kv),
+                    "SETTINGS_BODY" if sub_key == 5 else "STATUS_BODY",
+                    ",".join(f"0x{k:02x}" for k in sorted(kv)),
+                    _active_channels_raw(kv),
+                )
+                existing = self._hub_states.get(hub_id)
+                new_state = parse_hub_params(kv, existing)
+                self._log_power_source(
+                    hub_id,
+                    "SETTINGS_BODY" if sub_key == 5 else "STATUS_BODY",
+                    kv,
+                    existing,
+                    new_state,
+                )
+                self._hub_states[hub_id] = new_state
+                if self._on_state_update:
+                    self._on_state_update(hub_id, new_state)
+            return
+
+        if not hub_id:
+            return
+
+        # Discriminate per-device deltas from hub-network-state deltas by
+        # payload shape (#179 follow-up). Network-state deltas carry a
+        # 1-byte key at params[1]; per-device deltas carry a 4-byte
+        # device_id there. Without this guard, `_extract_direct_kv`
+        # happily pairs up later bytes of the per-device payload and
+        # frequently produces a kv dict whose keys contain `0x03`
+        # (`KEY_HUB_POWERED`) because a downstream value byte equals
+        # `0x03` — the operational state byte common to many Ajax
+        # devices. `_is_network_state_delta` then misclassifies every
+        # per-device live reading as a network-state delta, silently
+        # dropping the update before it reaches `_on_device_kv` and
+        # leaving electrical sensors stuck on whatever STATUS_BODY
+        # snapshot last seeded them (`RestoreSensor` then makes the
+        # values look "live" after a restart, masking the bug entirely).
+        is_per_device_shape = len(params) >= 2 and len(params[1]) == 4
+
+        if not is_per_device_shape:
+            kv = self._extract_direct_kv(params[1:])
+            # #323: never trust the mains-power flag from this positionally
+            # paired delta path. A mis-aligned per-device delta (see the
+            # #179 note above; escape handling can also shift byte
+            # boundaries) can surface a stray 0x03 (`KEY_HUB_POWERED`) and
+            # flip "Mains power" to "Plugged in" while the hub is genuinely
+            # stable — the Ajax app shows no change. Authoritative power
+            # comes only from the full STATUS/SETTINGS body, which locates
+            # the hub section by an exact hub-id marker.
+            #
+            # But a *genuine* power change can also arrive here (e.g. the
+            # power-loss delta `[0x0b, 0x03, 0x00]` at the start of an
+            # outage). Simply dropping the flag would leave the sensor
+            # waiting for the periodic STATUS_BODY poll (~STATUS_REFRESH_
+            # INTERVAL seconds), and on firmware whose body omits key 0x03
+            # a real change would become permanently invisible. So when the
+            # popped flag *differs* from the last-known state, request one
+            # authoritative snapshot. `_schedule_hub_refresh` is single-
+            # flight per hub, so the #323 delta storm still can't turn into
+            # a request storm — the body then confirms the change within a
+            # couple of seconds.
+            #
+            # #386: the pop above stays unconditional — #323's invariant is
+            # that this path never writes the flag — but the *refresh* must
+            # not fire for a frame that is carrying per-device rows. The
+            # `is_per_device_shape` test only recognises a device id at
+            # `params[1]`; @aavdberg's hub sends a variant whose marker sits
+            # one slot later, so a routine device status push (whose first
+            # key is `0x03`, the near-universal operational-state byte)
+            # reached here and looked like "mains power is back". Each one
+            # requested a full ~8.6 KB snapshot, every ~27 minutes, while
+            # the hub was on battery mid-outage — the worst moment for it.
+            # A genuine power delta is flat (`[sub_key, 0x03, value]`) and
+            # has no populated device row, so it still fires. The residual
+            # gap is a hub-network delta that carries both a 4-byte value
+            # (e.g. an IP) and a real power change: it loses the immediate
+            # confirmation and waits for the periodic poll, which is the
+            # documented fallback anyway.
+            powered_raw = kv.pop(KEY_HUB_POWERED, None)
+            if powered_raw is not None and not self._carries_device_rows(params):
+                existing = self._hub_states.get(hub_id)
+                prev_powered = existing.externally_powered if existing is not None else None
+                if _bool_val(powered_raw) != prev_powered:
+                    self._schedule_hub_refresh(hub_id, "untrusted power delta")
+            if kv and self._is_network_state_delta(kv):
+                _LOGGER.debug(
+                    "Hub %s: parsed %d keys from delta sub-key %d (active channels raw=%s)",
+                    hub_id,
+                    len(kv),
+                    sub_key,
+                    _active_channels_raw(kv),
+                )
+                existing = self._hub_states.get(hub_id)
+                new_state = parse_hub_params(kv, existing)
+                self._log_power_source(hub_id, f"delta sub-key {sub_key}", kv, existing, new_state)
+                self._hub_states[hub_id] = new_state
+                if self._on_state_update:
+                    self._on_state_update(hub_id, new_state)
+                return
+
+        # Sub-keys 11 (STATUS_UPDATE) and 12 (SETTINGS_UPDATE) are the
+        # hub's per-device push channels: the hub emits one of these
+        # whenever any single device's status (11) or settings (12)
+        # change. Payload shape is identical to one device's row inside
+        # a body — `[sub_key, device_id_4b, k1, v1, k2, v2, ...]` — so
+        # the same `_extract_all_devices_kv` walker pulls out the
+        # device id + kv block. Routed through `on_device_kv` so the
+        # coordinator's existing per-device handler (#123) consumes
+        # both the boot-time STATUS_BODY snapshot and these live pushes
+        # via one code path.
+        #
+        # Bandwidth note: longer hub-network variants of these sub-keys
+        # (~50 bytes) were previously diverted to `_extract_direct_kv`
+        # above. That path still fires before this one and handles
+        # hub-network deltas. Anything reaching here is a per-device
+        # delta; if `kvs` is empty (e.g. firmware-internal heartbeat)
+        # the helper just skips. This subsumes the #111 `sub_key == 11
+        # return` drop — the issue there was firing `_schedule_hub_
+        # refresh` on every heartbeat (~8.6 KB round-trip), not the
+        # silent drop itself. Now we read the delta in-place.
+        if sub_key in (11, 12) and hub_id:
+            non_hub = [
+                (did, kvs)
+                for did, kvs in self._extract_all_devices_kv(params)
+                if did != bytes.fromhex(hub_id)
+            ]
+            if self._on_device_kv is not None:
+                for did, kvs in non_hub:
+                    if not kvs:
+                        continue
+                    try:
+                        self._on_device_kv(hub_id, did.hex().upper(), kvs, from_body=False)
+                    except Exception:  # noqa: BLE001
+                        _LOGGER.exception(
+                            "on_device_kv callback raised for hub %s device %s",
+                            hub_id,
+                            did.hex().upper(),
+                        )
+            if _LOGGER.isEnabledFor(logging.DEBUG) and non_hub:
+                update_label = "STATUS_UPDATE" if sub_key == 11 else "SETTINGS_UPDATE"
+                _LOGGER.debug(
+                    "Hub %s: %s push (#123): %s",
+                    hub_id,
+                    update_label,
+                    _format_non_hub_kv_summary(non_hub),
+                )
+            return
+
+        self._schedule_hub_refresh(hub_id, f"unknown update sub-key {sub_key}")
+
+    def _handle_event_message(self, msg: HtsMessage) -> None:
+        """Handle a `type=0x08` hub event frame (#239).
+
+        Always logs the (redacted) payload at DEBUG so the full 0x08 event
+        vocabulary is visible for analysis. When the frame matches the known
+        Chime-toggle signature, forwards `(hub_id, payload_hex, candidate_byte)`
+        to the coordinator's chime callback so it can re-read the authoritative
+        gRPC chime_status immediately instead of waiting for the hourly
+        snapshot. The candidate byte is forwarded for correlation logging only.
+        Fail-safe: any decode/dispatch problem just falls back to the periodic
+        snapshot path.
+        """
+        redacted = _redact_payload_hex(msg.payload)
+        _LOGGER.debug("  EVENT(0x08) payload hex: %s", redacted)
+        try:
+            params = tlv_decode(msg.payload)
+        except Exception:
+            return
+        if is_hub_event(params):
+            # Hub-sourced event (#454): a different family from the space
+            # events below, routed by shape before any state byte is read.
+            self._dispatch_hub_event(msg, params)
+            return
+        if self._on_chime_event is None:
+            return
+        if not self._is_space_event(params):
+            return
+        hub_id = self._hub_id_from_message(msg)
+        if not hub_id:
+            return
+        # The state-byte vocabulary is per-family: chime 0x38/0x39 only exists
+        # in the 0x22 family. Forward the byte only there, so a peripheral
+        # (0x30) event whose byte happens to collide can never be mis-decoded
+        # as a chime toggle — it falls through to the authoritative-refresh
+        # nudge instead (the full payload is already DEBUG-logged above).
+        candidate = (
+            params[3][0] if len(params) >= 4 and params[3] and params[1] == b"\x22" else None
+        )
+        try:
+            self._on_chime_event(hub_id, redacted, candidate)
+        except Exception:  # noqa: BLE001
+            _LOGGER.exception("on_chime_event callback raised for hub %s", hub_id)
+
+    def _dispatch_hub_event(self, msg: HtsMessage, params: list[bytes]) -> None:
+        """Parse a hub-sourced event frame and hand it to `on_hub_event` (#454).
+
+        The frame names its hub in params[2]; that id is trusted when it is a
+        hub this session authenticated for, otherwise the sender/receiver
+        endpoint decides (same rule as every other frame). A frame that can't
+        be tied to a known hub is dropped — never guessed.
+        """
+        if self._on_hub_event is None:
+            return
+        event = parse_hub_event(params)
+        if event is None:
+            return
+        known_hubs = {hub.hub_id for hub in self._hubs}
+        hub_id = event.hub_id if event.hub_id in known_hubs else self._hub_id_from_message(msg)
+        if hub_id is None:
+            return
+        if hub_id != event.hub_id:
+            event = HubEvent(
+                hub_id=hub_id,
+                code=event.code,
+                hub_ts=event.hub_ts,
+                expires_at=event.expires_at,
+                values=event.values,
+            )
+        try:
+            self._on_hub_event(event)
+        except Exception:  # noqa: BLE001
+            _LOGGER.exception("on_hub_event callback raised for hub %s", hub_id)
+
+    @staticmethod
+    def _is_space_event(params: list[bytes]) -> bool:
+        """Recognise a `type=0x08` space event (chime #239 / arm-disarm #258).
+
+        Matches params[0]=0x02 + a known event family at params[1] (0x22
+        hub/app-originated, 0x30 peripheral-originated — keypads #284, likely
+        fobs #287) plus a 4-byte source id at params[2] — deliberately NOT a
+        fixed params[2] value, which varies by hub/trigger (#258). params[3]
+        (the state byte) is left for the coordinator.
+        """
+        return (
+            len(params) >= 4
+            and params[0] == _SPACE_EVENT_PREFIX
+            and len(params[1]) == 1
+            and params[1][0] in _SPACE_EVENT_FAMILIES
+            and len(params[2]) == 4
+            and len(params[3]) >= 1
+        )
+
+    def _hub_id_from_message(self, msg: HtsMessage) -> str | None:
+        """Return the hub id when the message is clearly associated with one hub."""
+        known_hubs = {hub.hub_id for hub in self._hubs}
+        for endpoint in (msg.sender, msg.receiver):
+            hub_id = f"{endpoint:08X}"
+            if hub_id in known_hubs:
+                return hub_id
+        if len(self._hubs) == 1:
+            return self._hubs[0].hub_id
+        return None
+
+    @staticmethod
+    def _extract_direct_kv(params: list[bytes]) -> dict[int, bytes]:
+        """Extract alternating 1-byte key/value pairs from a direct delta payload."""
+        kv: dict[int, bytes] = {}
+        i = 0
+        while i + 1 < len(params):
+            key_p = params[i]
+            val_p = params[i + 1]
+            if len(key_p) == 1:
+                kv[key_p[0]] = val_p
+            i += 2
+        return kv
+
+    @classmethod
+    def _carries_device_rows(cls, params: list[bytes]) -> bool:
+        """Return True when the frame carries at least one populated device row.
+
+        Used by `_handle_update` (#386) to tell a flat hub-network delta from
+        a frame whose bytes belong to a device. A populated row means a
+        4-byte marker followed by real key/value pairs; a stray 4-byte value
+        inside a hub-network delta (an IP address, say) yields an *empty*
+        row and so does not count, which keeps the genuine power delta on
+        the fast path.
+        """
+        return any(kv for _did, kv in cls._extract_all_devices_kv(params))
+
+    @staticmethod
+    def _is_network_state_delta(kv: dict[int, bytes]) -> bool:
+        """Return True when the parsed delta contains HTS hub-network keys.
+
+        `KEY_HUB_POWERED` is intentionally *not* listed here: its only caller
+        (`_handle_update`) pops the power flag from the direct-delta kv before
+        this check (#323), so a power-only delta never needs to classify as a
+        network-state delta. Keeping it out avoids misleading a future reader
+        into thinking the untrusted power flag still drives a state update.
+        """
+        return any(
+            key in kv
+            for key in (
+                KEY_ACTIVE_CHANNELS,
+                KEY_ETH_ENABLED,
+                KEY_WIFI_ENABLED,
+                KEY_GPRS_ENABLED,
+            )
+        )
+
+    def _log_power_source(
+        self,
+        hub_id: str,
+        source: str,
+        kv: dict[int, bytes],
+        existing: HubNetworkState | None,
+        new_state: HubNetworkState,
+    ) -> None:
+        """Diagnostic for #323: trace every write to the mains-power flag.
+
+        Logs at DEBUG whenever the parsed hub externally_powered value differs
+        from the last-known one, together with the frame source and the raw
+        KEY_HUB_POWERED bytes. This pins down which frame type flips "Mains
+        power" while the Ajax app shows a stable state, distinguishing a
+        genuine hub report from a mis-parsed delta. Kept at DEBUG (opt-in via
+        logger config) so it never floods the default log during the exact
+        flapping scenario it diagnoses.
+        """
+        if not _LOGGER.isEnabledFor(logging.DEBUG):
+            return
+        prev = existing.externally_powered if existing is not None else None
+        if prev == new_state.externally_powered:
+            return
+        raw = kv.get(KEY_HUB_POWERED)
+        _LOGGER.debug(
+            "Hub %s: externally_powered %s -> %s via %s (KEY_HUB_POWERED raw=%s, keys=%s)",
+            hub_id,
+            prev,
+            new_state.externally_powered,
+            source,
+            raw.hex() if raw is not None else "absent",
+            sorted(kv),
+        )
+
+    def _schedule_hub_refresh(self, hub_id: str, reason: str) -> None:
+        """Refresh one hub state once when an unparsed hub update arrives."""
+        existing = self._refresh_tasks.get(hub_id)
+        if existing and not existing.done():
+            return
+
+        async def _refresh() -> None:
+            try:
+                _LOGGER.debug("Hub %s: requesting fresh HTS snapshot after %s", hub_id, reason)
+                await self.request_hub_data(hub_id)
+            except Exception:
+                _LOGGER.debug("Hub %s: HTS snapshot refresh failed", hub_id, exc_info=True)
+            finally:
+                self._refresh_tasks.pop(hub_id, None)
+
+        task = asyncio.create_task(_refresh())
+        self._refresh_tasks[hub_id] = task
+
+    @staticmethod
+    def _extract_device_kv(
+        params: list[bytes],
+        device_id: bytes,
+    ) -> dict[int, bytes]:
+        """Extract key-value pairs for a specific device from a body dump.
+
+        The body contains entries for multiple devices. Each device section
+        starts with a 4-byte device ID param, followed by alternating
+        key/value params until the next 4-byte device ID.
+        """
+        # Find the device_id marker
+        start = None
+        for i, p in enumerate(params):
+            if p == device_id:
+                start = i + 1
+                break
+        if start is None:
+            return {}
+
+        kv: dict[int, bytes] = {}
+        i = start
+        while i + 1 < len(params):
+            key_p = params[i]
+            val_p = params[i + 1]
+            # Next device starts with a 4-byte ID (and it's not the first entry)
+            if len(key_p) == 4 and i > start:
+                break
+            if len(key_p) == 1:
+                kv[key_p[0]] = val_p
+            # Skip 2-byte keys (extended keys we don't need yet)
+            i += 2
+        return kv
+
+    @staticmethod
+    def _extract_all_devices_kv(
+        params: list[bytes],
+    ) -> list[tuple[bytes, dict[int, bytes]]]:
+        """Walk the whole body and emit per-device kv tuples.
+
+        Generalises `_extract_device_kv`, which only returns the section
+        belonging to one specific device id. The full body is a flat
+        list shaped as
+
+            [sub_key, marker_A, k1, v1, k2, v2, ..., marker_B, k1, v1, ...]
+
+        where every 4-byte param is a device id marker and the 1-byte
+        params between markers are sub-keys (with the next param as the
+        value). 2-byte extended keys are skipped on purpose — same rule
+        as `_extract_device_kv`. Orphan params before the first marker
+        (the leading sub_key byte, malformed prefixes) are skipped too.
+
+        Returns a list preserving the body's encounter order so callers
+        can distinguish the hub's section (always first today) from
+        per-device sections.
+        """
+        result: list[tuple[bytes, dict[int, bytes]]] = []
+        current_id: bytes | None = None
+        current_kv: dict[int, bytes] = {}
+        i = 0
+        while i < len(params):
+            p = params[i]
+            if len(p) == 4:
+                if current_id is not None:
+                    result.append((current_id, current_kv))
+                current_id = p
+                current_kv = {}
+                i += 1
+                continue
+            if current_id is None:
+                i += 1
+                continue
+            if i + 1 >= len(params):
+                break
+            val_p = params[i + 1]
+            if len(p) == 1:
+                current_kv[p[0]] = val_p
+            i += 2
+        if current_id is not None:
+            result.append((current_id, current_kv))
+        return result
+
+    # ------------------------------------------------------------------
+    # Ping
+    # ------------------------------------------------------------------
+
+    async def _ping_loop(self) -> None:
+        """Send a PING every PING_INTERVAL seconds while connected."""
+        while self._connected:
+            await asyncio.sleep(PING_INTERVAL)
+            if self._connected:
+                try:
+                    await self._send_message(MsgType.PING, b"")
+                except Exception as exc:  # noqa: BLE001
+                    _LOGGER.warning("HTS ping failed; closing connection: %s", exc)
+                    self._connected = False
+                    break
+
+    async def _status_refresh_loop(self) -> None:
+        """Request a STATUS_BODY refresh per hub every STATUS_REFRESH_INTERVAL seconds.
+
+        The Outlet Type E / F firmware only pushes per-device STATUS_UPDATE
+        deltas extremely sparsely — empirically one push per several hours
+        regardless of load activity (#179). Without an explicit refresh,
+        the integration's `device_readings` cache stays frozen at the
+        boot snapshot for the entire session. WallSwitch family pushes
+        deltas reliably so it's unaffected here, but a periodic re-sync
+        catches the case where a delta is dropped (e.g. ACK lost on the
+        wire) too. Single per-hub `_send_request_full_status` call →
+        ~2.7 KB response carrying every device's STATUS row → existing
+        body-handler path updates each device's readings in place.
+        """
+        while self._connected:
+            await asyncio.sleep(STATUS_REFRESH_INTERVAL)
+            if not self._connected:
+                return
+            for hub in self._hubs:
+                try:
+                    await self._send_request_full_status(hub.hub_id)
+                except Exception:  # noqa: BLE001
+                    _LOGGER.debug(
+                        "Periodic STATUS refresh failed for hub %s; will retry next cycle",
+                        hub.hub_id,
+                        exc_info=True,
+                    )
+
+    # ------------------------------------------------------------------
+    # Close
+    # ------------------------------------------------------------------
+
+    async def close(self) -> None:
+        """Disconnect cleanly."""
+        self._connected = False
+        pending = self._pending_user_registration_response
+        self._pending_user_registration_response = None
+        if pending is not None and not pending[1].done():
+            pending[1].set_exception(HtsConnectionError("HTS connection closed"))
+        if self._data_request_task is not None:
+            self._data_request_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._data_request_task
+            self._data_request_task = None
+        refresh_tasks = list(self._refresh_tasks.values())
+        self._refresh_tasks.clear()
+        for task in refresh_tasks:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+        if self._ping_task is not None:
+            self._ping_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._ping_task
+            self._ping_task = None
+        if self._status_refresh_task is not None:
+            self._status_refresh_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._status_refresh_task
+            self._status_refresh_task = None
+        if self._writer is not None:
+            with contextlib.suppress(Exception):
+                self._writer.close()
+                await self._writer.wait_closed()
+            self._writer = None
+        self._reader = None
+        self._read_buf.clear()
