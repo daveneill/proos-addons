@@ -2880,7 +2880,7 @@ body.v3 .rh-card{border-radius:22px}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102503';
+const PROOS_BUILD='2026102504';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -3346,7 +3346,7 @@ async function loadSite(){
     _ents.forEach(e=>{
       const dom=DOM(e), area=areaOf(e);
       if(area){ (_domainsByArea[area]=_domainsByArea[area]||new Set()).add(dom); }
-      else if(PLACEABLE.has(dom)){ _unassignedEnts.push(e); }
+      else if(PLACEABLE.has(dom) && _roomless(e)){ _unassignedEnts.push(e); }
     });
 
     const homeAreaCount=_areas.filter(a=>!_systemAreas.has(a.area_id)).length;
@@ -3357,7 +3357,7 @@ async function loadSite(){
     const cameras=_states.filter(s=>DOM(s)==='camera').length;
 
     _readiness={ name:homeName(), roomsTotal:homeAreaCount, roomsShowing:showing,
-                 unassigned:_unassignedEnts.length, scenesTotal, scenesPublished, cameras };
+                 unassigned:_unassignedCount(), scenesTotal, scenesPublished, cameras };
 
     document.getElementById('hero-name').textContent = homeName() || 'This home';
     setHTML(document.getElementById('hero-summary'), `<b>${showing}</b> rooms <span class="sep"></span> <b>${_devices.length}</b> devices`);
@@ -3920,7 +3920,7 @@ function renderManageRooms(){
   const homeAreas=_areas.filter(a=>!_systemAreas.has(a.area_id)).slice().sort(byName);
   const sysAreas=_areas.filter(a=>_systemAreas.has(a.area_id)).slice().sort(byName);
   const rows=homeAreas.map(a=>{ const c=_perAreaDev[a.area_id]||0; return roomRow(a.name||'Unnamed', `${c} device${c===1?'':'s'}`, a.area_id, !roomShows(a.area_id)); }).join('');
-  const un=_unassignedEnts.length;
+  const un=_unassignedCount();
   let html = rows + (un ? roomRow('Unassigned', `${un} to place`, '__none__', false) : '');
   if(sysAreas.length){
     html += `<div class="disc-head" style="margin-top:18px">Excluded from dashboard</div>`
@@ -20352,10 +20352,44 @@ v2Render=function(){
   setHTML(tabs,_secs.map(([k,l])=>'<div class="v2t'+(k===_v2sec?' on':'')+'" data-sec="'+k+'" onclick="v2go(\''+k+'\')">'+V3ICONS[k]+'<span>'+l+'</span><span class="v2badge" id="v2bt-'+k+'"></span></div>').join(''));
   v3Badges();
 };
-// The one badge on the menu: things the house has that no room holds (DV-02).
+// REGISTER 988 — NO BADGE ON THE MENU. Dave, 25 Oct: "the side menu showing a red pill 210 its misleading" → "No badge".
+// Nothing was broken: red says fault. What still needs a room is said once, on Home's Needs Attention and in Devices.
 function v3Badges(){
-  const n=(_unassignedEnts||[]).length;
-  ['v2b-devices','v2bt-devices'].forEach(id=>{ const el=document.getElementById(id); if(!el) return; el.textContent=n?String(n):''; el.classList.toggle('show',!!n); });
+  ['v2b-devices','v2bt-devices'].forEach(id=>{ const el=document.getElementById(id); if(!el) return; el.textContent=''; el.classList.remove('show'); });
+}
+// REGISTER 988 — "NOT IN A ROOM" COUNTS REAL DEVICES. Dave, 25 Oct: "Needs attention on pro 210 devices not in room".
+// Read on his box: 210 were ENTITIES of 36 devices — 182 of them settings switches (UniFi port power, status lights),
+// 152 switched off by their own integration, 6 the box's add-ons. The platform itself never puts those in a room: a
+// settings or diagnostic entity (entity_category), one switched off or hidden, and a service device (an add-on, Core)
+// are not things a room holds. So they are not counted — for every integration, no list of types. What is left is
+// counted by DEVICE, as the words say ("13 devices not in a room"): one device, however many controls it carries.
+function _roomless(e){
+  if(!e || e.entity_category || e.disabled_by || e.hidden_by) return false;
+  const d=e.device_id && (_devices||[]).find(x=>x.id===e.device_id);
+  return !(d && d.entry_type==='service');
+}
+// device id (or the entity's own id, for one with no device) -> its room-less controls
+function _unassignedByDevice(){
+  const m=new Map();
+  (_unassignedEnts||[]).forEach(e=>{ const k=e.device_id||e.entity_id; if(!m.has(k)) m.set(k,[]); m.get(k).push(e); });
+  return m;
+}
+function _unassignedCount(){ return _unassignedByDevice().size; }
+// "Not Needed in a Room" (Dave agreed 25 Oct): a whole-house thing (a siren, a strobe, the alarm's outputs) goes to the
+// house's own area — the one carrying the system label, register 440 — and one never used is hidden: the platform's
+// own Hidden, which every ProOS list already leaves out. Either way it is off the count for good, and undone the same way.
+async function v3WholeHouse(key){
+  const home=findHomeArea(); if(!home) return;
+  if((_devices||[]).some(d=>d.id===key)) await assignDeviceToArea(key, home.area_id);
+  else await assignEntityToArea(key, home.area_id);
+  if(_v3dev==='__none__') v3Devices('__none__');
+}
+async function v3HideUnplaced(key){
+  const ents=_unassignedByDevice().get(key)||[]; if(!ents.length) return;
+  try{
+    for(const e of ents) await snd({type:'config/entity_registry/update', entity_id:e.entity_id, hidden_by:'user'});
+    toast('Hidden'); await loadSite(); if(_v3dev==='__none__') v3Devices('__none__');
+  }catch(e){ toast("Couldn't hide it"); }
 }
 v2AfterShow=function(panel){
   _v2panel=panel;
@@ -20457,10 +20491,10 @@ function v3Side(sec){
       +'</div><div class="v3sf"><button onclick="openRoomEdit(null)">+ Add Room</button></div>';
   } else if(sec==='devices'){
     const devSel=(p==='device'&&_devSheet&&_devSheet.id)?((function(){ const d=_devices.find(x=>x.id===_devSheet.id); return d?(deviceRoomId(d)||''):''; })()):(p==='v3devices'?_v3dev:'');
-    const un=(_unassignedEnts||[]).length;
+    const un=_unassignedCount();
     h='<div class="v3sh"><span>Devices</span></div><div class="v3sl">'
       +_v3item('all',p==='v3devices'&&_v3dev==='all',_v3ic('list'),'All Devices','<span class="v3ct">'+(_devices||[]).length+'</span>',"v3Devices('all')")
-      +_v3item('__none__',p==='v3devices'&&_v3dev==='__none__',_v3ic('grid'),'Unassigned',un?'<span class="v3bdg">'+un+'</span>':'<span class="v3ct">0</span>',"v3Devices('__none__')")
+      +_v3item('__none__',p==='v3devices'&&_v3dev==='__none__',_v3ic('grid'),'Unassigned','<span class="v3ct">'+un+'</span>',"v3Devices('__none__')")
       +_v3item('library',p==='library'||p==='integration',_v3ic('plug'),'Integrations','',"openBay('library')")
       +_v3homeAreas().map(a=>_v3item(a.area_id,devSel===a.area_id,_v3thumb(a),a.name||'Room','<span class="v3ct">'+(_perAreaDev[a.area_id]||0)+'</span>',"v3Devices('"+esc(a.area_id)+"')",'l1')).join('')
       +'</div><div class="v3sf"><button onclick="openAddIntegration()">+ Add Device</button></div>';
@@ -20558,7 +20592,7 @@ function v3HomeTop(){
   const lbl=p.querySelector(':scope>.section-label'); if(lbl) lbl.textContent='Happening Now';
   let na=document.getElementById('v3home-attn');
   if(!na){ na=document.createElement('div'); na.id='v3home-attn'; na.className='v3card'; na.style.marginTop='16px'; const rooms_=document.getElementById('hlt-rooms'); if(rooms_&&rooms_.parentElement===p) p.insertBefore(na,rooms_.nextSibling); else p.appendChild(na); }
-  const inc=(_hltInc||[]).filter(i=>!i.acknowledged), un=(_unassignedEnts||[]).length;   // 926 item 5: acknowledged cards don't ask
+  const inc=(_hltInc||[]).filter(i=>!i.acknowledged), un=_unassignedCount();   // 926 item 5: acknowledged cards don't ask
   let rows='';
   inc.slice(0,4).forEach(i=>{ rows+='<div class="v3row" onclick="v3Diag(\'incidents\')"><div class="ri">'+V3ICONS.bolt+'</div><div class="rt"><div class="t1">'+esc(i.title||'')+'</div><div class="t2">'+esc(i.cause||'')+'</div></div><div class="rr"><span class="v3chip '+(i.severity==='critical'?'red':'amber')+'">'+(i.severity==='critical'?'Needs a Fix':'Check')+'</span>'+V3ICONS.chev.replace('<svg','<svg class="cv"')+'</div></div>'; });
   if(un) rows+='<div class="v3row" onclick="v3Devices(\'__none__\')"><div class="ri">'+V3ICONS.plug+'</div><div class="rt"><div class="t1">'+un+' device'+(un===1?'':'s')+' not in a room</div><div class="t2">Assist can\'t use them until they\'re in a room</div></div><div class="rr"><span class="v3chip btn">Place Them</span>'+V3ICONS.chev.replace('<svg','<svg class="cv"')+'</div></div>';
@@ -20682,7 +20716,7 @@ function v3Dupes(ctrls){
 function v3DevGroups(){
   const by={};
   (_devices||[]).forEach(d=>{ const dom=_devIntg[d.id]||'other'; (by[dom]=by[dom]||{n:0,un:0,bad:0,dom}); by[dom].n++; });
-  (_unassignedEnts||[]).forEach(e=>{ const d=e.device_id&&(_devices||[]).find(x=>x.id===e.device_id); const dom=d?(_devIntg[d.id]||e.platform||'other'):(e.platform||'other'); if(!by[dom]) by[dom]={n:0,un:0,bad:0,dom}; by[dom].un++; });
+  _unassignedByDevice().forEach((ents,k)=>{ const e=ents[0]; const d=e.device_id&&(_devices||[]).find(x=>x.id===e.device_id); const dom=d?(_devIntg[d.id]||e.platform||'other'):(e.platform||'other'); if(!by[dom]) by[dom]={n:0,un:0,bad:0,dom}; by[dom].un++; });
   return by;
 }
 async function v3Devices(sel){
@@ -20699,19 +20733,28 @@ async function v3Devices(sel){
     const groups=Object.values(by).filter(g=>g.n||g.un).sort((a,b)=>b.n-a.n);
     const bad=groups.reduce((s,g)=>s+g.bad,0);
     setHTML(body,'<div class="v3card"><div class="v3dh2"><div class="t">All Devices</div><div class="s">Everything the house has, by integration — what still needs a room or a name</div></div>'
-      +'<div class="v3kp"><div><b>'+(_unassignedEnts||[]).length+'</b><span>not in a room</span></div><div><b>'+bad+'</b><span>names to fix</span></div><div><b>'+groups.length+'</b><span>integrations</span></div></div>'
+      +'<div class="v3kp"><div><b>'+_unassignedCount()+'</b><span>not in a room</span></div><div><b>'+bad+'</b><span>names to fix</span></div><div><b>'+groups.length+'</b><span>integrations</span></div></div>'
       +'<div class="v3sec"><div class="v3rows">'+groups.map(g=>{
         const nm=(typeof SUPPORTED_INTEGRATIONS!=='undefined'&&SUPPORTED_INTEGRATIONS[g.dom])||g.dom.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
         const chip=g.un?'<span class="v3chip amber">'+g.un+' not in a room</span>':(g.bad?'<span class="v3chip amber">'+g.bad+' to name</span>':'<span class="v3chip ok">All Placed</span>');
         return '<div class="v3row" onclick="openIntegration(\''+esc(g.dom)+'\')"><div class="ri">'+V3ICONS.plug+'</div><div class="rt"><div class="t1">'+esc(nm)+'</div><div class="t2">'+g.n+' device'+(g.n===1?'':'s')+'</div></div><div class="rr">'+chip+ch+'</div></div>';
       }).join('')+'</div></div></div>');
   } else if(_v3dev==='__none__'){
-    const list=(_unassignedEnts||[]).slice().sort((a,b)=>entName(a.entity_id).localeCompare(entName(b.entity_id)));
-    const by={}; list.forEach(e=>{ const d=e.device_id&&_devices.find(x=>x.id===e.device_id); const k=d?(_devIntg[d.id]||e.platform||'other'):(e.platform||'other'); (by[k]=by[k]||[]).push(e); });
-    setHTML(body,'<div class="v3card"><div class="v3dh2"><div class="t">Unassigned</div><div class="s">'+list.length+' things the house has but no room holds — Assist can\'t use them until they\'re in a room</div></div>'
+    // 988: one row per DEVICE, with what to do about it — a room, the whole house, or hidden
+    const home=findHomeArea();
+    const list=[..._unassignedByDevice()].map(([k,ents])=>{ const d=(_devices||[]).find(x=>x.id===k);
+      const e=ents[0]; return {k, ents, d, name:d?devName(d):entName(e.entity_id), dom:d?(_devIntg[d.id]||e.platform||'other'):(e.platform||'other')}; })
+      .sort((a,b)=>a.name.localeCompare(b.name));
+    const by={}; list.forEach(r=>{ (by[r.dom]=by[r.dom]||[]).push(r); });
+    const kinds=r=>[...new Set(r.ents.map(e=>_ipCap(DOM(e))))].join(' · ');
+    const row=r=>'<div class="v3row static"><div class="rt"><div class="t1">'+esc(r.name)+'</div><div class="t2">'+esc(kinds(r)+(r.d&&r.d.model?' · '+r.d.model:''))+'</div></div><div class="rr">'
+      +'<span class="v3chip btn" onclick="openRoomPicker(\''+(r.d?'device':'entity')+'\',\''+esc(r.d?r.d.id:r.ents[0].entity_id)+'\')">Assign</span>'
+      +(home?'<span class="v3chip btn" title="A whole-house thing, kept with '+esc(home.name||'the house')+'" onclick="v3WholeHouse(\''+esc(r.k)+'\')">Whole House</span>':'')
+      +'<span class="v3chip btn" title="Never used — hidden from every list" onclick="v3HideUnplaced(\''+esc(r.k)+'\')">Hide</span></div></div>';
+    setHTML(body,'<div class="v3card"><div class="v3dh2"><div class="t">Unassigned</div><div class="s">'+list.length+' device'+(list.length===1?'':'s')+' with no room — Assist can\'t use them until they\'re in one. Not needed in a room? Whole House or Hide.</div></div>'
       +(list.length?Object.keys(by).sort((a,b)=>by[b].length-by[a].length).map(k=>{
         const nm=(typeof SUPPORTED_INTEGRATIONS!=='undefined'&&SUPPORTED_INTEGRATIONS[k])||k.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
-        return '<div class="v3sec"><div class="h"><span>'+esc(nm)+' · '+by[k].length+'</span></div><div class="v3rows">'+by[k].map(e=>'<div class="v3row" onclick="openRoomPicker(\'entity\',\''+esc(e.entity_id)+'\')"><div class="rt"><div class="t1">'+esc(entName(e.entity_id))+'</div><div class="t2">'+esc(e.entity_id)+'</div></div><div class="rr"><span class="v3chip btn">Assign</span></div></div>').join('')+'</div></div>';
+        return '<div class="v3sec"><div class="h"><span>'+esc(nm)+' · '+by[k].length+'</span></div><div class="v3rows">'+by[k].map(row).join('')+'</div></div>';
       }).join(''):'<div class="v3empty">Every device is in a room.</div>')+'</div>');
   } else {
     const a=_areas.find(x=>x.area_id===_v3dev);
