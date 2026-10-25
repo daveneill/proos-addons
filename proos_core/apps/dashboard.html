@@ -4680,7 +4680,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102503';
+const PROOS_BUILD='2026102504';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -19028,6 +19028,22 @@ function _proosAppPost(msg){
 function _proosAndroid(){
   try{ return !!(window.ProOSAndroid && typeof window.ProOSAndroid.post==='function'); }catch(e){ return false; }
 }
+// REGISTER 990 — "HEY JARVIS" ON THE DISPLAY. Dave, 25 Oct 14:56: voice works on the Connect Display "but does not answer
+// to Hey Jarvis". The Android app now listens for the wake word itself, on the display's own microphone, with the
+// platform's own on-device wake word (microWakeWord, the hey_jarvis model the companion app ships) while ProOS is on the
+// screen. When it hears it, it asks the page first: _proosWake() opens a turn exactly as the home screen's big
+// microphone does (the words go straight to Assist, the caption shows) and answers true; it answers false — and the app
+// does not listen — when the page is already listening, is a wall panel, or the person has not said yes to voice.
+window._proosWake=function(){
+  try{
+    if(_vcap || (typeof _isPanel==='function' && _isPanel()) || !voiceConsentGiven()) return false;
+    _voiceHush();
+    _voiceFrom='mic'; _voiceCancelled=false; _voiceBase=''; _voiceWas='';
+    _voiceTurn++;   // REGISTER 481: a new turn, open again
+    _vcap={app:true}; _recOn=true; _micRec(true);
+    return true;
+  }catch(e){ return false; }
+};
 // The home's own names, for the recogniser: rooms first, then every device
 // the page knows. "Jarrod's Room" is heard as those words, not near-misses.
 function _voiceNames(){
