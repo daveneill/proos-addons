@@ -4680,7 +4680,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102502';
+const PROOS_BUILD='2026102503';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -19015,7 +19015,18 @@ function _proosApp(){
   try{ return !!(window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.proos); }catch(e){ return false; }
 }
 function _proosAppPost(msg){
+  if(!_proosApp() && _proosAndroid()){ try{ return window.ProOSAndroid.post(msg)===true; }catch(e){ return false; } }
   try{ window.webkit.messageHandlers.proos.postMessage(msg); return true; }catch(e){ return false; }
+}
+// REGISTER 987 — THE ANDROID APP ANSWERS THE MICROPHONE TOO. Dave, 25 Oct, on the UniFi Connect Display: "if i hit
+// assist is says it needs a secure connection". Same cause as 297: the page is opened over the home's plain address and
+// a page may not open a microphone over one. The Android app offers window.ProOSAndroid.post(word) — true only for a
+// word it answers (mic:start, mic:stop). It records on the device and streams to the platform's own Assist pipeline,
+// speech-to-text only (the server hears the end of speech), and the words arrive through _proosHeard like the iOS
+// app's. It is a VOICE bridge only: _proosApp() stays the iOS app's, so Settings, camera talk and the rest keep their
+// own routes on Android. The audio does go to the home's transcriber, so the asking keeps the browser's sentence.
+function _proosAndroid(){
+  try{ return !!(window.ProOSAndroid && typeof window.ProOSAndroid.post==='function'); }catch(e){ return false; }
 }
 // The home's own names, for the recogniser: rooms first, then every device
 // the page knows. "Jarrod's Room" is heard as those words, not near-misses.
@@ -19229,7 +19240,7 @@ async function toggleDictation(from){
   _voiceHush();                              // the microphone never hears ProOS
   _voiceFrom=(from==='bar')?'bar':(from==='mic'?'mic':'panel'); _voiceCancelled=false;
   const mic=document.getElementById('assist-mic');
-  if(_proosApp()){
+  if(_proosApp() || _proosAndroid()){
     // Spoken from the home screen there is no box at all - the words go
     // straight to Assist when they arrive (register 506).
     const inp=_voiceFrom==='mic' ? null
