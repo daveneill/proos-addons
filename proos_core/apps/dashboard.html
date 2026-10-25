@@ -4702,7 +4702,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102514';
+const PROOS_BUILD='2026102515';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -24509,10 +24509,14 @@ function _jvMic(on){
 function _jvSeen(){
   if(!_jv.open) return;
   var h=_jvEl('assist-history'); if(!h) return; var last=h.querySelector('.assist-msg:last-child'); if(!last) return;
-  var txt=(last.querySelector('.assist-bubble')||last).textContent.trim(); if(!txt) return;
   var A=_jvEl('jv-aa'), B=_jvEl('jv-ab'); if(!A||!B) return;
-  if(last.classList.contains('user')){ _jvHold(); A.textContent='\u201C'+txt+'\u201D'; B.textContent='Thinking\u2026'; _jvOrb('thinking'); return; }
+  // 1001a, read on the test device: the question and the "thinking" reply arrive together, so the question is read as
+  // the last of the person's own messages, not only when it happens to be the last thing in the history
+  var us=h.querySelectorAll('.assist-msg.user'), u=us.length?us[us.length-1]:null;
+  var ut=u?(u.querySelector('.assist-bubble')||u).textContent.trim():''; if(ut) A.textContent='\u201C'+ut+'\u201D';
+  if(last.classList.contains('user')){ _jvHold(); B.textContent='Thinking\u2026'; _jvOrb('thinking'); return; }
   var th=!!last.querySelector('.assist-bubble.thinking');
+  var txt=(last.querySelector('.assist-bubble')||last).textContent.trim(); if(!txt && !th) return;
   B.textContent=th?'Thinking\u2026':txt; _jvOrb(th?'thinking':'idle');
   if(!th) _jvLater();
 }
