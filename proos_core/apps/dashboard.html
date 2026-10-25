@@ -4702,7 +4702,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102519';
+const PROOS_BUILD='2026102520';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -14027,10 +14027,10 @@ function _paTileLive(i, entity){
 // events this is slow … can it be improved". Read on the test device: the list ~0.7 s, then 199 tiles drawn together
 // and every picture on screen after ~6 s. Now: (1) the list fetched while the Live tab is showing is shown the moment
 // Events opens and refreshed behind it; (2) the newest pictures are fetched while the Live tab shows, so they are
-// already there; (3) a screenful of tiles is drawn, more as the list scrolls; (4) in the Android app the opening is
+// already there (read on the display-sized test device: 12 tiles across, ~84 on screen); (3) a screenful of tiles is drawn, more as the list scrolls; (4) in the Android app the opening is
 // timed and sent with the screen's speed reading, so the display's own numbers are on the record.
 const _PA_SMART=new Set(['person','people','face','license plate','vehicle','animal','package']);
-const _PA_EV_PAGE=36, _PA_EV_WARM=24;
+const _PA_EV_PAGE=96, _PA_EV_WARM=96;   // 1004a: the display's 1920×1080 shows 12 across × 7 down — a screenful is ~84
 let _paEvList=null, _paEvAt=0, _paEvLoading=null;
 function _paEvFetch(){
   if(_paEvLoading) return _paEvLoading;
