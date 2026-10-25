@@ -4680,7 +4680,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102504';
+const PROOS_BUILD='2026102505';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -18866,10 +18866,16 @@ function abSend(){
     }, 220);
   }catch(e){}
 }
+// REGISTER 991 — THE KEYBOARD COMES UP ONLY WHEN SOMEBODY IS TYPING. Dave, 25 Oct, on the Connect Display: "each time
+// the chat window comes up the onscreen keyboard comes up also when we are not typing". The panel put the cursor in its
+// box on every open — on a computer that is a convenience; on a touch screen it raises the on-screen keyboard over a
+// conversation that was spoken ("Hey Jarvis" opens the panel to show the answer). The iPhone never showed it only
+// because iOS ignores a cursor placed without a tap. So on a touch screen the box waits to be tapped.
+function _typingNeedsTap(){ try{ return window.matchMedia('(pointer: coarse)').matches; }catch(e){ return false; } }
 function openAssist() {
   assistOpen = true;
   document.getElementById('assist-overlay').classList.add('open');
-  setTimeout(() => document.getElementById('assist-input').focus(), 400);
+  if(!_typingNeedsTap()) setTimeout(() => document.getElementById('assist-input').focus(), 400);
 }
 function closeAssist() {
   assistOpen = false;
@@ -19340,7 +19346,7 @@ async function _voiceSend(buf){
     // sending the sentence is not acting on the house.
     if(_voiceFrom==='mic'){ proosAsk(t); }
     else if(fromBar){ if(typeof abSend==='function') abSend(); }
-    else if(input) input.focus();
+    else if(input && !_typingNeedsTap()) input.focus();   // 991: no keyboard after speaking, on a touch screen
   }catch(e){ showToast('ProOS could not reach your home to listen'); }
   finally{ if(input) input.placeholder=was; }
 }
