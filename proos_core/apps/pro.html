@@ -1852,9 +1852,9 @@ body.railmin #app.v3 .v3acc{display:none}
 body.railmin #app.v3 .v2item .v3chev{display:none}
 @media (max-width:1023px){ #app.v3{--v3r:76px} #app.v3 .v3acc,#app.v3 .v2item .v3chev{display:none} }
 /* the menu opened over the page */
-.v3mdim{position:fixed;inset:0;z-index:880;background:rgba(0,0,0,.5);display:none}
+.v3mdim{position:fixed;inset:0;z-index:1090;background:rgba(0,0,0,.5);display:none}
 body.v3menu-open .v3mdim{display:block}
-body.v3menu-open #app.v3 .v2rail{width:290px;z-index:890;padding-left:10px;padding-right:10px;background:rgba(28,28,33,.97);box-shadow:0 30px 80px rgba(0,0,0,.55)}
+body.v3menu-open #app.v3 .v2rail{width:290px;z-index:1100;padding-left:10px;padding-right:10px;background:rgba(28,28,33,.97);box-shadow:0 30px 80px rgba(0,0,0,.55)}
 body.v3menu-open #app.v3 .v2rail .v2item{justify-content:flex-start;padding:0 14px}
 body.v3menu-open #app.v3 .v2rail .v2item>span:not(.v2badge),body.v3menu-open #app.v3 .v2rail .v2logo span,body.v3menu-open #app.v3 .v2rail .v2foot{display:inline}
 body.v3menu-open #app.v3 .v2rail .v2logo{justify-content:flex-start;padding-left:10px}
@@ -1865,6 +1865,23 @@ body.v3menu-open #app.v3 .v2rail .v2item.v2collapse svg{transform:none}
 body.v3 .aw-screen{left:280px!important}
 body.v3.railmin .aw-screen{left:108px!important}
 @media (max-width:1023px){ body.v3 .aw-screen{left:108px!important} }
+/* 1010c, read on the box in portrait: the map's zoom buttons (z-index 1000, the map library's own) showed through the
+   opened menu — the menu and its dimmer sit above them (above). The header's presence chips crowded the title: in
+   portrait they keep the device, not the page it is on. Areas keeps Dave's iPad standard of three across now the
+   page has the width. The iPad mini (744 px in portrait) is an iPad, not a phone: it gets the iPad portrait shell —
+   the icon menu, the title row, the command bar — instead of the phone's bottom tab bar. */
+@media (max-width:1023px){ #app.v3 .v2presence .v2dev span.v2dn{display:none} }
+@media (max-width:1023px) and (min-width:700px){ #app.v3 .hub-grid{grid-template-columns:repeat(3,minmax(0,1fr))} }
+#app.v3 .hub-grid{grid-template-columns:repeat(4,minmax(0,1fr))}   /* the Mac: four, Dave's standard (7 Oct) — said with Pro's own 1439 breakpoint */
+@media (max-width:1439px){ #app.v3 .hub-grid{grid-template-columns:repeat(3,minmax(0,1fr))} }
+@media (max-width:767px) and (min-width:700px){
+  #app.v3.v2 .v2rail{display:flex}
+  #app.v3.v2 .v2tabs{display:none}
+  #app.v3 .v2crumb{display:inline}
+  #app.v3.v2 .topbar{position:relative;top:auto;left:auto;right:auto}
+  #app.v3.v2::before{display:none}
+  #app.v3.v2 .scroll{padding-top:0;padding-bottom:104px}
+}
 /* Devices: a room is chosen on the page */
 .v3rooms{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:4px 22px 12px}
 .v3rooms-l{font-size:12.5px;color:rgba(255,255,255,.45);margin-right:4px}
@@ -1889,6 +1906,11 @@ body.v3.railmin .aw-screen{left:108px!important}
 #app.v3 #panel-library .itile:has(.cert-pill){border:1px solid rgba(110,130,255,.32);background:rgba(33,57,240,.09)!important}
 #app.v3 #panel-library .itile-body:has(.cert-pill) .itile-sub::before{content:"ProOS Certified";color:#aab4ff;display:block}
 #app.v3 #panel-library .itile-body:has(.cert-pill):not(:has(.itile-sub))::after{content:"ProOS Certified";color:#aab4ff;font-size:12.5px;display:block;margin-top:3px}
+/* the iPad mini in portrait: a tile is ~190 px wide, so the name goes under the icon and takes the tile's whole width */
+@media (max-width:767px){
+  #app.v3 #panel-library .itile-body{grid-column:1/-1;grid-row:2}
+  #app.v3 #panel-library .itile-act:has(button){grid-row:3}
+}
 
 /* TB-01: the old dev console is folded into Developer — its empty holder takes no space */
 #app.v3 .tbx-dev:empty{display:none}
@@ -2944,7 +2966,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102601';
+const PROOS_BUILD='2026102602';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
