@@ -1143,6 +1143,8 @@ body[data-home-state="noticing"] .home-state-go,body[data-home-state="attention"
 .pa-eg-cell.pa-load{background-image:linear-gradient(100deg,#16161d 30%,#23232d 50%,#16161d 70%)!important;background-size:200% 100%;animation:paShimmer 1.5s linear infinite}
 .pa-eg-cell.pa-shown,.pe-thumb.pa-shown{animation:paFadeIn .4s ease}
 .pe-thumb.pa-load{background-image:linear-gradient(100deg,#16161d 30%,#23232d 50%,#16161d 70%);background-size:200% 100%;animation:paShimmer 1.5s linear infinite}
+/* 1006: on the Connect Display a shimmer on every waiting tile (146 at once, read) held the screen at 2 frames a second while Events loaded — a waiting tile sits still there. */
+html.proos-android .pa-eg-cell.pa-load,html.proos-android .pe-thumb.pa-load{animation:none!important;background-image:none!important;background-color:#1b1b23}
 .pa-cam img{transition:opacity .45s ease}
 .pa-det-live img{transition:transform .22s cubic-bezier(.2,.9,.25,1)}
 /* Orientation: portrait vs landscape */
@@ -4702,7 +4704,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102521';
+const PROOS_BUILD='2026102522';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
