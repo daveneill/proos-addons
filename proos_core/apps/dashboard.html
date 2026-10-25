@@ -4702,7 +4702,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102518';
+const PROOS_BUILD='2026102519';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -13896,7 +13896,7 @@ function renderProtectApp(){
   const built = app && app.dataset.built==='1' && document.getElementById('pa-grid') && document.getElementById('pa-grid').children.length;
   if(!app){ app=document.createElement('div'); app.id='protect-app'; page.appendChild(app); }
   app.style.display='flex';
-  if(built){ _paResumeGridVideos(); return; } // instant re-entry: keep DOM + warm streams
+  if(built){ _paResumeGridVideos(); if(_paTabCur!=='events') setTimeout(_paEvWarm, 1500); return; } // instant re-entry: keep DOM + warm streams
   app.innerHTML=
     '<div class="pa-top">'
     +'<div class="pa-tabs">'
@@ -13909,7 +13909,7 @@ function renderProtectApp(){
     +'</div>';
   app.dataset.built='1';
   _paRenderLive();
-  if(_paTabCur==='events') _paRenderEvents();
+  if(_paTabCur==='events') _paRenderEvents(); else setTimeout(_paEvWarm, 1500);   // 1004
 }
 function _paTab(t){ _paTabCur=t;
   document.querySelectorAll('.pa-tab').forEach(b=>b.classList.toggle('on', b.textContent.toLowerCase()===t));
@@ -14023,14 +14023,54 @@ function _paTileLive(i, entity){
   _paGridRTC.push(rtc);
 }
 // ── Events tab — "Find Anything" style thumbnail grid ──
+// REGISTER 1004 — THE EVENTS TAB OPENS AT ONCE. Dave, 26 Oct: "when you go to the events it loads the page with all the
+// events this is slow … can it be improved". Read on the test device: the list ~0.7 s, then 199 tiles drawn together
+// and every picture on screen after ~6 s. Now: (1) the list fetched while the Live tab is showing is shown the moment
+// Events opens and refreshed behind it; (2) the newest pictures are fetched while the Live tab shows, so they are
+// already there; (3) a screenful of tiles is drawn, more as the list scrolls; (4) in the Android app the opening is
+// timed and sent with the screen's speed reading, so the display's own numbers are on the record.
+const _PA_SMART=new Set(['person','people','face','license plate','vehicle','animal','package']);
+const _PA_EV_PAGE=36, _PA_EV_WARM=24;
+let _paEvList=null, _paEvAt=0, _paEvLoading=null;
+function _paEvFetch(){
+  if(_paEvLoading) return _paEvLoading;
+  _paEvLoading=_pTimeout(_loadProtectEventsPC(72,500),15000,null).then(evs=>{
+    if(Array.isArray(evs)){ _paEvList=evs.filter(e=>_PA_SMART.has((e.kind||'').toLowerCase())); _paEvAt=Date.now(); }
+    return _paEvList;
+  }).finally(()=>{ _paEvLoading=null; });
+  return _paEvLoading;
+}
+// while the Live tab shows: the list, and the newest pictures, ready before Events is pressed
+function _paEvWarm(){
+  if(_paEvList && Date.now()-_paEvAt<60000) return;
+  _paEvFetch().then(list=>{ (list||[]).slice(0,_PA_EV_WARM).forEach(e=>{ _peQ.push(()=>_peThumb(e)); }); _pePump(); }).catch(()=>{});
+}
 async function _paRenderEvents(){
   const wrap=document.getElementById('pa-events'); if(!wrap) return;
+  const t0=performance.now();
   if(!wrap.dataset.built){ wrap.innerHTML='<div class="pe-filters" id="pa-ev-filters"></div><div class="pa-eg" id="pa-ev-grid"><div class="pe-empty">Loading&hellip;</div></div>'; wrap.dataset.built='1'; }
-  window._paFilter='all';
-  const evs=await _pTimeout(_loadProtectEventsPC(72,500),15000,[]);
-  const SMART=new Set(['person','people','face','license plate','vehicle','animal','package']);
-  window._peEvents=(Array.isArray(evs)?evs:[]).filter(e=>SMART.has((e.kind||'').toLowerCase()));
-  _paEvFilters(); _paEvRender();
+  window._paFilter=window._paFilter||'all';
+  const had=!!_paEvList;
+  if(had){ window._peEvents=_paEvList; _paEvFilters(); _paEvRender(); }   // what is already known, at once
+  const sig=l=>(l||[]).map(e=>e.event_id||e.when).join(',');
+  const before=sig(window._peEvents);
+  await _paEvFetch();
+  window._peEvents=_paEvList||[];
+  if(!had || sig(window._peEvents)!==before){ _paEvFilters(); _paEvRender(); }
+  _paEvTime(t0, had);
+}
+// 1004: in the Android app, how long Events took to show its tiles and the pictures on screen — sent with the speed reading
+function _paEvTime(t0, warm){
+  if(!(typeof _proosAndroid==='function' && _proosAndroid())) return;
+  const cellsAt=performance.now()-t0; let n=0;
+  const tick=()=>{ const cells=[...document.querySelectorAll('#pa-ev-grid .pa-eg-cell')];
+    const vis=cells.filter(c=>{ const b=c.getBoundingClientRect(); return b.top<innerHeight && b.bottom>0; });
+    if((vis.length && vis.every(c=>!c.classList.contains('pa-load'))) || ++n>100){
+      try{ window.ProOSAndroid.post('perf:'+JSON.stringify({page:'events', warm:warm, tiles_ms:Math.round(cellsAt), pictures_ms:n>100?null:Math.round(performance.now()-t0),
+        tiles:cells.length, on_screen:vis.length, events:(window._peEvents||[]).length, build:(typeof PROOS_BUILD!=='undefined'?PROOS_BUILD:'')})); }catch(e){}
+      return; }
+    setTimeout(tick,100); };
+  setTimeout(tick,100);
 }
 function _paEvFilters(){
   const el=document.getElementById('pa-ev-filters'); if(!el) return;
@@ -14039,16 +14079,31 @@ function _paEvFilters(){
   el.innerHTML=chips.map(k=>`<button class="pe-chip${cur===k.toLowerCase()?' on':''}" onclick="_paEvSetFilter('${k.toLowerCase()}')">${_hEsc(k)}</button>`).join('');
 }
 function _paEvSetFilter(k){ window._paFilter=k; _paEvFilters(); _paEvRender(); }
+let _paEvMoreIO=null;
 function _paEvRender(){
   const grid=document.getElementById('pa-ev-grid'); if(!grid) return;
   const all=window._peEvents||[], f=window._paFilter||'all';
   const kmatch=k=>(k||'').toLowerCase()===f || (f==='people'&&(k||'').toLowerCase()==='person');
   const evs=all.filter(e=>f==='all'||kmatch(e.kind));
   if(!evs.length){ const err=window._peLoadErr; grid.innerHTML='<div class="pe-empty">'+(all.length?'No matching events':(err?('Events unavailable — '+_hEsc(err)):'No recent events'))+'</div>'; return; }
-  grid.innerHTML=evs.map(e=>{ const gi=all.indexOf(e); return `<div class="pa-eg-cell pa-load" id="paeg${gi}" onclick="playProtectClip(${gi})">`
+  // 1004: a screenful at a time — more are added as the last tile comes near the bottom
+  const tile=e=>{ const gi=all.indexOf(e); return `<div class="pa-eg-cell pa-load" id="paeg${gi}" onclick="playProtectClip(${gi})">`
     +`<div class="pa-eg-top"><div class="pa-eg-cam">${_hEsc(e.cam)}</div><div class="pa-eg-time">${_hEsc(_agoStr(e.when))}</div></div>`
-    +`<div class="pa-eg-bot"><span class="pa-eg-ico">${_paTypeIcon(e.kind)}</span></div></div>`; }).join('');
-  evs.forEach(e=>{ const gi=all.indexOf(e); const cell=document.getElementById('paeg'+gi); if(!cell||cell.dataset.done) return; cell.dataset.done='1'; _peLazy(cell, e, url=>_peShow('paeg'+gi, url, true)); });
+    +`<div class="pa-eg-bot"><span class="pa-eg-ico">${_paTypeIcon(e.kind)}</span></div></div>`; };
+  const wire=list=>list.forEach(e=>{ const gi=all.indexOf(e); const cell=document.getElementById('paeg'+gi); if(!cell||cell.dataset.done) return; cell.dataset.done='1';
+    const u=_peThumbCache.get(e.event_id); if(u && typeof u.then==='function'){ u.then(x=>{ if(x) _peShow('paeg'+gi, x, true); else _peLazy(cell, e, url=>_peShow('paeg'+gi, url, true)); }); } else _peLazy(cell, e, url=>_peShow('paeg'+gi, url, true)); });
+  let shown=Math.min(evs.length, _PA_EV_PAGE);
+  grid.innerHTML=evs.slice(0,shown).map(tile).join('');
+  wire(evs.slice(0,shown));
+  if(_paEvMoreIO){ try{ _paEvMoreIO.disconnect(); }catch(e){} _paEvMoreIO=null; }
+  if(shown<evs.length && 'IntersectionObserver' in window){
+    const more=()=>{ const last=grid.lastElementChild; if(!last) return;
+      _paEvMoreIO=new IntersectionObserver(ents=>{ if(!ents.some(x=>x.isIntersecting)) return; _paEvMoreIO.disconnect(); _paEvMoreIO=null;
+        const next=evs.slice(shown, shown+_PA_EV_PAGE); shown+=next.length;
+        grid.insertAdjacentHTML('beforeend', next.map(tile).join('')); wire(next); if(shown<evs.length) more(); }, {rootMargin:'600px'});
+      _paEvMoreIO.observe(last); };
+    more();
+  } else if(shown<evs.length){ grid.insertAdjacentHTML('beforeend', evs.slice(shown).map(tile).join('')); wire(evs.slice(shown)); }
 }
 
 // ── Per-camera detail: live + talkback (if speaker) + that camera's recent events ──
