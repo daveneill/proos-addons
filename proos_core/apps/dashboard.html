@@ -1221,6 +1221,13 @@ body[data-home-state="noticing"] .home-state-go,body[data-home-state="attention"
 @media (orientation:portrait){ .pa-fs{flex-direction:column} .pa-fs-live{flex:0 0 46vh} .pa-fs-tl{flex:1 1 auto;border-top:.5px solid rgba(255,255,255,.08)} }
 .pa-fs-pip{position:absolute;bottom:16px;left:16px;width:min(30%,220px);aspect-ratio:4/3;border-radius:12px;overflow:hidden;background:#000;border:1px solid rgba(255,255,255,.25);box-shadow:0 4px 18px rgba(0,0,0,.5);z-index:3}
 .pa-fs-pip img{width:100%;height:100%;object-fit:cover;display:block}
+/* 1000: the Android app's own player draws the camera BEHIND the page; the page opens a clear window exactly where the
+   picture is and keeps its buttons, name and doorbell inset on top. Everything else steps out of the way while it shows. */
+#pa-hole{position:absolute;z-index:1;pointer-events:none;box-shadow:0 0 0 200vmax #000;display:none}
+html.proos-cam-hole,html.proos-cam-hole body,html.proos-cam-hole .pa-fs,html.proos-cam-hole .pa-fs-live{background:transparent!important}
+html.proos-cam-hole body>*:not(#pa-detail){opacity:0!important;visibility:hidden!important}
+html.proos-cam-hole #pa-hole{display:block}
+html.proos-cam-hole #pa-det-img{visibility:hidden}
 .pa-fs-rec{position:absolute;top:16px;left:50%;transform:translateX(-50%);z-index:3;display:flex;align-items:center;gap:7px;background:rgba(0,0,0,.6);color:#fff;font-size:13px;font-weight:600;padding:6px 14px;border-radius:16px;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
 .pa-fs-rec-dot{width:8px;height:8px;border-radius:50%;background:#ff3b30}
 /* ── Weather: animated full page + tile ───────────────────────────────────── */
@@ -4695,7 +4702,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102512';
+const PROOS_BUILD='2026102513';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -14121,6 +14128,71 @@ if(!window._paVisBound){ window._paVisBound=true;
   });
 }
 let _paDetailRTC=null;
+// REGISTER 1000 — IN THE ANDROID APP THE SCREEN PLAYS THE CAMERA ITSELF, THE WAY THE UNIFI APP DOES. Dave, 25 Oct:
+// "that's what we need to be building … if there is a better way of doing something to make it premium tell me, don't
+// do a workaround" — then "even if it is the better way to go across both apps then that's what needs to be built".
+// The UniFi app on the Connect Display plays every camera; this page's web engine cannot take H.265 (Protect's Enhanced
+// Encoding) over its live connection. Read on the box, 25 Oct: all 12 cameras answer on Protect's standard RTSP port
+// (7447), nine of them H.265. The app's player (Media3, the platform's own player library) plays that stream on the
+// screen's video decoder, BEHIND the page; the page opens a clear window where the picture goes. The stream address
+// comes from Protect's official interface through Core (/unifi/protect/cameras/<id>/rtsps). An app without the player
+// answers "no" and the page plays as before. The iPad is untouched by this build.
+let _paNative=null, _paNativeSeq=0;
+const _paRtsp={};
+function _paNativePost(w){ try{ return !!(window.ProOSAndroid && window.ProOSAndroid.post(w)); }catch(e){ return false; } }
+async function _paRtspUrl(pcId){
+  if(_paRtsp[pcId]) return _paRtsp[pcId];
+  let r=null; try{ r=await _pcJSON('/cameras/'+encodeURIComponent(pcId)+'/rtsps'); }catch(e){}
+  if(!(r&&r.high)){ try{ const q=await fetch(proosCoreBase()+'/unifi/protect/cameras/'+encodeURIComponent(pcId)+'/rtsps',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({qualities:['high']})}); r=q.ok?await q.json():null; }catch(e){} }
+  const m=r&&typeof r.high==='string'&&r.high.match(/^rtsps?:\/\/([^\/:?]+)(?::\d+)?(\/[^?]*)/);
+  return m?(_paRtsp[pcId]='rtsp://'+m[1]+':7447'+m[2]):null;
+}
+// the picture's box: the video's own shape, centred in the viewer (as the snapshot is drawn)
+function _paNativeBox(){
+  const w=document.querySelector('#pa-detail .pa-fs-imgwrap'); if(!w) return null;
+  const b=w.getBoundingClientRect(); if(!b.width||!b.height) return null;
+  const vs=_paNative&&_paNative.size; if(!vs) return {left:b.left,top:b.top,right:b.right,bottom:b.bottom};
+  const k=Math.min(b.width/vs[0], b.height/vs[1]), wd=vs[0]*k, ht=vs[1]*k, l=b.left+(b.width-wd)/2, t=b.top+(b.height-ht)/2;
+  return {left:l,top:t,right:l+wd,bottom:t+ht};
+}
+function _paNativePlace(){
+  if(!_paNative) return; const r=_paNativeBox(); if(!r) return;
+  const live=document.querySelector('#pa-detail .pa-fs-live'); let h=document.getElementById('pa-hole');
+  if(live){ if(!h){ h=document.createElement('div'); h.id='pa-hole'; live.appendChild(h); } const lb=live.getBoundingClientRect();
+    h.style.left=(r.left-lb.left)+'px'; h.style.top=(r.top-lb.top)+'px'; h.style.width=(r.right-r.left)+'px'; h.style.height=(r.bottom-r.top)+'px'; }
+  _paNativePost('cam:rect:'+JSON.stringify({rect:r, pageWidth:window.innerWidth}));
+}
+function _paNativeShow(on){ try{ document.documentElement.classList.toggle('proos-cam-hole', !!on); }catch(e){} }
+function _paNativeStop(){
+  if(!_paNative) return; _paNative=null; _paNativeShow(false); _paNativePost('cam:stop');
+  const h=document.getElementById('pa-hole'); if(h) h.remove();
+}
+async function _paNativeStart(cam){
+  if(!_proosAndroid()) return false;
+  const seq=window._paOpenSeq;
+  if(!_pcCamByName){ try{ await _pcWarmCams(); }catch(e){} }
+  const pc=_pcCamForName(cam.name); if(!pc||!pc.id) return false;
+  const url=await _paRtspUrl(pc.id); if(!url || seq!==window._paOpenSeq) return false;
+  const session=++_paNativeSeq; _paNative={session, cam, size:null, sound:false};
+  const box=_paNativeBox()||{left:0,top:0,right:0,bottom:0};
+  if(!_paNativePost('cam:play:'+JSON.stringify({url, muted:true, session, rect:box, pageWidth:window.innerWidth}))){ _paNative=null; return false; }
+  if(!window._paNativeBound){ window._paNativeBound=1; let q=0; const again=()=>{ if(q) return; q=requestAnimationFrame(()=>{ q=0; _paNativePlace(); }); };
+    window.addEventListener('resize',again); document.addEventListener('scroll',again,true);
+    document.addEventListener('visibilitychange',()=>{ if(document.hidden){ if(_paNative){ window._paNativeResume=_paNative.cam; _paNativeStop(); } }
+      else if(window._paNativeResume){ const c=window._paNativeResume; window._paNativeResume=null; const ov=document.getElementById('pa-detail');
+        if(ov&&ov.style.display!=='none'&&!(window._paScrub&&window._paScrub.playing)&&CONFIG.cameras[window._paCurCam]===c) _paStartLive(c); } });
+  }
+  return true;
+}
+// what the app says about the camera it is playing: size, live, waiting (trying again), error (given up)
+window._proosCamState=function(state, session, detail){
+  if(!_paNative||_paNative.session!==session) return;
+  if(state==='size'){ const m=String(detail).match(/^(\d+)x(\d+)$/); if(m) _paNative.size=[+m[1],+m[2]]; _paNativePlace(); return; }
+  if(state==='live'){ _paNative.live=true; _paNativePlace(); _paNativeShow(true); if(_paDetailTimer){ clearInterval(_paDetailTimer); _paDetailTimer=null; } return; }
+  if(state==='waiting'||state==='error'){ _paNative.live=false; _paNativeShow(false);
+    if(!_paDetailTimer && typeof window._paSnap==='function') _paDetailTimer=setInterval(window._paSnap,1200);
+    if(state==='error') _paNative=null; }
+};
 async function _paStartLive(cam){
   const vid=document.getElementById('pa-det-vid'), img=document.getElementById('pa-det-img');
   if(_paDetailTimer){ clearInterval(_paDetailTimer); _paDetailTimer=null; }
@@ -14133,8 +14205,10 @@ async function _paStartLive(cam){
       const src=await fetchCamWS(cam.entity); const im=document.getElementById('pa-det-img'); if(!im){ return; }
       if(!src){ im._proosLoading=false; return; }
       im.onload=im.onerror=()=>{ im._proosLoading=false; }; im.src=src; };
-    img._proosLoading=false; snap(); _paDetailTimer=setInterval(snap,1200); }
+    img._proosLoading=false; window._paSnap=snap; snap(); _paDetailTimer=setInterval(snap,1200); }
   if(vid) vid.style.display='none';
+  _paNativeStop();
+  if(await _paNativeStart(cam)) return;   // 1000: the Android app plays it on the screen's own video decoder
   if(vid && window.RTCPeerConnection){
     await _paWarmIce();
     // REGISTER 999 — LIVE ONLY WHEN THERE IS A PICTURE. Dave, 25 Oct, on the Connect Display: "garage and alfresco are
@@ -14176,7 +14250,7 @@ function _paDoorbellSheet(camEntity){
   sh.querySelector('.pa-dbmsg-x').onclick=()=>sh.remove();
   sh.onclick=e=>{ if(e.target===sh) sh.remove(); };
 }
-function closeProtectCamera(){ const ov=document.getElementById('pa-detail'); if(ov) ov.style.display='none'; document.body.style.overflow=''; if(window._paScrub) window._paScrub.playing=false; if(_paDetailRTC){ try{ _paDetailRTC.cleanup(); }catch(e){} _paDetailRTC=null; } const v=document.getElementById('pa-det-vid'); if(v){ try{ v.pause(); v.onended=null; v.onerror=null; v.ontimeupdate=null; v.srcObject=null; v.removeAttribute('src'); v.load(); }catch(e){} } const rec=document.getElementById('pa-fs-rec'); if(rec) rec.remove(); try{ if(_paTalk) _paTalkEnd(); if(_proosApp()) _proosAppPost('listen:off'); }catch(e){} if(_paDetailTimer){ clearInterval(_paDetailTimer); _paDetailTimer=null; } if(_paPipTimer){ clearInterval(_paPipTimer); _paPipTimer=null; } _paResumeGridVideos(); }
+function closeProtectCamera(){ try{ _paNativeStop(); }catch(e){} const ov=document.getElementById('pa-detail'); if(ov) ov.style.display='none'; document.body.style.overflow=''; if(window._paScrub) window._paScrub.playing=false; if(_paDetailRTC){ try{ _paDetailRTC.cleanup(); }catch(e){} _paDetailRTC=null; } const v=document.getElementById('pa-det-vid'); if(v){ try{ v.pause(); v.onended=null; v.onerror=null; v.ontimeupdate=null; v.srcObject=null; v.removeAttribute('src'); v.load(); }catch(e){} } const rec=document.getElementById('pa-fs-rec'); if(rec) rec.remove(); try{ if(_paTalk) _paTalkEnd(); if(_proosApp()) _proosAppPost('listen:off'); }catch(e){} if(_paDetailTimer){ clearInterval(_paDetailTimer); _paDetailTimer=null; } if(_paPipTimer){ clearInterval(_paPipTimer); _paPipTimer=null; } _paResumeGridVideos(); }
 function _paDetailSwipe(ov){
   if(!ov || ov._swipe) return; ov._swipe=true;
   let sx=0, sy=0, active=false;
@@ -14218,6 +14292,7 @@ function _fmtDay(t){ const d=new Date(t), n=new Date(); const key=x=>x.getFullYe
 function _paPlayEvent(i){ const e=(window._paCamEv||[])[i]; if(!e) return; window._paScrub={camId:e.camId, playing:false}; const from=(e.start||e.when)-2000; _paScrubPlayFrom(from); const lbl=document.getElementById('pa-sc-time'); if(lbl){ lbl.textContent=_fmtClock(e.when)+' · '+_fmtDay(e.when); lbl.classList.remove('live'); } }
 async function _paScrubPlayFrom(t){
   const s=window._paScrub; if(!s) return; s.playing=true; s.at=t;
+  try{ _paNativeStop(); }catch(e){}   // 1000: a recording plays in the page; the live player steps away
   if(_paDetailRTC){ try{ _paDetailRTC.cleanup(); }catch(e){} _paDetailRTC=null; }
   if(_paDetailTimer){ clearInterval(_paDetailTimer); _paDetailTimer=null; }
   const img=document.getElementById('pa-det-img'); if(img) img.style.display='none';
@@ -14277,9 +14352,12 @@ function _paTalkToggle(camName, btn){
 }
 function _paSoundOn(){
   const v=document.getElementById('pa-det-vid'), b=document.getElementById('pa-listen');
+  if(typeof _paNative!=='undefined' && _paNative){ if(!_paNative.sound && b) _paListen(b); return; }   // 1000
   if(v && v.muted && b) _paListen(b);
 }
 function _paListen(btn){
+  if(typeof _paNative!=='undefined' && _paNative){ _paNative.sound=!_paNative.sound; _paNativePost('cam:sound:'+(_paNative.sound?'on':'off'));   // 1000: the app's player
+    btn.classList.toggle('on', _paNative.sound); btn.querySelector('span').textContent=_paNative.sound?'Sound On':'Sound Off'; return; }
   const v=document.getElementById('pa-det-vid'); if(!v) return;
   const show=()=>{ btn.classList.toggle('on', !v.muted); btn.querySelector('span').textContent=v.muted?'Sound Off':'Sound On'; };
   v.muted=!v.muted;
