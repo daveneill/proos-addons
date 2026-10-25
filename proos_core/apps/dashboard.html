@@ -4702,7 +4702,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102517';
+const PROOS_BUILD='2026102518';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -21658,7 +21658,7 @@ body:has(#widget-picker.open) #widget-add-pill{display:none!important}   /* regi
 #bottom-nav .nav-btn span:not(#nav-climate-temp){
   display:block!important; font-size:var(--nb-label)!important; font-weight:400!important;
   letter-spacing:.12em!important; text-transform:uppercase!important;
-  white-space:nowrap!important; line-height:1!important;
+  white-space:nowrap!important; line-height:1.3!important;   /* 1003: at 1 the clip cut the tops off the capitals */
   max-width:100%!important; overflow:hidden!important; text-overflow:ellipsis!important;
   color:rgba(255,255,255,.55)!important;}   /* the 0.50 legibility floor, register 519 */
 #bottom-nav .nav-btn.lit span, #bottom-nav .nav-btn[aria-current] span{color:#fff!important}
