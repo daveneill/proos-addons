@@ -4687,7 +4687,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102506';
+const PROOS_BUILD='2026102507';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -19042,6 +19042,13 @@ function _proosAppPost(msg){
 function _proosAndroid(){
   try{ return !!(window.ProOSAndroid && typeof window.ProOSAndroid.post==='function'); }catch(e){ return false; }
 }
+// REGISTER 993f — NO TOUCH SQUARE IN THE ANDROID APP. Dave, 25 Oct: "you touch on a button it shows a square around the
+// button". That is Android's own tap highlight, which the page never turned off; the iPhone draws none. Off in the
+// Android app only (the iPad and iPhone are untouched); every button keeps its own pressed look.
+try{ if(_proosAndroid()){ document.documentElement.classList.add('proos-android');
+  const st=document.createElement('style'); st.id='proos-android-touch';
+  st.textContent='html.proos-android, html.proos-android *{-webkit-tap-highlight-color:transparent}';
+  document.head.appendChild(st); } }catch(e){}
 // REGISTER 990 — "HEY JARVIS" ON THE DISPLAY. Dave, 25 Oct 14:56: voice works on the Connect Display "but does not answer
 // to Hey Jarvis". The Android app now listens for the wake word itself, on the display's own microphone, with the
 // platform's own on-device wake word (microWakeWord, the hey_jarvis model the companion app ships) while ProOS is on the
@@ -19056,14 +19063,28 @@ function _proosSpeed(label){
   try{
     const t0=performance.now(); let frames=0, worst=0, last=t0, stalls=0;
     let obs=null; try{ obs=new PerformanceObserver(l=>{ stalls+=l.getEntries().length; }); obs.observe({entryTypes:['longtask']}); }catch(e){}
+    // 993e: WHAT keeps redrawing — the page's changes in the five seconds, by element (Dave: 7 frames a second untouched)
+    const _nm=el=>{ try{ el=el&&el.nodeType===1?el:(el&&el.parentElement); if(!el) return '?'; return (el.id?'#'+el.id:(el.tagName.toLowerCase()+(el.classList&&el.classList[0]?'.'+el.classList[0]:''))); }catch(e){ return '?'; } };
+    const muts={}; let mo=null;
+    try{ mo=new MutationObserver(list=>{ for(const m of list){ const k=_nm(m.target)+(m.type==='attributes'?'['+m.attributeName+']':''); muts[k]=(muts[k]||0)+1; } });
+      mo.observe(document.body,{subtree:true,childList:true,attributes:true,characterData:true}); }catch(e){}
     const step=now=>{ frames++; worst=Math.max(worst, now-last); last=now;
       if(now-t0<5000){ requestAnimationFrame(step); return; }
       try{ if(obs) obs.disconnect(); }catch(e){}
+      try{ if(mo) mo.disconnect(); }catch(e){}
+      const top=(o,n)=>Object.entries(o).sort((a,b)=>b[1]-a[1]).slice(0,n).map(([k,v])=>k+' '+v);
+      let anims=[], blur=[], els=0;
+      try{ anims=document.getAnimations().filter(a=>a.playState==='running').map(a=>(a.animationName||a.transitionProperty||'anim')+'@'+_nm(a.effect&&a.effect.target)); }catch(e){}
+      try{ const all=document.body.getElementsByTagName('*'); els=all.length;
+        for(const e of all){ const st=getComputedStyle(e); if(st.display==='none'||st.visibility==='hidden') continue;
+          const bf=st.backdropFilter||st.webkitBackdropFilter; if(bf&&bf!=='none'){ const r=e.getBoundingClientRect(); if(r.width*r.height>0) blur.push(_nm(e)+' '+Math.round(r.width)+'x'+Math.round(r.height)); } } }catch(e){}
       const nav=(performance.getEntriesByType&&performance.getEntriesByType('navigation')[0])||{};
       const out={page:label, fps:Math.round(frames*1000/(now-t0)), slowest_frame_ms:Math.round(worst), long_stalls:stalls,
         load_ms:Math.round(nav.loadEventEnd||0), dom_ms:Math.round(nav.domContentLoadedEventEnd||0),
         cameras:(CONFIG&&CONFIG.cameras||[]).length, ua:navigator.userAgent, build:PROOS_BUILD,
-        screen:screen.width+'x'+screen.height+'@'+(window.devicePixelRatio||1)};
+        screen:screen.width+'x'+screen.height+'@'+(window.devicePixelRatio||1),
+        changes:top(muts,10), running_animations:anims.slice(0,15), animations_count:anims.length,
+        blur_count:blur.length, blur:blur.slice(0,15), elements:els};
       try{ window.ProOSAndroid.post('perf:'+JSON.stringify(out)); }catch(e){}
     };
     requestAnimationFrame(step);
