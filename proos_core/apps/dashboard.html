@@ -4695,7 +4695,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102509';
+const PROOS_BUILD='2026102510';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -23411,10 +23411,16 @@ html.pp-on #app{visibility:hidden}
     [].slice.call(document.querySelectorAll('.page')).forEach(function(p){
       new MutationObserver(pillVis).observe(p,{attributes:true,attributeFilter:['class']}); });
     // watch the overlays themselves — they open by class OR inline style
-    _OVERLAYS.forEach(function(sel){ var e=document.querySelector(sel); if(e){
+    watchOverlays();
+    // overlays that are created on demand (the remote, app chooser) appear later — REGISTER 998: and are WATCHED when
+    // they appear. Found on the Android test device: open a camera (#pa-detail, made on first use), close it, and the
+    // navigation never came back — the camera view closes by its style, which nothing was watching, so the page kept
+    // thinking a popup covered it. Every device; the display has no other way off the camera page.
+    new MutationObserver(function(){ watchOverlays(); pillVis(); }).observe(document.body,{childList:true});
+  }
+  function watchOverlays(){
+    _OVERLAYS.forEach(function(sel){ var e=document.querySelector(sel); if(e && !e._proosVisWatched){ e._proosVisWatched=true;
       new MutationObserver(pillVis).observe(e,{attributes:true,attributeFilter:['class','style']}); } });
-    // overlays that are created on demand (the remote, app chooser) appear later
-    new MutationObserver(function(){ pillVis(); }).observe(document.body,{childList:true});
   }
   function syncEdge(){try{var rc=document.querySelector('#page-home .room-controls');if(rc){var p=getComputedStyle(rc).paddingLeft;if(p)document.documentElement.style.setProperty('--proos-edge',p);}}catch(e){}}
   if(!window._proosEdgeBound){window._proosEdgeBound=true;window.addEventListener('resize',syncEdge);}
