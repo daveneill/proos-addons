@@ -4704,7 +4704,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102522';
+const PROOS_BUILD='2026102523';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -10251,7 +10251,7 @@ function _peRender(){
   const q=((document.getElementById('pe-search')||{}).value||'').toLowerCase();
   const evs=all.filter(e=> (f==='all'||(e.kind||'').toLowerCase()===f) && (!q||((e.kind||'')+' '+(e.cam||'')).toLowerCase().indexOf(q)>=0));
   if(!evs.length){ list.innerHTML='<div class="pe-empty">'+(all.length?'No matching events':'No events in the last 24 hours')+'</div>'; return; }
-  list.innerHTML=evs.map(e=>{ const gi=all.indexOf(e); return `<div class="pe-row" onclick="playProtectClip(${gi})">`
+  list.innerHTML=evs.map(e=>{ const gi=all.indexOf(e); return `<div class="pe-row" onclick="${_peTap(e,'pe-th'+gi)}">`
     +`<div class="pe-thumb pa-load" id="pe-th${gi}"></div>`
     +`<div class="pe-meta"><div class="pe-kind">${_hEsc(e.kind)}</div><div class="pe-cam">${_hEsc(e.cam)}</div></div>`
     +`<div class="pe-time">${_hEsc(_agoStr(e.when))}</div></div>`; }).join('');
@@ -10262,12 +10262,21 @@ function _peRender(){
 // placeholder for a video with no picture yet (the iPhone draws none). Every video now carries a picture to show while
 // it loads: a clip, its event's own snapshot; a live view, plain black.
 const _NO_POSTER='data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
-function _clipPoster(i){
-  try{ const th=document.getElementById('pe-th'+i); const m=th&&String(th.style.backgroundImage||'').match(/url\(["']?(.*?)["']?\)$/); if(m&&m[1]) return m[1]; }catch(e){}
+// REGISTER 1007 — A TILE PLAYS ITS OWN EVENT. Dave, 26 Oct: the strip on the cameras page played a different event from
+// its picture. Each tile held a POSITION in window._peEvents, a list the Events tab replaces and every new motion event
+// shifts. Every tile now names its event by the event's own id; the events seen are kept here by that id.
+const _peById=new Map(); const _PE_KEEP=2000;
+function _peKey(e){ return String((e&&e.event_id)||((e&&e.camId)+'@'+(e&&e.when))).replace(/[^\w.:@-]/g,'_'); }
+function _peKnow(list){ (list||[]).forEach(e=>{ if(!e) return; const k=_peKey(e); _peById.delete(k); _peById.set(k,e); });
+  while(_peById.size>_PE_KEEP) _peById.delete(_peById.keys().next().value); return list; }
+function _peEvent(ref){ return typeof ref==='number' ? (window._peEvents||[])[ref] : _peById.get(String(ref)); }
+function _peTap(e, thumbId){ return `playProtectClip('${_peKey(e)}','${thumbId}')`; }
+function _clipPoster(thumbId){
+  try{ const th=document.getElementById(thumbId); const m=th&&String(th.style.backgroundImage||'').match(/url\(["']?(.*?)["']?\)$/); if(m&&m[1]) return m[1]; }catch(e){}
   return _NO_POSTER;
 }
-async function playProtectClip(i){
-  const e=(window._peEvents||[])[i]; if(!e) return;
+async function playProtectClip(ref, thumbId){
+  const e=_peEvent(ref); if(!e) return; const key=_peKey(e);
   let src='';
   if(e.source==='ha'){ src=await _peVideoUrl(e.camId, e.start-2000, Math.max(e.end, e.start+5000)+2000); }   // 692: the platform's own clip
   else { const nvr=window._peNvr, camE=_eventCam(e.eid); if(nvr&&camE){ const t=new Date(e.when).getTime(); const s=new Date(t-15000).toISOString(), en=new Date(t+15000).toISOString(); src=await _signPath(`/api/unifiprotect/video/${nvr}/${camE}/${s}/${en}`); } }
@@ -10275,12 +10284,12 @@ async function playProtectClip(i){
   let vo=document.getElementById('pe-video-ov');
   if(!vo){ vo=document.createElement('div'); vo.id='pe-video-ov'; vo.className='pe-ov'; vo.style.zIndex='900'; vo.onclick=(ev)=>{ if(ev.target===vo) vo.remove(); }; document.body.appendChild(vo); }
   vo.innerHTML=`<div class="pe-vwrap"><button class="pe-x" style="position:absolute;top:8px;right:8px;z-index:2" onclick="var v=document.getElementById('pe-video-ov');if(v)v.remove()">&#10005;</button>`
-    +`<div class="pe-vbox"><video src="${src}" poster="${_hEsc(_clipPoster(i))}" controls autoplay playsinline onerror="_clipFallback(${i})" style="width:100%;display:block;background:#000"></video></div>`
+    +`<div class="pe-vbox"><video src="${src}" poster="${_hEsc(_clipPoster(thumbId||''))}" controls autoplay playsinline onerror="_clipFallback('${key}')" style="width:100%;display:block;background:#000"></video></div>`
     +`<div class="pe-vmeta">${_hEsc(e.kind)} &middot; ${_hEsc(e.cam)} &middot; ${_hEsc(_agoStr(e.when))}</div></div>`;
   vo.style.display='flex';
   const _vv=vo.querySelector('video'); if(_vv) _pinchZoom(_vv);
 }
-function _clipFallback(i){ const vo=document.getElementById('pe-video-ov'); if(vo) vo.remove(); const e=(window._peEvents||[])[i]; const camE=(e&&e.eid)?_eventCam(e.eid):null; if(camE) _openProtectCam(camE); }
+function _clipFallback(ref){ const vo=document.getElementById('pe-video-ov'); if(vo) vo.remove(); const e=_peEvent(ref); const camE=(e&&e.eid)?_eventCam(e.eid):null; if(camE) _openProtectCam(camE); }
 
 // ── ANY ONE THING: the domains ProOS can render honestly, and nothing else ──
 // (register 377.) A domain is in this list only when the tile can say what the
@@ -13967,7 +13976,7 @@ function _paRenderLive(){
 let _paDetTimer=null;
 async function _paUpdateDetections(){
   const evs=await _pTimeout(_loadProtectEventsPC(),9000,[]);
-  const events=Array.isArray(evs)?evs:[]; window._peEvents=events; await _pcWarmCams();
+  const events=Array.isArray(evs)?evs:[]; window._peEvents=_peKnow(events); await _pcWarmCams();
   const counts={}; events.forEach(e=>{ counts[e.kind]=(counts[e.kind]||0)+1; });
   const order=['Motion','Person','Vehicle','Animal','Face','Package'];
   const row=order.filter(k=>counts[k]).map(k=>`<div class="pa-count"><span class="pa-count-ico">${_paTypeIcon(k)}</span><span class="pa-count-lbl">${k==='Person'?'People':_hEsc(k)}</span><span class="pa-count-n">${counts[k]}</span></div>`).join('');
@@ -13981,7 +13990,7 @@ async function _paUpdateDetections(){
   const strip=document.getElementById('pa-strip');
   if(strip && sig!==window._paStripSig){
     window._paStripSig=sig;
-    strip.innerHTML=smart.map((e,i)=>{ const gi=events.indexOf(e); const nm=(e.camId&&_pcCamMap&&_pcCamMap[e.camId])||e.cam||''; return `<div class="pa-strip-cell" onclick="playProtectClip(${gi})"><div class="pa-strip-thumb pa-load" id="pa-strip-th${i}"><span class="pa-strip-ico">${_paTypeIcon(e.kind)}</span></div><div class="pa-strip-meta"><span class="pa-strip-time">${_hEsc(_agoStr(e.when))}</span></div></div>`; }).join('');
+    strip.innerHTML=smart.map((e,i)=>{ const gi=events.indexOf(e); const nm=(e.camId&&_pcCamMap&&_pcCamMap[e.camId])||e.cam||''; return `<div class="pa-strip-cell" onclick="${_peTap(e,'pa-strip-th'+i)}"><div class="pa-strip-thumb pa-load" id="pa-strip-th${i}"><span class="pa-strip-ico">${_paTypeIcon(e.kind)}</span></div><div class="pa-strip-meta"><span class="pa-strip-time">${_hEsc(_agoStr(e.when))}</span></div></div>`; }).join('');
     smart.forEach((e,i)=>{ const cell=document.getElementById('pa-strip-th'+i); if(!cell||cell.dataset.done) return; cell.dataset.done='1'; _peLazy(cell, e, url=>_peShow('pa-strip-th'+i, url)); });
   }
 }
@@ -14075,7 +14084,7 @@ let _paEvList=null, _paEvAt=0, _paEvLoading=null;
 function _paEvFetch(){
   if(_paEvLoading) return _paEvLoading;
   _paEvLoading=_pTimeout(_loadProtectEventsPC(72,500),15000,null).then(evs=>{
-    if(Array.isArray(evs)){ _paEvList=evs.filter(e=>_PA_SMART.has((e.kind||'').toLowerCase())); _paEvAt=Date.now(); }
+    if(Array.isArray(evs)){ _paEvList=_peKnow(evs.filter(e=>_PA_SMART.has((e.kind||'').toLowerCase()))); _paEvAt=Date.now(); }
     return _paEvList;
   }).finally(()=>{ _paEvLoading=null; });
   return _paEvLoading;
@@ -14127,7 +14136,7 @@ function _paEvRender(){
   const evs=all.filter(e=>f==='all'||kmatch(e.kind));
   if(!evs.length){ const err=window._peLoadErr; grid.innerHTML='<div class="pe-empty">'+(all.length?'No matching events':(err?('Events unavailable — '+_hEsc(err)):'No recent events'))+'</div>'; return; }
   // 1004: a screenful at a time — more are added as the last tile comes near the bottom
-  const tile=e=>{ const gi=all.indexOf(e); return `<div class="pa-eg-cell pa-load" id="paeg${gi}" onclick="playProtectClip(${gi})">`
+  const tile=e=>{ const gi=all.indexOf(e); return `<div class="pa-eg-cell pa-load" id="paeg${gi}" onclick="${_peTap(e,'paeg'+gi)}">`
     +`<div class="pa-eg-top"><div class="pa-eg-cam">${_hEsc(e.cam)}</div><div class="pa-eg-time">${_hEsc(_agoStr(e.when))}</div></div>`
     +`<div class="pa-eg-bot"><span class="pa-eg-ico">${_paTypeIcon(e.kind)}</span></div></div>`; };
   const wire=list=>list.forEach(e=>{ const gi=all.indexOf(e); const cell=document.getElementById('paeg'+gi); if(!cell||cell.dataset.done) return; cell.dataset.done='1';
