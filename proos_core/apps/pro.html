@@ -2880,7 +2880,7 @@ body.v3 .rh-card{border-radius:22px}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102504';
+const PROOS_BUILD='2026102505';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -11907,7 +11907,7 @@ async function renderSite(){
   setHTML(body, '<div class="empty"><div class="et">Reading site…</div></div>');
   let cfg={};
   try{ const r=await snd({type:'get_config'}); cfg=r.result||{}; }catch(e){}
-  const lat=cfg.latitude, lon=cfg.longitude, elev=cfg.elevation, tz=cfg.time_zone||'—';
+  const lat=cfg.latitude, lon=cfg.longitude, elev=cfg.elevation, tz=cfg.time_zone||'';
   const name=cfg.location_name||homeName()||'';
   const units=(cfg.unit_system&&cfg.unit_system.temperature==='°F')?'us_customary':'metric';
   const wx=_states.find(s=>s.entity_id&&s.entity_id.indexOf('weather.')===0);
@@ -11929,15 +11929,39 @@ async function renderSite(){
     `</div>`+
     `<div class="field"><div class="field-label">Elevation (m)</div><input id="site-elev" type="text" inputmode="numeric" value="${elev!=null?elev:''}" placeholder="0"/></div>`+
     `<div class="field"><div class="field-label">Units</div><select class="fsel" id="site-units"><option value="metric"${units==='metric'?' selected':''}>Metric (°C, km)</option><option value="us_customary"${units==='us_customary'?' selected':''}>US (°F, mi)</option></select></div>`+
+    // REGISTER 1002 — the time zone and country are the installer's to see and set (Dave, 25 Oct: Jarvis said "10:15 AM"
+    // at 9:15 pm; the box had never been told — UTC, no country). Core fills them from the platform's own location
+    // service on a box never told; here they are shown and can be changed, and saved with the location.
+    `<div style="display:flex;gap:10px">`+
+      `<div class="field" style="flex:1"><div class="field-label">Time Zone</div><select class="fsel" id="site-tz">${_siteZoneOptions(tz, !cfg.country)}</select></div>`+
+      `<div class="field" style="flex:1"><div class="field-label">Country</div><select class="fsel" id="site-country">${_siteCountryOptions(cfg.country||'')}</select></div>`+
+    `</div>`+
     `<button class="btn-primary" id="site-save" onclick="saveSite()">Save Location</button>`+
     `<div id="site-verify"></div>`+
     `<div class="section-label" style="margin-top:26px">Current</div>`+
-    `<div class="row"><div class="rl">Time zone<div class="es" style="font-size:11px;color:var(--t3);font-weight:300;margin-top:3px">Set at onboarding · unchanged by location</div></div><div class="rr">${esc(tz)}</div></div>`+
+    `<div class="row"><div class="rl">Time Zone</div><div class="rr">${esc(tz||'Not Set')}</div></div>`+
     (wxName?`<div class="row"><div class="rl">Weather Resolves To</div><div class="rr">${esc(wxName)}</div></div>`:''));
   _siteInitMap(lat,lon);
   if(isFinite(lat)&&isFinite(lon)){ _siteReverse(lat,lon); }
 }
 
+// 1002: every time zone and country the browser itself knows (no list kept in ProOS); the box's own value always present
+function _siteZoneOptions(cur, untold){
+  // a box never told (UTC and no country) has made no choice: it shows Choose…, not UTC as if someone picked it
+  if(untold && cur==='UTC') cur='';
+  let zones=[]; try{ zones=Intl.supportedValuesOf('timeZone'); }catch(e){}
+  if(cur && zones.indexOf(cur)<0) zones=[cur].concat(zones);
+  const unset=!cur ? '<option value="" selected>Choose…</option>' : '';
+  return unset+zones.map(z=>`<option value="${esc(z)}"${z===cur?' selected':''}>${esc(z.replace(/_/g,' '))}</option>`).join('');
+}
+function _siteCountryOptions(cur){
+  let dn=null; try{ dn=new Intl.DisplayNames(['en'],{type:'region'}); }catch(e){}
+  const out=[]; const A='ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  for(const a of A) for(const b of A){ const c=a+b; let n=''; try{ n=dn?dn.of(c):''; }catch(e){ n=''; } if(n && n!==c && !/Unknown/i.test(n)) out.push([c,n]); }
+  out.sort((x,y)=>x[1].localeCompare(y[1]));
+  if(cur && !out.some(o=>o[0]===cur)) out.unshift([cur,cur]);
+  return '<option value=""'+(!cur?' selected':'')+'>Choose…</option>'+out.map(o=>`<option value="${o[0]}"${o[0]===cur?' selected':''}>${esc(o[1])}</option>`).join('');
+}
 function siteUseGPS(){
   if(!navigator.geolocation){ toast('No location on this device'); return; }
   toast('Getting location…');
@@ -11959,16 +11983,18 @@ async function saveSite(){
   const elev=elevRaw===''?0:parseFloat(elevRaw);
   const name=(document.getElementById('site-name').value||'').trim();
   const units=document.getElementById('site-units').value;
+  const tzSel=(document.getElementById('site-tz')||{}).value||'', ctySel=(document.getElementById('site-country')||{}).value||'';
   if(!isFinite(lat)||lat<-90||lat>90||!isFinite(lon)||lon<-180||lon>180){ toast('Pick a location on the map or search an address'); return; }
   if(btn){ btn.disabled=true; btn.textContent='Saving…'; }
   try{
     // Location via the documented service — reliable on storage-backed (UI-onboarded) installs.
     await snd({type:'call_service',domain:'homeassistant',service:'set_location',service_data:{latitude:lat,longitude:lon,elevation:isFinite(elev)?elev:0}});
     // Name + units via core config update — best-effort; YAML-locked installs reject it.
-    try{ const upd={unit_system:units}; if(name) upd.location_name=name; await snd({type:'config/core/update',...upd}); }catch(e){}
+    try{ const upd={unit_system:units}; if(name) upd.location_name=name; if(tzSel) upd.time_zone=tzSel; if(ctySel) upd.country=ctySel;   // 1002
+      await snd({type:'config/core/update',...upd}); }catch(e){}
     // Verify don't assume: re-read config and confirm the coordinates landed;
     // the name is whatever the platform now says it is (register 438).
-    let ok=false; try{ const r=await snd({type:'get_config'}); const c=r.result||{}; ok=Math.abs((c.latitude||0)-lat)<0.001&&Math.abs((c.longitude||0)-lon)<0.001;
+    let ok=false; try{ const r=await snd({type:'get_config'}); const c=r.result||{}; ok=Math.abs((c.latitude||0)-lat)<0.001&&Math.abs((c.longitude||0)-lon)<0.001&&(!tzSel||c.time_zone===tzSel);
       if(c.location_name){ _haLocationName=c.location_name; const hn=document.getElementById('hero-name'); if(hn) hn.textContent=_haLocationName; if(_readiness) _readiness.name=_haLocationName; } }catch(e){}
     await loadSite();
     renderSite();

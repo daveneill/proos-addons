@@ -5512,6 +5512,7 @@ proos/panelshot.py
 proos/platform_backup.py
 proos/platform_entries.py
 proos/platformaddr.py
+proos/homelocale.py
 proos/platformdoor.py
 proos/platformsearch.py
 proos/platformupdates.py

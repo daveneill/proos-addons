@@ -11401,6 +11401,26 @@ def main():
                     print("  panel · this box is a wall panel: setting itself up (register 940)")
                 except Exception as _pse:  # noqa: BLE001
                     print(f"  panel · set-up not started: {_pse}")
+            # THE BOX KNOWS WHERE IN THE WORLD IT IS (register 1002). A box never told its time zone and country (UTC,
+            # none — every box ProOS onboarded) asks the platform's own location service once and writes the answer;
+            # a box a person has told is never touched. A pass every ten minutes until done (it needs the internet).
+            try:
+                from proos import homelocale as _hl
+
+                def _hl_loop():
+                    while True:
+                        try:
+                            _h = _hl.ensure(_ws_call)
+                            if _h.get("changed") or _h.get("error"):
+                                print(f"  locale · {_h}", flush=True)
+                            if _h.get("done"):
+                                return
+                        except Exception as _he:  # noqa: BLE001
+                            print(f"  locale · pass failed: {_he}", flush=True)
+                        time.sleep(600)
+                threading.Thread(target=_hl_loop, name="home-locale", daemon=True).start()
+            except Exception as _hse:  # noqa: BLE001
+                print(f"  locale · not started: {_hse}")
             # THE BOX'S ADDRESS IS ProOS'S (register 945). On a box whose platform is bound inside the box (the ProOS
             # image), the address the platform gives out for itself is kept at the box's own address — ProOS's door —
             # and moved when the box's address moves. A box whose platform listens on the home's network is untouched.
