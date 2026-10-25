@@ -4702,7 +4702,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102520';
+const PROOS_BUILD='2026102521';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -14023,6 +14023,44 @@ function _paTileLive(i, entity){
   _paGridRTC.push(rtc);
 }
 // ── Events tab — "Find Anything" style thumbnail grid ──
+// REGISTER 1005 — THE MICROPHONE TEST (Android app). Dave, 26 Oct: "I said turn office lights on multiple times and it would
+// read back turn off is lights on .. is there mic setting that can improve it". The app records the sentence three
+// times in each of the screen's three microphone modes and puts each take through the home's own speech-to-text; this
+// card shows each take as it happens and the words heard. The results also go to ProOS Connect.
+const _MT_SENTENCE='Turn the office lights on';
+function micTestOpen(){
+  let p=document.getElementById('mt-pop');
+  if(!p){ p=document.createElement('div'); p.id='mt-pop'; p.className='sg-pop'; p.onclick=e=>{ if(e.target===p && !window._mtRunning) micTestClose(); }; document.body.appendChild(p); }
+  p.innerHTML='<div class="sg-pop-card"><div class="sg-pop-hd"><b>Test Microphone</b><button type="button" id="mt-done" onclick="micTestClose()">Close</button></div>'
+    +'<div style="padding:18px 20px 22px">'
+    +'<div id="mt-step" style="font-size:13px;color:rgba(255,255,255,.6);letter-spacing:.04em">Stand where you normally talk to this screen.</div>'
+    +'<div id="mt-say" style="font-size:30px;font-weight:200;letter-spacing:-.5px;margin:14px 0 6px">When asked, say: \u201C'+_MT_SENTENCE+'\u201D</div>'
+    +'<div id="mt-now" style="font-size:15px;color:rgba(255,255,255,.75);min-height:22px"></div>'
+    +'<div id="mt-list" style="margin-top:14px;font-size:13px;line-height:1.7;color:rgba(255,255,255,.8);max-height:240px;overflow:auto"></div>'
+    +'<button type="button" id="mt-go" class="set-btn-primary" style="margin-top:16px;padding:10px 20px" onclick="micTestStart()">Start</button>'
+    +'</div></div>';
+  p.classList.add('open');
+}
+function micTestClose(){ const p=document.getElementById('mt-pop'); if(p) p.classList.remove('open'); }
+function micTestStart(){
+  const go=document.getElementById('mt-go'); if(go) go.style.display='none';
+  window._mtRunning=true;
+  if(!(window.ProOSAndroid && window.ProOSAndroid.post('mictest:start '+_MT_SENTENCE))){ window._mtRunning=false; const n=document.getElementById('mt-now'); if(n) n.textContent='This app version cannot run the test — install the newest ProOS app.'; }
+}
+window._proosMicTest=function(raw){
+  let m={}; try{ m=typeof raw==='string'?JSON.parse(raw):raw; }catch(e){ return; }
+  const step=document.getElementById('mt-step'), say=document.getElementById('mt-say'), now=document.getElementById('mt-now'), list=document.getElementById('mt-list');
+  if(!step) return;
+  if(m.phase==='ready'){ step.textContent='Take '+m.take+' of '+m.of+' \u00b7 '+m.mode; say.textContent='Get ready\u2026'; now.textContent=''; }
+  else if(m.phase==='speak'){ say.textContent='Say: \u201C'+m.sentence+'\u201D'; now.textContent='Listening\u2026'; }
+  else if(m.phase==='hearing'){ now.textContent='Checking what your home heard\u2026'; }
+  else if(m.phase==='heard'){ now.textContent='Heard: \u201C'+m.heard+'\u201D';
+    const row=document.createElement('div'); row.textContent=m.take+'. '+m.mode+' \u2014 \u201C'+m.heard+'\u201D'; list.appendChild(row); list.scrollTop=list.scrollHeight; }
+  else if(m.phase==='done'){ window._mtRunning=false;
+    if(m.error){ say.textContent='The test stopped'; now.textContent=m.error; return; }
+    step.textContent='Done'; say.textContent='Thank you'; now.textContent='The results have been sent to ProOS for the setting to be chosen.'; }
+};
+
 // REGISTER 1004 — THE EVENTS TAB OPENS AT ONCE. Dave, 26 Oct: "when you go to the events it loads the page with all the
 // events this is slow … can it be improved". Read on the test device: the list ~0.7 s, then 199 tiles drawn together
 // and every picture on screen after ~6 s. Now: (1) the list fetched while the Live tab is showing is shown the moment
@@ -14686,6 +14724,7 @@ function renderSettings(){
       </div>
       ${ssSettingRow()}
       ${retSettingRow()}
+      ${(typeof _proosAndroid==='function'&&_proosAndroid())?`<div class="set-row" style="cursor:pointer" onclick="micTestOpen()"><div class="sg-tx"><div class="set-label">Test Microphone</div><div class="set-field-hint sg-in">Say one sentence nine times so ProOS can choose the setting this screen hears you best with.</div></div><div class="set-value">&rsaquo;</div></div>`:''}
     </div>
     ${_installerMode ? `
     <div class="set-section">
