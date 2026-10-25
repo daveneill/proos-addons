@@ -217,6 +217,13 @@ img,video,.widget-cell,.pa-cam,.pw,.pw-door,.pa-eg-cell,.pa-strip-cell,.pa-tl-it
 #view{position:relative;z-index:1;overflow:hidden;height:100%}
 .page{position:absolute;inset:0;overflow:hidden;display:flex;flex-direction:column;opacity:0;pointer-events:none;transition:opacity var(--m-page) var(--e-standard)}
 .page.active{opacity:1;pointer-events:all}
+/* REGISTER 996 — A PAGE THAT IS NOT SHOWING IS NOT DRAWN. Read on the Connect Display (its own report): every page the
+   dashboard has — Rooms, Climate, Lights, Scenes, Media … — sat full-screen behind the one showing, at opacity 0, each
+   with its frosted glass still being drawn, every frame: 50 to 82 blurred surfaces for one visible page. The iPad's chip
+   hid the waste; the display could not. A page now hides once its fade-out has finished (visibility follows the opacity
+   transition), so nothing looks different on any device — the screen just stops drawing what nobody can see. */
+.page{visibility:hidden;transition:opacity var(--m-page) var(--e-standard),visibility var(--m-none) linear var(--m-page)}
+.page.active{visibility:visible;transition:opacity var(--m-page) var(--e-standard),visibility var(--m-none)}
 .page:not(#page-home){background:rgba(0,0,0,0.60);-webkit-backdrop-filter:blur(18px) saturate(1.15);backdrop-filter:blur(18px) saturate(1.15)}
 
 /* ── HOME PAGE ── */
@@ -3033,6 +3040,7 @@ select option,select optgroup{background:#1a1c20;color:#fff}
   --m-tap:120ms;
   --m-move:320ms;
   --m-page:520ms;
+  --m-none:0s;   /* 996: a change that happens at once — the moment a hidden page is shown */
   /* REGISTER 508. A listening ring is not a transition, it is a heartbeat, and
      it is the one duration in the product that must NOT step down away from
      home or flatten under reduced motion - it is how a person knows the
@@ -4687,7 +4695,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102508';
+const PROOS_BUILD='2026102509';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -12592,7 +12600,9 @@ function renderGlobalControls(){
   // Widget grid handles all status cards now
   renderWidgetGrid();
 
-  renderGlobalMediaStrip();
+  // 996: the Media page's players are drawn when the Media page is showing (showPage draws them on arrival) — read on
+  // the display: this rebuilt them 8 times in 5 s behind the home page, restarting every scrolling title each time
+  if(curPage==='media') renderGlobalMediaStrip();
   applyMobileHomeStyles();
 }
 
@@ -12841,11 +12851,16 @@ function renderGlobalMediaStrip(){
   const titleEl=document.getElementById('media-page-title');
   if(!ms) return;
   if(!cards.length){
-    ms.innerHTML='';
+    ms.innerHTML=''; ms._proosHtml='';
     if(idleMsg) idleMsg.style.display='';
     if(titleEl) titleEl.textContent='All Players';
   } else {
-    ms.innerHTML=cards.join('');
+    // 996: the same players drawn again are left as they are — rebuilding identical cards restarted every scrolling
+    // title and redrew the page on each update (the progress line moves on its own, _mpcProg)
+    const _html=cards.join('');
+    if(ms._proosHtml===_html && ms.children.length){ try{ _mpcProg(); }catch(e){} return; }
+    ms._proosHtml=_html;
+    ms.innerHTML=_html;
     try{ _mpcProg(); }catch(e){}
     if(idleMsg) idleMsg.style.display='none';
     if(titleEl) titleEl.textContent=cards.length+' playing now';
