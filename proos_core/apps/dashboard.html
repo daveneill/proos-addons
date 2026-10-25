@@ -4695,7 +4695,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102510';
+const PROOS_BUILD='2026102511';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -14130,7 +14130,13 @@ async function _paStartLive(cam){
   if(vid) vid.style.display='none';
   if(vid && window.RTCPeerConnection){
     await _paWarmIce();
-    vid.onplaying=()=>{ vid.style.display=''; if(img) img.style.display='none'; if(_paDetailTimer){ clearInterval(_paDetailTimer); _paDetailTimer=null; } };
+    // REGISTER 999 — LIVE ONLY WHEN THERE IS A PICTURE. Dave, 25 Oct, on the Connect Display: "garage and alfresco are
+    // about the only cameras that load … the rest fail". Read on the Android test device: the G3 Flex cameras arrive as
+    // live video (1920×1080); the G4s and the G6 Entry send their SOUND but no picture to this screen's web engine — and
+    // sound alone is enough to make the player "play", so the snapshot was taken away and its refresh stopped: a black
+    // screen. The snapshot now stays, refreshing, until the video has a picture of its own (its width is known).
+    const goLive=()=>{ if(!vid.videoWidth) return; vid.style.display=''; if(img) img.style.display='none'; if(_paDetailTimer){ clearInterval(_paDetailTimer); _paDetailTimer=null; } };
+    vid.onplaying=goLive; vid.onresize=goLive;
     _paDetailRTC=_paWebRTC(cam.entity, vid, ()=>{ /* keep snapshot */ });
   }
 }
