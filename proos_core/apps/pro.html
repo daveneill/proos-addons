@@ -1825,6 +1825,70 @@ body.v3 .rh-card,body.v3 .sys-tile,body.v3 .hlt-stat,body.v3 .cred-card,body.v3 
 body.v3 .rh-card{border-radius:22px}
 /* the page owns its width beside the list on an iPad in portrait */
 @media (max-width:1023px){ #app.v3{--v3r:76px;--v3s:260px} #app.v3 .v2item>span:not(.v2badge),#app.v3 .v2rail .v2logo span,#app.v3 .v2rail .v2foot{display:none} #app.v3 .v2item{justify-content:center;padding:0} }
+/* ── REGISTER 1010 — ONE MENU (26 Oct 2026; mockups "Pro One Menu Mockups", Dave: "Love it .. Build") ──────────
+   The section lists that stood beside the rail as a second menu now open INSIDE the rail, under their section.
+   Wide screens: the menu stands open at 248px and the page gets everything else. iPad portrait (and Slide Back):
+   icons only; choosing a section with a list opens the whole menu over the page. */
+#app.v3{--v3r:248px}
+body.railmin #app.v3{--v3r:76px}
+body.v3-side #app.v3 .scroll{padding-left:0}
+.v3side{display:none!important}
+#app.v3 .v2rail{overflow-y:auto;overflow-x:hidden;scrollbar-width:none}
+#app.v3 .v2rail::-webkit-scrollbar{display:none}
+#app.v3 .v2rail>*{flex:none}
+#app.v3 .v2item .v3chev{width:14px;height:14px;margin-left:auto;fill:none;stroke:rgba(255,255,255,.32);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:transform .18s}
+#app.v3 .v2item.v3open .v3chev{transform:rotate(90deg);stroke:rgba(255,255,255,.7)}
+#app.v3 .v2item.v3open{margin-bottom:2px}
+.v3acc{margin:0 4px 8px 24px;padding:2px 0 2px 12px;border-left:1px solid rgba(255,255,255,.1);display:flex;flex-direction:column}
+.v3acc .v3si{min-height:38px;padding:6px 10px;font-size:14px;color:rgba(255,255,255,.72);border-radius:11px;gap:10px;margin:0 0 1px}
+.v3acc .v3si.on{color:#fff;font-weight:600}
+.v3acc .v3si .v3ic{display:none}
+.v3acc .v3si .v3th{width:22px;height:22px;border-radius:6px}
+.v3acc .v3si.l1{padding-left:10px}
+.v3acc .v3si .v3ct{font-size:12px}
+.v3acc .v3grp{padding:10px 10px 4px;font-size:11px;letter-spacing:.6px}
+.v3acc .v3add2{background:none;border:0;font:inherit;font-size:14px;color:#8ea0ff;text-align:left;cursor:pointer;width:100%}
+body.railmin #app.v3 .v3acc{display:none}
+body.railmin #app.v3 .v2item .v3chev{display:none}
+@media (max-width:1023px){ #app.v3{--v3r:76px} #app.v3 .v3acc,#app.v3 .v2item .v3chev{display:none} }
+/* the menu opened over the page */
+.v3mdim{position:fixed;inset:0;z-index:880;background:rgba(0,0,0,.5);display:none}
+body.v3menu-open .v3mdim{display:block}
+body.v3menu-open #app.v3 .v2rail{width:290px;z-index:890;padding-left:10px;padding-right:10px;background:rgba(28,28,33,.97);box-shadow:0 30px 80px rgba(0,0,0,.55)}
+body.v3menu-open #app.v3 .v2rail .v2item{justify-content:flex-start;padding:0 14px}
+body.v3menu-open #app.v3 .v2rail .v2item>span:not(.v2badge),body.v3menu-open #app.v3 .v2rail .v2logo span,body.v3menu-open #app.v3 .v2rail .v2foot{display:inline}
+body.v3menu-open #app.v3 .v2rail .v2logo{justify-content:flex-start;padding-left:10px}
+body.v3menu-open #app.v3 .v2rail .v3acc{display:flex}
+body.v3menu-open #app.v3 .v2rail .v2item .v3chev{display:block}
+body.v3menu-open #app.v3 .v2rail .v2item.v2collapse svg{transform:none}
+/* Awareness opens beside the menu, wherever its edge is */
+body.v3 .aw-screen{left:280px!important}
+body.v3.railmin .aw-screen{left:108px!important}
+@media (max-width:1023px){ body.v3 .aw-screen{left:108px!important} }
+/* Devices: a room is chosen on the page */
+.v3rooms{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:4px 22px 12px}
+.v3rooms-l{font-size:12.5px;color:rgba(255,255,255,.45);margin-right:4px}
+.v3rooms .v3chip{border:0;font:inherit;font-size:13px;padding:6px 12px}
+.v3rooms .v3chip.on{background:#fff;color:#111}
+.v3rooms .v3chip .v3ct{opacity:.55;margin-left:2px}
+/* ── 1010: INTEGRATION TILES — the name always gets the width (two lines if it needs them), the buttons have
+   their own row under it, ProOS Certified reads as a blue edge and the words. Three across on an iPad either way
+   round, four on the Mac. */
+#app.v3 #panel-library .itile{display:grid;grid-template-columns:46px minmax(0,1fr) auto;align-items:center;column-gap:12px;row-gap:12px;min-height:78px;padding:14px;border-radius:18px}
+#app.v3 #panel-library .itile-ico{width:46px;height:46px;border-radius:12px;grid-column:1;grid-row:1}
+#app.v3 #panel-library .itile-ico .intg-logo,#app.v3 #panel-library .itile-ico .intg-mono{width:30px;height:30px}
+#app.v3 #panel-library .itile-foot{display:contents}
+#app.v3 #panel-library .itile-body{grid-column:2;grid-row:1;min-width:0}
+#app.v3 #panel-library .itile-act{grid-column:3;grid-row:1}
+#app.v3 #panel-library .itile-act:has(button){grid-column:1/-1;grid-row:2;display:flex;gap:8px}
+#app.v3 #panel-library .itile-act:has(button) button{flex:1;min-height:36px;border-radius:12px;padding:0 10px;font-size:13.5px}
+#app.v3 #panel-library .itile-act:has(button) .itile-chev{display:none}
+#app.v3 #panel-library .itile-nm{font-size:15px;font-weight:600;white-space:normal;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;line-height:1.25}
+#app.v3 #panel-library .itile-sub{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;text-transform:none}
+#app.v3 #panel-library .itile .cert-pill{display:none}
+#app.v3 #panel-library .itile:has(.cert-pill){border:1px solid rgba(110,130,255,.32);background:rgba(33,57,240,.09)!important}
+#app.v3 #panel-library .itile-body:has(.cert-pill) .itile-sub::before{content:"ProOS Certified";color:#aab4ff;display:block}
+#app.v3 #panel-library .itile-body:has(.cert-pill):not(:has(.itile-sub))::after{content:"ProOS Certified";color:#aab4ff;font-size:12.5px;display:block;margin-top:3px}
 
 /* TB-01: the old dev console is folded into Developer — its empty holder takes no space */
 #app.v3 .tbx-dev:empty{display:none}
@@ -2880,7 +2944,7 @@ body.v3 .rh-card{border-radius:22px}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102505';
+const PROOS_BUILD='2026102601';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -20287,6 +20351,9 @@ function v2AssistFab(){
   else openAssist();
 }
 function v2RailToggle(){
+  // 1010: on an iPad in portrait the rail is always icons — this opens the whole menu over the page instead
+  if(document.body.classList.contains('v3menu-open')){ v3MenuClose(); return; }
+  if(window.matchMedia&&window.matchMedia('(max-width:1023px)').matches){ v3MenuOpen(); return; }
   const min=document.body.classList.toggle('railmin');
   try{ localStorage.setItem('proosRailMin', min?'1':'0'); }catch(e){}
 }
@@ -20370,13 +20437,14 @@ v2Render=function(){
   const logo=document.querySelector('.brand-logo-sm');
   const _secs=V2SECTIONS.filter(([k])=>k!=='toolbox'||_me.tech||_me.developer);
   setHTML(rail,'<div class="v2logo">'+(logo?'<img src="'+logo.src+'"/>':'')+'<span>PRO<b>OS</b></span></div>'
-    +_secs.map(([k,l])=>'<div class="v2item'+(k===_v2sec?' on':'')+'" data-sec="'+k+'" onclick="v2go(\''+k+'\')" title="'+l+'">'+V3ICONS[k]+'<span>'+l+'</span><span class="v2badge" id="v2b-'+k+'"></span></div>').join('')
+    +_secs.map(([k,l])=>'<div class="v2item'+(k===_v2sec?' on':'')+'" data-sec="'+k+'" onclick="v3Tap(\''+k+'\')" title="'+l+'">'+V3ICONS[k]+'<span>'+l+'</span><span class="v2badge" id="v2b-'+k+'"></span>'+(V3HASLIST[k]?'<svg class="v3chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>':'')+'</div>').join('')
     +'<div class="v2item v2collapse" onclick="v2RailToggle()" title="Slide back to icons / open out">'
       +'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 6l-6 6 6 6"/></svg>'
       +'<span>Slide Back</span></div>'
     +'<div class="v2foot" id="v2foot">ProOS Pro · '+PROOS_BUILD+'</div>');
   setHTML(tabs,_secs.map(([k,l])=>'<div class="v2t'+(k===_v2sec?' on':'')+'" data-sec="'+k+'" onclick="v2go(\''+k+'\')">'+V3ICONS[k]+'<span>'+l+'</span><span class="v2badge" id="v2bt-'+k+'"></span></div>').join(''));
   v3Badges();
+  try{ if(_v2panel) v3Side(_v2sec); }catch(e){}
 };
 // REGISTER 988 — NO BADGE ON THE MENU. Dave, 25 Oct: "the side menu showing a red pill 210 its misleading" → "No badge".
 // Nothing was broken: red says fault. What still needs a room is said once, on Home's Needs Attention and in Devices.
@@ -20522,7 +20590,6 @@ function v3Side(sec){
       +_v3item('all',p==='v3devices'&&_v3dev==='all',_v3ic('list'),'All Devices','<span class="v3ct">'+(_devices||[]).length+'</span>',"v3Devices('all')")
       +_v3item('__none__',p==='v3devices'&&_v3dev==='__none__',_v3ic('grid'),'Unassigned','<span class="v3ct">'+un+'</span>',"v3Devices('__none__')")
       +_v3item('library',p==='library'||p==='integration',_v3ic('plug'),'Integrations','',"openBay('library')")
-      +_v3homeAreas().map(a=>_v3item(a.area_id,devSel===a.area_id,_v3thumb(a),a.name||'Room','<span class="v3ct">'+(_perAreaDev[a.area_id]||0)+'</span>',"v3Devices('"+esc(a.area_id)+"')",'l1')).join('')
       +'</div><div class="v3sf"><button onclick="openAddIntegration()">+ Add Device</button></div>';
   } else if(sec==='scenes'){
     h='<div class="v3sh"><span>Scenes</span></div><div class="v3sl">'
@@ -20544,8 +20611,40 @@ function v3Side(sec){
     h='<div class="v3sh"><span>Toolbox</span></div><div class="v3sl">'
       +V3TOOLS.map(([k,l,i])=>_v3item(k,cur===k,_v3ic(i),l,'',"v3ToolOpen('"+k+"')")).join('')+'</div>';
   }
-  setHTML(host,h);
-  document.body.classList.toggle('v3-side',!!h);
+  setHTML(host,'');
+  document.body.classList.remove('v3-side');
+  v3Accordion(sec,h);
+}
+// REGISTER 1010 — ONE MENU (Dave, 26 Oct: "redesign this to all be in the one menu bar and each section opens underneath";
+// approved mockups "Pro One Menu Mockups" → "Love it .. Build"). The section's own list, which stood as a second menu
+// beside the rail, is drawn INSIDE the rail directly under its section — one menu, one list per section, the same
+// items and the same actions. Where the rail is only icons (iPad portrait, or slid back), choosing a section with a
+// list opens the whole menu over the page; choosing a page in it closes it again.
+const V3HASLIST={areas:1,devices:1,scenes:1,diagnostics:1,setup:1,toolbox:1};
+function v3IconMode(){ return document.body.classList.contains('railmin') || !!(window.matchMedia&&window.matchMedia('(max-width:1023px)').matches); }
+function v3Accordion(sec,h){
+  const rail=document.getElementById('v2rail'); if(!rail) return;
+  rail.querySelectorAll('.v3acc').forEach(n=>n.remove());
+  rail.querySelectorAll('.v2item[data-sec]').forEach(el=>el.classList.toggle('v3open',el.dataset.sec===sec&&!!h));
+  if(!h) return;
+  const item=rail.querySelector('.v2item[data-sec="'+sec+'"]'); if(!item) return;
+  const tmp=document.createElement('div'); setHTML(tmp,h);
+  const acc=document.createElement('div'); acc.className='v3acc'; acc.setAttribute('data-sec',sec);
+  const list=tmp.querySelector('.v3sl'); if(list) while(list.firstChild) acc.appendChild(list.firstChild);
+  tmp.querySelectorAll('.v3sf button').forEach(b=>{ b.className='v3si v3add2'; acc.appendChild(b); });
+  acc.addEventListener('click',ev=>{ if(ev.target.closest('.v3si')) setTimeout(v3MenuClose,0); });
+  item.insertAdjacentElement('afterend',acc);
+}
+function v3MenuOpen(){
+  let dim=document.getElementById('v3mdim');
+  if(!dim){ dim=document.createElement('div'); dim.id='v3mdim'; dim.className='v3mdim'; dim.onclick=()=>v3MenuClose(); document.getElementById('app').appendChild(dim); }
+  document.body.classList.add('v3menu-open');
+}
+function v3MenuClose(){ document.body.classList.remove('v3menu-open'); }
+function v3Tap(sec){
+  v3MenuClose();
+  v2go(sec);
+  if(V3HASLIST[sec] && v3IconMode()) v3MenuOpen();
 }
 function v3SetupOpen(n){ const c=V3SETUP[n]; if(c) c[3](); }
 function v3SystemsOpen(n){ const c=V3SYSTEMS[n]; if(c) c[3](); }
@@ -20745,6 +20844,11 @@ function v3DevGroups(){
   _unassignedByDevice().forEach((ents,k)=>{ const e=ents[0]; const d=e.device_id&&(_devices||[]).find(x=>x.id===e.device_id); const dom=d?(_devIntg[d.id]||e.platform||'other'):(e.platform||'other'); if(!by[dom]) by[dom]={n:0,un:0,bad:0,dom}; by[dom].un++; });
   return by;
 }
+// 1010: the rooms are in the menu once, under Areas — on the Devices pages a room is chosen here, on the page
+function v3RoomChips(cur){
+  return '<div class="v3rooms" role="group" aria-label="By room"><span class="v3rooms-l">By Room</span>'
+    +_v3homeAreas().map(a=>'<button type="button" class="v3chip btn'+(cur===a.area_id?' on':'')+'" onclick="v3Devices(\''+esc(a.area_id)+'\')">'+esc(a.name||'Room')+' <span class="v3ct">'+(_perAreaDev[a.area_id]||0)+'</span></button>').join('')+'</div>';
+}
 async function v3Devices(sel){
   _v3dev=sel||'all';
   const body=v3EnsurePanel('v3devices');
@@ -20759,6 +20863,7 @@ async function v3Devices(sel){
     const groups=Object.values(by).filter(g=>g.n||g.un).sort((a,b)=>b.n-a.n);
     const bad=groups.reduce((s,g)=>s+g.bad,0);
     setHTML(body,'<div class="v3card"><div class="v3dh2"><div class="t">All Devices</div><div class="s">Everything the house has, by integration — what still needs a room or a name</div></div>'
+      +v3RoomChips('')
       +'<div class="v3kp"><div><b>'+_unassignedCount()+'</b><span>not in a room</span></div><div><b>'+bad+'</b><span>names to fix</span></div><div><b>'+groups.length+'</b><span>integrations</span></div></div>'
       +'<div class="v3sec"><div class="v3rows">'+groups.map(g=>{
         const nm=(typeof SUPPORTED_INTEGRATIONS!=='undefined'&&SUPPORTED_INTEGRATIONS[g.dom])||g.dom.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
@@ -20797,6 +20902,7 @@ async function v3Devices(sel){
         +'<div class="rr">'+(chk?'<span class="v3chip amber" title="'+esc(chk)+'" style="cursor:pointer" onclick="v3Rename(\''+esc(e.entity_id)+'\')">'+esc(chk.split(' — ')[0])+'</span>':'<span class="v3chip ok">Good Name</span>')+'</div></div>';
     }).join('');
     setHTML(body,'<div class="v3card"><div class="v3dh2"><div class="t">Devices &amp; Names</div><div class="s">Names and aliases are the platform\'s own — what you set here is what voice hears</div></div>'
+      +v3RoomChips(_v3dev)
       +'<div class="v3sec"><div class="v3rows">'+(rows||'<div class="v3empty">Nothing in '+esc((a&&a.name)||'this room')+' can be controlled yet.</div>')+'</div></div>'
       +'<div class="v3sec"><div class="h"><span>The Naming Checks</span></div><div class="v3rows">'
       +'<div class="v3row static"><div class="ri">'+V3ICONS.check+'</div><div class="rt"><div class="t1">Room, then device</div><div class="t2">"Living Room Pendant", not "Pendant 2"</div></div></div>'
@@ -21033,7 +21139,6 @@ async function v3Software(){
 (function(){
   document.body.classList.add('v3');
   document.getElementById('app').classList.add('v3');
-  try{ if(localStorage.getItem('proosRailMin')===null) document.body.classList.add('railmin'); }catch(e){ document.body.classList.add('railmin'); }
   v3EnsureCmd();
   // Pro opens on Home without a show() call: name the section and write the title now, not on the first tap
   if(typeof _v2panel!=='undefined'){ _v2sec=v3SecOf(_v2panel||'home'); try{ v3Title(_v2panel||'home',_v2sec); }catch(e){} }
