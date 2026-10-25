@@ -4702,7 +4702,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102515';
+const PROOS_BUILD='2026102516';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -23001,14 +23001,30 @@ html.pp-on #app{visibility:hidden}
 .pp-astate .b{font-size:13.5px;color:rgba(255,255,255,.75);margin-top:8px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .pp-sugg{position:absolute;left:24px;right:24px;top:300px;display:flex;justify-content:center;gap:8px;flex-wrap:wrap;max-height:80px;overflow:hidden}
 .pp-sugg button{height:36px;padding:0 14px;border-radius:999px;font-size:12px;color:rgba(255,255,255,.8);white-space:nowrap}
-/* 1001: the Jarvis screen in the Android app — the panel's own Assist screen, full-screen over the dashboard */
-#jv{position:fixed;inset:0;z-index:9500;background:#000;color:#fff;overflow:hidden;display:none;font-family:'Inter',-apple-system,'Helvetica Neue',sans-serif;-webkit-user-select:none;user-select:none}
-#jv.on{display:block}
-#jv-stage{position:absolute;left:0;top:0;height:450px;transform-origin:0 0;overflow:hidden;background:#000}
-#jv .pp-bg{inset:-80px;filter:blur(28px) brightness(.32)}
-.jv-top{position:absolute;top:14px;right:16px;display:flex;gap:8px;z-index:3}
-.jv-top button{height:36px;min-width:36px;padding:0 14px;border-radius:999px;color:#fff;font-size:12.5px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px}
-.jv-top button svg{width:15px;height:15px}
+/* 1001c: the Jarvis screen in the Android app — the dashboard's own centred card (the 12 Oct centred-card ruling, the
+   popup's own glass: .sg-pop/.sg-pop-card), laid out at the screen's real size; Dave approved the drawing 25 Oct 21:44 */
+#jv{position:fixed;inset:0;z-index:9500;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.55);color:#fff;font-family:'Inter',-apple-system,'Helvetica Neue',sans-serif;-webkit-user-select:none;user-select:none}
+#jv.on{display:flex}
+#jv .jv-c{width:min(760px,calc(100% - 48px));background:rgba(24,24,30,.92);-webkit-backdrop-filter:blur(40px);backdrop-filter:blur(40px);border-radius:24px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12),0 30px 80px rgba(0,0,0,.5);padding:26px 32px 28px}
+#jv .jv-hd{display:flex;align-items:center;justify-content:space-between}
+#jv .jv-eb{font-size:12px;font-weight:500;letter-spacing:4px;color:rgba(255,255,255,.55)}
+#jv .jv-btns{display:flex;gap:10px}
+#jv .jv-btn{height:36px;min-width:36px;padding:0;border:0;border-radius:999px;background:rgba(255,255,255,.08);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);color:rgba(255,255,255,.8);display:flex;align-items:center;justify-content:center;gap:7px;font:400 13px 'Inter',-apple-system,sans-serif}
+#jv .jv-btn.t{padding:0 14px}
+#jv .jv-btn svg{width:16px;height:16px}
+#jv .jv-ow{position:relative;width:112px;height:112px;margin:18px auto 22px}
+#jv .jv-orb{position:absolute;inset:0;border:0;padding:0;border-radius:50%;background:radial-gradient(circle at 35% 30%,#9fd0ff,#5B8CFF 45%,#7a4dff 80%);box-shadow:0 0 44px rgba(91,140,255,.45);display:grid;place-items:center;color:#fff}
+#jv .jv-orb svg{width:30px;height:30px}
+#jv .jv-rg{position:absolute;inset:0;border-radius:50%;border:1.5px solid rgba(140,180,255,.55);opacity:0;pointer-events:none}
+#jv .jv-ow.listening .jv-rg{animation:ppRing calc(var(--m-listen)*2) ease-out infinite}
+#jv .jv-ow.listening .jv-rg:nth-child(2){animation-delay:.66s}
+#jv .jv-ow.listening .jv-rg:nth-child(3){animation-delay:1.33s}
+#jv .jv-ow.thinking .jv-orb{animation:ppSpin calc(var(--m-move)*4) linear infinite;background:conic-gradient(from 0deg,#5B8CFF,#9fd0ff,#7a4dff,#5B8CFF)}
+#jv .jv-ow.idle .jv-orb{animation:ppBreath calc(var(--m-listen)*3) ease-in-out infinite}
+#jv .jv-q{text-align:center;font-size:34px;font-weight:200;letter-spacing:-.6px;line-height:1.2;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+#jv .jv-a{text-align:center;font-size:18px;font-weight:300;color:rgba(255,255,255,.75);line-height:1.5;margin:12px auto 0;max-width:600px;min-height:27px;display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden}
+#jv .jv-sg{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin-top:26px;padding-top:22px;border-top:.5px solid rgba(255,255,255,.10)}
+#jv .jv-sg button{height:38px;padding:0 16px;border:0;border-radius:999px;background:rgba(255,255,255,.07);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);color:rgba(255,255,255,.85);font:400 14px 'Inter',-apple-system,sans-serif}
 /* centred card (12 Oct 2026 ruling) */
 .pp-pop{position:absolute;inset:0;background:rgba(0,0,0,.5);display:grid;place-items:center;opacity:0;pointer-events:none;transition:opacity var(--m-move) var(--e-standard);z-index:40}
 .pp-pop.on{opacity:1;pointer-events:auto}
@@ -24459,21 +24475,19 @@ function _ppAsk(text){
 /* ── REGISTER 1001 — THE JARVIS SCREEN IN THE ANDROID APP. Dave, 25 Oct 20:39: "what I would like is a Jarvis screen like
    in the gflip panel on wake word" … (asked: the Assist button too?) 20:43 "Yeah both please". RECORD: 952 (the panel's
    own screens — its Assist screen, the orb), 957 (its spacing), 990 (Hey Jarvis on the display), 991 (no keyboard unless
-   typing). NOTHING NEW DRAWN: the panel's own Assist screen (_ppBAssist — orb, the words heard, the answer, three
-   suggestions from what is on) laid out at the panel's 450-high size and zoomed to the screen, exactly as the panel
-   fits itself (_ppFit). It is fed by what the page already has: the microphone's state (_micRec), and the app's own
+   typing). 1001c (Dave 21:36: "it does look like it's been stretched from a lower resolution and it needs to match the
+   rest of the [dashboard]"; the drawing approved 21:44): the dashboard's own centred card and type at the screen's real
+   size — the orb, the words heard, the answer, three suggestions from what is on (_ppSuggest). It is fed by what the page already has: the microphone's state (_micRec), and the app's own
    Assist history (what was asked, the answer as it streams). Android app only — the iPad keeps its chat, the panel its
    own screens. Typing is one tap away (Type opens today's chat). ── */
 var _jv={open:false, t:null, m:null, obs:false};
 function _jvOn(){ try{ return _proosAndroid() && !(typeof _isPanel==='function' && _isPanel()); }catch(e){ return false; } }
-function _jvFit(){ var s=document.getElementById('jv-stage'); if(!s) return; var k=(window.innerHeight||450)/450;
-  s.style.width=((window.innerWidth||800)/k)+'px'; s.style.zoom=Math.abs(k-1)<0.01?'':String(k); }
 function _jvEl(id){ return document.getElementById(id); }
 function jvOpen(){
   var d=_jvEl('jv');
   if(!d){ d=document.createElement('div'); d.id='jv'; document.body.appendChild(d);
-    window.addEventListener('resize', _jvFit);
     d.addEventListener('click', function(ev){
+      if(ev.target===d){ jvClose(); return; }   // a tap outside the card closes it, as every centred card does
       var b=ev.target.closest('button'); if(!b) return;
       if(b.hasAttribute('data-say')){ _jvHold(); _ppAsk(b.getAttribute('data-say')); return; }
       if(b.getAttribute('data-cmd')==='orb'){ _jvHold(); try{ homeMicTap(); }catch(e){} return; }
@@ -24481,10 +24495,13 @@ function jvOpen(){
       if(b.hasAttribute('data-jvx')){ jvClose(); return; } });
   }
   if(!_jv.open){
-    // the panel's own Assist screen, its ids its own (the panel's layer never exists in the Android app)
-    d.innerHTML='<div id="jv-stage">'+_ppBAssist().replace('id="pp-orb"','id="jv-orb"').replace('id="pp-aa"','id="jv-aa"').replace('id="pp-ab"','id="jv-ab"')
-      +'<div class="jv-top"><button class="pp-glass" data-jvtype>Type</button><button class="pp-glass" data-jvx aria-label="Close">'+_ppIc('x')+'</button></div></div>';
-    _jvFit(); _jvIdle();
+    // 1001c: the dashboard's own centred card at the screen's real size (no longer the panel's screen scaled up)
+    d.innerHTML='<div class="jv-c"><div class="jv-hd"><div class="jv-eb">JARVIS</div><div class="jv-btns">'
+      +'<button class="jv-btn t" data-jvtype>'+_jvKb()+'Type</button><button class="jv-btn" data-jvx aria-label="Close">'+_ppIc('x')+'</button></div></div>'
+      +'<div class="jv-ow idle" id="jv-orb"><div class="jv-rg"></div><div class="jv-rg"></div><div class="jv-rg"></div><button class="jv-orb" data-cmd="orb" aria-label="Talk">'+_ppIc('mic')+'</button></div>'
+      +'<div class="jv-q" id="jv-aa"></div><div class="jv-a" id="jv-ab"></div>'
+      +'<div class="jv-sg">'+_ppSuggest().map(function(t){ return '<button data-say="'+_ppE(t)+'">'+_ppE(t)+'</button>'; }).join('')+'</div></div>';
+    _jvIdle();
   }
   d.classList.add('on'); _jv.open=true; _jvHold();
   if(!_jv.obs){ var h=_jvEl('assist-history'); if(h){ _jv.obs=true; new MutationObserver(_jvSeen).observe(h,{childList:true,subtree:true,characterData:true}); } }
@@ -24496,7 +24513,8 @@ function jvType(){ jvClose(); window._jvTyping=true; try{ openAssist(); }finally
 function _jvHold(){ clearTimeout(_jv.t); _jv.t=null; }
 function _jvLater(){ _jvHold(); _jv.t=setTimeout(function(){ if(_jv.open && !document.body.classList.contains('proos-listening')) jvClose(); }, 30000); }
 function _jvIdle(){ var A=_jvEl('jv-aa'), B=_jvEl('jv-ab'); if(!A) return; A.textContent='Say \u201CHey Jarvis\u201D'; B.textContent='or tap a suggestion'; }
-function _jvOrb(state){ var o=_jvEl('jv-orb'); if(o) o.className='pp-orbw '+(state||'idle'); }
+function _jvOrb(state){ var o=_jvEl('jv-orb'); if(o) o.className='jv-ow '+(state||'idle'); }
+function _jvKb(){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10"/></svg>'; }
 // the microphone opened or closed (from the wake word, the home mic or the orb)
 function _jvMic(on){
   if(!_jv.open) return;
