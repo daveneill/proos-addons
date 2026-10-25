@@ -4695,7 +4695,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102511';
+const PROOS_BUILD='2026102512';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -14126,7 +14126,14 @@ async function _paStartLive(cam){
   if(_paDetailTimer){ clearInterval(_paDetailTimer); _paDetailTimer=null; }
   if(_paDetailRTC){ _paDetailRTC.cleanup(); _paDetailRTC=null; }
   // Snapshot instantly (no black screen) while WebRTC negotiates.
-  if(img){ img.style.display=''; const snap=async()=>{ const src=await fetchCamWS(cam.entity); const im=document.getElementById('pa-det-img'); if(im&&src) im.src=src; }; snap(); _paDetailTimer=setInterval(snap,1200); }
+  // 999a: a new still is asked for only once the last one has arrived — read on the Android test device after 1.0.1123:
+  // a camera's still takes longer than 1.2 s to come from the recorder, so each new address replaced the one still
+  // loading and the picture never landed (naturalWidth 0). One at a time, as fast as they come.
+  if(img){ img.style.display=''; const snap=async()=>{ const im0=document.getElementById('pa-det-img'); if(!im0||im0._proosLoading) return; im0._proosLoading=true;
+      const src=await fetchCamWS(cam.entity); const im=document.getElementById('pa-det-img'); if(!im){ return; }
+      if(!src){ im._proosLoading=false; return; }
+      im.onload=im.onerror=()=>{ im._proosLoading=false; }; im.src=src; };
+    img._proosLoading=false; snap(); _paDetailTimer=setInterval(snap,1200); }
   if(vid) vid.style.display='none';
   if(vid && window.RTCPeerConnection){
     await _paWarmIce();
