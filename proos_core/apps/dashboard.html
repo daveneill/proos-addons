@@ -4569,7 +4569,14 @@ const _PROOS_LINK={
   // in under a minute): away, a still every 8 s per camera, asked for at phone size (see fetchCamWS)
   remote: {live:false, snapMs:8000, stagger:600, strip:8,  detMs:60000, stillW:480}
 };
-function _linkBudget(){ return _PROOS_LINK[_proosLink()]; }
+// REGISTER 993 — THE ANDROID SCREEN'S CAMERA GRID SHOWS PICTURES. Dave, 25 Oct: "cameras are shocking" on the Connect
+// Display. Read on his box: the grid streams every camera live and expects each camera's small channel — all 11 are off
+// after the reflash — so the display decoded 12 full-size streams at once. In the Android app (and ONLY there — Dave:
+// "I'm not going to downgrade the iPad dashboard") the grid takes the pictures road the away-from-home grid already
+// uses (register 356): a fresh still per camera every few seconds, asked for at a smaller size; a camera opened on its
+// own still plays live.
+const _PROOS_ANDROID_GRID={live:false, stillW:640};
+function _linkBudget(){ const b=_PROOS_LINK[_proosLink()]; return (typeof _proosAndroid==='function' && _proosAndroid()) ? Object.assign({}, b, _PROOS_ANDROID_GRID, b.stillW?{stillW:b.stillW}:{}) : b; }
 // MOTION FOLLOWS THE LINK (register 373). The same fact the camera page reads
 // for its appetite is stamped on the document, so the CSS can read it too: on
 // a relay the durations step down, because a spring that stutters is worse
@@ -4680,7 +4687,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102505';
+const PROOS_BUILD='2026102506';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -13908,6 +13915,7 @@ function _paRenderLive(){
   function h(){ _paGridLayout(); }
   h();
   if(!window._paLayoutBound){ window._paLayoutBound=1; window.addEventListener('resize',_paGridLayout); window.addEventListener('orientationchange',()=>setTimeout(_paGridLayout,250)); }
+  try{ if(_proosAndroid()) setTimeout(()=>{ if(curPage==='cameras') _proosSpeed('cameras'); }, 4000); }catch(e){}   // 993
   const _b=_linkBudget();
   // The first pictures: together on the home network, one after another over
   // a relay — eleven at once is what makes a remote link stall (register 356).
@@ -19040,6 +19048,28 @@ function _proosAndroid(){
 // screen. When it hears it, it asks the page first: _proosWake() opens a turn exactly as the home screen's big
 // microphone does (the words go straight to Assist, the caption shows) and answers true; it answers false — and the app
 // does not listen — when the page is already listening, is a wall panel, or the person has not said yes to voice.
+// REGISTER 993 — THE ANDROID SCREEN REPORTS HOW FAST IT DRAWS. Read once after the dashboard opens and once on the
+// camera page: frames drawn per second over five seconds, the slowest frame, long stalls, and how long the page took
+// to load — sent through the app to ProOS Connect, so speed work starts from the display's own numbers. Android app only.
+function _proosSpeed(label){
+  if(!_proosAndroid()) return;
+  try{
+    const t0=performance.now(); let frames=0, worst=0, last=t0, stalls=0;
+    let obs=null; try{ obs=new PerformanceObserver(l=>{ stalls+=l.getEntries().length; }); obs.observe({entryTypes:['longtask']}); }catch(e){}
+    const step=now=>{ frames++; worst=Math.max(worst, now-last); last=now;
+      if(now-t0<5000){ requestAnimationFrame(step); return; }
+      try{ if(obs) obs.disconnect(); }catch(e){}
+      const nav=(performance.getEntriesByType&&performance.getEntriesByType('navigation')[0])||{};
+      const out={page:label, fps:Math.round(frames*1000/(now-t0)), slowest_frame_ms:Math.round(worst), long_stalls:stalls,
+        load_ms:Math.round(nav.loadEventEnd||0), dom_ms:Math.round(nav.domContentLoadedEventEnd||0),
+        cameras:(CONFIG&&CONFIG.cameras||[]).length, ua:navigator.userAgent, build:PROOS_BUILD,
+        screen:screen.width+'x'+screen.height+'@'+(window.devicePixelRatio||1)};
+      try{ window.ProOSAndroid.post('perf:'+JSON.stringify(out)); }catch(e){}
+    };
+    requestAnimationFrame(step);
+  }catch(e){}
+}
+try{ if(_proosAndroid()) setTimeout(()=>_proosSpeed('home'), 8000); }catch(e){}
 window._proosWake=function(){
   try{
     if(_vcap || (typeof _isPanel==='function' && _isPanel()) || !voiceConsentGiven()) return false;
