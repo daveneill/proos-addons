@@ -230,6 +230,16 @@ class Proactive:
         return out
 
     # -- the sweep -----------------------------------------------------------
+    @staticmethod
+    def _key(it: dict) -> str:
+        """REGISTER 1012 — WHO AN EPISODE BELONGS TO IS AN ID, NOT A NAME. Dave, 26 Oct: "when i unplugged a Office
+        camera I am getting flooded with notifications". Read on his box: the camera "Office" (camera.office_high_
+        resolution_channel, fault since 13:21) and the Office Sonos "Office" (media_player.office_office, ok) share a
+        display name; episodes were kept by name, so in every 60-second pass the camera opened "Office needs attention"
+        and the Sonos closed it with "Office is back" — two alerts a minute to five devices. Names are display; IDs are
+        identity: a watched thing is its entity, a Health card its card id."""
+        return str(it.get("entity") or it.get("name") or "")
+
     def sweep(self) -> dict:
         """One pass. Returns what it did (also used by the test endpoint)."""
         if not self.enabled():
@@ -251,7 +261,7 @@ class Proactive:
             if not (i.get("status") == "fault" and i.get("verdict") == "no_path"):
                 kept.append(i)
                 continue
-            nm = i.get("name") or ""
+            nm = self._key(i)
             rec = self._state.get(nm) if isinstance(self._state.get(nm), dict) else {}
             if gear_card:
                 if rec.get("stage") == "held":
@@ -268,7 +278,7 @@ class Proactive:
         with self._lock:
             seen_faults = set()
             for it in items:
-                name = it.get("name") or ""
+                name = self._key(it)
                 if not name:
                     continue
                 rec = self._state.get(name) or {}
@@ -293,7 +303,7 @@ class Proactive:
                     # Healthy (ok/standby/amber). Close out anything announced.
                     if rec.get("stage") == "notified":
                         auto = (it.get("recovery") == "recovered")
-                        title, body = self._recovered_text(name, auto)
+                        title, body = self._recovered_text(it.get("name") or name, auto)
                         if not _quiet():
                             self._deliver(title, body)
                         # Either way the episode is over.
@@ -304,8 +314,8 @@ class Proactive:
                         self._state.pop(name, None)
             # Recoveries that happened between sweeps: said once, as what happened.
             for ent, nm, how, ts in self._episodes_since_last(items):
-                rec = self._state.get(nm) or {}
-                if rec.get("stage") == "notified" or nm in acted["recovered"]:
+                rec = self._state.get(ent) or {}
+                if rec.get("stage") == "notified" or ent in acted["recovered"]:
                     continue                    # already told; the close-out covers it
                 if _quiet():
                     continue                    # fixed overnight: nobody needs yesterday's fixed problems
@@ -313,10 +323,10 @@ class Proactive:
                 self._deliver("%s is back" % nm,
                               "%s stopped responding and ProOS brought it back at %s%s. Nothing to do."
                               % (nm, when, (" (%s)" % how.replace("_", " ")) if how and how != "assist" else ""))
-                acted["recovered"].append(nm)
+                acted["recovered"].append(ent)
             # A card that has CLEARED is absent from this pass: close it out
             # once (it was said), or forget it silently (it never was).
-            present = {it.get("name") for it in items}
+            present = {self._key(it) for it in items}
             for name, rec in list(self._state.items()):
                 if not isinstance(rec, dict):
                     continue                    # "_audit_at" and other bookkeeping
@@ -335,7 +345,7 @@ class Proactive:
                         continue                # "_audit_at" and other bookkeeping
                     if rec.get("stage") == "queued":
                         if name in seen_faults:
-                            it = next((i for i in items if i.get("name") == name), {})
+                            it = next((i for i in items if self._key(i) == name), {})
                             title, body = self._fault_text(it)
                             if self._deliver(title, body):
                                 self._state[name] = {"stage": "notified", "at": _now()}
