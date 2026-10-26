@@ -2170,28 +2170,12 @@ def _assist_awareness():
         return _healthmon_mod.resolve_action(_client, str(iid or ""), action_kind)
 
     def _port_facts(entity):
-        # REGISTER 450: the physical path, as READINGS — where the device is
-        # plugged in, whether that port may be switched and why not, and the
-        # platform's own control for it (and whether it is enabled). What a
-        # person reads in the controller's app, handed to Assist to reason
-        # over. Withheld until now: device_liveness carried everything but.
-        from proos import portpath as _pp
-        pr = _device_port_reading(entity)
-        if not pr:
-            return {"entity_id": entity, "port": None,
-                    "note": "no switch port is known for this device — it may be on Wi-Fi, "
-                            "or the controller has not seen it"}
-        out = {"entity_id": entity, "port": pr}
-        gm, pn = pr.get("gear_mac"), pr.get("port")
-        why = _pp.port_guard(_port_cache.get("devices"), _port_cache.get("clients"), gm, pn, _box_ips())
-        out["cycle_allowed"] = (why is None) and pr.get("poe") is not None and bool(pr.get("gear_online"))
-        out["cycle_refused_because"] = why or (
-            "the port has no PoE" if pr.get("poe") is None else
-            "the switch itself is offline" if not pr.get("gear_online") else None)
-        ctl = _pp.poe_control_for(_client, gm, pn)
-        out["platform_control"] = ({"entity_id": ctl.get("entity_id"),
-                                    "enabled": not ctl.get("disabled_by")} if ctl else None)
-        return out
+        # REGISTER 450 handed Assist the physical path as readings. REGISTER 1021: there are none — since 691 ProOS
+        # does not sign in to the controller and the platform does not say which port a device is on. Said plainly,
+        # so Assist never reasons from a port it cannot see.
+        return {"entity_id": entity, "port": None,
+                "note": "ProOS cannot see switch ports: the platform does not report which port a device is "
+                        "plugged into, and ProOS does not sign in to the network controller"}
 
     def _enable_control(entity):
         from proos import readback as _rb
@@ -2201,21 +2185,27 @@ def _assist_awareness():
                 "state": rb.get("state")}
 
     def _port_guard_for(entity):
-        """Why a PoE port control must not be switched off, or None."""
-        from proos import portpath as _pp
+        """Why a PoE port control must not be switched off, or None.
+
+        REGISTER 1021 — FAILS CLOSED. This guard refused a port that feeds other gear, carries more than one device
+        or carries this box, read from the controller's own tables. Since 691 those tables are never filled, so it
+        answered None — "allowed" — for EVERY port: Assist could cut the port the ProOS box itself hangs off, or an
+        uplink to a whole switch. With no way to read what a port carries, switching a PoE port off is refused
+        ("it needs to not be possible" beats a warning — Dave, 5 Sep). The installer's own bound PoE-cycle recovery
+        (a port he chose by hand in Pro) is his decision and is not routed through here."""
         try:
             ents = _client.entity_registry() or []
         except Exception:  # noqa: BLE001
+            ents = None
+        e = next((x for x in (ents or []) if x.get("entity_id") == entity), None)
+        if e is None and ents is None and "poe" not in str(entity).lower():
+            return None                  # registry unreadable: refuse only what looks like a PoE port
+        if e is not None and (e.get("platform") != "unifi" or not str(e.get("unique_id") or "").startswith("poe-")):
             return None
-        e = next((x for x in ents if x.get("entity_id") == entity), None)
-        if not e or e.get("platform") != "unifi" or not str(e.get("unique_id") or "").startswith("poe-"):
-            return None
-        try:
-            gm, pn = str(e.get("unique_id"))[4:].rsplit("_", 1)
-        except ValueError:
-            return None
-        _device_port_reading("")          # refresh the controller's tables
-        return _pp.port_guard(_port_cache.get("devices"), _port_cache.get("clients"), gm, pn, _box_ips())
+        if e is None and ents is not None:
+            return None                  # not a registered entity at all — not a switch port
+        return ("ProOS cannot read what this switch port carries (the platform does not say which devices are "
+                "behind a port), so it will not switch it off — it could be feeding other equipment or this box")
 
     return {"watchers": _watchers, "monitor": _monitor_all,
             "room_health": _room_health, "audit": _audit_events,
@@ -2307,41 +2297,14 @@ def ensure_witness_evidence(reason=""):
 # controller had already spoken and ProOS sat on the reading for up to a
 # minute. One controller poll per 15s is nothing for a local UniFi.
 _PORT_TTL = 15.0
-_port_cache = {"ts": 0.0, "devices": [], "clients": []}
-
-
-# WHERE EACH DEVICE WAS LAST SEEN PLUGGED IN. Persisted, because the whole
-# point is to read the port of a device that is currently OFF — and a device
-# that is off leaves the controller's ACTIVE CLIENT table, so it can no longer
-# be looked up by client. Dave's Bedroom TV showed this the moment the port
-# line shipped: every awake device had a reading, both dark televisions had
-# none.
-#
-# Remembering is not inferring. "This device was on Bedroom - TV port 5 when it
-# was last seen" is a recorded observation, and the reading taken from it is
-# the switch's own present-tense answer about that port.
-_PORT_MEM = os.path.join(os.environ.get("PROOS_DATA_DIR", "/data"),
-                         "device_ports.json")
-_port_mem = None
-
-
-def _port_mem_load():
-    global _port_mem
-    if _port_mem is None:
-        try:
-            with open(_PORT_MEM, encoding="utf-8") as f:
-                _port_mem = json.load(f) or {}
-        except Exception:                                        # noqa: BLE001
-            _port_mem = {}
-    return _port_mem
-
-
-def _port_mem_save():
-    try:
-        with open(_PORT_MEM, "w", encoding="utf-8") as f:
-            json.dump(_port_mem or {}, f)
-    except Exception:                                            # noqa: BLE001
-        pass
+# REGISTER 1021 (26 Oct 2026, audit 1013 step 5): the switch-port reader is GONE. Since register 691 ProOS does not
+# sign in to the UniFi controller, and the platform does not say which switch port a device is plugged into, so
+# these readers had returned None on their first line for three weeks while ~90 lines below each still read as live:
+# the controller-table cache, the remembered-port store (device_ports.json) and the port lookups. They are deleted.
+# What is left says so honestly: no port reading, no physical-toolbox sentence. The watcher's and monitor's
+# port-aware verdicts (the switch test's "no network path", "sources disagree -> ask") are DORMANT, not deleted —
+# they embody Dave's rulings (16 Aug, 3 Oct) and wait for a platform source of port readings; with no source they
+# are never reached (port_fn / PORTS_FN are not wired).
 
 
 # ── ACTIVITY RECORDER (Stage 7 build 2, 16 Aug 2026 — Dave's ruling) ─────────
@@ -2525,114 +2488,14 @@ def _network_integration_present():
 
 
 def _device_port_reading(entity):
-    """Physical port facts for one watched entity, or None.
-
-    Live client lookup first; when the device has left the client table, the
-    REMEMBERED switch and port are read instead. Both answers come from the
-    controller's current port table — the memory only supplies which port to
-    look at."""
-    # 691: the platform does not report which switch port a device is plugged into, and
-    # ProOS no longer signs in to the controller to find out. Consciously uncovered.
+    """No switch-port reading exists (691: the platform does not report ports per device). Always None."""
     return None
-    if _unifinet is None or _cfg is None:
-        return None
-    spec = (_cfg.get("reachability") or {}).get(entity) or {}
-    ip = spec.get("ip")
-    import time as _t
-    now = _t.time()
-    if now - _port_cache["ts"] > _PORT_TTL:
-        try:
-            if not _unifinet.configured():
-                return None
-            _port_cache.update({"ts": now,
-                                "devices": _unifinet.devices() or [],
-                                "clients": _unifinet.clients() or []})
-        except Exception:                                        # noqa: BLE001
-            return None              # keep quiet; claim nothing
-    devs = _port_cache["devices"]
-    if not devs:
-        return None
-    try:
-        from proos import unifinet as _un
-        mem = _port_mem_load()
-        # 1 · the device is on the network right now: read it, and REMEMBER
-        #     where it is plugged in.
-        live = _un.client_port(devs, _port_cache["clients"], ip=ip) if ip else None
-        if live and live.get("gear_mac") and live.get("port") is not None:
-            mem[entity] = {"gear_mac": live["gear_mac"], "gear": live["gear"],
-                           "port": live["port"], "ts": now}
-            _port_mem_save()
-            return live
-        # 2 · it has left the client table. Read the port it was last seen on.
-        was = mem.get(entity) or {}
-        if not was.get("gear_mac") or was.get("port") is None:
-            return None              # never seen: nothing to look at
-        r = _un.port_reading(devs, was["gear_mac"], was["port"])
-        if r:
-            r["remembered"] = True
-            return r
-        # 3 · the port cannot be read because its GEAR is not in the
-        #     controller's device list at all — the switch itself is not
-        #     reporting. That is a fact about the switch, not about the device.
-        if was["gear_mac"] not in _un.gear_list(devs):
-            return {"gear": was.get("gear") or was["gear_mac"],
-                    "gear_mac": was["gear_mac"], "port": was["port"],
-                    "gear_online": False, "link": None, "enabled": None,
-                    "speed": None, "poe": None, "watts": None,
-                    "remembered": True}
-        return None
-    except Exception:                                            # noqa: BLE001
-        return None
 
 
 def _physical_status():
-    """Can the physical toolbox answer, and if not, WHY — in one sentence an
-    installer can act on. Every branch names a next step; none of them require
-    reading a log."""
-    # 691: switch-port readings came from ProOS's own controller sign-in, which is gone
-    # (the platform does not report ports per device). Nothing to fix, so no sentence:
-    # surfaces show nothing rather than an instruction that cannot be followed.
+    """691: switch-port readings came from ProOS's own controller sign-in, which is gone. Nothing to fix, so no
+    sentence: surfaces show nothing rather than an instruction that cannot be followed."""
     return {"available": False, "why": "", "not_provided": True}
-    if _unifinet is None:
-        return {"available": False,
-                "why": "the network controller module is not loaded"}
-    try:
-        if not _unifinet.configured():
-            # PRECISE, BECAUSE THE NAME DOES TWO JOBS (Dave, 16 Aug 2026).
-            # Systems shows "UniFi Network · CERTIFIED · 5 Devices" and it is
-            # genuinely added — that is the INTEGRATION. What is missing is
-            # ProOS's OWN sign-in to the controller, which is the only way to
-            # read switch ports and PoE. Saying "no network controller is
-            # connected" while the tile says the opposite is the product
-            # contradicting itself across two screens.
-            #
-            # (Worded without naming the platform: Dave's white-label rule,
-            # and the whitelabel bench caught the first draft of this string.)
-            return {"available": False,
-                    "why": "the UniFi Network integration is added, but ProOS "
-                           "has no sign-in to the controller itself — that is "
-                           "what reads switch ports and PoE. Open Systems › "
-                           "UniFi Network and connect the controller"}
-        devs = _port_cache.get("devices") or _unifinet.devices() or []
-    except Exception as e:                                       # noqa: BLE001
-        return {"available": False,
-                "why": "the network controller refused: %s" % str(e)[:120]}
-    if not devs:
-        return {"available": False,
-                "why": "the network controller answered but reported no "
-                       "switches or access points"}
-    bound = 0
-    try:
-        bound = sum(1 for s in (_cfg.get("reachability") or {}).values()
-                    if s.get("ip"))
-    except Exception:                                            # noqa: BLE001
-        pass
-    if not bound:
-        return {"available": False,
-                "why": "no watched device has an address ProOS can look up in "
-                       "the controller"}
-    return {"available": True, "gear": len(devs), "addressable": bound,
-            "why": ""}
 
 
 def apply_auto_reachability():
@@ -11879,25 +11742,11 @@ def main():
                         _watcher.gear_down_fn = _healthmon_mod.gear_down
                 except Exception:                                # noqa: BLE001
                     pass
-                # THE PHYSICAL PORT READING (step 2 of the rule inventory,
-                # Dave's law 16 Aug). The controller knows which switch port
-                # each device is on and whether that port has link. Wired
-                # through as FACTS ONLY — no verdict consumes it yet, because
-                # deleting `OFFNET_WHEN_OFF` means knowing what a sleeping
-                # television's port actually reads, and that is a thing to
-                # observe on a real home, not to predict.
+                # REGISTER 1021: no switch-port reading exists since 691, so none is wired — the watcher's port_fn and
+                # monitor's PORTS_FN stay unset (their port-aware verdicts are dormant until a platform source exists).
                 try:
                     if _watcher is not None:
-                        _watcher.port_fn = _device_port_reading
                         _watcher.physical_status_fn = _physical_status
-                except Exception:                                # noqa: BLE001
-                    pass
-                # STEP 4: the room-level escalation reads the switch instead of
-                # counting how many client trackers have noticed. Dave's switch
-                # test failed twice on that count.
-                try:
-                    from proos import monitor as _mon_mod
-                    _mon_mod.PORTS_FN = _device_port_reading
                 except Exception:                                # noqa: BLE001
                     pass
                 # STAGE 3 BUILD 4 (16 Aug): the controller states what its
