@@ -50,12 +50,88 @@ def _quiet() -> bool:
     return h >= _QUIET_START or h < _QUIET_END
 
 
-# WHICH HEALTH CARDS REACH A PHONE (plan item 6; register 451's question; Dave's
-# ruling R2 OWED — built to the recommendation in the 1 Oct plan §5 and reversible
-# here, in one place): a card released to the household (they are living it), and
-# any CRITICAL card. Warnings for the installer stay on Pro.
-def incident_reaches_phone(inc: dict) -> bool:
-    return (inc.get("audience") == "home") or (inc.get("severity") == "critical")
+# ── CRITICAL ONLY BY DEFAULT (register 1022; audit 1013 step 6) ──────────────────────────────────────────────────
+# Dave, 26 Oct 16:03: "notifications should only be critical notifications by default and other can be enabled or
+# disabled maybe a device can be enabled or disabled from notifications disabled by default". 16:06, the critical
+# list: "1. start with those" — the security system; smoke / CO / water-leak; locks; the box itself down; the network
+# core down; backup or storage failure — "2. no wall displays". 19:20: phones and iPads; the per-device switch on the
+# device's page in Pro. This supersedes ruling R2's interim rule (household cards + any card marked critical).
+#
+# WHAT IS CRITICAL, read from the platform's and Core's own facts — no device names, no brands:
+#   * a device whose own control is an alarm panel or a lock (the platform's domain), or whose sensor the platform
+#     classes smoke / carbon_monoxide / gas / moisture (its device_class) — or a watch of kind "security";
+#   * Core's own "a job stopped" card (core_blind) — the box itself;
+#   * a network-gear-offline card (infra_down) — the network core (every switch / AP / gateway the controller lists:
+#     the platform does not say which is the core, so none is guessed out);
+#   * the box's own Supervisor storage/backup issues, and the sweep's Backups card.
+# Everything else reaches a phone ONLY when that device's notifications switch is on (off by default).
+# PLUMBING: the platform's own vocabularies (domains, device classes, Supervisor issue types), not claims about a home.
+CRITICAL_DOMAINS = ("alarm_control_panel", "lock")
+CRITICAL_CLASSES = ("smoke", "carbon_monoxide", "gas", "moisture")
+CRITICAL_BOX_ISSUES = ("no_current_backup", "free_space", "disabled_data_disk", "multiple_data_disks",
+                       "corrupt_repository", "fatal_error", "unhealthy")
+NOTIFY_STORE = os.path.join(os.environ.get("PROOS_DATA_DIR", "/data"), "notify_devices.json")
+# WHO RECEIVES (Dave 16:06 "no wall displays"; 19:20 "phones and iPads"): the server injects the notify services of
+# the ProOS iPhone/iPad apps' own registrations. None (not injected / unreadable) = every mobile_app, as before.
+RECIPIENTS_FN = None
+
+
+def device_optins() -> dict:
+    """{device_id: True} — the devices whose notifications switch is ON (off by default)."""
+    try:
+        with open(NOTIFY_STORE, encoding="utf-8") as fh:
+            d = json.load(fh) or {}
+        return {k: True for k, v in d.items() if v}
+    except Exception:                                            # noqa: BLE001
+        return {}
+
+
+def set_device_optin(device_id: str, on: bool) -> dict:
+    d = device_optins()
+    if on:
+        d[str(device_id)] = True
+    else:
+        d.pop(str(device_id), None)
+    try:
+        os.makedirs(os.path.dirname(NOTIFY_STORE), exist_ok=True)
+        with open(NOTIFY_STORE + ".tmp", "w", encoding="utf-8") as fh:
+            json.dump(d, fh)
+        os.replace(NOTIFY_STORE + ".tmp", NOTIFY_STORE)
+    except Exception:                                            # noqa: BLE001
+        pass
+    return d
+
+
+def entity_is_critical(row: dict) -> bool:
+    """A registry row is critical by the platform's own domain or device class."""
+    eid = str((row or {}).get("entity_id") or "")
+    dom = eid.split(".", 1)[0]
+    cls = (row or {}).get("device_class") or (row or {}).get("original_device_class")
+    return dom in CRITICAL_DOMAINS or (dom in ("binary_sensor", "sensor") and cls in CRITICAL_CLASSES)
+
+
+def critical_devices(reg: list) -> set:
+    return {r.get("device_id") for r in (reg or []) if r.get("device_id") and not r.get("disabled_by")
+            and entity_is_critical(r)}
+
+
+def incident_is_critical(inc: dict, crit_entity=None) -> bool:
+    k, subj = inc.get("kind"), str(inc.get("subject") or "")
+    if k in ("core_blind", "infra_down"):
+        return True
+    if subj.startswith("supervisor:") and subj.split(":")[1] in CRITICAL_BOX_ISSUES:
+        return True
+    if subj.startswith("sweep:8:"):
+        return True                                  # the sweep's Backups card
+    return bool(crit_entity and "." in subj and crit_entity(subj))
+
+
+def incident_reaches_phone(inc: dict, crit_entity=None, opted_in=None) -> bool:
+    """Critical, or about a device whose notifications switch is on. Nothing else."""
+    if incident_is_critical(inc, crit_entity):
+        return True
+    subj = str(inc.get("subject") or "")
+    return bool(opted_in and "." in subj and opted_in(subj))
 
 
 class Proactive:
@@ -105,6 +181,14 @@ class Proactive:
                         out.append(svc)
         except Exception:
             pass
+        fn = RECIPIENTS_FN
+        if fn is not None:
+            try:
+                allowed = fn()
+            except Exception:                                    # noqa: BLE001
+                allowed = None
+            if allowed is not None:
+                out = [s for s in out if s in allowed]
         return out
 
     def _deliver(self, title: str, message: str) -> int:
@@ -144,6 +228,30 @@ class Proactive:
         return ("%s is back" % item_name,
                 "%s is responding again and everything looks normal." % item_name)
 
+    def _policy_index(self):
+        """One registry read per sweep: entity -> row, the critical devices, the switched-on devices."""
+        try:
+            reg = list(self.client.entity_registry() or [])
+        except Exception:                                        # noqa: BLE001
+            reg = []
+        self._reg = {r.get("entity_id"): r for r in reg if r.get("entity_id")}
+        self._crit_devs = critical_devices(reg)
+        self._optins = device_optins()
+
+    def _crit_entity(self, eid):
+        r = (getattr(self, "_reg", None) or {}).get(eid) or {}
+        return entity_is_critical(r) or (r.get("device_id") in (getattr(self, "_crit_devs", None) or set()))
+
+    def _opted_entity(self, eid):
+        r = (getattr(self, "_reg", None) or {}).get(eid) or {}
+        return bool(r.get("device_id") and r.get("device_id") in (getattr(self, "_optins", None) or {}))
+
+    def _item_allowed(self, it):
+        eid = it.get("entity")
+        if it.get("kind") == "security":
+            return True
+        return bool(eid and (self._crit_entity(eid) or self._opted_entity(eid)))
+
     def _device_of(self, eid):
         try:
             for e in (self.client.entity_registry() or []):
@@ -159,7 +267,8 @@ class Proactive:
         if self.incidents is None:
             return []
         try:
-            incs = [i for i in (self.incidents() or []) if incident_reaches_phone(i)]
+            incs = [i for i in (self.incidents() or [])
+                    if incident_reaches_phone(i, self._crit_entity, self._opted_entity)]
         except Exception:                                            # noqa: BLE001
             return []
         if not incs:
@@ -245,10 +354,11 @@ class Proactive:
         if not self.enabled():
             return {"enabled": False}
         rep = (self.watcher.report() if self.watcher else None) or {}
-        # REGISTER 1015 (Dave, 26 Oct: "notifications should only be critical notifications by default and other can be
-        # enabled or disabled"): a room member watched on the platform's word alone shows on Health and never reaches
-        # a phone unless switched on — it carries notify False from discovery.
-        items = [i for i in (rep.get("items") or []) if i.get("notify", True) is not False]
+        # REGISTER 1022 — CRITICAL ONLY BY DEFAULT (supersedes 1015's member-only filter): a watched device reaches a
+        # phone when it is critical (its own domain / device class, or a security watch) or its notifications switch
+        # is on. Everything else stays on Health.
+        self._policy_index()
+        items = [i for i in (rep.get("items") or []) if self._item_allowed(i)]
         cards = self._incident_items(items)
         # NO PATH IS SAID ONCE, AS THE GEAR (register 654, rig T1d; Claims #7). A box
         # the watcher says has no network path because its own switch is down is not
@@ -316,7 +426,10 @@ class Proactive:
                         # Fixed before anyone was told — say nothing, ever.
                         self._state.pop(name, None)
             # Recoveries that happened between sweeps: said once, as what happened.
+            _allowed_ents = {i.get("entity") for i in items if i.get("entity")}
             for ent, nm, how, ts in self._episodes_since_last(items):
+                if ent not in _allowed_ents:
+                    continue                    # 1022: a device that may not notify is not "back" on a phone either
                 rec = self._state.get(ent) or {}
                 if rec.get("stage") == "notified" or ent in acted["recovered"]:
                     continue                    # already told; the close-out covers it

@@ -3810,6 +3810,8 @@ def factory_reset(clear_proos_data=False, keep_auth=False):
                    "music_order.json",
                    # which of the platform's own fault cards the installer acknowledged (register 1014) — the old home's
                    "platform_faults_ack.json",
+                   # each device's notifications switch (register 1022) — the old home's devices
+                   "notify_devices.json",
                    # the wall panel's set-up record and the screen login it made (register 940) — the reset deletes the
                    # platform's users, so the login it names is gone; the panel's next pass makes a new one
                    "panel_setup.json", "panel_login.json", "panel_wake.json",
@@ -4998,6 +5000,27 @@ def _push_registration(body: dict):
     except Exception as e:
         print(f"  push · registration check failed: {e}", flush=True)
         return None
+
+
+def _alert_recipients():
+    """REGISTER 1022 — WHO GETS ALERTS (Dave, 26 Oct: "no wall displays"; "phones and iPads"). The notify services of
+    the ProOS iPhone/iPad apps' own registrations — the app each device registered with, read from the platform's own
+    store (app_id, the same fact the push relay checks). The wall display and test emulators run the Android app, so
+    they are not ProOS-app registrations and receive nothing. None when the store cannot be read (the messenger then
+    behaves as before rather than going silent)."""
+    try:
+        with open(_HA_STORAGE_ENTRIES) as f:
+            store = json.load(f)
+    except Exception:                                            # noqa: BLE001
+        return None
+    out = set()
+    for e in (store.get("data") or {}).get("entries", []) or []:
+        if e.get("domain") != "mobile_app":
+            continue
+        d = e.get("data") or {}
+        if str(d.get("app_id") or "").startswith(_PUSH_APP_PREFIX) and d.get("device_name"):
+            out.add("mobile_app_" + _slug_ha(d["device_name"]))
+    return out
 
 
 # ONE PHONE, ONE REGISTRATION (4 Sep 2026, register 313). Every sign-in
@@ -6812,6 +6835,20 @@ class Handler(BaseHTTPRequestHandler):
                                          or users.is_tech(u.get("id")))):
                     return self._send(403, {"error": "installer access required"})
                 return self._send(200, _apns_config_status())
+            if parts == ["notify", "devices"]:
+                # REGISTER 1022: each device's notifications switch (off by default) and which devices are critical
+                # (always notify). Pro's device page reads this.
+                u = getattr(self, "_user", None)
+                if not (users and u and (u.get("is_admin") or u.get("is_owner")
+                                         or users.is_tech(u.get("id")))):
+                    return self._send(403, {"error": "installer access required"})
+                try:
+                    _reg_ = _client.entity_registry() or []
+                except Exception:                                # noqa: BLE001
+                    _reg_ = []
+                return self._send(200, {"on": _proactive_mod.device_optins() if _proactive_mod else {},
+                                        "critical": sorted(_proactive_mod.critical_devices(_reg_)) if _proactive_mod else [],
+                                        "recipients": sorted(_alert_recipients() or [])})
             if parts == ["push", "status"]:
                 # PLAN B1/D2 (L-9): what actually happened to the last alert for each
                 # phone, keyed by the platform's notify service, so Pro can say which
@@ -8822,6 +8859,17 @@ class Handler(BaseHTTPRequestHandler):
                            extra={"key_id": key_id, "team_id": team_id,
                                   "topic": topic, "env": server if server != "both" else env})
                 return self._send(200, {"ok": True, **_apns_config_status()})
+            if parts == ["notify", "devices"]:
+                # REGISTER 1022: switch one device's notifications on or off. {device_id, on}. Installer access.
+                u = getattr(self, "_user", None)
+                if not (users and u and (u.get("is_admin") or u.get("is_owner")
+                                         or users.is_tech(u.get("id")))):
+                    return self._send(403, {"error": "installer access required"})
+                b_ = self._body() or {}
+                did_ = str(b_.get("device_id") or "").strip()
+                if not did_ or _proactive_mod is None:
+                    return self._send(400, {"error": "device_id required"})
+                return self._send(200, {"ok": True, "on": _proactive_mod.set_device_optin(did_, bool(b_.get("on")))})
             if parts == ["push", "forget"]:
                 # A phone signing out (register 313): verified exactly like an
                 # alert — webhook id + device token must match a ProOS
@@ -11668,6 +11716,7 @@ def main():
         # to every phone in the home, and a close-out when it recovers.
         global _proactive
         if _proactive_mod is not None and _watcher is not None:
+            _proactive_mod.RECIPIENTS_FN = _alert_recipients    # register 1022: ProOS iPhone/iPad apps only
             _proactive = _proactive_mod.Proactive(
                 _client, _watcher, enabled=lambda: bool(_opt("proactive_notify", True)),
                 incidents=(_healthmon_mod.incidents if _healthmon_mod is not None else None))

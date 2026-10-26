@@ -2969,7 +2969,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102607';
+const PROOS_BUILD='2026102608';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -5900,6 +5900,10 @@ function renderDeviceManage(deviceId){
     const _plbl=(PAUSE_OPTS.find(o=>o[0]===_pk)||PAUSE_OPTS[0])[1];
     _hist+=`<div class="rp-room" onclick="openPauseClear('${esc(_audioMp.entity_id)}')"><span>Auto-clear when paused</span><span class="rr-v">${esc(_plbl)} &rsaquo;</span></div>`;
   }
+  // REGISTER 1022 — NOTIFICATIONS, PER DEVICE (Dave, 26 Oct: critical only by default; "a device can be enabled or
+  // disabled from notifications disabled by default"; the switch lives on the device's page). Filled from Core.
+  rows+=card(ghead('Notifications')+`<div id="dev-notify" data-dev="${esc(deviceId)}"><div class="rp-room"><span>Send Alerts to Phones</span><span class="rr-v">Reading…</span></div></div>`);
+  setTimeout(()=>{ try{ _devNotifyFill(deviceId); }catch(e){} },0);
   if(_hist) rows+=card(ghead('History')+_hist);
   // 720: Management is the head card's ••• popup now (Dave, 8 Oct 2026: "wouldnt it be better to have that as popup
   // also and save the screen space for everyhting else"). Same rows, same capability rules — _dpMgmtRows.
@@ -19056,6 +19060,25 @@ async function hltDismiss(id){
 // 969t: the button pressed is sent with the press. Until now every card's buttons posted only the card id and Core ran
 // the card's FIRST action — so on a two-button card (Prepare: open room / Apply Recommended Settings) the second did nothing.
 // 1014: the platform's own fault cards — Reload goes through the platform's reload, Check Again re-reads the platform.
+// REGISTER 1022: a device's notifications switch. Critical devices (security, locks, smoke / CO / gas / water leak) always
+// alert — shown, not switchable; every other device is off until switched on here.
+async function _devNotifyFill(deviceId){
+  const host=document.getElementById('dev-notify'); if(!host||host.getAttribute('data-dev')!==deviceId) return;
+  let d=null; try{ const r=await fetch(proCoreUrl()+'/notify/devices'); d=r.ok?await r.json():null; }catch(e){}
+  if(!d){ setHTML(host,'<div class="rp-room"><span>Send Alerts to Phones</span><span class="rr-v">Can\u2019t read it from ProOS Core</span></div>'); return; }
+  const crit=(d.critical||[]).indexOf(deviceId)>=0, on=!!(d.on||{})[deviceId];
+  if(crit){ setHTML(host,'<div class="rp-room"><span>Send Alerts to Phones</span><span class="rr-v">Always On \u00b7 Critical</span></div>'
+    +'<div class="rsub" style="padding:0 14px 10px">A security, lock, smoke, CO, gas or water-leak device always alerts the household\u2019s phones and iPads.</div>'); return; }
+  setHTML(host,'<div class="rp-room" style="align-items:center"><span>Send Alerts to Phones</span>'
+    +'<button type="button" class="sw '+(on?'on':'')+'" role="switch" aria-checked="'+on+'" onclick="event.stopPropagation();setDevNotify(\''+esc(deviceId)+'\','+(!on)+')"><span class="sw-knob"></span></button></div>'
+    +'<div class="rsub" style="padding:0 14px 10px">Off by default \u2014 only critical devices alert without this. When on, this device going offline alerts the household\u2019s phones and iPads.</div>');
+}
+async function setDevNotify(deviceId,on){
+  try{ const r=await fetch(proCoreUrl()+'/notify/devices',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({device_id:deviceId,on:!!on})});
+    const j=await r.json(); if(!r.ok||!j.ok){ toast(j.error||'ProOS Core refused it'); return; }
+    toast(on?'Alerts on for this device':'Alerts off for this device'); }catch(e){ toast(_coreFailWords('',e)); }
+  await _devNotifyFill(deviceId);
+}
 const _HLT_KIND_BTNS=['backup_location','backup_on','backup_now','sweep_recheck','pf_reload','pf_recheck'];
 async function hltFix(id, kind){
   toast('Working…');
