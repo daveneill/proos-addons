@@ -301,10 +301,17 @@ def harvest_unifi_trackers(client, ip_map=None):
     58:d3.., but both IP .233), so IP is the reliable key; MAC is a fallback where it aligns.
     Returns {entity_id: {"sensor": device_tracker, "via": "unifi_tracker"}}. The controller's
     own view of "is this client on the network" is the witness; it needs no open port."""
+    # REGISTER 1017 (audit 1013 step 3, 26 Oct 2026): THE MAC FIRST. A UniFi client's `ip` attribute is DROPPED the
+    # moment the client leaves the network — read on Dave's box: Bedroom and Living Room TVs, off, trackers not_home
+    # with no ip — so an IP-only join lost the witness exactly when the device was away, and the sweep said "no network
+    # witness bound" about TVs the platform links by MAC to a live UniFi client. `by_mac` was built here and never
+    # used. Now: a tracker is found by the MAC the PLATFORM holds for the device (device registry `connections`) first,
+    # by address second (a client on a private MAC — the Apple TV note above — still joins by address). Trackers with
+    # no address are read too. Hardware ids only, never a name.
     tmpl = ("{% set ns = namespace(x=[]) %}"
             "{% for s in states.device_tracker %}"
-            "{% if (s.attributes.get('source_type') == 'router') and s.attributes.get('ip') %}"
-            "{% set ns.x = ns.x + [{'e': s.entity_id, 'ip': s.attributes.get('ip'), "
+            "{% if (s.attributes.get('source_type') == 'router') and (s.attributes.get('ip') or s.attributes.get('mac')) %}"
+            "{% set ns.x = ns.x + [{'e': s.entity_id, 'ip': s.attributes.get('ip') | default(''), "
             "'mac': (s.attributes.get('mac') | default('')) | lower}] %}"
             "{% endif %}{% endfor %}{{ ns.x | to_json }}")
     try:
@@ -312,12 +319,42 @@ def harvest_unifi_trackers(client, ip_map=None):
     except Exception:
         return {}
     by_ip = {t["ip"]: t["e"] for t in trackers if t.get("ip")}
-    by_mac = {t["mac"]: t["e"] for t in trackers if t.get("mac")}
+    by_mac = {}
+    for t in trackers:
+        m = _norm_mac(t.get("mac"))
+        if m:
+            by_mac[m] = t["e"]
+    ip_of_tracker = {t["e"]: t.get("ip") for t in trackers if t.get("ip")}
+    # the platform's own MAC per entity, from its device registry (live when the client can read it)
+    mac_of = {}
+    try:
+        devs = client.device_registry() if hasattr(client, "device_registry") else None
+        ents = client.entity_registry() if hasattr(client, "entity_registry") else None
+    except Exception:                                            # noqa: BLE001
+        devs = ents = None
+    if devs and ents:
+        from .watcher import _MEMBER_DOMAINS
+        doms = set(_SIGNAL_DOMAINS) | (set(_MEMBER_DOMAINS) - {"sensor", "binary_sensor"})
+        dmac = {}
+        for d in devs:
+            ms = sorted(m for m in (_norm_mac(c[1]) for c in (d.get("connections") or [])
+                                    if isinstance(c, (list, tuple)) and len(c) > 1 and c[0] == "mac") if m)
+            if d.get("id") and ms:
+                dmac[d["id"]] = ms
+        for e in ents:
+            eid, did = e.get("entity_id") or "", e.get("device_id")
+            if did in dmac and not e.get("disabled_by") and eid.split(".", 1)[0] in doms:
+                mac_of[eid] = dmac[did]
     out = {}
-    for eid, spec in (ip_map or {}).items():
+    for eid in sorted(set(ip_map or {}) | set(mac_of)):
+        spec = (ip_map or {}).get(eid) or {}
         ip = spec.get("ip")
-        tr = by_ip.get(ip)
+        tr = next((by_mac[m] for m in mac_of.get(eid, ()) if m in by_mac), None)
+        via = "unifi_tracker_mac" if tr else "unifi_tracker"
+        if not tr:
+            tr = by_ip.get(ip)
         if tr:
+            ip = ip or ip_of_tracker.get(tr)
             # KEEP THE ADDRESS (16 Aug 2026). This overlay REPLACED the ip spec
             # with a sensor spec, which was fine while the address was only
             # ever used for a TCP probe the tracker supersedes. It is not fine
@@ -330,7 +367,7 @@ def harvest_unifi_trackers(client, ip_map=None):
             # Carrying both is safe by the existing precedence: `_resolve_reach`
             # consults `sensor` first and only falls back to `ip`, so the
             # controller's own view still beats a blind probe exactly as before.
-            out[eid] = {"sensor": tr, "via": "unifi_tracker"}
+            out[eid] = {"sensor": tr, "via": via}
             if ip:
                 out[eid]["ip"] = ip
     return out
