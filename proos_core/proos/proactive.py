@@ -245,7 +245,10 @@ class Proactive:
         if not self.enabled():
             return {"enabled": False}
         rep = (self.watcher.report() if self.watcher else None) or {}
-        items = list(rep.get("items") or [])
+        # REGISTER 1015 (Dave, 26 Oct: "notifications should only be critical notifications by default and other can be
+        # enabled or disabled"): a room member watched on the platform's word alone shows on Health and never reaches
+        # a phone unless switched on — it carries notify False from discovery.
+        items = [i for i in (rep.get("items") or []) if i.get("notify", True) is not False]
         cards = self._incident_items(items)
         # NO PATH IS SAID ONCE, AS THE GEAR (register 654, rig T1d; Claims #7). A box
         # the watcher says has no network path because its own switch is down is not

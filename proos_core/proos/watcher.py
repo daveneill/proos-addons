@@ -962,6 +962,9 @@ class Watcher:
                     "entity": w["entity"],
                     "kind": w.get("kind"),
                     "area": w.get("area"),
+                    # register 1015: a room member watched on the platform's word; it never reaches a phone by default
+                    "membership": bool(w.get("membership")),
+                    "notify": w.get("notify", True),
                     "has_signal": _bound,
                     # the platform entity that witnesses it (plan item 4): a
                     # card can then quote the network's own reading and when
@@ -1187,7 +1190,7 @@ def _integ_name(platform):
 
 
 _KIND_ORDER = {"media": 0, "audio": 1, "display": 2, "camera": 3,
-               "lighting": 4, "climate": 5, "security": 6}
+               "lighting": 4, "climate": 5, "security": 6, "device": 7}
 
 
 def _reg_name(ent):
@@ -1216,7 +1219,7 @@ def _mk_watch(name, entity, kind, fault_after, platform, power_aware=False):
     # Remote"). Falls back to the device-type name, then the raw platform.
     _FRIENDLY = {"media": "streaming", "audio": "audio", "display": "TV",
                  "camera": "camera", "lighting": "lighting", "climate": "climate",
-                 "security": "alarm"}
+                 "security": "alarm", "device": "device"}
     integ = _FRIENDLY.get(kind) or _integ_name(platform) or "the"
     if kind == "security":
         # An alarm panel must always be present — unreachable is a real, high‑priority fault.
@@ -1224,6 +1227,11 @@ def _mk_watch(name, entity, kind, fault_after, platform, power_aware=False):
              f"(the security system may be offline).")
         gw = (f"{name} panel is on the network but its connection was lost. Reload the "
               f"{_integ_name(platform) or 'panel'} integration — the panel itself is fine.")
+    elif kind == "device":
+        # A room member watched on the platform's word alone (register 1015): say only what the platform said.
+        g = (f"The platform reports {name} as unavailable — it has stopped answering the "
+             f"{_integ_name(platform) or 'platform'} integration. Check its power and network connection.")
+        gw = g
     elif power_aware:
         # Off is normal for these; the only fault we raise is a wedged integration.
         g = (f"{name} reports off but has also dropped off the network — a "
@@ -1285,9 +1293,10 @@ def _mk_watch(name, entity, kind, fault_after, platform, power_aware=False):
     return w
 
 
-def _classify_device(ents, name, entry_domain):
+def _classify_device(ents, name, entry_domain, member=False):
     """One physical device -> at most one watch (or None). camera > source-remote
-    > networked-audio. Everything else (TVs, AVRs, helpers) yields None."""
+    > networked-audio > the classes below; a device assigned to a room (member) that none of them names is still
+    watched, on the platform's availability alone (register 1015)."""
     def platform(en):
         return en.get("platform") or entry_domain.get(en.get("config_entry_id"))
 
@@ -1352,6 +1361,40 @@ def _classify_device(ents, name, entry_domain):
         p = sec[0]
         return _mk_watch(name or _reg_name(p), p["entity_id"],
                          "security", 60, platform(p))
+    if member:
+        return _member_watch(ents, name, platform)
+    return None
+
+
+# MONITORING IS MEMBERSHIP (register 1015; audit 1013 step 2; the product law "an assigned room reports"). On Dave's
+# box, 26 Oct, ten devices assigned to rooms were never watched because their brand was not on the lists above: Shelly
+# relays presented as lights by the platform's own switch_as_x helper, Bond blinds, the ESPHome Pro Mic. The live
+# check read Pro Mic offline (every control unavailable) while Pro said nothing. A device in a room is now watched
+# whatever its brand, on the platform's own word only: the platform says it is unavailable -> it is down. Nothing
+# else is claimed — no "off" verdict, no power guess (not power-aware), no recovery (Dave, 26 Oct: nothing acts on the house until the
+# live check is green for it) and no phone (Dave, 26 Oct: only critical alerts by default; other kinds off until
+# switched on).
+# Which of the device's own controls stands for it: the first control the platform lists, in this order of domains.
+# PLUMBING (an ordering of the platform's own domains, not a claim about any device; ledger class: plumbing).
+_MEMBER_DOMAINS = ("light", "switch", "cover", "climate", "fan", "lock", "alarm_control_panel", "valve",
+                   "media_player", "assist_satellite", "vacuum", "humidifier", "water_heater", "camera", "remote",
+                   "sensor", "binary_sensor")
+
+
+def _member_watch(ents, name, platform):
+    usable = [e for e in ents if not e.get("entity_category") and not e.get("hidden_by")]
+    for dom in _MEMBER_DOMAINS:
+        hits = [e for e in usable if e["entity_id"].split(".", 1)[0] == dom]
+        if hits:
+            p = hits[0]
+            # NOT power-aware: the power-aware branch turns "unavailable with no second witness" into a calm standby
+            # (watcher tick, the resting branch) — a judgement the platform never made. For a member the platform's
+            # "unavailable" stands; its "off" is healthy anyway (healthy_when available).
+            w = _mk_watch(name or _reg_name(p), p["entity_id"], "device", 60, platform(p))
+            w.pop("recover", None)
+            w["membership"] = True
+            w["notify"] = False
+            return w
     return None
 
 
@@ -1383,11 +1426,14 @@ def discover_watches(storage_dir=None, client=None):
     entry_domain = {e.get("entry_id"): e.get("domain") for e in entries}
     dev_name = {}
     dev_area = {}
+    dev_skip = set()
     for d in devices:
         did = d.get("id")
         if did:
             dev_name[did] = d.get("name_by_user") or d.get("name")
             dev_area[did] = d.get("area_id")
+            if d.get("entry_type") == "service" or d.get("disabled_by"):
+                dev_skip.add(did)
     ent_area = {e.get("entity_id"): e.get("area_id") for e in entities}
     # Controller host per config entry (UniFi Protect / Reolink NVR, etc.). A
     # camera's wedge probe targets the RECORDER, not the camera's own IP — cameras
@@ -1409,7 +1455,9 @@ def discover_watches(storage_dir=None, client=None):
 
     watches, seen = [], set()
     for did, ents in by_dev.items():
-        w = _classify_device(ents, dev_name.get(did), entry_domain)
+        # A device assigned to a room is a member (the platform's own area, not a service entry, not disabled).
+        _member = bool(areas.get(dev_area.get(did))) and did not in dev_skip
+        w = _classify_device(ents, dev_name.get(did), entry_domain, member=_member)
         if w and w["entity"] not in seen:
             # Camera wedge signal = the controller/NVR (HTTPS). NVR answers but the
             # camera is unavailable -> wedged integration; NVR unreachable -> offline.
