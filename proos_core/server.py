@@ -3975,7 +3975,41 @@ def _backup_wait_then_sweep(before, trigger):
         except Exception:                                        # noqa: BLE001
             pass
         time.sleep(15)
+    # REGISTER 1023: the box's own Supervisor re-runs its checks (no_current_backup clears there), then the
+    # platform's fault list is re-read — the card is cleared by the platform's reading, never by this call.
+    try:
+        _supervisor_req("POST", "/resolution/healthcheck", None)
+        time.sleep(10)
+        _platform_faults_read()
+    except Exception as e:                                       # noqa: BLE001
+        print("  [backup] re-check after the backup failed: %s" % e, flush=True)
     _sweep_run(trigger)
+
+
+def _backup_include_addons_now(iid):
+    """REGISTER 1023: turn on the add-ons (and the database) in the platform's own automatic backup settings, run a
+    backup with those settings, and — when the platform says it finished — ask the box's own Supervisor to re-run its
+    checks, then re-read the platform's faults and re-run the sweep. The card clears only on those readings."""
+    from proos.ha_ws import ws_command
+    if not os.environ.get("SUPERVISOR_TOKEN"):
+        return {"error": "Backups are only available on the ProOS box"}
+    before = _platform_backup_cfg()
+    try:
+        ws_command(_client.base_url, _client._token, "backup/config/update", timeout=15,
+                   create_backup={"include_all_addons": True, "include_database": True})
+        ws_command(_client.base_url, _client._token, "backup/generate_with_automatic_settings", timeout=30)
+    except Exception as e:                                       # noqa: BLE001
+        return {"error": "The box refused: %s" % e}
+    if _journal_mod is not None:
+        try:
+            _journal_mod.emit("site", "repair", {"incident": iid, "action": "backup_full"})
+        except Exception:                                        # noqa: BLE001
+            pass
+    threading.Thread(target=_backup_wait_then_sweep, args=(before, "fix"), daemon=True,
+                     name="proos-backup-wait").start()
+    return {"ok": True, "did": "sweep_fix",
+            "note": "Backups now include ProOS and every add-on — backing up now. The card clears when the box "
+                    "says a full backup finished (a few minutes)."}
 
 
 def _sweep_fix(iid, kind):
@@ -3994,6 +4028,8 @@ def _sweep_fix(iid, kind):
     if k == "sweep_recheck":
         threading.Thread(target=_sweep_run, args=("recheck",), daemon=True, name="proos-sweep").start()
         return {"ok": True, "did": "sweep_fix", "note": "Checking again — the card clears in a minute if it reads right."}
+    if k == "backup_full":
+        return _backup_include_addons_now(iid)
     if k in ("backup_location", "backup_on", "backup_now"):
         if not os.environ.get("SUPERVISOR_TOKEN"):
             return {"error": "Backups are only available on the ProOS box"}
@@ -4099,6 +4135,8 @@ def _platform_fault_fix(iid, kind):
     act = next((a for a in card.get("actions") or [] if kind in (None, a.get("kind"))), None)
     if not act:
         return {"error": "no such action"}
+    if act["kind"] == "pf_full_backup":
+        return _backup_include_addons_now(iid)
     if act["kind"] == "pf_reload":
         ok = _reload_entry(act.get("entry"))
         if _journal_mod is not None:

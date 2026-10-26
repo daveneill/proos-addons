@@ -2969,7 +2969,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102608';
+const PROOS_BUILD='2026102609';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -19079,7 +19079,7 @@ async function setDevNotify(deviceId,on){
     toast(on?'Alerts on for this device':'Alerts off for this device'); }catch(e){ toast(_coreFailWords('',e)); }
   await _devNotifyFill(deviceId);
 }
-const _HLT_KIND_BTNS=['backup_location','backup_on','backup_now','sweep_recheck','pf_reload','pf_recheck'];
+const _HLT_KIND_BTNS=['backup_location','backup_on','backup_now','backup_full','sweep_recheck','pf_reload','pf_recheck','pf_full_backup'];
 async function hltFix(id, kind){
   toast('Working…');
   try{

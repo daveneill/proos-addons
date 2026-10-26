@@ -466,6 +466,15 @@ def check_backups(r, now):
         return [_item("8", "Backups", PROBLEM, "automatic backups are on but have nowhere to save — no backup "
                       "location is chosen, so every backup fails", _iso(now), card=True,
                       actions=[{"kind": "backup_location", "label": "Save on This Box and Back Up Now"}])]
+    # REGISTER 1023 (Dave, 26 Oct 21:06: "Why was it not done this way before"): this check asked only "on, somewhere to
+    # save, ran recently" — never WHAT a backup holds. Since register 662 (2 Oct) handed backups to the platform, the
+    # box's automatic backups left out every add-on, ProOS Core included, and this check said "confirmed" while the
+    # box's own Supervisor said "no current backup". The platform's own setting (include_all_addons + database) is read
+    # here; a backup that leaves out the add-ons is a problem, with the button that turns it on and backs up now.
+    if c.get("full") is False:
+        return [_item("8", "Backups", PROBLEM, "the box's automatic backups leave out the add-ons — ProOS Core is one, "
+                      "so its rooms, activities and settings are in no backup", _iso(now), card=True,
+                      actions=[{"kind": "backup_full", "label": "Include ProOS in Backups"}])]
     last = _ts(c.get("last_completed"))
     tried = _ts(c.get("last_attempted"))
     nxt = _ts(c.get("next"))

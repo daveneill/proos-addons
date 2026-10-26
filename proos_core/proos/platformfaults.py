@@ -165,11 +165,18 @@ def cards(now=None) -> list:
     res = snap.get("resolution") or {}
     for i in res.get("issues") or []:
         t = i.get("type") or "issue"
+        words = "The box's own check reports %s (%s%s)." % (t.replace("_", " "), i.get("context") or "system",
+                                                            (", " + str(i.get("reference"))) if i.get("reference") else "")
+        acts = []
+        if t == "no_current_backup":
+            # REGISTER 1023 (Dave, 26 Oct 21:03: "What is this no backup system"): the Supervisor's own meaning, in
+            # plain words — no FULL backup (one that includes the add-ons) in the last few days — and its fix.
+            words = ("The box's own check reports there is no full backup from the last few days — a backup that "
+                     "includes the add-ons. ProOS Core is an add-on: its rooms, activities and settings are only safe "
+                     "in a full backup.")
+            acts = [{"kind": "pf_full_backup", "label": "Include ProOS in Backups"}]
         out.append(_card("platform_box", "%s/%s/%s" % (t, i.get("context"), i.get("reference") or ""),
-                         _SUP_WORDS.get(t, t.replace("_", " ").title()),
-                         "The box's own check reports %s (%s%s)." % (t.replace("_", " "), i.get("context") or "system",
-                                                                    (", " + str(i.get("reference"))) if i.get("reference") else ""),
-                         at, [], "supervisor:%s" % t))
+                         _SUP_WORDS.get(t, t.replace("_", " ").title()), words, at, acts, "supervisor:%s" % t))
     for k in ("unhealthy", "unsupported"):
         for why in res.get(k) or []:
             out.append(_card("platform_box", "%s/%s" % (k, why), "The Box Reports It Is %s" % k.title(),
