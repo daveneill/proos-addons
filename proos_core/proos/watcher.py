@@ -151,6 +151,9 @@ STANDBY = "standby"   # power-aware device that's simply off -> calm, not a faul
 # Fault verdicts (only meaningful once status == FAULT):
 V_OFFLINE = "offline"          # device does not answer -> genuinely down
 V_INTEGRATION = "integration"  # device answers -> HA lost it (wedged)
+# register 1019 (Dave, 26 Oct: "Yes" — show what the platform says): the platform reports the device unavailable and
+# NO second reading answered — ProOS knows exactly that, nothing more: not "offline", not "resting".
+V_UNAVAILABLE = "unavailable"
 # A-8 (Dave's switch test, 16 Aug 2026). The network path itself is broken, so
 # ProOS cannot tell a resting panel from a cut-off one — and says exactly that
 # rather than picking whichever answer is more comfortable.
@@ -676,8 +679,12 @@ class Watcher:
                     # that left the network on its own, and with the path down
                     # ProOS cannot tell. It falls through to the debounced
                     # no-path verdict below.
-                    if pa and not _my_gear_down and (reachable is None
-                                                     or _wall_switched):
+                    # REGISTER 1019 (Dave, 26 Oct 17:50, "Yes"): "unavailable with no witness" is NO LONGER a resting
+                    # state. It became a calm STANDBY here — a judgement the platform never made: the platform said
+                    # unavailable, and nothing else answered. It now falls through to the debounced fault below with
+                    # the verdict "unavailable" (the platform's own word). Only the 9 Aug ruled case stays resting: a
+                    # light the witness says has no power at all (switched at the wall, NO_POWER_IS_NORMAL).
+                    if pa and not _my_gear_down and _wall_switched:
                         # No witness / witness can't say: a resting state — fail
                         # open, never invent a fault. (A witness that positively
                         # says GONE falls through to the debounced offline fault
@@ -706,6 +713,7 @@ class Watcher:
                             # reading, the verdict states only what this
                             # device's own witnesses measured.
                             rt.verdict = (V_INTEGRATION if reachable is True
+                                          else V_UNAVAILABLE if reachable is None
                                           else V_OFFLINE)
                         if rt.status != FAULT:
                             rt.last_event = "raised"
@@ -767,7 +775,7 @@ class Watcher:
         runs (rate-limited, audited, escalates on failure); 'risky' never auto-runs
         -- it surfaces for human approval. Apple TV uses a single safe action."""
         rec = w.get("recover")
-        if not rec or rt.verdict not in (V_INTEGRATION, V_OFFLINE):
+        if not rec or rt.verdict not in (V_INTEGRATION, V_OFFLINE, V_UNAVAILABLE):
             # REGISTER 450: an OFFLINE device is handed over too — Assist
             # reads its physical path and decides; before, offline got
             # nothing ("usually needs a human").
@@ -831,6 +839,11 @@ class Watcher:
             return (f"{w['name']} has no network path: {_who} is offline. The "
                     f"device itself has not been shown to be faulty. Fix the "
                     f"network first — this clears on its own once it returns.")
+        if rt.verdict == V_UNAVAILABLE and w.get("kind") != "device":
+            return (f"The platform reports {w['name']} as unavailable — its "
+                    f"{_integ_name(w.get('platform')) or 'integration'} connection has lost it. ProOS has no second "
+                    f"reading for it, so it cannot say whether the device is switched off at the wall or cut off. "
+                    f"Check its power and network connection.")
         if rt.verdict == V_INTEGRATION:
             if rt.recovery == "attempting":
                 return (f"{w['name']} lost its connection -- ProOS is restarting "
