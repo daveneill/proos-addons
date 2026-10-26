@@ -2969,7 +2969,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102604';
+const PROOS_BUILD='2026102605';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -18788,7 +18788,7 @@ async function renderHealth(){
       +(heal?'<button class="btn-primary" style="padding:6px 14px;font-size:12px" onclick="event.stopPropagation();hltHealRecords()">Rebuild record</button>':'')
       +(adopt?'<button class="btn-primary" style="padding:6px 14px;font-size:12px" onclick="event.stopPropagation();hltAdoptHome()">Adopt Its New Home</button>':'')
       // 969t: a card's own buttons, named by Core (label) and sent back by kind — the sweep cards' fixes and Check Again.
-      +(i.actions||[]).filter(a=>_HLT_KIND_BTNS.indexOf(a.kind)>=0).map(a=>'<button class="'+(a.kind==='sweep_recheck'?'btn-ghost':'btn-primary')+'" style="padding:6px 14px;font-size:12px" onclick="event.stopPropagation();hltFix(\''+esc(i.id)+'\',\''+esc(a.kind)+'\')">'+esc(a.label||'Fix')+'</button>').join('')
+      +(i.actions||[]).filter(a=>_HLT_KIND_BTNS.indexOf(a.kind)>=0).map(a=>'<button class="'+(a.kind==='sweep_recheck'||a.kind==='pf_recheck'?'btn-ghost':'btn-primary')+'" style="padding:6px 14px;font-size:12px" onclick="event.stopPropagation();hltFix(\''+esc(i.id)+'\',\''+esc(a.kind)+'\')">'+esc(a.label||'Fix')+'</button>').join('')
       +'<button class="btn-ghost" style="padding:6px 14px;font-size:12px" onclick="event.stopPropagation();hltAskAssist(\''+esc(i.id)+'\')">Ask Assist</button>'
       +(rec?'<button class="btn-ghost" style="padding:6px 14px;font-size:12px" onclick="event.stopPropagation();openRoomHub(\''+esc(rec.room)+'\')">Save Room</button>':'')
       // REGISTER 926 item 5 (Dave: "dismiss should mean acknowledged"): Acknowledge keeps the card, quiet, under Seen
@@ -19055,7 +19055,8 @@ async function hltDismiss(id){
 }
 // 969t: the button pressed is sent with the press. Until now every card's buttons posted only the card id and Core ran
 // the card's FIRST action — so on a two-button card (Prepare: open room / Apply Recommended Settings) the second did nothing.
-const _HLT_KIND_BTNS=['backup_location','backup_on','backup_now','sweep_recheck'];
+// 1014: the platform's own fault cards — Reload goes through the platform's reload, Check Again re-reads the platform.
+const _HLT_KIND_BTNS=['backup_location','backup_on','backup_now','sweep_recheck','pf_reload','pf_recheck'];
 async function hltFix(id, kind){
   toast('Working…');
   try{
@@ -19075,6 +19076,7 @@ async function hltFix(id, kind){
     else if(d.ok&&d.did==='settings_applied'){ toast('Recommended settings applied ✓'); renderHealth(); }
     else if(d.ok&&d.did==='restart_music'){ toast(d.note||'ProOS Music is restarting…'); }
     else if(d.ok&&d.did==='sweep_fix'){ toast(d.note||'Working…'); setTimeout(()=>{ try{ renderHealth(); }catch(e){} }, 15000); setTimeout(()=>{ try{ renderHealth(); }catch(e){} }, 90000); }
+    else if(d.ok&&d.did==='platform_fix'){ toast(d.note||'Checked'); renderHealth(); }
     else if(d.ok&&d.cleared){ toast(d.note||'Already fixed'); renderHealth(); }
     else if(d.navigate&&d.navigate.kind==='recommit'){ openRoomHub(d.navigate.room); }
     else if(d.error){ toast(d.error); }

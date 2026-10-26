@@ -3945,6 +3945,8 @@ def factory_reset(clear_proos_data=False, keep_auth=False):
                    "sweep_last.json", "sweep_config.json", "sweep_acted.json", "port_history.json", "push_status.json",
                    # the home's music service order, set in Pro (register 896) — this home's services; a reset home chooses afresh
                    "music_order.json",
+                   # which of the platform's own fault cards the installer acknowledged (register 1014) — the old home's
+                   "platform_faults_ack.json",
                    # the wall panel's set-up record and the screen login it made (register 940) — the reset deletes the
                    # platform's users, so the login it names is gone; the panel's next pass makes a new one
                    "panel_setup.json", "panel_login.json", "panel_wake.json",
@@ -4160,6 +4162,93 @@ def _sweep_fix(iid, kind):
                 "note": ("Backups will save on this box. " if k == "backup_location" else "")
                 + "Backing up now — the card clears when the box says it finished (a few minutes)."}
     return {"error": "that button isn't something this card can do"}
+
+
+class _PlatformFaultReaders:
+    """The platform's own fault lists (register 1014): config entries (WebSocket config_entries/get), the Repairs
+    list (repairs/list_issues, titled from the platform's own translations) and the Supervisor's /resolution/info.
+    Every reading is the platform's; ProOS adds nothing to it."""
+    def entries(self):
+        return _client.config_entries() or []
+
+    def repairs(self):
+        from proos.ha_ws import ws_command
+        res = ws_command(_client.base_url, _client._token, "repairs/list_issues", timeout=15) or {}
+        issues = list(res.get("issues") or [])
+        doms = sorted({i.get("domain") for i in issues if i.get("domain")})
+        tr = {}
+        if doms:
+            try:
+                tr = (ws_command(_client.base_url, _client._token, "frontend/get_translations", timeout=15,
+                                 language="en", category="issues", integration=doms) or {}).get("resources") or {}
+            except Exception:                                    # noqa: BLE001
+                tr = {}
+        for i in issues:
+            key = "component.%s.issues.%s." % (i.get("domain"), i.get("translation_key") or i.get("issue_id"))
+            ph = i.get("translation_placeholders") or {}
+            for part in ("title", "description"):
+                t = tr.get(key + part)
+                if t:
+                    for k, v in ph.items():
+                        t = t.replace("{%s}" % k, str(v))
+                    i[part] = t
+        return issues
+
+    def resolution(self):
+        if not os.environ.get("SUPERVISOR_TOKEN"):
+            return {}
+        d = _supervisor_req("GET", "/resolution/info", None) or {}
+        return d.get("data") or d
+
+
+def _platform_faults_read():
+    from proos import platformfaults as _pf
+    if _client is None:
+        return None
+    snap = _pf.refresh(_PlatformFaultReaders())
+    _pf.prune_acks()
+    if snap.get("error"):
+        print("  [platform-faults] could not read: %s" % snap["error"], flush=True)
+    return snap
+
+
+def _platform_faults_loop():
+    from proos import platformfaults as _pf
+    time.sleep(30)
+    while True:
+        try:
+            _platform_faults_read()
+        except Exception as e:                                   # noqa: BLE001
+            print("  [platform-faults] read failed: %s" % e, flush=True)
+        time.sleep(_pf.READ_EVERY_S)
+
+
+def _platform_fault_fix(iid, kind):
+    """A platform card's button (register 1014). Reload goes through the platform's own reload (the same REST path
+    the app's Reload button uses); Check Again re-reads the platform. The card clears only when the platform's next
+    reading says the problem is gone — never because this call returned."""
+    from proos import platformfaults as _pf
+    card = next((c for c in _pf.cards() if c["id"] == iid), None)
+    if not card:
+        return {"ok": True, "cleared": True, "note": "Already clear — the platform no longer reports it."}
+    act = next((a for a in card.get("actions") or [] if kind in (None, a.get("kind"))), None)
+    if not act:
+        return {"error": "no such action"}
+    if act["kind"] == "pf_reload":
+        ok = _reload_entry(act.get("entry"))
+        if _journal_mod is not None:
+            try:
+                _journal_mod.emit("site", "repair", {"incident": iid, "action": "pf_reload", "ok": bool(ok)})
+            except Exception:                                    # noqa: BLE001
+                pass
+        if not ok:
+            return {"error": "The platform refused the reload."}
+        time.sleep(5)
+    _platform_faults_read()
+    still = any(c["id"] == iid for c in _pf.cards())
+    return {"ok": True, "did": "platform_fix", "cleared": not still,
+            "note": ("Still reported by the platform: " + card["cause"]) if still
+            else "The platform no longer reports it."}
 
 
 class _SweepReaders:
@@ -7938,6 +8027,9 @@ class Handler(BaseHTTPRequestHandler):
                 if _did_.startswith("sw-"):                    # a sweep card (969t)
                     from proos import sweep as _sw_
                     inc = _sw_.acknowledge(_did_)
+                elif _did_.startswith("pf-"):                  # a platform card (1014)
+                    from proos import platformfaults as _pf_
+                    inc = _pf_.acknowledge(_did_)
                 else:
                     inc = _healthmon_mod.dismiss(_did_)
                 if inc is None:
@@ -7978,6 +8070,9 @@ class Handler(BaseHTTPRequestHandler):
                 # the next scan finds the condition gone, as ever.
                 if _iid_.startswith("sw-"):                    # a sweep card's button (969t)
                     _o_ = _sweep_fix(_iid_, b.get("action"))
+                    return self._send(200 if not _o_.get("error") else 400, _o_)
+                if _iid_.startswith("pf-"):                    # a platform card's button (1014)
+                    _o_ = _platform_fault_fix(_iid_, b.get("action"))
                     return self._send(200 if not _o_.get("error") else 400, _o_)
                 _inc0 = _healthmon_mod.get(_iid_) or {}
                 _act0 = next((a for a in (_inc0.get("actions") or [])
@@ -11701,6 +11796,7 @@ def main():
     threading.Thread(target=_weather_std_loop, name="proos-weather-std", daemon=True).start()
     threading.Thread(target=_habits_loop, name="proos-habits", daemon=True).start()
     threading.Thread(target=_sweep_loop, name="proos-sweep-daily", daemon=True).start()
+    threading.Thread(target=_platform_faults_loop, name="proos-platform-faults", daemon=True).start()
     threading.Thread(target=_reconnect_loop, name="proos-reconnect", daemon=True).start()
     if _WATCH_REDISCOVER_SEC > 0:
         threading.Thread(target=_watch_rediscover_loop, name="proos-watch-heal", daemon=True).start()

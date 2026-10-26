@@ -285,11 +285,20 @@ def incidents():
     # THE FULL SWEEP's own finds (register 663) — read from its last report, standing
     # until a later sweep reads the thing right. Problems another check already shows are
     # referenced in the report, never carded twice.
+    sw_cards = []
     try:
         from . import sweep as _sweep
-        out.extend(_sweep.cards())
+        sw_cards = _sweep.cards()
+        out.extend(sw_cards)
     except Exception as e:                                       # noqa: BLE001
         print("  [healthmon] sweep cards unreadable: %s" % e, flush=True)
+    # THE PLATFORM'S OWN FAULT LISTS (register 1014, audit 1013 step 1): failing integrations, Repairs and the
+    # Supervisor's own issues, in the platform's words, standing exactly as long as the platform says so.
+    try:
+        from . import platformfaults as _pf
+        out.extend(_pf.merge_into(sw_cards, _pf.cards()))
+    except Exception as e:                                       # noqa: BLE001
+        print("  [healthmon] platform faults unreadable: %s" % e, flush=True)
     return sorted(out, key=lambda i: i.get("since", 0), reverse=True)
 
 
