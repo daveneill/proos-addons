@@ -1882,6 +1882,9 @@ body.v3.railmin .aw-screen{left:108px!important}
   #app.v3.v2::before{display:none}
   #app.v3.v2 .scroll{padding-top:0;padding-bottom:104px}
 }
+/* REGISTER 1011 — Areas tiles as on the panel: Off = the photo greyed and darker; anything on (paused included) = as it is */
+.hub-room .ph-img{transition:filter .4s ease;filter:none}   /* on: the photo as it is (it was dimmed to .5 for every room) */
+.hub-room.hub-off .ph-img{filter:grayscale(.85) brightness(.5)}
 /* Devices: a room is chosen on the page */
 .v3rooms{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:4px 22px 12px}
 .v3rooms-l{font-size:12.5px;color:rgba(255,255,255,.45);margin-right:4px}
@@ -2966,7 +2969,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102602';
+const PROOS_BUILD='2026102603';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -19324,7 +19327,9 @@ async function renderHub(){
     const ico='<span class="hub-ico">'+roomIcon(a.area_id,a.name)+'</span>';
     const label=svc?'Home':(a.name||'Room');
     const count=nDev?nDev+' device'+(nDev===1?'':'s'):'empty';
-    return '<div class="hub-room '+(pic?'photo':'tall')+(svc?' hub-svc':'')+'" data-area="'+esc(a.area_id)+'"'
+    // 1011: an Off room shows its photo greyed and darker, as the panel and the dashboard do (Core's own room state —
+    // a paused room is not Off)
+    return '<div class="hub-room '+(pic?'photo':'tall')+(svc?' hub-svc':'')+(off?' hub-off':'')+'" data-area="'+esc(a.area_id)+'"'
       +' onclick="hubTap(event,\''+esc(a.area_id)+'\')">'
       +(pic?'<img class="ph-img" loading="lazy" src="'+esc(pic)+'" alt=""><div class="ph-scrim"></div>':'')
       +'<div class="hr-top">'+esc(count)+'</div>'
