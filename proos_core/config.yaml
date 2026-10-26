@@ -1,9 +1,9 @@
 name: ProOS Core
-version: "1.0.1146"
+version: "1.0.1147"
 slug: proos_core
 description: >-
   The operational layer above Home Assistant — state-based room control,
-  monitoring, and self-healing. The dashboard talks to this.
+  monitoring that reads the platform, and Pro Assist. The dashboard talks to this.
 url: "https://github.com/protechsystems/proos-core"
 arch:
   - aarch64
