@@ -2969,7 +2969,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102605';
+const PROOS_BUILD='2026102606';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -19322,7 +19322,9 @@ async function renderHub(){
   const homeAreas=_areas.filter(a=>!_systemAreas.has(a.area_id));
   const card=(a,svc)=>{
     const v=verdicts[a.area_id]; const at=(v&&v.attributes)||{};
-    const _mn=_mediaNow(a.area_id);
+    // REGISTER 1018: ONE ROOM ANSWER — Core now says Paused itself (and honours the installer's auto-clear), so its
+    // verdict is the answer wherever it exists; the speakers are read directly only for a room Core has no verdict for.
+    const _mn=v?'':_mediaNow(a.area_id);
     const off=(!v||roomStateClass(v.state)==='off') && !_mn;
     const nDev=_perAreaDev[a.area_id]||0;
     // Layout: device count top-left, name + icon bottom-left, state bottom-right.

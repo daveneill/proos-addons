@@ -4718,7 +4718,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102602';
+const PROOS_BUILD='2026102603';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -23786,7 +23786,10 @@ function _ppLine(r){
   var on=_ppLit(r);
   if(on.length===1) return _ppLabel(on[0],r)+(_ppDim(on[0])?(' · '+_ppPct(on[0])+'%'):' · On');
   if(on.length>1) return on.length+' lights on';
-  if(p && st(p)==='paused') return 'Paused';
+  // REGISTER 1018: ONE ROOM ANSWER. Paused is not off — but when Core's own verdict for the room is OFF (the
+  // installer's auto-clear ran, or the speaker is relaying a dead TV session) the card says so too, instead of
+  // reading the speaker on its own and disagreeing with Pro. No verdict for the room -> the speaker's word.
+  if(p && st(p)==='paused') return (r && typeof _roomOffByVerdict==='function' && _roomOffByVerdict(r))?'Off':'Paused';
   return 'Off';
 }
 function _ppSite(){

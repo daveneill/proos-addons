@@ -199,8 +199,16 @@ def decide_music(rec, snap, area_of=None, pause_s=None, now=None,
         # rather than clearing a room that may well be doing something.
         state = "idle"
 
+    # PAUSED IS NOT OFF, AND IT IS SAID AS PAUSED (register 1018; Dave's rule, restated 26 Oct: "paused is not room
+    # off"). A speaker the platform reports paused — and whose installer auto-clear has not run — names the room
+    # Paused, the word the dashboard and the speaker itself use. The state stays "idle" (the machine vocabulary every
+    # consumer and the Savant bridge read); only the words were wrong: Pro said "Idle" while the dashboard said
+    # "Paused" about the same speaker (Dave's screenshots, 16:51).
+    paused = state == "idle" and any(_st(snap, e) == "paused" and eff[e] != "off" for e in known)
     if state == "playing":
         label = "Playing (grouped to %s)" % grouped_to if grouped_to else "Playing"
+    elif paused:
+        label = "Paused"
     elif state == "idle":
         label = "Idle"
     else:
@@ -224,6 +232,7 @@ def decide_music(rec, snap, area_of=None, pause_s=None, now=None,
         "grouped_to": grouped_to,
         "coordinator": coordinator if grouped_to else None,
         "members": known,
+        "paused": paused,
     }
     if state == "off" and auto_cleared:
         out["auto_cleared"] = True       # diagnosis: cleared by the timer,

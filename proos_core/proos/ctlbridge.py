@@ -770,9 +770,8 @@ class ActivityPublisher:
 
         Returns the music verdict to publish instead, or None. The gate is
         strict: only a SETTLED ladder off (not held, not an activity) with a
-        speaker actually PLAYING is overridden — the display owns the room
-        whenever it is on, and idle/paused speakers never resurrect a room
-        the ladder has called off. decide() itself is untouched.
+        speaker actually PLAYING (or PAUSED, register 1018) is overridden — the display owns the
+        room whenever it is on; idle/stopped speakers never resurrect a room the ladder has called off. decide() itself is untouched.
         """
         if not d or d.get("state") != "off" or d.get("held_now"):
             return None
@@ -875,6 +874,14 @@ class ActivityPublisher:
         # speakers are just resting hardware and the ladder's off stands, so
         # an off tv room can never drift into Idle on its own.
         if md.get("state") == "idle" and prev in ("playing", "idle"):
+            return md
+        # PAUSED HOLDS THE ROOM HOWEVER IT WAS FOUND (register 1018; Dave: "paused is not room off"). Read on his box,
+        # 26 Oct: the Bedroom Sonos paused, the Bedroom TV off — Core published the Bedroom OFF because the room had
+        # not been "playing" first, while the dashboard said Paused. A speaker the platform reports PAUSED (not idle,
+        # not stopped — resting hardware stays excluded) that passed the filters above (not a source, not relaying the
+        # TV input, not the TV-audio endpoint without its own content) and whose installer auto-clear has not run is
+        # the room in use. The auto-clear timer still clears it on the installer's clock.
+        if md.get("state") == "idle" and md.get("paused"):
             return md
         return None
 
