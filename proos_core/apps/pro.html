@@ -2969,7 +2969,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102606';
+const PROOS_BUILD='2026102607';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -4280,11 +4280,11 @@ const PROOS_CERTIFIED={
   // Climate (native CoolMasterNet, branded CoolLink — replaces native, see CERTIFIED_REPLACES)
   coollink:{ name:'Cool Automation', proaware:true, note:'HVAC control · CoolLink / CoolMasterNet' },
   // Security
-  elkm1:{ name:'Ness M1', proaware:true, note:'Security · arm state · zones · self-heal' },
+  elkm1:{ name:'Ness M1', proaware:true, note:'Security · arm state · zones' },
   // Network (UniFi Certified suite, alongside UniFi Protect)
-  unifi:{ name:'UniFi Network', proaware:true, note:'Network · client presence · PoE-cycle recovery · self-heal' },
+  unifi:{ name:'UniFi Network', proaware:true, note:'Network · client presence · network witness by MAC' },
   // Cameras (ProCore-owned)
-  unifiprotect:{ name:'UniFi Protect', proaware:true, note:'Cameras · doorbell · ProCore-owned · self-heal' }
+  unifiprotect:{ name:'UniFi Protect', proaware:true, note:'Cameras · doorbell · ProCore-owned' }
 };
 // Domains our certified drivers OWN + REPLACE. The native integration is the
 // runtime plumbing (provisioned by ProCore) but must never surface on its own —
@@ -4835,7 +4835,7 @@ function _unifiNetCard(){
   const dot=!conn?'off':(reach?'on':'warn');
   const from=s.source==='unifiprotect'?'the UniFi Protect integration':(s.source==='unifi'?'the UniFi Network integration':'');
   const statusTxt=!conn?'no controller login in either UniFi integration':(reach?('Connected'+(s.clients!=null?(' · '+s.clients+' clients'):'')+(inh?' · via the UniFi Protect login':'')):('Can’t reach the controller'+(s.error?(' · '+esc(s.error)):'')));
-  let head='<div class="wiz-hint">One certified integration. ProOS reads the UniFi controller to map each device to its switch port for PoE recovery, and uses client presence as a device liveness signal. The controller’s address and login are the integration’s own — ProOS reads them from it and keeps no copy.</div>';
+  let head='<div class="wiz-hint">One certified integration. ProOS uses the controller’s client list, through this integration, as each device’s network witness — matched by the device’s own network address (MAC). ProOS does not read switch ports. The controller’s address and login are the integration’s own — ProOS reads them from it and keeps no copy.</div>';
   head+='<div class="cred-card"><div class="cred-top"><span class="cred-dot '+dot+'"></span><span class="cred-name">UniFi Network</span><span class="cred-badge" style="margin-left:auto">ProOS Certified</span></div>'
     +'<div class="unifi-status"><div class="unifi-row"><span class="cred-dot '+dot+'"></span><span class="unifi-row-l">Controller access</span><span class="unifi-row-d">'+statusTxt+'</span></div></div></div>';
   let s1='';

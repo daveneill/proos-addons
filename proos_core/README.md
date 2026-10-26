@@ -1,7 +1,8 @@
 # ProOS Core (Home Assistant add-on)
 
 The operational layer above Home Assistant: state-based room control,
-monitoring, self-healing, Pro Assist, and the ProOS apps. It boots with
+monitoring that reads the platform, Pro Assist, and the ProOS apps. (Register 1020, 26 Oct 2026: "self-healing"
+is not claimed until a repair is benched and seen on the box.) It boots with
 Home Assistant, runs 24/7, and needs **no manually-created token** — the
 Supervisor provides one and proxies HA core at `http://supervisor/core`.
 
