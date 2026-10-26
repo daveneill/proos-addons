@@ -3994,10 +3994,26 @@ def _backup_include_addons_now(iid):
     if not os.environ.get("SUPERVISOR_TOKEN"):
         return {"error": "Backups are only available on the ProOS box"}
     before = _platform_backup_cfg()
+    # MEASURED ON THE BOX, 26 Oct 21:21–21:25 (register 1023a): a backup made with the platform's automatic settings
+    # — even with all six add-ons, ProOS Core included — is typed "partial" by the Supervisor, and its
+    # no_current_backup check stayed raised; applying the Supervisor's OWN suggestion (create_full_backup) made a
+    # "full" backup and the issue cleared. So: the daily backups are set to include every add-on (ProOS is then in
+    # every one), and the box's own fix is applied when it offers one.
+    sug = None
+    try:
+        _ri = _supervisor_req("GET", "/resolution/info", None) or {}
+        _ri = _ri.get("data") or _ri
+        sug = next((g for g in (_ri.get("suggestions") or []) if g.get("type") == "create_full_backup"), None)
+    except Exception:                                            # noqa: BLE001
+        sug = None
     try:
         ws_command(_client.base_url, _client._token, "backup/config/update", timeout=15,
                    create_backup={"include_all_addons": True, "include_database": True})
-        ws_command(_client.base_url, _client._token, "backup/generate_with_automatic_settings", timeout=30)
+        if sug:
+            threading.Thread(target=lambda: _supervisor_req("POST", "/resolution/suggestion/%s" % sug["uuid"], None),
+                             daemon=True, name="proos-full-backup").start()
+        else:
+            ws_command(_client.base_url, _client._token, "backup/generate_with_automatic_settings", timeout=30)
     except Exception as e:                                       # noqa: BLE001
         return {"error": "The box refused: %s" % e}
     if _journal_mod is not None:
@@ -4005,11 +4021,32 @@ def _backup_include_addons_now(iid):
             _journal_mod.emit("site", "repair", {"incident": iid, "action": "backup_full"})
         except Exception:                                        # noqa: BLE001
             pass
-    threading.Thread(target=_backup_wait_then_sweep, args=(before, "fix"), daemon=True,
-                     name="proos-backup-wait").start()
+    threading.Thread(target=(_full_backup_wait if sug else _backup_wait_then_sweep),
+                     args=((before, "fix") if not sug else ()), daemon=True, name="proos-backup-wait").start()
     return {"ok": True, "did": "sweep_fix",
             "note": "Backups now include ProOS and every add-on — backing up now. The card clears when the box "
                     "says a full backup finished (a few minutes)."}
+
+
+def _full_backup_wait():
+    """After the Supervisor's own full backup is asked for (register 1023a): wait up to 30 min for the Supervisor to
+    stop reporting no_current_backup, then re-read the platform's faults and re-run the sweep."""
+    deadline = time.time() + 1800
+    time.sleep(30)
+    while time.time() < deadline:
+        try:
+            _ri = _supervisor_req("GET", "/resolution/info", None) or {}
+            _ri = _ri.get("data") or _ri
+            if not any(i.get("type") == "no_current_backup" for i in (_ri.get("issues") or [])):
+                break
+        except Exception:                                        # noqa: BLE001
+            pass
+        time.sleep(20)
+    try:
+        _platform_faults_read()
+    except Exception:                                            # noqa: BLE001
+        pass
+    _sweep_run("fix")
 
 
 def _sweep_fix(iid, kind):
