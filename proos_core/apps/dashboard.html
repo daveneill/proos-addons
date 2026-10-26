@@ -1521,7 +1521,7 @@ html.proos-panel #widget-add-btn{display:none!important}
    the categories, search and music scroll up behind it, under a frosted strip that fades at its foot. */
 #music-head{position:sticky;top:0;z-index:6;flex-shrink:0;padding-bottom:6px}
 #music-head::before{content:'';position:absolute;left:0;right:0;top:0;bottom:-16px;z-index:-1;pointer-events:none;
-  background:rgba(9,10,13,.55);-webkit-backdrop-filter:blur(22px) saturate(1.1);backdrop-filter:blur(22px) saturate(1.1);
+  background:rgba(9,10,13,.86);-webkit-backdrop-filter:blur(28px) saturate(1.1);backdrop-filter:blur(28px) saturate(1.1);   /* 1011b: .55 let the music read through behind the speakers row (seen on the test device) */
   -webkit-mask:linear-gradient(180deg,#000 calc(100% - 22px),transparent);mask:linear-gradient(180deg,#000 calc(100% - 22px),transparent)}
 @media (min-width:769px){
   #music-speakers,#music-now-playing,#music-cats-row,#music-search-row,#music-grid,#music-discover{padding-left:32px!important;padding-right:32px!important}
@@ -4718,7 +4718,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102601';
+const PROOS_BUILD='2026102602';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -12423,7 +12423,8 @@ function renderWidgetGrid(){
   const addBtn=document.createElement('button');
   addBtn.id='widget-add-btn';
   addBtn.innerHTML='<svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add Widget';
-  addBtn.style.cssText=doneBtn.style.cssText;
+  addBtn.style.cssText=doneBtn.style.cssText+';color:rgba(255,255,255,0.9)';
+  actionRow.style.justifyContent='flex-end';   // 1011b: + Add Widget and Done side by side at the right (they sat at opposite edges)
   addBtn.addEventListener('click', openWidgetPicker);
   actionRow.appendChild(addBtn);
   _ensureAddPill();   // the wall panel's own + (shown only in its edit mode)

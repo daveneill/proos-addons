@@ -2969,7 +2969,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102603';
+const PROOS_BUILD='2026102604';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -19306,21 +19306,29 @@ async function renderHub(){
   const _homeArea=findHomeArea();
   let floors=[];
   try{ const f=await snd({type:'config/floor_registry/list'}); floors=(f&&f.result)||[]; }catch(e){}
-  let verdicts={};
+  let verdicts={}, _stById={};
   try{ const st=await haRest('GET','/api/states')||[];
-    st.forEach(s=>{ if(s.entity_id&&s.entity_id.startsWith('sensor.proos_activity_')) verdicts[s.entity_id.replace('sensor.proos_activity_','')]=s; });
+    st.forEach(s=>{ _stById[s.entity_id]=s; if(s.entity_id&&s.entity_id.startsWith('sensor.proos_activity_')) verdicts[s.entity_id.replace('sensor.proos_activity_','')]=s; });
   }catch(e){}
+  // 1011b — PAUSED IS NOT OFF, AS THE DASHBOARD SAYS IT (Dave's rule; and "Pro's per-area summary must mirror what the
+  // dashboard says", 24 Sep). Read on the box: Bedroom, Office and Family Room — their speakers paused — read Paused on
+  // the dashboard (its room line, _ppLine) but Off here from Core's room state. A room whose media player is playing or
+  // paused is not Off here either; its chip says so.
+  const _mediaNow=aid=>{ const ms=(_ents||[]).filter(e=>DOM(e)==='media_player'&&!e.disabled_by&&v3AreaOfEnt(e)===aid).map(e=>(_stById[e.entity_id]||{}).state);
+    return ms.includes('playing')?'Playing':(ms.includes('paused')?'Paused':''); };
   const sysAreas=_areas.filter(a=>_systemAreas.has(a.area_id));
   const homeAreas=_areas.filter(a=>!_systemAreas.has(a.area_id));
   const card=(a,svc)=>{
     const v=verdicts[a.area_id]; const at=(v&&v.attributes)||{};
-    const off=!v||roomStateClass(v.state)==='off';
+    const _mn=_mediaNow(a.area_id);
+    const off=(!v||roomStateClass(v.state)==='off') && !_mn;
     const nDev=_perAreaDev[a.area_id]||0;
     // Layout: device count top-left, name + icon bottom-left, state bottom-right.
     // Tap opens the room; press-and-hold opens Edit.
     const _sc=v?roomStateClass(v.state):'off';
-    const chip=v?'<span class="hlt-chip '+(at.provisional?'prov':(off?'off':(_sc==='manual'?'manual':'live')))+'">'
-      +esc(off?'Off':(_sc==='manual'?'On · manual':(at.label||roomStateWord(_sc))))+'</span>':'';
+    const _coreOff=!v||_sc==='off';
+    const chip=(v||_mn)?'<span class="hlt-chip '+(at.provisional?'prov':(off?'off':((_coreOff&&_mn)?'live':(_sc==='manual'?'manual':'live'))))+'">'
+      +esc(off?'Off':((_coreOff&&_mn)?_mn:(_sc==='manual'?'On · manual':(at.label||roomStateWord(_sc)))))+'</span>':'';
     // uploaded/generated area picture first; otherwise the curated photograph
     const pic=a.picture?imgSize(a.picture,'512x512')
              :((_roomIdent[a.area_id]||{}).fallback_photo||null);
