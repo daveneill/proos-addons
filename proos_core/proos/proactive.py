@@ -116,6 +116,8 @@ def critical_devices(reg: list) -> set:
 
 
 def incident_is_critical(inc: dict, crit_entity=None) -> bool:
+    if inc.get("auto_fixing"):
+        return False                     # register 1024: ProOS is running the box's own fix right now
     k, subj = inc.get("kind"), str(inc.get("subject") or "")
     if k in ("core_blind", "infra_down"):
         return True

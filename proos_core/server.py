@@ -3812,6 +3812,8 @@ def factory_reset(clear_proos_data=False, keep_auth=False):
                    "platform_faults_ack.json",
                    # each device's notifications switch (register 1022) — the old home's devices
                    "notify_devices.json",
+                   # when ProOS last ran the box's own full backup automatically (register 1024)
+                   "auto_full_backup.json",
                    # the wall panel's set-up record and the screen login it made (register 940) — the reset deletes the
                    # platform's users, so the login it names is gone; the panel's next pass makes a new one
                    "panel_setup.json", "panel_login.json", "panel_wake.json",
@@ -4147,7 +4149,52 @@ def _platform_faults_read():
     _pf.prune_acks()
     if snap.get("error"):
         print("  [platform-faults] could not read: %s" % snap["error"], flush=True)
+    try:
+        _auto_full_backup_maybe(snap)
+    except Exception as e:                                       # noqa: BLE001
+        print("  [backup] automatic full backup check failed: %s" % e, flush=True)
     return snap
+
+
+def _auto_full_backup_maybe(snap):
+    """REGISTER 1024 (Dave, 27 Oct: option 2): apply the box's own create_full_backup when — and only when — the
+    daily backups are healthy and complete (platformfaults.auto_full_backup_due). At most once a day, on disk."""
+    from proos import platformfaults as _pf
+    if not os.environ.get("SUPERVISOR_TOKEN") or _pf._auto.get("since"):
+        return
+    res = (snap or {}).get("resolution") or {}
+    if not any(i.get("type") == "no_current_backup" for i in (res.get("issues") or [])):
+        return
+    due, why = _pf.auto_full_backup_due(res, _platform_backup_cfg(), _pf.auto_last_attempt(), time.time())
+    if not due:
+        if _pf._auto.get("why") != why:      # said once per reason, not every minute
+            _pf._auto["why"] = why
+            print("  [backup] the box reports no current backup; not acting automatically: %s" % why, flush=True)
+        return
+    _pf._auto["why"] = None
+    sug = next(g for g in (res.get("suggestions") or []) if g.get("type") == "create_full_backup")
+    now = time.time()
+    _pf.auto_record_attempt(now)
+    _pf.set_auto_fixing(now)
+    print("  [backup] the box wants its own full backup; the daily backups are healthy — making it now", flush=True)
+    if _journal_mod is not None:
+        try:
+            _journal_mod.emit("site", "auto_full_backup", {"why": why})
+        except Exception:                                        # noqa: BLE001
+            pass
+
+    def _run():
+        try:
+            _supervisor_req("POST", "/resolution/suggestion/%s" % sug["uuid"], None)
+        except Exception as e:                                   # noqa: BLE001
+            print("  [backup] the box refused its own full backup: %s" % e, flush=True)
+        _full_backup_wait()
+        _pf.set_auto_fixing(None)
+        try:
+            _platform_faults_read()
+        except Exception:                                        # noqa: BLE001
+            pass
+    threading.Thread(target=_run, daemon=True, name="proos-auto-full-backup").start()
 
 
 def _platform_faults_loop():

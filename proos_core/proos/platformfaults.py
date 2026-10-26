@@ -168,21 +168,98 @@ def cards(now=None) -> list:
         words = "The box's own check reports %s (%s%s)." % (t.replace("_", " "), i.get("context") or "system",
                                                             (", " + str(i.get("reference"))) if i.get("reference") else "")
         acts = []
-        if t == "no_current_backup":
+        _auto_on = bool(_auto["since"]) and ((now or time.time()) - _auto["since"]) < AUTO_GRACE_S
+        if t == "no_current_backup" and _auto_on:
+            words = ("ProOS is making the box's own full backup now — the daily backups already include ProOS and "
+                     "every add-on; the box's check only accepts its own full type. This clears by itself in a few "
+                     "minutes.")
+        elif t == "no_current_backup":
             # REGISTER 1023 (Dave, 26 Oct 21:03: "What is this no backup system"): the Supervisor's own meaning, in
             # plain words — no FULL backup (one that includes the add-ons) in the last few days — and its fix.
             words = ("The box's own check reports there is no full backup from the last few days — a backup that "
                      "includes the add-ons. ProOS Core is an add-on: its rooms, activities and settings are only safe "
                      "in a full backup.")
             acts = [{"kind": "pf_full_backup", "label": "Include ProOS in Backups"}]
-        out.append(_card("platform_box", "%s/%s/%s" % (t, i.get("context"), i.get("reference") or ""),
-                         _SUP_WORDS.get(t, t.replace("_", " ").title()), words, at, acts, "supervisor:%s" % t))
+        _c = _card("platform_box", "%s/%s/%s" % (t, i.get("context"), i.get("reference") or ""),
+                   _SUP_WORDS.get(t, t.replace("_", " ").title()), words, at, acts, "supervisor:%s" % t)
+        if t == "no_current_backup" and _auto_on:
+            _c["auto_fixing"] = True      # register 1024: not an alert while ProOS's own run of the box's fix is under way
+        out.append(_c)
     for k in ("unhealthy", "unsupported"):
         for why in res.get(k) or []:
             out.append(_card("platform_box", "%s/%s" % (k, why), "The Box Reports It Is %s" % k.title(),
                              "The box's own check reports it is %s: %s." % (k, str(why).replace("_", " ")),
                              at, [], "supervisor:%s:%s" % (k, why)))
     return out
+
+
+# ── THE BOX'S OWN FULL BACKUP, RUN AUTOMATICALLY (register 1024; Dave, 27 Oct 08:42: "2") ──────────────────────────
+# Measured 26 Oct (1023a): the Supervisor's no_current_backup clears only for a backup of ITS "full" type; the
+# platform's daily automatic backups are always "partial" to it, even holding every add-on — so the warning returns
+# every few days. Dave chose option 2: ProOS applies the box's own fix (create_full_backup) itself, but ONLY when the
+# daily backups are already healthy and complete — so the card never shows unless something is really wrong:
+#   * the Supervisor reports no_current_backup AND offers create_full_backup (the box's own remedy, nothing else);
+#   * the platform's automatic backups are ON and include every add-on and the database ("full" in its settings);
+#   * the last automatic backup completed within AUTO_HEALTHY_S;
+#   * ProOS has not tried in the last AUTO_EVERY_S (kept on disk — "done today" in memory once took two backups a day,
+#     register 662).
+# While it runs (up to AUTO_GRACE_S) the card says so and does not alert; if the box's check has not cleared by then
+# the card is the plain critical card again. A backup touches only the box, never the house.
+AUTO_PATH = os.path.join(DATA, "auto_full_backup.json")
+AUTO_HEALTHY_S = 2 * 86400      # WINDOW: the daily schedule plus a day's slack
+AUTO_EVERY_S = 20 * 3600        # WINDOW: at most one automatic full backup a day
+AUTO_GRACE_S = 1800             # WINDOW: how long a running full backup may take before the card speaks plainly
+_auto = {"since": None}
+
+
+def _iso_ts(v):
+    try:
+        from datetime import datetime
+        return datetime.fromisoformat(str(v).replace("Z", "+00:00")).timestamp()
+    except Exception:                                            # noqa: BLE001
+        return None
+
+
+def auto_last_attempt():
+    try:
+        with open(AUTO_PATH, encoding="utf-8") as fh:
+            return float((json.load(fh) or {}).get("at") or 0) or None
+    except Exception:                                            # noqa: BLE001
+        return None
+
+
+def auto_record_attempt(now=None):
+    try:
+        os.makedirs(os.path.dirname(AUTO_PATH), exist_ok=True)
+        with open(AUTO_PATH + ".tmp", "w", encoding="utf-8") as fh:
+            json.dump({"at": now or time.time()}, fh)
+        os.replace(AUTO_PATH + ".tmp", AUTO_PATH)
+    except Exception:                                            # noqa: BLE001
+        pass
+
+
+def auto_full_backup_due(resolution, backup_cfg, last_attempt, now):
+    """(due, why) — pure. `resolution` is the Supervisor's /resolution/info, `backup_cfg` platform_backup.summarise."""
+    res = resolution or {}
+    if not any(i.get("type") == "no_current_backup" for i in (res.get("issues") or [])):
+        return False, "the box reports no backup problem"
+    if not any(g.get("type") == "create_full_backup" for g in (res.get("suggestions") or [])):
+        return False, "the box offers no full-backup fix"
+    c = backup_cfg or {}
+    if c.get("enabled") is not True:
+        return False, "the daily automatic backups are not on"
+    if c.get("full") is not True:
+        return False, "the daily automatic backups leave out the add-ons"
+    last = _iso_ts(c.get("last_completed"))
+    if not last or now - last > AUTO_HEALTHY_S:
+        return False, "no daily automatic backup has completed recently"
+    if last_attempt and now - last_attempt < AUTO_EVERY_S:
+        return False, "ProOS already made one today"
+    return True, "the daily backups are healthy and complete; the box only wants its own full type"
+
+
+def set_auto_fixing(since):
+    _auto["since"] = since
 
 
 def acknowledge(iid):
