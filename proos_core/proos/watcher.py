@@ -133,15 +133,14 @@ assert not (_REACH_UP & _REACH_DOWN) and not (_REACH_DOWN & _REACH_MUTE) \
 # comfortable of two indistinguishable explanations. See _offnet_ok in tick().
 OFFNET_WHEN_OFF = ("display",)
 
-# CLASS FACT (Dave, 9 Aug 2026): LIGHTING lives on physical switches — a smart
-# bulb switched off at the wall or on the lamp itself loses ALL power, so its
-# radio dies: unavailable + witness-gone, the exact shape of a dead device —
-# and it happens every day, on purpose. The evidence cannot tell wall-switch
-# from failure, so the honest calm answer is "no power" (standby), never a red
-# fault. Nothing is hidden: the pill and device_liveness still show the state.
-# A bulb that is wedged (unavailable but witness PRESENT) or contradicted
-# (believed-on but witness GONE) still faults. Brand-agnostic, by class.
-NO_POWER_IS_NORMAL = ("lighting",)
+# REGISTER 1025 — THE 9 AUG LIGHTING RULE IS REVERSED (Dave, 27 Oct 09:54): "those lights are lamps wifi bulbs so when
+# someone turns that off using the lamp switch then they will be gone from network and integration if they are switched
+# on at the lamp and off with the integration then they will still be on network so that is why we need reverse the
+# ruling on the 9 august and report what the platform reports from the integration then if assist is asked to
+# troubleshoot an issue then it can then determine through using the tools it has for that device by checking the
+# integration and network". NO_POWER_IS_NORMAL (a lighting watch the witness says has no power = calm standby) is
+# DELETED: a light the platform reports unavailable is a fault in the platform's words, like every other device; why it
+# is gone (off at the lamp, or failed) is for Assist to find with the integration and network tools, when asked.
 
 OK = "ok"
 PENDING = "pending"   # unhealthy but within debounce -> amber pill
@@ -672,8 +671,6 @@ class Watcher:
                     if reachable is None and spec and (pa or debounced):
                         reachable = self._reach_cached(w, spec, states, now)
                     rt.reachable = reachable
-                    _wall_switched = (reachable is False and not state_healthy
-                                      and w.get("kind") in NO_POWER_IS_NORMAL)
                     # D-1: a device whose OWN switch is dead never falls into
                     # the resting branch — resting is a claim about a device
                     # that left the network on its own, and with the path down
@@ -682,21 +679,9 @@ class Watcher:
                     # REGISTER 1019 (Dave, 26 Oct 17:50, "Yes"): "unavailable with no witness" is NO LONGER a resting
                     # state. It became a calm STANDBY here — a judgement the platform never made: the platform said
                     # unavailable, and nothing else answered. It now falls through to the debounced fault below with
-                    # the verdict "unavailable" (the platform's own word). Only the 9 Aug ruled case stays resting: a
-                    # light the witness says has no power at all (switched at the wall, NO_POWER_IS_NORMAL).
-                    if pa and not _my_gear_down and _wall_switched:
-                        # No witness / witness can't say: a resting state — fail
-                        # open, never invent a fault. (A witness that positively
-                        # says GONE falls through to the debounced offline fault
-                        # below — the switch test.) EXCEPT lighting with no
-                        # power at all (class fact above): the wall switch is a
-                        # daily, deliberate act — calm standby, not an alarm.
-                        if rt.status == FAULT:
-                            rt.last_event = "resolved"
-                            rt.last_change = now
-                        rt.status = STANDBY
-                        rt.verdict = "standby"
-                    elif debounced:
+                    # the verdict "unavailable" (the platform's own word). REGISTER 1025 (Dave, 27 Oct): the last resting
+                    # case — a light the witness says has no power (the 9 Aug lighting rule) — is gone too.
+                    if debounced:
                         # Past debounce: a real fault. Diagnose why with the signal.
                         # D-1 + Dave's ruling (16 Aug): the device's OWN switch
                         # being offline outranks everything virtual — including
