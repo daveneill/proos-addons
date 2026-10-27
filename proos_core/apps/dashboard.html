@@ -3310,10 +3310,14 @@ html[data-link="remote"]{--m-tap:90ms;--m-move:200ms;--m-page:300ms}
 #atv-page .atv-tog{position:absolute;top:12px;right:12px;display:flex;gap:2px;padding:3px;border-radius:999px;background:rgba(0,0,0,.45);z-index:2}
 #atv-page .atv-tog button{width:38px;height:30px;border-radius:999px;display:grid;place-items:center;color:var(--atv-ink3)}#atv-page .atv-tog button.on{background:rgba(255,255,255,.16);color:#fff}#atv-page .atv-tog svg{width:17px;height:17px}
 #atv-page .atv-tphint{position:absolute;left:0;right:0;bottom:22px;text-align:center;font-size:14px;color:var(--atv-ink2);line-height:1.5;pointer-events:none}#atv-page .atv-tphint span{font-size:12px;color:var(--atv-ink3)}
-#atv-page .atv-dpad{position:absolute;inset:0;display:grid;place-items:center}
-#atv-page .atv-dpad .ok{width:118px;height:118px;border-radius:50%;background:rgba(255,255,255,.1);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);font-weight:600;font-size:18px;letter-spacing:.04em}
-#atv-page .atv-dpad .dk{position:absolute;color:var(--atv-ink2);width:64px;height:64px;display:grid;place-items:center;border-radius:999px}#atv-page .atv-dpad .dk svg{width:30px;height:30px}
-#atv-page .atv-dpad .dk.u{top:10%;transform:rotate(-90deg)}#atv-page .atv-dpad .dk.d{bottom:10%;transform:rotate(90deg)}#atv-page .atv-dpad .dk.l{left:18%;transform:rotate(180deg)}#atv-page .atv-dpad .dk.r{right:18%}
+/* register 1042 (Dave 28 Oct 07:56 "Nav look wrong"): the arrows were placed by percentages of the pad, so on a wide
+   short pad up/down sat ON the OK circle and left/right far outside. Now OK, the arrows and their one distance are sized
+   from the pad's own shorter side (cqmin), so the ring is the same shape at every size */
+#atv-page .atv-pad{container-type:size;-webkit-touch-callout:none;-webkit-user-select:none}
+#atv-page .atv-dpad{position:absolute;inset:0;display:grid;place-items:center;--ok:min(118px,38cqmin);--dk:min(64px,21cqmin);--gap:min(14px,4cqmin);--d:calc(var(--ok) / 2 + var(--dk) / 2 + var(--gap))}
+#atv-page .atv-dpad .ok{width:var(--ok);height:var(--ok);border-radius:50%;background:rgba(255,255,255,.1);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);font-weight:600;font-size:18px;letter-spacing:.04em}
+#atv-page .atv-dpad .dk{position:absolute;color:var(--atv-ink2);width:var(--dk);height:var(--dk);left:calc(50% - var(--dk) / 2);top:calc(50% - var(--dk) / 2);display:grid;place-items:center;border-radius:999px}#atv-page .atv-dpad .dk svg{width:47%;height:47%}
+#atv-page .atv-dpad .dk.u{transform:translateY(calc(-1 * var(--d))) rotate(-90deg)}#atv-page .atv-dpad .dk.d{transform:translateY(var(--d)) rotate(90deg)}#atv-page .atv-dpad .dk.l{transform:translateX(calc(-1 * var(--d))) rotate(180deg)}#atv-page .atv-dpad .dk.r{transform:translateX(var(--d))}
 #atv-page .down{opacity:.6}
 /* keys + transport */
 #atv-page .atv-keys{display:grid;grid-template-columns:repeat(8,1fr);gap:8px;flex:none}
@@ -4920,7 +4924,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102611';
+const PROOS_BUILD='2026102612';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -18894,7 +18898,15 @@ function _atvBindTouch(pad){
     if(edgeKey){ if(edgeKey!=='__select') _atvReleaseHeld(); edgeKey=null; return; }
     if(pressed){ send('release', last||map(ev.clientX,ev.clientY)); pressed=false; return; }
     _atvKey('select','tap'); };
-  pad.addEventListener('pointerup',up); pad.addEventListener('pointercancel',up);
+  pad.addEventListener('pointerup',up);
+  // register 1042 (Dave 07:56 "the hold for options or side fast don't work"; the driver fast-forwards on an edge hold,
+  // measured on the Bedroom): iOS claims a finger held ~0.5 s still as its own long press and CANCELS the page's touch,
+  // before the 550 ms hold — and the cancel used to be sent as a tap. The pad now takes the touch itself, and a cancel
+  // lets go of anything held and sends nothing else.
+  pad.addEventListener('touchstart',ev=>{ if(!ev.target.closest('.atv-tog')) ev.preventDefault(); },{passive:false});
+  pad.addEventListener('pointercancel',()=>{ if(!st) return; clearTimeout(holdT); pad.classList.remove('touching'); st=0;
+    if(edgeKey){ if(edgeKey!=='__select') _atvReleaseHeld(); edgeKey=null; return; }
+    if(pressed){ send('release', last); pressed=false; } });
 }
 function _atvMoreSheet(){
   const items=[['top_menu','Top Menu'],['control_center','Control Center'],['page_up','Page Up'],['page_down','Page Down'],['screensaver','Screen Saver'],['guide','Guide'],['__sleep','Sleep Apple TV']];

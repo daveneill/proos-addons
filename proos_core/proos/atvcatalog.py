@@ -182,7 +182,11 @@ def title(kind: str, item_id: str) -> dict:
 
 
 def _norm(t) -> str:
-    return " ".join(str(t or "").lower().replace("’", "'").split())
+    """A title as letters and digits only (register 1042): HBO sends "The Fuzzy Boots Corollary", Apple's catalogue says
+    "The Fuzzyboots Corollary" — the same words, spaced and punctuated differently. Nothing else is loosened: every letter
+    and digit must agree, and a match must still be the ONE title of that name."""
+    import re as _re
+    return _re.sub(r"[^0-9a-z]+", "", str(t or "").lower().replace("&", "and"))
 
 
 def _found(data: dict, kind: str) -> list:
