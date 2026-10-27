@@ -7870,7 +7870,7 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, _atvcat.search((_q.get("q") or [""])[0]))
                 if parts[1] == "nowplaying":   # register 1037: episode facts and art, on an exact match only
                     _g = lambda k: ((_q.get(k) or [""])[0] or None)   # noqa: E731
-                    return self._send(200, _atvcat.now_playing(_g("series") or "", _g("title") or "", _g("season"), _g("episode")))
+                    return self._send(200, _atvcat.now_playing(_g("series") or "", _g("title") or "", _g("season"), _g("episode"), _g("kind")))
                 return self._send(200, _atvcat.title((_q.get("kind") or ["movie"])[0], (_q.get("id") or [""])[0]))
             if parts == ["rooms", "photos"]:
                 # ONE list for room pictures (B3, 22 Aug 2026). The dashboard

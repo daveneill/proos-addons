@@ -42,6 +42,10 @@ _REMOTE_NAMES = {"play_pause": "play_pause", "home": "home", "menu": "menu", "se
                  "top_menu": "top_menu", "control_center": "control_center"}
 
 
+# the keys pyatv's remote lets be tapped, double-tapped or held (interface.RemoteControl: up/down/left/right/select/menu/home)
+_ACTION_KEYS = ("up", "down", "left", "right", "select", "menu", "home")
+
+
 class NotOffered(Exception):
     """The Apple TV (or the paired protocol) does not offer this; the message says which."""
 
@@ -149,8 +153,11 @@ class ProOSExtras:
             return
         if fn is None:
             raise NotOffered("%s is not a key this Apple TV offers" % name)
-        if name in ("volume_up", "volume_down", "top_menu", "control_center", "screensaver", "guide",
-                    "page_up", "page_down", "channel_up", "channel_down"):
+        if name not in _ACTION_KEYS:
+            # register 1038: pyatv's play_pause, volume, top menu… take no press style — passing one made the Apple TV
+            # refuse every Play/Pause from the page ("got an unexpected keyword argument 'action'", measured 27 Oct)
+            if action not in ("tap", None):
+                raise NotOffered("%s has no %s" % (name, action))
             await fn()
             return
         act = {"tap": InputAction.SingleTap, "double": InputAction.DoubleTap, "hold": InputAction.Hold}.get(action)

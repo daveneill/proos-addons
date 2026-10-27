@@ -4859,7 +4859,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102607';
+const PROOS_BUILD='2026102608';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -18592,7 +18592,11 @@ function _atvCall(service, data, wantResponse){
   if(wantResponse) m.return_response=true;
   return snd(m).then(r=>{ if(r&&r.success===false) throw new Error((r.error&&r.error.message)||'refused'); return wantResponse?((r.result&&r.result.response)||{}):r; });
 }
-function _atvKey(key, action){ _atvCall('proos_key',{key:key,action:action||'tap'}).catch(_atvFail); }   // the tap's haptic belongs to the one funnel (haptics_bench)
+function _atvKey(key, action){
+  // register 1038: Play/Pause is the platform's own play/pause (measured 27 Oct: it pauses and resumes; the remote-key
+  // route was refused by the driver)
+  if(key==='play_pause'){ snd({type:'call_service',domain:'media_player',service:'media_play_pause',service_data:{},target:{entity_id:_atv.e}}).then(r=>{ if(r&&r.success===false) _atvFail(new Error('The Apple TV did not take Play/Pause')); }).catch(_atvFail); return; }
+  _atvCall('proos_key',{key:key,action:action||'tap'}).catch(_atvFail); }   // the tap's haptic belongs to the one funnel (haptics_bench)   // the tap's haptic belongs to the one funnel (haptics_bench)
 function _atvFail(err){ _atvToast((err&&err.message)||'The Apple TV did not answer'); }
 function _atvToast(msg){
   const p=document.getElementById('atv-page'); if(!p) return;
@@ -18724,7 +18728,7 @@ function _atvRoomOffAsk(){
   const p=document.getElementById('atv-page'); if(!p||!_atv.room) return;
   _atvPop('<div class="atv-poph"><b>Turn off '+_hEsc(_atv.room.name||'the room')+'?</b><span>Everything in the room turns off, the Apple TV goes to sleep.</span></div>'
     +'<div class="atv-popf"><button type="button" class="ghost" data-act="no">Cancel</button><button type="button" class="primary danger" data-act="yes">Room Off</button></div>',
-    pop=>{ pop.querySelector('[data-act="no"]').onclick=_atvPopClose; pop.querySelector('[data-act="yes"]').onclick=()=>{ _atvPopClose(); const idx=CONFIG.rooms.indexOf(_atv.room); if(idx>=0) runRoomTvOff(idx); }; });
+    pop=>{ pop.querySelector('[data-act="no"]').onclick=_atvPopClose; pop.querySelector('[data-act="yes"]').onclick=()=>{ _atvPopClose(); const idx=CONFIG.rooms.indexOf(_atv.room); if(idx>=0) runRoomTvOff(idx); atvClose(); }; });   // register 1038: the room's TV Off activity, and the page closes
 }
 function _atvPop(html, bind){
   const p=document.getElementById('atv-page'); _atvPopClose();
@@ -18847,12 +18851,15 @@ function _atvRefreshNP(){
 // the show and the episode the Apple TV reported (Core: /appletv/nowplaying); no match → nothing is added
 function _atvLookUp(){
   const e=_atv.e, title=att(e,'media_title'); if(!title){ _atv.cat=null; return; }
-  if(_atv.cat&&_atv.cat.title===title) return;
-  const q='series='+encodeURIComponent(att(e,'media_series_title')||'')+'&title='+encodeURIComponent(title)
+  if(_atv.cat&&_atv.cat.title===title&&_atv.cat.ser===(att(e,'media_series_title')||att(e,'media_artist')||'')) return;
+  // register 1038: an app that reports no series (HBO Max) puts the show in the artist field — used ONLY for an exact show +
+  // episode match; a film is asked for only when the Apple TV says a film is playing
+  const ser=att(e,'media_series_title')||(att(e,'media_content_type')==='movie'?'':(att(e,'media_artist')||''));
+  const q='series='+encodeURIComponent(ser)+'&title='+encodeURIComponent(title)+'&kind='+encodeURIComponent(att(e,'media_content_type')||'')
     +(att(e,'media_season')?'&season='+encodeURIComponent(att(e,'media_season')):'')+(att(e,'media_episode')?'&episode='+encodeURIComponent(att(e,'media_episode')):'');
-  _atv.cat={title:title, match:false, pending:true};
+  _atv.cat={title:title, ser:(att(e,'media_series_title')||att(e,'media_artist')||''), match:false, pending:true};
   _coreFetch(proosCoreBase()+'/appletv/nowplaying?'+q,{},12000).then(r=>r.json()).then(j=>{ if(!_atv||_atv.e!==e||att(e,'media_title')!==title) return;
-    _atv.cat=Object.assign({title:title},j); if(j.match) _atvRenderBody(); }).catch(()=>{});
+    _atv.cat=Object.assign({title:title, ser:(att(e,'media_series_title')||att(e,'media_artist')||'')},j); if(j.match) _atvRenderBody(); }).catch(()=>{});
 }
 // a group the app lets be EMPTY is subtitles (audio can never be "off"); the other is audio — the app's own flag, not
 // the order; a group with no flag is named by its number (register 1035, to be confirmed on the TV app)

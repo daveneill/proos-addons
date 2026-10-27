@@ -143,7 +143,9 @@ def parse_where(data: dict) -> list:
         ids = ch.get("appBundleIds") or []
         po = p.get("punchoutUrls") or {}
         bundle = ids[0] if ids else None
-        url = po.get("open") or po.get("play") or p.get("url") or None
+        # register 1038 (Dave: "open app … goes to the correct page … but doesn't start the content"): Apple's "play" link
+        # starts the title; "open" only shows its page
+        url = po.get("play") or po.get("open") or p.get("url") or None
         if bundle == ITUNES_BUNDLE or name == "iTunes":
             # Dave 27 Oct: "iTunes … no longer exists" — buying and renting is in the Apple TV app on the Apple TV, so the
             # entry is named for where it opens, with Apple's own tv.apple.com link (register 1037)
@@ -209,7 +211,7 @@ def match_episode(episodes: list, title: str, season=None, episode=None):
     return cand[0] if len(cand) == 1 else None
 
 
-def now_playing(series: str, title: str, season=None, episode=None) -> dict:
+def now_playing(series: str, title: str, season=None, episode=None, kind=None) -> dict:
     """What Apple's catalogue says about what is playing — ONLY on an exact match (register 1037; Dave 27 Oct: no episode
     info, low-quality art). A show: the series by its exact name, then the episode by its exact title. A film: its exact
     title. No exact, single match → {"match": False} and the page shows only what the Apple TV said."""
@@ -234,6 +236,10 @@ def now_playing(series: str, title: str, season=None, episode=None) -> dict:
             return {"match": True, "kind": "episode", "season": ep.get("seasonNumber"), "episode": ep.get("episodeNumber"),
                     "description": ep.get("description"), "image": _wide(ep.get("images") or {}),
                     "show": shows[0].get("title")}
+        if kind != "movie":
+            # register 1038: with no series named, a film is looked up ONLY when the Apple TV says a film is playing —
+            # an episode called "Pilot" matched a FILM called "Pilot" (Dave 27 Oct: the wrong artwork)
+            return {"match": False, "why": "no series named and the Apple TV did not say it is a film"}
         films = [r for r in _found(_get("/search", {"searchTerm": title}), "Movie") if _norm(r.get("title")) == _norm(title)]
         if len(films) != 1:
             return {"match": False, "why": "no single film named exactly %r" % title}

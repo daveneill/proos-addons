@@ -43,6 +43,10 @@ bumped to 0.18.0.
   Bench: `apple_tv_proos_extras_bench.py` (driven).
 - `media_player.py` (proos.8, register 1037): artwork asked for 1600 wide (pyatv's default is 512 —
   Dave 27 Oct: "media for now playing is very low quality").
+- `proos_extras.py` (proos.9, register 1038): only up/down/left/right/select/menu/home are sent with a press style —
+  pyatv's play_pause, volume, top menu and the rest take none, and up to proos.8 the driver passed one, so pyatv refused
+  every Play/Pause from the page ("got an unexpected keyword argument 'action'", measured on the Bedroom 27 Oct).
+  Holding a key pyatv cannot hold says so. The bench's stand-in now has pyatv's real signatures.
 Everything else is byte-for-byte HA core 2026.6.3.
 
 Because the domain stays `apple_tv`, this custom integration OVERRIDES the
