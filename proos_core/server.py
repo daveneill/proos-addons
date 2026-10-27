@@ -2367,6 +2367,23 @@ def _activity_scope():
                     m[e] = (nm or _platform_name(e), slug)
     except Exception:                                            # noqa: BLE001
         pass
+    # REGISTER 1028 (Dave, 27 Oct: device activity for EVERY room device, not just the watched ones — "reporting in our
+    # logs what is in the platform's logs"): every enabled entity of a device assigned to a room (the entity's own area
+    # first, else its device's), named as the platform names it, in that room. Continuous sensors are left out in
+    # _activity_record exactly as the platform's own activity log leaves them out.
+    try:
+        c = globals().get("_client")
+        if c is not None:
+            devs = {d.get("id"): d for d in (c.device_registry() or [])}
+            for e in (c.entity_registry() or []):
+                eid = e.get("entity_id")
+                if not eid or eid in m or e.get("disabled_by"):
+                    continue
+                aid = e.get("area_id") or (devs.get(e.get("device_id")) or {}).get("area_id")
+                if aid:
+                    m[eid] = (_platform_name(eid), aid)
+    except Exception:                                            # noqa: BLE001
+        pass
     _act_scope.update({"ts": now, "map": m})
     return m
 
@@ -2383,8 +2400,14 @@ def _activity_record(eid):
     if s is None:
         return
     try:
-        new = ((s.snapshot([eid]) or {}).get(eid) or {}).get("state")
+        _rec = (s.snapshot([eid]) or {}).get(eid) or {}
+        new = _rec.get("state")
     except Exception:                                            # noqa: BLE001
+        return
+    # REGISTER 1028: the platform's own activity-log rule — a sensor reporting a continuous reading (it carries a unit or
+    # a state class) is not an activity; the platform's log leaves it out, so ProOS's does too.
+    _att = _rec.get("attributes") or {}
+    if eid.startswith("sensor.") and (_att.get("unit_of_measurement") or _att.get("state_class")):
         return
     old = _act_last.get(eid)
     _act_last[eid] = new
@@ -11346,7 +11369,7 @@ def main():
                 pass
         _ha_stream.on_change = _on_state_change
         print("  watcher running (event-driven; 5s reconciliation sweep) -> GET /watchers")
-        print("  activity recorder: watched+committed transitions -> Master Log")
+        print("  activity recorder: every room device's transitions -> Master Log (register 1028)")
     else:
         print("  watcher running (interval 5s) -> GET /watchers")
     # STAGE 1 BUILD 3 (16 Aug): when the watcher's report changes, Core
