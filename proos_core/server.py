@@ -2388,6 +2388,24 @@ def _activity_scope():
     return m
 
 
+def _activity_seed():
+    """REGISTER 1028a — measured on the box after 1.0.1156: the first change of every device after a Core restart was
+    dropped as a "first sighting" (the front door camera's person detection, 12:16), because the recorder did not yet
+    know what came before. The live stream holds every state; seeding the recorder from it the moment it starts means the
+    first real change after a restart is recorded, as the platform's own activity log records it."""
+    s = globals().get("_ha_stream")
+    if s is None:
+        return 0
+    scope = _activity_scope()
+    snap = s.snapshot(list(scope)) or {}
+    n = 0
+    for eid, rec in snap.items():
+        if eid not in _act_last and not (rec or {}).get("missing") and (rec or {}).get("state") is not None:
+            _act_last[eid] = rec.get("state")
+            n += 1
+    return n
+
+
 def _activity_record(eid):
     """One journal `activity` row per real transition of an in-scope entity.
     First sight seeds silently (the boot snapshot is not news); repeats and
@@ -11368,6 +11386,10 @@ def main():
             except Exception:                                    # noqa: BLE001
                 pass
         _ha_stream.on_change = _on_state_change
+        try:
+            print("  activity recorder: %d room states seeded from the live stream" % _activity_seed(), flush=True)
+        except Exception as _se:                                 # noqa: BLE001
+            print("  activity recorder: seeding failed: %s" % _se, flush=True)
         print("  watcher running (event-driven; 5s reconciliation sweep) -> GET /watchers")
         print("  activity recorder: every room device's transitions -> Master Log (register 1028)")
     else:
