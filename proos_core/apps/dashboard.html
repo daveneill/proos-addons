@@ -3277,6 +3277,147 @@ html[data-link="remote"]{--m-tap:90ms;--m-move:200ms;--m-page:300ms}
    off that list and take the floor on the header instead. See the rules at the
    end of the last style block, which is where they have to sit to beat the
    !important paddings that landed there later. */
+
+/* THE APPLE TV PAGE (register 1035) — the approved mockup (docs/mockups/ProOS_Apple_TV_Mockups_2026-10-27.html): near-black,
+   dark glass, the room at the top, four tabs, the bottom bar stays above it, popups are centred cards. */
+#atv-page{--atv-glass:rgba(255,255,255,.055);--atv-glass2:rgba(255,255,255,.09);--atv-hair:rgba(255,255,255,.09);--atv-ink2:rgba(255,255,255,.64);--atv-ink3:rgba(255,255,255,.38);
+  --atv-on:#5FE3A1;--atv-bad:#FF7A6B;--atv-dim:rgba(255,255,255,.45);--atv-sel:#6FA8FF;
+  position:fixed;inset:0;z-index:55;display:none;color:#fff;background:#000;overflow:hidden;
+  padding:0 max(28px,env(safe-area-inset-right,0px)) calc(var(--proos-floor,0px) + var(--proos-dock-h,78px) + 14px) max(28px,env(safe-area-inset-left,0px));
+  font-family:'Inter',-apple-system,'Helvetica Neue',sans-serif;-webkit-user-select:none;user-select:none}
+#atv-page.open{display:flex;flex-direction:column;gap:16px}
+#atv-page button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
+#atv-page svg{width:20px;height:20px;flex:none}
+#atv-page .atv-bg{position:absolute;inset:0;z-index:-1;background:#000 radial-gradient(900px 520px at 78% 8%,rgba(31,111,128,.20),transparent 65%),radial-gradient(700px 500px at 8% 100%,rgba(217,139,91,.07),transparent 70%)}
+#atv-page .atv-hdr{padding:max(22px,var(--proos-sat)) 0 0;display:flex;align-items:center;gap:18px;min-height:56px;flex:none}
+#atv-page .atv-hl{display:flex;flex-direction:column;gap:2px;min-width:180px;flex:1 1 0}
+#atv-page .atv-bk{display:flex;align-items:center;gap:2px;color:var(--atv-ink2);font-size:13px;padding:0;align-self:flex-start}#atv-page .atv-bk svg{width:16px;height:16px}#atv-page .atv-bk b{font-weight:500}
+#atv-page .atv-ht{font-size:30px;font-weight:300;letter-spacing:-.02em}
+#atv-page .atv-segs{display:flex;gap:2px;padding:3px;border-radius:999px;background:var(--atv-glass);flex:none}
+#atv-page .atv-segs button{height:36px;padding:0 18px;border-radius:999px;font-size:13.5px;font-weight:500;color:var(--atv-ink2)}#atv-page .atv-segs button.on{background:rgba(255,255,255,.15);color:#fff}
+#atv-page .atv-hr{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex:1 1 0;min-width:180px}
+#atv-page .atv-chip{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 12px;border-radius:999px;background:var(--atv-glass);font-size:12.5px;font-weight:500;color:var(--atv-ink2);white-space:nowrap}
+#atv-page .atv-chip i{width:7px;height:7px;border-radius:999px}#atv-page .atv-chip em{font-style:normal}
+#atv-page .atv-roff{display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 14px;border-radius:999px;background:rgba(255,122,107,.14)!important;color:#ffb3a9!important;font-size:13px;font-weight:500}#atv-page .atv-roff em{font-style:normal}
+#atv-page .atv-body{flex:1;min-height:0;position:relative;display:flex;flex-direction:column}
+#atv-page .atv-cols{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:28px}
+#atv-page .atv-l,#atv-page .atv-r{min-height:0;display:flex;flex-direction:column;gap:14px}
+#atv-page .atv-l.wide{min-width:0}
+#atv-page .atv-r.side{overflow-y:auto;scrollbar-width:none;gap:8px}
+/* touch surface / d-pad */
+#atv-page .atv-pad{position:relative;flex:1;min-height:220px;border-radius:26px;background:linear-gradient(160deg,rgba(255,255,255,.075),rgba(255,255,255,.03));box-shadow:inset 0 0 0 1px rgba(255,255,255,.08);overflow:hidden;touch-action:none}
+#atv-page .atv-pad.touching{background:linear-gradient(160deg,rgba(255,255,255,.11),rgba(255,255,255,.05))}
+#atv-page .atv-tog{position:absolute;top:12px;right:12px;display:flex;gap:2px;padding:3px;border-radius:999px;background:rgba(0,0,0,.45);z-index:2}
+#atv-page .atv-tog button{width:38px;height:30px;border-radius:999px;display:grid;place-items:center;color:var(--atv-ink3)}#atv-page .atv-tog button.on{background:rgba(255,255,255,.16);color:#fff}#atv-page .atv-tog svg{width:17px;height:17px}
+#atv-page .atv-tphint{position:absolute;left:0;right:0;bottom:22px;text-align:center;font-size:14px;color:var(--atv-ink2);line-height:1.5;pointer-events:none}#atv-page .atv-tphint span{font-size:12px;color:var(--atv-ink3)}
+#atv-page .atv-dpad{position:absolute;inset:0;display:grid;place-items:center}
+#atv-page .atv-dpad .ok{width:118px;height:118px;border-radius:50%;background:rgba(255,255,255,.1);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);font-weight:600;font-size:18px;letter-spacing:.04em}
+#atv-page .atv-dpad .dk{position:absolute;color:var(--atv-ink2);width:64px;height:64px;display:grid;place-items:center;border-radius:999px}#atv-page .atv-dpad .dk svg{width:30px;height:30px}
+#atv-page .atv-dpad .dk.u{top:10%;transform:rotate(-90deg)}#atv-page .atv-dpad .dk.d{bottom:10%;transform:rotate(90deg)}#atv-page .atv-dpad .dk.l{left:18%;transform:rotate(180deg)}#atv-page .atv-dpad .dk.r{right:18%}
+#atv-page .down{opacity:.6}
+/* keys + transport */
+#atv-page .atv-keys{display:grid;grid-template-columns:repeat(8,1fr);gap:8px;flex:none}
+#atv-page .atv-key{display:flex;flex-direction:column;align-items:center;gap:4px;padding:11px 2px 9px;border-radius:16px;background:var(--atv-glass)!important}#atv-page .atv-key svg{width:22px;height:22px}
+#atv-page .atv-key em{font-style:normal;font-size:11.5px;font-weight:500}
+#atv-page .atv-key.lit{background:rgba(111,168,255,.22)!important;box-shadow:inset 0 0 0 1px rgba(111,168,255,.6);color:#cfe0ff!important}
+#atv-page .atv-trans{display:flex;align-items:center;justify-content:center;gap:18px;flex:none}
+#atv-page .atv-trans button{width:52px;height:52px;border-radius:50%;display:grid;place-items:center;background:var(--atv-glass)!important}#atv-page .atv-trans button svg{width:22px;height:22px}
+#atv-page .atv-trans button.big{width:66px;height:66px;background:#fff!important;color:#000!important}#atv-page .atv-trans button.big svg{width:26px;height:26px}
+#atv-page .atv-tcap{text-align:center;font-size:11.5px;color:var(--atv-ink3);flex:none}
+/* now playing */
+#atv-page .atv-np{display:flex;flex-direction:column;gap:12px;padding:16px;border-radius:24px;background:var(--atv-glass);flex:1;min-height:0}
+#atv-page .atv-np.empty{justify-content:center;align-items:center;text-align:center;gap:6px}#atv-page .atv-np.empty b{font-size:16px;font-weight:600}#atv-page .atv-np.empty span{font-size:13px;color:var(--atv-ink2)}
+#atv-page .atv-art{position:relative;aspect-ratio:16/9;max-width:100%;border-radius:16px;overflow:hidden;background:#15171c center/cover no-repeat;box-shadow:0 18px 40px rgba(0,0,0,.45);flex:none}
+#atv-page .atv-art.big{border-radius:20px}
+#atv-page .atv-appchip{position:absolute;top:12px;left:12px;height:24px;padding:0 10px;border-radius:999px;background:rgba(0,0,0,.55);font-size:11.5px;font-weight:600;display:flex;align-items:center}
+#atv-page .atv-npt{display:flex;flex-direction:column;gap:3px;min-width:0}#atv-page .atv-npt b{font-size:21px;font-weight:600;letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#atv-page .atv-npt span{font-size:13.5px;color:var(--atv-ink2)}
+#atv-page .atv-prog .atv-pt{position:relative;height:4px;border-radius:2px;background:rgba(255,255,255,.14)}#atv-page .atv-prog .atv-pt i{position:absolute;left:0;top:0;bottom:0;border-radius:2px;background:#fff}
+#atv-page .atv-prog.big .atv-pt{height:6px;border-radius:3px}#atv-page .atv-prog.seek{cursor:pointer;padding:10px 0;margin:-10px 0}
+#atv-page .atv-prog .atv-pl{display:flex;justify-content:space-between;font-size:11.5px;color:var(--atv-ink3);margin-top:6px;font-variant-numeric:tabular-nums}
+#atv-page .atv-npb{display:flex;gap:8px;flex-wrap:wrap}#atv-page .atv-pill{display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 13px;border-radius:999px;background:var(--atv-glass2)!important;font-size:12.5px;font-weight:500}#atv-page .atv-pill svg{width:16px;height:16px}
+#atv-page .atv-next{margin-top:auto;padding-top:12px;box-shadow:0 -1px 0 var(--atv-hair);display:flex;flex-direction:column;gap:3px}#atv-page .atv-next span{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--atv-ink3);font-weight:600}#atv-page .atv-next b{font-size:14px;font-weight:500}
+#atv-page .atv-npbig{display:flex;flex-direction:column;gap:14px;min-height:0}
+/* volume */
+#atv-page .atv-vol{display:flex;align-items:center;gap:14px;padding:14px 18px;border-radius:20px;background:var(--atv-glass);flex:none}
+#atv-page .atv-vr{display:flex;flex-direction:column;gap:2px;min-width:120px}#atv-page .atv-vr b{font-size:14.5px;font-weight:600}#atv-page .atv-vr small{font-size:11.5px;color:var(--atv-ink3)}
+#atv-page .atv-vm{color:var(--atv-ink2)}#atv-page .atv-vm.on{color:var(--atv-bad)}
+#atv-page .atv-vol input[type=range]{flex:1;min-width:0;-webkit-appearance:none;appearance:none;height:4px;border-radius:2px;background:rgba(255,255,255,.18);outline:none}
+#atv-page .atv-vol input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.6)}
+#atv-page .atv-vol input[type=range]::-moz-range-thumb{width:20px;height:20px;border:0;border-radius:50%;background:#fff}
+#atv-page .atv-vn{font-size:15px;font-weight:300;width:28px;text-align:right;font-variant-numeric:tabular-nums}
+#atv-page .atv-mini{display:none}
+/* states */
+#atv-page .atv-state{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:8px;padding:20px}
+#atv-page .atv-sico{width:72px;height:72px;border-radius:50%;display:grid;place-items:center;background:var(--atv-glass2);margin-bottom:8px}#atv-page .atv-sico svg{width:32px;height:32px}
+#atv-page .atv-state b{font-size:22px;font-weight:600}#atv-page .atv-state>span{font-size:14px;color:var(--atv-ink2);line-height:1.45;max-width:420px}#atv-page .atv-state small{font-size:12px;color:var(--atv-ink3)}
+#atv-page .atv-state.off .atv-sico{background:rgba(255,122,107,.15);color:#ffb3a9}
+#atv-page .atv-big{margin-top:16px;height:56px;padding:0 28px;border-radius:999px;background:#fff!important;color:#000!important;display:flex;align-items:center;gap:10px;font-size:16px!important;font-weight:600}
+#atv-page .atv-big.ghost{background:var(--atv-glass2)!important;color:#fff!important}
+#atv-page .atv-state + .atv-vol{max-width:640px;width:100%;margin:0 auto}
+/* popups: centred cards */
+#atv-page .atv-scrim{position:absolute;inset:0;background:rgba(0,0,0,.55);z-index:30;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+#atv-page .atv-pop{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(560px,calc(100% - 32px));max-height:calc(100% - 40px);overflow-y:auto;z-index:31;background:#16171b;border-radius:24px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.1),0 30px 80px rgba(0,0,0,.6);padding:22px;display:flex;flex-direction:column;gap:14px}
+#atv-page .atv-poph{display:flex;gap:14px;align-items:center}#atv-page .atv-poph>svg{width:26px;height:26px;color:#cfe0ff}#atv-page .atv-poph b{font-size:17px;font-weight:600;display:block}#atv-page .atv-poph span{font-size:13px;color:var(--atv-ink2)}
+#atv-page .atv-field{height:50px;border-radius:14px;background:rgba(255,255,255,.08);border:0;box-shadow:inset 0 0 0 1.5px rgba(111,168,255,.6);padding:0 16px;font-size:17px;color:#fff;outline:none;width:100%;font-family:inherit;-webkit-user-select:text;user-select:text}
+#atv-page .atv-popf{display:flex;gap:8px;justify-content:flex-end}#atv-page .atv-popf button{height:40px;padding:0 16px;border-radius:999px;font-size:13.5px;font-weight:500}
+#atv-page .atv-popf .ghost{background:var(--atv-glass2)!important;color:var(--atv-ink2)!important}#atv-page .atv-popf .primary{background:#fff!important;color:#000!important}#atv-page .atv-popf .danger{background:#ff7a6b!important;color:#000!important}
+#atv-page .atv-list{display:flex;flex-direction:column;gap:4px}#atv-page .atv-list button{display:flex;align-items:center;justify-content:space-between;min-height:44px;padding:0 14px;border-radius:12px;background:var(--atv-glass)!important;font-size:14px;text-align:left}
+#atv-page .atv-list button.on{background:rgba(255,255,255,.14)!important}#atv-page .atv-list svg{width:16px;height:16px;color:var(--atv-on)}
+#atv-page .atv-sec{font-size:11px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--atv-ink3);flex:none}
+#atv-page .atv-hint{color:var(--atv-ink2);font-size:14px;padding:30px 0;text-align:center;grid-column:1/-1}#atv-page .atv-hint.left{text-align:left;padding:4px 0 12px;font-size:13px}
+#atv-page .atv-desc{font-size:13.5px;color:var(--atv-ink2);line-height:1.5}
+#atv-page .atv-toast{position:absolute;left:50%;bottom:calc(var(--proos-floor,0px) + var(--proos-dock-h,78px) + 20px);transform:translateX(-50%) translateY(10px);opacity:0;transition:opacity var(--m-move) var(--e-standard),transform var(--m-move) var(--e-standard);background:rgba(30,32,38,.96);padding:10px 16px;border-radius:999px;font-size:13px;z-index:40;pointer-events:none;max-width:calc(100% - 32px);text-align:center}
+#atv-page .atv-toast.on{opacity:1;transform:translateX(-50%)}
+/* apps */
+#atv-page .atv-apps{flex:1;min-height:0;display:flex;flex-direction:column;gap:14px;overflow-y:auto;scrollbar-width:none}
+#atv-page .atv-apps-top{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+#atv-page .atv-filter,#atv-page .atv-sfield{flex:1;max-width:460px;min-width:200px;height:46px;border-radius:14px;background:var(--atv-glass);display:flex;align-items:center;gap:10px;padding:0 14px;color:var(--atv-ink3)}
+#atv-page .atv-filter input,#atv-page .atv-sfield input{flex:1;min-width:0;background:none;border:0;outline:none;color:#fff;font:inherit;font-size:15px;-webkit-user-select:text;user-select:text}
+#atv-page .atv-profs{display:flex;align-items:center;gap:8px;margin-left:auto;flex-wrap:wrap}#atv-page .atv-profs small{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--atv-ink3);font-weight:600;margin-right:4px}
+#atv-page .atv-prof{display:flex;align-items:center;gap:8px;height:40px;padding:0 14px 0 5px;border-radius:999px;background:var(--atv-glass)!important;font-size:13px;font-weight:500}
+#atv-page .atv-prof i{width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.14);display:grid;place-items:center;font-style:normal;font-weight:600}
+#atv-page .atv-appgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:18px 14px}
+#atv-page .atv-app{position:relative;display:flex;flex-direction:column;gap:8px;align-items:center;padding:0}
+#atv-page .atv-app .awt{width:100%;aspect-ratio:16/10;border-radius:16px;display:block;position:relative;overflow:hidden;box-shadow:0 10px 24px rgba(0,0,0,.4),inset 0 0 0 1px rgba(255,255,255,.08)}
+#atv-page .atv-app>span{font-size:12.5px;color:var(--atv-ink2);font-weight:500;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#atv-page .atv-app.now .awt{box-shadow:0 0 0 2px #fff,0 10px 24px rgba(0,0,0,.4)}
+#atv-page .atv-nowtag{position:absolute;top:-8px;right:-4px;height:20px;padding:0 8px;border-radius:999px;background:#fff;color:#000;font-size:10px;font-weight:700;font-style:normal;display:flex;align-items:center}
+#atv-page .atv-store{grid-column:1/-1;display:flex;align-items:center;gap:10px;justify-content:center;height:52px;border-radius:14px;background:var(--atv-glass)!important;font-size:14px}
+/* search */
+#atv-page .atv-srch{flex:1;min-height:0;display:flex;flex-direction:column;gap:14px}
+#atv-page .atv-srow{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+#atv-page .atv-also{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--atv-ink2);cursor:pointer}#atv-page .atv-also input{position:absolute;opacity:0;pointer-events:none}
+#atv-page .atv-sw{width:46px;height:28px;border-radius:999px;background:rgba(255,255,255,.18);position:relative;transition:background var(--m-tap) var(--e-standard)}#atv-page .atv-sw i{position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;transition:left var(--m-tap) var(--e-standard)}
+#atv-page .atv-also input:checked + .atv-sw{background:var(--atv-on)}#atv-page .atv-also input:checked + .atv-sw i{left:21px}
+#atv-page .atv-fchips{display:flex;gap:8px;flex-wrap:wrap}#atv-page .atv-fchips button{height:34px;padding:0 16px;border-radius:999px;background:var(--atv-glass)!important;font-size:13px;font-weight:500;color:var(--atv-ink2)!important}#atv-page .atv-fchips button.on{background:#fff!important;color:#000!important}
+#atv-page .atv-postgrid{flex:1;min-height:0;overflow-y:auto;scrollbar-width:none;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:16px;align-content:start}
+#atv-page .atv-post{display:flex;flex-direction:column;gap:5px;text-align:left;padding:0}
+#atv-page .atv-pi{aspect-ratio:2/3;border-radius:14px;background:#15171c center/cover no-repeat;display:flex;align-items:flex-end;padding:12px;box-shadow:0 14px 30px rgba(0,0,0,.45)}#atv-page .atv-pi span{font-size:12px;letter-spacing:.12em;font-weight:300}
+#atv-page .atv-post b{font-size:13.5px;font-weight:600;margin-top:4px}#atv-page .atv-post small{font-size:11.5px;color:var(--atv-ink3)}
+#atv-page .atv-where{display:flex;flex-wrap:wrap;gap:4px;margin-top:2px}#atv-page .atv-where span{display:inline-flex;align-items:center;gap:3px;height:22px;padding:0 8px;border-radius:999px;background:rgba(95,227,161,.14);color:#b6f3d2;font-size:10.5px;font-weight:500}
+#atv-page .atv-where span svg{width:11px;height:11px}#atv-page .atv-where span.no{background:var(--atv-glass2);color:var(--atv-ink2)}
+/* now playing page */
+#atv-page .atv-opts{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}#atv-page .atv-opts button{display:flex;align-items:center;justify-content:space-between;min-height:38px;padding:0 12px;border-radius:10px;font-size:13.5px;color:var(--atv-ink2);text-align:left}
+#atv-page .atv-opts button.on{background:var(--atv-glass2)!important;color:#fff;font-weight:500}#atv-page .atv-opts svg{width:15px;height:15px;color:var(--atv-on)}
+#atv-page .atv-queue{display:flex;flex-direction:column;gap:2px}#atv-page .atv-q{display:flex;gap:12px;align-items:center;padding:8px 10px;border-radius:10px;text-align:left}#atv-page .atv-q:hover{background:var(--atv-glass)!important}
+#atv-page .atv-q b{font-size:13.5px;font-weight:500;display:block}#atv-page .atv-q span{font-size:12px;color:var(--atv-ink3)}
+/* phone: one column; the bar at the bottom carries what is playing */
+@media (max-width:760px){
+  #atv-page{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));gap:12px}#atv-page .atv-hdr{padding:max(14px,var(--proos-sat)) 0 0}
+  #atv-page .atv-hdr{flex-wrap:wrap;gap:10px}#atv-page .atv-hl{min-width:0}#atv-page .atv-ht{font-size:26px}
+  #atv-page .atv-hr{flex:0 0 auto;min-width:0}#atv-page .atv-chip{display:none}#atv-page .atv-roff em{display:none}#atv-page .atv-roff{width:38px;padding:0;justify-content:center}
+  #atv-page .atv-segs{order:3;flex:1 1 100%;justify-content:space-between}#atv-page .atv-segs button{flex:1;padding:0 6px;font-size:12.5px}
+  #atv-page .atv-cols{grid-template-columns:minmax(0,1fr);gap:12px;overflow-y:auto;scrollbar-width:none;align-content:start}
+  #atv-page .atv-cols>section,#atv-page .atv-npbig{min-height:auto;flex:none}#atv-page .atv-cols .atv-pad{flex:none;height:300px}
+  #atv-page .atv-r:not(.side) .atv-np{display:none}#atv-page .atv-r.side{overflow:visible}
+  #atv-page .atv-keys{grid-template-columns:repeat(4,1fr);gap:6px}#atv-page .atv-key:nth-child(n+5){display:none}
+  #atv-page .atv-pad{min-height:260px}#atv-page .atv-trans{gap:12px}#atv-page .atv-trans button{width:46px;height:46px}#atv-page .atv-trans button.big{width:58px;height:58px}
+  #atv-page .atv-tcap{display:none}
+  #atv-page .atv-mini{display:flex;align-items:center;gap:12px;height:58px;padding:0 14px 0 8px;border-radius:16px;background:rgba(30,32,38,.92);box-shadow:inset 0 0 0 1px rgba(255,255,255,.08);flex:none}
+  #atv-page .atv-mini i{width:68px;aspect-ratio:16/9;border-radius:8px;background:#15171c center/cover;flex:none}#atv-page .atv-mini div{min-width:0}#atv-page .atv-mini b{font-size:13.5px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#atv-page .atv-mini span{font-size:11.5px;color:var(--atv-ink2)}
+  #atv-page .atv-appgrid{grid-template-columns:repeat(3,1fr)}#atv-page .atv-postgrid{grid-template-columns:repeat(2,1fr)}
+}
+@media (prefers-reduced-motion: reduce){#atv-page .atv-toast,#atv-page .atv-sw,#atv-page .atv-sw i{transition:none}}
 </style>
 </head>
 <body data-page="home">
@@ -4718,7 +4859,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102604';
+const PROOS_BUILD='2026102605';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -7013,6 +7154,7 @@ async function fetchEntityRegistry() {
       entityAreaMap = {};
       entityPlatformMap = {};
       entityDeviceMap = {};
+      for(const k in entityConfigEntry) delete entityConfigEntry[k];
       deviceNameById = {};
       deviceModelById = {};
       // Build device->area + device->name maps from device registry first
@@ -7029,6 +7171,7 @@ async function fetchEntityRegistry() {
         if(areaId) entityAreaMap[e.entity_id] = areaId;
         if(e.platform) entityPlatformMap[e.entity_id] = e.platform;
         if(e.unique_id) entityUniqueId[e.entity_id] = e.unique_id;
+        if(e.config_entry_id) entityConfigEntry[e.entity_id] = e.config_entry_id;   // register 1035: the Apple TV page
         (e.labels||[]).forEach(label => {
           if(!labelledEntities[label]) labelledEntities[label] = [];
           labelledEntities[label].push(e.entity_id);
@@ -7117,6 +7260,8 @@ function _fullFeed(){
 let _systemAreas = new Set(); // area_ids labelled dashboard_system — never become rooms, never drive a refresh
 let areaNameById = {}; // area_id -> HA area registry name (populated by autoDiscover; preserves apostrophes the slug loses)
 let entityPlatformMap = {}; // entity_id -> integration platform (e.g. 'sonos', 'heos')
+let entityConfigEntry = {};  // entity_id -> config entry id (players; register 1035)
+window.entityConfigEntry = entityConfigEntry;
 let entityUniqueId = {};    // entity_id -> registry unique_id (MA player_id for MA players)
 let maSpeakers = new Set(); // curated room-speaker allowlist (MA player_ids) from ProOS Core
 function _proosSelfBase(){
@@ -15024,6 +15169,9 @@ function openPlayer(entity, volEntity){
   } else {
     _playerVolEntity=baseVol;
   }
+  // REGISTER 1035: an Apple TV on the certified driver has its own page (Remote · Apps · Search · Now Playing),
+  // with the same room volume this player would have used.
+  if(typeof atvSupported==='function' && atvSupported(entity)){ const _v=_playerVolEntity; _playerEntity=null; _playerVolEntity=null; atvOpen(entity,_v); return; }
   updatePlayerUI();
   document.getElementById('player-overlay').classList.add('open');
 
@@ -18393,7 +18541,469 @@ function fmtTime(s){
 }
 
 // Update player when open and entity state changes
+// ════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+// THE APPLE TV PAGE (register 1035; Dave 27 Oct 15:49 approved the mockups — docs/mockups/ProOS_Apple_TV_Mockups_2026-10-27.html)
+// Remote · Apps · Search · Now Playing, for an Apple TV whose driver is the certified one (apple_tv proos.7+: it
+// publishes proos_display_state / proos_apps and answers the apple_tv.proos_* actions). Every reading comes from the
+// Apple TV through that driver; a command that is only SENT is never shown as DONE (register 1034: the platform's
+// "app" is the app holding the now-playing session, not the app on screen).
+// ════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+let _atv=null;               // {e, vol, ce, tab, room, np, accounts, kbOpen, ...} while the page is open
+const _ATV_TABS=['remote','apps','search','playing'];
+function _atvLS(k,v){ try{ if(v===undefined) return localStorage.getItem('proos_atv_'+k); localStorage.setItem('proos_atv_'+k,v); }catch(e){ return null; } }
+function atvSupported(e){ return isAppleTV(e) && states[e] && states[e].attributes && ('proos_apps' in states[e].attributes); }
+function _atvIcon(n){ const P={
+  back:'<path d="m15 6-6 6 6 6"/>', power:'<path d="M12 3v8"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/>',
+  pause:'<rect x="7" y="5" width="3.6" height="14" rx="1" fill="currentColor" stroke="none"/><rect x="13.4" y="5" width="3.6" height="14" rx="1" fill="currentColor" stroke="none"/>',
+  play:'<path d="M8 5.5v13l11-6.5z" fill="currentColor" stroke="none"/>',
+  pp:'<path d="M4 5.5v13l8-6.5z" fill="currentColor" stroke="none"/><rect x="14" y="5.5" width="2.6" height="13" rx=".8" fill="currentColor" stroke="none"/><rect x="18.4" y="5.5" width="2.6" height="13" rx=".8" fill="currentColor" stroke="none"/>',
+  rew:'<path d="M11 6.5v11L3.5 12zM20.5 6.5v11L13 12z" fill="currentColor" stroke="none"/>',
+  ffw:'<path d="M13 6.5v11l7.5-5.5zM3.5 6.5v11L11 12z" fill="currentColor" stroke="none"/>',
+  skb:'<path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3"/><path d="M4.5 4v4.5H9"/><text x="12" y="15.2" font-size="6.6" text-anchor="middle" fill="currentColor" stroke="none" font-weight="600">10</text>',
+  skf:'<path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4v4.5H15"/><text x="12" y="15.2" font-size="6.6" text-anchor="middle" fill="currentColor" stroke="none" font-weight="600">10</text>',
+  menu:'<path d="M15.5 5 8.5 12l7 7"/>', home:'<path d="M3.5 10.5 12 3.8l8.5 6.7V20a1 1 0 0 1-1 1h-4.8v-6.2H9.3V21H4.5a1 1 0 0 1-1-1z"/>',
+  info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.8v.2"/>',
+  cc:'<rect x="3" y="5.5" width="18" height="13" rx="2.5"/><path d="M10.5 10.2a2.4 2.4 0 1 0 0 3.6M17 10.2a2.4 2.4 0 1 0 0 3.6"/>',
+  apps:'<rect x="3.5" y="5" width="7.5" height="6" rx="1.6"/><rect x="13" y="5" width="7.5" height="6" rx="1.6"/><rect x="3.5" y="13" width="7.5" height="6" rx="1.6"/><rect x="13" y="13" width="7.5" height="6" rx="1.6"/>',
+  kbd:'<rect x="2.5" y="6" width="19" height="12" rx="2.5"/><path d="M6 10h.01M9.5 10h.01M13 10h.01M16.5 10h.01M7 14h10"/>',
+  more:'<circle cx="5.5" cy="12" r="1.3" fill="currentColor"/><circle cx="12" cy="12" r="1.3" fill="currentColor"/><circle cx="18.5" cy="12" r="1.3" fill="currentColor"/>',
+  dpad:'<path d="M9 3.5h6v5.5h5.5v6H15v5.5H9V15H3.5V9H9z"/>',
+  hand:'<path d="M8.5 13V5.8a1.6 1.6 0 0 1 3.2 0V11M11.7 10.2V4.6a1.6 1.6 0 0 1 3.2 0v5.8M14.9 10.4V6.4a1.6 1.6 0 0 1 3.2 0v7.4c0 4-2.6 6.7-6.3 6.7-2.6 0-4.1-1.2-5.6-3.4L4 13.3a1.5 1.5 0 0 1 2.4-1.8l2.1 2.5"/>',
+  chev:'<path d="m9 6 6 6-6 6"/>', search:'<circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/>',
+  mute:'<path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="m16 9.5 5 5M21 9.5l-5 5"/>', vol:'<path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4.5 4.5 0 0 1 0 6M18 6.5a8 8 0 0 1 0 11"/>',
+  check:'<path d="m5 12.5 4.5 4.5L19 7.5"/>', x:'<path d="M6 6l12 12M18 6 6 18"/>', moon:'<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>',
+  wifi:'<path d="M3 3l18 18M8.5 16.4a5 5 0 0 1 7 0M5 12.8a10 10 0 0 1 4.3-2.4M14.7 10.4A10 10 0 0 1 19 12.8"/><path d="M12 20h.01"/>',
+  prevch:'<path d="M6 5v14M19 5 9 12l10 7z"/>', nextch:'<path d="M18 5v14M5 5l10 7-10 7z"/>'};
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">'+(P[n]||'')+'</svg>'; }
+
+// ── talking to the Apple TV (the certified driver's own actions) ─────────────────────────────────────────────
+function _atvCall(service, data, wantResponse){
+  if(!_atv||!_atv.ce) return Promise.reject(new Error('This Apple TV is not known to the page yet'));
+  const m={type:'call_service',domain:'apple_tv',service:service,service_data:Object.assign({config_entry_id:_atv.ce},data||{})};
+  if(wantResponse) m.return_response=true;
+  return snd(m).then(r=>{ if(r&&r.success===false) throw new Error((r.error&&r.error.message)||'refused'); return wantResponse?((r.result&&r.result.response)||{}):r; });
+}
+function _atvKey(key, action){ _atvCall('proos_key',{key:key,action:action||'tap'}).catch(_atvFail); }   // the tap's haptic belongs to the one funnel (haptics_bench)
+function _atvFail(err){ _atvToast((err&&err.message)||'The Apple TV did not answer'); }
+function _atvToast(msg){
+  const p=document.getElementById('atv-page'); if(!p) return;
+  let t=p.querySelector('.atv-toast'); if(!t){ t=document.createElement('div'); t.className='atv-toast'; p.appendChild(t); }
+  t.textContent=msg; t.classList.add('on'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('on'),2600);
+}
+
+// press · hold · double, from one button: tap → fn.tap, held past 450 ms → fn.holdStart (and fn.holdEnd on release)
+// or fn.hold once; two taps within 300 ms → fn.double. Every hold is let go when the finger lifts or leaves.
+function _atvPress(el, fn){
+  let down=0, held=false, lastTap=0, tapTimer=null, holdTimer=null;
+  const start=ev=>{ ev.preventDefault(); down=Date.now(); held=false; el.classList.add('down');
+    holdTimer=setTimeout(()=>{ held=true; if(fn.holdStart) fn.holdStart(); else if(fn.hold) fn.hold(); }, 450); };
+  const end=ev=>{ if(!down) return; el.classList.remove('down'); clearTimeout(holdTimer); const wasHeld=held; down=0;
+    if(wasHeld){ if(fn.holdEnd) fn.holdEnd(); return; }
+    if(fn.double){ const now=Date.now(); if(now-lastTap<300){ clearTimeout(tapTimer); lastTap=0; fn.double(); return; }
+      lastTap=now; tapTimer=setTimeout(()=>{ fn.tap&&fn.tap(); }, 300); return; }
+    fn.tap&&fn.tap(); };
+  el.addEventListener('pointerdown',start); el.addEventListener('pointerup',end);
+  el.addEventListener('pointerleave',end); el.addEventListener('pointercancel',end);
+}
+
+// ── open / close ──────────────────────────────────────────────────────────────────────────────────────────────
+function atvOpen(e, vol){
+  const room=CONFIG.rooms.find(r=>r.atv===e||r.media===e||(r.allPlayers&&r.allPlayers.includes(e)))||null;
+  _atv={e:e, vol:vol||e, ce:(window.entityConfigEntry||{})[e]||null, room:room, tab:(_ATV_TABS.includes(_atvLS('tab'))?_atvLS('tab'):'remote'),
+        mode:(_atvLS('mode')==='dpad'?'dpad':'touch'), np:null, accounts:null, kbText:'', search:{q:'',res:null,busy:false,tv:_atvLS('tv')!=='0'}};
+  let p=document.getElementById('atv-page');
+  if(!p){ p=document.createElement('div'); p.id='atv-page'; document.body.appendChild(p); }
+  p.classList.add('open');
+  _atvRender();
+  _atvRefreshNP();
+  if(_atv.tab==='apps') _atvLoadAccounts();
+  if(_atv._poll) clearInterval(_atv._poll);
+  _atv._poll=setInterval(()=>{ if(!_atv) return; _atvTick(); }, 1000);
+}
+function atvClose(){
+  if(!_atv) return;
+  if(_atv._poll) clearInterval(_atv._poll);
+  _atvReleaseHeld();
+  _atv=null;
+  const p=document.getElementById('atv-page'); if(p){ p.classList.remove('open'); p.innerHTML=''; }
+}
+function _atvReleaseHeld(){ if(_atv&&_atv.held){ const k=_atv.held; _atv.held=null; _atvCall('proos_key',{key:k,action:'up'}).catch(()=>{}); } }
+function atvMaybeUpdate(eid){
+  if(!_atv) return;
+  const kb=_atvKbEntity();
+  if(eid===_atv.e||eid===_atv.vol||eid===_atvRemoteEntity()||eid===kb){
+    const prevTitle=_atv._title; _atv._title=att(_atv.e,'media_title');
+    if(eid===kb && states[kb] && states[kb].state==='on' && !_atv.kbOpen) _atvTypeOpen();
+    if(eid===kb && states[kb] && states[kb].state!=='on' && _atv.kbOpen) _atvTypeClose();
+    _atvPaintLive();
+    if(prevTitle!==_atv._title) _atvRefreshNP();
+  }
+}
+function _atvRemoteEntity(){ const dev=entityDeviceMap[_atv.e]; return Object.keys(states).find(r=>r.indexOf('remote.')===0&&entityDeviceMap[r]===dev)||null; }
+function _atvKbEntity(){ const dev=entityDeviceMap[_atv.e];
+  return Object.keys(states).find(b=>b.indexOf('binary_sensor.')===0&&entityDeviceMap[b]===dev&&!/connectivity|_connection$/.test(b)&&att(b,'device_class')!=='connectivity')||null; }
+
+// ── what the Apple TV is doing, in words (never guessed) ───────────────────────────────────────────────────
+function _atvStatus(){
+  const e=_atv.e, s=states[e]?states[e].state:'unavailable', rem=_atvRemoteEntity();
+  const connected = s!=='unavailable' && (!rem || (states[rem]&&states[rem].state==='on'));
+  if(!connected) return {k:'offline', t:'Not reachable', c:'var(--atv-bad)'};
+  const d=att(e,'proos_display_state');
+  if(d==='asleep') return {k:'asleep', t:'Asleep', c:'var(--atv-dim)'};
+  if(d==='screensaver') return {k:'on', t:'Screen saver', c:'var(--atv-on)'};
+  if(s==='playing') return {k:'on', t:'Playing', c:'var(--atv-on)'};
+  if(s==='paused') return {k:'on', t:'Paused', c:'var(--atv-on)'};
+  if(d==='awake'||d==='idle') return {k:'on', t:'On · Connected', c:'var(--atv-on)'};
+  if(s==='off') return {k:'asleep', t:'Asleep', c:'var(--atv-dim)'};
+  return {k:'on', t:'Connected', c:'var(--atv-on)'};
+}
+
+// ── render ──────────────────────────────────────────────────────────────────────────────────────────────────
+function _atvRender(){
+  const p=document.getElementById('atv-page'); if(!p||!_atv) return;
+  const st=_atvStatus();
+  const roomName=_atv.room?(_atv.room.name||_atv.room.id):(deviceNameById[entityDeviceMap[_atv.e]]||'');
+  const tabs=[['remote','Remote'],['apps','Apps'],['search','Search'],['playing','Now Playing']];
+  p.innerHTML='<div class="atv-bg"></div>'
+    +'<header class="atv-hdr"><div class="atv-hl"><button type="button" class="atv-bk" data-act="close">'+_atvIcon('back')+'<b>'+_hEsc(roomName)+'</b></button><div class="atv-ht">Apple TV</div></div>'
+    +'<div class="atv-segs" role="tablist">'+tabs.map(t=>'<button type="button" role="tab" data-tab="'+t[0]+'" class="'+(t[0]===_atv.tab?'on':'')+'">'+t[1]+'</button>').join('')+'</div>'
+    +'<div class="atv-hr"><span class="atv-chip" id="atv-chip"><i style="background:'+st.c+'"></i><em>'+st.t+'</em></span>'
+    +(_atv.room?'<button type="button" class="atv-roff" data-act="roomoff">'+_atvIcon('power')+'<em>Room Off</em></button>':'')+'</div></header>'
+    +'<main class="atv-body" id="atv-body"></main>';
+  p.querySelector('[data-act="close"]').onclick=atvClose;
+  const ro=p.querySelector('[data-act="roomoff"]'); if(ro) ro.onclick=_atvRoomOffAsk;
+  p.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{ _atv.tab=b.dataset.tab; _atvLS('tab',_atv.tab); _atvRender(); if(_atv.tab==='apps') _atvLoadAccounts(); if(_atv.tab==='playing') _atvRefreshNP(); });
+  _atvRenderBody();
+}
+function _atvRenderBody(){
+  const b=document.getElementById('atv-body'); if(!b) return;
+  const st=_atvStatus();
+  if(st.k==='offline'){ b.innerHTML=_atvStateHTML('offline'); _atvBindState(b); return; }
+  if(st.k==='asleep' && _atv.tab!=='apps'){ b.innerHTML=_atvStateHTML('asleep'); _atvBindState(b); return; }
+  if(_atv.tab==='remote') _atvRenderRemote(b);
+  else if(_atv.tab==='apps') _atvRenderApps(b);
+  else if(_atv.tab==='search') _atvRenderSearch(b);
+  else _atvRenderPlaying(b);
+}
+function _atvStateHTML(k){
+  if(k==='offline') return '<div class="atv-state off"><div class="atv-sico">'+_atvIcon('wifi')+'</div><b>Not reachable</b>'
+    +'<span>ProOS has no connection to this Apple TV right now.</span><button type="button" class="atv-big ghost" data-act="reconnect">Reconnect</button>'
+    +'<small>Room volume and Room Off still work.</small></div>'+_atvVolHTML();
+  return '<div class="atv-state"><div class="atv-sico">'+_atvIcon('moon')+'</div><b>Asleep</b><span>Connected · ready to wake</span>'
+    +'<button type="button" class="atv-big" data-act="wake">'+_atvIcon('play')+'Wake and resume</button>'
+    +'<small>Wakes the Apple TV, then resumes what was paused.</small></div>'+_atvVolHTML();
+}
+function _atvBindState(b){
+  const w=b.querySelector('[data-act="wake"]'); if(w) w.onclick=_atvSmartPlay;
+  const r=b.querySelector('[data-act="reconnect"]'); if(r) r.onclick=()=>{ const rem=_atvRemoteEntity(); if(rem) svc('remote','turn_on',{entity_id:rem}); _atvToast('Reconnecting…'); };
+  _atvBindVol(b);
+}
+// Smart Play: wake; then, if something is paused, resume it — each step on its own reading
+function _atvSmartPlay(){
+  const e=_atv.e;
+  snd({type:'call_service',domain:'media_player',service:'turn_on',service_data:{},target:{entity_id:e}}).catch(_atvFail);
+  _atvToast('Waking the Apple TV…');
+  let n=0; const t=setInterval(()=>{ n++; if(!_atv||_atv.e!==e){ clearInterval(t); return; }
+    const d=att(e,'proos_display_state'), s=states[e]&&states[e].state;
+    if(d==='awake'||d==='idle'||s==='paused'||s==='playing'){ clearInterval(t); if(s==='paused') svc('media_player','media_play',{entity_id:e}); _atvRenderBody(); }
+    else if(d==='screensaver' && n===4){ _atvKey('select','tap'); }
+    else if(n>15){ clearInterval(t); _atvToast('The Apple TV did not wake'); } }, 1000);
+}
+function _atvRoomOffAsk(){
+  const p=document.getElementById('atv-page'); if(!p||!_atv.room) return;
+  _atvPop('<div class="atv-poph"><b>Turn off '+_hEsc(_atv.room.name||'the room')+'?</b><span>Everything in the room turns off, the Apple TV goes to sleep.</span></div>'
+    +'<div class="atv-popf"><button type="button" class="ghost" data-act="no">Cancel</button><button type="button" class="primary danger" data-act="yes">Room Off</button></div>',
+    pop=>{ pop.querySelector('[data-act="no"]').onclick=_atvPopClose; pop.querySelector('[data-act="yes"]').onclick=()=>{ _atvPopClose(); const idx=CONFIG.rooms.indexOf(_atv.room); if(idx>=0) runRoomTvOff(idx); }; });
+}
+function _atvPop(html, bind){
+  const p=document.getElementById('atv-page'); _atvPopClose();
+  const s=document.createElement('div'); s.className='atv-scrim'; s.onclick=_atvPopClose;
+  const c=document.createElement('div'); c.className='atv-pop'; c.innerHTML=html; c.onclick=ev=>ev.stopPropagation();
+  p.appendChild(s); p.appendChild(c); if(bind) bind(c);
+}
+function _atvPopClose(){ const p=document.getElementById('atv-page'); if(!p) return; p.querySelectorAll('.atv-scrim,.atv-pop').forEach(n=>n.remove()); if(_atv) _atv.kbOpen=false; }
+
+// ── Remote ──────────────────────────────────────────────────────────────────────────────────────────────────
+function _atvRenderRemote(b){
+  const keys=[['menu','Back'],['home','Home'],['pp','Play/Pause'],['info','Info'],['cc','CC'],['apps','Apps'],['kbd','Type'],['more','More']];
+  b.innerHTML='<div class="atv-cols"><section class="atv-l">'
+    +'<div class="atv-pad '+_atv.mode+'" id="atv-pad"><div class="atv-tog"><button type="button" data-mode="dpad" class="'+(_atv.mode==='dpad'?'on':'')+'" aria-label="D-pad">'+_atvIcon('dpad')+'</button>'
+    +'<button type="button" data-mode="touch" class="'+(_atv.mode==='touch'?'on':'')+'" aria-label="Touch surface">'+_atvIcon('hand')+'</button></div>'
+    +(_atv.mode==='touch'?'<div class="atv-tphint">Swipe to move · tap to select<br><span>Hold for options · hold an edge to scroll fast</span></div>'
+      :'<div class="atv-dpad"><button type="button" class="dk u" data-k="up">'+_atvIcon('chev')+'</button><button type="button" class="dk r" data-k="right">'+_atvIcon('chev')+'</button>'
+       +'<button type="button" class="dk d" data-k="down">'+_atvIcon('chev')+'</button><button type="button" class="dk l" data-k="left">'+_atvIcon('chev')+'</button><button type="button" class="ok" data-k="select">OK</button></div>')
+    +'</div><div class="atv-keys">'+keys.map(k=>'<button type="button" class="atv-key'+(k[0]==='kbd'&&_atvKbOn()?' lit':'')+'" data-key="'+k[0]+'">'+_atvIcon(k[0])+'<em>'+k[1]+'</em></button>').join('')+'</div>'
+    +'<div class="atv-trans"><button type="button" data-t="rew">'+_atvIcon('rew')+'</button><button type="button" data-t="skb">'+_atvIcon('skb')+'</button>'
+    +'<button type="button" class="big" data-t="pp" id="atv-ppbtn">'+_atvIcon(states[_atv.e]&&states[_atv.e].state==='playing'?'pause':'play')+'</button>'
+    +'<button type="button" data-t="skf">'+_atvIcon('skf')+'</button><button type="button" data-t="ffw">'+_atvIcon('ffw')+'</button></div>'
+    +'<div class="atv-tcap">Hold rewind or fast forward to scrub · let go to stop</div></section>'
+    +'<section class="atv-r">'+_atvNowCardHTML()+_atvVolHTML()+'</section></div>'+_atvMiniHTML();
+  b.querySelectorAll('[data-mode]').forEach(x=>x.onclick=()=>{ _atv.mode=x.dataset.mode; _atvLS('mode',_atv.mode); _atvRenderBody(); });
+  if(_atv.mode==='touch') _atvBindTouch(b.querySelector('#atv-pad'));
+  b.querySelectorAll('.atv-dpad [data-k]').forEach(x=>{ const k=x.dataset.k;
+    _atvPress(x,{tap:()=>_atvKey(k,'tap'), holdStart:()=>{ if(k==='select'){ _atvKey('select','hold'); return; } _atv.held=k; _atvKey(k,'down'); }, holdEnd:()=>{ if(k!=='select') _atvReleaseHeld(); }}); });
+  b.querySelectorAll('[data-key]').forEach(x=>{ const k=x.dataset.key;
+    if(k==='menu') _atvPress(x,{tap:()=>_atvKey('menu','tap'), hold:()=>_atvKey('top_menu')});
+    else if(k==='home') _atvPress(x,{tap:()=>_atvKey('home','tap'), double:()=>_atvKey('home','double'), hold:()=>_atvKey('control_center')});
+    else if(k==='pp') _atvPress(x,{tap:()=>_atvKey('play_pause','tap')});
+    else if(k==='info') _atvPress(x,{tap:()=>_atvKey('select','hold')});
+    else if(k==='cc') _atvPress(x,{tap:_atvCCSheet});
+    else if(k==='apps') _atvPress(x,{tap:()=>_atvKey('home','double')});
+    else if(k==='kbd') _atvPress(x,{tap:_atvTypeOpen});
+    else if(k==='more') _atvPress(x,{tap:_atvMoreSheet}); });
+  b.querySelectorAll('[data-t]').forEach(x=>{ const t=x.dataset.t;
+    if(t==='pp') _atvPress(x,{tap:()=>_atvKey('play_pause','tap')});
+    else if(t==='skb') _atvPress(x,{tap:()=>_atvCall('proos_media',{command:'skip_by',seconds:-10}).catch(_atvFail)});
+    else if(t==='skf') _atvPress(x,{tap:()=>_atvCall('proos_media',{command:'skip_by',seconds:10}).catch(_atvFail)});
+    else { const dir=t==='ffw'?'forward':'back';
+      _atvPress(x,{tap:()=>_atvCall('proos_media',{command:'skip_by',seconds:dir==='forward'?30:-30}).catch(_atvFail),
+        holdStart:()=>_atvCall('proos_media',{command:'scrub_'+dir+'_begin'}).catch(_atvFail),
+        holdEnd:()=>_atvCall('proos_media',{command:'scrub_'+dir+'_end'}).catch(_atvFail)}); } });
+  _atvBindVol(b); _atvBindNow(b);
+}
+function _atvKbOn(){ const kb=_atvKbEntity(); return !!(kb&&states[kb]&&states[kb].state==='on'); }
+// the touch surface: a tap selects, a held finger opens options, a swipe moves as on the Siri Remote, a finger held
+// at an edge scrolls in that direction until it lifts (a real press, released on lift)
+function _atvBindTouch(pad){
+  let sx=0, sy=0, st=0, moved=false, edgeKey=null, holdT=null, rect=null;
+  const map=(x,y)=>({x:Math.round((x-rect.left)/rect.width*1000), y:Math.round((y-rect.top)/rect.height*1000)});
+  pad.addEventListener('pointerdown',ev=>{ if(ev.target.closest('.atv-tog')) return; ev.preventDefault(); try{pad.setPointerCapture(ev.pointerId);}catch(e){}
+    rect=pad.getBoundingClientRect(); sx=ev.clientX; sy=ev.clientY; st=Date.now(); moved=false; edgeKey=null; pad.classList.add('touching');
+    const m=map(sx,sy); const edge=m.x<120?'left':m.x>880?'right':m.y<120?'up':m.y>880?'down':null;
+    holdT=setTimeout(()=>{ if(moved) return; if(edge){ edgeKey=edge; _atv.held=edge; _atvKey(edge,'down'); } else { edgeKey='__select'; _atvKey('select','hold'); } }, 500); });
+  pad.addEventListener('pointermove',ev=>{ if(!st) return; if(Math.hypot(ev.clientX-sx,ev.clientY-sy)>14) moved=true; });
+  const up=ev=>{ if(!st) return; clearTimeout(holdT); pad.classList.remove('touching'); const dt=Date.now()-st; st=0;
+    if(edgeKey){ if(edgeKey!=='__select') _atvReleaseHeld(); edgeKey=null; return; }
+    if(!moved){ _atvKey('select','tap'); return; }
+    const a=map(sx,sy), z=map(ev.clientX,ev.clientY);
+    _atvCall('proos_touch',{kind:'swipe',x:a.x,y:a.y,x2:z.x,y2:z.y,duration_ms:Math.max(80,Math.min(900,dt))}).catch(_atvFail); };
+  pad.addEventListener('pointerup',up); pad.addEventListener('pointercancel',up);
+}
+function _atvMoreSheet(){
+  const items=[['top_menu','Top Menu'],['control_center','Control Center'],['page_up','Page Up'],['page_down','Page Down'],['screensaver','Screen Saver'],['guide','Guide'],['__sleep','Sleep Apple TV']];
+  _atvPop('<div class="atv-poph"><b>More</b></div><div class="atv-list">'+items.map(i=>'<button type="button" data-m="'+i[0]+'">'+i[1]+'</button>').join('')+'</div>'
+    +'<div class="atv-popf"><button type="button" class="ghost" data-act="no">Close</button></div>', pop=>{
+    pop.querySelector('[data-act="no"]').onclick=_atvPopClose;
+    pop.querySelectorAll('[data-m]').forEach(x=>x.onclick=()=>{ const k=x.dataset.m; _atvPopClose();
+      if(k==='__sleep') svc('media_player','turn_off',{entity_id:_atv.e}); else _atvKey(k,'tap'); }); });
+}
+
+// ── what is playing ─────────────────────────────────────────────────────────────────────────────────────────
+function _atvArt(){ const p=att(_atv.e,'entity_picture'); return p?(String(p).slice(0,4)==='http'?p:HA+p):''; }
+function _atvSub(){ const e=_atv.e, ser=att(e,'media_series_title'), sea=att(e,'media_season'), ep=att(e,'media_episode');
+  if(ser||sea||ep) return [ser, sea?('Season '+sea):'', ep?('Episode '+ep):''].filter(Boolean).join(' · ');
+  return att(e,'media_artist')||att(e,'media_album_name')||''; }
+function _atvPos(){ const e=_atv.e, d=att(e,'media_duration'), p=att(e,'media_position'), u=att(e,'media_position_updated_at');
+  if(d==null||p==null) return null; let pos=p; if(states[e].state==='playing'&&u) pos+= (Date.now()-new Date(u).getTime())/1000; return {pos:Math.min(pos,d), dur:d}; }
+function _atvNowCardHTML(){
+  const e=_atv.e, t=att(e,'media_title'), art=_atvArt(), app=att(e,'app_name');
+  if(!t) return '<div class="atv-np empty"><b>Nothing reporting what\'s playing</b><span>Apps that share what they play show it here.</span></div>';
+  const item=_atvNPItem(), opts=_atvLangSummary(item), nxt=_atvNext();
+  return '<div class="atv-np" data-title="'+_hEsc(t)+'"><div class="atv-art"'+(art?' style="background-image:url(\''+art+'\')"':'')+'>'+(app?'<span class="atv-appchip">'+_hEsc(app)+'</span>':'')+'</div>'
+    +'<div class="atv-npt"><b>'+_hEsc(t)+'</b><span>'+_hEsc(_atvSub())+'</span></div>'+_atvProgHTML()
+    +(opts?'<div class="atv-npb">'+opts+'</div>':'')
+    +(nxt?'<div class="atv-next"><span>Up next</span><b>'+_hEsc(nxt.title||'')+'</b></div>':'')+'</div>';
+}
+function _atvProgHTML(){ const p=_atvPos(); if(!p) return '';
+  return '<div class="atv-prog"><div class="atv-pt"><i style="width:'+(p.pos/p.dur*100).toFixed(1)+'%"></i></div><div class="atv-pl"><span>'+fmtTime(p.pos)+'</span><span>−'+fmtTime(p.dur-p.pos)+'</span></div></div>'; }
+function _atvBindNow(b){ b.querySelectorAll('[data-cc]').forEach(x=>x.onclick=_atvCCSheet); }
+function _atvNPItem(){ const np=_atv.np; if(!np||!np.items||!np.items.length) return null; return np.items[0]; }
+function _atvNext(){ const np=_atv.np; return (np&&np.items&&np.items.length>1)?np.items[1]:null; }
+function _atvLangSummary(item){
+  if(!item) return ''; const groups=(item.language_groups||[]).filter(g=>g.options&&g.options.length); if(!groups.length) return '';
+  const cur=item.current_language||[];
+  return groups.map((g,i)=>{ const c=g.options.find(o=>cur.some(x=>x.identifier===o.identifier)); return '<button type="button" class="atv-pill" data-cc="1">'+_atvIcon(g.allow_empty?'cc':'vol')+_hEsc(c?(c.displayName||c.languageTag):'Off')+'</button>'; }).join('');
+}
+function _atvRefreshNP(){
+  if(!_atv) return; const e=_atv.e;
+  _atvCall('proos_state',{include:['now_playing']},true).then(r=>{ if(!_atv||_atv.e!==e) return; _atv.np=r.now_playing||null; _atv.npErr=r.now_playing_error||null; _atvRenderBody(); }).catch(()=>{});
+}
+// a group the app lets be EMPTY is subtitles (audio can never be "off"); the other is audio — the app's own flag, not
+// the order; a group with no flag is named by its number (register 1035, to be confirmed on the TV app)
+function _atvGroupName(g,gi){ return g.allow_empty===true?'Subtitles':g.allow_empty===false?'Audio':'Choice '+(gi+1); }
+function _atvCCSheet(){
+  const item=_atvNPItem(), groups=item?(item.language_groups||[]).filter(g=>g.options&&g.options.length):[];
+  if(!groups.length){ _atvToast('This app shares no audio or subtitle choices'); return; }
+  const cur=item.current_language||[];
+  _atvPop('<div class="atv-poph"><b>Audio and Subtitles</b><span>As the app on the Apple TV offers them</span></div>'
+    +groups.map((g,gi)=>'<div class="atv-sec">'+_atvGroupName(g,gi)+'</div><div class="atv-list">'
+      +g.options.map((o,oi)=>'<button type="button" data-g="'+gi+'" data-o="'+oi+'" class="'+(cur.some(x=>x.identifier===o.identifier)?'on':'')+'">'+_hEsc(o.displayName||o.languageTag||'Option')+(cur.some(x=>x.identifier===o.identifier)?_atvIcon('check'):'')+'</button>').join('')
+      +(g.allow_empty?'<button type="button" data-g="'+gi+'" data-o="off">Off</button>':'')+'</div>').join('')
+    +'<div class="atv-popf"><button type="button" class="ghost" data-act="no">Close</button></div>', pop=>{
+    pop.querySelector('[data-act="no"]').onclick=_atvPopClose;
+    pop.querySelectorAll('[data-o]').forEach(x=>x.onclick=()=>{ const g=groups[+x.dataset.g];
+      if(x.dataset.o==='off'){ const c=g.options.find(o=>cur.some(y=>y.identifier===o.identifier)); if(c) _atvCall('proos_language_option',{option:c,enable:false}).then(()=>setTimeout(_atvRefreshNP,800)).catch(_atvFail); }
+      else _atvCall('proos_language_option',{option:g.options[+x.dataset.o],enable:true}).then(()=>setTimeout(_atvRefreshNP,800)).catch(_atvFail);
+      _atvPopClose(); }); });
+}
+
+// ── room volume (the room's own volume device — the same one every other page uses) ─────────────────────────
+function _atvVolHTML(){
+  const v=_atv.vol, lvl=att(v,'volume_level'), muted=att(v,'is_volume_muted');
+  if(lvl==null) return '';
+  const pct=Math.round(lvl*100), name=_atv.room?(_atv.room.name||''):'', dev=deviceNameById[entityDeviceMap[v]]||entityNames[v]||'';
+  return '<div class="atv-vol" id="atv-vol"><span class="atv-vr"><b>'+_hEsc(name||dev)+'</b><small>'+_hEsc(name?dev:'')+'</small></span>'
+    +'<button type="button" class="atv-vm'+(muted?' on':'')+'" data-act="mute" aria-label="Mute">'+_atvIcon(muted?'mute':'vol')+'</button>'
+    +'<input type="range" min="0" max="100" value="'+pct+'" id="atv-volr" aria-label="Volume"><span class="atv-vn" id="atv-vn">'+pct+'</span></div>';
+}
+function _atvBindVol(b){
+  const r=b.querySelector('#atv-volr'); if(!r) return;
+  let t=null; r.oninput=()=>{ const n=b.querySelector('#atv-vn'); if(n) n.textContent=r.value; _atv._volDrag=Date.now();
+    clearTimeout(t); t=setTimeout(()=>svc('media_player','volume_set',{entity_id:_atv.vol,volume_level:(+r.value)/100}),120); };
+  const m=b.querySelector('[data-act="mute"]'); if(m) m.onclick=()=>svc('media_player','volume_mute',{entity_id:_atv.vol,is_volume_muted:!att(_atv.vol,'is_volume_muted')});
+}
+function _atvMiniHTML(){ const t=att(_atv.e,'media_title'); if(!t) return '';
+  return '<div class="atv-mini"><i'+(_atvArt()?' style="background-image:url(\''+_atvArt()+'\')"':'')+'></i><div><b>'+_hEsc(t)+'</b><span>'+_hEsc(_atvSub())+'</span></div></div>'; }
+
+// live repaint without rebuilding the page (state pushes, the position ticker)
+function _atvPaintLive(){
+  if(!_atv) return; const st=_atvStatus(), chip=document.getElementById('atv-chip');
+  if(chip){ chip.querySelector('i').style.background=st.c; chip.querySelector('em').textContent=st.t; }
+  const body=document.getElementById('atv-body'); if(!body) return;
+  const wasState=!!body.querySelector('.atv-state'); const isState=(st.k==='offline'||(st.k==='asleep'&&_atv.tab!=='apps'));
+  if(wasState!==isState){ _atvRenderBody(); return; }
+  const kb=body.querySelector('[data-key="kbd"]'); if(kb) kb.classList.toggle('lit',_atvKbOn());
+  const pp=document.getElementById('atv-ppbtn'); if(pp) pp.innerHTML=_atvIcon(states[_atv.e]&&states[_atv.e].state==='playing'?'pause':'play');
+  const r=document.getElementById('atv-volr'); if(r && !(_atv._volDrag&&Date.now()-_atv._volDrag<1500)){ const l=att(_atv.vol,'volume_level'); if(l!=null){ r.value=Math.round(l*100); const n=document.getElementById('atv-vn'); if(n) n.textContent=r.value; } }
+  if(_atv.tab==='remote'||_atv.tab==='playing'){ const np=body.querySelector('.atv-np,.atv-npbig'); if(np && np.dataset.title!==String(att(_atv.e,'media_title')||'')) _atvRenderBody(); }
+}
+function _atvTick(){ if(!_atv) return; const p=_atvPos(); if(!p) return;
+  document.querySelectorAll('#atv-page .atv-prog').forEach(el=>{ const i=el.querySelector('.atv-pt i'); if(i) i.style.width=(p.pos/p.dur*100).toFixed(1)+'%';
+    const s=el.querySelectorAll('.atv-pl span'); if(s.length===2){ s[0].textContent=fmtTime(p.pos); s[1].textContent='−'+fmtTime(p.dur-p.pos); } }); }
+
+// ── typing: the card opens by itself when the Apple TV asks for text ────────────────────────────────────────
+function _atvTypeOpen(){
+  if(!_atv) return; if(!_atvKbOn()){ _atvToast('The Apple TV is not asking for text right now — open a search box on the TV'); return; }
+  _atv.kbOpen=true;
+  _atvPop('<div class="atv-poph">'+_atvIcon('kbd')+'<div><b>The Apple TV is asking for text</b><span>Typed straight onto the TV</span></div></div>'
+    +'<input type="text" id="atv-kbin" class="atv-field" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Type here">'
+    +'<div class="atv-popf"><button type="button" class="ghost" data-act="clear">Clear</button><button type="button" class="primary" data-act="done">Done</button></div>', pop=>{
+    const inp=pop.querySelector('#atv-kbin'); let t=null;
+    _atvCall('proos_state',{include:['keyboard']},true).then(r=>{ if(r&&r.keyboard&&r.keyboard.text&&!inp.value) inp.value=r.keyboard.text; }).catch(()=>{});
+    inp.oninput=()=>{ clearTimeout(t); t=setTimeout(()=>{ snd({type:'call_service',domain:'apple_tv',service:inp.value?'set_keyboard_text':'clear_keyboard_text',
+      service_data:inp.value?{config_entry_id:_atv.ce,text:inp.value}:{config_entry_id:_atv.ce}}).then(r=>{ if(r&&r.success===false) _atvFail(new Error((r.error&&r.error.message)||'The Apple TV did not take the text')); }).catch(_atvFail); }, 250); };
+    pop.querySelector('[data-act="clear"]').onclick=()=>{ inp.value=''; inp.oninput(); };
+    pop.querySelector('[data-act="done"]').onclick=()=>{ _atvPopClose(); };
+    setTimeout(()=>{ try{inp.focus();}catch(e){} },60); });
+}
+function _atvTypeClose(){ if(_atv&&_atv.kbOpen) _atvPopClose(); }
+
+// ── Apps ────────────────────────────────────────────────────────────────────────────────────────────────────
+function _atvRenderApps(b){
+  const apps=att(_atv.e,'proos_apps')||{}, names=Object.keys(apps).sort((a,c)=>a.localeCompare(c));
+  const nowId=att(_atv.e,'app_id'), q=(_atv.appQ||'').toLowerCase();
+  const shown=names.filter(n=>!q||n.toLowerCase().includes(q));
+  const acc=_atv.accounts;
+  b.innerHTML='<div class="atv-apps"><div class="atv-apps-top"><label class="atv-filter">'+_atvIcon('search')+'<input type="search" id="atv-appq" placeholder="Filter apps" value="'+_hEsc(_atv.appQ||'')+'"></label>'
+    +(acc&&acc.length>1?'<div class="atv-profs"><small>Profile</small>'+acc.map(a=>'<button type="button" class="atv-prof" data-acc="'+_hEsc(a.id)+'"><i>'+_hEsc((a.name||'?').charAt(0))+'</i>'+_hEsc((a.name||'').split(' ')[0])+'</button>').join('')+'</div>':'')+'</div>'
+    +'<div class="atv-sec">'+(q?'Matching apps':'All apps · '+names.length+' installed')+'</div>'
+    +'<div class="atv-appgrid">'+shown.map(n=>'<button type="button" class="atv-app'+(apps[n]===nowId?' now':'')+'" data-app="'+_hEsc(n)+'">'+_appTileHTML(n,'atv-ai',apps[n])+'<span>'+_hEsc(n)+'</span>'+(apps[n]===nowId?'<i class="atv-nowtag">Now playing</i>':'')+'</button>').join('')
+    +(q&&!shown.length?'<button type="button" class="atv-store" data-store="1">'+_atvIcon('search')+'No app called “'+_hEsc(_atv.appQ)+'”. Open the App Store on the TV</button>':'')+'</div></div>';
+  const qi=b.querySelector('#atv-appq'); qi.oninput=()=>{ _atv.appQ=qi.value; const pos=qi.selectionStart; _atvRenderApps(b); const n=b.querySelector('#atv-appq'); n.focus(); try{n.setSelectionRange(pos,pos);}catch(e){} };
+  b.querySelectorAll('[data-app]').forEach(x=>x.onclick=()=>_atvLaunch(x.dataset.app, apps[x.dataset.app]));
+  b.querySelectorAll('[data-acc]').forEach(x=>x.onclick=()=>{ const a=(_atv.accounts||[]).find(y=>y.id===x.dataset.acc);
+    _atvCall('proos_switch_account',{account_id:x.dataset.acc}).then(()=>_atvToast('Switched to '+((a&&a.name)||'that profile'))).catch(_atvFail); });
+  const s=b.querySelector('[data-store]'); if(s) s.onclick=()=>{ const id=apps['App Store']||'com.apple.TVAppStore'; _atvLaunch('App Store', id); };
+}
+function _atvLoadAccounts(){ if(!_atv||_atv.accounts) return; const e=_atv.e;
+  _atvCall('proos_state',{include:['accounts']},true).then(r=>{ if(!_atv||_atv.e!==e) return; _atv.accounts=r.accounts||[]; if(_atv.tab==='apps') _atvRenderBody(); }).catch(()=>{}); }
+// a launch says "Opened" only when the Apple TV's own now-playing app becomes that app; otherwise "Sent"
+function _atvLaunch(name, id){
+  if(!id) return; const e=_atv.e;
+  snd({type:'call_service',domain:'media_player',service:'play_media',service_data:{media_content_type:'app',media_content_id:id},target:{entity_id:e}})
+    .then(r=>{ if(r&&r.success===false) throw new Error('The Apple TV did not open '+name); _atvToast('Sent to the Apple TV: open '+name);
+      let n=0; const t=setInterval(()=>{ n++; if(!_atv||_atv.e!==e){ clearInterval(t); return; } if(att(e,'app_id')===id){ clearInterval(t); _atvToast(name+' is open'); } else if(n>10) clearInterval(t); },1000); })
+    .catch(_atvFail);
+  _atv.tab='remote'; _atvLS('tab','remote'); _atvRender();
+}
+
+// ── Search (Apple's own catalogue, through Core) ────────────────────────────────────────────────────────────
+function _atvRenderSearch(b){
+  const s=_atv.search, res=s.res;
+  b.innerHTML='<div class="atv-srch"><div class="atv-srow"><label class="atv-sfield">'+_atvIcon('search')+'<input type="search" id="atv-sq" placeholder="Search films, shows and apps" value="'+_hEsc(s.q)+'"></label>'
+    +'<label class="atv-also"><input type="checkbox" id="atv-stv"'+(s.tv?' checked':'')+'><span class="atv-sw"><i></i></span>Also type on the TV</label></div>'
+    +'<div class="atv-fchips">'+[['all','All'],['movie','Movies'],['show','TV Shows']].map(f=>'<button type="button" data-f="'+f[0]+'" class="'+((s.f||'all')===f[0]?'on':'')+'">'+f[1]+'</button>').join('')+'</div>'
+    +'<div class="atv-postgrid" id="atv-res">'+_atvResHTML()+'</div></div>';
+  const qi=b.querySelector('#atv-sq'); let t=null;
+  qi.oninput=()=>{ s.q=qi.value; clearTimeout(t); t=setTimeout(()=>{ _atvSearch(); if(s.tv&&_atvKbOn()) snd({type:'call_service',domain:'apple_tv',service:'set_keyboard_text',service_data:{config_entry_id:_atv.ce,text:s.q}}).catch(()=>{}); },350); };
+  b.querySelector('#atv-stv').onchange=ev=>{ s.tv=ev.target.checked; _atvLS('tv',s.tv?'1':'0'); };
+  b.querySelectorAll('[data-f]').forEach(x=>x.onclick=()=>{ s.f=x.dataset.f; _atvRenderSearch(b); });
+  b.querySelectorAll('[data-r]').forEach(x=>x.onclick=()=>_atvResultSheet(+x.dataset.r));
+  if(!res&&!s.busy) setTimeout(()=>{ try{qi.focus();}catch(e){} },60);
+}
+function _atvResHTML(){
+  const s=_atv.search; if(s.busy&&!s.res) return '<div class="atv-hint">Searching…</div>';
+  if(s.err) return '<div class="atv-hint">'+_hEsc(s.err)+'</div>';
+  if(!s.res) return '<div class="atv-hint">Search Apple\'s catalogue. Results show where each title can be watched.</div>';
+  const apps=att(_atv.e,'proos_apps')||{}, ids=new Set(Object.values(apps));
+  const list=s.res.filter(r=>!s.f||s.f==='all'||r.kind===s.f);
+  if(!list.length) return '<div class="atv-hint">Nothing found for “'+_hEsc(s.q)+'”</div>';
+  return list.map(r=>'<button type="button" class="atv-post" data-r="'+s.res.indexOf(r)+'"><div class="atv-pi"'+(r.poster?' style="background-image:url(\''+_hEsc(r.poster)+'\')"':'')+'>'+(r.poster?'':'<span>'+_hEsc(r.title)+'</span>')+'</div>'
+    +'<b>'+_hEsc(r.title)+'</b><small>'+_hEsc([r.kind==='movie'?'Movie':r.kind==='show'?'Series':'',r.year].filter(Boolean).join(' · '))+'</small>'
+    +'<div class="atv-where">'+(r.where||[]).slice(0,3).map(w=>'<span class="'+(w.bundle&&ids.has(w.bundle)?'':'no')+'">'+(w.bundle&&ids.has(w.bundle)?_atvIcon('check'):'')+_hEsc(w.name)+'</span>').join('')+'</div></button>').join('');
+}
+function _atvSearch(){
+  const s=_atv.search, q=s.q.trim(); if(!q){ s.res=null; s.err=null; const el=document.getElementById('atv-res'); if(el) el.innerHTML=_atvResHTML(); return; }
+  s.busy=true; s.err=null; const my=++s.seq||(s.seq=1);
+  _coreFetch(proosCoreBase()+'/appletv/search?q='+encodeURIComponent(q),{},9000).then(r=>r.json()).then(j=>{ if(!_atv||s.seq!==my) return; s.busy=false;
+    if(j.error){ s.err=j.error; s.res=null; } else s.res=j.results||[]; const el=document.getElementById('atv-res'); if(el){ el.innerHTML=_atvResHTML(); el.querySelectorAll('[data-r]').forEach(x=>x.onclick=()=>_atvResultSheet(+x.dataset.r)); } })
+    .catch(()=>{ if(!_atv) return; s.busy=false; s.err='The catalogue could not be reached. Typing on the TV still works.'; const el=document.getElementById('atv-res'); if(el) el.innerHTML=_atvResHTML(); });
+}
+function _atvResultSheet(i){
+  const r=_atv.search.res&&_atv.search.res[i]; if(!r) return;
+  // the apps that carry this title here come from Apple's catalogue on the tap (register 1036)
+  if(r.where===undefined){ r.where=null; _atvToast('Finding where to watch…');
+    _coreFetch(proosCoreBase()+'/appletv/title?kind='+encodeURIComponent(r.kind)+'&id='+encodeURIComponent(r.id),{},9000).then(x=>x.json())
+      .then(j=>{ r.where=j.where||[]; r.whereErr=j.error||null; if(_atv) _atvResultSheet(i); })
+      .catch(()=>{ r.where=[]; r.whereErr='Apple\'s catalogue did not answer'; if(_atv) _atvResultSheet(i); });
+    return; }
+  if(r.where===null) return;
+  const apps=att(_atv.e,'proos_apps')||{}, ids=new Set(Object.values(apps));
+  const where=(r.where||[]);
+  _atvPop('<div class="atv-poph"><div><b>'+_hEsc(r.title)+'</b><span>'+_hEsc([r.kind==='movie'?'Movie':r.kind==='show'?'Series':'',r.year].filter(Boolean).join(' · '))+'</span></div></div>'
+    +(r.description?'<p class="atv-desc">'+_hEsc(r.description)+'</p>':'')
+    +'<div class="atv-list">'+(where.length?where.map((w,wi)=>'<button type="button" data-w="'+wi+'">'+(w.bundle&&ids.has(w.bundle)?'Play in ':'Open in ')+_hEsc(w.name)+(w.bundle&&ids.has(w.bundle)?'':' · not installed')+'</button>').join('')
+      :'<div class="atv-hint">'+_hEsc(r.whereErr||'Apple lists no app for this title in Australia.')+'</div>')+'</div>'
+    +'<div class="atv-popf"><button type="button" class="ghost" data-act="no">Close</button></div>', pop=>{
+    pop.querySelector('[data-act="no"]').onclick=_atvPopClose;
+    pop.querySelectorAll('[data-w]').forEach(x=>x.onclick=()=>{ const w=where[+x.dataset.w]; _atvPopClose();
+      const target=w.url||w.bundle; if(!target){ _atvToast('Apple gives no link for this one'); return; }
+      snd({type:'call_service',domain:'media_player',service:'play_media',service_data:{media_content_type:w.url?'url':'app',media_content_id:target},target:{entity_id:_atv.e}})
+        .then(rr=>{ if(rr&&rr.success===false) throw new Error('The Apple TV did not open it'); _atvToast('Sent to the Apple TV'); }).catch(_atvFail); }); });
+}
+
+// ── Now Playing ─────────────────────────────────────────────────────────────────────────────────────────────
+function _atvRenderPlaying(b){
+  const e=_atv.e, t=att(e,'media_title'), item=_atvNPItem(), np=_atv.np;
+  if(!t){ b.innerHTML='<div class="atv-state"><div class="atv-sico">'+_atvIcon('play')+'</div><b>Nothing reporting what\'s playing</b><span>Apps that share what they play show it here.</span></div>'; return; }
+  const groups=item?(item.language_groups||[]).filter(g=>g.options&&g.options.length):[], cur=item?(item.current_language||[]):[];
+  const chapters=item&&item.chapter_count?item.chapter_count:null;
+  const queue=(np&&np.items||[]).slice(1);
+  b.innerHTML='<div class="atv-cols"><section class="atv-l wide"><div class="atv-npbig" data-title="'+_hEsc(t)+'"><div class="atv-art big"'+(_atvArt()?' style="background-image:url(\''+_atvArt()+'\')"':'')+'>'+(att(e,'app_name')?'<span class="atv-appchip">'+_hEsc(att(e,'app_name'))+'</span>':'')+'</div>'
+    +'<div class="atv-npt"><b>'+_hEsc(t)+'</b><span>'+_hEsc(_atvSub())+'</span></div>'+_atvProgHTML().replace('atv-prog','atv-prog big seek')
+    +'<div class="atv-trans"><button type="button" data-t="prevch"'+(chapters?'':' hidden')+'>'+_atvIcon('prevch')+'</button><button type="button" data-t="skb">'+_atvIcon('skb')+'</button>'
+    +'<button type="button" class="big" data-t="pp" id="atv-ppbtn">'+_atvIcon(states[e].state==='playing'?'pause':'play')+'</button><button type="button" data-t="skf">'+_atvIcon('skf')+'</button>'
+    +'<button type="button" data-t="nextch"'+(chapters?'':' hidden')+'>'+_atvIcon('nextch')+'</button></div>'
+    +(chapters?'<div class="atv-tcap">'+chapters+' chapters · previous and next chapter</div>':'')+'</div></section>'
+    +'<section class="atv-r side">'
+    +(groups.length?groups.map((g,gi)=>'<div class="atv-sec">'+_atvGroupName(g,gi)+'</div><div class="atv-opts">'
+        +g.options.map((o,oi)=>'<button type="button" data-g="'+gi+'" data-o="'+oi+'" class="'+(cur.some(x=>x.identifier===o.identifier)?'on':'')+'"><span>'+_hEsc(o.displayName||o.languageTag||'Option')+'</span>'+(cur.some(x=>x.identifier===o.identifier)?_atvIcon('check'):'')+'</button>').join('')+'</div>').join('')
+      :'<div class="atv-sec">Audio and subtitles</div><div class="atv-hint left">'+(item?'This app shares no audio or subtitle choices.':'Waiting for the Apple TV…')+'</div>')
+    +'<div class="atv-sec">Up next</div>'+(queue.length?'<div class="atv-queue">'+queue.map(q=>'<button type="button" class="atv-q" data-q="'+_hEsc(q.id)+'"><div><b>'+_hEsc(q.title||'')+'</b><span>'+_hEsc([q.series, q.artist, q.duration?fmtTime(q.duration):''].filter(Boolean).join(' · '))+'</span></div></button>').join('')+'</div>'
+      :'<div class="atv-hint left">'+(np?'This app shares nothing up next.':'Waiting for the Apple TV…')+'</div>')
+    +'</section></div>';
+  b.querySelectorAll('[data-t]').forEach(x=>{ const k=x.dataset.t;
+    x.onclick=()=>{ if(k==='pp') _atvKey('play_pause','tap'); else if(k==='skb'||k==='skf') _atvCall('proos_media',{command:'skip_by',seconds:k==='skf'?10:-10}).catch(_atvFail);
+      else _atvCall('proos_media',{command:k==='nextch'?'next_chapter':'previous_chapter'}).catch(_atvFail); }; });
+  const seek=b.querySelector('.atv-prog.seek'); if(seek) seek.onclick=ev=>{ const p=_atvPos(); if(!p) return; const r=seek.querySelector('.atv-pt').getBoundingClientRect();
+    svc('media_player','media_seek',{entity_id:e,seek_position:Math.round((ev.clientX-r.left)/r.width*p.dur)}); };
+  b.querySelectorAll('[data-o]').forEach(x=>x.onclick=()=>_atvCall('proos_language_option',{option:groups[+x.dataset.g].options[+x.dataset.o],enable:true}).then(()=>setTimeout(_atvRefreshNP,800)).catch(_atvFail));
+  b.querySelectorAll('[data-q]').forEach(x=>x.onclick=()=>_atvCall('proos_play_queue_item',{item_id:x.dataset.q}).then(()=>setTimeout(_atvRefreshNP,1200)).catch(_atvFail));
+}
+
+// Update player when open and entity state changes (the Apple TV page listens first — register 1035)
 function maybeUpdatePlayer(eid){
+  try{ atvMaybeUpdate(eid); }catch(e){}
   if(!_playerEntity) return;
   // The engine's player changes track without the speaker's state changing at
   // all, so watching only the speaker left the panel stale.

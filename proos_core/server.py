@@ -7860,6 +7860,15 @@ class Handler(BaseHTTPRequestHandler):
                     "brands": _appart.brands(),
                     "removed": sorted(_appart.removed_brands()),
                     "brandfetch": (_appart.client_id(_opt("brandfetch_client_id", "")) if _appart else (_opt("brandfetch_client_id", "") or "").strip())})
+            if parts in (["appletv", "search"], ["appletv", "title"]):
+                # REGISTER 1036 (Dave 27 Oct 15:49: the catalogue is "already on the Apple TV"): the Apple TV page's
+                # Search reads Apple's own TV-app catalogue — titles and posters, then the apps that carry a title here
+                # with the link that opens it. Read as Apple's web player reads it; an unreachable catalogue says so.
+                from proos import atvcatalog as _atvcat
+                _q = parse_qs(urlparse(self.path).query)
+                if parts[1] == "search":
+                    return self._send(200, _atvcat.search((_q.get("q") or [""])[0]))
+                return self._send(200, _atvcat.title((_q.get("kind") or ["movie"])[0], (_q.get("id") or [""])[0]))
             if parts == ["rooms", "photos"]:
                 # ONE list for room pictures (B3, 22 Aug 2026). The dashboard
                 # kept its own ROOM_PHOTOS copy and the two disagreed; it now

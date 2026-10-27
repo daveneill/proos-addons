@@ -5450,6 +5450,7 @@ proos/appart.py
 proos/appctl.py
 proos/appfavs.py
 proos/applemusic.py
+proos/atvcatalog.py
 proos/approved_versions.json
 proos/assist.py
 proos/assistjobs.py
