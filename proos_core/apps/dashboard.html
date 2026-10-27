@@ -3416,7 +3416,7 @@ html[data-link="remote"]{--m-tap:90ms;--m-move:200ms;--m-page:300ms}
 #atv-page .atv-vol{flex:1;padding:0;background:none;border-radius:0;gap:6px;margin:0}
 #atv-page .atv-vol .wv-sl svg{width:15px;height:15px}
 #atv-page .atv-mini{display:none;align-items:center;gap:14px;padding:10px 14px 10px 10px;border-radius:18px;background:var(--atv-glass)!important;text-align:left;flex:none;width:100%}
-#atv-page .atv-mini i{width:112px;aspect-ratio:16/9;border-radius:10px;background:#15171c center/cover;flex:none}
+#atv-page .atv-mini>i{width:112px;aspect-ratio:16/9;border-radius:10px;background:#15171c center/cover;flex:none}
 #atv-page .atv-mini>div{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px}
 #atv-page .atv-mini b{font-size:15px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#atv-page .atv-mini span{font-size:12px;color:var(--atv-ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #atv-page .atv-mini .atv-prog{margin-top:6px}#atv-page .atv-mini .atv-pl{display:none}#atv-page .atv-mini>svg{color:var(--atv-ink3);width:18px;height:18px}
@@ -3437,6 +3437,7 @@ html[data-link="remote"]{--m-tap:90ms;--m-move:200ms;--m-page:300ms}
   #atv-page .atv-body:has(.atv-mini){gap:22px}
   #atv-page .atv-mini{display:flex}
   #atv-page .atv-keys{grid-template-columns:repeat(4,1fr)}
+  #atv-page .atv-l:has(.atv-pad) .atv-pad{min-height:150px}
   #atv-page .atv-l.wide .atv-art{max-height:40vh;align-self:center;width:100%}
   #atv-page .atv-cols:has(.atv-l.wide){overflow-y:auto;scrollbar-width:none;align-content:start}
   #atv-page .atv-cols:has(.atv-l.wide)>section{min-height:auto;flex:none}#atv-page .atv-r.side{overflow:visible}
@@ -3449,7 +3450,7 @@ html[data-link="remote"]{--m-tap:90ms;--m-move:200ms;--m-page:300ms}
   #atv-page .atv-hdr{padding:max(14px,var(--proos-sat)) 0 0;gap:10px}#atv-page .atv-ht{font-size:26px}
   #atv-page .atv-chip{height:28px;padding:0 10px;font-size:12px}#atv-page .atv-roff em{display:none}#atv-page .atv-roff{width:38px;padding:0;justify-content:center}
   #atv-page .atv-segs button{font-size:12.5px;height:34px}
-  #atv-page .atv-mini i{width:84px}#atv-page .atv-mini{padding:8px 12px 8px 8px}
+  #atv-page .atv-mini>i{width:84px}#atv-page .atv-mini{padding:8px 12px 8px 8px}
   #atv-page .atv-keys{gap:10px}#atv-page .atv-key{padding:10px 2px 8px}
   #atv-page .atv-trans{gap:12px}#atv-page .atv-trans button{width:46px;height:46px}#atv-page .atv-trans button.big{width:58px;height:58px}
   #atv-page .atv-tcap{display:none}
@@ -4919,7 +4920,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102609';
+const PROOS_BUILD='2026102610';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -18787,7 +18788,22 @@ function _atvRoomOffAsk(){
   const p=document.getElementById('atv-page'); if(!p||!_atv.room) return;
   _atvPop('<div class="atv-poph"><b>Turn off '+_hEsc(_atv.room.name||'the room')+'?</b><span>Everything in the room turns off, the Apple TV goes to sleep.</span></div>'
     +'<div class="atv-popf"><button type="button" class="ghost" data-act="no">Cancel</button><button type="button" class="primary danger" data-act="yes">Room Off</button></div>',
-    pop=>{ pop.querySelector('[data-act="no"]').onclick=_atvPopClose; pop.querySelector('[data-act="yes"]').onclick=()=>{ _atvPopClose(); const idx=CONFIG.rooms.indexOf(_atv.room); if(idx>=0) runRoomTvOff(idx); atvClose(); }; });   // register 1038: the room's TV Off activity, and the page closes
+    pop=>{ pop.querySelector('[data-act="no"]').onclick=_atvPopClose; pop.querySelector('[data-act="yes"]').onclick=()=>{ _atvPopClose(); _atvRoomOff(); }; });   // register 1038: the room's TV Off activity, and the page closes
+}
+// register 1040 (Dave 21:53: "power in top right corner doesn't do anything supposed to use TV off activity"): the
+// dashboard's room off reads the room's activities from a list filled when the ROOM page opens; opened straight from the
+// media card that list was empty and Room Off did nothing. The page asks Core for the room's activities first.
+function _atvRoomOff(){
+  const room=_atv&&_atv.room; if(!room) return; const idx=CONFIG.rooms.indexOf(room), key=window._proosAreaKey?window._proosAreaKey(room):room.id;
+  const fire=()=>{ const acts=(window._proosActsByArea&&window._proosActsByArea[key])||[];
+    if(!acts.some(a=>a&&a.script&&/(^|_)off$/.test(String(a.key||'')))){ _atvToast('This room has no TV Off activity committed'); return; }
+    if(window._proosActsArea===key) window._proosActs=acts;
+    runRoomTvOff(idx); atvClose(); };
+  const have=(window._proosActsByArea&&window._proosActsByArea[key])||[];
+  if(have.length){ fire(); return; }
+  _coreFetch(proosCoreBase()+'/rooms/'+encodeURIComponent(room.id)+'/activities',{},8000).then(r=>r.json()).then(d=>{
+    window._proosActsByArea=window._proosActsByArea||{}; window._proosActsByArea[key]=(d&&Array.isArray(d.activities))?d.activities:[]; fire(); })
+    .catch(()=>_atvToast('Could not reach ProOS Core for the room\'s activities'));
 }
 function _atvPop(html, bind){
   const p=document.getElementById('atv-page'); _atvPopClose();
@@ -18967,7 +18983,8 @@ function _atvBindVol(b){
   r.oninput=()=>{ r.parentNode.style.setProperty('--v',Math.round(r.value*100)+'%'); volInput(r,_atv.vol,b.querySelector('#atv-vn')); };
   r.onpointerup=volEnd; r.ontouchend=volEnd; r.onchange=volEnd;
 }
-function _atvFootPaint(){ const f=document.getElementById('atv-foot'); if(!f||!_atv) return; f.innerHTML=_atvVolHTML(); f.hidden=!f.innerHTML; _atvBindVol(f); }
+function _atvFootPaint(){ const f=document.getElementById('atv-foot'); if(!f||!_atv) return; f.innerHTML=_atvVolHTML(); f.hidden=!f.innerHTML; _atvBindVol(f);
+  f.dataset.m=att(_atv.vol,'is_volume_muted')?'1':'0'; }
 function _atvMiniHTML(){ const t=att(_atv.e,'media_title'); if(!t) return '';
   return '<button type="button" class="atv-mini" data-title="'+_hEsc(t)+'"><i'+(_atvArt()?' style="background-image:url(\''+_atvArt()+'\')"':'')+'></i><div><b>'+_hEsc(t)+'</b><span>'+_hEsc([att(_atv.e,'app_name'),_atvSub()].filter(Boolean).join(' · '))+'</span>'+_atvProgHTML()+'</div>'+_atvIcon('chev')+'</button>'; }
 
@@ -18981,7 +18998,9 @@ function _atvPaintLive(){
   const kb=body.querySelector('[data-key="kbd"]'); if(kb) kb.classList.toggle('lit',_atvKbOn());
   const pp=document.getElementById('atv-ppbtn'); if(pp) pp.innerHTML=_atvIcon(states[_atv.e]&&states[_atv.e].state==='playing'?'pause':'play');
   const r=document.getElementById('atv-volr'); if(r && _draggingVol!==_atv.vol && document.activeElement!==r){ const l=att(_atv.vol,'volume_level'); if(l!=null){ r.value=l.toFixed(2); r.parentNode.style.setProperty('--v',Math.round(l*100)+'%'); const n=document.getElementById('atv-vn'); if(n) n.textContent=Math.round(l*100); } }
-  const mb=document.querySelector('#atv-vol .mute-btn'); if(mb && att(_atv.vol,'is_volume_muted')!==(mb.dataset.m==='1')){ _atvFootPaint(); const m2=document.querySelector('#atv-vol .mute-btn'); if(m2) m2.dataset.m=att(_atv.vol,'is_volume_muted')?'1':'0'; }
+  // register 1040 (Dave 21:56 "volume slider does nothing"): redraw the bar only when the mute state CHANGES — a player
+  // that reports none (an Apple TV) made every state push rebuild the slider under the finger — and never mid-drag
+  const ft=document.getElementById('atv-foot'); if(ft && _draggingVol!==_atv.vol && ft.dataset.m!==(att(_atv.vol,'is_volume_muted')?'1':'0')) _atvFootPaint();
   if(_atv.tab==='remote'||_atv.tab==='playing'){ const np=body.querySelector('.atv-np,.atv-npbig,.atv-mini'); if(np && np.dataset.title!==String(att(_atv.e,'media_title')||'')) _atvRenderBody(); }
 }
 function _atvTick(){ if(!_atv) return; const p=_atvPos(); if(!p) return;
