@@ -9,41 +9,73 @@ data. Nothing here is a guess: a field Apple does not return is left out, and a 
   search(q)          → {"results": [{id, kind, title, year, poster, description}], "source": "apple_tv_app"}
   title(kind, id)    → {"where": [{name, bundle, url}]}  — the apps Apple lists for that title here, with their links
 
-The web player's public parameters are kept in one place (PARAMS); Apple can change them. When the catalogue answers
-with an error, the error is returned in words and the page shows it.
+The parameters are Apple's own, read from its public /configurations answer each time they expire; nothing is typed in
+here. When the catalogue answers with an error, the error is returned in words and the page shows it.
 """
 from __future__ import annotations
 
 import json
 import threading
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 
-BASE = "https://uts-api.itunes.apple.com/uts/v3"
-# PLUMBING: the public query the Apple TV web player itself sends (locale and storefront for Australia).
-PARAMS = {"caller": "web", "locale": "en-AU", "pfm": "web", "sf": "143460", "v": "88",
-          "utscf": "OjAAAAEAAAAAAAMAEAAAACMAKwAuAA~~", "utsk": "6e3013c6d6fae3c2::::::9318c17fb39d6b9c"}
+BASE = "https://tv.apple.com/api/uts/v3"
+# What Apple's own TV web player sends, read from Apple at run time — never typed in here. /configurations needs no key
+# and answers with the parameters every other request needs (requiredParamsMap.Default). Measured 27 Oct from
+# tv.apple.com: the web platform ("pfm": "web") lists only Apple's own titles; asking as an Apple TV does
+# ("pfm": "appletv") lists the full catalogue with every app that carries a title here (Binge, Prime Video, ABC iview…).
+CONFIG_QUERY = {"caller": "web", "locale": "en-AU", "pfm": "web", "sf": "143460", "v": "100"}
+AS_APPLE_TV = {"pfm": "appletv", "locale": "en-AU", "sf": "143460"}
 TIMEOUT_S = 6.0
 CACHE_S = 600
+CONFIG_S = 6 * 3600
 _cache: dict = {}
+_conf: dict = {"at": 0.0, "params": None}
 _lock = threading.Lock()
 
 
-def _get(path: str, extra: dict) -> dict:
-    q = dict(PARAMS)
-    q.update(extra or {})
-    url = BASE + path + "?" + urllib.parse.urlencode(q)
-    with _lock:
-        hit = _cache.get(url)
-        if hit and time.time() - hit[0] < CACHE_S:
-            return hit[1]
+def _fetch(url: str) -> dict:
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 ProOS", "Accept": "application/json",
                                                "Origin": "https://tv.apple.com", "Referer": "https://tv.apple.com/"})
     with urllib.request.urlopen(req, timeout=TIMEOUT_S) as r:
-        data = json.loads(r.read().decode("utf-8", "replace"))
+        return json.loads(r.read().decode("utf-8", "replace"))
+
+
+def _params(refresh: bool = False) -> dict:
     with _lock:
-        _cache[url] = (time.time(), data)
+        if not refresh and _conf["params"] and time.time() - _conf["at"] < CONFIG_S:
+            return dict(_conf["params"])
+    data = _fetch(BASE + "/configurations?" + urllib.parse.urlencode(CONFIG_QUERY))
+    req = (((data or {}).get("data") or {}).get("applicationProps") or {}).get("requiredParamsMap") or {}
+    params = dict(req.get("Default") or req.get("WithoutUtsk") or {})
+    if not params:
+        raise ValueError("Apple's catalogue gave no parameters")
+    params.update(AS_APPLE_TV)
+    with _lock:
+        _conf.update({"at": time.time(), "params": params})
+    return dict(params)
+
+
+def _get(path: str, extra: dict) -> dict:
+    q = _params()
+    q.update(extra or {})
+    url = BASE + path + "?" + urllib.parse.urlencode(q)
+    with _lock:
+        hit = _cache.get(path + repr(sorted((extra or {}).items())))
+        if hit and time.time() - hit[0] < CACHE_S:
+            return hit[1]
+    try:
+        data = _fetch(url)
+    except urllib.error.HTTPError as err:
+        if err.code not in (400, 401, 403):
+            raise
+        q = _params(refresh=True)                           # Apple moved its parameters: read them again, once
+        q.update(extra or {})
+        data = _fetch(BASE + path + "?" + urllib.parse.urlencode(q))
+    with _lock:
+        _cache[path + repr(sorted((extra or {}).items()))] = (time.time(), data)
         if len(_cache) > 200:
             for k in sorted(_cache, key=lambda k: _cache[k][0])[:50]:
                 _cache.pop(k, None)
@@ -51,7 +83,7 @@ def _get(path: str, extra: dict) -> dict:
 
 
 def _img(images: dict, w=300, h=450) -> str | None:
-    for key in ("coverArt", "posterArt", "fullColorContentLogo", "previewFrame", "shelfItemImage"):
+    for key in ("shelfItemImage", "posterArt", "coverArt"):
         im = (images or {}).get(key)
         if isinstance(im, dict) and im.get("url"):
             ratio = (im.get("height") or h) / float(im.get("width") or w)
@@ -92,24 +124,27 @@ def parse_search(data: dict) -> list:
 
 
 def parse_where(data: dict) -> list:
-    """Pure: an Apple TV app title answer → the apps Apple lists for it, each with its link and app id."""
+    """Pure: an Apple TV app title answer → the apps Apple lists for it here, once each, each with its app id and the
+    link that opens the title in that app (Apple's own "open" link first, then its web link)."""
     d = (data or {}).get("data") or {}
     channels = d.get("channels") or {}
+    pl = d.get("playables") or {}
     seen, out = set(), []
-    for p in (d.get("playables") or {}).values() if isinstance(d.get("playables"), dict) else (d.get("playables") or []):
+    for p in (pl.values() if isinstance(pl, dict) else pl):
         ch = channels.get(p.get("channelId")) or {}
-        name = ch.get("name") or p.get("channelId")
+        name = ch.get("name") or p.get("serviceName") or p.get("channelId")
         if not name or name in seen:
             continue
         seen.add(name)
-        bundle = None
         ids = ch.get("appBundleIds") or []
-        if ids:
-            bundle = ids[0]
-        url = ((p.get("punchoutUrls") or {}).get("open") or (p.get("punchoutUrls") or {}).get("play")
-               or p.get("url") or None)
-        out.append({"name": name, "bundle": bundle, "url": url})
+        po = p.get("punchoutUrls") or {}
+        out.append({"name": name, "bundle": ids[0] if ids else None, "url": po.get("open") or po.get("play") or p.get("url") or None})
     return out
+
+
+def parse_description(data: dict):
+    c = (((data or {}).get("data") or {}).get("content") or {})
+    return c.get("description") or None
 
 
 def search(q: str) -> dict:
@@ -125,6 +160,7 @@ def search(q: str) -> dict:
 def title(kind: str, item_id: str) -> dict:
     path = "/movies/" if kind == "movie" else "/shows/"
     try:
-        return {"where": parse_where(_get(path + urllib.parse.quote(str(item_id)), {}))}
+        data = _get(path + urllib.parse.quote(str(item_id)), {})
+        return {"where": parse_where(data), "description": parse_description(data)}
     except Exception as err:                                 # noqa: BLE001
         return {"where": [], "error": "Apple's catalogue did not answer (%s)" % type(err).__name__}

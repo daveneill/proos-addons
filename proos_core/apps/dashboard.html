@@ -4859,7 +4859,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102605';
+const PROOS_BUILD='2026102606';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -18954,7 +18954,7 @@ function _atvResultSheet(i){
   // the apps that carry this title here come from Apple's catalogue on the tap (register 1036)
   if(r.where===undefined){ r.where=null; _atvToast('Finding where to watch…');
     _coreFetch(proosCoreBase()+'/appletv/title?kind='+encodeURIComponent(r.kind)+'&id='+encodeURIComponent(r.id),{},9000).then(x=>x.json())
-      .then(j=>{ r.where=j.where||[]; r.whereErr=j.error||null; if(_atv) _atvResultSheet(i); })
+      .then(j=>{ r.where=j.where||[]; r.whereErr=j.error||null; if(j.description) r.description=j.description; if(_atv) _atvResultSheet(i); })
       .catch(()=>{ r.where=[]; r.whereErr='Apple\'s catalogue did not answer'; if(_atv) _atvResultSheet(i); });
     return; }
   if(r.where===null) return;
