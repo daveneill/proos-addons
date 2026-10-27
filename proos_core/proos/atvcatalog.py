@@ -181,6 +181,58 @@ def title(kind: str, item_id: str) -> dict:
         return {"where": [], "error": "Apple's catalogue did not answer (%s)" % type(err).__name__}
 
 
+def parse_episodes(eps: list) -> dict:
+    """Pure (register 1043): Apple's episode list → the seasons (in order, with how many episodes Apple lists for each)
+    and each episode with its own id, season, number, title, description, length, year and a 16:9 picture."""
+    out, seasons = [], {}
+    for e in eps or []:
+        s, n = e.get("seasonNumber"), e.get("episodeNumber")
+        if s is None or n is None or not e.get("id"):
+            continue
+        seasons[s] = seasons.get(s, 0) + 1
+        rd = e.get("releaseDate")
+        out.append({"id": e["id"], "season": s, "episode": n, "title": e.get("title"), "description": e.get("description"),
+                    "minutes": int(round((e.get("duration") or 0) / 60.0)) or None,
+                    "date": time.gmtime(rd / 1000.0).tm_year if isinstance(rd, (int, float)) else None,
+                    "image": _wide(e.get("images") or {}, 480)})
+    out.sort(key=lambda x: (x["season"], x["episode"]))
+    return {"seasons": [{"n": k, "count": seasons[k]} for k in sorted(seasons)], "episodes": out}
+
+
+def _all_episodes(show_id: str) -> list:
+    eps, start, total = [], 0, None
+    while total is None or start < total:
+        d = (_get("/shows/%s/episodes" % urllib.parse.quote(show_id), {"nextToken": "%d:%d" % (start, EPISODE_PAGE)}) or {}).get("data") or {}
+        page = d.get("episodes") or []
+        total = int(d.get("totalEpisodeCount") or len(page))
+        eps += page
+        if not page or start > 2000:
+            break
+        start += EPISODE_PAGE
+    return eps
+
+
+def episodes(show_id: str) -> dict:
+    """A series' seasons and episodes as Apple's catalogue lists them (register 1043)."""
+    if not show_id:
+        return {"error": "No series given"}
+    try:
+        return parse_episodes(_all_episodes(str(show_id)))
+    except Exception as err:                                 # noqa: BLE001
+        return {"error": "Apple's catalogue did not answer (%s)" % type(err).__name__}
+
+
+def episode(episode_id: str) -> dict:
+    """One episode's own link in each app that carries it (Apple's /episodes/<id>: HBO Max play, Prime Video play…) —
+    the same reading as a title's apps, so the play link comes first (register 1043)."""
+    if not episode_id:
+        return {"where": [], "error": "No episode given"}
+    try:
+        return {"where": parse_where(_get("/episodes/" + urllib.parse.quote(str(episode_id)), {}))}
+    except Exception as err:                                 # noqa: BLE001
+        return {"where": [], "error": "Apple's catalogue did not answer (%s)" % type(err).__name__}
+
+
 def _norm(t) -> str:
     """A title as letters and digits only (register 1042): HBO sends "The Fuzzy Boots Corollary", Apple's catalogue says
     "The Fuzzyboots Corollary" — the same words, spaced and punctuated differently. Nothing else is loosened: every letter
@@ -225,15 +277,7 @@ def now_playing(series: str, title: str, season=None, episode=None, kind=None) -
             if len(shows) != 1:
                 return {"match": False, "why": "no single show named exactly %r" % series}
             sid = shows[0]["id"]
-            eps, start, total = [], 0, None
-            while total is None or start < total:
-                d = (_get("/shows/%s/episodes" % urllib.parse.quote(sid), {"nextToken": "%d:%d" % (start, EPISODE_PAGE)}) or {}).get("data") or {}
-                page = d.get("episodes") or []
-                total = int(d.get("totalEpisodeCount") or len(page))
-                eps += page
-                if not page or start > 2000:
-                    break
-                start += EPISODE_PAGE
+            eps = _all_episodes(sid)
             ep = match_episode(eps, title, season, episode)
             if not ep:
                 return {"match": False, "why": "no single episode titled exactly %r" % title}

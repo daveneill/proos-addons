@@ -3482,6 +3482,29 @@ html[data-link="remote"]{--m-tap:90ms;--m-move:200ms;--m-page:300ms}
   #atv-page .atv-pop{max-height:calc(100% - 20px);padding:16px}#atv-page .atv-tinfo{grid-template-columns:78px minmax(0,1fr);gap:14px}#atv-page .atv-tinfo .atv-pi{width:78px}#atv-page .atv-tinfo .atv-poph b{font-size:17px}
   #atv-page .atv-tinfo .atv-desc{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 }
+/* register 1043 — a series: seasons and episodes in the wide sheet */
+/* the sheet stands between the top of the screen and the band above the bottom bar — the volume's own line — so nothing
+   in it is ever under the bar; Close stays at its foot while the episodes scroll */
+#atv-page .atv-pop.wide{width:min(780px,calc(100% - 32px));top:max(12px,var(--proos-sat));bottom:calc(var(--proos-floor,0px) + var(--proos-dock-h,72px) + var(--proos-band-gap,12px));transform:translateX(-50%);max-height:none;gap:16px;padding:22px 22px 0;overflow:hidden}
+#atv-page .atv-pop.wide>*{flex:none}#atv-page .atv-pop.wide>.atv-eps{flex:1;min-height:0;overflow-y:auto;scrollbar-width:none;position:relative;margin:0 -4px;padding:0 4px 4px}
+#atv-page .atv-pop.wide .atv-popf{margin:0 -22px;padding:4px 22px 14px}
+#atv-page .atv-wchips{display:flex;gap:8px;flex-wrap:wrap}
+#atv-page .atv-wchips button{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;border-radius:999px;background:var(--atv-glass2)!important;font-size:13px;font-weight:500;color:var(--atv-ink2)!important}
+#atv-page .atv-wchips button svg{width:15px;height:15px}#atv-page .atv-wchips button.on{background:#fff!important;color:#000!important}#atv-page .atv-wchips button.no{opacity:.55}
+#atv-page .atv-stabs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;flex:none;padding-bottom:2px;margin:0 -2px}
+#atv-page .atv-stabs button{flex:none;height:34px;padding:0 15px;border-radius:999px;font-size:13px;font-weight:500;color:var(--atv-ink2)!important;background:var(--atv-glass)!important}#atv-page .atv-stabs button.on{background:rgba(255,255,255,.16)!important;color:#fff!important}
+#atv-page .atv-eps{display:flex;flex-direction:column;gap:8px}
+#atv-page .atv-ep{display:grid;grid-template-columns:150px minmax(0,1fr) 40px;gap:16px;align-items:center;padding:8px 10px 8px 8px;border-radius:16px;background:var(--atv-glass)!important;text-align:left;min-width:0}
+#atv-page .atv-ep.now{box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.55)}
+#atv-page .atv-et{position:relative;display:block;aspect-ratio:16/9;border-radius:10px;background:#15171c center/cover no-repeat}
+#atv-page .atv-et em{position:absolute;left:6px;bottom:6px;height:20px;padding:0 8px;border-radius:999px;background:#fff;color:#000;font-size:10.5px;font-weight:700;font-style:normal;display:flex;align-items:center}
+#atv-page .atv-eb{display:flex;flex-direction:column;gap:3px;min-width:0}#atv-page .atv-eb b{font-size:14.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#atv-page .atv-eb small{font-size:12px;color:var(--atv-ink3)}#atv-page .atv-ed{font-size:12.5px;color:var(--atv-ink2);line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+#atv-page .atv-eplay{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:var(--atv-glass2)}#atv-page .atv-eplay svg{width:16px;height:16px}
+@media (orientation:portrait) and (max-width:600px){
+  #atv-page .atv-pop.wide{width:calc(100% - 16px);padding:16px 14px 0}#atv-page .atv-pop.wide .atv-tinfo{grid-template-columns:84px minmax(0,1fr)}#atv-page .atv-pop.wide .atv-tinfo .atv-pi{width:84px}#atv-page .atv-pop.wide .atv-tinfo .atv-desc{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}#atv-page .atv-pop.wide .atv-popf{margin:0 -14px;padding:2px 14px 12px}
+  #atv-page .atv-ep{grid-template-columns:104px minmax(0,1fr);gap:12px}#atv-page .atv-eplay{display:none}#atv-page .atv-ed{-webkit-line-clamp:2}
+}
 @media (prefers-reduced-motion: reduce){#atv-page .atv-toast,#atv-page .atv-sw,#atv-page .atv-sw i{transition:none}}
 </style>
 </head>
@@ -4924,7 +4947,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102612';
+const PROOS_BUILD='2026102613';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -18825,10 +18848,10 @@ function _atvRoomOff(){
     runRoomTvOff(idx); _atvToast('Turning off '+(room.name||'the room')); atvClose(); })
     .catch(()=>_atvToast('Could not reach ProOS Core for the room\'s activities — try again'));
 }
-function _atvPop(html, bind){
+function _atvPop(html, bind, cls){
   const p=document.getElementById('atv-page'); _atvPopClose();
   const s=document.createElement('div'); s.className='atv-scrim'; s.onclick=_atvPopClose;
-  const c=document.createElement('div'); c.className='atv-pop'; c.innerHTML=html; c.onclick=ev=>ev.stopPropagation();
+  const c=document.createElement('div'); c.className='atv-pop'+(cls?' '+cls:''); c.innerHTML=html; c.onclick=ev=>ev.stopPropagation();
   p.appendChild(s); p.appendChild(c); if(bind) bind(c);
 }
 function _atvPopClose(){ const p=document.getElementById('atv-page'); if(!p) return; p.querySelectorAll('.atv-scrim,.atv-pop').forEach(n=>n.remove()); if(_atv) _atv.kbOpen=false; }
@@ -19125,6 +19148,7 @@ function _atvResultSheet(i){
       .catch(()=>{ r.where=[]; r.whereErr='Apple\'s catalogue did not answer'; if(_atv) _atvResultSheet(i); });
     return; }
   if(r.where===null) return;
+  if(r.kind==='show'){ _atvShowSheet(r); return; }
   const apps=att(_atv.e,'proos_apps')||{}, ids=new Set(Object.values(apps));
   const where=(r.where||[]);
   _atvPop('<div class="atv-tinfo"><div class="atv-pi"'+(r.poster?' style="background-image:url(\''+_hEsc(r.poster)+'\')"':'')+'>'+(r.poster?'':'<span>'+_hEsc(r.title)+'</span>')+'</div>'
@@ -19138,6 +19162,65 @@ function _atvResultSheet(i){
       const target=w.url||w.bundle; if(!target){ _atvToast('Apple gives no link for this one'); return; }
       snd({type:'call_service',domain:'media_player',service:'play_media',service_data:{media_content_type:w.url?'url':'app',media_content_id:target},target:{entity_id:_atv.e}})
         .then(rr=>{ if(rr&&rr.success===false) throw new Error('The Apple TV did not open it'); _atvToast('Sent to the Apple TV'); }).catch(_atvFail); }); });
+}
+
+// ── a series: its seasons and episodes (register 1043) ─────────────────────────────────────────────────────
+// Apple's catalogue lists every episode of a series with its own title, description, picture and its own link in each
+// app that carries it (/episodes/<id>: HBO Max play, Prime Video play…). The sheet shows the seasons as tabs, that
+// season's episodes, and the apps it can play in; an episode starts THAT episode in the chosen app.
+function _atvShowSheet(r){
+  const apps=att(_atv.e,'proos_apps')||{}, ids=new Set(Object.values(apps)), where=r.where||[];
+  const first=where.findIndex(w=>w.bundle&&ids.has(w.bundle));
+  _atv.show={r:r, season:null, app:first>=0?first:0, seasons:null, eps:{}, err:null};
+  _atvShowRender();
+  _coreFetch(proosCoreBase()+'/appletv/episodes?id='+encodeURIComponent(r.id),{},15000).then(x=>x.json()).then(j=>{ if(!_atv||!_atv.show||_atv.show.r!==r) return;
+    const S=_atv.show; if(j.error){ S.err=j.error; _atvShowRender(); return; }
+    S.seasons=j.seasons||[]; (j.episodes||[]).forEach(e=>{ (S.eps[e.season]=S.eps[e.season]||[]).push(e); });
+    const np=_atvShowNow(r); S.season=np?np.season:(S.seasons[0]?S.seasons[0].n:null); _atvShowRender(); })
+    .catch(()=>{ if(_atv&&_atv.show&&_atv.show.r===r){ _atv.show.err='Apple\'s catalogue did not answer'; _atvShowRender(); } });
+}
+// the episode the Apple TV is playing now, when Apple's catalogue matched it to this series
+function _atvShowNow(r){ const c=_atv.cat; if(!c||!c.match||!c.season) return null;
+  const ser=String(c.show||'').toLowerCase().replace(/[^0-9a-z]+/g,''), t=String(r.title||'').toLowerCase().replace(/[^0-9a-z]+/g,'');
+  return ser&&ser===t?{season:c.season, episode:c.episode}:null; }
+function _atvShowRender(){
+  const S=_atv.show; if(!S) return; const r=S.r, where=r.where||[], apps=att(_atv.e,'proos_apps')||{}, ids=new Set(Object.values(apps));
+  const now=_atvShowNow(r), list=(S.season!=null&&S.eps[S.season])||[];
+  const meta=[ 'Series', r.year, S.seasons?(S.seasons.length+(S.seasons.length===1?' season':' seasons')):'' ].filter(Boolean).join(' · ');
+  const html='<div class="atv-tinfo"><div class="atv-pi"'+(r.poster?' style="background-image:url(\''+_hEsc(r.poster)+'\')"':'')+'>'+(r.poster?'':'<span>'+_hEsc(r.title)+'</span>')+'</div>'
+    +'<div class="atv-poph"><div><b>'+_hEsc(r.title)+'</b><span>'+_hEsc(meta)+'</span></div>'+(r.description?'<p class="atv-desc">'+_hEsc(r.description)+'</p>':'')+'</div></div>'
+    +'<div class="atv-sec">Watch in</div><div class="atv-wchips">'+(where.length?where.map((w,wi)=>{ const inst=w.bundle&&ids.has(w.bundle);
+        return '<button type="button" data-app="'+wi+'" class="'+(wi===S.app?'on':'')+(inst?'':' no')+'">'+(wi===S.app?_atvIcon('check'):'')+_hEsc(w.name)+(inst?'':' · not installed')+'</button>'; }).join('')
+      :'<span class="atv-hint left">'+_hEsc(r.whereErr||'Apple lists no app for this series in Australia.')+'</span>')+'</div>'
+    +(S.seasons&&S.seasons.length?'<div class="atv-stabs">'+S.seasons.map(x=>'<button type="button" data-season="'+x.n+'" class="'+(x.n===S.season?'on':'')+'">Season '+x.n+'</button>').join('')+'</div>':'')
+    +'<div class="atv-eps" data-season="'+_hEsc(S.season)+'">'+(S.err?'<div class="atv-hint">'+_hEsc(S.err)+'</div>':!S.seasons?'<div class="atv-hint">Finding the episodes…</div>'
+      :list.map(e=>{ const playing=now&&now.season===e.season&&now.episode===e.episode;
+        return '<button type="button" class="atv-ep'+(playing?' now':'')+'" data-ep="'+_hEsc(e.id)+'"><i class="atv-et"'+(e.image?' style="background-image:url(\''+_hEsc(e.image)+'\')"':'')+'>'+(playing?'<em>Playing</em>':'')+'</i>'
+          +'<span class="atv-eb"><b>'+e.episode+'. '+_hEsc(e.title||'')+'</b><small>'+_hEsc([e.minutes?e.minutes+' min':'', e.date||''].filter(Boolean).join(' · '))+'</small>'
+          +(e.description?'<span class="atv-ed">'+_hEsc(e.description)+'</span>':'')+'</span><span class="atv-eplay">'+_atvIcon('play')+'</span></button>'; }).join(''))+'</div>'
+    +'<div class="atv-popf"><button type="button" class="ghost" data-act="no">Close</button></div>';
+  const keep=document.querySelector('#atv-page .atv-pop.wide .atv-eps'), top=keep&&keep.dataset.season===String(S.season)?keep.scrollTop:0;
+  _atvPop(html, pop=>{
+    pop.querySelector('[data-act="no"]').onclick=()=>{ _atv.show=null; _atvPopClose(); };
+    pop.querySelectorAll('[data-app]').forEach(x=>x.onclick=()=>{ S.app=+x.dataset.app; _atvShowRender(); });
+    pop.querySelectorAll('[data-season]').forEach(x=>x.onclick=()=>{ S.season=+x.dataset.season; _atvShowRender(); });
+    pop.querySelectorAll('[data-ep]').forEach(x=>x.onclick=()=>_atvPlayEpisode(x.dataset.ep));
+    const list=pop.querySelector('.atv-eps');
+    if(top) list.scrollTop=top;
+    else if(!S._shown){ const now=pop.querySelector('.atv-ep.now'); if(now){ S._shown=true; list.scrollTop=Math.max(0,now.offsetTop-12); /* the list is the episode's offset parent */ } }
+  }, 'wide');
+}
+// an episode starts in the chosen app with THAT episode's own link from Apple's catalogue
+function _atvPlayEpisode(epId){
+  const S=_atv.show; if(!S) return; const w=(S.r.where||[])[S.app]; if(!w){ _atvToast('Choose where to watch first'); return; }
+  _atvToast('Finding the episode in '+w.name+'…');
+  _coreFetch(proosCoreBase()+'/appletv/episode?id='+encodeURIComponent(epId),{},12000).then(x=>x.json()).then(j=>{
+    const hit=(j.where||[]).find(x=>x.bundle&&x.bundle===w.bundle)||(j.where||[]).find(x=>x.name===w.name);
+    if(!hit||!hit.url){ _atvToast(w.name+' has no link for this episode'); return; }
+    _atv.show=null; _atvPopClose();
+    snd({type:'call_service',domain:'media_player',service:'play_media',service_data:{media_content_type:'url',media_content_id:hit.url},target:{entity_id:_atv.e}})
+      .then(rr=>{ if(rr&&rr.success===false) throw new Error('The Apple TV did not open it'); _atvToast('Sent to '+w.name); }).catch(_atvFail); })
+    .catch(()=>_atvToast('Apple\'s catalogue did not answer'));
 }
 
 // ── Now Playing ─────────────────────────────────────────────────────────────────────────────────────────────
