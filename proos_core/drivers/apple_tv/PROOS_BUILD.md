@@ -41,6 +41,8 @@ bumped to 0.18.0.
   click), proos_media (skip by, scrub, chapters), proos_switch_account, proos_captions, proos_play_queue_item,
   proos_language_option. All through pyatv's own protocol objects; each says which pairing it needs when absent.
   Bench: `apple_tv_proos_extras_bench.py` (driven).
+- `media_player.py` (proos.8, register 1037): artwork asked for 1600 wide (pyatv's default is 512 —
+  Dave 27 Oct: "media for now playing is very low quality").
 Everything else is byte-for-byte HA core 2026.6.3.
 
 Because the domain stays `apple_tv`, this custom integration OVERRIDES the

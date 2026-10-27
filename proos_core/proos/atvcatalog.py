@@ -28,8 +28,12 @@ BASE = "https://tv.apple.com/api/uts/v3"
 # ("pfm": "appletv") lists the full catalogue with every app that carries a title here (Binge, Prime Video, ABC iview…).
 CONFIG_QUERY = {"caller": "web", "locale": "en-AU", "pfm": "web", "sf": "143460", "v": "100"}
 AS_APPLE_TV = {"pfm": "appletv", "locale": "en-AU", "sf": "143460"}
+ITUNES_BUNDLE = "com.apple.MobileStore"
+TV_APP_BUNDLE = "com.apple.TVWatchList"
+BUY_OR_RENT = "Apple TV · Buy or Rent"
 TIMEOUT_S = 6.0
 CACHE_S = 600
+EPISODE_PAGE = 100
 CONFIG_S = 6 * 3600
 _cache: dict = {}
 _conf: dict = {"at": 0.0, "params": None}
@@ -138,7 +142,16 @@ def parse_where(data: dict) -> list:
         seen.add(name)
         ids = ch.get("appBundleIds") or []
         po = p.get("punchoutUrls") or {}
-        out.append({"name": name, "bundle": ids[0] if ids else None, "url": po.get("open") or po.get("play") or p.get("url") or None})
+        bundle = ids[0] if ids else None
+        url = po.get("open") or po.get("play") or p.get("url") or None
+        if bundle == ITUNES_BUNDLE or name == "iTunes":
+            # Dave 27 Oct: "iTunes … no longer exists" — buying and renting is in the Apple TV app on the Apple TV, so the
+            # entry is named for where it opens, with Apple's own tv.apple.com link (register 1037)
+            name, bundle, url = BUY_OR_RENT, TV_APP_BUNDLE, (p.get("url") or url)
+            if name in seen:
+                continue
+            seen.add(name)
+        out.append({"name": name, "bundle": bundle, "url": url})
     return out
 
 
@@ -164,3 +177,69 @@ def title(kind: str, item_id: str) -> dict:
         return {"where": parse_where(data), "description": parse_description(data)}
     except Exception as err:                                 # noqa: BLE001
         return {"where": [], "error": "Apple's catalogue did not answer (%s)" % type(err).__name__}
+
+
+def _norm(t) -> str:
+    return " ".join(str(t or "").lower().replace("’", "'").split())
+
+
+def _found(data: dict, kind: str) -> list:
+    raw: list = []
+    _items((data or {}).get("data"), raw, set())
+    return [r for r in raw if r.get("type") == kind]
+
+
+def _wide(images: dict, w=1600) -> str | None:
+    for key in ("contentImage", "posterArt", "contentImage16X9", "previewFrame"):
+        im = (images or {}).get(key)
+        if isinstance(im, dict) and im.get("url") and (im.get("width") or 0) >= (im.get("height") or 0):
+            h = int(w * (im.get("height") or 9) / float(im.get("width") or 16))
+            return im["url"].replace("{w}", str(w)).replace("{h}", str(h)).replace("{f}", "jpg").replace("{c}", "")
+    return None
+
+
+def match_episode(episodes: list, title: str, season=None, episode=None):
+    """Pure: the ONE episode whose title is exactly the one the Apple TV reported (and whose season / episode agree
+    when the Apple TV gave them). Two with the same title and nothing to tell them apart → no match, never a pick."""
+    cand = [e for e in episodes if _norm(e.get("title")) == _norm(title)]
+    if season is not None:
+        cand = [e for e in cand if str(e.get("seasonNumber")) == str(season)]
+    if episode is not None:
+        cand = [e for e in cand if str(e.get("episodeNumber")) == str(episode)]
+    return cand[0] if len(cand) == 1 else None
+
+
+def now_playing(series: str, title: str, season=None, episode=None) -> dict:
+    """What Apple's catalogue says about what is playing — ONLY on an exact match (register 1037; Dave 27 Oct: no episode
+    info, low-quality art). A show: the series by its exact name, then the episode by its exact title. A film: its exact
+    title. No exact, single match → {"match": False} and the page shows only what the Apple TV said."""
+    try:
+        if series:
+            shows = [r for r in _found(_get("/search", {"searchTerm": series}), "Show") if _norm(r.get("title")) == _norm(series)]
+            if len(shows) != 1:
+                return {"match": False, "why": "no single show named exactly %r" % series}
+            sid = shows[0]["id"]
+            eps, start, total = [], 0, None
+            while total is None or start < total:
+                d = (_get("/shows/%s/episodes" % urllib.parse.quote(sid), {"nextToken": "%d:%d" % (start, EPISODE_PAGE)}) or {}).get("data") or {}
+                page = d.get("episodes") or []
+                total = int(d.get("totalEpisodeCount") or len(page))
+                eps += page
+                if not page or start > 2000:
+                    break
+                start += EPISODE_PAGE
+            ep = match_episode(eps, title, season, episode)
+            if not ep:
+                return {"match": False, "why": "no single episode titled exactly %r" % title}
+            return {"match": True, "kind": "episode", "season": ep.get("seasonNumber"), "episode": ep.get("episodeNumber"),
+                    "description": ep.get("description"), "image": _wide(ep.get("images") or {}),
+                    "show": shows[0].get("title")}
+        films = [r for r in _found(_get("/search", {"searchTerm": title}), "Movie") if _norm(r.get("title")) == _norm(title)]
+        if len(films) != 1:
+            return {"match": False, "why": "no single film named exactly %r" % title}
+        d = (_get("/movies/%s" % urllib.parse.quote(films[0]["id"]), {}) or {}).get("data") or {}
+        c = d.get("content") or {}
+        return {"match": True, "kind": "movie", "description": c.get("description"),
+                "image": _wide(c.get("images") or films[0].get("images") or {})}
+    except Exception as err:                                 # noqa: BLE001
+        return {"match": False, "why": "Apple's catalogue did not answer (%s)" % type(err).__name__}

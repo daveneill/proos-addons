@@ -433,7 +433,8 @@ class AppleTvMediaPlayer(
             and self._playing
             and state not in {MediaPlayerState.OFF, MediaPlayerState.IDLE}
         ):
-            artwork = await self.atv.metadata.artwork()
+            # ProOS (register 1037): ask for artwork a page can show full width — pyatv's default is 512 wide
+            artwork = await self.atv.metadata.artwork(width=1600)
             if artwork:
                 return artwork.bytes, artwork.mimetype
 

@@ -3365,7 +3365,7 @@ html[data-link="remote"]{--m-tap:90ms;--m-move:200ms;--m-page:300ms}
 #atv-page .atv-list button.on{background:rgba(255,255,255,.14)!important}#atv-page .atv-list svg{width:16px;height:16px;color:var(--atv-on)}
 #atv-page .atv-sec{font-size:11px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--atv-ink3);flex:none}
 #atv-page .atv-hint{color:var(--atv-ink2);font-size:14px;padding:30px 0;text-align:center;grid-column:1/-1}#atv-page .atv-hint.left{text-align:left;padding:4px 0 12px;font-size:13px}
-#atv-page .atv-desc{font-size:13.5px;color:var(--atv-ink2);line-height:1.5}
+#atv-page .atv-desc{font-size:13.5px;color:var(--atv-ink2);line-height:1.5;margin:0 0 8px}#atv-page .atv-more{color:var(--atv-ink3)!important}#atv-page .atv-more svg{width:14px;height:14px}
 #atv-page .atv-toast{position:absolute;left:50%;bottom:calc(var(--proos-floor,0px) + var(--proos-dock-h,78px) + 20px);transform:translateX(-50%) translateY(10px);opacity:0;transition:opacity var(--m-move) var(--e-standard),transform var(--m-move) var(--e-standard);background:rgba(30,32,38,.96);padding:10px 16px;border-radius:999px;font-size:13px;z-index:40;pointer-events:none;max-width:calc(100% - 32px);text-align:center}
 #atv-page .atv-toast.on{opacity:1;transform:translateX(-50%)}
 /* apps */
@@ -4859,7 +4859,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102606';
+const PROOS_BUILD='2026102607';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -15171,7 +15171,7 @@ function openPlayer(entity, volEntity){
   }
   // REGISTER 1035: an Apple TV on the certified driver has its own page (Remote · Apps · Search · Now Playing),
   // with the same room volume this player would have used.
-  if(typeof atvSupported==='function' && atvSupported(entity)){ const _v=_playerVolEntity; _playerEntity=null; _playerVolEntity=null; atvOpen(entity,_v); return; }
+  if(typeof atvSupported==='function' && atvSupported(entity) && atvShouldOpen(entity)){ const _v=_playerVolEntity; _playerEntity=null; _playerVolEntity=null; atvOpen(entity,_v); return; }
   updatePlayerUI();
   document.getElementById('player-overlay').classList.add('open');
 
@@ -15181,6 +15181,7 @@ function openPlayer(entity, volEntity){
 }
 
 function closePlayer(){
+  try{ atvClose(); }catch(e){}   // register 1037: Dave — "once your in the control interface no way out"
   document.getElementById('player-overlay').classList.remove('open');
   document.getElementById('player-panel').style.backgroundImage='';
   const sheet=document.getElementById('player-apps-sheet');if(sheet) sheet.style.display='none';
@@ -18552,6 +18553,14 @@ let _atv=null;               // {e, vol, ce, tab, room, np, accounts, kbOpen, ..
 const _ATV_TABS=['remote','apps','search','playing'];
 function _atvLS(k,v){ try{ if(v===undefined) return localStorage.getItem('proos_atv_'+k); localStorage.setItem('proos_atv_'+k,v); }catch(e){ return null; } }
 function atvSupported(e){ return isAppleTV(e) && states[e] && states[e].attributes && ('proos_apps' in states[e].attributes); }
+// register 1037 (Dave 27 Oct: "this should just launch from the Apple TV media card once on as need to use our activities
+// and sleep wake should only appear if didn't wake up and the wake-up was usually part of the activity"): the page opens
+// for an Apple TV that is ON; for one that is asleep only while its room's Watch activity is running (it did not wake).
+function _atvIsOn(e){ const d=att(e,'proos_display_state'), s=states[e]&&states[e].state;
+  return d==='awake'||d==='idle'||d==='screensaver'||s==='playing'||s==='paused'; }
+function _atvRoomWatching(e){ const r=CONFIG.rooms.find(x=>x.atv===e)||null; if(!r) return false;
+  const v=states['sensor.proos_activity_'+r.id]; return !!(v&&/^watch_/.test(String(v.state||''))); }
+function atvShouldOpen(e){ return _atvIsOn(e) || _atvRoomWatching(e); }
 function _atvIcon(n){ const P={
   back:'<path d="m15 6-6 6 6 6"/>', power:'<path d="M12 3v8"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/>',
   pause:'<rect x="7" y="5" width="3.6" height="14" rx="1" fill="currentColor" stroke="none"/><rect x="13.4" y="5" width="3.6" height="14" rx="1" fill="currentColor" stroke="none"/>',
@@ -18614,6 +18623,7 @@ function atvOpen(e, vol){
   let p=document.getElementById('atv-page');
   if(!p){ p=document.createElement('div'); p.id='atv-page'; document.body.appendChild(p); }
   p.classList.add('open');
+  _atv.wasOn=_atvIsOn(e);
   _atvRender();
   _atvRefreshNP();
   if(_atv.tab==='apps') _atvLoadAccounts();
@@ -18635,6 +18645,7 @@ function atvMaybeUpdate(eid){
     const prevTitle=_atv._title; _atv._title=att(_atv.e,'media_title');
     if(eid===kb && states[kb] && states[kb].state==='on' && !_atv.kbOpen) _atvTypeOpen();
     if(eid===kb && states[kb] && states[kb].state!=='on' && _atv.kbOpen) _atvTypeClose();
+    if(eid===_atv.e){ const on=_atvIsOn(_atv.e); if(_atv.wasOn && !on && !_atvRoomWatching(_atv.e)){ atvClose(); return; } if(on) _atv.wasOn=true; }
     _atvPaintLive();
     if(prevTitle!==_atv._title) _atvRefreshNP();
   }
@@ -18689,9 +18700,9 @@ function _atvStateHTML(k){
   if(k==='offline') return '<div class="atv-state off"><div class="atv-sico">'+_atvIcon('wifi')+'</div><b>Not reachable</b>'
     +'<span>ProOS has no connection to this Apple TV right now.</span><button type="button" class="atv-big ghost" data-act="reconnect">Reconnect</button>'
     +'<small>Room volume and Room Off still work.</small></div>'+_atvVolHTML();
-  return '<div class="atv-state"><div class="atv-sico">'+_atvIcon('moon')+'</div><b>Asleep</b><span>Connected · ready to wake</span>'
-    +'<button type="button" class="atv-big" data-act="wake">'+_atvIcon('play')+'Wake and resume</button>'
-    +'<small>Wakes the Apple TV, then resumes what was paused.</small></div>'+_atvVolHTML();
+  return '<div class="atv-state"><div class="atv-sico">'+_atvIcon('moon')+'</div><b>The Apple TV didn\'t wake</b><span>The room\'s activity is on, but the Apple TV is still asleep.</span>'
+    +'<button type="button" class="atv-big" data-act="wake">'+_atvIcon('play')+'Wake Apple TV</button>'
+    +'<small>Wakes it, then resumes what was paused.</small></div>'+_atvVolHTML();
 }
 function _atvBindState(b){
   const w=b.querySelector('[data-act="wake"]'); if(w) w.onclick=_atvSmartPlay;
@@ -18762,21 +18773,32 @@ function _atvRenderRemote(b){
   _atvBindVol(b); _atvBindNow(b);
 }
 function _atvKbOn(){ const kb=_atvKbEntity(); return !!(kb&&states[kb]&&states[kb].state==='on'); }
-// the touch surface: a tap selects, a held finger opens options, a swipe moves as on the Siri Remote, a finger held
-// at an edge scrolls in that direction until it lifts (a real press, released on lift)
+// the touch surface (register 1037; Dave: "remote gesture does not work very well"): the finger is sent to the Apple
+// TV as the Siri Remote sends it — a press where it lands, every move while it slides, a release where it lifts — one
+// message at a time and in order (moves coalesce to the latest point while one is in flight), so the Apple TV scrolls
+// with the finger instead of receiving one swipe after the lift. A tap selects; a still finger held opens options;
+// held at an edge it scrolls that way until it lifts (a real press).
 function _atvBindTouch(pad){
-  let sx=0, sy=0, st=0, moved=false, edgeKey=null, holdT=null, rect=null;
-  const map=(x,y)=>({x:Math.round((x-rect.left)/rect.width*1000), y:Math.round((y-rect.top)/rect.height*1000)});
+  let sx=0, sy=0, st=0, moved=false, pressed=false, edgeKey=null, holdT=null, rect=null, busy=false, last=null;
+  const q=[];
+  const map=(x,y)=>({x:Math.max(0,Math.min(1000,Math.round((x-rect.left)/rect.width*1000))), y:Math.max(0,Math.min(1000,Math.round((y-rect.top)/rect.height*1000)))});
+  const pump=()=>{ if(busy||!q.length) return; busy=true; const m=q.shift();
+    _atvCall('proos_touch',m).catch(()=>{}).then(()=>{ busy=false; pump(); }); };
+  const send=(kind,pt)=>{ const m={kind:kind,x:pt.x,y:pt.y};
+    if(kind==='hold' && q.length && q[q.length-1].kind==='hold') q[q.length-1]=m;   // only the latest move waits
+    else q.push(m);
+    pump(); };
   pad.addEventListener('pointerdown',ev=>{ if(ev.target.closest('.atv-tog')) return; ev.preventDefault(); try{pad.setPointerCapture(ev.pointerId);}catch(e){}
-    rect=pad.getBoundingClientRect(); sx=ev.clientX; sy=ev.clientY; st=Date.now(); moved=false; edgeKey=null; pad.classList.add('touching');
-    const m=map(sx,sy); const edge=m.x<120?'left':m.x>880?'right':m.y<120?'up':m.y>880?'down':null;
-    holdT=setTimeout(()=>{ if(moved) return; if(edge){ edgeKey=edge; _atv.held=edge; _atvKey(edge,'down'); } else { edgeKey='__select'; _atvKey('select','hold'); } }, 500); });
-  pad.addEventListener('pointermove',ev=>{ if(!st) return; if(Math.hypot(ev.clientX-sx,ev.clientY-sy)>14) moved=true; });
-  const up=ev=>{ if(!st) return; clearTimeout(holdT); pad.classList.remove('touching'); const dt=Date.now()-st; st=0;
+    rect=pad.getBoundingClientRect(); sx=ev.clientX; sy=ev.clientY; st=Date.now(); moved=false; pressed=false; edgeKey=null; last=map(sx,sy); pad.classList.add('touching');
+    const m=last; const edge=m.x<110?'left':m.x>890?'right':m.y<110?'up':m.y>890?'down':null;
+    holdT=setTimeout(()=>{ if(moved) return; if(edge){ edgeKey=edge; _atv.held=edge; _atvKey(edge,'down'); } else { edgeKey='__select'; _atvKey('select','hold'); } }, 550); });
+  pad.addEventListener('pointermove',ev=>{ if(!st||edgeKey) return; const pt=map(ev.clientX,ev.clientY); last=pt;
+    if(!moved && Math.hypot(ev.clientX-sx,ev.clientY-sy)>10){ moved=true; clearTimeout(holdT); pressed=true; send('press',map(sx,sy)); }
+    if(pressed) send('hold',pt); });
+  const up=ev=>{ if(!st) return; clearTimeout(holdT); pad.classList.remove('touching'); st=0;
     if(edgeKey){ if(edgeKey!=='__select') _atvReleaseHeld(); edgeKey=null; return; }
-    if(!moved){ _atvKey('select','tap'); return; }
-    const a=map(sx,sy), z=map(ev.clientX,ev.clientY);
-    _atvCall('proos_touch',{kind:'swipe',x:a.x,y:a.y,x2:z.x,y2:z.y,duration_ms:Math.max(80,Math.min(900,dt))}).catch(_atvFail); };
+    if(pressed){ send('release', last||map(ev.clientX,ev.clientY)); pressed=false; return; }
+    _atvKey('select','tap'); };
   pad.addEventListener('pointerup',up); pad.addEventListener('pointercancel',up);
 }
 function _atvMoreSheet(){
@@ -18789,8 +18811,10 @@ function _atvMoreSheet(){
 }
 
 // ── what is playing ─────────────────────────────────────────────────────────────────────────────────────────
-function _atvArt(){ const p=att(_atv.e,'entity_picture'); return p?(String(p).slice(0,4)==='http'?p:HA+p):''; }
-function _atvSub(){ const e=_atv.e, ser=att(e,'media_series_title'), sea=att(e,'media_season'), ep=att(e,'media_episode');
+function _atvArt(){ const c=_atv.cat; if(c&&c.match&&c.image&&c.title===att(_atv.e,'media_title')) return c.image;
+  const p=att(_atv.e,'entity_picture'); return p?(String(p).slice(0,4)==='http'?p:HA+p):''; }
+function _atvSub(){ const e=_atv.e, c=(_atv.cat&&_atv.cat.match&&_atv.cat.title===att(e,'media_title'))?_atv.cat:{};
+  const ser=att(e,'media_series_title'), sea=att(e,'media_season')||c.season, ep=att(e,'media_episode')||c.episode;
   if(ser||sea||ep) return [ser, sea?('Season '+sea):'', ep?('Episode '+ep):''].filter(Boolean).join(' · ');
   return att(e,'media_artist')||att(e,'media_album_name')||''; }
 function _atvPos(){ const e=_atv.e, d=att(e,'media_duration'), p=att(e,'media_position'), u=att(e,'media_position_updated_at');
@@ -18817,9 +18841,32 @@ function _atvLangSummary(item){
 function _atvRefreshNP(){
   if(!_atv) return; const e=_atv.e;
   _atvCall('proos_state',{include:['now_playing']},true).then(r=>{ if(!_atv||_atv.e!==e) return; _atv.np=r.now_playing||null; _atv.npErr=r.now_playing_error||null; _atvRenderBody(); }).catch(()=>{});
+  _atvLookUp();
+}
+// register 1037: Apple's catalogue fills in season, episode, description and full-size art — only for an EXACT match of
+// the show and the episode the Apple TV reported (Core: /appletv/nowplaying); no match → nothing is added
+function _atvLookUp(){
+  const e=_atv.e, title=att(e,'media_title'); if(!title){ _atv.cat=null; return; }
+  if(_atv.cat&&_atv.cat.title===title) return;
+  const q='series='+encodeURIComponent(att(e,'media_series_title')||'')+'&title='+encodeURIComponent(title)
+    +(att(e,'media_season')?'&season='+encodeURIComponent(att(e,'media_season')):'')+(att(e,'media_episode')?'&episode='+encodeURIComponent(att(e,'media_episode')):'');
+  _atv.cat={title:title, match:false, pending:true};
+  _coreFetch(proosCoreBase()+'/appletv/nowplaying?'+q,{},12000).then(r=>r.json()).then(j=>{ if(!_atv||_atv.e!==e||att(e,'media_title')!==title) return;
+    _atv.cat=Object.assign({title:title},j); if(j.match) _atvRenderBody(); }).catch(()=>{});
 }
 // a group the app lets be EMPTY is subtitles (audio can never be "off"); the other is audio — the app's own flag, not
 // the order; a group with no flag is named by its number (register 1035, to be confirmed on the TV app)
+function _atvOrderGroups(groups){ const a=groups.map((g,i)=>[g,i]); return a.filter(x=>x[0].allow_empty!==true).concat(a.filter(x=>x[0].allow_empty===true)); }
+function _atvGroupHTML(g,gi,cur){
+  const isCur=o=>cur.some(x=>x.identifier===o.identifier), curOpt=g.options.find(isCur);
+  const row=(o,oi)=>'<button type="button" data-g="'+gi+'" data-o="'+oi+'" class="'+(isCur(o)?'on':'')+'"><span>'+_hEsc(o.displayName||o.languageTag||'Option')+'</span>'+(isCur(o)?_atvIcon('check'):'')+'</button>';
+  let rows='';
+  if(g.allow_empty) rows+='<button type="button" data-g="'+gi+'" data-o="off" class="'+(curOpt?'':'on')+'"><span>Off</span>'+(curOpt?'':_atvIcon('check'))+'</button>';
+  const many=g.options.length>6;
+  if(many && !_atv.allLang){ if(curOpt) rows+=row(curOpt,g.options.indexOf(curOpt)); rows+='<button type="button" data-more="1" class="atv-more"><span>All '+g.options.length+' languages</span>'+_atvIcon('chev')+'</button>'; }
+  else rows+=g.options.map(row).join('')+(many?'<button type="button" data-more="1" class="atv-more"><span>Fewer</span></button>':'');
+  return '<div class="atv-sec">'+_atvGroupName(g,gi)+'</div><div class="atv-opts">'+rows+'</div>';
+}
 function _atvGroupName(g,gi){ return g.allow_empty===true?'Subtitles':g.allow_empty===false?'Audio':'Choice '+(gi+1); }
 function _atvCCSheet(){
   const item=_atvNPItem(), groups=item?(item.language_groups||[]).filter(g=>g.options&&g.options.length):[];
@@ -18986,8 +19033,8 @@ function _atvRenderPlaying(b){
     +'<button type="button" data-t="nextch"'+(chapters?'':' hidden')+'>'+_atvIcon('nextch')+'</button></div>'
     +(chapters?'<div class="atv-tcap">'+chapters+' chapters · previous and next chapter</div>':'')+'</div></section>'
     +'<section class="atv-r side">'
-    +(groups.length?groups.map((g,gi)=>'<div class="atv-sec">'+_atvGroupName(g,gi)+'</div><div class="atv-opts">'
-        +g.options.map((o,oi)=>'<button type="button" data-g="'+gi+'" data-o="'+oi+'" class="'+(cur.some(x=>x.identifier===o.identifier)?'on':'')+'"><span>'+_hEsc(o.displayName||o.languageTag||'Option')+'</span>'+(cur.some(x=>x.identifier===o.identifier)?_atvIcon('check'):'')+'</button>').join('')+'</div>').join('')
+    +(_atv.cat&&_atv.cat.match&&_atv.cat.description&&_atv.cat.title===t?'<p class="atv-desc">'+_hEsc(_atv.cat.description)+'</p>':'')
+    +(groups.length?_atvOrderGroups(groups).map(([g,gi])=>_atvGroupHTML(g,gi,cur)).join('')
       :'<div class="atv-sec">Audio and subtitles</div><div class="atv-hint left">'+(item?'This app shares no audio or subtitle choices.':'Waiting for the Apple TV…')+'</div>')
     +'<div class="atv-sec">Up next</div>'+(queue.length?'<div class="atv-queue">'+queue.map(q=>'<button type="button" class="atv-q" data-q="'+_hEsc(q.id)+'"><div><b>'+_hEsc(q.title||'')+'</b><span>'+_hEsc([q.series, q.artist, q.duration?fmtTime(q.duration):''].filter(Boolean).join(' · '))+'</span></div></button>').join('')+'</div>'
       :'<div class="atv-hint left">'+(np?'This app shares nothing up next.':'Waiting for the Apple TV…')+'</div>')
@@ -18997,7 +19044,10 @@ function _atvRenderPlaying(b){
       else _atvCall('proos_media',{command:k==='nextch'?'next_chapter':'previous_chapter'}).catch(_atvFail); }; });
   const seek=b.querySelector('.atv-prog.seek'); if(seek) seek.onclick=ev=>{ const p=_atvPos(); if(!p) return; const r=seek.querySelector('.atv-pt').getBoundingClientRect();
     svc('media_player','media_seek',{entity_id:e,seek_position:Math.round((ev.clientX-r.left)/r.width*p.dur)}); };
-  b.querySelectorAll('[data-o]').forEach(x=>x.onclick=()=>_atvCall('proos_language_option',{option:groups[+x.dataset.g].options[+x.dataset.o],enable:true}).then(()=>setTimeout(_atvRefreshNP,800)).catch(_atvFail));
+  b.querySelectorAll('[data-o]').forEach(x=>x.onclick=()=>{ const g=groups[+x.dataset.g];
+    if(x.dataset.o==='off'){ const c=g.options.find(o=>cur.some(y=>y.identifier===o.identifier)); if(c) _atvCall('proos_language_option',{option:c,enable:false}).then(()=>setTimeout(_atvRefreshNP,800)).catch(_atvFail); return; }
+    _atvCall('proos_language_option',{option:g.options[+x.dataset.o],enable:true}).then(()=>setTimeout(_atvRefreshNP,800)).catch(_atvFail); });
+  b.querySelectorAll('[data-more]').forEach(x=>x.onclick=()=>{ _atv.allLang=!_atv.allLang; _atvRenderBody(); });
   b.querySelectorAll('[data-q]').forEach(x=>x.onclick=()=>_atvCall('proos_play_queue_item',{item_id:x.dataset.q}).then(()=>setTimeout(_atvRefreshNP,1200)).catch(_atvFail));
 }
 
