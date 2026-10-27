@@ -3377,8 +3377,8 @@ html[data-link="remote"]{--m-tap:90ms;--m-move:200ms;--m-page:300ms}
 #atv-page .atv-prof{display:flex;align-items:center;gap:8px;height:40px;padding:0 14px 0 5px;border-radius:999px;background:var(--atv-glass)!important;font-size:13px;font-weight:500}
 #atv-page .atv-prof i{width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.14);display:grid;place-items:center;font-style:normal;font-weight:600}
 #atv-page .atv-appgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:18px 14px}
-#atv-page .atv-app{position:relative;display:flex;flex-direction:column;gap:8px;align-items:center;padding:0}
-#atv-page .atv-app .awt{width:100%;aspect-ratio:16/10;border-radius:16px;display:block;position:relative;overflow:hidden;box-shadow:0 10px 24px rgba(0,0,0,.4),inset 0 0 0 1px rgba(255,255,255,.08)}
+#atv-page .atv-app{position:relative;display:flex;flex-direction:column;gap:8px;align-items:center;padding:0;min-width:0}
+#atv-page .atv-app .awt{width:100%;height:auto;max-width:100%;aspect-ratio:16/10;border-radius:16px;display:block;position:relative;overflow:hidden;box-shadow:0 10px 24px rgba(0,0,0,.4),inset 0 0 0 1px rgba(255,255,255,.08)}
 #atv-page .atv-app>span{font-size:12.5px;color:var(--atv-ink2);font-weight:500;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #atv-page .atv-app.now .awt{box-shadow:0 0 0 2px #fff,0 10px 24px rgba(0,0,0,.4)}
 #atv-page .atv-nowtag{position:absolute;top:-8px;right:-4px;height:20px;padding:0 8px;border-radius:999px;background:#fff;color:#000;font-size:10px;font-weight:700;font-style:normal;display:flex;align-items:center}
@@ -3454,7 +3454,7 @@ html[data-link="remote"]{--m-tap:90ms;--m-move:200ms;--m-page:300ms}
   #atv-page .atv-keys{gap:10px}#atv-page .atv-key{padding:10px 2px 8px}
   #atv-page .atv-trans{gap:12px}#atv-page .atv-trans button{width:46px;height:46px}#atv-page .atv-trans button.big{width:58px;height:58px}
   #atv-page .atv-tcap{display:none}
-  #atv-page .atv-appgrid{grid-template-columns:repeat(3,1fr)}#atv-page .atv-postgrid{grid-template-columns:repeat(2,1fr)}
+  #atv-page .atv-appgrid{grid-template-columns:repeat(3,minmax(0,1fr))}#atv-page .atv-postgrid{grid-template-columns:repeat(2,minmax(0,1fr))}
   #atv-page .atv-tinfo{grid-template-columns:96px minmax(0,1fr);gap:14px}#atv-page .atv-tinfo .atv-pi{width:96px}#atv-page .atv-tinfo .atv-poph b{font-size:17px}
 }
 /* PHONE LANDSCAPE (short): one slim header line; the touch surface on the left, the keys and transport on the right */
@@ -4920,7 +4920,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102610';
+const PROOS_BUILD='2026102611';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -18744,7 +18744,7 @@ function _atvRender(){
     +'<header class="atv-hdr"><div class="atv-hl"><button type="button" class="atv-bk" data-act="close">'+_atvIcon('back')+'<b>'+_hEsc(roomName)+'</b></button><div class="atv-ht">Apple TV</div></div>'
     +'<div class="atv-segs" role="tablist">'+tabs.map(t=>'<button type="button" role="tab" data-tab="'+t[0]+'" class="'+(t[0]===_atv.tab?'on':'')+'">'+t[1]+'</button>').join('')+'</div>'
     +'<div class="atv-hr"><span class="atv-chip" id="atv-chip"><i style="background:'+st.c+'"></i><em>'+st.t+'</em></span>'
-    +(_atv.room?'<button type="button" class="atv-roff" data-act="roomoff">'+_atvIcon('power')+'<em>Room Off</em></button>':'')+'</div></header>'
+    +'<button type="button" class="atv-roff" data-act="roomoff" aria-label="Power">'+_atvIcon('power')+'<em>'+(_atv.room?'Room Off':'Turn Off')+'</em></button></div></header>'
     +'<main class="atv-body" id="atv-body"></main><footer class="atv-foot" id="atv-foot"></footer>';
   p.querySelector('[data-act="close"]').onclick=atvClose;
   const ro=p.querySelector('[data-act="roomoff"]'); if(ro) ro.onclick=_atvRoomOffAsk;
@@ -18784,8 +18784,28 @@ function _atvSmartPlay(){
     else if(d==='screensaver' && n===4){ _atvKey('select','tap'); }
     else if(n>15){ clearInterval(t); _atvToast('The Apple TV did not wake'); } }, 1000);
 }
+// register 1041 (Dave 28 Oct 07:19): "if no activities have been set for the room it should be the same as power on
+// the Apple TV remote" — the room's TV Off when it has one (asked first, as Room Off always was); otherwise the Siri
+// Remote's power: the Apple TV goes to sleep, no question, as the remote does
+function _atvSleepLikeRemote(){ const e=_atv.e;
+  snd({type:'call_service',domain:'media_player',service:'turn_off',service_data:{},target:{entity_id:e}}).then(r=>{ if(r&&r.success===false) throw new Error('The Apple TV did not take Turn Off'); }).catch(_atvFail);
+  _atvToast('Turning the Apple TV off'); atvClose(); }
+function _atvRoomActs(){
+  const room=_atv&&_atv.room; if(!room) return Promise.resolve([]);
+  const key=window._proosAreaKey?window._proosAreaKey(room):room.id, have=(window._proosActsByArea&&window._proosActsByArea[key])||[];
+  if(have.length) return Promise.resolve(have);
+  return _coreFetch(proosCoreBase()+'/rooms/'+encodeURIComponent(room.id)+'/activities',{},8000).then(r=>r.json()).then(d=>{
+    const acts=(d&&Array.isArray(d.activities))?d.activities:[]; window._proosActsByArea=window._proosActsByArea||{}; window._proosActsByArea[key]=acts; return acts; });
+}
 function _atvRoomOffAsk(){
-  const p=document.getElementById('atv-page'); if(!p||!_atv.room) return;
+  const p=document.getElementById('atv-page'); if(!p||!_atv) return;
+  if(!_atv.room){ _atvSleepLikeRemote(); return; }
+  _atvRoomActs().then(acts=>{ if(!_atv) return;
+    if(!acts.some(a=>a&&a.script&&/(^|_)off$/.test(String(a.key||'')))){ _atvSleepLikeRemote(); return; }
+    _atvRoomOffCard(); }).catch(()=>_atvToast('Could not reach ProOS Core for the room\'s activities — try again'));
+}
+function _atvRoomOffCard(){
+  const p=document.getElementById('atv-page'); if(!p||!_atv) return;
   _atvPop('<div class="atv-poph"><b>Turn off '+_hEsc(_atv.room.name||'the room')+'?</b><span>Everything in the room turns off, the Apple TV goes to sleep.</span></div>'
     +'<div class="atv-popf"><button type="button" class="ghost" data-act="no">Cancel</button><button type="button" class="primary danger" data-act="yes">Room Off</button></div>',
     pop=>{ pop.querySelector('[data-act="no"]').onclick=_atvPopClose; pop.querySelector('[data-act="yes"]').onclick=()=>{ _atvPopClose(); _atvRoomOff(); }; });   // register 1038: the room's TV Off activity, and the page closes
@@ -18795,15 +18815,11 @@ function _atvRoomOffAsk(){
 // media card that list was empty and Room Off did nothing. The page asks Core for the room's activities first.
 function _atvRoomOff(){
   const room=_atv&&_atv.room; if(!room) return; const idx=CONFIG.rooms.indexOf(room), key=window._proosAreaKey?window._proosAreaKey(room):room.id;
-  const fire=()=>{ const acts=(window._proosActsByArea&&window._proosActsByArea[key])||[];
-    if(!acts.some(a=>a&&a.script&&/(^|_)off$/.test(String(a.key||'')))){ _atvToast('This room has no TV Off activity committed'); return; }
+  _atvRoomActs().then(acts=>{
+    if(!acts.some(a=>a&&a.script&&/(^|_)off$/.test(String(a.key||'')))){ _atvSleepLikeRemote(); return; }
     if(window._proosActsArea===key) window._proosActs=acts;
-    runRoomTvOff(idx); atvClose(); };
-  const have=(window._proosActsByArea&&window._proosActsByArea[key])||[];
-  if(have.length){ fire(); return; }
-  _coreFetch(proosCoreBase()+'/rooms/'+encodeURIComponent(room.id)+'/activities',{},8000).then(r=>r.json()).then(d=>{
-    window._proosActsByArea=window._proosActsByArea||{}; window._proosActsByArea[key]=(d&&Array.isArray(d.activities))?d.activities:[]; fire(); })
-    .catch(()=>_atvToast('Could not reach ProOS Core for the room\'s activities'));
+    runRoomTvOff(idx); _atvToast('Turning off '+(room.name||'the room')); atvClose(); })
+    .catch(()=>_atvToast('Could not reach ProOS Core for the room\'s activities — try again'));
 }
 function _atvPop(html, bind){
   const p=document.getElementById('atv-page'); _atvPopClose();
@@ -18935,7 +18951,10 @@ function _atvLookUp(){
     +(att(e,'media_season')?'&season='+encodeURIComponent(att(e,'media_season')):'')+(att(e,'media_episode')?'&episode='+encodeURIComponent(att(e,'media_episode')):'');
   _atv.cat={title:title, ser:(att(e,'media_series_title')||att(e,'media_artist')||''), match:false, pending:true};
   _coreFetch(proosCoreBase()+'/appletv/nowplaying?'+q,{},12000).then(r=>r.json()).then(j=>{ if(!_atv||_atv.e!==e||att(e,'media_title')!==title) return;
-    _atv.cat=Object.assign({title:title, ser:(att(e,'media_series_title')||att(e,'media_artist')||'')},j); if(j.match) _atvRenderBody(); }).catch(()=>{});
+    _atv.cat=Object.assign({title:title, ser:(att(e,'media_series_title')||att(e,'media_artist')||'')},j); if(j.match) _atvRenderBody(); })
+    .catch(()=>{ // register 1041 (Dave 07:19 "media art for some good other grainy"): a failed request is not an answer —
+      // forget it so the next update asks again, and ask once more shortly
+      if(!_atv||_atv.e!==e) return; _atv.cat=null; if(!_atv._lkRetry){ _atv._lkRetry=setTimeout(()=>{ if(_atv){ _atv._lkRetry=null; _atvLookUp(); } },4000); } });
 }
 // a group the app lets be EMPTY is subtitles (audio can never be "off"); the other is audio — the app's own flag, not
 // the order; a group with no flag is named by its number (register 1035, to be confirmed on the TV app)
