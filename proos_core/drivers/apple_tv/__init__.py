@@ -40,6 +40,7 @@ from .const import (
     DOMAIN,
     SIGNAL_CONNECTED,
     SIGNAL_DISCONNECTED,
+    SIGNAL_PROOS,
 )
 from .services import async_setup_services
 
@@ -137,6 +138,7 @@ class AppleTVManager(DeviceListener):
     """
 
     atv: AppleTVInterface | None = None
+    proos: Any = None  # ProOS (register 1034): the certified additions for this connection (proos_extras)
     _connection_attempts = 0
     _connection_was_lost = False
     _task: asyncio.Task[None] | None = None
@@ -172,6 +174,7 @@ class AppleTVManager(DeviceListener):
 
     def _handle_disconnect(self) -> None:
         """Handle that the device disconnected and restart connect loop."""
+        self._proos_stop()
         if self.atv:
             self.atv.close()
             self.atv = None
@@ -183,9 +186,19 @@ class AppleTVManager(DeviceListener):
         self.is_on = True
         self._start_connect_loop()
 
+    def _proos_stop(self) -> None:
+        """ProOS: nothing stays held, and the display state is no longer known, once the connection is gone."""
+        px, self.proos = self.proos, None
+        if px is not None:
+            try:
+                self.hass.async_create_task(px.release_all())
+            except Exception:  # noqa: BLE001
+                pass
+
     async def disconnect(self) -> None:
         """Disconnect from device."""
         _LOGGER.debug("Disconnecting from device")
+        self._proos_stop()
         self.is_on = False
         try:
             if self.atv:
@@ -337,6 +350,15 @@ class AppleTVManager(DeviceListener):
         session = async_get_clientsession(self.hass)
         self.atv = await connect(conf, self.hass.loop, session=session)
         self.atv.listener = self
+
+        # ProOS (register 1034): the certified additions start with every connection; they report "unknown"
+        # rather than guess when a protocol is not paired. Their pushed readings rewrite the player's state.
+        try:
+            from .proos_extras import ProOSExtras
+            self.proos = ProOSExtras(self.atv, lambda: self._dispatch_send(f"{SIGNAL_PROOS}"))
+            await self.proos.start()
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug("ProOS additions not started for %s: %s", name, err)
 
         self._dispatch_send(SIGNAL_CONNECTED, self.atv)
         self._address_updated(str(conf.address))

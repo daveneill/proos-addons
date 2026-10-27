@@ -33,6 +33,14 @@ bumped to 0.18.0.
   Dave's box 27 Oct reading "connected" for two Apple TVs that had been
   disconnected since the day before. Bench:
   `apple_tv_connection_sensor_hears_the_driver_bench.py` (driven).
+- `proos_extras.py` + hooks in `__init__.py`, `media_player.py`, `services.py`, `services.yaml`, `const.py`
+  (proos.7, register 1034): the certified additions — the Apple TV's own display state (asleep / screensaver /
+  idle / awake) and its installed apps by exact id as player attributes; actions with answers: proos_state
+  (display, keyboard, profiles, now playing queue + language groups + chapter count, captions), proos_key
+  (tap / double / hold / real press down-up with a 5 s safety release), proos_touch (swipe, press/hold/release,
+  click), proos_media (skip by, scrub, chapters), proos_switch_account, proos_captions, proos_play_queue_item,
+  proos_language_option. All through pyatv's own protocol objects; each says which pairing it needs when absent.
+  Bench: `apple_tv_proos_extras_bench.py` (driven).
 Everything else is byte-for-byte HA core 2026.6.3.
 
 Because the domain stays `apple_tv`, this custom integration OVERRIDES the

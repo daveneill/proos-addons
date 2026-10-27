@@ -29,3 +29,67 @@ clear_keyboard_text:
       selector:
         config_entry:
           integration: apple_tv
+
+proos_state:
+  fields:
+    config_entry_id:
+      required: true
+      selector:
+        config_entry:
+          integration: apple_tv
+
+proos_key:
+  fields:
+    config_entry_id:
+      required: true
+      selector:
+        config_entry:
+          integration: apple_tv
+
+proos_touch:
+  fields:
+    config_entry_id:
+      required: true
+      selector:
+        config_entry:
+          integration: apple_tv
+
+proos_media:
+  fields:
+    config_entry_id:
+      required: true
+      selector:
+        config_entry:
+          integration: apple_tv
+
+proos_switch_account:
+  fields:
+    config_entry_id:
+      required: true
+      selector:
+        config_entry:
+          integration: apple_tv
+
+proos_captions:
+  fields:
+    config_entry_id:
+      required: true
+      selector:
+        config_entry:
+          integration: apple_tv
+
+proos_play_queue_item:
+  fields:
+    config_entry_id:
+      required: true
+      selector:
+        config_entry:
+          integration: apple_tv
+
+proos_language_option:
+  fields:
+    config_entry_id:
+      required: true
+      selector:
+        config_entry:
+          integration: apple_tv

@@ -181,6 +181,29 @@ class AppleTvMediaPlayer(
         """Handle when connection was lost to device."""
         self._attr_supported_features = SUPPORT_APPLE_TV
 
+    async def async_added_to_hass(self) -> None:
+        """ProOS (register 1034): also rewrite the state when a pushed ProOS reading changes (display state)."""
+        await super().async_added_to_hass()
+        from homeassistant.helpers.dispatcher import async_dispatcher_connect
+
+        from .const import SIGNAL_PROOS
+
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass, f"{SIGNAL_PROOS}_{self._signal_identifier}", self.async_write_ha_state
+            )
+        )
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """ProOS (register 1034): the Apple TV's own display state (asleep / screensaver / idle / awake, or none when
+        not known) and its installed apps by exact identifier (name → bundle id) for icons and exact launches."""
+        px = getattr(self.manager, "proos", None)
+        return {
+            "proos_display_state": px.display_state if (px is not None and self.atv is not None) else None,
+            "proos_apps": dict(self._app_list) if self.atv is not None else {},
+        }
+
     @property
     def state(self) -> MediaPlayerState | None:
         """Return the state of the device."""

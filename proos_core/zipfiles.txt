@@ -5183,6 +5183,7 @@ drivers/apple_tv/entity.py
 drivers/apple_tv/icons.json
 drivers/apple_tv/manifest.json
 drivers/apple_tv/media_player.py
+drivers/apple_tv/proos_extras.py
 drivers/apple_tv/remote.py
 drivers/apple_tv/services.py
 drivers/apple_tv/services.yaml
