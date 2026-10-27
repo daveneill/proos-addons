@@ -51,11 +51,14 @@ _ICON_BY_INTEGRATION = {
 }
 
 # Source integrations whose devices do NOT sleep on media_player.turn_off and must
-# be put to sleep via their paired remote.<object_id> entity instead. Apple TV
-# (tvOS ignores media_player.turn_off) and Android TV / Shield (reports back 'on'
-# within ~0.5s) are both verified. The paired remote shares the media_player's
-# object_id, so remote.<oid> is derived directly.
-_REMOTE_SLEEP = {"apple_tv", "androidtv_remote"}
+# be put to sleep via their paired remote entity instead: Android TV / Shield
+# (reports back 'on' within ~0.5s — verified).
+# APPLE TV IS NOT ONE ANY MORE (register 1032, measured on Dave's Bedroom Apple TV 27 Oct, driver 0.18.0+proos.6,
+# tvOS 27): media_player.turn_off put it to sleep within 4 s — and the TV went off with it — while the driver stayed
+# connected. Its remote.turn_off is NOT a sleep: in the platform's code it closes the driver's connection and stops
+# reconnecting (AppleTVManager.disconnect), so ProOS heard nothing from that Apple TV until the next Watch. The old
+# note ("tvOS ignores media_player.turn_off") dates from the tvOS 26.5 power-state fault that pyatv 0.18 fixed.
+_REMOTE_SLEEP = {"androidtv_remote"}
 
 # ── Certified wake profiles ──────────────────────────────────────────────────
 # Part of each source integration's CERTIFICATION: how this class of device is

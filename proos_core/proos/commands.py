@@ -31,6 +31,7 @@ def _probe(client, entity):
         "'src': state_attr(" + e + ",'source_list') or [],"
         "'dc': state_attr(" + e + ",'device_class'),"
         "'name': state_attr(" + e + ",'friendly_name') or " + e + ","
+        "'platform': config_entry_attr(config_entry_id(" + e + "),'domain'),"
         "'remote': (rem[0] if rem else none)} | to_json }}"
     )
     try:
@@ -123,6 +124,10 @@ def build_command(client, entity: str, command: str, params: dict | None = None)
                 {"alias": f"Turn on {label}", "action": "media_player.turn_on", "target": {"entity_id": entity}},
             ]}}
     if command == "sleep":
+        # register 1032: an Apple TV sleeps on its own media_player.turn_off (measured, Bedroom, 27 Oct); its
+        # remote.turn_off only disconnects the driver. Other paired-remote devices (Shield) still sleep by the remote.
+        if info.get("platform") == "apple_tv":
+            return {"step": action("media_player.turn_off", alias=f"Sleep {label}")}
         remote = info.get("remote") or ("remote." + entity.split(".", 1)[1])
         return {"step": action("remote.turn_off", target_entity=remote, alias=f"Sleep {label}")}
     if command == "turn_on":
