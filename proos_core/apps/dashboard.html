@@ -4718,7 +4718,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102603';
+const PROOS_BUILD='2026102604';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -6652,7 +6652,10 @@ async function connect(){
       // THE WAITING SCREEN SAYS WHAT IS TRUE (plan G1, Dave 3 Oct: "have all these pages designed
       // to look and say correct info"). The platform announces its own restart on this socket
       // before it goes quiet; that announcement is the only basis for "restarting".
-      snd({type:'subscribe_events',event_type:'homeassistant_stop'});
+      // REGISTER 1029 (the platform's own log, 27 Oct: "Refusing to allow ProOS Panel Screen to subscribe to event
+      // homeassistant_stop" — 666 times, two errors each). The page no longer asks for the platform's restart
+      // announcement: only an administrator may hear it (the wall panel is a deliberately non-admin screen), and since
+      // register 948 the waiting screen says "Reconnecting to Your Home" whatever the reason, so it changed nothing.
       // Live structure updates: re-discover when a device/entity/area changes
       // (added, removed, re-roomed) so new devices appear in their room without a
       // manual refresh.
@@ -6692,7 +6695,6 @@ async function connect(){
       _wsOpening=false;                                                  // 970e: the screen is built — the heartbeat watches
       onReady();
       _bootBanner(false);                                                // 969y: the live readings are on screen
-    }else if(m.type==='event'&&m.event?.event_type==='homeassistant_stop'){ _pcRestartAt=Date.now(); _pcTitle();
     }else if(m.type==='event'&&_entSubId&&m.id===_entSubId&&m.event){
       _onEntitiesEvent(m.event);      // 697: the platform's own per-device feed
     }else if(m.type==='event'&&m.event?.event_type==='state_changed'){
