@@ -2969,7 +2969,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102609';
+const PROOS_BUILD='2026102610';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -19703,6 +19703,9 @@ function _jrowTypeWord(t){
 }
 function jrowDesc(e,_jnm){
   const d=e.data||{};
+  // REGISTER 1027: the platform's own integration log, as Core serves it (word for word for the Developer; the
+  // platform's name already reads ProOS for tech/installer) — integration · level · ×count — then the message.
+  if(e.type==='integration_log'){ const lv=String(d.level||'').toLowerCase(); return (d.integration||'—')+' · '+(lv==='error'?'Error':lv==='warning'?'Warning':(d.level||''))+(d.count>1?' \u00d7'+d.count:'')+' \u2014 '+String(d.message||'').split('\n')[0]; }
   let desc='';
   if(e.type==='verdict'){
         const tw=_jrowActWord(d.to, e.room);
@@ -19797,7 +19800,7 @@ function _jrowVoiceWord(d){
 let _mlRoom='all', _mlType='all', _mlQuery='', _mlEvents=[], _mlRooms=[];
 function mlSetQuery(v){ _mlQuery=String(v||''); mlRender(); }
 function _mlNm(){ return _jrowNameOf((typeof _allStates!=='undefined'&&Array.isArray(_allStates)&&_allStates.length)?_allStates:((typeof _states!=='undefined'&&Array.isArray(_states))?_states:[])); }
-const ML_TYPES=[['all','All Events'],['activity','Device Activity'],['verdict','Verdicts'],['external_control','External Control'],['incident','Incidents'],['repair','Repairs'],['other','System Events']];
+const ML_TYPES=[['all','All Events'],['integration_log','Integration Log'],['activity','Device Activity'],['verdict','Verdicts'],['external_control','External Control'],['incident','Incidents'],['repair','Repairs'],['other','System Events']];
 // The journal's room KEYS are historical spellings (jarrod_s_room AND
 // jarrods_room, Office AND office). The selector speaks the rooms' REAL
 // names: every key normalises to a label, duplicates merge, and filtering
@@ -19872,7 +19875,7 @@ function mlPass(e,nm){
     // a confirmation completes a verdict, so it filters WITH the verdicts
     // (register 124) — never under System Events.
     else if(_mlType==='verdict') tOk=(e.type==='verdict'||e.type==='confirmed');
-    else if(_mlType==='other') tOk=!['verdict','external_control','confirmed','activity'].includes(e.type)&&!String(e.type).startsWith('incident');
+    else if(_mlType==='other') tOk=!['verdict','external_control','confirmed','activity','integration_log'].includes(e.type)&&!String(e.type).startsWith('incident');
     else tOk=e.type===_mlType;
   }
   if(!tOk) return false;

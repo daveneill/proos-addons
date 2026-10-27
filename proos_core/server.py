@@ -3814,6 +3814,8 @@ def factory_reset(clear_proos_data=False, keep_auth=False):
                    "notify_devices.json",
                    # when ProOS last ran the box's own full backup automatically (register 1024)
                    "auto_full_backup.json",
+                   # the old home's mirror of the platform's integration log (register 1027)
+                   "platform_log.json",
                    # the wall panel's set-up record and the screen login it made (register 940) — the reset deletes the
                    # platform's users, so the login it names is gone; the panel's next pass makes a new one
                    "panel_setup.json", "panel_login.json", "panel_wake.json",
@@ -4197,6 +4199,38 @@ def _auto_full_backup_maybe(snap):
     threading.Thread(target=_run, daemon=True, name="proos-auto-full-backup").start()
 
 
+def _platform_log_read():
+    """REGISTER 1027: one read of the platform's own system log into ProOS's Master Log (platformlog.py). The room a
+    message names is found by identity only: an entity id the platform holds, or a configured integration's own host."""
+    from proos import platformlog as _pl
+    from proos import platform_entries as _pe
+    from proos.ha_ws import ws_command
+    if _client is None:
+        return None
+    rows = ws_command(_client.base_url, _client._token, "system_log/list", timeout=15) or []
+    ent_area, host_areas = {}, {}
+    try:
+        devs = {d.get("id"): d for d in (_client.device_registry() or [])}
+        ents = _client.entity_registry() or []
+        dev_by_entry = {}
+        for d in devs.values():
+            for eid in (d.get("config_entries") or []):
+                dev_by_entry.setdefault(eid, []).append(d)
+        for e in ents:
+            a = e.get("area_id") or (devs.get(e.get("device_id")) or {}).get("area_id")
+            if e.get("entity_id"):
+                ent_area[e["entity_id"]] = a
+        for en in _pe._all():
+            dd = en.get("data") or {}
+            host = dd.get("host") or dd.get("ip_address") or dd.get("ip")
+            if host:
+                host_areas.setdefault(str(host), set()).update(
+                    d.get("area_id") for d in dev_by_entry.get(en.get("entry_id"), []) if d.get("area_id"))
+    except Exception:                                            # noqa: BLE001
+        pass
+    return _pl.ingest(rows, ent_area=ent_area, host_areas=host_areas)
+
+
 def _platform_faults_loop():
     from proos import platformfaults as _pf
     time.sleep(30)
@@ -4205,6 +4239,10 @@ def _platform_faults_loop():
             _platform_faults_read()
         except Exception as e:                                   # noqa: BLE001
             print("  [platform-faults] read failed: %s" % e, flush=True)
+        try:
+            _platform_log_read()                                 # register 1027: the platform's integration log
+        except Exception as e:                                   # noqa: BLE001
+            print("  [platform-log] read failed: %s" % e, flush=True)
         time.sleep(_pf.READ_EVERY_S)
 
 
@@ -6236,9 +6274,18 @@ class Handler(BaseHTTPRequestHandler):
                     lim = int((q.get("limit") or ["300"])[0])
                 except ValueError:
                     lim = 300
-                return self._send(200, {"events": _journal_mod.merged(lim),
-                                        "rooms": _journal_mod.rooms(),
-                                        "ts": time.time()})
+                # REGISTER 1027 (Dave, 27 Oct): the platform's own integration log rides in the same stream — word for
+                # word for the Developer; for tech and installer the platform's name reads "ProOS", nothing else changed.
+                _evs_ = list(_journal_mod.merged(lim))
+                try:
+                    from proos import platformlog as _pl_
+                    _evs_ += _pl_.for_viewer(bool(u.get("is_owner")))
+                    _evs_.sort(key=lambda e: float(e.get("ts") or 0), reverse=True)
+                    _evs_ = _evs_[:lim]
+                except Exception as _ple:                        # noqa: BLE001
+                    print("  [platform-log] not merged: %s" % _ple, flush=True)
+                _rooms_ = sorted(set(_journal_mod.rooms()) | {e.get("room") for e in _evs_ if e.get("room")})
+                return self._send(200, {"events": _evs_, "rooms": _rooms_, "ts": time.time()})
             if parts == ["journal", "everything"]:
                 # THE DEVELOPER EVERYTHING-VIEW (Stage 7 build 3, Dave's
                 # ruling): "on Developer, everything HA logs." This proxies
