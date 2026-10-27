@@ -3505,6 +3505,19 @@ html[data-link="remote"]{--m-tap:90ms;--m-move:200ms;--m-page:300ms}
   #atv-page .atv-pop.wide{width:calc(100% - 16px);padding:16px 14px 0}#atv-page .atv-pop.wide .atv-tinfo{grid-template-columns:84px minmax(0,1fr)}#atv-page .atv-pop.wide .atv-tinfo .atv-pi{width:84px}#atv-page .atv-pop.wide .atv-tinfo .atv-desc{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}#atv-page .atv-pop.wide .atv-popf{margin:0 -14px;padding:2px 14px 12px}
   #atv-page .atv-ep{grid-template-columns:104px minmax(0,1fr);gap:12px}#atv-page .atv-eplay{display:none}#atv-page .atv-ed{-webkit-line-clamp:2}
 }
+/* register 1044 — the room page's apps on the Apps tab, and the press-and-hold card */
+#atv-page .atv-app{-webkit-touch-callout:none}
+#atv-page .atv-sec .atv-sech{display:block;margin-top:4px;font-style:normal;font-weight:400;letter-spacing:0;text-transform:none;font-size:12px;color:var(--atv-ink3)}
+#atv-page .atv-favtag{position:absolute;top:-6px;right:-4px;width:22px;height:22px;border-radius:50%;background:#fff;color:#000;display:grid;place-items:center}
+#atv-page .atv-favtag svg{width:12px;height:12px}
+#atv-page .atv-pop.hold{width:min(400px,calc(100% - 32px));align-items:stretch;text-align:center;padding:24px 22px 18px}
+#atv-page .atv-holdc{display:flex;flex-direction:column;align-items:center;gap:8px}
+#atv-page .atv-holdt{width:150px;margin-bottom:8px}#atv-page .atv-holdt .awt{width:100%;height:auto;aspect-ratio:16/10;border-radius:16px}
+#atv-page .atv-holdc b{font-size:17px;font-weight:600;text-wrap:balance}#atv-page .atv-holdc span{font-size:13px;color:var(--atv-ink2)}
+#atv-page .atv-holdb{display:flex;flex-direction:column;gap:8px;margin-top:6px}
+#atv-page .atv-holdb button{height:46px;border-radius:14px;font-size:14.5px;font-weight:600}
+#atv-page .atv-holdb .primary{background:#fff!important;color:#000!important}#atv-page .atv-holdb .primary.danger{background:#ff7a6b!important;color:#000!important}
+#atv-page .atv-holdb .ghost{background:var(--atv-glass2)!important;color:#fff!important;font-weight:500}
 @media (prefers-reduced-motion: reduce){#atv-page .atv-toast,#atv-page .atv-sw,#atv-page .atv-sw i{transition:none}}
 </style>
 </head>
@@ -4947,7 +4960,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102613';
+const PROOS_BUILD='2026102614';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -18650,7 +18663,7 @@ function _atvRoomWatching(e){ const r=CONFIG.rooms.find(x=>x.atv===e)||null; if(
   const v=states['sensor.proos_activity_'+r.id]; return !!(v&&/^watch_/.test(String(v.state||''))); }
 function atvShouldOpen(e){ return _atvIsOn(e) || _atvRoomWatching(e); }
 function _atvIcon(n){ const P={
-  back:'<path d="m15 6-6 6 6 6"/>', power:'<path d="M12 3v8"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/>',
+  back:'<path d="m15 6-6 6 6 6"/>', star:'<path d="m12 3.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z" fill="currentColor" stroke="none"/>', power:'<path d="M12 3v8"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/>',
   pause:'<rect x="7" y="5" width="3.6" height="14" rx="1" fill="currentColor" stroke="none"/><rect x="13.4" y="5" width="3.6" height="14" rx="1" fill="currentColor" stroke="none"/>',
   play:'<path d="M8 5.5v13l11-6.5z" fill="currentColor" stroke="none"/>',
   pp:'<path d="M4 5.5v13l8-6.5z" fill="currentColor" stroke="none"/><rect x="14" y="5.5" width="2.6" height="13" rx=".8" fill="currentColor" stroke="none"/><rect x="18.4" y="5.5" width="2.6" height="13" rx=".8" fill="currentColor" stroke="none"/>',
@@ -19086,14 +19099,91 @@ function _atvRenderApps(b){
   const acc=_atv.accounts;
   b.innerHTML='<div class="atv-apps"><div class="atv-apps-top"><label class="atv-filter">'+_atvIcon('search')+'<input type="search" id="atv-appq" placeholder="Filter apps" value="'+_hEsc(_atv.appQ||'')+'"></label>'
     +(acc&&acc.length>1?'<div class="atv-profs"><small>Profile</small>'+acc.map(a=>'<button type="button" class="atv-prof" data-acc="'+_hEsc(a.id)+'"><i>'+_hEsc((a.name||'?').charAt(0))+'</i>'+_hEsc((a.name||'').split(' ')[0])+'</button>').join('')+'</div>':'')+'</div>'
-    +'<div class="atv-sec">'+(q?'Matching apps':'All apps · '+names.length+' installed')+'</div>'
-    +'<div class="atv-appgrid">'+shown.map(n=>'<button type="button" class="atv-app'+(apps[n]===nowId?' now':'')+'" data-app="'+_hEsc(n)+'">'+_appTileHTML(n,'atv-ai',apps[n])+'<span>'+_hEsc(n)+'</span>'+(apps[n]===nowId?'<i class="atv-nowtag">Now playing</i>':'')+'</button>').join('')
+    // register 1044: the room page's apps for THIS Apple TV first — the same tiles the room page shows — then every app
+    +(()=>{ const room=_atv.room; if(!room) return '';
+        const favs=_atvFavNames(names).filter(n=>!q||n.toLowerCase().includes(q));
+        return '<div class="atv-sec">On the '+_hEsc(room.name||'room')+' page</div>'
+          +(favs.length?'<div class="atv-appgrid atv-favs">'+favs.map(n=>_atvAppTile(n,apps,nowId,true)).join('')+'</div>'
+            :'<div class="atv-hint left">No apps on the '+_hEsc(room.name||'room')+' page yet.</div>'); })()
+    +'<div class="atv-sec">'+(q?'Matching apps':'All apps · '+names.length+' installed')+(_atv.room?'<em class="atv-sech">Press and hold an app to add it to or take it off the '+_hEsc(_atv.room.name||'room')+' page</em>':'')+'</div>'
+    +'<div class="atv-appgrid">'+shown.map(n=>_atvAppTile(n,apps,nowId,false)).join('')
     +(q&&!shown.length?'<button type="button" class="atv-store" data-store="1">'+_atvIcon('search')+'No app called “'+_hEsc(_atv.appQ)+'”. Open the App Store on the TV</button>':'')+'</div></div>';
   const qi=b.querySelector('#atv-appq'); qi.oninput=()=>{ _atv.appQ=qi.value; const pos=qi.selectionStart; _atvRenderApps(b); const n=b.querySelector('#atv-appq'); n.focus(); try{n.setSelectionRange(pos,pos);}catch(e){} };
-  b.querySelectorAll('[data-app]').forEach(x=>x.onclick=()=>_atvLaunch(x.dataset.app, apps[x.dataset.app]));
+  b.querySelectorAll('[data-app]').forEach(x=>_atvAppPress(x, x.dataset.app, apps[x.dataset.app]));
   b.querySelectorAll('[data-acc]').forEach(x=>x.onclick=()=>{ const a=(_atv.accounts||[]).find(y=>y.id===x.dataset.acc);
     _atvCall('proos_switch_account',{account_id:x.dataset.acc}).then(()=>_atvToast('Switched to '+((a&&a.name)||'that profile'))).catch(_atvFail); });
   const s=b.querySelector('[data-store]'); if(s) s.onclick=()=>{ const id=apps['App Store']||'com.apple.TVAppStore'; _atvLaunch('App Store', id); };
+}
+// ── the room page's apps (register 1044) ──────────────────────────────────────────────────────────────────────
+// The room page's app tiles are that page's own layout on this screen merged with Core's house-wide favourites
+// (renderWidgetGrid's own rule). The Apple TV page reads and changes THE APPLE TV'S ROOM, wherever it was opened from,
+// by lending that room to the room page's own functions for the moment — the same keys, migrations, merge and the copy
+// to the box (_layoutToBox) — never a second copy of the rules.
+function _atvRoomIdx(){ return _atv&&_atv.room?CONFIG.rooms.indexOf(_atv.room):-1; }
+function _atvWithRoom(fn){ const idx=_atvRoomIdx(); if(idx<0) return null; const was=curRoom; curRoom=idx; try{ return fn(); } finally { curRoom=was; } }
+function _atvAppKey(n){ try{ return _appSlug(_appCanon(n,'').n); }catch(e){ return String(n||'').toLowerCase(); } }
+function _atvRoomTiles(){
+  const rid=_atv&&_atv.room&&_atv.room.id; if(!rid) return [];
+  try{ _loadRoomFavs(rid); }catch(e){}
+  return _atvWithRoom(()=>{ let w=loadWidgetLayout(); const f=_roomFavs[rid]; if(f){ w=_favMerge(w,f,()=>true).widgets; }
+    return w.filter(x=>x&&x.id==='apps'&&x.device===_atv.e); })||[];
+}
+function _atvFavNames(names){ const keys=names.map(_atvAppKey);
+  return _atvRoomTiles().map(t=>{ const k=_atvAppKey(t.app), at=keys.indexOf(k); return at>=0?names[at]:null; }).filter((n,i,a)=>n&&a.indexOf(n)===i); }
+function _atvTileFor(n){ const k=_atvAppKey(n); return _atvRoomTiles().find(t=>_atvAppKey(t.app)===k)||null; }
+function _atvAppTile(n, apps, nowId, inFavs){
+  const fav=!!_atvTileFor(n), now=apps[n]===nowId;
+  return '<button type="button" class="atv-app'+(now?' now':'')+'" data-app="'+_hEsc(n)+'">'+_appTileHTML(n,'atv-ai',apps[n])+'<span>'+_hEsc(n)+'</span>'
+    +(now?'<i class="atv-nowtag">Now playing</i>':'')+(fav&&!inFavs?'<i class="atv-favtag" aria-label="On the room page">'+_atvIcon('star')+'</i>':'')+'</button>';
+}
+// tap opens it through Core's launcher (the room page's tiles' own road); press and hold asks to add / take off
+function _atvAppPress(el, n, id){
+  let t=null, held=false, sx=0, sy=0;
+  el.addEventListener('pointerdown', ev=>{ held=false; sx=ev.clientX; sy=ev.clientY; clearTimeout(t); t=setTimeout(()=>{ held=true; try{ _proosHaptic('move'); }catch(e){} _atvAppHold(n); }, 550); });
+  el.addEventListener('pointermove', ev=>{ if(Math.hypot(ev.clientX-sx, ev.clientY-sy)>10) clearTimeout(t); });
+  ['pointerup','pointercancel','pointerleave'].forEach(k=>el.addEventListener(k, ()=>clearTimeout(t)));
+  el.addEventListener('contextmenu', ev=>ev.preventDefault());
+  el.addEventListener('click', ev=>{ if(held){ held=false; ev.preventDefault(); return; } _atvOpenApp(n, id); });
+}
+function _atvOpenApp(n, id){
+  const room=_atv&&_atv.room;
+  if(!room){ _atvLaunch(n, id); return; }                 // an Apple TV in no room has no room launcher: the direct road
+  _atvToast('Opening '+n+'…');
+  _coreFetch(proosCoreBase()+'/shortcuts/'+encodeURIComponent(room.id)+'/launch',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({app:n, target:_atv.e})},40000).then(r=>r.json()).then(d=>{ _atvToast(d&&d.ok?(d.note||n):((d&&d.error)||('Couldn\u2019t open '+n))); })
+    .catch(()=>_atvToast('Could not reach ProOS Core to open '+n));
+}
+function _atvAppHold(n){
+  const apps=att(_atv.e,'proos_apps')||{}, room=_atv.room; if(!room) return;
+  const tile=_atvTileFor(n), synced=!!(tile&&tile.sync);
+  const btns=!tile?'<button type="button" class="primary" data-act="all">All Dashboards</button><button type="button" class="ghost" data-act="one">Just This Screen</button>'
+    :synced?'<button type="button" class="primary danger" data-act="offall">Take Off All Dashboards</button>'
+    :'<button type="button" class="primary danger" data-act="offone">Take Off This Screen</button>';
+  _atvPop('<div class="atv-holdc"><div class="atv-holdt">'+_appTileHTML(n,'atv-ai',apps[n])+'</div>'
+    +'<b>'+(tile?'Take '+_hEsc(n)+' off the '+_hEsc(room.name)+' page?':'Add '+_hEsc(n)+' to the '+_hEsc(room.name)+' page?')+'</b>'
+    +'<span>'+(tile?(synced?'It is on every dashboard\u2019s '+_hEsc(room.name)+' page, and stays installed on the Apple TV.':'It is on this screen only, and stays installed on the Apple TV.'):'A tap on it there opens it on this Apple TV.')+'</span></div>'
+    +'<div class="atv-holdb">'+btns+'<button type="button" class="ghost" data-act="no">Cancel</button></div>', pop=>{
+    pop.querySelector('[data-act="no"]').onclick=_atvPopClose;
+    const on=(k,f)=>{ const x=pop.querySelector('[data-act="'+k+'"]'); if(x) x.onclick=()=>{ _atvPopClose(); f(); }; };
+    on('all', ()=>_atvRoomApp(n,'add',true)); on('one', ()=>_atvRoomApp(n,'add',false));
+    on('offall', ()=>_atvRoomApp(n,'remove',true)); on('offone', ()=>_atvRoomApp(n,'remove',false));
+  }, 'hold');
+}
+function _atvRoomApp(n, what, all){
+  const room=_atv.room, rid=room.id, dev=_atv.e, k=_atvAppKey(n);
+  const same=w=>w&&w.id==='apps'&&(w.device||null)===dev&&_atvAppKey(w.app)===k;
+  _atvWithRoom(()=>{ const layout=loadWidgetLayout();
+    if(what==='add'){ if(!layout.some(same)){ layout.push({uid:_newWidgetUid(), id:'apps', app:n, appid:null, device:dev}); saveWidgetLayout(layout); } }
+    else saveWidgetLayout(layout.filter(w=>!same(w))); });
+  if(all){
+    if(what==='add'){ _roomFavs[rid]=(_roomFavs[rid]||[]).filter(f=>!(_atvAppKey(f.app)===k&&(f.device||null)===dev)).concat([{app:n, appid:null, device:dev}]); }
+    else if(_roomFavs[rid]) _roomFavs[rid]=_roomFavs[rid].filter(f=>!(_atvAppKey(f.app)===k&&(f.device||null)===dev));
+    _coreFetch(proosCoreBase()+'/areas/'+encodeURIComponent(rid)+'/appfavs',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(what==='add'?{app:n, appid:null, device:dev}:{app:(_atvTileFor(n)||{}).app||n, device:dev, remove:true})},8000).catch(()=>_atvToast('Saved on this screen; ProOS Core did not answer for the other dashboards'));
+  }
+  _atvToast(what==='add'?(n+(all?' added to the '+room.name+' page on every dashboard':' added to the '+room.name+' page on this screen')):(n+' taken off the '+room.name+' page'+(all?' on every dashboard':'')));
+  if(curRoom===_atvRoomIdx()){ try{ renderWidgetGrid(); }catch(e){} }
+  if(_atv&&_atv.tab==='apps') _atvRenderBody();
 }
 function _atvLoadAccounts(){ if(!_atv||_atv.accounts) return; const e=_atv.e;
   _atvCall('proos_state',{include:['accounts']},true).then(r=>{ if(!_atv||_atv.e!==e) return; _atv.accounts=r.accounts||[]; if(_atv.tab==='apps') _atvRenderBody(); }).catch(()=>{}); }
