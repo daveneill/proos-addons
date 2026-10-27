@@ -6276,12 +6276,13 @@ class Handler(BaseHTTPRequestHandler):
                     lim = 300
                 # REGISTER 1027 (Dave, 27 Oct): the platform's own integration log rides in the same stream — word for
                 # word for the Developer; for tech and installer the platform's name reads "ProOS", nothing else changed.
+                # 1027a: the page limit applies to ProOS's own events only — every integration row the platform still
+                # holds always comes along (read on the box: with limit 600, ten two-day-old platform messages fell off).
                 _evs_ = list(_journal_mod.merged(lim))
                 try:
                     from proos import platformlog as _pl_
                     _evs_ += _pl_.for_viewer(bool(u.get("is_owner")))
                     _evs_.sort(key=lambda e: float(e.get("ts") or 0), reverse=True)
-                    _evs_ = _evs_[:lim]
                 except Exception as _ple:                        # noqa: BLE001
                     print("  [platform-log] not merged: %s" % _ple, flush=True)
                 _rooms_ = sorted(set(_journal_mod.rooms()) | {e.get("room") for e in _evs_ if e.get("room")})
