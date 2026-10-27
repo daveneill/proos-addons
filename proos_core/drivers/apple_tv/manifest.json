@@ -1,7 +1,7 @@
 {
   "domain": "apple_tv",
   "name": "Apple TV",
-  "version": "0.18.0+proos.5",
+  "version": "0.18.0+proos.6",
   "codeowners": [
     "@postlund",
     "@protech-proos"

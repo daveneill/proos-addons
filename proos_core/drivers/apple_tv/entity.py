@@ -22,6 +22,10 @@ class AppleTVEntity(Entity):
         """Initialize device."""
         self.manager = manager
         self._attr_unique_id = identifier
+        # ProOS (register 1031): the manager announces connect / disconnect addressed by the DEVICE's identifier. An
+        # entity that gives itself its own id (the Connection sensor: "<id>_connection") must still listen by the
+        # device's, or it never hears either — it held its start-up reading while the driver was disconnected.
+        self._signal_identifier = identifier
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, identifier)},
             name=name,
@@ -50,13 +54,13 @@ class AppleTVEntity(Entity):
 
         self.async_on_remove(
             async_dispatcher_connect(
-                self.hass, f"{SIGNAL_CONNECTED}_{self.unique_id}", _async_connected
+                self.hass, f"{SIGNAL_CONNECTED}_{self._signal_identifier}", _async_connected
             )
         )
         self.async_on_remove(
             async_dispatcher_connect(
                 self.hass,
-                f"{SIGNAL_DISCONNECTED}_{self.unique_id}",
+                f"{SIGNAL_DISCONNECTED}_{self._signal_identifier}",
                 _async_disconnected,
             )
         )

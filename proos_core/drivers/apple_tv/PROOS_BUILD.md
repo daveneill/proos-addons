@@ -26,6 +26,13 @@ bumped to 0.18.0.
   flapping media_player or the logs. Mirrors the existing keyboard-focus sensor
   pattern; no pyatv changes; uses the integration's existing per-device
   connect/disconnect dispatch.
+- `entity.py` (proos.6, register 1031): the shared entity code listens for
+  connect/disconnect by the DEVICE's identifier, not the entity's own id. Up to
+  proos.5 the Connection sensor (whose id is `<id>_connection`) listened under a
+  name the manager never sends, so it held its start-up reading — seen on
+  Dave's box 27 Oct reading "connected" for two Apple TVs that had been
+  disconnected since the day before. Bench:
+  `apple_tv_connection_sensor_hears_the_driver_bench.py` (driven).
 Everything else is byte-for-byte HA core 2026.6.3.
 
 Because the domain stays `apple_tv`, this custom integration OVERRIDES the
