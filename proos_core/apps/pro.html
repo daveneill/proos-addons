@@ -2969,7 +2969,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102610';
+const PROOS_BUILD='2026102611';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -3528,6 +3528,7 @@ if(!window._awPollTimer){
 function _proosBusHandle(m){
   if(!m||!m.kind) return;
   if(m.kind==='watchers'){ _pollAwareness(); }
+  if(m.kind==='shortcuts'&&m.area){ try{ _scHeardChange(String(m.area)); }catch(e){} }   // register 1046
 }
 function _awRefreshLiveIfOpen(){
   try{
@@ -9515,6 +9516,7 @@ async function openRoomHub(areaId){
   await avLoadData();
   renderRoomHub();
   loadRoomDevices(areaId);   // non-blocking — the AV view is already up
+  if(_rhShortcuts[areaId]!==undefined) loadRoomShortcuts(areaId);   // register 1046: never a kept copy — re-read on every open
 }
 function roomHubBack(){ if(_roomHubBack){ showGroupTab(_roomHubBack.gkey,_roomHubBack.idx); } else { showGroupTab('g-rooms',0); } }
 async function roomRescan(){ const h=document.getElementById('room-devices'); if(h) h.style.opacity='0.5'; try{ await avLoadData(); }finally{ renderRoomHub(); const h2=document.getElementById('room-devices'); if(h2) h2.style.opacity=''; } toast('Re-scanned'); }
@@ -11159,6 +11161,15 @@ function rhShortcuts(rec){
   if(_scCatalogue===null || _rhShortcuts[area]===undefined){ loadRoomShortcuts(area); return '<div class="rh-card"><div class="rh-hd"><span class="rh-hd-t">App Shortcuts</span></div><div class="rh-load">Loading…</div></div>'; }
   return shortcutsCardHTML(area, _rhShortcuts[area], _scCatalogue, scDevices(rec));
 }
+// REGISTER 1046 (Dave 28 Oct: "pro needs a full close app and open to show"): the room's App Shortcuts are ONE list with
+// every dashboard's room page (1045), so a change made on a dashboard is re-read here the moment Core says so — and again
+// whenever a room is opened or Pro comes back to the front (a phone asleep misses the live message).
+function _scHeardChange(area){
+  if(_rhShortcuts[area]===undefined) return;               // never drawn here: it is read fresh when first shown
+  if(_roomHubArea===area) loadRoomShortcuts(area);         // on screen: re-read now, the old list stays until the new arrives
+  else _rhShortcuts[area]=undefined;                       // not on screen: read fresh next time it is
+}
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden && _roomHubArea && _rhShortcuts[_roomHubArea]!==undefined) loadRoomShortcuts(_roomHubArea); });
 async function loadRoomShortcuts(area){
   try{ if(_scCatalogue===null){ const rc=await fetch(proCoreUrl()+'/shortcuts/catalogue'); _scCatalogue=rc.ok?(((await rc.json())||{}).apps||[]):[]; } }catch(e){ _scCatalogue=[]; }
   try{ const r=await fetch(proCoreUrl()+'/shortcuts/'+encodeURIComponent(area)); _rhShortcuts[area]=r.ok?(((await r.json())||{}).shortcuts||[]):[]; }catch(e){ _rhShortcuts[area]=[]; }

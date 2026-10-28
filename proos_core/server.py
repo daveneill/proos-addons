@@ -490,6 +490,14 @@ def _dash_ping(kind, data=""):
             c["q"].put_nowait((str(kind), str(data)))
         except Exception:                                        # noqa: BLE001
             pass
+    # REGISTER 1046: Pro listens on the live bus, not the dashboards' queue — so a room's apps changed on any dashboard
+    # (or in Pro) are said there too, and Pro's App Shortcuts card re-reads that room at once (Dave 28 Oct: "pro needs a
+    # full close app and open to show").
+    if str(kind) == "appfavs" and _journal_mod is not None:
+        try:
+            _journal_mod.publish({"kind": "shortcuts", "area": str(data), "ts": time.time()})
+        except Exception:                                        # noqa: BLE001
+            pass
 
 
 def _dash_ack(device, version, name=None):
