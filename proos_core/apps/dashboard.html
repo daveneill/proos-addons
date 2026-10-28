@@ -4999,7 +4999,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102618';
+const PROOS_BUILD='2026102619';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -19157,9 +19157,9 @@ function _atvTypeClose(){ if(_atv&&_atv.kbOpen) _atvPopClose(); }
 // ── Apps ────────────────────────────────────────────────────────────────────────────────────────────────────
 // register 1055: the app list a page offers — the Apple TV's own (proos_apps), or for the Live TV page the TV's own list
 // from Core (/shortcuts/<room>/apps: the apps the TV publishes, each with the TV's own launch id)
-function _atvApps(){ return (_atv&&_atv.kind==='tv')?(_atv.apps||{}):(att(_atv.e,'proos_apps')||{}); }
+function _atvAppList(){ return (_atv&&_atv.kind==='tv')?(_atv.apps||{}):(att(_atv.e,'proos_apps')||{}); }
 function _atvRenderApps(b){
-  const apps=_atvApps(), names=Object.keys(apps).sort((a,c)=>a.localeCompare(c));
+  const apps=_atvAppList(), names=Object.keys(apps).sort((a,c)=>a.localeCompare(c));
   const nowId=att(_atv.e,'app_id'), q=(_atv.appQ||'').toLowerCase();
   const shown=names.filter(n=>!q||n.toLowerCase().includes(q));
   const acc=_atv.accounts;
@@ -19220,7 +19220,7 @@ function _atvOpenApp(n, id){
     .catch(()=>_atvToast('Could not reach ProOS Core to open '+n));
 }
 function _atvAppHold(n){
-  const apps=_atvApps(), room=_atv.room; if(!room) return;
+  const apps=_atvAppList(), room=_atv.room; if(!room) return;
   const tile=_atvTileFor(n), synced=!!(tile&&tile.sync);
   const btns=!tile?'<button type="button" class="primary" data-act="all">All Dashboards</button><button type="button" class="ghost" data-act="one">Just This Screen</button>'
     :synced?'<button type="button" class="primary danger" data-act="offall">Take Off All Dashboards</button>'
