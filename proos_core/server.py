@@ -260,6 +260,10 @@ try:
     from proos import channels as _channels         # the house's channel lists, confirmed on a TV (register 1049)
 except Exception:  # noqa: BLE001
     _channels = None
+try:
+    from proos import castlinks as _castlinks       # which Cast player is which Shield's other half, installer-linked (register 1059)
+except Exception:  # noqa: BLE001
+    _castlinks = None
 _CH_SENT = {}   # register 1049: (list, channel, device, number) -> when ProOS SENT it — Confirm needs a send first
 try:
     from proos import avrzones as _avrzones         # brand-agnostic AVR zone detection
@@ -460,6 +464,14 @@ def _shortcut_from_device(body):
     if _ent and not ((body or {}).get("token") or "").strip():
         sc["token"] = _ent["token"]
     return sc, None
+
+
+def _cast_devices():
+    """REGISTER 1059: every Android TV box and Cast player, read from the registry, with the installer's links."""
+    try:
+        return _castlinks.devices(_client.entity_registry() or [], _client.device_registry() or [], _client.all_states() or [])
+    except Exception:                                            # noqa: BLE001
+        return {"boxes": [], "cast_players": []}
 
 
 def _channel_tuners():
@@ -3905,6 +3917,7 @@ def factory_reset(clear_proos_data=False, keep_auth=False):
                    "music_genres.json", "consent.json", "shortcuts.json",
                    # the house's channel lists (register 1049) — site data, like the shortcuts
                    "channel_lists.json",
+                   "cast_links.json",             # 1059: which Cast player is which Shield — this home's entity ids
                    "watch_learned.json",          # 970oo: which box went straight to a show — this home's entity ids
                    "account_copies.json",         # 970rr: the box's one-way copies of this home's ProOS accounts
                    "garage_doors.json",           # 974: which pieces make this home's garage doors
@@ -8037,6 +8050,11 @@ class Handler(BaseHTTPRequestHandler):
                 if not tgt.startswith("media_player."):
                     return self._send(400, {"error": "target must be a media_player"})
                 return self._send(200, _shortcuts.device_apps(_client, tgt, android_held=_atv_held(tgt)))
+            # ── REGISTER 1059: CAST LINKS (read) ── any signed-in user: the Shield page asks which Cast player is its own
+            if parts == ["cast_links"]:
+                if not _castlinks:
+                    return self._send(200, {"boxes": [], "cast_players": []})
+                return self._send(200, _cast_devices())
             # ── REGISTER 1049: CHANNEL LISTS (read) ── any signed-in user; a dashboard asks for confirmed ones only
             if parts == ["channels"]:
                 if not _channels:
@@ -10236,6 +10254,23 @@ class Handler(BaseHTTPRequestHandler):
                 b = self._body() or {}
                 res = _appart.delete_tile(b.get("slug") or b.get("name") or "")
                 return self._send(400 if res.get("error") else 200, res)
+            # ── REGISTER 1059: CAST LINKS (change) ── installer or owner only (ruling 1: linked once by the installer)
+            if parts == ["cast_links"]:
+                u = self._user
+                if not (u and (u.get("is_owner") or (users and users.is_tech(u.get("id"))))):
+                    return self._send(403, {"error": "tech access required"})
+                if not _castlinks:
+                    return self._send(503, {"error": "cast links unavailable"})
+                b = self._body() or {}
+                op = b.get("op") or ""
+                if op == "link":
+                    seen = _cast_devices()
+                    return self._send_res(_castlinks.link(b.get("box") or "", b.get("cast") or "", u.get("name") or u.get("id") or "",
+                                                          [x["entity_id"] for x in seen["boxes"]],
+                                                          [x["entity_id"] for x in seen["cast_players"]]))
+                if op == "unlink":
+                    return self._send_res(_castlinks.unlink(b.get("box") or ""))
+                return self._send(400, {"error": "unknown cast link action"})
             # ── REGISTER 1053: THE LIVE TV PAGE SENDS A CHANNEL ── any signed-in person (it is the TV's remote). Only a
             # CONFIRMED channel from the TV's own list, or a typed number (digits only), and only to a TV that uses a
             # channel list. The answer is Sent — the TV does not report its channel (register 1047).

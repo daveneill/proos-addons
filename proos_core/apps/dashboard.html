@@ -5003,7 +5003,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102622';
+const PROOS_BUILD='2026102623';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -19638,12 +19638,28 @@ function shShouldOpen(e){ return !!(states[e]&&states[e].state==='on'); }
 function shOpen(e, vol){
   const room=CONFIG.rooms.find(r=>r.media===e||(r.allPlayers&&r.allPlayers.includes(e)))||null;
   const t=_atvLS('sh_tab');
-  _atv={kind:'shield', e:e, vol:vol||e, room:room, tab:_SH_TABS.includes(t)?t:'remote', apps:null, appInfo:null};
+  _atv={kind:'shield', e:e, vol:vol||e, room:room, tab:_SH_TABS.includes(t)?t:'remote', apps:null, appInfo:null, cast:null};
   let p=document.getElementById('atv-page');
   if(!p){ p=document.createElement('div'); p.id='atv-page'; document.body.appendChild(p); }
   p.classList.add('open');
-  _shRender(); _shLoadApps();
+  _shRender(); _shLoadApps(); _shLoadCast();
 }
+// REGISTER 1059 (ruling 1): the Cast player the INSTALLER linked to this Shield in Pro — Core's answer, never a name match
+async function _shLoadCast(){
+  if(!_atv||_atv.kind!=='shield') return; const e=_atv.e; let c=null;
+  try{ const d=await _coreFetch(proosCoreBase()+'/cast_links',{},10000).then(r=>r.json()); const b=(d.boxes||[]).find(x=>x&&x.entity_id===e); c=(b&&b.cast)||null; }catch(x){}
+  if(!_atv||_atv.e!==e) return; _atv.cast=c; _atv.castSig=_shCastSig(); if(c) _shRenderBody();
+}
+// what the linked Cast side REPORTS — only while it is playing or paused, and only a title or picture it actually sent
+function _shCast(){
+  const c=_atv&&_atv.cast; if(!c||!states[c]) return null;
+  if(!['playing','paused','buffering'].includes(states[c].state)) return null;
+  const title=att(c,'media_title')||'', p=att(c,'entity_picture'), pic=p?(String(p).slice(0,4)==='http'?p:HA+p):'';
+  if(!title&&!pic) return null;
+  const ser=att(c,'media_series_title'), sub=ser||att(c,'media_artist')||att(c,'media_album_name')||'';
+  return {title:title, sub:sub, pic:pic, app:att(c,'app_name')||'', state:states[c].state};
+}
+function _shCastSig(){ const k=_shCast(); return k?[k.title,k.pic,k.sub,k.state].join('|'):''; }
 async function _shLoadApps(){
   if(!_atv||_atv.kind!=='shield') return; const e=_atv.e, room=_atv.room;
   const apps={}, info={};
@@ -19708,6 +19724,9 @@ const _SHI={menu2:'<path d="M4 7h16M4 12h16M4 17h16"/>', recent:'<rect x="4" y="
   gear:'<circle cx="12" cy="12" r="3"/><path d="M12 2.8v2.4M12 18.8v2.4M4.2 7.5l2.1 1.2M17.7 15.3l2.1 1.2M4.2 16.5l2.1-1.2M17.7 8.7l2.1-1.2"/>'};
 function _shIcon(n){ return _SHI[n]?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">'+_SHI[n]+'</svg>':_atvIcon(n); }
 function _shNowHTML(big){
+  const k=_shCast();
+  if(k) return '<div class="tvp-now'+(big?' big':'')+'"><span class="tvp-lg tvp-pic"'+(k.pic?' style="background-image:url(\''+_hEsc(k.pic)+'\')"':'')+'>'+(k.pic?'':_atvIcon('apps'))+'</span><div><small>Now Playing'+(k.app?' \u00b7 '+_hEsc(k.app):'')+(k.state==='paused'?' \u00b7 Paused':'')+'</small><b>'+_hEsc(k.title||'Playing')+'</b><span>'+_hEsc(k.sub||'On the Shield')+'</span></div></div>'
+    +'<div class="tvp-honest">'+_atvIcon('info')+'<span>From the Shield\u2019s Cast side, linked by your installer.</span></div>';
   const a=_shOpenApp(), apps=_atv.apps||{};
   let face, title, sub;
   if(!a){ face='<span class="tvp-lg">'+_atvIcon('home')+'</span>'; title='Shield'; sub='The Shield doesn’t say what is open'; }
@@ -19717,6 +19736,8 @@ function _shNowHTML(big){
     +'<div class="tvp-honest">'+_atvIcon('info')+'<span>The Shield tells ProOS which app is open, not what is playing in it.</span></div>';
 }
 function _shMiniHTML(){
+  const k=_shCast();
+  if(k) return '<button type="button" class="atv-mini sh-mini" data-act="toplaying"><i'+(k.pic?' style="background-image:url(\''+_hEsc(k.pic)+'\')"':'')+'></i><div><b>'+_hEsc(k.title||'Playing')+'</b><span>'+_hEsc(k.sub||'From the Shield\u2019s Cast side')+'</span></div>'+_atvIcon('chev')+'</button>';
   const a=_shOpenApp(), apps=_atv.apps||{};
   const face=a&&!a.home&&a.name?_appTileHTML(a.name,'',apps[a.name]):'';
   const title=!a?'Shield':a.home?'Home Screen':(a.name||'An app is open');
@@ -19744,12 +19765,13 @@ function _shRenderPlaying(b){
   b.innerHTML='<div class="atv-apps"><div class="tvp-live"><section class="tvp-l">'+_shNowHTML(true)
     +'<div class="atv-trans"><button type="button" data-sk="rew">'+_atvIcon('rew')+'</button><button type="button" class="big" data-sk="pp">'+_atvIcon('pp')+'</button><button type="button" data-sk="ffw">'+_atvIcon('ffw')+'</button></div></section>'
     +'<section class="tvp-r"><div class="atv-sec">What the Shield Reports</div><div class="atv-opts">'
-    +(()=>{ const a=_shOpenApp(); const rows=[['App',a?(a.home?'Home screen':(a.name||a.pkg)):'Not reported'],['Picture and title','Not reported']]; return rows.map(r=>'<button type="button" style="cursor:default"><span>'+r[0]+'</span><span style="margin-left:auto;color:var(--atv-ink2);font-weight:400">'+_hEsc(r[1])+'</span></button>').join(''); })()
+    +(()=>{ const a=_shOpenApp(); const k=_shCast(); const rows=[['App',a?(a.home?'Home screen':(a.name||a.pkg)):'Not reported'],['Picture and title',k?'From the Cast side':_atv.cast?'The Cast side isn\u2019t reporting one':'Not reported \u00b7 Cast side not linked']]; return rows.map(r=>'<button type="button" style="cursor:default"><span>'+r[0]+'</span><span style="margin-left:auto;color:var(--atv-ink2);font-weight:400">'+_hEsc(r[1])+'</span></button>').join(''); })()
     +'</div></section></div></div>';
   b.querySelectorAll('[data-sk]').forEach(x=>_atvPress(x,{tap:()=>_shKey(x.dataset.sk)}));
 }
 function _shMaybeUpdate(eid){
   if(!_atv||_atv.kind!=='shield') return;
+  if(_atv.cast && eid===_atv.cast){ const sg=_shCastSig(); if(sg!==_atv.castSig){ _atv.castSig=sg; if(_atv.tab!=='apps') _shRenderBody(); } return; }
   if(eid!==_atv.e && eid!==_atv.vol) return;
   if(eid===_atv.e && !shShouldOpen(_atv.e)){ atvClose(); return; }
   const chip=document.getElementById('atv-chip'), was=chip&&chip.querySelector('em')?chip.querySelector('em').textContent:'';

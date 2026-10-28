@@ -2470,6 +2470,7 @@ body.v3.railmin .aw-screen{left:108px!important}
     .rh-input,.rh-tva{display:flex;align-items:center;gap:9px;margin-top:13px;font-size:12px;color:var(--t2)}
     .rh-input select,.rh-tva select{background:var(--card-hi);color:var(--t1);border:0.5px solid var(--line);border-radius:8px;padding:6px 10px;font-family:inherit;font-size:12px}
     .rh-note{font-size:11px;color:var(--t2);margin-top:8px;display:flex;align-items:center;gap:6px}
+    .rh-cast{flex-wrap:wrap}.rh-cast b{color:var(--t1);font-weight:600}.rh-cast select{min-width:0;max-width:100%}.rh-cast .rh-cast-by{color:var(--t3,var(--t2))}
     .rh-sec-lbl{margin:14px 0 4px;font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--t3)}
     .rh-add{margin-top:8px;padding:13px;background:rgba(255,255,255,0.03);border:0.5px solid var(--line-soft);border-radius:12px}
     .rh-add-search{background:var(--card-hi);border:0.5px solid var(--line);border-radius:9px;padding:10px 13px;font-size:13px;color:var(--t3);cursor:pointer}
@@ -3023,7 +3024,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102614';
+const PROOS_BUILD='2026102615';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -10071,6 +10072,8 @@ function rhDeviceRow(e,rec,inputs,first){
     const tw=twins.map(t=>{ const tm=(rec.meta&&rec.meta[t])||{}; const ti=(typeof integrationName==='function'&&tm.integration&&integrationName(tm.integration))||tm.integration||''; return esc(avName(t))+(ti?' ('+esc(ti)+')':''); }).join(', ');
     lines.push(`<div class="rh-note"><span>⧉</span> Seen twice — also arrives as ${tw}; ProOS runs it as one device</div>`);
   }
+  // REGISTER 1059 (ruling 1): an Android TV box's Cast side is linked here, once, by the installer — never assumed.
+  if((_me.tech||_me.developer) && _rhPlatform(e)==='androidtv_remote') lines.push(rhCastLine(e));
   if(isTvSource){
     lines.push(`<div class="rh-note"><span>▣</span> Also a source — live TV / built-in apps; select the TV's own input</div>`);
     if(inputs.length) lines.push(sel('TV input',inputs,(rec.inputs||{})[e]||'',`avSetInputRoom('${esc(e)}',this.value)`));
@@ -10106,6 +10109,47 @@ function rhDeviceRow(e,rec,inputs,first){
   // order, so it stays the pinned screen slot.
   const grip=(rec.display===e && !((rec.sources||[]).includes(e)))?'':`<span class="rh-grip" aria-hidden="true">⠿</span>`;
   return `<div class="rh-dev${first?' first':''}" data-e="${esc(e)}"><div class="rh-dev-top"><div class="rh-dev-id"><span class="rh-dev-nm">${esc(avName(e))}</span>${info}</div><div class="rh-dev-act">${grip}</div></div><div class="rh-chips">${chips}${swChip}${hasLines?'':rm}</div>${lines.join('')}</div>`;
+}
+// ── REGISTER 1059: A SHIELD'S CAST SIDE (Dave 28 Oct, ruling 1: "linked once by the installer in Pro, never assumed";
+// 22:04 "Go" — on the Shield's row). The platform holds a Shield twice: Android TV Remote (keys, the open app) and Google
+// Cast (a picture and title, only while casting, no MAC). Nothing proves which Cast player is which Shield, so ProOS only
+// SUGGESTS (same maker, model, name and room — Core's answer) and the installer's Link is the confirmation, kept with who
+// and when. The Shield page shows a picture or title only from a linked Cast side.
+let _castL=null, _castLTried=false;
+async function castLinksLoad(force){
+  if(_castLTried && !force) return; _castLTried=true;
+  try{ const r=await _coreFetch(proCoreUrl()+'/cast_links',{},12000); _castL=r.ok?await r.json():{boxes:[],cast_players:[],failed:true}; }
+  catch(e){ _castL={boxes:[],cast_players:[],failed:true}; }
+  if(document.getElementById('room-devices')) renderRoomHub();
+}
+function rhCastLine(e){
+  if(!_castL){ castLinksLoad(); return `<div class="rh-note"><span>⌁</span> Cast Side — reading the Cast players…</div>`; }
+  const box=(_castL.boxes||[]).find(b=>b.entity_id===e);
+  if(!box) return `<div class="rh-note"><span>⌁</span> Cast Side — ProOS couldn\u2019t read this box\u2019s Cast players just now</div>`;
+  const pl=_castL.cast_players||[]; const nm=c=>{ const x=pl.find(p=>p.entity_id===c); return (x&&x.name)||c; };
+  if(box.cast){
+    const when=box.at?new Date(box.at*1000).toLocaleDateString('en-AU',{day:'numeric',month:'short'}):'';
+    return `<div class="rh-input rh-cast"><span>Cast Side</span><b>${esc(nm(box.cast))}</b><span class="rh-cast-by">Linked${box.by?' by '+esc(box.by):''}${when?' · '+esc(when):''}</span><button class="rh-link" onclick="rhCastUnlink('${esc(e)}')">Unlink</button></div>`;
+  }
+  const free=pl.filter(p=>!p.linked_to||p.linked_to===e);
+  const ord=free.slice().sort((a,b)=>(b.entity_id===box.suggested)-(a.entity_id===box.suggested));
+  const opts=ord.map(p=>`<option value="${esc(p.entity_id)}"${p.entity_id===box.suggested?' selected':''}>${esc(p.name)}${p.entity_id===box.suggested?' (Suggested — Same Name)':''}</option>`).join('');
+  return `<div class="rh-input rh-cast"><span>Cast Side</span><select><option value="">— Choose a Cast Player —</option>${opts}</select><button class="rh-link" onclick="rhCastLink('${esc(e)}',this)">Link</button></div>`
+    +`<div class="rh-note"><span>⌁</span> Not linked — ${box.suggested?'ProOS suggests the player with the same name; check it is this box, then Link':'choose this box\u2019s Cast player, then Link'}. The Shield page shows a picture or title only once it is linked.</div>`;
+}
+async function rhCastLink(e,btn){
+  const sel=btn&&btn.parentElement&&btn.parentElement.querySelector('select'); const cast=sel?sel.value:'';
+  if(!cast){ toast('Choose the Cast player first'); return; }
+  try{ const r=await _coreFetch(proCoreUrl()+'/cast_links',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:'link',box:e,cast:cast})},12000);
+    const j=await r.json().catch(()=>({})); if(!r.ok){ toast(j.error||'Couldn\u2019t link it'); return; } toast('Cast side linked'); }
+  catch(err){ toast('Couldn\u2019t reach ProOS Core'); return; }
+  castLinksLoad(true);
+}
+async function rhCastUnlink(e){
+  try{ const r=await _coreFetch(proCoreUrl()+'/cast_links',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:'unlink',box:e})},12000);
+    const j=await r.json().catch(()=>({})); if(!r.ok){ toast(j.error||'Couldn\u2019t unlink it'); return; } toast('Cast side unlinked'); }
+  catch(err){ toast('Couldn\u2019t reach ProOS Core'); return; }
+  castLinksLoad(true);
 }
 // Shortcut: tap a device anywhere on the room AV page → its full device config
 // sheet (same one as the Devices page). Resolved entity → device via the
