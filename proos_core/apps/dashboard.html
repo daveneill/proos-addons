@@ -3383,6 +3383,7 @@ html[data-link="remote"]{--m-tap:90ms;--m-move:200ms;--m-page:300ms}
 #atv-page .tvp-now b{display:block;font-size:20px;font-weight:600}#atv-page .tvp-now span{font-size:13.5px;color:var(--atv-ink2)}
 #atv-page .tvp-lg{display:flex;align-items:center;justify-content:center;border-radius:12px;background:linear-gradient(160deg,#2a2d35,#17191e);border:.5px solid rgba(255,255,255,.1);color:#fff}
 #atv-page .tvp-now .tvp-lg{width:96px;aspect-ratio:16/10;flex:none}#atv-page .tvp-now .tvp-lg svg{width:32px;height:32px;opacity:.6}
+#atv-page .tvp-now .tvp-lg.tvp-pic{background-size:cover;background-position:center}
 #atv-page .tvp-now .tvp-lg.art{background:linear-gradient(160deg,#c9b99a,#8c7b62)}
 #atv-page .tvp-honest{display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:1.45;color:var(--atv-ink3)}#atv-page .tvp-honest svg{width:16px;height:16px;flex:none;margin-top:1px}
 #atv-page .tvp-chrow{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}#atv-page .tvp-chrow .padbtn{display:none}
@@ -4999,7 +5000,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102619';
+const PROOS_BUILD='2026102620';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -19430,8 +19431,22 @@ function tvOpen(e, vol){
   let p=document.getElementById('atv-page');
   if(!p){ p=document.createElement('div'); p.id='atv-page'; document.body.appendChild(p); }
   p.classList.add('open');
-  _tvRender(); _tvLoadChannels();
+  _tvRender(); _tvLoadChannels(); _tvLoadInputs();
 }
+// register 1057 (ruling 2): the box the room's COMMISSIONED record has on the input the TV reports — the only thing the
+// page borrows a picture and title from. No record, an uncommitted room, or an input nothing is recorded on: nothing.
+async function _tvLoadInputs(){
+  if(!_atv||_atv.kind!=='tv'||!_atv.room) return; const e=_atv.e;
+  try{ const d=await _coreFetch(proosCoreBase()+'/areas/'+encodeURIComponent(_atv.room.id)+'/inputs',{},8000).then(r=>r.json());
+    if(!_atv||_atv.e!==e) return;
+    _atv.inputs=(d&&d.committed&&d.display===e)?(d.inputs||[]):[]; }catch(x){ if(_atv) _atv.inputs=[]; }
+  if(_atv&&_atv.e===e){ _tvRepaintChip(); if(_atv.tab!=='apps') _tvRenderBody(); }
+}
+function _tvBoxOn(input){ const r=(_atv&&_atv.inputs||[]).find(x=>x.input===input); return r&&r.entity&&r.entity!==_atv.e?r.entity:null; }
+function _tvBox(){ return _tvBoxOn(att(_atv.e,'source')); }
+function _tvBoxName(b){ const room=_atv&&_atv.room&&_atv.room.name; let n=deviceNameById[entityDeviceMap[b]]||att(b,'friendly_name')||b;
+  if(room && n.toLowerCase().indexOf(room.toLowerCase()+' ')===0) n=n.slice(room.length+1); return n; }
+function _tvRepaintChip(){ const st=_tvStatus(), chip=document.getElementById('atv-chip'); if(chip){ chip.querySelector('i').style.background=st.c; chip.querySelector('em').textContent=st.t; } }
 function _tvWord(){ return (_atv&&_atv.kind==='tv')?'TV':'Apple TV'; }
 function _tvStatus(){
   const e=_atv.e, s=states[e]?states[e].state:'unavailable';
@@ -19440,7 +19455,8 @@ function _tvStatus(){
   if(typeof _inArtMode==='function'&&_inArtMode(e)) return {k:'art', t:'Art Mode', c:'#c9b99a'};
   const src=att(e,'source')||'';
   if(src==='TV') return {k:'live', t:'Live TV', c:'var(--atv-on)'};
-  return {k:'input', t:src?('On '+src):'On', c:'var(--atv-on)'};
+  const box=_tvBoxOn(src);
+  return {k:'input', t:(src?src:'On')+(box?' \u00b7 '+_tvBoxName(box):''), c:'var(--atv-on)'};
 }
 async function _tvLoadChannels(){
   if(!_atv||_atv.kind!=='tv') return; const e=_atv.e, out={list:null, chans:[], favs:[]};
@@ -19498,8 +19514,14 @@ function _tvChTile(c, cls){ return '<button type="button" class="tvp-ch '+(cls||
 function _tvNowHTML(){
   const st=_tvStatus(), s=_atv.sent;
   if(st.k==='art') return '<div class="tvp-now"><span class="tvp-lg art">'+_tvIcon('art')+'</span><div><small>Art Mode</small><b>The Frame is showing art</b><span>Choose a channel to watch TV.</span></div></div>';
-  if(st.k==='input') return '<div class="tvp-now"><span class="tvp-lg">'+_tvIcon('input')+'</span><div><small>On Now · '+_hEsc(att(_atv.e,'source')||'')+'</small><b>'+_hEsc(att(_atv.e,'source')||'Another input')+'</b><span>The TV is on another input.</span></div></div>'
-    +'<div class="atv-npb"><button type="button" class="atv-pill tvp-pri" data-act="watchtv">'+_tvIcon('tuner')+'Watch TV</button></div>';
+  if(st.k==='input'){ const src=att(_atv.e,'source')||'', box=_tvBox();
+    if(box){ const bn=_tvBoxName(box), pic=att(box,'entity_picture'), u=pic?(String(pic).startsWith('http')?pic:HA+pic):'', t=att(box,'media_title'), app=att(box,'app_name'), bs=states[box]?states[box].state:'';
+      const what=t?_hEsc(t):(bs==='off'||bs==='standby'?'The '+_hEsc(bn)+' is off':(app?_hEsc(app):'The '+_hEsc(bn)));
+      return '<div class="tvp-now"><span class="tvp-lg tvp-pic"'+(u?' style="background-image:url(\''+_hEsc(u)+'\')"':'')+'>'+(u?'':_tvIcon('input'))+'</span><div><small>'+_hEsc(src)+' \u00b7 '+_hEsc(bn)+'</small><b data-t="'+_hEsc(t||'')+'">'+what+'</b><span>'+(t&&app?_hEsc(app)+' on the '+_hEsc(bn):'On the '+_hEsc(bn))+'</span></div></div>'
+        +'<div class="tvp-honest">'+_atvIcon('info')+'<span>What is playing comes from the '+_hEsc(bn)+' \u2014 the room\u2019s record has it on '+_hEsc(src)+'.</span></div>'
+        +'<div class="atv-npb"><button type="button" class="atv-pill" data-act="boxremote" data-box="'+_hEsc(box)+'">'+_atvIcon('chev')+_hEsc(bn)+' Remote</button><button type="button" class="atv-pill tvp-pri" data-act="watchtv">'+_tvIcon('tuner')+'Watch TV</button></div>'; }
+    return '<div class="tvp-now"><span class="tvp-lg">'+_tvIcon('input')+'</span><div><small>On Now \u00b7 '+_hEsc(src)+'</small><b>'+_hEsc(src||'Another input')+'</b><span>'+((_atv.inputs||[]).length?'Nothing in the '+_hEsc(_atv.room?_atv.room.name:'room')+' is recorded on this input.':'The TV is on another input.')+'</span></div></div>'
+      +'<div class="atv-npb"><button type="button" class="atv-pill tvp-pri" data-act="watchtv">'+_tvIcon('tuner')+'Watch TV</button></div>'; }
   return '<div class="tvp-now"><span class="tvp-lg">'+_tvIcon('tuner')+'</span><div><small>Live TV · The TV’s Tuner</small><b>'+(s?'Sent '+_hEsc(s.number)+(s.name?' · '+_hEsc(s.name):''):'Live TV')+'</b><span>The TV doesn’t report its channel</span></div></div>'
     +(s?'<div class="mk-honest tvp-honest">'+_atvIcon('info')+'<span>Sent is what ProOS sent to the TV. It isn’t a reading, so it isn’t shown as what’s on.</span></div>':'');
 }
@@ -19528,6 +19550,7 @@ function _tvBindChannels(b){
   b.querySelectorAll('[data-ch]').forEach(x=>x.onclick=()=>_tvSendChannel(x.dataset.ch));
   b.querySelectorAll('[data-pad]').forEach(x=>x.onclick=()=>_tvPad(x.dataset.pad));
   const w=b.querySelector('[data-act="watchtv"]'); if(w) w.onclick=()=>_tvSource('TV');
+  _tvBindBox(b);
   const pb=b.querySelector('[data-act="pad"]'); if(pb) pb.onclick=()=>_atvPop('<div class="atv-poph"><b>Number Pad</b></div>'+_tvPadHTML(), pop=>{ pop.querySelectorAll('[data-pad]').forEach(x=>x.onclick=()=>{ _tvPad(x.dataset.pad); const t=pop.querySelector('#tvp-typed'); if(t) t.innerHTML=_atv.typed?_hEsc(_atv.typed):'<span>Type a channel number</span>'; if(x.dataset.pad==='ok') _atvPopClose(); }); }, 'tvp-padpop');
 }
 function _tvPad(k){
@@ -19566,13 +19589,16 @@ function _tvRenderRemote(b){
     _atvPress(x,{tap:()=>_tvKey(k), holdStart:()=>{ _tvKey(k); if(k!=='select') rep=setInterval(()=>_tvKey(k),220); }, holdEnd:()=>{ clearInterval(rep); rep=null; }}); });
   b.querySelectorAll('[data-tk]').forEach(x=>_atvPress(x,{tap:()=>_tvKey(x.dataset.tk)}));
   const w=b.querySelector('[data-act="watchtv"]'); if(w) w.onclick=()=>_tvSource('TV');
+  _tvBindBox(b);
 }
+// the recorded box's own page: close this one, open that box's (its own page when it has one, else its player)
+function _tvBindBox(b){ const x=b.querySelector('[data-act="boxremote"]'); if(x) x.onclick=()=>{ const box=x.dataset.box; atvClose(); try{ openPlayer(box); }catch(e){} }; }
 function _tvRenderInputs(b){
   const list=(att(_atv.e,'source_list')||[]).filter(s=>/^(HDMI\s?\d|TV$|AV\b|Component)/i.test(String(s)));
   const cur=att(_atv.e,'source');
   const art=att(_atv.e,'art_mode_status')!=null;
-  b.innerHTML='<div class="atv-apps"><div class="atv-sec">Inputs<em class="atv-sech">The TV’s own inputs. Tap to switch.</em></div><div class="tvp-ins">'
-    +(list.length?list.map(s=>'<button type="button" class="tvp-in'+(s===cur?' on':'')+'" data-src="'+_hEsc(s)+'"><span class="th">'+_tvIcon(s==='TV'?'tuner':'input')+'</span><span><b>'+_hEsc(s==='TV'?'TV':s)+'</b><span>'+(s==='TV'?'The TV’s own tuner':'Input')+'</span></span>'+(s===cur?'<em>On now</em>':'')+'</button>').join('')
+  b.innerHTML='<div class="atv-apps"><div class="atv-sec">Inputs<em class="atv-sech">The TV’s own inputs, named by what the room’s record has on each. Tap to switch.</em></div><div class="tvp-ins">'
+    +(list.length?list.map(s=>'<button type="button" class="tvp-in'+(s===cur?' on':'')+'" data-src="'+_hEsc(s)+'"><span class="th">'+_tvIcon(s==='TV'?'tuner':'input')+'</span><span><b>'+_hEsc(_tvBoxOn(s)?_tvBoxName(_tvBoxOn(s)):(s==='TV'?'TV':s))+'</b><span>'+(s==='TV'?'The TV’s own tuner':(_tvBoxOn(s)?_hEsc(s):((_atv.inputs||[]).length?_hEsc(s)+' \u00b7 nothing recorded':'Input')))+'</span></span>'+(s===cur?'<em>On now</em>':'')+'</button>').join('')
       :'<div class="atv-hint left">The TV doesn’t list its inputs.</div>')+'</div>'
     +(art?'<div class="atv-sec">The Frame</div><div class="tvp-ins"><button type="button" class="tvp-in'+(_inArtMode(_atv.e)?' on':'')+'" data-act="art"><span class="th">'+_tvIcon('art')+'</span><span><b>Art Mode</b><span>'+(_inArtMode(_atv.e)?'Showing art':'Show art')+'</span></span>'+(_inArtMode(_atv.e)?'<em>On now</em>':'')+'</button></div>':'')+'</div>';
   b.querySelectorAll('[data-src]').forEach(x=>x.onclick=()=>_tvSource(x.dataset.src));
@@ -19581,7 +19607,9 @@ function _tvRenderInputs(b){
 }
 function _tvMaybeUpdate(eid){
   if(!_atv||_atv.kind!=='tv') return;
-  if(eid!==_atv.e && eid!==_atv.vol) return;
+  const box=_tvBox();
+  if(eid!==_atv.e && eid!==_atv.vol && eid!==box) return;
+  if(eid===box){ if(_atv.tab==='channels'||_atv.tab==='remote'){ const np=document.querySelector('#atv-body .tvp-now b'); const t=att(box,'media_title')||''; if(!np||np.dataset.t!==t) _tvRenderBody(); } return; }
   if(eid===_atv.e && !tvShouldOpen(_atv.e)){ atvClose(); return; }
   const st=_tvStatus(), chip=document.getElementById('atv-chip');
   const was=chip&&chip.querySelector('em')?chip.querySelector('em').textContent:'';

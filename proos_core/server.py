@@ -8052,6 +8052,18 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, {"id": parts[1], "channels": _channels.confirmed(parts[1])})
                 lst = _channels.get(parts[1])
                 return self._send(200, lst) if lst else self._send(404, {"error": "No such list"})
+            if len(parts) == 3 and parts[0] == "areas" and parts[2] == "inputs":
+                # REGISTER 1057 (ruling 2, Dave 28 Oct 14:17): which box the room's COMMISSIONED record has on each of
+                # the display's inputs — the only thing the TV page may borrow a picture from. Read-only; the record
+                # is the truth; an uncommitted room answers committed false and the page borrows nothing.
+                try:
+                    proj = project.load()
+                    rec = project._resolve_rec(proj, parts[1]) or {}
+                except Exception:                                    # noqa: BLE001
+                    rec = {}
+                ins = rec.get("inputs") if isinstance(rec.get("inputs"), dict) else {}
+                return self._send(200, {"area_id": parts[1], "committed": bool(rec.get("committed")), "display": rec.get("display") or "",
+                                        "inputs": [{"input": v, "entity": k} for k, v in ins.items() if isinstance(v, str) and v]})
             if len(parts) == 3 and parts[0] == "areas" and parts[2] == "channels":
                 # REGISTER 1051: the room's favourite channels. A dashboard gets only confirmed, shown ones; Pro
                 # (?all=1) sees every saved favourite with its state.
