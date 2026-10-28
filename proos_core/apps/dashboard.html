@@ -4999,7 +4999,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102617';
+const PROOS_BUILD='2026102618';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -19155,8 +19155,11 @@ function _atvTypeOpen(){
 function _atvTypeClose(){ if(_atv&&_atv.kbOpen) _atvPopClose(); }
 
 // ── Apps ────────────────────────────────────────────────────────────────────────────────────────────────────
+// register 1055: the app list a page offers — the Apple TV's own (proos_apps), or for the Live TV page the TV's own list
+// from Core (/shortcuts/<room>/apps: the apps the TV publishes, each with the TV's own launch id)
+function _atvApps(){ return (_atv&&_atv.kind==='tv')?(_atv.apps||{}):(att(_atv.e,'proos_apps')||{}); }
 function _atvRenderApps(b){
-  const apps=att(_atv.e,'proos_apps')||{}, names=Object.keys(apps).sort((a,c)=>a.localeCompare(c));
+  const apps=_atvApps(), names=Object.keys(apps).sort((a,c)=>a.localeCompare(c));
   const nowId=att(_atv.e,'app_id'), q=(_atv.appQ||'').toLowerCase();
   const shown=names.filter(n=>!q||n.toLowerCase().includes(q));
   const acc=_atv.accounts;
@@ -19170,7 +19173,7 @@ function _atvRenderApps(b){
             :'<div class="atv-hint left">No apps on the '+_hEsc(room.name||'room')+' page yet.</div>'); })()
     +'<div class="atv-sec">'+(q?'Matching apps':'All apps · '+names.length+' installed')+(_atv.room?'<em class="atv-sech">Press and hold an app to add it to or take it off the '+_hEsc(_atv.room.name||'room')+' page</em>':'')+'</div>'
     +'<div class="atv-appgrid">'+shown.map(n=>_atvAppTile(n,apps,nowId,false)).join('')
-    +(q&&!shown.length?'<button type="button" class="atv-store" data-store="1">'+_atvIcon('search')+'No app called “'+_hEsc(_atv.appQ)+'”. Open the App Store on the TV</button>':'')+'</div></div>';
+    +(q&&!shown.length?(_atv.kind==='tv'?'<div class="atv-hint left">No app called “'+_hEsc(_atv.appQ)+'” on this TV.</div>':'<button type="button" class="atv-store" data-store="1">'+_atvIcon('search')+'No app called “'+_hEsc(_atv.appQ)+'”. Open the App Store on the TV</button>'):'')+'</div></div>';
   const qi=b.querySelector('#atv-appq'); qi.oninput=()=>{ _atv.appQ=qi.value; const pos=qi.selectionStart; _atvRenderApps(b); const n=b.querySelector('#atv-appq'); n.focus(); try{n.setSelectionRange(pos,pos);}catch(e){} };
   b.querySelectorAll('[data-app]').forEach(x=>_atvAppPress(x, x.dataset.app, apps[x.dataset.app]));
   b.querySelectorAll('[data-acc]').forEach(x=>x.onclick=()=>{ const a=(_atv.accounts||[]).find(y=>y.id===x.dataset.acc);
@@ -19210,14 +19213,14 @@ function _atvAppPress(el, n, id){
 }
 function _atvOpenApp(n, id){
   const room=_atv&&_atv.room;
-  if(!room){ _atvLaunch(n, id); return; }                 // an Apple TV in no room has no room launcher: the direct road
+  if(!room){ if(_atv.kind==='tv'){ _atvToast('This TV isn\u2019t in a room'); return; } _atvLaunch(n, id); return; }   // an Apple TV in no room has no room launcher: the direct road
   _atvToast('Opening '+n+'…');
   _coreFetch(proosCoreBase()+'/shortcuts/'+encodeURIComponent(room.id)+'/launch',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({app:n, target:_atv.e})},40000).then(r=>r.json()).then(d=>{ _atvToast(d&&d.ok?(d.note||n):((d&&d.error)||('Couldn\u2019t open '+n))); })
+    body:JSON.stringify(_atv.kind==='tv'?{app:n, target:_atv.e, token:id}:{app:n, target:_atv.e})},40000)   // register 1055: the TV's own launch id.then(r=>r.json()).then(d=>{ _atvToast(d&&d.ok?(d.note||n):((d&&d.error)||('Couldn\u2019t open '+n))); })
     .catch(()=>_atvToast('Could not reach ProOS Core to open '+n));
 }
 function _atvAppHold(n){
-  const apps=att(_atv.e,'proos_apps')||{}, room=_atv.room; if(!room) return;
+  const apps=_atvApps(), room=_atv.room; if(!room) return;
   const tile=_atvTileFor(n), synced=!!(tile&&tile.sync);
   const btns=!tile?'<button type="button" class="primary" data-act="all">All Dashboards</button><button type="button" class="ghost" data-act="one">Just This Screen</button>'
     :synced?'<button type="button" class="primary danger" data-act="offall">Take Off All Dashboards</button>'
@@ -19415,7 +19418,7 @@ function _atvRenderPlaying(b){
 // Channels · Remote · Inputs. NEVER ASSUMED (Dave 14:43): the TV does not report its channel, so the page says only
 // what ProOS SENT ("Sent 9 · Nine"), and only CONFIRMED channels from the TV's own list are offered. The Apps tab and the
 // picture borrowed from the box on an input follow in the next stage.
-const _TV_TABS=['channels','remote','inputs'];
+const _TV_TABS=['channels','remote','apps','inputs'];
 // register 1054: entityPlatformMap is a page-level `let` — it is NOT on window (reading it through window found
 // nothing on Dave's iPhone, so every Samsung TV still opened the old sheet). Read the binding itself.
 function tvSupported(e){ try{ return entityPlatformMap[e]==='samsungtv_smart'; }catch(x){ return false; } }
@@ -19446,11 +19449,19 @@ async function _tvLoadChannels(){
   if(_atv&&_atv.room){ try{ out.favs=(((await _coreFetch(proosCoreBase()+'/areas/'+encodeURIComponent(_atv.room.id)+'/channels',{},8000).then(r=>r.json()))||{}).favourites||[]).filter(f=>f.device===e); }catch(x){} }
   if(!_atv||_atv.e!==e) return; _atv.ch=out; if(_atv.tab==='channels') _tvRenderBody();
 }
+// register 1055: the TV's own app list, from Core — the same list Pro's App Shortcuts offers for this TV
+async function _tvLoadApps(){
+  if(!_atv||_atv.kind!=='tv') return; const e=_atv.e, room=_atv.room;
+  let apps={};
+  try{ const d=await _coreFetch(proosCoreBase()+'/shortcuts/'+encodeURIComponent(room?room.id:'_')+'/apps?target='+encodeURIComponent(e),{},10000).then(r=>r.json());
+    (d.apps||[]).forEach(a=>{ if(a&&a.name&&a.token) apps[a.name]=a.token; }); }catch(x){ if(_atv&&_atv.e===e){ _atv.apps={}; _atvToast('Could not reach ProOS Core for the TV\u2019s apps'); } }
+  if(!_atv||_atv.e!==e) return; _atv.apps=apps; if(_atv.tab==='apps') _tvRenderBody();
+}
 function _tvRender(){
   const p=document.getElementById('atv-page'); if(!p||!_atv) return;
   const st=_tvStatus();
   const roomName=_atv.room?(_atv.room.name||_atv.room.id):(deviceNameById[entityDeviceMap[_atv.e]]||'');
-  const tabs=[['channels','Channels'],['remote','Remote'],['inputs','Inputs']];
+  const tabs=[['channels','Channels'],['remote','Remote'],['apps','Apps'],['inputs','Inputs']];
   p.innerHTML='<div class="atv-bg"></div>'
     +'<header class="atv-hdr"><div class="atv-hl"><button type="button" class="atv-bk" data-act="close">'+_atvIcon('back')+'<b>'+_hEsc(roomName)+'</b></button><div class="atv-ht">TV</div></div>'
     +'<div class="atv-segs" role="tablist">'+tabs.map(t=>'<button type="button" role="tab" data-tab="'+t[0]+'" class="'+(t[0]===_atv.tab?'on':'')+'">'+t[1]+'</button>').join('')+'</div>'
@@ -19468,6 +19479,7 @@ function _tvRenderBody(){
   if(st.k==='offline'){ b.innerHTML='<div class="atv-state off"><div class="atv-sico">'+_atvIcon('wifi')+'</div><b>Not reachable</b><span>ProOS has no connection to this TV right now.</span><small>Room volume and Room Off still work.</small></div>'; return; }
   if(_atv.tab==='remote') return _tvRenderRemote(b);
   if(_atv.tab==='inputs') return _tvRenderInputs(b);
+  if(_atv.tab==='apps'){ if(_atv.apps) return _atvRenderApps(b); b.innerHTML='<div class="atv-apps"><div class="atv-hint left">Loading the TV\u2019s apps…</div></div>'; return _tvLoadApps(); }
   _tvRenderChannels(b);
 }
 const _TVI={
