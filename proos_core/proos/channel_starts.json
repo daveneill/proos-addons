@@ -1,0 +1,32 @@
+{
+ "_about": "ProOS's starting channel lists (register 1049). A SUGGESTION only: every row starts unconfirmed and is checked on the TV by the installer. Melbourne free-to-air from the public channel listings, 28 Oct 2026. No Foxtel or Fetch starting list ships yet: those start empty until a list is sourced.",
+ "fta": {
+  "Melbourne": [
+   {"number": "2", "name": "ABC TV", "type": "General", "aka": ["ABC", "the ABC"]},
+   {"number": "20", "name": "ABC TV HD", "type": "General"},
+   {"number": "22", "name": "ABC Kids / ABC Family", "type": "Kids"},
+   {"number": "23", "name": "ABC Entertains", "type": "General"},
+   {"number": "24", "name": "ABC News", "type": "News", "aka": ["ABC News"]},
+   {"number": "3", "name": "SBS", "type": "General", "aka": ["SBS"]},
+   {"number": "31", "name": "SBS Viceland", "type": "General", "aka": ["Viceland"]},
+   {"number": "32", "name": "SBS World Movies", "type": "Movies"},
+   {"number": "33", "name": "SBS Food", "type": "General"},
+   {"number": "34", "name": "NITV", "type": "General"},
+   {"number": "35", "name": "SBS WorldWatch", "type": "News"},
+   {"number": "7", "name": "Seven", "type": "General", "aka": ["Channel 7", "Channel Seven"]},
+   {"number": "72", "name": "7two", "type": "General"},
+   {"number": "74", "name": "7mate", "type": "Sport"},
+   {"number": "75", "name": "7Bravo", "type": "General"},
+   {"number": "76", "name": "7flix", "type": "Movies"},
+   {"number": "9", "name": "Nine", "type": "General", "aka": ["Channel 9", "Channel Nine"]},
+   {"number": "92", "name": "9Gem", "type": "General"},
+   {"number": "93", "name": "9Go!", "type": "Kids"},
+   {"number": "94", "name": "9Life", "type": "General"},
+   {"number": "96", "name": "9Rush", "type": "General"},
+   {"number": "10", "name": "10", "type": "General", "aka": ["Channel 10", "Channel Ten", "Ten"]},
+   {"number": "11", "name": "10 Comedy", "type": "General"},
+   {"number": "12", "name": "10 Drama", "type": "General"},
+   {"number": "13", "name": "Nickelodeon", "type": "Kids"}
+  ]
+ }
+}

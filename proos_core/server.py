@@ -257,6 +257,11 @@ try:
 except Exception:  # noqa: BLE001
     _shortcuts = None
 try:
+    from proos import channels as _channels         # the house's channel lists, confirmed on a TV (register 1049)
+except Exception:  # noqa: BLE001
+    _channels = None
+_CH_SENT = {}   # register 1049: (list, channel, device, number) -> when ProOS SENT it — Confirm needs a send first
+try:
     from proos import avrzones as _avrzones         # brand-agnostic AVR zone detection
 except Exception:  # noqa: BLE001
     _avrzones = None
@@ -455,6 +460,24 @@ def _shortcut_from_device(body):
     if _ent and not ((body or {}).get("token") or "").strip():
         sc["token"] = _ent["token"]
     return sc, None
+
+
+def _channel_tuners():
+    """REGISTER 1049: the TVs whose integration ProOS can send a channel number to (today: the Samsung driver's own
+    channel command), with their names — offered as Used By. Read from the registry, never named by hand."""
+    out = []
+    try:
+        names = {}
+        for st in (_client.all_states() or []):
+            names[st.get("entity_id")] = (st.get("attributes") or {}).get("friendly_name") or st.get("entity_id")
+        for e in (_client.entity_registry() or []):
+            eid = e.get("entity_id") or ""
+            if eid.startswith("media_player.") and e.get("platform") == "samsungtv_smart" and not e.get("disabled_by"):
+                out.append({"entity_id": eid, "name": names.get(eid, eid), "platform": "samsungtv_smart",
+                            "list": _channels.list_for_device(eid) if _channels else None})
+    except Exception:                                            # noqa: BLE001
+        pass
+    return out
 
 
 _FAVS_FOLDED = {"done": False}
@@ -3880,6 +3903,8 @@ def factory_reset(clear_proos_data=False, keep_auth=False):
                    "device_ports.json",
                    # the fourteen that used to survive
                    "music_genres.json", "consent.json", "shortcuts.json",
+                   # the house's channel lists (register 1049) — site data, like the shortcuts
+                   "channel_lists.json",
                    "watch_learned.json",          # 970oo: which box went straight to a show — this home's entity ids
                    "account_copies.json",         # 970rr: the box's one-way copies of this home's ProOS accounts
                    "garage_doors.json",           # 974: which pieces make this home's garage doors
@@ -5358,6 +5383,10 @@ def _journal_emit_safe(area, kind, data):
 
 
 class Handler(BaseHTTPRequestHandler):
+    def _send_res(self, res: dict):
+        """A store's answer: 400 with its own words when it refused, 200 otherwise (register 1049)."""
+        return self._send(400 if (res or {}).get("error") else 200, res or {})
+
     def _send(self, code: int, payload: dict):
         body = json.dumps(payload).encode()
         self.send_response(code)
@@ -8008,6 +8037,21 @@ class Handler(BaseHTTPRequestHandler):
                 if not tgt.startswith("media_player."):
                     return self._send(400, {"error": "target must be a media_player"})
                 return self._send(200, _shortcuts.device_apps(_client, tgt, android_held=_atv_held(tgt)))
+            # ── REGISTER 1049: CHANNEL LISTS (read) ── any signed-in user; a dashboard asks for confirmed ones only
+            if parts == ["channels"]:
+                if not _channels:
+                    return self._send(200, {"lists": [], "starts": [], "tuners": []})
+                return self._send(200, {"lists": _channels.lists(), "starts": _channels.start_options(),
+                                        "services": _channels.SERVICE_NAMES, "types": list(_channels.TYPES),
+                                        "tuners": _channel_tuners()})
+            if len(parts) == 2 and parts[0] == "channels":
+                if not _channels:
+                    return self._send(404, {"error": "channels unavailable"})
+                q = parse_qs(urlparse(self.path).query)
+                if (q.get("confirmed") or [""])[0] == "1":
+                    return self._send(200, {"id": parts[1], "channels": _channels.confirmed(parts[1])})
+                lst = _channels.get(parts[1])
+                return self._send(200, lst) if lst else self._send(404, {"error": "No such list"})
             if len(parts) == 2 and parts[0] == "shortcuts":
                 # A room's app shortcuts, in order. Homeowner surface — the
                 # dashboard renders the widgets from this; any signed-in user.
@@ -10173,6 +10217,58 @@ class Handler(BaseHTTPRequestHandler):
                 b = self._body() or {}
                 res = _appart.delete_tile(b.get("slug") or b.get("name") or "")
                 return self._send(400 if res.get("error") else 200, res)
+            # ── REGISTER 1049: CHANNEL LISTS (change) ── installer (tech) or owner only, like App Shortcuts
+            if parts and parts[0] == "channels" and len(parts) in (2, 3):
+                u = self._user
+                if not (u and (u.get("is_owner") or (users and users.is_tech(u.get("id"))))):
+                    return self._send(403, {"error": "tech access required"})
+                if not _channels:
+                    return self._send(503, {"error": "channels unavailable"})
+                b = self._body() or {}
+                who = (u.get("name") or u.get("id") or "")
+                if parts == ["channels", "new"]:
+                    return self._send_res(_channels.create(b.get("service") or "", b.get("region") or "",
+                                                           b.get("name") or "", b.get("used_by") or [],
+                                                           b.get("start") or "empty", by=who))
+                lid = parts[1]
+                act = parts[2] if len(parts) == 3 else (b.get("op") or "")
+                if act == "used_by":
+                    return self._send_res(_channels.set_used_by(lid, b.get("used_by") or []))
+                if act == "rename":
+                    return self._send_res(_channels.rename(lid, b.get("name") or ""))
+                if act == "remove_list":
+                    return self._send_res(_channels.remove_list(lid))
+                if act == "add":
+                    return self._send_res(_channels.add_channel(lid, b))
+                cid = (b.get("channel") or "").strip()
+                if act == "update":
+                    return self._send_res(_channels.update_channel(lid, cid, b.get("fields") or {}))
+                if act == "remove":
+                    return self._send_res(_channels.remove_channel(lid, cid))
+                if act == "unconfirm":
+                    return self._send_res(_channels.unconfirm(lid, cid))
+                if act in ("send", "confirm"):
+                    lst = _channels.get(lid)
+                    c = next((x for x in (lst or {}).get("channels", []) if x.get("id") == cid), None)
+                    dev = (b.get("device") or "").strip()
+                    if not c:
+                        return self._send(400, {"error": "No such channel"})
+                    if dev not in (lst.get("used_by") or []):
+                        return self._send(400, {"error": "That TV doesn\u2019t use this list"})
+                    key = (lid, cid, dev, c["number"])
+                    if act == "confirm":
+                        return self._send_res(_channels.confirm(lid, cid, who, dev, sent=key in _CH_SENT))
+                    call, err = _channels.send_command(dev, c["number"], _shortcuts.platform_of(_client, dev) if _shortcuts else "")
+                    if err:
+                        return self._send(400, {"error": err})
+                    try:
+                        _client.call_service(call[0], call[1], dev, {k: v for k, v in call[2].items() if k != "entity_id"})
+                    except Exception as e:                       # noqa: BLE001
+                        return self._send(502, {"error": "The TV didn\u2019t take the command: %s" % e})
+                    _CH_SENT[key] = time.time()
+                    # SENT, never "on": the TV does not report its channel (register 1047), so nothing is claimed
+                    return self._send(200, {"ok": True, "sent": c["number"], "note": "Sent %s to the TV — look, then confirm" % c["number"]})
+                return self._send(400, {"error": "unknown channel action"})
             if len(parts) == 3 and parts[0] == "shortcuts" and parts[2] == "launch":
                 # Dashboard app tile: launch a room's shortcut. Any signed-in user
                 # (homeowner surface). Uses the STORED shortcut so an installer's

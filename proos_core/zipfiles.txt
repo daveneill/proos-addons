@@ -5579,3 +5579,5 @@ proos/connectvoice.py
 proos/connecttunnel.py
 proos/netchange.py
 proos/weatherstd.py
+proos/channels.py
+proos/channel_starts.json
