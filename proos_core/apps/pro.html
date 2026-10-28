@@ -1756,6 +1756,11 @@ body.v3-assist .v3drawer{display:flex}
 .v3db #assist-overlay.docked #assist-history{flex:1;min-height:0;overflow-y:auto}
 body.v3 .assist-fab{display:none!important}
 /* shared page language */
+/* REGISTER 1051 — a room's channels */
+.rch-dev{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 12px;margin:6px 0 4px}.rch-dev b{font-size:15px;font-weight:600}.rch-dev span{color:rgba(255,255,255,.62);font-size:13.5px}
+.rch-tile .chl-lg.rch{width:100%;height:auto;aspect-ratio:16/10}.rch-tile .chl-lg.rch b{font-size:26px}.rch-tile .chl-lg.rch i{font-size:11px}
+.rch-tile.rch-off{opacity:.62}.rch-st{font-size:11px;color:#ffc266;margin-top:4px}.rch-add{font-size:10.5px;font-weight:600;letter-spacing:.08em;color:#9aa6ff;margin-top:4px}
+.rch-mv{display:flex;justify-content:space-between;margin-top:6px}.rch-mv button{width:28px;height:24px;border-radius:8px;border:0;background:rgba(255,255,255,.08);color:#fff;cursor:pointer;font-size:15px;line-height:1}.rch-mv span{width:28px}
 /* REGISTER 1050 — Channel Lists (System Setup) */
 .chl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
 .chl-card{display:flex;flex-direction:column;gap:10px;padding:16px 18px;border-radius:18px;background:rgba(255,255,255,.045);box-shadow:inset 0 0 0 1px rgba(255,255,255,.075);border:0;color:#fff;font:inherit;text-align:left;cursor:pointer}
@@ -1851,6 +1856,7 @@ body.v3 #panel-home .rh-card:has(#ml-health){display:none}
 #panel-room[data-v3view="av"] #room-devices>.rh-card[data-v3="av"],
 #panel-room[data-v3view="activities"] #room-devices>.rh-card[data-v3="activities"],
 #panel-room[data-v3view="shortcuts"] #room-devices>.rh-card[data-v3="shortcuts"],
+#panel-room[data-v3view="channels"] #room-devices>.rh-card[data-v3="channels"],
 #panel-room[data-v3view="dashboard"] #room-devices>.rh-card[data-v3="dashboard"],
 #panel-room[data-v3view="evidence"] #room-devices>.rh-card[data-v3="evidence"],
 #panel-room[data-v3view="options"] #room-devices>.rh-card[data-v3="options"],
@@ -3017,7 +3023,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102612';
+const PROOS_BUILD='2026102613';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -11031,6 +11037,7 @@ function renderRoomHub(){
     +(rec&&rec.committed?`<div class="rh-verify">${rhVerifyLine(v)}</div>`:'')+`</div></div>`;
   h+=`<div class="rh-card"><div class="rh-hd"><span class="rh-hd-t">Activities</span></div>${rhActivities(rec)}</div>`;
   h+=rhShortcuts(rec);
+  h+=rhChannels(rec);   // register 1051: the room's channels, beside its App Shortcuts
   // A room open fires renderRoomHub up to 4x (initial, loadRoomDevices,
   // avLoadActivities, the 700ms refresh); a save/commit re-renders again. Each
   // was a full innerHTML teardown = a visible flash, even when nothing changed
@@ -11203,6 +11210,73 @@ async function scSupport(){
     +rows
     +'<div style="margin-top:12px;text-align:right"><button class="rh-link" onclick="document.getElementById(\'sc-support-ov\').remove()">Close</button></div></div>';
   document.body.appendChild(ov);
+}
+// ═══ REGISTER 1051 — A ROOM'S CHANNELS IN PRO (Dave 28 Oct 15:40 "Go"; stage 3 of the channel editor) ═══
+// Beside App Shortcuts: the room's favourite channels for each TV in the room that ProOS can send a number to. Only a
+// CONFIRMED channel can be added (Core refuses the rest); one that went back to To Check stays here, marked, and is off
+// every dashboard until it is confirmed again. Kept by Core beside the channel lists, synced to every dashboard.
+let _rhCh={};   // area -> {tuners, lists:{id:list}, favs:[...] } once read
+let _rhChTap={};
+function _rhChTuners(rec, area){ const d=_rhCh[area]; if(!d||!d.tuners) return []; const ids=new Set(d.tuners.map(t=>t.entity_id));
+  return scDevices(rec).filter(x=>ids.has(x.entity_id)).map(x=>Object.assign({}, x, d.tuners.find(t=>t.entity_id===x.entity_id))); }
+function roomHasTuner(rec, area){ return _rhChTuners(rec, area).length>0; }
+async function loadRoomChannels(area){
+  const out={lists:{}};
+  try{ const r=await _coreFetch(proCoreUrl()+'/channels'); const j=await r.json(); out.tuners=j.tuners||[]; out.summ=j.lists||[]; }catch(e){ out.tuners=[]; out.summ=[]; out.error='Could not reach ProOS Core'; }
+  const need=new Set(out.tuners.map(t=>t.list).filter(Boolean));
+  for(const id of need){ try{ const r=await _coreFetch(proCoreUrl()+'/channels/'+encodeURIComponent(id)); out.lists[id]=await r.json(); }catch(e){} }
+  try{ const r=await _coreFetch(proCoreUrl()+'/areas/'+encodeURIComponent(area)+'/channels?all=1'); out.favs=((await r.json())||{}).favourites||[]; }catch(e){ out.favs=[]; }
+  _rhCh[area]=out;
+  if(_roomHubArea===area) renderRoomHub();
+}
+function _rhChTile(c, inner){ return '<span class="chl-lg rch"><b>'+esc(c.number)+'</b><i>'+esc(c.name)+'</i></span>'+(inner||''); }
+function rhChannels(rec){
+  const area=_roomHubArea, d=_rhCh[area];
+  if(!d){ loadRoomChannels(area); return ''; }
+  const tuners=_rhChTuners(rec, area);
+  if(!tuners.length) return '';
+  const a=esc(area);
+  const body=tuners.map(t=>{
+    const lst=t.list&&d.lists[t.list];
+    if(!lst) return '<div class="rch-dev"><b>'+esc(t.name)+'</b><span>Not on a channel list yet.</span><button class="rh-link" onclick="openChannels()">Channel Lists ›</button></div>';
+    const favs=(d.favs||[]).filter(f=>f.device===t.entity_id&&f.list===t.list&&!f.missing);
+    const favIds=new Set(favs.map(f=>f.channel));
+    const ok=(lst.channels||[]).filter(c=>c.confirmed&&c.shown&&!favIds.has(c.id));
+    const toCheck=(lst.channels||[]).filter(c=>!c.confirmed).length;
+    const e=esc(t.entity_id), l=esc(t.list);
+    const favTiles=favs.length?'<div class="sc-grid">'+favs.map((f,i)=>'<div class="sc-tile rch-tile'+(f.confirmed&&f.shown?'':' rch-off')+'" onclick="rchSend(\''+a+'\',\''+l+'\',\''+esc(f.channel)+'\',\''+e+'\')" title="Tap to send it to the TV">'
+        +'<button class="sc-x" title="Remove" onclick="event.stopPropagation();rchFav(\''+a+'\',\'remove\',\''+l+'\',\''+esc(f.channel)+'\',\''+e+'\')">×</button>'
+        +_rhChTile(f)+'<div class="sc-nm">'+esc(f.name)+'</div>'
+        +(f.confirmed&&f.shown?'':'<div class="rch-st">'+(f.confirmed?'Hidden':'To Check')+' · off the dashboards</div>')
+        +'<div class="rch-mv">'+(i?'<button title="Earlier" onclick="event.stopPropagation();rchFav(\''+a+'\',\'move\',\''+l+'\',\''+esc(f.channel)+'\',\''+e+'\',-1)">‹</button>':'<span></span>')
+        +(i<favs.length-1?'<button title="Later" onclick="event.stopPropagation();rchFav(\''+a+'\',\'move\',\''+l+'\',\''+esc(f.channel)+'\',\''+e+'\',1)">›</button>':'<span></span>')+'</div></div>').join('')+'</div>'
+      :'<div class="rh-empty">No favourite channels yet — tap a channel below to add it.</div>';
+    const addTiles=ok.length?'<div class="sc-grid">'+ok.map(c=>'<div class="sc-tile rch-tile" onclick="rchFav(\''+a+'\',\'add\',\''+l+'\',\''+esc(c.id)+'\',\''+e+'\')">'+_rhChTile(c)+'<div class="sc-nm">'+esc(c.name)+'</div><div class="rch-add">TAP TO ADD</div></div>').join('')+'</div>'
+      :'<div class="rh-empty">'+((lst.channels||[]).length?'Every confirmed channel is already a favourite.':'This list has no channels yet.')+'</div>';
+    return '<div class="rch-dev"><b>'+esc(t.name)+'</b><span>'+esc(lst.name)+'</span><button class="rh-link" onclick="openChannels();chOpenList(\''+l+'\')">Edit the List ›</button></div>'
+      +'<div class="rh-sec-lbl">Favourites · '+favs.length+'</div>'+favTiles
+      +'<div class="rh-sec-lbl">From the List · Confirmed Channels</div>'+addTiles
+      +(toCheck?'<div class="wiz-hint" style="margin-top:8px">'+toCheck+' channel'+(toCheck===1?' is':'s are')+' still To Check in the list, so '+(toCheck===1?'it isn’t':'they aren’t')+' offered here. Check them in Channel Lists.</div>':'');
+  }).join('<div style="height:14px"></div>');
+  return '<div class="rh-card"><div class="rh-hd"><span class="rh-hd-t">Channels</span></div>'
+    +'<div class="wiz-hint">The channels this room shows on its TV page, in this order, on every dashboard. Only channels confirmed on the TV can be added. Tap a tile to send it to the TV.</div>'+body+'</div>';
+}
+async function rchFav(area, op, list, channel, device, step){
+  try{ const r=await _coreFetch(proCoreUrl()+'/areas/'+encodeURIComponent(area)+'/channels',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:op, list:list, channel:channel, device:device, step:step||0})});
+    const j=await r.json().catch(()=>({})); if(!r.ok||j.error){ toast(j.error||'Not saved'); return; } }catch(e){ toast('Could not reach ProOS Core'); return; }
+  toast(op==='add'?'Added':op==='remove'?'Removed':'Moved'); loadRoomChannels(area);
+}
+async function rchSend(area, list, channel, device){
+  // the same send as Channel Lists: a TV that is off is said first (a send turns it on — register 1049); a second tap
+  // within a few seconds sends anyway. Sent, never "on".
+  const key=list+'|'+channel+'|'+device, now=Date.now();
+  if(!(_rhChTap[key]&&now-_rhChTap[key]<6000)){
+    try{ const m=await snd({type:'get_states'},6000); const s=((m&&m.result)||[]).find(x=>x.entity_id===device);
+      if(!s||s.state==='off'||s.state==='standby'||s.state==='unavailable'){ _rhChTap[key]=now; toast('The TV is off. Sending turns it on — tap again to send.'); return; } }catch(e){}
+  }
+  delete _rhChTap[key];
+  try{ const r=await _coreFetch(proCoreUrl()+'/channels/'+encodeURIComponent(list)+'/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({channel:channel, device:device})},20000);
+    const j=await r.json().catch(()=>({})); toast(r.ok&&!j.error?('Sent '+j.sent):(j.error||'Not sent')); }catch(e){ toast('Could not reach ProOS Core'); }
 }
 function rhShortcuts(rec){
   const area=_roomHubArea;
@@ -12018,7 +12092,7 @@ function renderChannels(){
 function _chListsHTML(){
   const L=_chv.data.lists||[];
   const cards=L.map(l=>'<button type="button" class="chl-card" onclick="chOpenList(\''+_chEsc(l.id)+'\')">'
-      +'<div class="chl-top"><span class="chl-badge s-'+_chEsc(l.service)+'">'+_chEsc((l.service_name||'').slice(0,3).toUpperCase())+'</span><div><div class="t1">'+_chEsc(l.name)+'</div>'
+      +'<div class="chl-top"><span class="chl-badge s-'+_chEsc(l.service)+'">'+({fta:'FTA',foxtel:'FOX',fetch:'FETCH',other:'TV'}[l.service]||'TV')+'</span><div><div class="t1">'+_chEsc(l.name)+'</div>'
       +'<div class="t2">'+l.count+' channels · '+l.confirmed+' confirmed</div></div></div>'
       +'<div>'+(l.to_check?'<span class="v3chip amber">'+l.to_check+' to check</span>':(l.count?'<span class="v3chip ok">All confirmed</span>':'<span class="v3chip">Empty</span>'))+'</div>'
       +'<div class="t2">'+(l.used_by.length?'Used by '+l.used_by.map(e=>'<b>'+_chEsc(_chName(e))+'</b>').join(', '):'Not used by a TV yet')+'</div></button>').join('');
@@ -21020,8 +21094,8 @@ if(typeof renderHealth==='function'){
   renderHealth=async function(){ const r=await _v3rh.apply(this,arguments); try{ v3HomeTop(); }catch(e){} if(_v2panel==='v3diag'&&_v3diag==='incidents') v3IncidentsFill(); return r; };
 }
 // ── AREAS › ROOM (AR-02 … AR-10): one overview, each part of the room its own page ──
-const V3ROOMVIEWS=[['overview','Room'],['av','AV Setup'],['activities','Activities'],['shortcuts','App Shortcuts'],['dashboard','Dashboard'],['evidence','Evidence'],['options','Room Options']];
-const _V3CARDS={'identity':'id','devices & av':'av','activities':'activities','app shortcuts':'shortcuts','live status':'evidence',
+const V3ROOMVIEWS=[['overview','Room'],['av','AV Setup'],['activities','Activities'],['shortcuts','App Shortcuts'],['channels','Channels'],['dashboard','Dashboard'],['evidence','Evidence'],['options','Room Options']];
+const _V3CARDS={'identity':'id','devices & av':'av','activities':'activities','app shortcuts':'shortcuts','channels':'channels','live status':'evidence',
   'icons and widgets — homeowner dashboard':'dashboard','device truth':'evidence','environment':'evidence','assist voice replies':'options','evidence timeline':'evidence'};
 function v3RoomView(k){
   _v3roomView=k;
@@ -21050,6 +21124,8 @@ function v3RoomDecorate(){
     +row('devices','plug','Devices',n+' device'+(n===1?'':'s')+' — names, aliases, Shows As','', false,"v3Devices('"+esc(_roomHubArea)+"')")
     +row('activities','play','Activities',actNames.length?actNames.join(' · '):(committed?'None yet':needSave),'<span class="v3ct">'+actNames.length+'</span>',true)
     +row('shortcuts','grid','App Shortcuts',sc.length?sc.map(x=>x.name||x.app).join(' · '):'Tested on the device before they\'re added','<span class="v3ct">'+sc.length+'</span>',true)
+    +(roomHasTuner(rec,_roomHubArea)?(()=>{ const f=((_rhCh[_roomHubArea]||{}).favs||[]).filter(x=>!x.missing); const t=_rhChTuners(rec,_roomHubArea);
+        return row('channels','tv','Channels',t.map(x=>x.name+(x.list?'':' · not on a list yet')).join(' · ')+(f.length?' · '+f.length+' favourite'+(f.length===1?'':'s'):''),'<span class="v3ct">'+f.length+'</span>',true); })():'')
     +row('prove','check','Prove the Room','Runs every activity and app shortcut, and reads the devices back','',true,committed?'openProve()':"toast('"+needSave+"')")
     +row('recovery','shield','Device Recovery','What ProOS may power-cycle when a device stops answering','',true,committed?'openRecovery()':"toast('"+needSave+"')")
     +((_systemAreas.has(_roomHubArea)||!v3HomeArea())?row('dashboard','grid','Dashboard','Which icons and widgets the homeowner sees')

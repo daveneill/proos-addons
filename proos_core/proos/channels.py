@@ -295,6 +295,82 @@ def remove_list(list_id: str) -> dict:
     return {"ok": True}
 
 
+# ── each room's favourite channels (register 1051) ──────────────────────────────────────────────────────────────
+# Kept HERE, beside the lists — not in the room's App Shortcuts. Every reader of that list (voice "open Netflix", the
+# app tiles, the launcher, the watch helper, the sweep) treats an entry as an app, so a channel there would be launched
+# as one. One list per room all the same, synced to Pro and every dashboard the same way.
+def _fav_ok(d: dict, list_id: str, channel_id: str, device: str):
+    lst = d["lists"].get(list_id)
+    if not lst:
+        return None, "No such list"
+    if device not in (lst.get("used_by") or []):
+        return None, "That TV doesn\u2019t use this list"
+    c = next((x for x in lst.get("channels", []) if x.get("id") == channel_id), None)
+    if not c:
+        return None, "No such channel"
+    return c, None
+
+
+def favourites(area_id: str, for_dashboard: bool = True) -> list:
+    """The room's favourite channels in its order, each resolved from its list: {list, channel, device, number, name,
+    logo, type}. For a dashboard only CONFIRMED and SHOWN channels (an unconfirmed or hidden one is left out, never
+    shown as if it were fine); Pro sees every saved favourite with its state."""
+    d = _all()
+    out = []
+    for f in (d.get("favs") or {}).get(area_id, []):
+        lst = d["lists"].get(f.get("list"))
+        c = next((x for x in (lst or {}).get("channels", []) if x.get("id") == f.get("channel")), None)
+        if not c or f.get("device") not in ((lst or {}).get("used_by") or []):
+            if not for_dashboard:
+                out.append(dict(f, missing=True))
+            continue
+        ok = bool(c.get("confirmed")) and c.get("shown", True)
+        if for_dashboard and not ok:
+            continue
+        out.append({"list": f["list"], "channel": c["id"], "device": f["device"], "number": c["number"], "name": c["name"],
+                    "logo": c.get("logo") or "", "type": c.get("type") or "General",
+                    "confirmed": bool(c.get("confirmed")), "shown": c.get("shown", True)})
+    return out
+
+
+def add_fav(area_id: str, list_id: str, channel_id: str, device: str) -> dict:
+    """Only a CONFIRMED channel can become a favourite, and only for a TV that uses its list."""
+    d = _all()
+    c, err = _fav_ok(d, list_id, channel_id, device)
+    if err:
+        return {"error": err}
+    if not c.get("confirmed"):
+        return {"error": "Confirm %s on the TV first" % c["name"]}
+    favs = d.setdefault("favs", {}).setdefault(area_id, [])
+    if any(f.get("list") == list_id and f.get("channel") == channel_id and f.get("device") == device for f in favs):
+        return {"ok": True, "count": len(favs)}
+    favs.append({"list": list_id, "channel": channel_id, "device": device})
+    _write(d)
+    return {"ok": True, "count": len(favs)}
+
+
+def remove_fav(area_id: str, list_id: str, channel_id: str, device: str) -> dict:
+    d = _all()
+    favs = (d.get("favs") or {}).get(area_id, [])
+    keep = [f for f in favs if not (f.get("list") == list_id and f.get("channel") == channel_id and f.get("device") == device)]
+    d.setdefault("favs", {})[area_id] = keep
+    _write(d)
+    return {"ok": True, "removed": len(favs) - len(keep)}
+
+
+def move_fav(area_id: str, list_id: str, channel_id: str, device: str, step: int) -> dict:
+    """One place earlier (step -1) or later (+1) in the room's order."""
+    d = _all()
+    favs = (d.get("favs") or {}).get(area_id, [])
+    i = next((n for n, f in enumerate(favs) if f.get("list") == list_id and f.get("channel") == channel_id and f.get("device") == device), -1)
+    j = i + (1 if step > 0 else -1)
+    if i < 0 or j < 0 or j >= len(favs):
+        return {"ok": True, "moved": 0}
+    favs[i], favs[j] = favs[j], favs[i]
+    _write(d)
+    return {"ok": True, "moved": 1}
+
+
 def send_command(entity_id: str, number: str, platform: str) -> tuple:
     """Pure: the platform service call that sends a channel number — the integration's OWN channel command. Only the
     Samsung driver is used for a tuner today (play_media channel 'N@TV': it selects the tuner, then the number).

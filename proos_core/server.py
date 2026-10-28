@@ -516,9 +516,9 @@ def _dash_ping(kind, data=""):
     # REGISTER 1046: Pro listens on the live bus, not the dashboards' queue — so a room's apps changed on any dashboard
     # (or in Pro) are said there too, and Pro's App Shortcuts card re-reads that room at once (Dave 28 Oct: "pro needs a
     # full close app and open to show").
-    if str(kind) == "appfavs" and _journal_mod is not None:
+    if str(kind) in ("appfavs", "channels") and _journal_mod is not None:
         try:
-            _journal_mod.publish({"kind": "shortcuts", "area": str(data), "ts": time.time()})
+            _journal_mod.publish({"kind": "shortcuts" if str(kind) == "appfavs" else "channels", "area": str(data), "ts": time.time()})
         except Exception:                                        # noqa: BLE001
             pass
 
@@ -8052,6 +8052,13 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, {"id": parts[1], "channels": _channels.confirmed(parts[1])})
                 lst = _channels.get(parts[1])
                 return self._send(200, lst) if lst else self._send(404, {"error": "No such list"})
+            if len(parts) == 3 and parts[0] == "areas" and parts[2] == "channels":
+                # REGISTER 1051: the room's favourite channels. A dashboard gets only confirmed, shown ones; Pro
+                # (?all=1) sees every saved favourite with its state.
+                if not _channels:
+                    return self._send(200, {"area_id": parts[1], "favourites": []})
+                allq = (parse_qs(urlparse(self.path).query).get("all") or [""])[0] == "1"
+                return self._send(200, {"area_id": parts[1], "favourites": _channels.favourites(parts[1], for_dashboard=not allq)})
             if len(parts) == 2 and parts[0] == "shortcuts":
                 # A room's app shortcuts, in order. Homeowner surface — the
                 # dashboard renders the widgets from this; any signed-in user.
@@ -10217,6 +10224,27 @@ class Handler(BaseHTTPRequestHandler):
                 b = self._body() or {}
                 res = _appart.delete_tile(b.get("slug") or b.get("name") or "")
                 return self._send(400 if res.get("error") else 200, res)
+            # ── REGISTER 1051: A ROOM'S FAVOURITE CHANNELS (change) ── installer or owner, like App Shortcuts
+            if len(parts) == 3 and parts[0] == "areas" and parts[2] == "channels":
+                u = self._user
+                if not (u and (u.get("is_owner") or (users and users.is_tech(u.get("id"))))):
+                    return self._send(403, {"error": "tech access required"})
+                if not _channels:
+                    return self._send(503, {"error": "channels unavailable"})
+                b = self._body() or {}
+                area, op = parts[1], (b.get("op") or "")
+                args = (area, b.get("list") or "", b.get("channel") or "", b.get("device") or "")
+                if op == "add":
+                    res = _channels.add_fav(*args)
+                elif op == "remove":
+                    res = _channels.remove_fav(*args)
+                elif op == "move":
+                    res = _channels.move_fav(*args, step=int(b.get("step") or 0))
+                else:
+                    return self._send(400, {"error": "unknown favourite action"})
+                if not res.get("error"):
+                    _dash_ping("channels", area)                # every dashboard and Pro (the live bus) hear it at once
+                return self._send_res(res)
             # ── REGISTER 1049: CHANNEL LISTS (change) ── installer (tech) or owner only, like App Shortcuts
             if parts and parts[0] == "channels" and len(parts) in (2, 3):
                 u = self._user
