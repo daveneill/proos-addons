@@ -1756,6 +1756,47 @@ body.v3-assist .v3drawer{display:flex}
 .v3db #assist-overlay.docked #assist-history{flex:1;min-height:0;overflow-y:auto}
 body.v3 .assist-fab{display:none!important}
 /* shared page language */
+/* REGISTER 1050 — Channel Lists (System Setup) */
+.chl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.chl-card{display:flex;flex-direction:column;gap:10px;padding:16px 18px;border-radius:18px;background:rgba(255,255,255,.045);box-shadow:inset 0 0 0 1px rgba(255,255,255,.075);border:0;color:#fff;font:inherit;text-align:left;cursor:pointer}
+.chl-card:hover{background:rgba(255,255,255,.07)}.chl-card .t1{font-size:16px;font-weight:600}.chl-card .t2{font-size:13.5px;color:rgba(255,255,255,.62)}.chl-card .t2 b{color:#fff;font-weight:500}
+.chl-new{border:1px dashed rgba(255,255,255,.2);box-shadow:none;background:none;justify-content:center;min-height:120px}
+.chl-top{display:flex;align-items:center;gap:12px}.chl-badge{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;font-weight:800;font-size:12.5px;background:#1d1d1f;flex:none}
+.chl-badge.s-foxtel{background:#e85a00}.chl-badge.s-fetch{background:#6a2bd8}.chl-badge.s-other{background:#33363d}
+.chl-chips{display:flex;flex-wrap:wrap;gap:8px;padding:2px 4px}.chl-chips .v3chip[disabled]{opacity:.45;cursor:not-allowed}
+.chl-note{margin:12px 4px 0;padding:12px 14px;border-radius:14px;background:rgba(255,179,64,.12);color:#ffd28a;font-size:13.5px;line-height:1.45}
+.chl-note.blue{background:rgba(33,57,240,.16);color:#c3cbff}
+.chl-tools{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px}
+.chl-q,.chl-in{height:40px;border-radius:12px;background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.1);color:#fff;font:inherit;font-size:15px;font-weight:400;padding:0 12px;min-width:0}
+.chl-hint{display:block;margin:6px 4px 0;font-size:13px;color:rgba(255,255,255,.55);line-height:1.45}
+.chl-q{flex:1;min-width:200px}
+#channels-body{container-type:inline-size}
+.chl-split{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,360px);gap:16px;align-items:start}
+@container (max-width:860px){.chl-split{grid-template-columns:minmax(0,1fr)}}
+.chl-tbl{border-radius:16px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.075);overflow:hidden;container-type:inline-size}
+.chl-tr{display:grid;grid-template-columns:60px 54px minmax(0,1fr) 100px 76px 104px;gap:12px;align-items:center;padding:9px 14px;border-top:1px solid rgba(255,255,255,.075);cursor:pointer}
+.chl-tr.th{border-top:0;cursor:default;font-size:11.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.45);background:rgba(0,0,0,.18)}
+.chl-tr:not(.th):hover{background:rgba(255,255,255,.03)}.chl-tr.sel{background:rgba(33,57,240,.14);box-shadow:inset 3px 0 0 #2139F0}
+@container (max-width:600px){.chl-tr{grid-template-columns:52px 40px minmax(0,1fr) 96px}.chl-ty,.chl-sh{display:none}}
+.chl-no{font-variant-numeric:tabular-nums;font-size:15px}.chl-nm b{display:block;font-weight:500}.chl-nm small{color:rgba(255,255,255,.45);font-size:12px}
+.chl-lg{display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:9px;background:linear-gradient(160deg,#2a2d35,#1a1c21);box-shadow:inset 0 0 0 1px rgba(255,255,255,.1);overflow:hidden;text-align:center;line-height:1.05}
+.chl-lg b{font-weight:700}.chl-lg i{font-style:normal;color:rgba(255,255,255,.62);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:92%}
+.chl-lg.s{width:56px;height:34px}.chl-lg.s b{font-size:13px}.chl-lg.s i{font-size:8.5px}
+.chl-lg.l{width:150px;height:92px;flex:none}.chl-lg.l b{font-size:30px}.chl-lg.l i{font-size:12px;margin-top:2px}
+.chl-side{display:flex;flex-direction:column;gap:12px;padding:16px;border-radius:18px;background:rgba(255,255,255,.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,.075)}
+.chl-sh2{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}.chl-sh2 .h{font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:rgba(255,255,255,.62)}
+.chl-face{display:flex;gap:12px;align-items:center}.chl-face .t2{font-size:12.5px;color:rgba(255,255,255,.5)}
+.chl-two{display:grid;grid-template-columns:100px minmax(0,1fr);gap:10px}
+.chl-two label,.chl-f{display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:600;color:rgba(255,255,255,.62)}
+.chl-row{flex-direction:row!important;flex-wrap:wrap;align-items:center;gap:8px!important;font-size:14px!important;color:#fff!important;font-weight:500!important}
+.chl-row .t2{flex-basis:100%;font-size:12.5px;color:rgba(255,255,255,.45);font-weight:400}
+.chl-types{display:flex;flex-wrap:wrap;gap:6px}.chl-types button{height:30px;padding:0 12px;border-radius:99px;border:0;background:rgba(255,255,255,.08);color:rgba(255,255,255,.75);font:inherit;font-size:13px;cursor:pointer}
+.chl-types button.on{background:#2139F0;color:#fff}
+.chl-acts{display:flex;flex-wrap:wrap;align-items:center;gap:12px}
+.chl-test{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:12px;border-radius:14px;background:rgba(0,0,0,.24);box-shadow:inset 0 0 0 1px rgba(255,255,255,.075)}
+.chl-test .rt{flex:1;min-width:160px;font-size:13px;color:rgba(255,255,255,.62)}.chl-test .rt b{display:block;color:#fff;font-weight:500}
+.chl-test .v3btn{padding:8px 14px;font-size:13.5px}.chl-test .v3btn[disabled]{opacity:.4;cursor:not-allowed;box-shadow:none}
+.chl-ask{display:inline-flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:13.5px}
 .v3page{display:flex;flex-direction:column;gap:18px}
 .v3card{background:rgba(22,22,26,.55);border:1px solid rgba(255,255,255,.075);border-radius:26px;-webkit-backdrop-filter:blur(40px) saturate(1.3);backdrop-filter:blur(40px) saturate(1.3);box-shadow:inset 0 1px 0 rgba(255,255,255,.06);overflow:hidden}
 .v3dh2{padding:24px 26px 6px}.v3dh2 .t{font-size:26px;font-weight:600;letter-spacing:-.6px}.v3dh2 .s{color:rgba(255,255,255,.62);font-size:14.5px;margin-top:4px;line-height:1.45}
@@ -2158,6 +2199,13 @@ body.v3.railmin .aw-screen{left:108px!important}
       <div id="navlayout-body"></div>
     </div>
 
+    <div class="panel" id="panel-channels">
+      <div class="panel-head">
+        <button class="back" onclick="goHome()">‹ Home</button>
+        <div class="panel-title">Channel Lists</div>
+      </div>
+      <div id="channels-body" class="v3page"></div>
+    </div>
     <div class="panel" id="panel-maintenance">
       <div class="panel-head">
         <button class="back" onclick="goHome()">‹ Home</button>
@@ -2969,7 +3017,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102611';
+const PROOS_BUILD='2026102612';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -11935,6 +11983,168 @@ function fmtBytes(n){ n=Number(n)||0; if(n<1024) return Math.round(n)+' B'; cons
 function fmtBkDate(d){ try{ const dt=new Date(d); return dt.toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'})+' · '+dt.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'}); }catch(e){ return d||''; } }
 function openBackups(){ show('backups'); loadBackups(); loadBackupConfig(); }
 function openMaintenance(){ show('maintenance'); }
+// ═══ REGISTER 1050 — CHANNEL LISTS IN PRO (Dave 28 Oct 14:57 "yes build" on the mockup; stage 2 of the channel editor) ═══
+// System Setup › Channel Lists. One list per service in the house (free-to-air for a region, Foxtel, Fetch TV, other),
+// kept by Core (register 1049, /channels). Every row starts To Check; a channel is confirmed only after ProOS SENT its
+// number to a TV that uses the list and the installer looked. Before a send, a TV that is OFF is said (a send turns it
+// on — register 1049, seen on the Bedroom TV). Nothing here says a channel is "on": a send is Sent.
+let _chv={view:'lists', lid:null, sel:null, q:'', filter:'all', data:null, list:null, svc:'fta', region:'', used:[], ask:null, sent:{}, busy:false};
+function openChannels(){ show('channels'); _chv.view='lists'; _chv.ask=null; _chLoad(); }
+function _chEsc(s){ return esc(s==null?'':String(s)); }
+async function _chGet(path){ const r=await _coreFetch(proCoreUrl()+path); return r.json(); }
+async function _chPost(path, body){
+  const r=await _coreFetch(proCoreUrl()+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})},20000);
+  let d={}; try{ d=await r.json(); }catch(e){} if(!r.ok && !d.error) d.error='ProOS Core answered '+r.status; return d;
+}
+async function _chLoad(){
+  try{ _chv.data=await _chGet('/channels'); }catch(e){ _chv.data={error:'Could not reach ProOS Core'}; }
+  if(_chv.view==='edit' && _chv.lid){ try{ _chv.list=await _chGet('/channels/'+encodeURIComponent(_chv.lid)); }catch(e){ _chv.list=null; } }
+  renderChannels();
+}
+function _chTile(c, sz){
+  // the channel's face: its logo when it has one; until ProOS's logo library arrives, its number and name on a plain tile
+  return '<span class="chl-lg '+(sz||'')+'"><b>'+_chEsc(c.number)+'</b><i>'+_chEsc(c.name)+'</i></span>';
+}
+function _chName(eid){ const t=((_chv.data&&_chv.data.tuners)||[]).find(x=>x.entity_id===eid); return t?t.name:eid; }
+function renderChannels(){
+  const host=document.getElementById('channels-body'); if(!host) return;
+  const d=_chv.data;
+  if(!d){ setHTML(host,'<div class="v3card"><div class="v3empty">Loading…</div></div>'); return; }
+  if(d.error){ setHTML(host,'<div class="v3card"><div class="v3empty">'+_chEsc(d.error)+'</div></div>'); return; }
+  if(_chv.view==='new') return setHTML(host,_chNewHTML());
+  if(_chv.view==='edit') return setHTML(host,_chEditHTML());
+  setHTML(host,_chListsHTML());
+}
+function _chListsHTML(){
+  const L=_chv.data.lists||[];
+  const cards=L.map(l=>'<button type="button" class="chl-card" onclick="chOpenList(\''+_chEsc(l.id)+'\')">'
+      +'<div class="chl-top"><span class="chl-badge s-'+_chEsc(l.service)+'">'+_chEsc((l.service_name||'').slice(0,3).toUpperCase())+'</span><div><div class="t1">'+_chEsc(l.name)+'</div>'
+      +'<div class="t2">'+l.count+' channels · '+l.confirmed+' confirmed</div></div></div>'
+      +'<div>'+(l.to_check?'<span class="v3chip amber">'+l.to_check+' to check</span>':(l.count?'<span class="v3chip ok">All confirmed</span>':'<span class="v3chip">Empty</span>'))+'</div>'
+      +'<div class="t2">'+(l.used_by.length?'Used by '+l.used_by.map(e=>'<b>'+_chEsc(_chName(e))+'</b>').join(', '):'Not used by a TV yet')+'</div></button>').join('');
+  return '<div class="v3card"><div class="v3dh2"><div class="t">Channel Lists</div><div class="s">One list per service in this house. Every TV that uses a service shares its list, so a number fixed once is fixed in every room. Nothing in a list reaches the dashboards or voice until it has been confirmed on a TV.</div></div>'
+    +'<div class="v3sec"><div class="chl-grid">'+cards
+    +'<button type="button" class="chl-card chl-new" onclick="chNew()"><div class="t1">+ New Channel List</div><div class="t2">Free-to-air, Foxtel, Fetch TV or other</div></button></div></div></div>';
+}
+function chOpenList(id){ _chv.view='edit'; _chv.lid=id; _chv.sel=null; _chv.q=''; _chv.filter='all'; _chv.ask=null; _chv.list=null; renderChannels(); _chLoad(); }
+function chBack(){ _chv.view='lists'; _chv.ask=null; _chLoad(); }
+function chNew(){ _chv.view='new'; _chv.svc='fta'; _chv.used=[]; const s=(_chv.data.starts||[]).find(x=>x.service==='fta'); _chv.region=s?s.region:''; renderChannels(); }
+function chSvc(s){ _chv.svc=s; const st=(_chv.data.starts||[]).find(x=>x.service===s); _chv.region=st?st.region:''; renderChannels(); }
+function chUse(eid){ const i=_chv.used.indexOf(eid); if(i>=0) _chv.used.splice(i,1); else _chv.used.push(eid); renderChannels(); }
+function _chNewHTML(){
+  const d=_chv.data, names=d.services||{}, starts=(d.starts||[]).filter(x=>x.service===_chv.svc);
+  const svcs=['fta','foxtel','fetch','other'].map(s=>'<button type="button" class="'+(_chv.svc===s?'on':'')+'" onclick="chSvc(\''+s+'\')">'+_chEsc(names[s]||s)+'</button>').join('');
+  const tuners=(d.tuners||[]).map(t=>{ const other=t.list&&t.list!==null; const on=_chv.used.includes(t.entity_id);
+    return '<button type="button" class="v3chip '+(on?'blue':'btn')+'"'+(other?' disabled title="Already uses another list"':'')+' onclick="chUse(\''+_chEsc(t.entity_id)+'\')">'+_chEsc(t.name)+(other?' · uses another list':'')+'</button>'; }).join(' ');
+  const sendNote=_chv.svc==='fta'?'':'<div class="chl-note">ProOS can’t send a channel number to a '+_chEsc(names[_chv.svc]||'')+' box yet. The list can still be built now; its page comes later.</div>';
+  return '<div class="v3card"><div class="v3dh2"><div class="t">New Channel List</div><div class="s">Pick the service, the TVs that use it, and where to start.</div></div>'
+    +'<div class="v3sec"><div class="h">What Is It For</div><div class="v3seg" style="margin:0 0 6px">'+svcs+'</div>'
+    +'<div class="h">Used By</div><div class="chl-chips">'+(tuners||'<span class="chl-hint">No TV ProOS can send a channel number to was found.</span>')+'</div>'
+    +'<div class="chl-hint">The TVs with a tuner ProOS can send a number to, from the house’s own records. A TV uses one list.</div>'+sendNote
+    +'<div class="h" style="margin-top:8px">Start From</div>'
+    +(starts.length?'<div class="chl-chips">'+starts.map(s=>'<button type="button" class="v3btn pri" onclick="chCreate(\'proos\',\''+_chEsc(s.region)+'\')">Use ProOS’s '+_chEsc(s.region)+' List · '+s.count+'</button>').join(' ')+' <button type="button" class="v3btn" onclick="chCreate(\'empty\',\'\')">Start Empty</button></div>'
+      :'<div class="chl-chips"><button type="button" class="v3btn pri" onclick="chCreate(\'empty\',\'\')">Start Empty</button></div><div class="chl-hint">ProOS has no starting list for this yet.</div>')
+    +'<div class="chl-note">Every channel in ProOS’s starting list begins as <b>To Check</b>. Nothing reaches the dashboards or voice until it has been checked on the TV: Send puts the number on the TV, you look, then Confirm.</div></div>'
+    +'<div class="v3foot"><button type="button" class="v3btn" onclick="chBack()">Cancel</button><span class="t2">'+(_chv.used.length?_chv.used.length+' TV'+(_chv.used.length>1?'s':''):'No TV chosen yet')+'</span></div></div>';
+}
+async function chCreate(start, region){
+  if(_chv.busy) return; _chv.busy=true;
+  const r=await _chPost('/channels/new',{service:_chv.svc, region:region||'', used_by:_chv.used, start:start});
+  _chv.busy=false;
+  if(r.error){ toast(r.error); return; }
+  toast('Created '+r.list.name); chOpenList(r.list.id);
+}
+function _chRows(){
+  const L=_chv.list; if(!L) return [];
+  const q=_chv.q.trim().toLowerCase();
+  return (L.channels||[]).filter(c=>(_chv.filter==='all'||(_chv.filter==='check'&&!c.confirmed)||(_chv.filter==='hidden'&&!c.shown))
+    &&(!q||c.number.indexOf(q)===0||c.name.toLowerCase().includes(q)||(c.aka||[]).some(a=>a.toLowerCase().includes(q))));
+}
+function _chEditHTML(){
+  const L=_chv.list; if(!L) return '<div class="v3card"><div class="v3empty">Loading…</div></div>';
+  if(L.error) return '<div class="v3card"><div class="v3empty">'+_chEsc(L.error)+'</div></div>';
+  const rows=_chRows();
+  const tbl=rows.map(c=>'<div class="chl-tr'+(_chv.sel===c.id?' sel':'')+'" onclick="chSel(\''+_chEsc(c.id)+'\')">'+_chTile(c,'s')
+    +'<span class="chl-no">'+_chEsc(c.number)+'</span><span class="chl-nm"><b>'+_chEsc(c.name)+'</b>'+((c.aka||[]).length?'<small>Also called: '+_chEsc(c.aka.join(', '))+'</small>':'')+'</span>'
+    +'<span class="chl-ty"><span class="v3chip">'+_chEsc(c.type)+'</span></span><span class="chl-sh">'+(c.shown?'':'<span class="v3chip">Hidden</span>')+'</span>'
+    +'<span>'+(c.confirmed?'<span class="v3chip ok">Confirmed</span>':'<span class="v3chip amber">To Check</span>')+'</span></div>').join('')
+    ||'<div class="v3empty">'+((L.channels||[]).length?'No channel matches.':'No channels yet. Add the first one.')+'</div>';
+  const seg=[['all','All '+L.count],['check','To Check '+L.to_check],['hidden','Hidden '+L.hidden]].map(([k,t])=>'<button type="button" class="'+(_chv.filter===k?'on':'')+'" onclick="chFilter(\''+k+'\')">'+t+'</button>').join('');
+  return '<div class="v3card"><div class="v3dh2"><div class="t">'+_chEsc(L.name)+'</div><div class="s">'+L.count+' channels · '+L.confirmed+' confirmed · '
+    +(L.used_by.length?'used by '+L.used_by.map(e=>_chEsc(_chName(e))).join(', '):'not used by a TV yet')+'</div></div>'
+    +'<div class="v3sec"><div class="chl-tools"><input class="chl-q" id="chl-q" placeholder="Search by name or number" value="'+_chEsc(_chv.q)+'" oninput="chQ(this.value)" aria-label="Search channels">'
+    +'<div class="v3seg" style="margin:0">'+seg+'</div><button type="button" class="v3btn" onclick="chSel(\'__new\')">+ Add Channel</button></div>'
+    +'<div class="chl-split"><div class="chl-tbl"><div class="chl-tr th"><span>Logo</span><span>No.</span><span>Name</span><span class="chl-ty">Type</span><span class="chl-sh">Shown</span><span>Status</span></div>'+tbl+'</div>'
+    +'<div class="chl-side" id="chl-side">'+_chSideHTML()+'</div></div></div>'
+    +'<div class="v3foot"><button type="button" class="v3btn" onclick="chBack()">‹ Channel Lists</button>'+_chRemoveListHTML()+'</div></div>';
+}
+function _chRemoveListHTML(){
+  if(_chv.ask&&_chv.ask.kind==='list') return '<span class="chl-ask">Take this list away? <button type="button" class="v3btn" onclick="chRemoveList(true)">Take It Away</button> <button type="button" class="v3btn" onclick="chAsk(null)">Keep</button></span>';
+  return '<button type="button" class="v3add" onclick="chAsk({kind:\'list\'})">Take This List Away</button>';
+}
+function chAsk(a){ _chv.ask=a; renderChannels(); }
+function chQ(v){ _chv.q=v; renderChannels(); const q=document.getElementById('chl-q'); if(q){ q.focus(); q.setSelectionRange(v.length,v.length); } }
+function chFilter(k){ _chv.filter=k; renderChannels(); }
+function chSel(id){ _chv.sel=id; _chv.ask=null; renderChannels(); }
+function _chSideHTML(){
+  const L=_chv.list; if(!_chv.sel) return '<div class="v3empty">Choose a channel to check or change it.</div>';
+  const isNew=_chv.sel==='__new'; const c=isNew?{number:'',name:'',aka:[],type:'General',shown:true}:(L.channels||[]).find(x=>x.id===_chv.sel);
+  if(!c) return '<div class="v3empty">That channel has gone.</div>';
+  const types=(_chv.data.types||['General']).map(t=>'<button type="button" class="'+(c.type===t?'on':'')+'" data-type="'+_chEsc(t)+'" onclick="chType(this)">'+_chEsc(t)+'</button>').join('');
+  const devs=L.used_by||[];
+  const sentKey=d=>c.id+'|'+d+'|'+c.number;
+  let test='';
+  if(!isNew){
+    if(!devs.length) test='<div class="chl-note">No TV uses this list yet, so there is nothing to send it to.</div>';
+    else test=devs.map(d=>{ const asked=_chv.ask&&_chv.ask.kind==='off'&&_chv.ask.dev===d; const was=_chv.sent[sentKey(d)];
+      return '<div class="chl-test"><div class="rt"><b>'+_chEsc(_chName(d))+'</b>'+(asked?'The TV is off. Sending turns it on.':was?'Sent '+_chEsc(c.number)+'. Look at the TV, then confirm.':'Puts '+_chEsc(c.number)+' on the TV. Look, then confirm.')+'</div>'
+        +(asked?'<button type="button" class="v3btn" onclick="chSend(\''+_chEsc(d)+'\',true)">Send Anyway</button><button type="button" class="v3btn" onclick="chAsk(null)">Cancel</button>'
+          :'<button type="button" class="v3btn" onclick="chSend(\''+_chEsc(d)+'\',false)">Send</button><button type="button" class="v3btn pri"'+(was?'':' disabled title="Send it first"')+' onclick="chConfirm(\''+_chEsc(d)+'\')">Confirm</button>')+'</div>'; }).join('');
+  }
+  const conf=c.confirmed?'<span class="v3chip ok">Confirmed on '+_chEsc(_chName(c.confirmed.on))+' · '+_chEsc(new Date(c.confirmed.at*1000).toLocaleDateString())+(c.confirmed.by?' · '+_chEsc(c.confirmed.by):'')+'</span>':(isNew?'':'<span class="v3chip amber">To Check</span>');
+  return '<div class="chl-sh2"><div class="h">'+(isNew?'New Channel':'Channel')+'</div>'+conf+'</div>'
+    +'<div class="chl-face">'+_chTile(c,'l')+'<div class="t2">ProOS’s channel logos arrive with its logo library. Until then a channel shows its number and name.</div></div>'
+    +'<div class="chl-two"><label>Number<input class="chl-in" id="chl-no" inputmode="numeric" maxlength="4" value="'+_chEsc(c.number)+'"></label><label>Name<input class="chl-in" id="chl-nm" maxlength="60" value="'+_chEsc(c.name)+'"></label></div>'
+    +'<label class="chl-f">Also Called (for voice)<input class="chl-in" id="chl-aka" placeholder="ABC, the ABC" value="'+_chEsc((c.aka||[]).join(', '))+'"></label>'
+    +'<div class="chl-f">Type<div class="chl-types" id="chl-types">'+types+'</div></div>'
+    +'<label class="chl-f chl-row"><input type="checkbox" id="chl-shown"'+(c.shown?' checked':'')+'> Shown on dashboards<span class="t2">Hidden channels stay for voice and typed numbers</span></label>'
+    +'<div class="chl-acts"><button type="button" class="v3btn pri" onclick="chSave()">'+(isNew?'Add Channel':'Save')+'</button>'
+    +(isNew?'':(_chv.ask&&_chv.ask.kind==='rm'?'<span class="chl-ask">Remove '+_chEsc(c.name)+'? <button type="button" class="v3btn" onclick="chRemove(true)">Remove</button> <button type="button" class="v3btn" onclick="chAsk(null)">Keep</button></span>':'<button type="button" class="v3add" onclick="chAsk({kind:\'rm\'})">Remove Channel</button>'))
+    +(c.confirmed?'<button type="button" class="v3add" onclick="chUnconfirm()">Mark To Check</button>':'')+'</div>'
+    +test
+    +'<div class="chl-note blue">A changed number goes back to To Check, because the TV was checked on the old one. Type is what “put on the news” uses.</div>';
+}
+function chType(b){ document.querySelectorAll('#chl-types button').forEach(x=>x.classList.toggle('on',x===b)); }
+function _chForm(){ const g=id=>document.getElementById(id); const t=document.querySelector('#chl-types button.on');
+  return {number:(g('chl-no').value||'').trim(), name:(g('chl-nm').value||'').trim(), aka:g('chl-aka').value||'', type:t?t.dataset.type:'General', shown:!!g('chl-shown').checked}; }
+async function chSave(){
+  const f=_chForm(), lid=_chv.lid; let r;
+  if(_chv.sel==='__new'){ r=await _chPost('/channels/'+encodeURIComponent(lid)+'/add',f); if(!r.error) _chv.sel=r.channel.id; }
+  else r=await _chPost('/channels/'+encodeURIComponent(lid)+'/update',{channel:_chv.sel, fields:f});
+  if(r.error){ toast(r.error); return; }
+  toast(r.channel&&!r.channel.confirmed&&_chv.sel!=='__new'?'Saved · To Check':'Saved'); _chv.ask=null; _chLoad();
+}
+async function chRemove(sure){ if(!sure) return; const r=await _chPost('/channels/'+encodeURIComponent(_chv.lid)+'/remove',{channel:_chv.sel}); if(r.error){ toast(r.error); return; } _chv.sel=null; _chv.ask=null; toast('Removed'); _chLoad(); }
+async function chUnconfirm(){ const r=await _chPost('/channels/'+encodeURIComponent(_chv.lid)+'/unconfirm',{channel:_chv.sel}); if(r.error){ toast(r.error); return; } _chLoad(); }
+async function chRemoveList(sure){ if(!sure) return; const r=await _chPost('/channels/'+encodeURIComponent(_chv.lid)+'/remove_list',{}); if(r.error){ toast(r.error); return; } toast('List taken away'); chBack(); }
+async function _chTvOff(eid){
+  try{ const m=await snd({type:'get_states'},6000); const s=((m&&m.result)||[]).find(x=>x.entity_id===eid); return !s||s.state==='off'||s.state==='unavailable'||s.state==='standby'; }catch(e){ return false; }
+}
+async function chSend(dev, anyway){
+  const c=(_chv.list.channels||[]).find(x=>x.id===_chv.sel); if(!c) return;
+  if(!anyway && await _chTvOff(dev)){ _chv.ask={kind:'off', dev:dev}; renderChannels(); return; }
+  _chv.ask=null;
+  const r=await _chPost('/channels/'+encodeURIComponent(_chv.lid)+'/send',{channel:c.id, device:dev});
+  if(r.error){ toast(r.error); renderChannels(); return; }
+  _chv.sent[c.id+'|'+dev+'|'+c.number]=Date.now();
+  toast('Sent '+c.number+' to '+_chName(dev)); renderChannels();
+}
+async function chConfirm(dev){
+  const r=await _chPost('/channels/'+encodeURIComponent(_chv.lid)+'/confirm',{channel:_chv.sel, device:dev});
+  if(r.error){ toast(r.error); return; }
+  toast('Confirmed'); _chLoad();
+}
+
 
 // ── SITE (location / identity) ───────────────────────────────────────────────
 let _siteMap=null, _siteMarker=null, _leafletP=null, _siteGeoResults=[];
@@ -17851,7 +18061,7 @@ function ahRemove(){
     });
 }
 
-const PANELS=['home','library','manage','backups','maintenance','site','credentials','unifi','unifi-net','users','room','integration','rooms','activities','automations','scripts','irrigation','savant','helpers','blueprints','labels','tech','music','applehome','dashremote','wallpanel','remotecfg','wpedit','navlayout','hub','assist2','systems','toolbox','device','history'];
+const PANELS=['home','library','manage','backups','channels','maintenance','site','credentials','unifi','unifi-net','users','room','integration','rooms','activities','automations','scripts','irrigation','savant','helpers','blueprints','labels','tech','music','applehome','dashremote','wallpanel','remotecfg','wpedit','navlayout','hub','assist2','systems','toolbox','device','history'];
 function show(panel){
   PANELS.forEach(p=>{ const el=document.getElementById('panel-'+p); if(el) el.classList.toggle('active', p===panel); });
   // One-shot entrance arm: content pops in on panel ENTRY, then disarms so
@@ -20617,7 +20827,7 @@ function _v3homeAreas(){ return (_areas||[]).filter(a=>!_systemAreas.has(a.area_
 const V3DIAG=[['sweep','Health Sweep','health'],['awareness','Awareness','spark'],['incidents','Incidents','bolt'],['heard','Heard','ear'],['noticed','Assist Noticed','assist'],['log','Master Log','log']];
 const V3SETUP=[['site','Building Settings','home',()=>openSite()],['users','Manage Users','user',()=>openUsers()],['software','Software','box',()=>v3Software()],
   ['backups','Backups','clock',()=>openBackups()],['music','Music Services','music',()=>openMusic()],
-  ['dashremote','Dashboards','grid',()=>openDashRemote()],['notify','Notifications','bolt',()=>openTech('notify')],['net','Network','map',()=>openTech('net')],
+  ['dashremote','Dashboards','grid',()=>openDashRemote()],['channels','Channel Lists','list',()=>openChannels()],['notify','Notifications','bolt',()=>openTech('notify')],['net','Network','map',()=>openTech('net')],
   ['credentials','Credentials','shield',()=>openCredentials()],['maintenance','Maintenance','setup',()=>openMaintenance()]];
 const V3SYSTEMS=[['applehome','Apple Home','home',()=>openAppleHome()],['unifi','UniFi Protect','cam',()=>openUnifi()],['unifi-net','UniFi Network','map',()=>openUniNet()],
   ['savant','Savant','remote',()=>openSavant()],['irrigation','Irrigation','drop',()=>openIrrigation()]];
