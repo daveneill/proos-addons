@@ -4723,8 +4723,10 @@ _ATV_LEARN = (os.environ.get("PROOS_ATV_LEARN", "1") or "1") != "0"
 _ATV_PUSH = {}
 _ATV_LEARN_SEC = int(os.environ.get("PROOS_ATV_LEARN_SEC", "20") or "20")
 # Launcher / system surfaces are not user apps.
+# REGISTER 1060 (Dave 29 Oct 07:24 "Also adds as app ?/"): com.google.android.apps.mediashell is the box's own Google Cast
+# receiver — what the box reports whenever ANYTHING is cast to it. The learner took it for an app ("Mediashell").
 _ATV_SKIP = re.compile(
-    r"(tvlauncher|leanbacklauncher|tungsten|katniss|backdrop|tvrecommendations|"
+    r"(tvlauncher|leanbacklauncher|tungsten|katniss|backdrop|tvrecommendations|mediashell|"
     r"^com\.android\.|^android$|inputmethod|gsf$|\.tts$|packageinstaller|settings)", re.I)
 
 
@@ -4882,7 +4884,9 @@ def _atv_held(entity_id):
     """{package: name} the platform's entry holds for this Android TV box; {} for anything else (register 918)."""
     try:
         entry, _ = _atv_entry_for(entity_id)
-        return _atv_apps_of(entry) if entry else {}
+        # 1060: a system surface learned before it was on the skip list (the Cast receiver) is never offered as an app.
+        # Hidden, not deleted — the platform's own entry is left as it is.
+        return {k: v for k, v in (_atv_apps_of(entry) if entry else {}).items() if not _ATV_SKIP.search(k)}
     except Exception:                                        # noqa: BLE001
         return {}
 
