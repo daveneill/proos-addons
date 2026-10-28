@@ -4999,7 +4999,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102616';
+const PROOS_BUILD='2026102617';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -19416,7 +19416,9 @@ function _atvRenderPlaying(b){
 // what ProOS SENT ("Sent 9 · Nine"), and only CONFIRMED channels from the TV's own list are offered. The Apps tab and the
 // picture borrowed from the box on an input follow in the next stage.
 const _TV_TABS=['channels','remote','inputs'];
-function tvSupported(e){ return (window.entityPlatformMap||{})[e]==='samsungtv_smart'; }
+// register 1054: entityPlatformMap is a page-level `let` — it is NOT on window (reading it through window found
+// nothing on Dave's iPhone, so every Samsung TV still opened the old sheet). Read the binding itself.
+function tvSupported(e){ try{ return entityPlatformMap[e]==='samsungtv_smart'; }catch(x){ return false; } }
 function tvShouldOpen(e){ return !!(states[e]&&states[e].state==='on'); }
 function tvOpen(e, vol){
   const room=CONFIG.rooms.find(r=>r.media===e||r.display===e||(r.allPlayers&&r.allPlayers.includes(e)))||null;
