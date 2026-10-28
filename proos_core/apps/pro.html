@@ -3023,7 +3023,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102613';
+const PROOS_BUILD='2026102614';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -11252,7 +11252,10 @@ function rhChannels(rec){
         +(i<favs.length-1?'<button title="Later" onclick="event.stopPropagation();rchFav(\''+a+'\',\'move\',\''+l+'\',\''+esc(f.channel)+'\',\''+e+'\',1)">›</button>':'<span></span>')+'</div></div>').join('')+'</div>'
       :'<div class="rh-empty">No favourite channels yet — tap a channel below to add it.</div>';
     const addTiles=ok.length?'<div class="sc-grid">'+ok.map(c=>'<div class="sc-tile rch-tile" onclick="rchFav(\''+a+'\',\'add\',\''+l+'\',\''+esc(c.id)+'\',\''+e+'\')">'+_rhChTile(c)+'<div class="sc-nm">'+esc(c.name)+'</div><div class="rch-add">TAP TO ADD</div></div>').join('')+'</div>'
-      :'<div class="rh-empty">'+((lst.channels||[]).length?'Every confirmed channel is already a favourite.':'This list has no channels yet.')+'</div>';
+      :'<div class="rh-empty">'+(!(lst.channels||[]).length?'This list has no channels yet.'
+          :!(lst.channels||[]).some(c=>c.confirmed)?'No channel in the list has been confirmed on the TV yet.'
+          :!(lst.channels||[]).some(c=>c.confirmed&&c.shown)?'Every confirmed channel is hidden from the dashboards.'
+          :'Every confirmed channel is already a favourite.')+'</div>';   // register 1052: says only what is true
     return '<div class="rch-dev"><b>'+esc(t.name)+'</b><span>'+esc(lst.name)+'</span><button class="rh-link" onclick="openChannels();chOpenList(\''+l+'\')">Edit the List ›</button></div>'
       +'<div class="rh-sec-lbl">Favourites · '+favs.length+'</div>'+favTiles
       +'<div class="rh-sec-lbl">From the List · Confirmed Channels</div>'+addTiles
