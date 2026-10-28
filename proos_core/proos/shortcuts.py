@@ -590,6 +590,43 @@ def find(area_id: str, app: str, target: str = None):
     return None
 
 
+# ── ONE LIST: the room's App Shortcuts ARE its favourites (register 1045) ─────────────────────────────────────────
+# Dave 28 Oct 11:11: "it needs to mirror dashboard and Pro … Pro was only able to give favourites before but now dashboard
+# can too". The dashboard's house-wide favourites (/areas/<room>/appfavs) are read from and written to THIS store — Pro's
+# App Shortcuts, in Pro's order — so a tile added in Pro is on every dashboard's room page, and a press-and-hold "All
+# Dashboards" on any dashboard is in Pro's list. The old separate favourites file is folded in once (fold_legacy).
+def as_favourites(area_id: str) -> list:
+    """The room's shortcuts in the dashboard's favourite shape: {app, appid, device}, in Pro's order. `app` is the
+    shortcut's name (the dashboard draws and matches by it); `appid` is what picks a tile's artwork by package —
+    the Android package or the Samsung id — and None where the device launches by name."""
+    out = []
+    for sc in room(area_id):
+        if not isinstance(sc, dict) or not sc.get("target"):
+            continue
+        appid = sc.get("package") or (sc.get("token") if sc.get("method") == "play_media_app" else None) or None
+        out.append({"app": sc.get("name") or sc.get("app"), "appid": appid, "device": sc.get("target")})
+    return out
+
+
+def fold_legacy(favs_by_area: dict, build) -> dict:
+    """Pure over its inputs: every old favourite not already a shortcut of its room is built (`build(area, fav)` →
+    (shortcut, error)) and added; one that cannot be built is reported, never dropped silently. Idempotent."""
+    added, failed = [], []
+    for area, favs in (favs_by_area or {}).items():
+        for f in favs or []:
+            if not isinstance(f, dict) or not f.get("app") or not f.get("device"):
+                continue
+            if find(area, f["app"], f["device"]):
+                continue
+            sc, err = build(area, f)
+            if err or not sc:
+                failed.append({"area": area, "app": f["app"], "device": f["device"], "why": err or "could not be built"})
+                continue
+            add(area, sc)
+            added.append({"area": area, "app": f["app"], "device": f["device"]})
+    return {"added": added, "failed": failed}
+
+
 def could_run(client, project, area_id: str, app: str) -> list:
     """[{entity_id, name, is_display}] — the room's committed devices that say they carry the app (a hint for the OFFER,
     never a launch: the device lists are the device's claim)."""

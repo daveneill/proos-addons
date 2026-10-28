@@ -74,9 +74,28 @@ def set_fav(area_id: str, app: str, appid=None, device=None,
     return {"ok": True, "area_id": area_id, "favourites": keep}
 
 
-def clear() -> None:
+def legacy() -> dict:
+    """The old favourites file, read for the one fold into the room's App Shortcuts (register 1045)."""
+    return _load()
+
+
+def retire_legacy() -> str:
+    """After the fold: the old file is KEPT under another name (never deleted), so nothing reads it twice."""
     try:
         if os.path.exists(_STORE):
-            os.remove(_STORE)
+            dst = _STORE.replace(".json", ".folded.json")
+            os.replace(_STORE, dst)
+            return dst
     except Exception:                                            # noqa: BLE001
         pass
+    return ""
+
+
+def clear() -> None:
+    """Factory reset only: the old file and its kept, folded copy (register 1045) both go — no residue."""
+    for p in (_STORE, _STORE.replace(".json", ".folded.json")):
+        try:
+            if os.path.exists(p):
+                os.remove(p)
+        except Exception:                                        # noqa: BLE001
+            pass

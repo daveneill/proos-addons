@@ -440,6 +440,43 @@ def _prepare_entry_for(display_eid):
     return None
 
 
+def _shortcut_from_device(body):
+    """Pro's add and the dashboard's press-and-hold build a shortcut THE SAME WAY (register 1045): the device's platform
+    from the registry, then only what the device itself has — its own entry gives the launch token (the Apple TV's exact
+    app name, the Shield's package). Returns (shortcut, error)."""
+    sc, err = _shortcuts.from_request(_client, body)
+    if err:
+        return None, err
+    _ent, _why = _shortcuts.offered(
+        _shortcuts.device_apps(_client, sc["target"], platform=sc.get("platform"),
+                               android_held=_atv_held(sc["target"])), sc["app"])
+    if _why:
+        return None, _why
+    if _ent and not ((body or {}).get("token") or "").strip():
+        sc["token"] = _ent["token"]
+    return sc, None
+
+
+_FAVS_FOLDED = {"done": False}
+
+
+def _fold_old_favourites():
+    """Once: the old house-wide favourites file becomes part of each room's App Shortcuts (register 1045)."""
+    if _FAVS_FOLDED["done"] or not (_appfavs and _shortcuts):
+        return None
+    _FAVS_FOLDED["done"] = True
+    old = _appfavs.legacy()
+    if not old:
+        return None
+    res = _shortcuts.fold_legacy(old, lambda area, f: _shortcut_from_device({"app": f["app"], "target": f["device"]}))
+    if not res["failed"]:
+        _appfavs.retire_legacy()
+    else:
+        print("[ProOS] favourites fold: %d added, %d could not be built (kept in the old file): %s"
+              % (len(res["added"]), len(res["failed"]), res["failed"]), flush=True)
+    return res
+
+
 def _dash_ping(kind, data=""):
     """Lightweight named ping to every connected dashboard over the SAME SSE
     queue as publish versions (spec 2 Aug: a favourite added/removed on one
@@ -7919,10 +7956,14 @@ class Handler(BaseHTTPRequestHandler):
             if len(parts) == 3 and parts[0] == "areas" and parts[2] == "appfavs":
                 # House-wide app-shortcut favourites (spec 1 Aug): the list
                 # every panel converges on. Homeowner surface, like /apps.
-                if not _appfavs:
+                # register 1045: the room's App Shortcuts ARE its favourites — Pro's list, in Pro's order
+                if not _shortcuts:
                     return self._send(200, {"favourites": []})
-                return self._send(200,
-                                  {"favourites": _appfavs.list_for(parts[1])})
+                try:
+                    _fold_old_favourites()
+                except Exception:                                    # noqa: BLE001
+                    pass
+                return self._send(200, {"favourites": _shortcuts.as_favourites(parts[1])})
             if len(parts) == 3 and parts[0] == "areas" and parts[2] == "apps":
                 # Dashboard quick-launch: the room's launchable apps and which
                 # device(s) offer each. Any signed-in user (homeowner surface).
@@ -9934,15 +9975,29 @@ class Handler(BaseHTTPRequestHandler):
             if len(parts) == 3 and parts[0] == "areas" and parts[2] == "appfavs":
                 # Homeowner press-and-hold favourite (add) or widget removal
                 # (remove:true). Any signed-in user — same tier as app-launch.
-                if not _appfavs:
+                # register 1045: written to the room's App Shortcuts (Pro's list), built exactly as Pro builds one
+                if not _shortcuts:
                     return self._send(503, {"error": "favourites unavailable"})
+                try:
+                    _fold_old_favourites()
+                except Exception:                                    # noqa: BLE001
+                    pass
                 b = self._body() or {}
-                res = _appfavs.set_fav(parts[1], b.get("app"),
-                                       appid=b.get("appid"),
-                                       device=b.get("device"),
-                                       remove=bool(b.get("remove")))
+                area, app, dev = parts[1], (b.get("app") or "").strip(), (b.get("device") or "").strip()
+                if not app or not dev:
+                    return self._send(400, {"error": "app and device required"})
+                if b.get("remove"):
+                    sc = _shortcuts.find(area, app, dev)
+                    res = _shortcuts.remove(area, sc["app"], dev) if sc else {"ok": True, "removed": 0}
+                else:
+                    sc, err = _shortcut_from_device({"app": app, "target": dev, "token": b.get("appid") or ""})
+                    if err:
+                        return self._send(400, {"error": err})
+                    res = _shortcuts.add(area, sc)
                 if not res.get("error"):
-                    _dash_ping("appfavs", parts[1])   # instant cross-panel sync
+                    _voice_after_shortcuts(res)                 # register 879: the voice sentences follow the shortcuts
+                    _dash_ping("appfavs", area)                 # instant cross-panel sync
+                    res["favourites"] = _shortcuts.as_favourites(area)
                 return self._send(400 if res.get("error") else 200, res)
             if len(parts) == 3 and parts[0] == "areas" and parts[2] == "app-launch":
                 # Dashboard app button: launch an app in the room. Any signed-in
@@ -10154,28 +10209,24 @@ class Handler(BaseHTTPRequestHandler):
                 action = parts[2]
                 b = self._body() or {}
                 if action == "reorder":
-                    return self._send(200, _shortcuts.reorder(area, b.get("order") or []))
+                    res = _shortcuts.reorder(area, b.get("order") or [])
+                    _dash_ping("appfavs", area)                 # register 1045: every dashboard's room page follows Pro
+                    return self._send(200, res)
                 if action == "remove":
                     res = _shortcuts.remove(area, (b.get("app") or "").strip(), (b.get("target") or "").strip())
                     _voice_after_shortcuts(res)                 # register 879: the sentences follow the shortcuts
+                    _dash_ping("appfavs", area)                 # register 1045: off every dashboard's room page too
                     return self._send(200, res)
-                sc, err = _shortcuts.from_request(_client, b)   # add / test build a shortcut
+                # REGISTER 918 / 1045: only what the device itself has, built the one way a dashboard favourite is too
+                sc, err = _shortcut_from_device(b)
                 if err:
                     return self._send(400, {"error": err})
-                # REGISTER 918: only what the device itself has. Its own entry supplies the launch token (the Apple
-                # TV's exact app name, the Shield's package) — a library guess never reaches the device.
-                _ent, _why = _shortcuts.offered(
-                    _shortcuts.device_apps(_client, sc["target"], platform=sc.get("platform"),
-                                           android_held=_atv_held(sc["target"])), sc["app"])
-                if _why:
-                    return self._send(400, {"error": _why})
-                if _ent and not (b.get("token") or "").strip():
-                    sc["token"] = _ent["token"]
                 if action == "test":
                     return self._send(200, _shortcuts.launch(_client, project, area, sc))
                 res = _shortcuts.add(area, sc)
                 if not res.get("error"):
                     _voice_after_shortcuts(res)                 # register 879: a shortcut added in Pro is a voice command now
+                    _dash_ping("appfavs", area)                 # register 1045: on every dashboard's room page at once
                 return self._send(400 if res.get("error") else 200, res)
             if parts == ["scenes", "photo"]:
                 # Set/remove a scene's photo + display-name override. Homeowner

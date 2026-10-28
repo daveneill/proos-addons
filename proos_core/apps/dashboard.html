@@ -4960,7 +4960,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102614';
+const PROOS_BUILD='2026102615';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -18085,19 +18085,35 @@ function _appCanon(name, pkg){
 //    it goes here too;
 //  * local-only app widgets (added while Core was unreachable) are never
 //    touched, and non-app widgets are never touched.
+// REGISTER 1045 — ONE LIST: Core's list IS the room's App Shortcuts in Pro (Dave, 28 Oct: "it needs to mirror dashboard
+// and Pro"). So the merge also: matches an app by WHO it is, not how it is spelt ("Kayo Sports" on the Apple TV is Pro's
+// "Kayo"); adopts a tile already on this page for an app in the list (it is shared now, so a removal in Pro takes it off
+// here too); keeps one tile per app per device; and lays the shared tiles out in Pro's order, in the spots they hold.
+function _favKey(app, appid, device){
+  let k=''; try{ k=_appCanon(app||'', appid||'').slug||''; }catch(e){}
+  return (k||_appSlug(app))+'|'+(device||'');
+}
 function _favMerge(widgets, favs, fits){
   const out=(widgets||[]).slice(); let changed=false; const skipped=[];
+  const F=(favs||[]).filter(f=>f&&f.app), fk=F.map(f=>_favKey(f.app,f.appid,f.device));
+  const isApp=w=>w&&w.id==='apps', wk=w=>_favKey(w.app,w.appid,w.device);
   for(let i=out.length-1;i>=0;i--){ const w=out[i];
-    if(w&&w.id==='apps'&&w.sync&&!(favs||[]).some(f=>f.app===w.app&&(f.device||null)===(w.device||null))){
-      out.splice(i,1); changed=true; } }
-  (favs||[]).forEach(f=>{
-    if(!f||!f.app) return;
-    if(out.some(w=>w&&w.id==='apps'&&w.app===f.app&&(w.device||null)===(f.device||null))) return;
+    if(isApp(w)&&w.sync&&fk.indexOf(wk(w))<0){ out.splice(i,1); changed=true; } }
+  for(let i=0;i<out.length;i++){ const w=out[i];
+    if(isApp(w)&&!w.sync&&fk.indexOf(wk(w))>=0){ out[i]=Object.assign({},w,{sync:1}); changed=true; } }
+  const seen={};
+  for(let i=0;i<out.length;i++){ const w=out[i]; if(!isApp(w)) continue; const k=wk(w);
+    if(seen[k]){ out.splice(i,1); i--; changed=true; } else seen[k]=1; }
+  F.forEach((f,j)=>{
+    if(seen[fk[j]]) return;
     if(fits&&!fits(out)){ skipped.push(f); return; }
     out.push({uid:_newWidgetUid(), id:'apps', app:f.app, appid:f.appid||null,
               device:f.device||null, sync:1});
-    changed=true;
+    seen[fk[j]]=1; changed=true;
   });
+  const slots=[]; out.forEach((w,i)=>{ if(isApp(w)&&w.sync) slots.push(i); });
+  const inOrder=slots.map(i=>out[i]).sort((a,b)=>fk.indexOf(wk(a))-fk.indexOf(wk(b)));
+  slots.forEach((s,j)=>{ if(out[s]!==inOrder[j]){ out[s]=inOrder[j]; changed=true; } });
   return {widgets:out, changed:changed, skipped:skipped};
 }
 function _appEscA(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -19173,7 +19189,8 @@ function _atvRoomApp(n, what, all){
   const room=_atv.room, rid=room.id, dev=_atv.e, k=_atvAppKey(n);
   const same=w=>w&&w.id==='apps'&&(w.device||null)===dev&&_atvAppKey(w.app)===k;
   _atvWithRoom(()=>{ const layout=loadWidgetLayout();
-    if(what==='add'){ if(!layout.some(same)){ layout.push({uid:_newWidgetUid(), id:'apps', app:n, appid:null, device:dev}); saveWidgetLayout(layout); } }
+    // register 1045: "All Dashboards" is Pro's list, so this screen's tile is the shared one too (a removal in Pro takes it off)
+    if(what==='add'){ if(!layout.some(same)){ const t={uid:_newWidgetUid(), id:'apps', app:n, appid:null, device:dev}; if(all) t.sync=1; layout.push(t); saveWidgetLayout(layout); } }
     else saveWidgetLayout(layout.filter(w=>!same(w))); });
   if(all){
     if(what==='add'){ _roomFavs[rid]=(_roomFavs[rid]||[]).filter(f=>!(_atvAppKey(f.app)===k&&(f.device||null)===dev)).concat([{app:n, appid:null, device:dev}]); }
