@@ -3373,6 +3373,45 @@ html[data-link="remote"]{--m-tap:90ms;--m-move:200ms;--m-page:300ms}
 #atv-page .atv-toast{position:absolute;left:50%;bottom:calc(var(--proos-floor,0px) + var(--proos-dock-h,78px) + 20px);transform:translateX(-50%) translateY(10px);opacity:0;transition:opacity var(--m-move) var(--e-standard),transform var(--m-move) var(--e-standard);background:rgba(30,32,38,.96);padding:10px 16px;border-radius:999px;font-size:13px;z-index:40;pointer-events:none;max-width:calc(100% - 32px);text-align:center}
 #atv-page .atv-toast.on{opacity:1;transform:translateX(-50%)}
 /* apps */
+/* register 1053 — the Live TV page (it wears the Apple TV page's frame) */
+#atv-page .tvp-live{display:grid;grid-template-columns:minmax(0,400px) minmax(0,1fr);gap:28px;align-items:start;padding-bottom:20px}
+@media (max-width:900px){#atv-page .tvp-live{grid-template-columns:minmax(0,1fr);gap:18px}}
+#atv-page .tvp-l,#atv-page .tvp-r{display:flex;flex-direction:column;gap:14px;min-width:0}#atv-page .tvp-r{gap:12px}
+#atv-page .tvp-now{display:flex;gap:14px;align-items:center;padding:14px;border-radius:20px;background:var(--atv-glass);border:.5px solid rgba(255,255,255,.08)}
+#atv-page .atv-np .tvp-now{background:none;border:0;padding:0}
+#atv-page .tvp-now small{display:block;font-size:11.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--atv-ink3)}
+#atv-page .tvp-now b{display:block;font-size:20px;font-weight:600}#atv-page .tvp-now span{font-size:13.5px;color:var(--atv-ink2)}
+#atv-page .tvp-lg{display:flex;align-items:center;justify-content:center;border-radius:12px;background:linear-gradient(160deg,#2a2d35,#17191e);border:.5px solid rgba(255,255,255,.1);color:#fff}
+#atv-page .tvp-now .tvp-lg{width:96px;aspect-ratio:16/10;flex:none}#atv-page .tvp-now .tvp-lg svg{width:32px;height:32px;opacity:.6}
+#atv-page .tvp-now .tvp-lg.art{background:linear-gradient(160deg,#c9b99a,#8c7b62)}
+#atv-page .tvp-honest{display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:1.45;color:var(--atv-ink3)}#atv-page .tvp-honest svg{width:16px;height:16px;flex:none;margin-top:1px}
+#atv-page .tvp-chrow{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}#atv-page .tvp-chrow .padbtn{display:none}
+#atv-page .tvp-chrow button{height:64px;border-radius:18px;background:var(--atv-glass);border:.5px solid rgba(255,255,255,.08);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font:600 12.5px Inter,sans-serif}
+#atv-page .tvp-chrow svg{width:22px;height:22px}#atv-page .tvp-chrow button.down{background:rgba(255,255,255,.16)}
+#atv-page .tvp-typed{height:40px;border-radius:12px;background:rgba(0,0,0,.28);display:flex;align-items:center;justify-content:center;font:500 22px Inter,sans-serif;font-variant-numeric:tabular-nums;letter-spacing:.12em}
+#atv-page .tvp-typed span{font-size:13px;letter-spacing:0;color:var(--atv-ink3);font-weight:400}
+#atv-page .tvp-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:10px}
+#atv-page .tvp-pad button{height:54px;border-radius:16px;background:var(--atv-glass);border:.5px solid rgba(255,255,255,.06);color:#fff;font:400 23px Inter,sans-serif;display:flex;align-items:center;justify-content:center}
+#atv-page .tvp-pad button svg{width:22px;height:22px;opacity:.8}#atv-page .tvp-pad button.ok{background:#fff;color:#000;font-weight:600;font-size:16px}
+@media (max-width:900px){#atv-page .tvp-chrow{grid-template-columns:repeat(4,1fr)}#atv-page .tvp-chrow .padbtn{display:flex}#atv-page .tvp-padwrap{display:none}}
+#atv-page .atv-pop.tvp-padpop{width:min(360px,calc(100% - 32px));padding:20px}
+#atv-page .tvp-chs{display:grid;grid-template-columns:repeat(auto-fill,minmax(124px,1fr));gap:12px}
+#atv-page .tvp-chs.sm{grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:10px}
+@media (max-width:600px){#atv-page .tvp-chs,#atv-page .tvp-chs.sm{grid-template-columns:repeat(3,minmax(0,1fr))}}
+#atv-page .tvp-ch{display:flex;flex-direction:column;gap:6px;background:none;border:0;padding:0;color:#fff;font:inherit;text-align:center;cursor:pointer}
+#atv-page .tvp-ch .tvp-lg{aspect-ratio:16/10}#atv-page .tvp-ch .tvp-lg b{font:700 26px Inter,sans-serif}#atv-page .tvp-chs.sm .tvp-lg b{font-size:20px}
+#atv-page .tvp-ch .tvp-nm{font-size:12.5px;color:var(--atv-ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#atv-page .tvp-ch:active .tvp-lg{background:rgba(255,255,255,.18)}
+#atv-page .tvp-pri{background:#fff!important;color:#000!important}
+#atv-page .tvp-colours{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+#atv-page .tvp-colours button{height:34px;border-radius:12px;background:var(--atv-glass);border:.5px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center}
+#atv-page .tvp-colours i{width:34px;height:8px;border-radius:4px;display:block}
+#atv-page .tvp-ins{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+#atv-page .tvp-in{position:relative;display:flex;gap:14px;align-items:center;padding:14px;border-radius:18px;background:var(--atv-glass);border:.5px solid rgba(255,255,255,.08);color:#fff;text-align:left;font:inherit;cursor:pointer}
+#atv-page .tvp-in.on{background:rgba(255,255,255,.14);border:.5px solid rgba(255,255,255,.28)}
+#atv-page .tvp-in .th{width:64px;aspect-ratio:16/10;border-radius:10px;flex:none;display:flex;align-items:center;justify-content:center;background:#1a1d24}#atv-page .tvp-in .th svg{width:26px;height:26px;opacity:.6}
+#atv-page .tvp-in b{display:block;font-size:15px;font-weight:600}#atv-page .tvp-in span span{display:block;font-size:12.5px;color:var(--atv-ink2)}
+#atv-page .tvp-in em{position:absolute;top:10px;right:12px;font-style:normal;font-size:11px;font-weight:600;padding:3px 8px;border-radius:99px;background:#fff;color:#000}
 #atv-page .atv-apps{flex:1;min-height:0;display:flex;flex-direction:column;gap:14px;overflow-y:auto;scrollbar-width:none}
 #atv-page .atv-apps-top{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
 #atv-page .atv-filter,#atv-page .atv-sfield{flex:1;max-width:460px;min-width:200px;height:46px;border-radius:14px;background:var(--atv-glass);display:flex;align-items:center;gap:10px;padding:0 14px;color:var(--atv-ink3)}
@@ -4960,7 +4999,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102615';
+const PROOS_BUILD='2026102616';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -15273,6 +15312,8 @@ function openPlayer(entity, volEntity){
   // REGISTER 1035: an Apple TV on the certified driver has its own page (Remote · Apps · Search · Now Playing),
   // with the same room volume this player would have used.
   if(typeof atvSupported==='function' && atvSupported(entity) && atvShouldOpen(entity)){ const _v=_playerVolEntity; _playerEntity=null; _playerVolEntity=null; atvOpen(entity,_v); return; }
+  // REGISTER 1053: a Samsung TV that is on has the Live TV page (Channels · Remote · Inputs), with the same room volume
+  if(typeof tvSupported==='function' && tvSupported(entity) && tvShouldOpen(entity)){ const _v=_playerVolEntity; _playerEntity=null; _playerVolEntity=null; tvOpen(entity,_v); return; }
   updatePlayerUI();
   document.getElementById('player-overlay').classList.add('open');
 
@@ -17924,7 +17965,10 @@ function remoteForPlayer(e){
 // TV remote command sets keyed by INTEGRATION PLATFORM (immutable), not brand
 // guesses. Extend per certified display integration.
 const _TV_KEYS={
-  samsungtv_smart:{back:'KEY_RETURN',exit:'KEY_EXIT',home:'KEY_HOME',guide:'KEY_GUIDE',chup:'KEY_CHUP',chdown:'KEY_CHDOWN',select:'KEY_ENTER',up:'KEY_UP',down:'KEY_DOWN',left:'KEY_LEFT',right:'KEY_RIGHT'},
+  // register 1053: info / menu / the colours are the driver's own key names (its shortcuts use them); prech (Last) is
+  // Samsung's previous-channel key — NOT in the driver's list, so unproven until seen on a TV (the page says Last only)
+  samsungtv_smart:{back:'KEY_RETURN',exit:'KEY_EXIT',home:'KEY_HOME',guide:'KEY_GUIDE',chup:'KEY_CHUP',chdown:'KEY_CHDOWN',select:'KEY_ENTER',up:'KEY_UP',down:'KEY_DOWN',left:'KEY_LEFT',right:'KEY_RIGHT',
+    info:'KEY_INFO',menu:'KEY_MENU',prech:'KEY_PRECH',red:'KEY_RED',green:'KEY_GREEN',yellow:'KEY_YELLOW',blue:'KEY_BLUE'},
   webostv:{back:'BACK',exit:'EXIT',home:'HOME',guide:'GUIDE',chup:'CHANNELUP',chdown:'CHANNELDOWN',select:'ENTER',up:'UP',down:'DOWN',left:'LEFT',right:'RIGHT'},
   androidtv_remote:{back:'BACK',home:'HOME',guide:'GUIDE',chup:'CHANNEL_UP',chdown:'CHANNEL_DOWN',select:'DPAD_CENTER',up:'DPAD_UP',down:'DPAD_DOWN',left:'DPAD_LEFT',right:'DPAD_RIGHT'}
 };
@@ -18761,6 +18805,7 @@ function atvClose(){
 function _atvReleaseHeld(){ if(_atv&&_atv.held){ const k=_atv.held; _atv.held=null; _atvCall('proos_key',{key:k,action:'up'}).catch(()=>{}); } }
 function atvMaybeUpdate(eid){
   if(!_atv) return;
+  if(_atv.kind==='tv') return _tvMaybeUpdate(eid);   // register 1053
   const kb=_atvKbEntity();
   if(eid===_atv.e||eid===_atv.vol||eid===_atvRemoteEntity()||eid===kb){
     const prevTitle=_atv._title; _atv._title=att(_atv.e,'media_title');
@@ -18792,6 +18837,7 @@ function _atvStatus(){
 
 // ── render ──────────────────────────────────────────────────────────────────────────────────────────────────
 function _atvRender(){
+  if(_atv&&_atv.kind==='tv') return _tvRender();   // register 1053
   const p=document.getElementById('atv-page'); if(!p||!_atv) return;
   const st=_atvStatus();
   const roomName=_atv.room?(_atv.room.name||_atv.room.id):(deviceNameById[entityDeviceMap[_atv.e]]||'');
@@ -18808,6 +18854,7 @@ function _atvRender(){
   _atvRenderBody(); _atvFootPaint();
 }
 function _atvRenderBody(){
+  if(_atv&&_atv.kind==='tv') return _tvRenderBody();   // register 1053
   const b=document.getElementById('atv-body'); if(!b) return;
   const st=_atvStatus();
   if(st.k==='offline'){ b.innerHTML=_atvStateHTML('offline'); _atvBindState(b); return; }
@@ -18844,8 +18891,8 @@ function _atvSmartPlay(){
 // the Apple TV remote" — the room's TV Off when it has one (asked first, as Room Off always was); otherwise the Siri
 // Remote's power: the Apple TV goes to sleep, no question, as the remote does
 function _atvSleepLikeRemote(){ const e=_atv.e;
-  snd({type:'call_service',domain:'media_player',service:'turn_off',service_data:{},target:{entity_id:e}}).then(r=>{ if(r&&r.success===false) throw new Error('The Apple TV did not take Turn Off'); }).catch(_atvFail);
-  _atvToast('Turning the Apple TV off'); atvClose(); }
+  snd({type:'call_service',domain:'media_player',service:'turn_off',service_data:{},target:{entity_id:e}}).then(r=>{ if(r&&r.success===false) throw new Error('The '+_tvWord()+' did not take Turn Off'); }).catch(_atvFail);
+  _atvToast('Turning the '+_tvWord()+' off'); atvClose(); }
 function _atvRoomActs(){
   const room=_atv&&_atv.room; if(!room) return Promise.resolve([]);
   const key=window._proosAreaKey?window._proosAreaKey(room):room.id, have=(window._proosActsByArea&&window._proosActsByArea[key])||[];
@@ -18862,7 +18909,7 @@ function _atvRoomOffAsk(){
 }
 function _atvRoomOffCard(){
   const p=document.getElementById('atv-page'); if(!p||!_atv) return;
-  _atvPop('<div class="atv-poph"><b>Turn off '+_hEsc(_atv.room.name||'the room')+'?</b><span>Everything in the room turns off, the Apple TV goes to sleep.</span></div>'
+  _atvPop('<div class="atv-poph"><b>Turn off '+_hEsc(_atv.room.name||'the room')+'?</b><span>Everything in the room turns off, '+(_tvWord()==='TV'?'the TV turns off.':'the Apple TV goes to sleep.')+'</span></div>'
     +'<div class="atv-popf"><button type="button" class="ghost" data-act="no">Cancel</button><button type="button" class="primary danger" data-act="yes">Room Off</button></div>',
     pop=>{ pop.querySelector('[data-act="no"]').onclick=_atvPopClose; pop.querySelector('[data-act="yes"]').onclick=()=>{ _atvPopClose(); _atvRoomOff(); }; });   // register 1038: the room's TV Off activity, and the page closes
 }
@@ -19073,7 +19120,7 @@ function _atvMiniHTML(){ const t=att(_atv.e,'media_title'); if(!t) return '';
 
 // live repaint without rebuilding the page (state pushes, the position ticker)
 function _atvPaintLive(){
-  if(!_atv) return; const st=_atvStatus(), chip=document.getElementById('atv-chip');
+  if(!_atv||_atv.kind==='tv') return; const st=_atvStatus(), chip=document.getElementById('atv-chip');
   if(chip){ chip.querySelector('i').style.background=st.c; chip.querySelector('em').textContent=st.t; }
   const body=document.getElementById('atv-body'); if(!body) return;
   const wasState=!!body.querySelector('.atv-state'); const isState=(st.k==='offline'||(st.k==='asleep'&&_atv.tab!=='apps'));
@@ -19360,6 +19407,174 @@ function _atvRenderPlaying(b){
     _atvCall('proos_language_option',{option:g.options[+x.dataset.o],enable:true}).then(()=>setTimeout(_atvRefreshNP,800)).catch(_atvFail); });
   b.querySelectorAll('[data-more]').forEach(x=>x.onclick=()=>{ _atv.allLang=!_atv.allLang; _atvRenderBody(); });
   b.querySelectorAll('[data-q]').forEach(x=>x.onclick=()=>_atvCall('proos_play_queue_item',{item_id:x.dataset.q}).then(()=>setTimeout(_atvRefreshNP,1200)).catch(_atvFail));
+}
+
+// ═══ REGISTER 1053 — THE LIVE TV PAGE (Dave 28 Oct: "TV is different from Shield as it is live tv"; channels first;
+// mockup v3 approved; stage 4 of the channel editor). A Samsung TV that is ON opens this page instead of the old player
+// sheet. It wears the Apple TV page's frame — the same header, Room Off, volume at the very bottom — and its own tabs:
+// Channels · Remote · Inputs. NEVER ASSUMED (Dave 14:43): the TV does not report its channel, so the page says only
+// what ProOS SENT ("Sent 9 · Nine"), and only CONFIRMED channels from the TV's own list are offered. The Apps tab and the
+// picture borrowed from the box on an input follow in the next stage.
+const _TV_TABS=['channels','remote','inputs'];
+function tvSupported(e){ return (window.entityPlatformMap||{})[e]==='samsungtv_smart'; }
+function tvShouldOpen(e){ return !!(states[e]&&states[e].state==='on'); }
+function tvOpen(e, vol){
+  const room=CONFIG.rooms.find(r=>r.media===e||r.display===e||(r.allPlayers&&r.allPlayers.includes(e)))||null;
+  const t=_atvLS('tv_tab');
+  _atv={kind:'tv', e:e, vol:vol||e, room:room, tab:_TV_TABS.includes(t)?t:'channels', ch:null, sent:null, typed:'', padOpen:false};
+  let p=document.getElementById('atv-page');
+  if(!p){ p=document.createElement('div'); p.id='atv-page'; document.body.appendChild(p); }
+  p.classList.add('open');
+  _tvRender(); _tvLoadChannels();
+}
+function _tvWord(){ return (_atv&&_atv.kind==='tv')?'TV':'Apple TV'; }
+function _tvStatus(){
+  const e=_atv.e, s=states[e]?states[e].state:'unavailable';
+  if(s==='unavailable') return {k:'offline', t:'Not reachable', c:'var(--atv-bad)'};
+  if(s!=='on') return {k:'off', t:'Off', c:'var(--atv-dim)'};
+  if(typeof _inArtMode==='function'&&_inArtMode(e)) return {k:'art', t:'Art Mode', c:'#c9b99a'};
+  const src=att(e,'source')||'';
+  if(src==='TV') return {k:'live', t:'Live TV', c:'var(--atv-on)'};
+  return {k:'input', t:src?('On '+src):'On', c:'var(--atv-on)'};
+}
+async function _tvLoadChannels(){
+  if(!_atv||_atv.kind!=='tv') return; const e=_atv.e, out={list:null, chans:[], favs:[]};
+  try{ const j=await _coreFetch(proosCoreBase()+'/channels',{},8000).then(r=>r.json()); const t=(j.tuners||[]).find(x=>x.entity_id===e); out.list=t&&t.list||null; }catch(x){ out.error=true; }
+  if(out.list){ try{ out.chans=((await _coreFetch(proosCoreBase()+'/channels/'+encodeURIComponent(out.list)+'?confirmed=1',{},8000).then(r=>r.json()))||{}).channels||[]; }catch(x){} }
+  if(_atv&&_atv.room){ try{ out.favs=(((await _coreFetch(proosCoreBase()+'/areas/'+encodeURIComponent(_atv.room.id)+'/channels',{},8000).then(r=>r.json()))||{}).favourites||[]).filter(f=>f.device===e); }catch(x){} }
+  if(!_atv||_atv.e!==e) return; _atv.ch=out; if(_atv.tab==='channels') _tvRenderBody();
+}
+function _tvRender(){
+  const p=document.getElementById('atv-page'); if(!p||!_atv) return;
+  const st=_tvStatus();
+  const roomName=_atv.room?(_atv.room.name||_atv.room.id):(deviceNameById[entityDeviceMap[_atv.e]]||'');
+  const tabs=[['channels','Channels'],['remote','Remote'],['inputs','Inputs']];
+  p.innerHTML='<div class="atv-bg"></div>'
+    +'<header class="atv-hdr"><div class="atv-hl"><button type="button" class="atv-bk" data-act="close">'+_atvIcon('back')+'<b>'+_hEsc(roomName)+'</b></button><div class="atv-ht">TV</div></div>'
+    +'<div class="atv-segs" role="tablist">'+tabs.map(t=>'<button type="button" role="tab" data-tab="'+t[0]+'" class="'+(t[0]===_atv.tab?'on':'')+'">'+t[1]+'</button>').join('')+'</div>'
+    +'<div class="atv-hr"><span class="atv-chip" id="atv-chip"><i style="background:'+st.c+'"></i><em>'+_hEsc(st.t)+'</em></span>'
+    +'<button type="button" class="atv-roff" data-act="roomoff" aria-label="Power">'+_atvIcon('power')+'<em>'+(_atv.room?'Room Off':'Turn Off')+'</em></button></div></header>'
+    +'<main class="atv-body" id="atv-body"></main><footer class="atv-foot" id="atv-foot"></footer>';
+  p.querySelector('[data-act="close"]').onclick=atvClose;
+  p.querySelector('[data-act="roomoff"]').onclick=_atvRoomOffAsk;
+  p.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{ _atv.tab=b.dataset.tab; _atvLS('tv_tab',_atv.tab); _tvRender(); });
+  _tvRenderBody(); _atvFootPaint();
+}
+function _tvRenderBody(){
+  const b=document.getElementById('atv-body'); if(!b||!_atv) return;
+  const st=_tvStatus();
+  if(st.k==='offline'){ b.innerHTML='<div class="atv-state off"><div class="atv-sico">'+_atvIcon('wifi')+'</div><b>Not reachable</b><span>ProOS has no connection to this TV right now.</span><small>Room volume and Room Off still work.</small></div>'; return; }
+  if(_atv.tab==='remote') return _tvRenderRemote(b);
+  if(_atv.tab==='inputs') return _tvRenderInputs(b);
+  _tvRenderChannels(b);
+}
+const _TVI={
+  chup:'<rect x="5" y="3" width="14" height="18" rx="7"/><path d="m9 10 3-3 3 3"/><path d="M9 15h6"/>',
+  chdn:'<rect x="5" y="3" width="14" height="18" rx="7"/><path d="m9 14 3 3 3-3"/><path d="M9 9h6"/>',
+  last:'<path d="M9 7 4 12l5 5"/><path d="M4 12h11a5 5 0 0 1 0 10h-2"/>',
+  num:'<circle cx="6" cy="6" r="1.3" fill="currentColor"/><circle cx="12" cy="6" r="1.3" fill="currentColor"/><circle cx="18" cy="6" r="1.3" fill="currentColor"/><circle cx="6" cy="12" r="1.3" fill="currentColor"/><circle cx="12" cy="12" r="1.3" fill="currentColor"/><circle cx="18" cy="12" r="1.3" fill="currentColor"/><circle cx="12" cy="18" r="1.3" fill="currentColor"/>',
+  tuner:'<rect x="3" y="7" width="18" height="12" rx="2"/><path d="m8 3 4 4 4-4"/>',
+  input:'<rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8M12 17v4"/><path d="m10 9 3 2-3 2"/>',
+  guide:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v16"/>',
+  exit:'<path d="M14 4h5a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-5"/><path d="M10 8l-4 4 4 4M6 12h10"/>',
+  menu2:'<path d="M4 7h16M4 12h16M4 17h16"/>',
+  art:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="m3 16 5-5 4 4 3-3 6 6"/><circle cx="15.5" cy="8.5" r="1.5"/>'};
+function _tvIcon(n){ return _TVI[n]?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">'+_TVI[n]+'</svg>':_atvIcon(n); }
+function _tvChTile(c, cls){ return '<button type="button" class="tvp-ch '+(cls||'')+'" data-ch="'+_hEsc(c.channel||c.id)+'"><span class="tvp-lg"><b>'+_hEsc(c.number)+'</b></span><span class="tvp-nm">'+_hEsc(c.name)+'</span></button>'; }
+function _tvNowHTML(){
+  const st=_tvStatus(), s=_atv.sent;
+  if(st.k==='art') return '<div class="tvp-now"><span class="tvp-lg art">'+_tvIcon('art')+'</span><div><small>Art Mode</small><b>The Frame is showing art</b><span>Choose a channel to watch TV.</span></div></div>';
+  if(st.k==='input') return '<div class="tvp-now"><span class="tvp-lg">'+_tvIcon('input')+'</span><div><small>On Now · '+_hEsc(att(_atv.e,'source')||'')+'</small><b>'+_hEsc(att(_atv.e,'source')||'Another input')+'</b><span>The TV is on another input.</span></div></div>'
+    +'<div class="atv-npb"><button type="button" class="atv-pill tvp-pri" data-act="watchtv">'+_tvIcon('tuner')+'Watch TV</button></div>';
+  return '<div class="tvp-now"><span class="tvp-lg">'+_tvIcon('tuner')+'</span><div><small>Live TV · The TV’s Tuner</small><b>'+(s?'Sent '+_hEsc(s.number)+(s.name?' · '+_hEsc(s.name):''):'Live TV')+'</b><span>The TV doesn’t report its channel</span></div></div>'
+    +(s?'<div class="mk-honest tvp-honest">'+_atvIcon('info')+'<span>Sent is what ProOS sent to the TV. It isn’t a reading, so it isn’t shown as what’s on.</span></div>':'');
+}
+function _tvPadHTML(){
+  return '<div class="tvp-typed" id="tvp-typed">'+(_atv.typed?_hEsc(_atv.typed):'<span>Type a channel number</span>')+'</div><div class="tvp-pad">'
+    +['1','2','3','4','5','6','7','8','9','clr','0','ok'].map(k=>'<button type="button" data-pad="'+k+'"'+(k==='ok'?' class="ok"':'')+'>'+(k==='clr'?_atvIcon('back'):k==='ok'?'OK':k)+'</button>').join('')+'</div>';
+}
+function _tvRenderChannels(b){
+  const ch=_atv.ch;
+  let right;
+  if(!ch) right='<div class="atv-hint left">Loading the channels…</div>';
+  else if(ch.error) right='<div class="atv-hint left">ProOS Core didn’t answer — the remote and number pad still work.</div>';
+  else if(!ch.list) right='<div class="atv-hint left">This TV has no channel list yet. Your installer sets one up in ProOS.</div>';
+  else if(!ch.chans.length) right='<div class="atv-hint left">No channel has been confirmed on this TV yet. The number pad still works.</div>';
+  else { const favIds=new Set(ch.favs.map(f=>f.channel));
+    right=(ch.favs.length?'<div class="atv-sec">Favourites</div><div class="tvp-chs">'+ch.favs.map(f=>_tvChTile(f)).join('')+'</div>':'')
+      +'<div class="atv-sec">All Channels · '+ch.chans.length+'</div><div class="tvp-chs sm">'+ch.chans.map(c=>_tvChTile(c,favIds.has(c.id)?'fav':'')).join('')+'</div>'; }
+  b.innerHTML='<div class="atv-apps"><div class="tvp-live"><section class="tvp-l">'+_tvNowHTML()
+    +'<div class="tvp-chrow"><button type="button" data-tk="chdown">'+_tvIcon('chdn')+'<span>Ch −</span></button><button type="button" data-tk="prech">'+_tvIcon('last')+'<span>Last</span></button>'
+    +'<button type="button" data-tk="chup">'+_tvIcon('chup')+'<span>Ch +</span></button><button type="button" class="padbtn" data-act="pad">'+_tvIcon('num')+'<span>Number Pad</span></button></div>'
+    +'<div class="tvp-padwrap">'+_tvPadHTML()+'</div></section><section class="tvp-r">'+right+'</section></div></div>';
+  _tvBindChannels(b);
+}
+function _tvBindChannels(b){
+  b.querySelectorAll('[data-tk]').forEach(x=>_atvPress(x,{tap:()=>_tvKey(x.dataset.tk)}));
+  b.querySelectorAll('[data-ch]').forEach(x=>x.onclick=()=>_tvSendChannel(x.dataset.ch));
+  b.querySelectorAll('[data-pad]').forEach(x=>x.onclick=()=>_tvPad(x.dataset.pad));
+  const w=b.querySelector('[data-act="watchtv"]'); if(w) w.onclick=()=>_tvSource('TV');
+  const pb=b.querySelector('[data-act="pad"]'); if(pb) pb.onclick=()=>_atvPop('<div class="atv-poph"><b>Number Pad</b></div>'+_tvPadHTML(), pop=>{ pop.querySelectorAll('[data-pad]').forEach(x=>x.onclick=()=>{ _tvPad(x.dataset.pad); const t=pop.querySelector('#tvp-typed'); if(t) t.innerHTML=_atv.typed?_hEsc(_atv.typed):'<span>Type a channel number</span>'; if(x.dataset.pad==='ok') _atvPopClose(); }); }, 'tvp-padpop');
+}
+function _tvPad(k){
+  if(k==='clr'){ _atv.typed=_atv.typed.slice(0,-1); }
+  else if(k==='ok'){ const n=_atv.typed; _atv.typed=''; if(n) _tvSendNumber(n); }
+  else if(_atv.typed.length<4){ _atv.typed+=k; }
+  const t=document.querySelector('#atv-body #tvp-typed'); if(t) t.innerHTML=_atv.typed?_hEsc(_atv.typed):'<span>Type a channel number</span>';
+}
+function _tvSend(body, label){
+  const room=_atv.room&&_atv.room.id; if(!room){ _atvToast('This TV isn’t in a room'); return; }
+  _coreFetch(proosCoreBase()+'/areas/'+encodeURIComponent(room)+'/channels/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({device:_atv.e},body))},15000)
+    .then(r=>r.json().then(j=>({ok:r.ok,j:j}))).then(({ok,j})=>{ if(!_atv) return;
+      if(!ok||j.error){ _atvToast(j.error||'The TV didn’t take it'); return; }
+      _atv.sent={number:j.sent, name:j.name||''}; _atvToast('Sent '+j.sent+(j.name?' · '+j.name:'')); if(_atv.tab==='channels') _tvRenderBody(); })
+    .catch(()=>_atvToast('Could not reach ProOS Core'));
+}
+function _tvSendChannel(id){ _tvSend({channel:id}); }
+function _tvSendNumber(n){ _tvSend({number:n}); }
+function _tvKey(k){
+  if(!_tvHasKeyFor(k)){ _atvToast('This TV has no '+k+' key ProOS can send'); return; }
+  tvRemoteKey(_atv.e,k);
+  if(k==='chup'||k==='chdown'||k==='prech'){ _atv.sent=null; if(_atv.tab==='channels') _tvRenderBody(); }   // a step, not a number: nothing is claimed
+}
+function _tvHasKeyFor(k){ try{ return _tvHasKey(_atv.e,k); }catch(e){ return false; } }
+function _tvSource(src){ snd({type:'call_service',domain:'media_player',service:'select_source',service_data:{source:src},target:{entity_id:_atv.e}}).then(r=>{ if(r&&r.success===false) _atvToast('The TV did not switch'); }).catch(()=>_atvToast('The TV did not switch')); _atvToast(src==='TV'?'Switching to TV':'Switching to '+src); }
+function _tvRenderRemote(b){
+  const keys=[['back','back','Back'],['home','home','Home'],['guide','guide','Guide'],['info','info','Info'],['menu','menu2','Menu'],['exit','exit','Exit'],['chdown','chdn','Ch −'],['chup','chup','Ch +']];
+  b.innerHTML='<div class="atv-cols"><section class="atv-l">'
+    +'<div class="atv-pad dpad" id="atv-pad"><div class="atv-dpad"><button type="button" class="dk u" data-k="up">'+_atvIcon('chev')+'</button><button type="button" class="dk r" data-k="right">'+_atvIcon('chev')+'</button>'
+    +'<button type="button" class="dk d" data-k="down">'+_atvIcon('chev')+'</button><button type="button" class="dk l" data-k="left">'+_atvIcon('chev')+'</button><button type="button" class="ok" data-k="select">OK</button></div></div>'
+    +'<div class="atv-keys">'+keys.filter(k=>_tvHasKeyFor(k[0])).map(k=>'<button type="button" class="atv-key" data-tk="'+k[0]+'">'+_tvIcon(k[1])+'<em>'+k[2]+'</em></button>').join('')+'</div>'
+    +'<div class="tvp-colours">'+[['red','#e5484d','Red'],['green','#30a46c','Green'],['yellow','#f5d90a','Yellow'],['blue','#3e63dd','Blue']].filter(c=>_tvHasKeyFor(c[0])).map(c=>'<button type="button" data-tk="'+c[0]+'" aria-label="'+c[2]+'"><i style="background:'+c[1]+'"></i></button>').join('')+'</div>'
+    +'<div class="atv-tcap">Hold an arrow to keep moving · the coloured keys are the TV’s own</div></section>'
+    +'<section class="atv-r"><div class="atv-np">'+_tvNowHTML()+'</div></section></div>';
+  b.querySelectorAll('.atv-dpad [data-k]').forEach(x=>{ const k=x.dataset.k; let rep=null;
+    _atvPress(x,{tap:()=>_tvKey(k), holdStart:()=>{ _tvKey(k); if(k!=='select') rep=setInterval(()=>_tvKey(k),220); }, holdEnd:()=>{ clearInterval(rep); rep=null; }}); });
+  b.querySelectorAll('[data-tk]').forEach(x=>_atvPress(x,{tap:()=>_tvKey(x.dataset.tk)}));
+  const w=b.querySelector('[data-act="watchtv"]'); if(w) w.onclick=()=>_tvSource('TV');
+}
+function _tvRenderInputs(b){
+  const list=(att(_atv.e,'source_list')||[]).filter(s=>/^(HDMI\s?\d|TV$|AV\b|Component)/i.test(String(s)));
+  const cur=att(_atv.e,'source');
+  const art=att(_atv.e,'art_mode_status')!=null;
+  b.innerHTML='<div class="atv-apps"><div class="atv-sec">Inputs<em class="atv-sech">The TV’s own inputs. Tap to switch.</em></div><div class="tvp-ins">'
+    +(list.length?list.map(s=>'<button type="button" class="tvp-in'+(s===cur?' on':'')+'" data-src="'+_hEsc(s)+'"><span class="th">'+_tvIcon(s==='TV'?'tuner':'input')+'</span><span><b>'+_hEsc(s==='TV'?'TV':s)+'</b><span>'+(s==='TV'?'The TV’s own tuner':'Input')+'</span></span>'+(s===cur?'<em>On now</em>':'')+'</button>').join('')
+      :'<div class="atv-hint left">The TV doesn’t list its inputs.</div>')+'</div>'
+    +(art?'<div class="atv-sec">The Frame</div><div class="tvp-ins"><button type="button" class="tvp-in'+(_inArtMode(_atv.e)?' on':'')+'" data-act="art"><span class="th">'+_tvIcon('art')+'</span><span><b>Art Mode</b><span>'+(_inArtMode(_atv.e)?'Showing art':'Show art')+'</span></span>'+(_inArtMode(_atv.e)?'<em>On now</em>':'')+'</button></div>':'')+'</div>';
+  b.querySelectorAll('[data-src]').forEach(x=>x.onclick=()=>_tvSource(x.dataset.src));
+  const a=b.querySelector('[data-act="art"]'); if(a) a.onclick=()=>{ const obj=(String(_atv.e).split('.')[1]||'').replace(/_\d+$/,''), sw='switch.'+obj+'_art_mode';
+    if(states[sw]) svc('switch','toggle',{entity_id:sw}); else _atvToast('ProOS can’t switch Art Mode on this TV'); };
+}
+function _tvMaybeUpdate(eid){
+  if(!_atv||_atv.kind!=='tv') return;
+  if(eid!==_atv.e && eid!==_atv.vol) return;
+  if(eid===_atv.e && !tvShouldOpen(_atv.e)){ atvClose(); return; }
+  const st=_tvStatus(), chip=document.getElementById('atv-chip');
+  const was=chip&&chip.querySelector('em')?chip.querySelector('em').textContent:'';
+  if(chip){ chip.querySelector('i').style.background=st.c; chip.querySelector('em').textContent=st.t; }
+  if(was!==st.t && (_atv.tab==='channels'||_atv.tab==='inputs'||_atv.tab==='remote')) _tvRenderBody();
+  const r=document.getElementById('atv-volr'); if(r && _draggingVol!==_atv.vol && document.activeElement!==r){ const l=att(_atv.vol,'volume_level'); if(l!=null){ r.value=l.toFixed(2); r.parentNode.style.setProperty('--v',Math.round(l*100)+'%'); const n=document.getElementById('atv-vn'); if(n) n.textContent=Math.round(l*100); } }
+  const ft=document.getElementById('atv-foot'); if(ft && _draggingVol!==_atv.vol && ft.dataset.m!==(att(_atv.vol,'is_volume_muted')?'1':'0')) _atvFootPaint();
 }
 
 // Update player when open and entity state changes (the Apple TV page listens first — register 1035)

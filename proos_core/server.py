@@ -10224,6 +10224,35 @@ class Handler(BaseHTTPRequestHandler):
                 b = self._body() or {}
                 res = _appart.delete_tile(b.get("slug") or b.get("name") or "")
                 return self._send(400 if res.get("error") else 200, res)
+            # ── REGISTER 1053: THE LIVE TV PAGE SENDS A CHANNEL ── any signed-in person (it is the TV's remote). Only a
+            # CONFIRMED channel from the TV's own list, or a typed number (digits only), and only to a TV that uses a
+            # channel list. The answer is Sent — the TV does not report its channel (register 1047).
+            if len(parts) == 4 and parts[0] == "areas" and parts[2] == "channels" and parts[3] == "send":
+                if not self._user:
+                    return self._send(401, {"error": "sign in first"})
+                if not _channels:
+                    return self._send(503, {"error": "channels unavailable"})
+                b = self._body() or {}
+                dev = (b.get("device") or "").strip()
+                lid = _channels.list_for_device(dev)
+                if not lid:
+                    return self._send(400, {"error": "This TV has no channel list yet"})
+                name = ""
+                if b.get("channel"):
+                    c = next((x for x in _channels.confirmed(lid, shown_only=False) if x.get("id") == b.get("channel")), None)
+                    if not c:
+                        return self._send(400, {"error": "That channel hasn\u2019t been confirmed on this TV"})
+                    number, name = c["number"], c["name"]
+                else:
+                    number = str(b.get("number") or "").strip()
+                call, err = _channels.send_command(dev, number, _shortcuts.platform_of(_client, dev) if _shortcuts else "")
+                if err:
+                    return self._send(400, {"error": err})
+                try:
+                    _client.call_service(call[0], call[1], dev, {k: v for k, v in call[2].items() if k != "entity_id"})
+                except Exception as e:                           # noqa: BLE001
+                    return self._send(502, {"error": "The TV didn\u2019t take the command: %s" % e})
+                return self._send(200, {"ok": True, "sent": number, "name": name})
             # ── REGISTER 1051: A ROOM'S FAVOURITE CHANNELS (change) ── installer or owner, like App Shortcuts
             if len(parts) == 3 and parts[0] == "areas" and parts[2] == "channels":
                 u = self._user
