@@ -5003,7 +5003,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102624';
+const PROOS_BUILD='2026102625';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -19713,7 +19713,7 @@ function _shRenderBody(){
 function _shRenderApps(b){
   _atvRenderApps(b);
   const n=Object.keys(_atv.apps||{}).length;
-  b.querySelector('.atv-apps').insertAdjacentHTML('beforeend','<div class="atv-hint left">A Shield doesn’t publish its apps. '+(n?'These are the '+n+' ProOS has learned from it':'ProOS hasn’t learned any from it yet')+' — your installer can teach it more in ProOS (Learn from Device).</div>');
+  b.querySelector('.atv-apps').insertAdjacentHTML('beforeend','<div class="atv-hint left">'+(n?'The apps ProOS has seen open on this Shield.':'ProOS hasn’t seen any of this Shield’s apps open yet.')+' A Shield doesn’t publish its apps, so only ones proven to open are shown.</div>');
 }
 // the Shield's own Android keys (androidtv_remote takes the key names without KEYCODE_)
 const _SH_KEYS={up:'DPAD_UP',down:'DPAD_DOWN',left:'DPAD_LEFT',right:'DPAD_RIGHT',select:'DPAD_CENTER',back:'BACK',home:'HOME',pp:'MEDIA_PLAY_PAUSE',

@@ -229,6 +229,13 @@ def room(area_id: str) -> list:
     return list(_all().get(area_id) or [])
 
 
+def room_offered(area_id: str) -> list:
+    """REGISTER 1061: the room's shortcuts a dashboard shows — an Android TV app with no proven way to open it
+    ('manual') is kept in the store but never shown (Dave 29 Oct: no "open with remote" tiles)."""
+    return [sc for sc in room(area_id)
+            if not ((sc.get("platform") in ANDROID) and android_shortcut(sc).get("method") == "manual")]
+
+
 def set_room(area_id: str, shortcuts) -> list:
     d = _all()
     d[area_id] = list(shortcuts or [])
@@ -242,6 +249,9 @@ def add(area_id: str, sc: dict) -> dict:
     ok, why = validate(sc)
     if not ok:
         return {"error": why}
+    if sc.get("platform") in ANDROID and android_shortcut(sc).get("method") == "manual":     # 1061
+        return {"error": "ProOS has no proven way to open %s on Android TV yet, so it can\u2019t be added."
+                % (sc.get("name") or display_name(sc.get("app") or ""))}
     cur = [x for x in room(area_id)
            if not (x.get("app") == sc.get("app") and x.get("target") == sc.get("target"))]
     cur.append(sc)
@@ -720,11 +730,19 @@ def device_apps(client, target: str, platform: str = None, android_held: dict = 
             c = appart.canonical(nm, pkg) or {}
             sl = c.get("slug") or appart.slug(nm)
             r = android_recipe(sl, package=pkg)
-            # 918j: the app's proven link if ProOS has one (Foxtel, Netflix); otherwise offered as "manual" — it powers
-            # the room and says to use the box's remote, and Pro shows that before it is added.
-            put(nm, r["link"] if r else pkg, slug=sl, nm=c.get("name") or nm,
-                extra={"method": "play_media_url" if r else "manual", "package": pkg, "opens": bool(r)})
+            # 918j: the app's proven link if ProOS has one (Foxtel, Netflix).
+            # REGISTER 1061 (Dave 29 Oct 08:06: "if they can't be learned and work then they should not show as I don't
+            # want open with remote"): an app with NO proven link is not offered anywhere — it is named in `unlaunchable`
+            # so the installer is told why, and never becomes a tile that only powers the room.
+            if not r:
+                unl.append(c.get("name") or nm)
+                continue
+            put(nm, r["link"], slug=sl, nm=c.get("name") or nm,
+                extra={"method": "play_media_url", "package": pkg, "opens": True})
         note = ("" if apps else
+                ("%s has learned %s, but ProOS has no proven way to open %s on Android TV yet, so %s offered."
+                 % (name, ", ".join(unl), "it" if len(unl) == 1 else "them", "it isn't" if len(unl) == 1 else "they aren't"))
+                if unl else
                 "%s hasn't told ProOS any of its apps yet. Open an app on it with its remote, then press "
                 "Learn from Device." % name)
     elif plat == "samsungtv_smart":
@@ -759,6 +777,8 @@ def offered(dapps: dict, app: str):
             return (e, None)
     nm = display_name(app)
     dev = (dapps or {}).get("name") or "This device"
+    if (dapps or {}).get("platform") in ANDROID and any(_same(u, nm) or _same(u, app) or canonical_slug(u) == canonical_slug(app) for u in (dapps or {}).get("unlaunchable") or []):
+        return (None, "ProOS has no proven way to open %s on Android TV yet, so it can\u2019t be added." % nm)   # 1061
     if (dapps or {}).get("platform") in ANDROID:
         return (None, "%s doesn't have %s yet. Open %s on it with its remote, then press Learn from Device."
                 % (dev, nm, nm))

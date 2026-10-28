@@ -8099,7 +8099,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not _shortcuts:
                     return self._send(200, {"area_id": parts[1], "shortcuts": []})
                 return self._send(200, {"area_id": parts[1],
-                                        "shortcuts": _shortcuts.room(parts[1])})
+                                        "shortcuts": _shortcuts.room_offered(parts[1])})   # 1061
             if parts == ["whoami"]:
                 u = getattr(self, "_user", None)
                 if not u:
