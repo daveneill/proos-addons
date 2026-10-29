@@ -85,8 +85,22 @@ METHODS = ("play_media_app", "select_source", "play_media_url", "manual")
 #   package — what the box must then say it is on (app_id), so the launch is checked
 # An Android TV app with no row has no proven way in: its tile powers the room and says so ("manual").
 ANDROID_LINKS = {
-    "netflix": {"link": "netflix://", "package": "com.netflix.ninja"},              # platform page; seen 918g
+    "netflix": {"link": "netflix://", "package": "com.netflix.ninja"},              # platform page; seen 918g, 1062
     "foxtel":  {"link": "https://open.foxtel.com.au", "package": "au.com.foxtel.atv"},  # manifest 4.7.0; seen 918i
+    # REGISTER 1062 — Dave's full test, Family Room Shield, 29 Oct 14:29–14:58 (HOME, send the link, read app_id):
+    # every row below was SEEN opening its app. Tried and NOT opening (so not here): YouTube, 9Now, Kayo, BINGE, Paramount+.
+    "prime_video":   {"link": "https://app.primevideo.com", "package": "com.amazon.amazonvideo.livingroom"},
+    "disney":        {"link": "https://www.disneyplus.com", "package": "com.disney.disneyplus"},
+    "plex":          {"link": "plex://", "package": "com.plexapp.android"},
+    "10":            {"link": "tenplay://", "package": "au.com.tenplay"},
+    "apple_tv":      {"link": "https://tv.apple.com", "package": "com.apple.atve.androidtv.appletv"},
+    "hbo_max":       {"link": "https://play.hbomax.com", "package": "com.wbd.stream"},
+    "abc_iview":     {"link": "iview://", "package": "au.net.abc.iview"},
+    "twitch":        {"link": "twitch://home", "package": "tv.twitch.android.app"},
+    "7plus":         {"link": "seven://", "package": "com.swm.live"},
+    "spotify":       {"link": "spotify://", "package": "com.spotify.tv.android"},
+    "stan":          {"link": "https://play.stan.com.au", "package": "au.com.stan.and"},
+    "sbs_on_demand": {"link": "https://www.sbs.com.au/ondemand", "package": "com.sbs.ondemand.tv"},
 }
 
 
