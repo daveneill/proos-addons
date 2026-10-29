@@ -277,7 +277,9 @@ def device_verdict(cs, acts, rec, snap, disp_eid, disp_on, mem, now=None):
         # the room says so rather than "the TV reports on" under an Off)
         _why = ("the TV is resting on Art Mode" if dstate in ("on", "playing", "paused")
                 else "the TV reports %s" % (dstate or "off"))
-        out = dict(base, state="off", label="Off", confirmed=True, basis=_why)
+        # 1085: still off (Dave's ruling), but the LABEL says why — "Art Mode", not the same "Off" a TV reporting off gets
+        _art = dstate in ("on", "playing", "paused")
+        out = dict(base, state="off", label=("Art Mode" if _art else "Off"), confirmed=True, basis=_why)
         if cs.get("missed"):
             out["missed"] = cs["missed"]
         return out
