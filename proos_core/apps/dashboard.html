@@ -5019,7 +5019,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102635';
+const PROOS_BUILD='2026102636';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -10953,13 +10953,13 @@ function renderWidgetContent(w){
     case 'musicfav': {
       // REGISTER 1073 (Dave 29 Oct 19:13 "hold and favourite music also to home and area page"; 19:2x: plays in the room
       // it was saved from; dashboard only). The cover square, filling the widget's square, nothing behind it.
-      if(!w.uri||!w.speaker) return {icon, label:'Music', value:'', sub:'', _hide:true};
+      if(!w.speaker||!(w.uri||w.play)) return {icon, label:'Music', value:'', sub:'', _hide:true};
       const _art=w.art||'';
       const html=`<div class="aw-full aw-true" data-mfuid="${_appEscA(w.uid)}" onclick="event.stopPropagation();_mfTap(this)">`
         +`<span class="awt awt-true awt-sq" style="background:linear-gradient(135deg,#2a2a36,#15151c)"><span class="awt-wm">${_appEscA(w.title||'Music')}</span>`
         +(_art?`<img class="awt-cov" ${_artAttr(_art)} alt="" onload="this.previousElementSibling&&(this.previousElementSibling.style.display='none')" onerror="this.remove()"/>`:'')+`</span></div>`;
       setTimeout(()=>{ try{ _scanAuthImgs(document.getElementById('widget-grid')); }catch(e){} },0);
-      return {icon, label:'Music', value:'', sub:'', html, _appTile:true, hsig:'musicfav:'+w.uid+':'+w.uri+':'+_art};
+      return {icon, label:'Music', value:'', sub:'', html, _appTile:true, hsig:'musicfav:'+w.uid+':'+_mfKey(w)+':'+_art};
     }
     case 'climate': {
       // On Home the widget carries the room it was pointed at (register 611);
@@ -16267,6 +16267,8 @@ function spmAct(i){
     +`<button class="mus-act-btn" onclick="spmPlaylistPick(${i})">Add to Playlist</button>`
     +`<button class="mus-act-btn" onclick="closeMusicAct();spmAddFavourite(${i})">Add to Favourites</button>`
     +`<button class="mus-act-btn" onclick="spmShowInfo(${i})">Show Info</button>`
+    +(typeof _mfButtonsHTML==='function'?_mfButtonsHTML({kind:'speaker', speaker:_spm.entity, title:it.title||'', art:it.art||'',
+        play:{sid:(it.sid!=null?it.sid:_spm.sid), acct:(it.sid!=null?it.acct:_spm.acct), item:it.id}}):'')   // 1074
     +`<button class="mus-act-btn" onclick="closeMusicAct()">Cancel</button>`;
 }
 // register 841: Add to Favourites — the speaker's own favourites; said added only from the speaker's own answer.
@@ -16493,7 +16495,10 @@ function _musicItemHtml(it, i){
   const raw=it.thumbnail;
   const art=(raw && !_maImageProxy(raw))?artSrc(raw):'';
   const _pl=it.can_play!==false && it.media_content_id && musicEngine(_musicSpeaker)==='ma';
-  const _hold=_pl?`onpointerdown="musicHoldStart('${encodeURIComponent(it.media_content_id)}','${_mEsc(it.media_content_type||'track')}','${_jsStr(it.title)}','${encodeURIComponent(art||'')}')" onpointerup="musicHoldEnd()" onpointerleave="musicHoldEnd()" onpointercancel="musicHoldEnd()"`:'';
+  const _hold=_pl?`onpointerdown="musicHoldStart('${encodeURIComponent(it.media_content_id)}','${_mEsc(it.media_content_type||'track')}','${_jsStr(it.title)}','${encodeURIComponent(art||'')}')" onpointerup="musicHoldEnd()" onpointerleave="musicHoldEnd()" onpointercancel="musicHoldEnd()"`
+    // 1074 (Dave 19:48 "needs to work for everything what ever is the music service or player"): a speaker's own favourites
+    // (Sonos, HEOS) hold too — Play now, or put it on a page
+    :(musicEngine(_musicSpeaker)!=='ma' && (it.media_content_id||it._heosPos!=null))?`onpointerdown="musicNativeHold(${i})" onpointerup="musicHoldEnd()" onpointerleave="musicHoldEnd()" onpointercancel="musicHoldEnd()"`:'';
   // Artists get a circular tile; everything else stays square.
   const round=(it.media_content_type==='artist')?'border-radius:50%':'border-radius:8px';
   return `<div onclick="if(musicHeld())return; musicTap(${i})" ${_hold} style="cursor:pointer;display:flex;flex-direction:column;gap:6px">
@@ -17132,26 +17137,78 @@ function openMusicAct(uriEnc, type, name, artEnc){
   if(rb){ rb.style.display=ri>=0?'':'none'; const t2=rb.querySelector('span'); if(t2&&ri>=0) t2.textContent='Add to '+(CONFIG.rooms[ri].name||'Room')+' Page'; }
   if(sh) sh.style.display='flex';
 }
-// ── REGISTER 1073: MUSIC FAVOURITES ON THE HOME AND ROOM PAGES ─────────────────────────────────────────────────
+// ── REGISTER 1073/1074: MUSIC FAVOURITES ON THE HOME AND ROOM PAGES ────────────────────────────────────────────
+// One favourite, kept with HOW the Music page played it — so it works whatever the service or player (Dave 19:47–19:48:
+// "we are just using Sonos … needs to work for everything what ever is the music service or player"):
+//   engine  — ProOS Music: {uri}                         → Core /music/play (musicPlayCore)
+//   speaker — a Sonos/HEOS service item: {sid,acct,item} → Core /speakers/music/play (as spmPlay)
+//   native  — the speaker's own favourite: {cid,ctype} or a HEOS preset {heos} → the platform's play_media (as musicPlay)
 function _mfRoomIdx(entity){ const id=entity&&entityAreaMap[entity]; return id?(CONFIG.rooms||[]).findIndex(r=>r.id===id):-1; }
-function _mfAddToPage(idx){
-  const uri=_musicActUri, speaker=_musicSpeaker; if(!uri||!speaker) return;
-  if(idx!==-1 && idx<0) return;
+function _mfNorm(w){ return (w&&w.kind)?w:(w&&w.uri?Object.assign({}, w, {kind:'engine', play:{uri:w.uri, type:w.mtype||''}}):w); }   // a 1073 favourite
+function _mfKey(w){ w=_mfNorm(w); return w?(w.kind+'|'+w.speaker+'|'+JSON.stringify(w.play||{})):''; }
+function _mfAdd(idx, entry){
+  if(!entry||!entry.speaker||(idx!==-1 && !(idx>=0))) return;
   const was=curRoom; let added=false, dup=false;
   try{
     curRoom=idx;                                         // the page's own layout, by the page's own key and form factor
     const list=loadWidgetLayout();
-    dup=list.some(w=>w&&w.id==='musicfav'&&w.uri===uri&&w.speaker===speaker);
-    if(!dup){ list.push({uid:_newWidgetUid(), id:'musicfav', uri:uri, mtype:_musicActType||'', title:_musicActName||'', art:_musicActArt||'', speaker:speaker}); saveWidgetLayout(list); added=true; }
+    dup=list.some(w=>w&&w.id==='musicfav'&&_mfKey(w)===_mfKey(entry));
+    if(!dup){ list.push(Object.assign({uid:_newWidgetUid(), id:'musicfav'}, entry)); saveWidgetLayout(list); added=true; }
   }catch(e){} finally{ curRoom=was; }
   const where=idx===-1?'Home':((CONFIG.rooms[idx]&&CONFIG.rooms[idx].name)||'room')+' page';
   showToast(dup?('Already on '+where):added?('Added to '+where):"Couldn't add it");
+}
+// the two buttons, for whichever sheet is open; the entry waits in _mfPending until one is pressed
+let _mfPending=null;
+function _mfButtonsHTML(entry){
+  _mfPending=entry; const ri=_mfRoomIdx(entry.speaker);
+  return (ri>=0?`<button class="mus-act-btn" onclick="closeMusicAct();_mfAdd(${ri},_mfPending)">Add to ${_mEsc((CONFIG.rooms[ri]&&CONFIG.rooms[ri].name)||'Room')} Page</button>`:'')
+    +`<button class="mus-act-btn" onclick="closeMusicAct();_mfAdd(-1,_mfPending)">Add to Home</button>`;
+}
+// a speaker's own favourites list (no engine): hold → Play now, or put it on a page
+function musicNativeHold(i){
+  _musicHoldFired=false; clearTimeout(_musicHoldTimer);
+  _musicHoldTimer=setTimeout(()=>{
+    const it=_musicView[i], sp=_musicSpeaker; if(!it||!sp) return;
+    _musicHoldFired=true; try{ _proosHaptic('lift'); }catch(e){}
+    const sh=document.getElementById('music-act-sheet'); if(!sh) return;
+    const t=document.getElementById('music-act-title'); if(t) t.textContent=it.title||'';
+    const sub=document.getElementById('music-act-sub'); if(sub) sub.textContent='to '+playerRoomName(sp);
+    sh.style.display='flex';
+    const ex=_musicActExtra(); if(!ex) return;
+    const raw=it.thumbnail, art=(raw && !_maImageProxy(raw))?artSrc(raw):'';
+    const entry={kind:'native', speaker:sp, title:it.title||'', art:art,
+      play:it._heosPos!=null?{heos:String(it._heosPos), name:it.title||''}:{cid:it.media_content_id, ctype:it.media_content_type||'favorite_item_id'}};
+    ex.innerHTML=`<button class="mus-act-btn" onclick="closeMusicAct();musicTap(${i})">Play now</button>`+_mfButtonsHTML(entry)
+      +`<button class="mus-act-btn" onclick="closeMusicAct()">Cancel</button>`;
+  },480);
+}
+async function _mfPlay(w){
+  w=_mfNorm(w); const sp=w&&w.speaker, p=(w&&w.play)||{}; if(!sp) return;
+  if(w.kind==='engine') return musicPlayCore(sp,{media:p.uri},'Starting '+(w.title||''));
+  if(w.kind==='native'){
+    if(p.heos!=null){
+      musicCmd(sp,'media_player','play_media',{entity_id:sp,media_content_type:'favorite',media_content_id:String(p.heos)},null,'Starting '+(w.title||''));
+      setTimeout(()=>{ if(st(sp)!=='playing'&&p.name) svc('media_player','select_source',{entity_id:sp,source:p.name}); },800);
+      return;
+    }
+    return musicCmd(sp,'media_player','play_media',{entity_id:sp, media_content_id:p.cid, media_content_type:p.ctype||'favorite_item_id'},null,'Starting '+(w.title||''));
+  }
+  // speaker: the service item, played by the speaker with the home's own account (as spmPlay)
+  let j=null, msg='';
+  try{
+    const r=await fetch(proosCoreBase()+'/speakers/music/play',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({entity_id:sp, service_id:p.sid, account:p.acct, item:p.item})});
+    j=await r.json().catch(()=>null); if(!r.ok) msg=(j&&j.error)||('error '+r.status);
+  }catch(e){ msg=String(e&&e.message||e); }
+  if(msg){ showToast('Couldn’t play on '+playerRoomName(sp)+' — '+msg); try{ _musicReport(sp,'speaker','play',msg); }catch(e){} return; }
+  if(!(j&&j.ok)) showToast(playerRoomName(sp)+' didn’t start playing '+(w.title||'')+(j&&j.state?' ('+String(j.state).toLowerCase()+')':''));
 }
 function _mfTap(el){
   if(_widgetEditMode) return;
   const uid=el&&el.dataset.mfuid; const w=(loadWidgetLayout()||[]).find(x=>x&&x.uid===uid); if(!w) return;
   _awRing(el,true);
-  Promise.resolve(musicPlayCore(w.speaker,{media:w.uri},'Starting '+(w.title||''))).finally(()=>setTimeout(()=>_awRing(el,false),400));
+  Promise.resolve(_mfPlay(w)).catch(()=>{}).finally(()=>setTimeout(()=>_awRing(el,false),400));
 }
 function closeMusicAct(){ const sh=document.getElementById('music-act-sheet'); if(sh) sh.style.display='none'; _musicHoldFired=false; }
 function _musicActExtra(){
@@ -17187,7 +17244,8 @@ function _musicActShowInfo(){
 function musicAct(mode){
   const uri=_musicActUri, type=_musicActType, room=_musicSpeaker;
   if(mode==='playlist'){ _musicActPlaylistPicker(); return; }
-  if(mode==='pageroom'||mode==='pagehome'){ closeMusicAct(); _mfAddToPage(mode==='pagehome'?-1:_mfRoomIdx(room)); return; }   // 1073
+  if(mode==='pageroom'||mode==='pagehome'){ closeMusicAct();   // 1073/1074
+    _mfAdd(mode==='pagehome'?-1:_mfRoomIdx(room), {kind:'engine', speaker:room, title:_musicActName||'', art:_musicActArt||'', play:{uri:uri, type:type||''}}); return; }
   if(mode==='info'){ _musicActShowInfo(); return; }
   closeMusicAct();
   if(!uri||!room) return;
