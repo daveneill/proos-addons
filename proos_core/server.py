@@ -11564,13 +11564,16 @@ def main():
                 elif res.get("ok") and data.get("kind") == "app":
                     # DAVE'S RULING 14 Oct 14:59 (register 873): "assist should not have to confirm if it ran as it's just
                     # running the activity or shortcut" — the shortcut ran (device on, command taken); nothing is asked after.
-                    okc, secs, words = True, 0, "the shortcut ran"
+                    # REGISTER 1084 (Dave 30 Oct: "if a device can not confirm then it can only send"): confirmed only when
+                    # the device reports the app in front; otherwise it was SENT — said as such, and no correction raised.
+                    okc, secs, words = ((True, 0, "the device shows %s" % res.get("launched")) if res.get("opened") is True
+                                        else (None, 0, "sent — the device doesn't show which app is open"))
                 elif res.get("ok"):
                     okc, secs, words = _vck.check_play(_client, data.get("entity_id"), what, before=before)
                 else:
                     okc, secs, words = False, 0, res.get("error") or "it couldn't be done"
-                print("  voice · %s %s %s (%.1f s)" % (what, "confirmed:" if okc else "NOT confirmed:", words, secs), flush=True)
-                if not okc:
+                print("  voice · %s %s %s (%.1f s)" % (what, "confirmed:" if okc else ("sent:" if okc is None else "NOT confirmed:"), words, secs), flush=True)
+                if okc is False:
                     _dash_ping("voice", _vck.correction(data.get("room"), words))
                 if _journal_mod is not None:
                     try:

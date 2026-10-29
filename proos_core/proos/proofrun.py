@@ -59,8 +59,12 @@ def run_proof(plan, fire, read, *, now=_time.monotonic, sleep=_time.sleep,
                 res = (launch(step) if launch else {"error": "no launcher"}) or {}
             except Exception as e:                            # noqa: BLE001
                 res = {"error": str(e)}
+            # REGISTER 1084 (Dave 30 Oct: "if a device can not confirm then it can only send"): a shortcut PASSES only
+            # when its device reports the app in front; one the device took but can't show is SENT — never a pass.
+            _opened = res.get("opened") is True
             results.append({"script": step.get("script"), "alias": step.get("alias"),
-                            "kind": "shortcut", "ok": bool(res.get("ok")),
+                            "kind": "shortcut", "ok": bool(res.get("ok")) and _opened,
+                            "sent": bool(res.get("ok")) and not _opened,
                             "seconds": round(now() - started, 1),
                             "final": {"shows": res.get("shows"), "error": res.get("error")}})
             sleep(settle_s)
@@ -76,11 +80,13 @@ def run_proof(plan, fire, read, *, now=_time.monotonic, sleep=_time.sleep,
 
         def _passes(v):
             st = (v or {}).get("state") or ""
+            # 1084: an activity passes only when the room's devices CONFIRM it (verified — since 1078 that is the TV's
+            # input and the box awake); "Starting …" carries the activity's state but is not verified, so it never passes.
             if step["kind"] == "watch_source":
                 return st.startswith("watch_") and st != "watch_tv" \
-                    and (v or {}).get("source") == step.get("source")
+                    and (v or {}).get("source") == step.get("source") and (v or {}).get("verified") is True
             if step["kind"] == "watch_tv":
-                return st == "watch_tv"
+                return st == "watch_tv" and (v or {}).get("verified") is True
             return st == "off"                               # tv_off
 
         ok, final = False, {}
@@ -103,4 +109,5 @@ def run_proof(plan, fire, read, *, now=_time.monotonic, sleep=_time.sleep,
 
     return {"steps": results,
             "passed": sum(1 for r in results if r["ok"]),
+            "sent": sum(1 for r in results if r.get("sent")),
             "total": len(results)}

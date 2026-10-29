@@ -3024,7 +3024,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102616';
+const PROOS_BUILD='2026102617';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -10765,14 +10765,15 @@ function _proveShow(j){
     body='<div style="font-size:13px;color:#e17055">'+esc(j.error||'The proof stopped')+'</div>';
   }else{
     const steps=j.steps||[];
-    body='<div style="font-size:13px;margin-bottom:10px;color:'+(j.passed===j.total?'#2fbf71':'#e0a33a')+'">'+j.passed+' of '+j.total+' Passed</div>'
+    body='<div style="font-size:13px;margin-bottom:10px;color:'+(j.passed===j.total?'#2fbf71':'#e0a33a')+'">'+j.passed+' of '+j.total+' Passed'+(j.sent?(' · '+j.sent+' Sent'):'')+'</div>'   // 1084: sent is not a pass
       // 917 (Dave 17 Oct: "might need to allow second line if required as the channels on family room looks like it runs
       // out of space"): the step's name wraps onto a second line; the time stays whole at the right, what a shortcut
       // shows on a line of its own under it.
-      +steps.map(s=>'<div class="row" style="align-items:flex-start;gap:12px"><div class="rl" style="white-space:normal;min-width:0;flex:1;line-height:1.35">'+(s.ok?'✓ ':'✗ ')+esc(s.alias||s.script)+'</div><div class="rr" style="color:#9aa8b8;flex-shrink:0;text-align:right;white-space:normal;max-width:45%;line-height:1.35">'
+      +steps.map(s=>'<div class="row" style="align-items:flex-start;gap:12px"><div class="rl" style="white-space:normal;min-width:0;flex:1;line-height:1.35">'+(s.ok?'✓ ':(s.sent?'→ ':'✗ '))+esc(s.alias||s.script)+'</div><div class="rr" style="color:#9aa8b8;flex-shrink:0;text-align:right;white-space:normal;max-width:45%;line-height:1.35">'
         +(s.kind==='shortcut'
           // 916: an app shortcut passes when its device took the command (Dave's rule, 871); what it shows is information
-          ?(s.ok?(s.seconds+' s'+((s.final||{}).shows?'<br>shows '+esc(s.final.shows):'')):esc(((s.final||{}).error)||'the device did not take it'))
+          ?(s.ok?(s.seconds+' s'+((s.final||{}).shows?'<br>shows '+esc(s.final.shows):''))
+             :(s.sent?('Sent — the device doesn\'t show which app is open'+((s.final||{}).shows?'<br>it shows '+esc(s.final.shows):'')):esc(((s.final||{}).error)||'the device did not take it')))   // 1084
           :(s.ok?(s.seconds+' s'):('the room read '+esc(((s.final||{}).state)||'nothing'))))+'</div></div>').join('');
   }
   _recOverlay('<div style="font-size:15px;font-weight:600;margin-bottom:10px">Prove the Room</div>'+body

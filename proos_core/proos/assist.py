@@ -2908,8 +2908,11 @@ class ToolRunner:
                            "sensor (verify_by) — this device's raw state may sit at 'idle' or 'off' while the app plays, "
                            "because many streamer drivers cannot see what is on screen. Raw state here is NOT evidence of "
                            "failure. If you still doubt, ask the user what is on the screen — their answer settles it.")
-            # register 873 (Dave): a shortcut that ran is done — nothing to verify after, nothing to wait for before learning
-            res["say"] = "%s, %s." % (room, sc.get("name") or app)
+            # register 873 (Dave): a shortcut that ran is done — nothing to verify after, nothing to wait for before learning.
+            # REGISTER 1084 (Dave 30 Oct: "if a device can not confirm then it can only send"): it is SAID as done only
+            # when the device reports that app in front; otherwise it says what it is doing — "Opening Netflix in the Office."
+            _an = sc.get("name") or app
+            res["say"] = ("%s, %s." % (room, _an)) if res.get("opened") is True else ("Opening %s in %s." % (_an, _direct._art(room)))
         return res
 
     def t_watch_options(self, args):
@@ -7578,6 +7581,8 @@ def _act_confirmed(client, tool, args, out, wait_s=None, sleep=None):
     if tool in ("room_volume", "room_media"):
         c = (out or {}).get("confirmed") if isinstance(out, dict) else None
         return True if c is True else (False if c is False else None)
+    if tool == "app_launch":                         # 1084: an app is confirmed only when the device reports it in front
+        return True if (isinstance(out, dict) and out.get("opened") is True) else None
     aid = args.get("area_id")
     ents, test = None, None
     if tool == "room_off" and aid:
