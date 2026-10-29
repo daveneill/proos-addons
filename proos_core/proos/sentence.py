@@ -80,8 +80,15 @@ def _watch_source(label):
     an activity name ('On') returns None, so a manually-lit room never gets a
     bogus 'on On' tail."""
     import re as _re
-    m = _re.match(r"^Watch(?:ing)?\s+(.+)$", str(label or "").strip(), _re.I)
-    return m.group(1) if m else None
+    t = str(label or "").strip()
+    m = _re.match(r"^Watch(?:ing)?\s+(.+)$", t, _re.I)
+    if m:
+        return m.group(1)
+    # REGISTER 1081: since 1079 a confirmed room's label IS the source ("Apple TV", "TV"); only the words that are not a
+    # source — On, Starting …, Turning Off, No Reading — return None.
+    if not t or t in ("On", "Off", "Turning Off", "No Reading") or _re.match(r"^Starting\s", t, _re.I):
+        return None
+    return t
 
 
 def _relay_twin(eid, devs, snap):
@@ -269,12 +276,15 @@ def _state_sentence(stv, label, devs, snap, room_name, home,
         # A built-in app or the tuner names ITSELF ("Watching 7plus").
         self_lbl = _self_label(None, media_app, content)
         if self_lbl:
-            return "Watching " + str(self_lbl).replace("_", " ")
+            return str(self_lbl).replace("_", " ")      # 1081: "Netflix" — where it is, not "Watching Netflix"
         t = str(label or stv).replace("_", " ")
-        if re.match(r"^Watching\s+", t, flags=re.I):
-            return t
-        if re.match(r"^Watch\s+", t, flags=re.I):
-            return re.sub(r"^Watch\s+", "Watching ", t, flags=re.I)
+        if re.match(r"^Starting\s", t, flags=re.I):
+            return t                               # 1081: a command in flight says so
+        _src = _watch_source(t)
+        if _src:
+            # 1081 (Dave 30 Oct 08:21: the dashboard said "Apple TV", Pro said "The TV is on" for the same room): the
+            # room's words name WHERE it is, the same as its label — "Apple TV", never "Watching Apple TV".
+            return _src
         # The label is NOT an activity name — a manually-lit room carries
         # "On" (Dave, 4 Aug: the home line read "Watching On in the Family
         # Room"). Never verb a non-name: say what is actually on.
@@ -343,11 +353,10 @@ def home_fact(stv, label, provisional, devs, snap, room_name,
         # the words don't (Dave, 6 Aug). Only active playback names the room.
         return {"kind": "music", "what": None, "where": where} if stv == "playing" else None
     if stv.startswith("watch_"):
-        _s = _state_sentence(stv, label, devs, snap, room_name, home=True,
-                             media_app=media_app, content=content)
-        m = re.match(r"^Watching\s+(.+)$", _s or "", flags=re.I)
-        if m:
-            return {"kind": "watch", "what": m.group(1).strip(), "where": where}
+        # 1081: the source straight from the label / the TV's own app (the room sentence no longer says "Watching")
+        _what = _self_label(None, media_app, content) or _watch_source(label)
+        if _what:
+            return {"kind": "watch", "what": str(_what).replace("_", " ").strip(), "where": where}
         # not an activity name (a manually-lit room) — the home line names
         # the room's devices, never "The TV is on in the Family Room"
         _n = _lit_names(devs, snap, room_name)
