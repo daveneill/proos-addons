@@ -2984,8 +2984,10 @@ select option,select optgroup{background:#1a1c20;color:#fff}
 .aw-full:active{transform:scale(0.97)}
 /* 1066: the tile at its own 5:3 shape, centred in the widget's square — the Apps screen's tile, not a stretched one */
 .aw-true{display:flex;align-items:center;justify-content:center;container-type:size;overflow:hidden}
-/* sized from the widget's own box (container units), never a % height — on iPad a % height fed back into the row */
-.awt-true{width:min(calc(100cqw - 18px),calc((100cqh - 18px) * 5 / 3));height:auto;aspect-ratio:5/3;border-radius:14px;font-size:15px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}   /* 1070: no drop shadow — it was cut flat at the widget's edge */
+/* sized from the widget's own box (container units), never a % height — on iPad a % height fed back into the row.
+   1071 (Dave 29 Oct 18:32, "Just number 1"): no inner margin — the tile fills the square's full width (or height, if that
+   is what limits it), so its edges line up with the widgets above and below. Row heights are unchanged. */
+.awt-true{width:min(100cqw,calc(100cqh * 5 / 3));height:auto;aspect-ratio:5/3;border-radius:14px;font-size:15px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}   /* 1070: no drop shadow — it was cut flat at the widget's edge */
 /* the room and screen it opens on, over a shade at the foot (register 617) */
 .aw-cap{position:absolute;left:0;right:0;bottom:0;padding:14px 10px 7px;border-radius:0 0 12px 12px;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,0.72));font-size:11px;color:rgba(255,255,255,0.9);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
 /* Centered confirm (never a bottom sheet) */
@@ -5009,7 +5011,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102632';
+const PROOS_BUILD='2026102633';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
