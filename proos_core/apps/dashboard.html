@@ -560,8 +560,10 @@ body[data-home-state="noticing"] .home-state-go,body[data-home-state="attention"
 .ctrl-grid{display:block;width:100%}
 /* Widget system */
 .widget-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));grid-auto-rows:100px;grid-auto-flow:row dense;gap:8px;padding:0;-webkit-user-select:none;user-select:none}
-.widget-grid.cap-home{overflow:hidden}   /* height set dynamically per orientation (JS) */
-.widget-grid.cap-area{overflow:hidden}
+.widget-grid.cap-home,.widget-grid.cap-area{overflow:visible}
+/* REGISTER 1070 (Dave 29 Oct 17:25/17:49: "faint line is still there"): the grid clipped (overflow:hidden), cutting the
+   bottom row's soft shadows off flat — a straight line under the widgets. Since register 376 the grid is exactly as tall
+   as its widgets and the column scrolls, so nothing is hidden by a clip any more; the shadows now fade out. */
 .widget-cell{background:rgba(0,0,0,0.62);border:0.5px solid rgba(255,255,255,0.14);border-radius:12px;padding:12px;cursor:pointer;transition:border-color .15s,background .15s;position:relative;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;overflow:hidden}
 .widget-cell:hover{border-color:rgba(255,255,255,0.2)}
 .widget-cell.w-span2{grid-column:span 2}
@@ -2983,7 +2985,7 @@ select option,select optgroup{background:#1a1c20;color:#fff}
 /* 1066: the tile at its own 5:3 shape, centred in the widget's square — the Apps screen's tile, not a stretched one */
 .aw-true{display:flex;align-items:center;justify-content:center;container-type:size;overflow:hidden}
 /* sized from the widget's own box (container units), never a % height — on iPad a % height fed back into the row */
-.awt-true{width:min(calc(100cqw - 18px),calc((100cqh - 18px) * 5 / 3));height:auto;aspect-ratio:5/3;border-radius:14px;font-size:15px;box-shadow:0 8px 18px rgba(0,0,0,.38),inset 0 0 0 1px rgba(255,255,255,.08)}
+.awt-true{width:min(calc(100cqw - 18px),calc((100cqh - 18px) * 5 / 3));height:auto;aspect-ratio:5/3;border-radius:14px;font-size:15px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}   /* 1070: no drop shadow — it was cut flat at the widget's edge */
 /* the room and screen it opens on, over a shade at the foot (register 617) */
 .aw-cap{position:absolute;left:0;right:0;bottom:0;padding:14px 10px 7px;border-radius:0 0 12px 12px;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,0.72));font-size:11px;color:rgba(255,255,255,0.9);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
 /* Centered confirm (never a bottom sheet) */
@@ -5007,7 +5009,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102631';
+const PROOS_BUILD='2026102632';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
