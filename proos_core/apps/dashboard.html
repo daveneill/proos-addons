@@ -2987,6 +2987,8 @@ select option,select optgroup{background:#1a1c20;color:#fff}
 /* sized from the widget's own box (container units), never a % height — on iPad a % height fed back into the row.
    1071 (Dave 29 Oct 18:32, "Just number 1"): no inner margin — the tile fills the square's full width (or height, if that
    is what limits it), so its edges line up with the widgets above and below. Row heights are unchanged. */
+.awt-true.awt-sq{width:min(100cqw,100cqh);aspect-ratio:1/1}   /* 1073: a music cover is square */
+.awt-cov{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:inherit}
 .awt-true{width:min(100cqw,calc(100cqh * 5 / 3));height:auto;aspect-ratio:5/3;border-radius:14px;font-size:15px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}   /* 1070: no drop shadow — it was cut flat at the widget's edge */
 /* the room and screen it opens on, over a shade at the foot (register 617) */
 .aw-cap{position:absolute;left:0;right:0;bottom:0;padding:14px 10px 7px;border-radius:0 0 12px 12px;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,0.72));font-size:11px;color:rgba(255,255,255,0.9);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
@@ -4120,6 +4122,8 @@ try{var _sb=localStorage.getItem('proos_std_bg');if(_sb){document.documentElemen
         <button class="mus-act-btn" onclick="musicAct('radio')"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M7.8 16.2a6 6 0 0 1 0-8.4M16.2 7.8a6 6 0 0 1 0 8.4M5 19a10 10 0 0 1 0-14M19 5a10 10 0 0 1 0 14"/></svg>Start Radio</button>
         <button class="mus-act-btn" onclick="musicAct('favourite')"><svg viewBox="0 0 24 24"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z"/></svg>Add to favourites</button>
         <button class="mus-act-btn" onclick="musicAct('playlist')"><svg viewBox="0 0 24 24"><line x1="4" y1="7" x2="15" y2="7"/><line x1="4" y1="12" x2="15" y2="12"/><line x1="4" y1="17" x2="11" y2="17"/><circle cx="18" cy="16" r="3"/><line x1="21" y1="16" x2="21" y2="9"/></svg>Add to playlist</button>
+        <button class="mus-act-btn" id="music-act-addroom" onclick="musicAct('pageroom')"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><line x1="16.5" y1="13.5" x2="16.5" y2="19.5"/><line x1="13.5" y1="16.5" x2="19.5" y2="16.5"/></svg><span>Add to Room Page</span></button>
+        <button class="mus-act-btn" id="music-act-addhome" onclick="musicAct('pagehome')"><svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v8a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z"/></svg><span>Add to Home</span></button>
         <button class="mus-act-btn" onclick="musicAct('info')"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11.5" x2="12" y2="16.5"/><circle cx="12" cy="8" r="0.7" fill="currentColor" stroke="none"/></svg>Show info</button>
       </div>
     </div>
@@ -5015,7 +5019,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102634';
+const PROOS_BUILD='2026102635';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -9689,6 +9693,7 @@ const WIDGET_LIBRARY = [
   // App Shortcut: added by pressing & holding an app in a device's app grid
   // (the device is implicit), so it stays out of the Add-widget sheet. Fixed 1x1.
   {id:'apps',      name:'App Shortcut', size:1, phone:['S'], hidden:true, requires:r=>!!(r&&r.id), desc:'One-tap launch for a favourite app'},
+  {id:'musicfav',  name:'Music Favourite', size:1, phone:['S'], hidden:true, requires:()=>true, desc:'One-tap play for a favourite playlist, album or station'},   // 1073
   // ANY ONE THING (9 Sep 2026, register 377). Dave: "I want the ability to add
   // any device, scene, etc through a widget… I believe the widget list is
   // limited". Every other entry in this library is a CATEGORY — "Lights" means
@@ -10094,7 +10099,7 @@ function toggleWidgetSize(uid){
   const widgets=loadWidgetLayout();
   const w=widgets.find(x=>x.uid===uid);
   if(!w) return;
-  if(w.id==='apps') return;   // app shortcuts are fixed 1x1
+  if(w.id==='apps'||w.id==='musicfav') return;   // app shortcuts and music favourites are fixed 1x1 (1073)
   const def=WIDGET_LIBRARY.find(x=>x.id===w.id);
   const list=_wSizeList(def);
   if(list.length<2) return;
@@ -10944,6 +10949,17 @@ function renderWidgetContent(w){
         +_appTileHTML(w.app,'awt-true',w.appid||'')+`</div>`;
       return {icon, label:'App', value:'', sub:'', html, _appTile:true,
               hsig:'apps:'+w.uid+':'+w.app+':'+(w.device||'')};
+    }
+    case 'musicfav': {
+      // REGISTER 1073 (Dave 29 Oct 19:13 "hold and favourite music also to home and area page"; 19:2x: plays in the room
+      // it was saved from; dashboard only). The cover square, filling the widget's square, nothing behind it.
+      if(!w.uri||!w.speaker) return {icon, label:'Music', value:'', sub:'', _hide:true};
+      const _art=w.art||'';
+      const html=`<div class="aw-full aw-true" data-mfuid="${_appEscA(w.uid)}" onclick="event.stopPropagation();_mfTap(this)">`
+        +`<span class="awt awt-true awt-sq" style="background:linear-gradient(135deg,#2a2a36,#15151c)"><span class="awt-wm">${_appEscA(w.title||'Music')}</span>`
+        +(_art?`<img class="awt-cov" ${_artAttr(_art)} alt="" onload="this.previousElementSibling&&(this.previousElementSibling.style.display='none')" onerror="this.remove()"/>`:'')+`</span></div>`;
+      setTimeout(()=>{ try{ _scanAuthImgs(document.getElementById('widget-grid')); }catch(e){} },0);
+      return {icon, label:'Music', value:'', sub:'', html, _appTile:true, hsig:'musicfav:'+w.uid+':'+w.uri+':'+_art};
     }
     case 'climate': {
       // On Home the widget carries the room it was pointed at (register 611);
@@ -12506,8 +12522,9 @@ function renderWidgetGrid(){
   for(const w of widgets){
     const def=WIDGET_LIBRARY.find(x=>x.id===w.id);
     if(!def) continue;   // unknown id skips ITSELF, never aborts the grid (3 Aug)
-    const size=w.id==='apps'?1:(w.size||def.size||1);   // app shortcuts are fixed 1x1
-    const dims=w.id==='apps'?{w:1,h:1}:_widgetDims(w);
+    const _fx1=w.id==='apps'||w.id==='musicfav';   // fixed 1x1 (1073)
+    const size=_fx1?1:(w.size||def.size||1);   // app shortcuts are fixed 1x1
+    const dims=_fx1?{w:1,h:1}:_widgetDims(w);
     const data=renderWidgetContent(w);
     const cell=document.createElement('div');
     cell.className=`widget-cell${dims.w===2?' w-span2':''}${dims.w>=3?' w-span3':''}${dims.h===2&&size!=='full'?' w-rows2':''}${data.on?' w-on':''}`;
@@ -16476,7 +16493,7 @@ function _musicItemHtml(it, i){
   const raw=it.thumbnail;
   const art=(raw && !_maImageProxy(raw))?artSrc(raw):'';
   const _pl=it.can_play!==false && it.media_content_id && musicEngine(_musicSpeaker)==='ma';
-  const _hold=_pl?`onpointerdown="musicHoldStart('${encodeURIComponent(it.media_content_id)}','${_mEsc(it.media_content_type||'track')}','${_jsStr(it.title)}')" onpointerup="musicHoldEnd()" onpointerleave="musicHoldEnd()" onpointercancel="musicHoldEnd()"`:'';
+  const _hold=_pl?`onpointerdown="musicHoldStart('${encodeURIComponent(it.media_content_id)}','${_mEsc(it.media_content_type||'track')}','${_jsStr(it.title)}','${encodeURIComponent(art||'')}')" onpointerup="musicHoldEnd()" onpointerleave="musicHoldEnd()" onpointercancel="musicHoldEnd()"`:'';
   // Artists get a circular tile; everything else stays square.
   const round=(it.media_content_type==='artist')?'border-radius:50%':'border-radius:8px';
   return `<div onclick="if(musicHeld())return; musicTap(${i})" ${_hold} style="cursor:pointer;display:flex;flex-direction:column;gap:6px">
@@ -16810,7 +16827,7 @@ function _maCard(it, type){
   const sub=(type==='album'||type==='track')?_maArtistName(it):'';
   const cls=(type==='artist')?'mus-card artist':'mus-card';
   const uriEnc=encodeURIComponent(it.uri), nm=_jsStr(it.name);
-  return `<div class="${cls}" onclick="musicDiscoverTap('${uriEnc}','${type}','${nm}')" onpointerdown="musicHoldStart('${uriEnc}','${type}','${nm}')" onpointerup="musicHoldEnd()" onpointerleave="musicHoldEnd()" onpointercancel="musicHoldEnd()">
+  return `<div class="${cls}" onclick="musicDiscoverTap('${uriEnc}','${type}','${nm}')" onpointerdown="musicHoldStart('${uriEnc}','${type}','${nm}','${encodeURIComponent(art||'')}')" onpointerup="musicHoldEnd()" onpointerleave="musicHoldEnd()" onpointercancel="musicHoldEnd()">
     <div class="mus-art"><span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center">${_musicNoteSvg}</span>${art?`<img ${_artAttr(art)} loading="lazy" onerror="this.remove()"/>`:''}<button class="mus-play" onclick="event.stopPropagation();musicPlayUri('${uriEnc}','${type}')"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button></div>
     <div class="mus-ct">${_mEsc(it.name)}</div>${sub?`<div class="mus-cs">${_mEsc(sub)}</div>`:''}
   </div>`;
@@ -16863,7 +16880,7 @@ function _renderTopPicks(folders){
     const raw=_maArt(it); const art=(raw&&!_maImageProxy(raw))?artSrc(raw):'';
     const uriEnc=encodeURIComponent(it.uri), nm=_jsStr(it.name);
     const sub=(type==='album'||type==='track')?(_maArtistName(it)||(type.charAt(0).toUpperCase()+type.slice(1))):(type.charAt(0).toUpperCase()+type.slice(1));
-    return `<div class="mus-feat" onclick="musicDiscoverTap('${uriEnc}','${type}','${nm}')" onpointerdown="musicHoldStart('${uriEnc}','${type}','${nm}')" onpointerup="musicHoldEnd()" onpointerleave="musicHoldEnd()" onpointercancel="musicHoldEnd()">
+    return `<div class="mus-feat" onclick="musicDiscoverTap('${uriEnc}','${type}','${nm}')" onpointerdown="musicHoldStart('${uriEnc}','${type}','${nm}','${encodeURIComponent(art||'')}')" onpointerup="musicHoldEnd()" onpointerleave="musicHoldEnd()" onpointercancel="musicHoldEnd()">
       ${art?`<img class="bg" src="${_mEsc(art)}" loading="lazy" onerror="this.remove()"/>`:''}<div class="scrim"></div>
       <div class="feat-cat">${_mEsc(p.cat)}</div>
       <div class="feat-body"><div class="feat-type">${_mEsc(sub)}</div><div class="feat-name">${_mEsc(it.name)}</div></div>
@@ -17087,21 +17104,22 @@ function musicPlayUri(uriEnc, type){
 // MA-engine only (enqueue runs through Core /music/play with an option). A short tap
 // still plays now; holding ~480ms opens the action sheet.
 let _musicHoldTimer=null, _musicHoldFired=false;
-let _musicActUri=null, _musicActType='track';
-function musicHoldStart(uriEnc, type, name){
+let _musicActUri=null, _musicActType='track', _musicActName='', _musicActArt='';
+function musicHoldStart(uriEnc, type, name, artEnc){
   _musicHoldFired=false;
   clearTimeout(_musicHoldTimer);
   _musicHoldTimer=setTimeout(()=>{
     _musicHoldFired=true;
     _proosHaptic('lift');
-    openMusicAct(uriEnc, type, name);
+    openMusicAct(uriEnc, type, name, artEnc);
   }, 480);
 }
 function musicHoldEnd(){ clearTimeout(_musicHoldTimer); }
 function musicHeld(){ if(_musicHoldFired){ _musicHoldFired=false; return true; } return false; }
-function openMusicAct(uriEnc, type, name){
+function openMusicAct(uriEnc, type, name, artEnc){
   if(!_musicSpeaker) return;
   _musicActUri=decodeURIComponent(uriEnc); _musicActType=type||'track';
+  _musicActName=name||''; try{ _musicActArt=artEnc?decodeURIComponent(artEnc):''; }catch(e){ _musicActArt=''; }
   const sh=document.getElementById('music-act-sheet');
   if(sh){
     const w=sh.querySelector('#music-act-extra'); if(w) w.remove();          // clear picker/info
@@ -17109,7 +17127,31 @@ function openMusicAct(uriEnc, type, name){
   }
   const t=document.getElementById('music-act-title'); if(t) t.textContent=name||'Track';
   const s=document.getElementById('music-act-sub'); if(s) s.textContent='to '+playerRoomName(_musicSpeaker);
+  // 1073: put it on the page of the room it plays in, or on Home
+  const ri=_mfRoomIdx(_musicSpeaker), rb=document.getElementById('music-act-addroom');
+  if(rb){ rb.style.display=ri>=0?'':'none'; const t2=rb.querySelector('span'); if(t2&&ri>=0) t2.textContent='Add to '+(CONFIG.rooms[ri].name||'Room')+' Page'; }
   if(sh) sh.style.display='flex';
+}
+// ── REGISTER 1073: MUSIC FAVOURITES ON THE HOME AND ROOM PAGES ─────────────────────────────────────────────────
+function _mfRoomIdx(entity){ const id=entity&&entityAreaMap[entity]; return id?(CONFIG.rooms||[]).findIndex(r=>r.id===id):-1; }
+function _mfAddToPage(idx){
+  const uri=_musicActUri, speaker=_musicSpeaker; if(!uri||!speaker) return;
+  if(idx!==-1 && idx<0) return;
+  const was=curRoom; let added=false, dup=false;
+  try{
+    curRoom=idx;                                         // the page's own layout, by the page's own key and form factor
+    const list=loadWidgetLayout();
+    dup=list.some(w=>w&&w.id==='musicfav'&&w.uri===uri&&w.speaker===speaker);
+    if(!dup){ list.push({uid:_newWidgetUid(), id:'musicfav', uri:uri, mtype:_musicActType||'', title:_musicActName||'', art:_musicActArt||'', speaker:speaker}); saveWidgetLayout(list); added=true; }
+  }catch(e){} finally{ curRoom=was; }
+  const where=idx===-1?'Home':((CONFIG.rooms[idx]&&CONFIG.rooms[idx].name)||'room')+' page';
+  showToast(dup?('Already on '+where):added?('Added to '+where):"Couldn't add it");
+}
+function _mfTap(el){
+  if(_widgetEditMode) return;
+  const uid=el&&el.dataset.mfuid; const w=(loadWidgetLayout()||[]).find(x=>x&&x.uid===uid); if(!w) return;
+  _awRing(el,true);
+  Promise.resolve(musicPlayCore(w.speaker,{media:w.uri},'Starting '+(w.title||''))).finally(()=>setTimeout(()=>_awRing(el,false),400));
 }
 function closeMusicAct(){ const sh=document.getElementById('music-act-sheet'); if(sh) sh.style.display='none'; _musicHoldFired=false; }
 function _musicActExtra(){
@@ -17145,6 +17187,7 @@ function _musicActShowInfo(){
 function musicAct(mode){
   const uri=_musicActUri, type=_musicActType, room=_musicSpeaker;
   if(mode==='playlist'){ _musicActPlaylistPicker(); return; }
+  if(mode==='pageroom'||mode==='pagehome'){ closeMusicAct(); _mfAddToPage(mode==='pagehome'?-1:_mfRoomIdx(room)); return; }   // 1073
   if(mode==='info'){ _musicActShowInfo(); return; }
   closeMusicAct();
   if(!uri||!room) return;
