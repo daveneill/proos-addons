@@ -751,6 +751,14 @@ def device_apps(client, target: str, platform: str = None, android_held: dict = 
             if not r:
                 unl.append(c.get("name") or nm)
                 continue
+            # 1063: a proven app carries ProOS's own name and tile for its recipe row — never a name made from the
+            # package ("Swm", "Ondemand", "Androidtv" on 29 Oct).
+            rk = next((k for k, row in ANDROID_LINKS.items() if row is r), None)
+            if rk:
+                cc = appart.canonical(rk) or {}
+                sl = rk
+                if cc.get("name"):
+                    c = cc
             put(nm, r["link"], slug=sl, nm=c.get("name") or nm,
                 extra={"method": "play_media_url", "package": pkg, "opens": True})
         note = ("" if apps else

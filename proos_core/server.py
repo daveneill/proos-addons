@@ -3283,6 +3283,19 @@ def _atv_write_apps(entity_id, apps):
         return {"ok": False, "error": "the integration did not take the app list: %s" % e,
                 "driver": "failed"}
     saved = dict(committed.get("apps") or {})
+    # REGISTER 1063: the platform's options flow no longer returns the saved options in its create_entry reply (seen
+    # 29 Oct: type create_entry, no "data") — so an empty reply is NOT "kept nothing". Read the entry back instead:
+    # what it now holds is the answer.
+    if not saved:
+        _t0 = __import__("time")
+        for _ in range(5):
+            _t0.sleep(1)
+            held = _atv_apps_of(entry_id)
+            saved = {k: v for k, v in held.items() if k in want}
+            if len(saved) >= len(want):
+                break
+    else:
+        saved = {k: v for k, v in saved.items() if k in want}
     if len(saved) < len(want):
         print("  [androidtv] %s: the integration kept %d of %d apps"
               % (entity_id, len(saved), len(want)), flush=True)
@@ -4733,6 +4746,14 @@ _ATV_SKIP = re.compile(
 # Package -> proper product name. NAMING ONLY: whether an app exists always
 # comes from the device. Unknown packages fall back to a tidy guess.
 _ATV_NAMES = {
+    # REGISTER 1063: the packages a Shield ACTUALLY reported in Dave's 29 Oct test (1062) — the guessed ones below
+    # (au.com.seven.inferno, au.com.sbs.ondemand.tv …) were never what the box said, so these apps were named
+    # "Swm", "Ondemand" and "Androidtv". Naming only.
+    "com.swm.live": "7plus",
+    "com.sbs.ondemand.tv": "SBS On Demand",
+    "au.com.tenplay": "10",
+    "com.apple.atve.androidtv.appletv": "Apple TV",
+    "au.com.foxtel.atv": "Foxtel",
     "com.netflix.ninja": "Netflix",
     "com.disney.disneyplus": "Disney+",
     "com.amazon.amazonvideo.livingroom": "Prime Video",
