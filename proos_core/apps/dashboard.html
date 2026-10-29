@@ -5007,7 +5007,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102629';
+const PROOS_BUILD='2026102630';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -23448,7 +23448,9 @@ body:has(#widget-picker.open) #widget-add-pill{display:none!important}   /* regi
 .widget-cell.w-full,.widget-cell.w-cam-s,.widget-cell.w-app,.widget-cell.w-media{border-radius:22px!important}
 /* REGISTER 1067 (Dave 29 Oct 17:12: "Correct shape now but tile behind need to be transparent so you don't see it"): an App
    Shortcut is just its tile — the widget's own glass square behind it is clear. In edit mode a faint outline shows the space. */
-.widget-cell.w-app{background:transparent!important;border:0!important;box-shadow:none!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+.widget-cell.w-app{background:transparent!important;border:0!important;box-shadow:none!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;-webkit-tap-highlight-color:transparent}
+/* 1068 (Dave 17:25 "when you press the glass shows"): the phone's own tap highlight drew a grey square over the widget */
+.widget-cell.w-app .aw-full{-webkit-tap-highlight-color:transparent}
 .widget-grid.edit-mode .widget-cell.w-app{box-shadow:inset 0 0 0 1px rgba(255,255,255,.18)!important}
 @media (hover:hover){.widget-grid:not(.edit-mode) .widget-cell:hover{transform:translateY(-3px)}}
 .widget-cell:active{transform:scale(.97)!important}
