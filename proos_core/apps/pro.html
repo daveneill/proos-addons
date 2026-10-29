@@ -3024,7 +3024,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102615';
+const PROOS_BUILD='2026102616';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -13496,7 +13496,7 @@ function roomStateClass(state){
   const s=String(state||'').toLowerCase();
   if(!s||s==='unavailable'||s==='unknown') return 'unread';
   if(s==='off') return 'off';
-  if(s==='on') return 'manual';
+  if(s==='on') return 'active';   // 1080: Core's On is a device reading; "manual" claimed who started it (never measured)
   if(s==='idle') return 'idle';
   return 'active';
 }
@@ -19856,8 +19856,10 @@ async function v2RoomMirror(){
   try{
     const s=await haRest('GET','/api/states/sensor.proos_activity_'+_roomHubArea);
     if(!s||!s.entity_id){ setHTML(body,'<div style="color:var(--t3);font-size:12px">No verdict sensor yet — commit the room to start publishing.'+envLine+'</div>'); return; }
-    const a=s.attributes||{}; const off=s.state==='off'||s.state==='unavailable';
-    if(a.env_line) envLine='<div style="font-size:11.5px;color:var(--t3);margin-top:4px">'+esc(a.env_line)+'</div>';
+    // 1080: a sensor that can't be read is "No reading" (its chip says so), never Off; and Core's environment line is
+    // the answer even when Core deliberately sends it empty (Health and the dashboard say nothing then, so neither does this).
+    const a=s.attributes||{}; const off=s.state==='off';
+    if(a.env_line!==undefined) envLine=a.env_line?'<div style="font-size:11.5px;color:var(--t3);margin-top:4px">'+esc(a.env_line)+'</div>':'';
     // ONE SPEAKER (Summary Review, 13 Aug — Dave: "direct mirrors of the
     // dashboard so summaries match"): the headline is the SERVED sentence,
     // the same words Health's row and the homeowner dashboard speak. Label
@@ -19877,7 +19879,7 @@ async function v2RoomMirror(){
       // on the room hub too; the basis stays in the Master Log).)
       +'</div>'
       +envLine+'</div>'
-      +(a.provisional?'<span class="hlt-chip prov">provisional</span>':(function(){ const sc=roomStateClass(s.state); return '<span class="hlt-chip '+(sc==='active'?'live':sc)+'">'+roomStateWord(sc)+'</span>'; })()));
+      +(a.provisional?'<span class="hlt-chip prov">provisional</span>':(function(){ const sc=roomStateClass(s.state); return '<span class="hlt-chip '+(sc==='active'?'live':sc)+'">'+esc((sc!=='off'&&sc!=='unread'&&a.label)||roomStateWord(sc))+'</span>'; })()));   // 1080: Core's label, as Health and the dashboard show
     // ── DEVICE TRUTH (3 Aug): each committed device's OWN report — the
     // installer's ground level. Lives at the TOP of the Evidence timeline
     // card (Dave: it would take over the status card — it is the

@@ -208,6 +208,10 @@ class SavantFeed:
             return self._set("DSP", area_slug, "on")
         if st in ("off", "standby"):
             return self._set("DSP", area_slug, "off")
+        if st in ("unavailable", "unknown"):
+            # 1080: the display stopped reporting — the last value is RETRACTED (empty), so Savant is never left
+            # holding an old on/off as if it were current. None (no display at all) still publishes nothing.
+            return self._set("DSP", area_slug, "")
         return False
 
     def _set(self, kind: str, area_slug: str, value) -> bool:

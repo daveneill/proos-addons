@@ -1770,7 +1770,10 @@ class ActivityPublisher:
                               d["state"], attrs)
                 if self.feed is not None:       # the display line rides the same sweep
                     try:
-                        self.feed.publish_display(area_slug, d.get("disp"))
+                        # 1080: Savant's display flag is the SAME reading the room's state used (Art Mode and a
+                        # display Core does not count as on are off; no reading is retracted, never left stale)
+                        self.feed.publish_display(area_slug, ("on" if _disp_on else
+                                                              ("unavailable" if cs.get("state") == "unknown" else "off")))
                     except Exception:                            # noqa: BLE001
                         pass
                 # additive: journal the verdict CHANGE with its evidence —

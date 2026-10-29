@@ -5019,7 +5019,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102638';
+const PROOS_BUILD='2026102639';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -6467,8 +6467,18 @@ function buildRoomCards(r, makeCardFn, labelPrefix, scope){
       const _ze=(_al.includes(e)?e:null)||_zoneVolForEntity(e)||e;
       rows.push(makeCardFn(e,_ze,_artOf(e),title,artist,label(e),parseFloat(att(_ze,'volume_level')||0),att(_ze,'volume_level')!=null));
     });
-    // a generic 'on' (no named activity) still shows its lit devices below, as before
-    if(rows.length || _verdictProv || _verdict==='off' || /^watch_/.test(_verdict||'') || _vAtt('kind')==='music') return rows;
+    // 1080: the room is ON but its devices confirm no activity (the TV on an input no activity uses, a TV that doesn't
+    // report its input): ONE card for the display itself, by its own report — never the old per-device guesses (an idle
+    // Apple TV used to get a "–" card here).
+    if(!_verdictProv && _verdict==='on'){
+      const _de=Object.keys(_devMap).find(e=>(_devMap[e]||{}).role==='display'&&['on','playing','paused'].includes(String((_devMap[e]||{}).state||st(e))));
+      if(_de && !seen.has(_de)){
+        seen.add(_de);
+        const _vve=volEid||_de, _ttl=att(_de,'source')||'On';
+        rows.unshift(makeCardFn(_de,_vve,_artOf(_de),_ttl,'',label(_de),parseFloat(att(_vve,'volume_level')||0),att(_vve,'volume_level')!=null));
+      }
+    }
+    return rows;
   }
 
   // ── TV-AUDIO MODE (combined card) ─────────────────────────────
@@ -9221,7 +9231,7 @@ function _roomActs(r){
     const vKey=vKnown?String(vRaw):'';
     // lit = the verdict names this source, or its activity key matches
     const lit=(eid,keys)=>{
-      if(!vKnown) return awakeDev(eid);          // no verdict → device state
+      if(!vKnown) return false;                  // 1080: no verdict → nothing claimed (was: an awake box lit it)
       if(vKey==='off') return false;             // dark room: nothing lit
       if(vSrc&&eid&&vSrc===eid) return true;     // the verdict names it
       return keys.some(k=>vKey===k||vKey==='watch_'+k);
@@ -9232,7 +9242,7 @@ function _roomActs(r){
     // The tuner activity ('watch_tv') is the display on its own content.
     if(tv)     out.push({key:'act:tv',      eid:tv,     icon:_ACT_TV,
                          on: vKnown ? (vKey==='watch_tv'||(vSrc===tv))
-                                    : (awakeDev(tv)&&!awakeDev(atv)&&!awakeDev(shield))});
+                                    : false});   // 1080: no verdict → not inferred from which boxes are awake
     if(atv)    out.push({key:'act:apple_tv',eid:atv,    icon:_ACT_ATV, on:lit(atv,['apple_tv','appletv'])});
     if(shield) out.push({key:'act:shield',  eid:shield, icon:_ACT_SH,  on:lit(shield,['shield','shield_tv','androidtv'])});
     // RECORD ORDER IS THE ORDER (Dave, 9 Aug) — same rule as the nav: sort
@@ -11564,7 +11574,17 @@ function renderWidgetContent(w){
       const _chain=_ROLES.map(([k,word])=>{
         const ents=Object.keys(_devs).filter(e=>(_devs[e]||{}).role===k);
         if(!ents.length) return '';
-        const lit=ents.some(e=>_devIsLit(e,_devs[e]));
+        // 1080: lit from CORE's per-device state (art already off there): the display when Core says it is on; the
+        // source only when it is the box Core says is on screen; audio only when the speaker plays its own sound (not
+        // relaying a TV input to a dark screen). Was _devIsLit on the raw device — an idle Apple TV lit "Source" with
+        // the TV off (29 Oct).
+        const _dispLit=Object.keys(_devs).some(x=>(_devs[x]||{}).role==='display'&&['on','playing','paused'].includes(String((_devs[x]||{}).state)));
+        const lit=ents.some(e=>{
+          const ds=String((_devs[e]||{}).state||'');
+          if(k==='source') return att(_vE,'source')===e && att(_vE,'verified')===true;
+          if(k==='audio') return ds==='playing' && (att(e,'source')!=='TV' || _dispLit);
+          return ['on','playing','paused'].includes(ds);
+        });
         return '<span class="acw-leg'+(lit?' on':'')+'">'+
                '<svg class="acw-ic" viewBox="0 0 24 24">'+_ROLE_IC[k]+'</svg><span class="acw-role">'+word+'</span></span>';
       }).join('');
@@ -25392,17 +25412,29 @@ function _ppHomePhoto(){
 }
 function _ppBg(u){ return u?("background-image:url('"+String(u).replace(/'/g,'%27')+"')"):''; }
 function _ppLit(r){ return (r.lights||[]).filter(_ppOnL); }
-function _ppPlaying(r){ var p=_ppPlayer(r); return !!(p && st(p)==='playing'); }
+// REGISTER 1080 (stage 2 of the Device Truth Review; Dave 30 Oct "1. yes"): the room's media words are CORE'S — its
+// label, and the title it publishes — never one speaker picked by brand at load (seen 29 Oct: "Playing · Bass Persuades"
+// under the Bedroom while Core said Off). Lights stay this page's own reading of the room's lights.
+function _ppVerdict(r){
+  var v=(r&&r.id)?('sensor.proos_activity_'+r.id):null, s=v?st(v):'';
+  if(!v||!s||s==='unavailable'||att(v,'provisional')===true) return null;
+  if(s==='unknown') return (att(v,'label')==='No Reading')?{s:'unknown',v:v}:null;
+  return {s:s,v:v};
+}
+function _ppPlaying(r){ var k=_ppVerdict(r); return !!(k && k.s!=='off' && k.s!=='unknown'); }
 function _ppLine(r){
-  var p=_ppPlayer(r);
-  if(p && st(p)==='playing') return 'Playing'+(att(p,'media_title')?(' · '+att(p,'media_title')):'');
+  var k=_ppVerdict(r);
+  if(k && k.s!=='off'){
+    var lbl=String(att(k.v,'label')||''), t=att(k.v,'media_title');
+    if(lbl==='On' && att(k.v,'sentence')) return String(att(k.v,'sentence'));
+    if(lbl) return lbl+(t?(' · '+t):'');
+  }
   var on=_ppLit(r);
   if(on.length===1) return _ppLabel(on[0],r)+(_ppDim(on[0])?(' · '+_ppPct(on[0])+'%'):' · On');
   if(on.length>1) return on.length+' lights on';
   // REGISTER 1018: ONE ROOM ANSWER. Paused is not off — but when Core's own verdict for the room is OFF (the
   // installer's auto-clear ran, or the speaker is relaying a dead TV session) the card says so too, instead of
   // reading the speaker on its own and disagreeing with Pro. No verdict for the room -> the speaker's word.
-  if(p && st(p)==='paused') return (r && typeof _roomOffByVerdict==='function' && _roomOffByVerdict(r))?'Off':'Paused';
   return 'Off';
 }
 function _ppSite(){
@@ -25910,7 +25942,7 @@ function _ppUpdate(scr){
   var wx=_ppWx(); el.querySelectorAll('[data-wx]').forEach(function(x){ x.innerHTML=wx?(_ppIc('cloud')+' '+wx+(scr==='home'?' ·':'')):''; if(scr==='rest' && wx) x.innerHTML='· '+_ppIc('cloud')+' '+wx; });
   el.querySelectorAll('.pp-rc[data-room]').forEach(function(c){ var r=_ppRoom(c.getAttribute('data-room')); if(!r) return;
     var lit=_ppLit(r).length>0, pl=_ppPlaying(r); c.classList.toggle('lit',lit); c.classList.toggle('play',pl); c.classList.toggle('idle',_ppLine(r)==='Off');   // 1011: paused is not off
-    c.querySelector('.st').textContent=pl?'Playing':_ppLine(r); });
+    c.querySelector('.st').textContent=_ppLine(r); });   // 1080: Core's words, not a bare "Playing"
   if(scr==='rest') _ppNowInto(el);
   if(scr==='home'){
     var n=_ppNow(), mr=_ppMusicRoom(), np=el.querySelector('.pp-np');
