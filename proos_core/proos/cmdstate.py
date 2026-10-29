@@ -259,6 +259,7 @@ def device_verdict(cs, acts, rec, snap, disp_eid, disp_on, mem, now=None):
     sent_key, sent_label, sent_at = (last if last else (None, None, None))
     labels = {k: l for k, l, _s in acts}
     name = lambda k: labels.get(k) or (str(k or "").replace("watch_", "Watch ").replace("_", " ").title())
+    _where = lambda n: n[6:] if str(n).startswith("Watch ") else n   # "Watch Apple TV" -> "Apple TV", "Watch TV" -> "TV"
     fresh = bool(sent_at is not None and now - sent_at <= BOOT_GRACE_S)
     base = {"commanded_key": sent_key, "external": False, "unconfirmed": None, "source": None, "starting": False}
 
@@ -334,7 +335,8 @@ def device_verdict(cs, acts, rec, snap, disp_eid, disp_on, mem, now=None):
         basis = "the TV reports power on %s" % where
         if se and se != disp_eid:
             basis += ", and the %s reports %s" % (name(k).replace("Watch ", ""), st(se))
-        return dict(base, state=k, label=name(k), confirmed=True, basis=basis,
+        # Dave 30 Oct 07:33: once confirmed the room says WHERE it is ("Apple TV"), not the action ("Watch Apple TV")
+        return dict(base, state=k, label=_where(name(k)), confirmed=True, basis=basis,
                     source=(se if se and se != disp_eid else None))
     out = dict(base, state="on", label="On", confirmed=True,
                basis="the TV reports power" + ((" on %s" % src) if src else ""))
