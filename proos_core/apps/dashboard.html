@@ -5007,7 +5007,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102630';
+const PROOS_BUILD='2026102631';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -18216,6 +18216,9 @@ function _appTileHTML(app, cls, pkg){
 // itself says "working on it".
 function _awRing(el,on){
   if(!el) return;
+  // 1069 (Dave 17:39, screenshot mid-launch): on a true-shape shortcut the ring's shade covered the whole widget square,
+  // so the square showed again while launching — it rides the tile itself
+  if(el.classList && el.classList.contains('aw-true')) el=el.querySelector('.awt')||el;
   let r=el.querySelector('.aw-ring');
   if(on){
     if(!r){ r=document.createElement('div'); r.className='aw-ring';
