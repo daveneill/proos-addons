@@ -3297,6 +3297,10 @@ html[data-link="remote"]{--m-tap:90ms;--m-move:200ms;--m-page:300ms}
 #atv-page button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
 #atv-page svg{width:20px;height:20px;flex:none}
 #atv-page .atv-bg{position:absolute;inset:0;z-index:-1;background:#000 radial-gradient(900px 520px at 78% 8%,rgba(31,111,128,.20),transparent 65%),radial-gradient(700px 500px at 8% 100%,rgba(217,139,91,.07),transparent 70%)}
+/* REGISTER 1072 (Dave 29 Oct 19:13: the Apple TV, Shield and TV pages should "have the background like every other page
+   … rather than the black"): the room's own picture, blurred and darkened as the other full pages use it. No picture → the
+   black ground above. */
+#atv-page .atv-bg.photo{inset:-80px;background:#0b0b10 center/cover no-repeat;filter:blur(28px) brightness(.36);transform:translateZ(0)}
 #atv-page .atv-hdr{padding:max(22px,var(--proos-sat)) 0 0;display:flex;align-items:center;gap:18px;min-height:56px;flex:none}
 #atv-page .atv-hl{display:flex;flex-direction:column;gap:2px;min-width:180px;flex:1 1 0}
 #atv-page .atv-bk{display:flex;align-items:center;gap:2px;color:var(--atv-ink2);font-size:13px;padding:0;align-self:flex-start}#atv-page .atv-bk svg{width:16px;height:16px}#atv-page .atv-bk b{font-weight:500}
@@ -5011,7 +5015,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102633';
+const PROOS_BUILD='2026102634';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -18725,6 +18729,10 @@ function fmtTime(s){
 // ════════════════════════════════════════════════════════════════════════════════════════════════════════════════
 let _atv=null;               // {e, vol, ce, tab, room, np, accounts, kbOpen, ...} while the page is open
 const _ATV_TABS=['remote','apps','search','playing'];
+function _atvBgHTML(){
+  const r=_atv&&_atv.room; const ph=(r&&r.photo)||(CONFIG&&CONFIG._homeAreaPhoto)||'';
+  return ph?'<div class="atv-bg photo" style="background-image:url(\''+String(ph).replace(/['"\\]/g,encodeURIComponent)+'\')"></div>':'<div class="atv-bg"></div>';
+}
 function _atvLS(k,v){ try{ if(v===undefined) return localStorage.getItem('proos_atv_'+k); localStorage.setItem('proos_atv_'+k,v); }catch(e){ return null; } }
 function atvSupported(e){ return isAppleTV(e) && states[e] && states[e].attributes && ('proos_apps' in states[e].attributes); }
 // register 1037 (Dave 27 Oct: "this should just launch from the Apple TV media card once on as need to use our activities
@@ -18857,7 +18865,7 @@ function _atvRender(){
   const st=_atvStatus();
   const roomName=_atv.room?(_atv.room.name||_atv.room.id):(deviceNameById[entityDeviceMap[_atv.e]]||'');
   const tabs=[['remote','Remote'],['apps','Apps'],['search','Search'],['playing','Now Playing']];
-  p.innerHTML='<div class="atv-bg"></div>'
+  p.innerHTML=_atvBgHTML()
     +'<header class="atv-hdr"><div class="atv-hl"><button type="button" class="atv-bk" data-act="close">'+_atvIcon('back')+'<b>'+_hEsc(roomName)+'</b></button><div class="atv-ht">Apple TV</div></div>'
     +'<div class="atv-segs" role="tablist">'+tabs.map(t=>'<button type="button" role="tab" data-tab="'+t[0]+'" class="'+(t[0]===_atv.tab?'on':'')+'">'+t[1]+'</button>').join('')+'</div>'
     +'<div class="atv-hr"><span class="atv-chip" id="atv-chip"><i style="background:'+st.c+'"></i><em>'+st.t+'</em></span>'
@@ -19493,7 +19501,7 @@ function _tvRender(){
   const st=_tvStatus();
   const roomName=_atv.room?(_atv.room.name||_atv.room.id):(deviceNameById[entityDeviceMap[_atv.e]]||'');
   const tabs=[['channels','Channels'],['remote','Remote'],['apps','Apps'],['inputs','Inputs']];
-  p.innerHTML='<div class="atv-bg"></div>'
+  p.innerHTML=_atvBgHTML()
     +'<header class="atv-hdr"><div class="atv-hl"><button type="button" class="atv-bk" data-act="close">'+_atvIcon('back')+'<b>'+_hEsc(roomName)+'</b></button><div class="atv-ht">TV</div></div>'
     +'<div class="atv-segs" role="tablist">'+tabs.map(t=>'<button type="button" role="tab" data-tab="'+t[0]+'" class="'+(t[0]===_atv.tab?'on':'')+'">'+t[1]+'</button>').join('')+'</div>'
     +'<div class="atv-hr"><span class="atv-chip" id="atv-chip"><i style="background:'+st.c+'"></i><em>'+_hEsc(st.t)+'</em></span>'
@@ -19700,7 +19708,7 @@ function _shRender(){
   const st=_shStatus();
   const roomName=_atv.room?(_atv.room.name||_atv.room.id):(deviceNameById[entityDeviceMap[_atv.e]]||'');
   const tabs=[['remote','Remote'],['apps','Apps'],['playing','Now Playing']];
-  p.innerHTML='<div class="atv-bg"></div>'
+  p.innerHTML=_atvBgHTML()
     +'<header class="atv-hdr"><div class="atv-hl"><button type="button" class="atv-bk" data-act="close">'+_atvIcon('back')+'<b>'+_hEsc(roomName)+'</b></button><div class="atv-ht">Shield</div></div>'
     +'<div class="atv-segs" role="tablist">'+tabs.map(t=>'<button type="button" role="tab" data-tab="'+t[0]+'" class="'+(t[0]===_atv.tab?'on':'')+'">'+t[1]+'</button>').join('')+'</div>'
     +'<div class="atv-hr"><span class="atv-chip" id="atv-chip"><i style="background:'+st.c+'"></i><em>'+_hEsc(st.t)+'</em></span>'
