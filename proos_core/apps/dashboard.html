@@ -5003,7 +5003,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102626';
+const PROOS_BUILD='2026102627';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -18186,15 +18186,17 @@ function _appArt(app, pkg){
   const next=i=>{
     if(i>=srcs.length){ _artState[key]=false; return; }
     const im=new Image();
-    im.onload=()=>{ _artState[key]={u:srcs[i]}; _artSwap(slug); };
+    im.onload=()=>{ _artState[key]={u:srcs[i]}; _artSwap(slug, key); };
     im.onerror=()=>next(i+1);
     im.src=srcs[i];
   };
   next(0);
   return null;
 }
-function _artSwap(slug){
-  const rec=_artState[slug]; if(!rec||rec==='p'||rec===false) return;
+// REGISTER 1065 (Dave 29 Oct 16:30, Bedroom Shield's Apps: grey name tiles until another tab and back): the art is kept
+// under the package when the tile has one, but the swap looked under the slug — so the first draw never got its art.
+function _artSwap(slug, key){
+  const rec=_artState[key||slug]; if(!rec||rec==='p'||rec===false) return;
   document.querySelectorAll('.awt[data-app]').forEach(el=>{
     if(_appSlug(el.dataset.app)!==slug || el.querySelector('.awt-img')) return;
     [...el.children].forEach(c=>{ c.style.display='none'; });
