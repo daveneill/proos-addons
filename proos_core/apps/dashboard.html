@@ -5003,7 +5003,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102625';
+const PROOS_BUILD='2026102626';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -19638,7 +19638,8 @@ function shShouldOpen(e){ return !!(states[e]&&states[e].state==='on'); }
 function shOpen(e, vol){
   const room=CONFIG.rooms.find(r=>r.media===e||(r.allPlayers&&r.allPlayers.includes(e)))||null;
   const t=_atvLS('sh_tab');
-  _atv={kind:'shield', e:e, vol:vol||e, room:room, tab:_SH_TABS.includes(t)?t:'remote', apps:null, appInfo:null, cast:null};
+  _atv={kind:'shield', e:e, vol:vol||e, room:room, tab:_SH_TABS.includes(t)?t:'remote', apps:null, appInfo:null, cast:null,
+        mode:(_atvLS('sh_mode')==='dpad'?'dpad':'touch')};   // 1064: Touch Pad or Arrows, as the Apple TV page
   let p=document.getElementById('atv-page');
   if(!p){ p=document.createElement('div'); p.id='atv-page'; document.body.appendChild(p); }
   p.classList.add('open');
@@ -19751,16 +19752,59 @@ function _shMiniHTML(){
 function _shRenderRemote(b){
   const keys=[['back','back','Back'],['home','home','Home'],['pp','pp','Play/Pause'],['menu','menu2','Menu'],['recent','recent','Recent Apps'],['cc','cc','Captions'],['settings','gear','Settings'],['more','more','More']];
   b.innerHTML=_shMiniHTML()+'<div class="atv-cols"><section class="atv-l">'
-    +'<div class="atv-pad dpad" id="atv-pad"><div class="atv-dpad"><button type="button" class="dk u" data-k="up">'+_atvIcon('chev')+'</button><button type="button" class="dk r" data-k="right">'+_atvIcon('chev')+'</button>'
-    +'<button type="button" class="dk d" data-k="down">'+_atvIcon('chev')+'</button><button type="button" class="dk l" data-k="left">'+_atvIcon('chev')+'</button><button type="button" class="ok" data-k="select">OK</button></div></div>'
+    +'<div class="atv-pad '+_atv.mode+'" id="atv-pad"><div class="atv-tog"><button type="button" data-mode="dpad" class="'+(_atv.mode==='dpad'?'on':'')+'" aria-label="Arrows">'+_atvIcon('dpad')+'</button>'
+    +'<button type="button" data-mode="touch" class="'+(_atv.mode==='touch'?'on':'')+'" aria-label="Touch pad">'+_atvIcon('hand')+'</button></div>'
+    +(_atv.mode==='touch'?'<div class="atv-tphint">Swipe to move · tap to select<br><span>Hold for options · hold an edge to keep moving</span></div>'
+      :'<div class="atv-dpad"><button type="button" class="dk u" data-k="up">'+_atvIcon('chev')+'</button><button type="button" class="dk r" data-k="right">'+_atvIcon('chev')+'</button>'
+       +'<button type="button" class="dk d" data-k="down">'+_atvIcon('chev')+'</button><button type="button" class="dk l" data-k="left">'+_atvIcon('chev')+'</button><button type="button" class="ok" data-k="select">OK</button></div>')
+    +'</div>'
     +'<div class="atv-keys">'+keys.map(k=>'<button type="button" class="atv-key" data-sk="'+k[0]+'">'+_shIcon(k[1])+'<em>'+k[2]+'</em></button>').join('')+'</div>'
     +'<div class="atv-trans"><button type="button" data-sk="rew">'+_atvIcon('rew')+'</button><button type="button" class="big" data-sk="pp">'+_atvIcon('pp')+'</button><button type="button" data-sk="ffw">'+_atvIcon('ffw')+'</button></div>'
     +'<div class="atv-tcap">Hold an arrow to keep moving · rewind and fast forward are the Shield’s own keys</div></section>'
     +'<section class="atv-r"><div class="atv-np">'+_shNowHTML(false)+'</div></section></div>';
+  b.querySelectorAll('[data-mode]').forEach(x=>x.onclick=()=>{ _atv.mode=x.dataset.mode; _atvLS('sh_mode',_atv.mode); _shRenderBody(); });
+  if(_atv.mode==='touch') _shBindTouch(b.querySelector('#atv-pad'));
   b.querySelectorAll('.atv-dpad [data-k]').forEach(x=>{ const k=x.dataset.k; let rep=null;
     _atvPress(x,{tap:()=>_shKey(k), holdStart:()=>{ _shKey(k); if(k!=='select') rep=setInterval(()=>_shKey(k),220); }, holdEnd:()=>{ clearInterval(rep); rep=null; }}); });
   b.querySelectorAll('[data-sk]').forEach(x=>{ const k=x.dataset.sk; _atvPress(x,{tap:()=>k==='more'?_shMore():_shKey(k)}); });
   const m=b.querySelector('[data-act="toplaying"]'); if(m) m.onclick=()=>{ _atv.tab='playing'; _atvLS('sh_tab','playing'); _shRender(); };
+}
+// REGISTER 1064 (Dave 29 Oct 08:02 "Can we not have a touch pad and directional for android like Apple TV"): a Shield has
+// no touch surface of its own, so the pad turns a swipe into the Shield's OWN arrow presses — one per ~60 px of travel
+// along the swipe — as Google's own TV remote app does. A tap is OK; holding still is a long OK (the box's options);
+// holding at an edge keeps moving that way. Nothing here pretends to be a touch the Shield received.
+const _SH_STEP=60;
+function _shKeyHold(k,secs){
+  const r=remoteForPlayer(_atv.e), c=_SH_KEYS[k];
+  if(!r||!c){ _atvToast('ProOS can’t send that key to this Shield'); return; }
+  svc('remote','send_command',{entity_id:r, command:c, hold_secs:secs});
+}
+function _shBindTouch(pad){
+  let sx=0, sy=0, st=0, moved=false, ax=0, ay=0, holdT=null, rep=null, edge=null, held=false, rect=null;
+  const q=[]; let busy=false;
+  const pump=()=>{ if(busy||!q.length) return; busy=true; _shKey(q.shift()); setTimeout(()=>{ busy=false; pump(); },90); };
+  const push=k=>{ if(q.length<6) q.push(k); pump(); };
+  const stop=()=>{ clearTimeout(holdT); holdT=null; clearInterval(rep); rep=null; pad.classList.remove('touching'); st=0; };
+  pad.addEventListener('pointerdown',ev=>{ if(ev.target.closest('.atv-tog')) return; ev.preventDefault(); try{pad.setPointerCapture(ev.pointerId);}catch(e){}
+    rect=pad.getBoundingClientRect(); sx=ax=ev.clientX; sy=ay=ev.clientY; st=Date.now(); moved=false; held=false; pad.classList.add('touching');
+    const fx=(sx-rect.left)/rect.width, fy=(sy-rect.top)/rect.height;
+    edge=fx<.11?'left':fx>.89?'right':fy<.11?'up':fy>.89?'down':null;
+    holdT=setTimeout(()=>{ if(moved) return; held=true;
+      if(edge){ _shKey(edge); rep=setInterval(()=>_shKey(edge),220); } else _shKeyHold('select',0.8); },550); });
+  pad.addEventListener('pointermove',ev=>{ if(!st||held) return;
+    if(!moved && Math.hypot(ev.clientX-sx,ev.clientY-sy)>10){ moved=true; clearTimeout(holdT); }
+    if(!moved) return;
+    let dx=ev.clientX-ax, dy=ev.clientY-ay;
+    while(Math.abs(dx)>=_SH_STEP||Math.abs(dy)>=_SH_STEP){
+      if(Math.abs(dx)>=Math.abs(dy)){ const k=dx>0?'right':'left'; push(k); ax+=dx>0?_SH_STEP:-_SH_STEP; }
+      else { const k=dy>0?'down':'up'; push(k); ay+=dy>0?_SH_STEP:-_SH_STEP; }
+      dx=ev.clientX-ax; dy=ev.clientY-ay;
+    } });
+  pad.addEventListener('pointerup',()=>{ if(!st) return; const wasMoved=moved, wasHeld=held; stop();
+    if(!wasMoved && !wasHeld) _shKey('select'); });
+  // as the Apple TV pad (1042): iOS would claim a still finger as its own long press and cancel the touch
+  pad.addEventListener('touchstart',ev=>{ if(!ev.target.closest('.atv-tog')) ev.preventDefault(); },{passive:false});
+  pad.addEventListener('pointercancel',()=>{ if(st) stop(); });
 }
 function _shMore(){
   _atvPop('<div class="atv-poph"><b>More</b></div><div class="atv-opts">'+[['search','Search'],['info','Info'],['guide','Guide']].map(k=>'<button type="button" data-mk="'+k[0]+'"><span>'+k[1]+'</span></button>').join('')+'</div>',
