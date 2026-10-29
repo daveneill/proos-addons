@@ -2380,9 +2380,35 @@ class ToolRunner:
         with _TRACE_LOCK:
             self.trace.append(t)
         if kind in ("action_done", "query_answer"):
+            # REGISTER 1082b (Device Truth Review F6): the platform's "Turned off the light" is the platform accepting the
+            # command, not a reading. An act is said in its words only when the things it touched now report the state
+            # asked for (on/off intents); otherwise — or when it can't be read — "Sent."
+            if acted and not self._platform_confirmed(done, intent):
+                return {"say": "Sent.", "intent": intent}
             return {"say": said or "Done.", "intent": intent}
         # It TRIED and it did not work: said plainly, never handed on to run twice.
         return {"say": said or "I couldn't do that just then.", "intent": intent, "error": True}
+
+    def _platform_confirmed(self, done, intent, wait_s=None, sleep=None):
+        """Do the entities the platform says it touched now report the on/off the intent asked for?"""
+        ids = [d for d in (done or []) if "." in str(d)]
+        it = str(intent or "").lower()
+        want = ("on" if (it.endswith("_on") or "turnon" in it) else "off" if (it.endswith("_off") or "turnoff" in it)
+                else "closed" if "close" in it else "open" if "open" in it else None)   # a blind reports closed / open
+        if not ids or not want:
+            return False
+        import time as _t
+        end = _t.time() + (READBACK_S if wait_s is None else wait_s)
+        while True:
+            try:
+                snap = self.client.snapshot(ids) or {}
+            except Exception:                                    # noqa: BLE001
+                return False
+            if all(str((snap.get(e) or {}).get("state") or "") == want for e in ids):
+                return True
+            if _t.time() >= end:
+                return False
+            (sleep or _t.sleep)(READBACK_STEP_S)
 
     # -- helpers ------------------------------------------------------------
     def home_domains(self) -> set:
@@ -7460,6 +7486,11 @@ def _home_plan_turn(runner, client, project_mod, user, text, where, session, t0)
         return _plan_reply(runner, user, session, text, where, t0, asked.get("say") or "Which would you like?", "plan:ask", ai_ms)
     said = [r["result"].get("say") for r in results if isinstance(r.get("result"), dict) and r["result"].get("say")]
     say = plan.get("say") or (said[-1] if said else ((room.get("name") + ", done.") if room.get("name") else "Done."))
+    # REGISTER 1082b (Device Truth Review F5; Dave 30 Oct "3. yes"): the plan's sentence was written by the AI BEFORE the
+    # act ("Netflix is on in the Bedroom" for a launch that did nothing, 14 Oct). It is said only when every step's devices
+    # confirmed it; a step whose check is still to run (an app, music) or whose read-back did not confirm makes it "Sent".
+    if not _plan_confirmed(client, results):
+        say = ("Sent to %s." % _direct._art(room.get("name"))) if room.get("name") else "Sent."
     if _hp.LEARN_AFTER <= 1:
         # register 863: a sentence is learned only once the checks PASSED — the speaker seen playing, the app seen open.
         # "Turn on Netflix in the bedroom" was learned on 14 Oct from a launch that had done nothing (seen 10:34).
@@ -7525,6 +7556,19 @@ def _plan_reply(runner, user, session, text, where, t0, reply, how, ai_ms):
 # READBACK_STEP_S — a light or a mute answers inside it; a TV that takes longer is reported as sent, which is true.
 READBACK_S = 3.0
 READBACK_STEP_S = 0.5
+
+
+def _plan_confirmed(client, results):
+    """Every step of an AI plan confirmed by its devices? A step carrying a check still to run (verify) is not yet."""
+    if not results:
+        return False
+    for r in results:
+        res = r.get("result") if isinstance(r, dict) else None
+        if isinstance(res, dict) and res.get("verify"):
+            return False
+        if _act_confirmed(client, r.get("tool"), r.get("args") or {}, res) is not True:
+            return False
+    return True
 
 
 def _act_confirmed(client, tool, args, out, wait_s=None, sleep=None):
