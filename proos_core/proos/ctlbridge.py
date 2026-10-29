@@ -1496,6 +1496,26 @@ class ActivityPublisher:
                 # state simply never claims an activity. Devices may be
                 # added to rooms without being committed — monitoring is
                 # membership, commissioning earns activities.
+                # REGISTER 1078 (Dave, 30 Oct: the room's state is what its devices report; "if a device can not
+                # confirm then it can only send"): what was SENT (cs, above) no longer decides what the room IS.
+                # cmdstate.device_verdict names an activity only when the TV's input (and the AV switch's, where there
+                # is one) and the box itself show it; otherwise the room is On / Off / Starting / Turning Off / No
+                # Reading, with what was sent riding along as sent.
+                _dv = None
+                try:
+                    from .cmdstate import device_verdict as _devv
+                    _dv_acts = []
+                    for _a in acts.values():
+                        if _a.key in ("display_on", "tv_off"):
+                            continue
+                        _dv_acts.append((_a.key, getattr(_a, "label", None) or str(_a.key).replace("watch_", "Watch ")
+                                         .replace("_", " ").title(), getattr(_a, "source_eid", None)))
+                    _dv = _devv(cs, _dv_acts, rec, snapall, d.get("disp_eid"), _disp_on, self._mem(area_slug))
+                    cs = {"state": _dv["state"], "label": _dv["label"], "confirmed": _dv["confirmed"],
+                          "commanded_key": _dv["commanded_key"], "external": False,
+                          "missed": cs.get("missed") or _dv.get("missed")}
+                except Exception as _e:                      # noqa: BLE001
+                    print("  [ctlbridge] %s device verdict failed: %s" % (area_slug, _e), flush=True)
                 if getattr(self, "awareness", "activities") == "monitor":
                     cs = {"state": ("on" if _disp_on else "off"),
                           "label": ("On" if _disp_on else "Off"),
@@ -1509,6 +1529,7 @@ class ActivityPublisher:
                 # watch_tv, tv_off). The verdict now speaks that name; the
                 # internal key stays in `activity_key` for every reader that
                 # joins on it. ONE derivation: the generator's own.
+                _internal_key = cs.get("state")   # 1078: the activity the devices show, by its internal key
                 cs["state"] = clean_activity_name(cs.get("state"), _cmds, area_slug)
                 # device truth for the summary lines: every committed AV
                 # device, its own reported state, labelled by capability
@@ -1520,7 +1541,7 @@ class ActivityPublisher:
                             for a in src_acts) or bool(
                             getattr(bcast, "provisional", False))
                 attrs = {"friendly_name": "ProOS Activity — %s" % area_name,
-                         "activity_key": cs["commanded_key"] or cs["state"],
+                         "activity_key": _internal_key,    # 1078: what the room IS (internal key), never what was sent
                          "provisional": _prov,
                          "area": area_name,
                          "label": cs["label"],
@@ -1531,12 +1552,9 @@ class ActivityPublisher:
                          # what stops a screen reading it as "we watched
                          # the source come up on the input", which nothing
                          # here did.
-                         "verified_by": ((("commanded; the TV confirms power and is on %s" % cs.get("tv_reports"))
-                                          if cs.get("input_check") == "agrees" else
-                                          "commanded, and the display confirms power — the TV doesn't report its input"
-                                          if cs.get("input_check") == "unreported" else
-                                          "commanded, and the display confirms power")
-                                         if cs["confirmed"] else None),
+                         # 1078: the basis is the devices' own readings ("the TV reports power on HDMI 1, and the
+                         # Apple TV reports playing") — never "commanded".
+                         "verified_by": ((_dv or {}).get("basis") if cs["confirmed"] else None),
                          "held": False,
                          "external": cs["external"],
                          "inference": {"state": d["state"],
@@ -1545,11 +1563,12 @@ class ActivityPublisher:
                          "icon": ("mdi:television-play"
                                   if cs["state"] != "off"
                                   else "mdi:television-off")}
-                if cs.get("input_check") == "contradicted":         # register 925
-                    attrs["unconfirmed"] = ("%s was asked, but the TV reports %s%s"
-                                            % (cs.get("asked"), cs.get("tv_reports"),
-                                               (" — not %s" % cs["expected"]) if cs.get("expected") else ""))
-                    attrs["asked"] = cs.get("asked")
+                if (_dv or {}).get("unconfirmed"):                  # 1078 (was register 925's contradicted note)
+                    attrs["unconfirmed"] = _dv["unconfirmed"]
+                    if _dv.get("commanded_key"):
+                        attrs["asked"] = _dv["commanded_key"]
+                if (_dv or {}).get("starting"):
+                    attrs["starting"] = True
                 # PLAN A2 (3 Oct 2026; L-6/L-16, T1e/T2g on Dave's box). The room
                 # said "Off — verified: commanded, and the display confirms power"
                 # while the Bedroom TV sat behind a dead switch: the Samsung
@@ -1611,7 +1630,7 @@ class ActivityPublisher:
                 # "The TV is on". A real title still shows/clears via the
                 # sentence's own info path (Sonos-style).
                 _mem_r = self._mem(area_slug)
-                if cs["state"] == "on" and cs.get("external"):
+                if False:  # 1078: promote/hold retired — the devices name the activity now (device_verdict)
                     _prom = promote_external_inference(
                         cs["state"], cs.get("external"), _inf_state,
                         d.get("verified"), d.get("evidence"))
@@ -1642,11 +1661,15 @@ class ActivityPublisher:
                             "confirmed, though the witness is quiet now")
                 else:
                     _mem_r.pop("ext", None)     # commanded / off -> drop the latch
-                if (active is not None
-                        and getattr(active, "source_eid", None)
-                        and active.key == cs["commanded_key"]):
-                    # media info rides ONLY when inference agrees with the
-                    # COMMANDED source — enrichment, never nomination.
+                if (_dv or {}).get("source") and cs["confirmed"]:
+                    # 1078: media info rides with the box the DEVICES show (device_verdict's source), never the
+                    # command or the inference.
+                    attrs["source"] = _dv["source"]
+                    try:
+                        attrs.update(self._media_enrich(_dv["source"], snapall))
+                    except Exception:                            # noqa: BLE001
+                        pass
+                elif False:
                     attrs["source"] = active.source_eid
                     # Content-aware verdict (2 Aug): what the source is
                     # actually SHOWING rides the sensor — app, title, and
@@ -1656,11 +1679,9 @@ class ActivityPublisher:
                                                         snapall))
                     except Exception:                            # noqa: BLE001
                         pass
-                if (active is not None
-                        and active.key == cs["commanded_key"]):
-                    # audio witness rides ONLY when inference agrees with
-                    # the commanded source (audit item 11: the combined
-                    # card's volume bound to the wrong device otherwise).
+                if (active is not None and active.key == cs["state"]):
+                    # audio witness rides ONLY when the inference agrees with the activity the devices show (1078;
+                    # was: the commanded source — audit item 11).
                     aw = getattr(active, "audio_witness", None) or {}
                     attrs["audio_entity"] = aw.get("entity") or d["disp_eid"]
                 # The panel as its own source: tuner reads Live TV, a
@@ -1668,7 +1689,7 @@ class ActivityPublisher:
                 # Dave, 2 Aug). Names come from the panel itself; no app
                 # table, no brand strings.
                 if (active is None and d["state"] != "off"
-                        and cs["commanded_key"] == "watch_tv"
+                        and cs["state"] == "watch_tv"
                         and d.get("self_content")):
                     # only a COMMANDED Watch TV carries tuner/app content
                     if d["self_content"] == "live_tv":

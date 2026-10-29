@@ -78,6 +78,7 @@ def decide_cmd(area_slug, snap, commands, disp_on, mem, now=None):
         if ts is not None and ts <= now + 5 and \
                 (latest is None or ts > latest[2]):
             latest = (key, label, ts)
+    mem["cmd_last"] = latest                   # REGISTER 1078: device_verdict reads when the command was sent
 
     if disp_on:
         if latest and latest[0] != "tv_off":
@@ -208,3 +209,140 @@ def confirm_miss(miss, mem, read_rows):
         mem["miss_read"] = (fired, came)
         kept = mem["miss_read"]
     return None if kept[1] else miss
+
+
+# ── REGISTER 1078: THE ROOM'S STATE IS WHAT ITS DEVICES REPORT ─────────────────────────────────────────────────────────
+# Dave, 30 Oct 2026 06:43–06:56, ruling on the Device Truth Review: "ProOS would report state for everything that has
+# integration and assigned to a room meaning actual state not I sent an on so it should be on thats assumption … a room
+# can then be commissioned with activities which in theory is just a scene"; "1. yes … 4. if a device can not confirm then
+# it can only send". This replaces the 2 Aug "commanded + power" ruling for the published room state (decide_cmd and
+# input_verdict above stay as the record of what was SENT; they no longer decide what the room IS):
+#   - an activity is named only when the devices themselves show it: the TV reports power AND the activity's input
+#     (through the AV switch where the room has one: the TV on the switch's output and the switch on the box's input),
+#     AND the box reports it is awake. Who started it — ProOS, the TV's own remote, CEC — does not matter and is not
+#     claimed (external is never set).
+#   - a TV that does not report its input cannot confirm any activity: the room is On (power is a reading), and what was
+#     sent rides along as sent, never as confirmed.
+#   - a just-sent activity reads "Starting <name>" while its devices come up (BOOT_GRACE_S, the patience decide_cmd
+#     already uses); a just-sent Off on a TV still reporting power reads "Turning Off" (OFF_GRACE_S). Both say they are
+#     waiting on a command; neither is confirmed.
+#   - a display that reports nothing (unavailable/unknown) is "No Reading", never Off.
+_AWAKE = ("on", "playing", "paused", "idle")
+
+
+def _input_shaped(src):
+    """Is this source string an INPUT (HDMI 3, AV, Line…) rather than content (an app)? ONE vocabulary: ctlbridge's
+    _INPUT_SHAPED (which mirrors appctl's)."""
+    try:
+        from .ctlbridge import _INPUT_SHAPED
+        return bool(_INPUT_SHAPED.match(str(src).strip()))
+    except Exception:                                    # noqa: BLE001
+        return True                                      # can't tell -> never claim it is the TV's own app
+
+
+def device_verdict(cs, acts, rec, snap, disp_eid, disp_on, mem, now=None):
+    """The room's published state, from its devices' own reports.
+
+    cs      — decide_cmd's answer (what was sent; used only for Starting / Turning Off / the sent note).
+    acts    — [(key, label, source_eid or None)] for every activity except tv_off; None (or the display itself) is the
+              TV's own activity (Watch TV).
+    rec     — the room record: inputs {entity: display input}, avswitch {entity, output, inputs {entity: switch input}}.
+    snap    — {entity_id: {state, attributes}}.
+    Returns {state, label, confirmed, commanded_key, external, basis, unconfirmed, source, starting}."""
+    if now is None:
+        import time as _t
+        now = _t.time()
+    row = lambda e: (snap.get(e) or {}) if e else {}
+    st = lambda e: str(row(e).get("state") or "").lower()
+    at = lambda e, k: (row(e).get("attributes") or {}).get(k)
+    last = mem.get("cmd_last") or None
+    sent_key, sent_label, sent_at = (last if last else (None, None, None))
+    labels = {k: l for k, l, _s in acts}
+    name = lambda k: labels.get(k) or (str(k or "").replace("watch_", "Watch ").replace("_", " ").title())
+    fresh = bool(sent_at is not None and now - sent_at <= BOOT_GRACE_S)
+    base = {"commanded_key": sent_key, "external": False, "unconfirmed": None, "source": None, "starting": False}
+
+    dstate = st(disp_eid)
+    if dstate in ("unavailable", "unknown", ""):
+        return dict(base, state="unknown", label="No Reading", confirmed=False, basis=None,
+                    unconfirmed="the TV isn't reporting anything")
+
+    if not disp_on:
+        if sent_key and sent_key != "tv_off" and fresh:
+            return dict(base, state=sent_key, label="Starting " + name(sent_key).replace("Watch ", ""),
+                        confirmed=False, basis=None, starting=True,
+                        unconfirmed="%s was sent; the TV hasn't reported power yet" % name(sent_key))
+        # a TV that reports power but is not counted on is resting on its artwork (Art Mode is off — Dave's ruling;
+        # the room says so rather than "the TV reports on" under an Off)
+        _why = ("the TV is resting on Art Mode" if dstate in ("on", "playing", "paused")
+                else "the TV reports %s" % (dstate or "off"))
+        out = dict(base, state="off", label="Off", confirmed=True, basis=_why)
+        if cs.get("missed"):
+            out["missed"] = cs["missed"]
+        return out
+
+    # the TV reports power
+    if sent_key == "tv_off" and sent_at is not None and now - sent_at <= OFF_GRACE_S:
+        return dict(base, state="on", label="Turning Off", confirmed=False, basis="the TV reports power",
+                    unconfirmed="Off was sent; the TV still reports power")
+    src = str(at(disp_eid, "source") or "").strip()
+    inputs = (rec or {}).get("inputs") or {}
+    sw = (rec or {}).get("avswitch") or {}
+    sw_e, sw_out, sw_in = sw.get("entity"), str(sw.get("output") or "").strip(), (sw.get("inputs") or {})
+    sw_src = str(at(sw_e, "source") or "").strip() if sw_e else ""
+    box_inputs = {str(v).strip() for e, v in inputs.items() if v and e != disp_eid}
+    if sw_out:
+        box_inputs.add(sw_out)
+    own = str(inputs.get(disp_eid) or "").strip()
+
+    def why_not(key, se):
+        """None when the devices show this activity; else the reason they don't."""
+        if se is None or se == disp_eid:
+            if not src:
+                return "the TV doesn't report its input"
+            if src == own:
+                return None
+            if src in box_inputs or _input_shaped(src):
+                return "the TV reports %s" % src        # an input — a box's, or one no activity uses (a console)
+            return None                                  # content, not an input: the TV's own app
+        want = str(inputs.get(se) or "").strip()
+        if want:
+            if not src:
+                return "the TV doesn't report its input"
+            if src != want:
+                return "the TV reports %s, not %s" % (src, want)
+        elif sw_e and sw_in.get(se):
+            if not src:
+                return "the TV doesn't report its input"
+            if sw_out and src != sw_out:
+                return "the TV reports %s, not %s" % (src, sw_out)
+            if not sw_src:
+                return "the AV switch doesn't report its input"
+            if sw_src != str(sw_in.get(se)).strip():
+                return "the AV switch reports %s, not %s" % (sw_src, sw_in.get(se))
+        else:
+            return "no input is set for it in Pro"
+        if st(se) not in _AWAKE:
+            return "the %s reports %s" % (name(key).replace("Watch ", ""), st(se) or "nothing")
+        return None
+
+    shown = [(k, se) for k, _l, se in acts if why_not(k, se) is None]
+    if shown:
+        shown.sort(key=lambda x: 0 if x[0] == sent_key else 1)
+        k, se = shown[0]
+        where = ("%s through the AV switch on %s" % (src, sw_src)) if (se and se != disp_eid and not inputs.get(se)) else src
+        basis = "the TV reports power on %s" % where
+        if se and se != disp_eid:
+            basis += ", and the %s reports %s" % (name(k).replace("Watch ", ""), st(se))
+        return dict(base, state=k, label=name(k), confirmed=True, basis=basis,
+                    source=(se if se and se != disp_eid else None))
+    out = dict(base, state="on", label="On", confirmed=True,
+               basis="the TV reports power" + ((" on %s" % src) if src else ""))
+    if sent_key and sent_key != "tv_off":
+        se = next((s for k, _l, s in acts if k == sent_key), None)
+        if fresh:
+            out.update(state=sent_key, label="Starting " + name(sent_key).replace("Watch ", ""), confirmed=False,
+                       starting=True)
+        if cs.get("state") == sent_key or fresh:      # sent during THIS on-session
+            out["unconfirmed"] = "%s was sent, but it can't be confirmed: %s" % (name(sent_key), why_not(sent_key, se))
+    return out
