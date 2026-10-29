@@ -5019,7 +5019,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102637';
+const PROOS_BUILD='2026102638';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -6398,75 +6398,77 @@ function buildRoomCards(r, makeCardFn, labelPrefix, scope){
   // already emptied videoSources above, so a dark room shows nothing.
   // Only a NAMED watch activity consolidates — a generic 'on' (room powered, no
   // single committed activity Core can name) still shows its devices, as before.
-  // ── REGISTER 1075: A COMMITTED ROOM'S CARD IS CORE'S ANSWER, AND NOTHING ELSE ──
-  // Dave, 29 Oct 20:20: "the activities widget will say some music playing but the media card is not showing … if I
-  // hit watch Apple TV … the music media card shows for a short time"; 20:22 "it needs to support it by standard on
-  // any home". Measured on his box the same evening: of four cards the house would draw, one was real — an idle
-  // Apple TV behind a switched-off TV beside the Bedroom's music, a Shield in a Family Room Core called off, an idle
-  // HEOS in a Living Room Core called off. The card was answering "what is playing here" again, by its own checks,
-  // instead of reading the answer Core had already published. For a COMMITTED room (its verdict carries devices{})
-  // the card now draws exactly the verdict:
-  //   not settled yet (provisional) or off  -> no card
-  //   watching                              -> ONE card, the source Core named (below; even while it wakes)
-  //   music (kind music, playing or paused) -> ONE card, the speaker Core named, whatever its brand
-  // A device the room HAS but the commission doesn't use (a HomePod beside the TV, a Cast player) rides Core's
-  // assigned{} map with its own state: when Core says it is playing or paused it still gets its card (the Bedroom rule,
-  // 3 Aug). A monitored room (no devices{}) keeps its per-device cards from assigned{} — Core's own map for it.
+  // ── REGISTER 1075 / 1077: A COMMITTED ROOM'S CARDS ARE ITS ENDPOINTS, AS PRO CONFIGURED THEM ──
+  // Dave, 29 Oct 20:20: "the activities widget will say some music playing but the media card is not showing";
+  // 20:22 "it needs to support it by standard on any home"; 21:28 "it's crucial it works correctly in all rooms and
+  // reflects what is configured in Pro"; 21:3x "if music is playing it should be a music card and Apple TV is Apple TV
+  // card — this is about the card". 1075 drew ONE card from Core's verdict, so a Bedroom Sonos that went back to its
+  // own song while the room was still "Watching Apple TV" (measured 21:26:32, no command — the TV input had gone quiet)
+  // drew no music card at all. The card is now read per ENDPOINT, from the roles Pro committed (Core's devices{}):
+  //   VIDEO  — the room is watching (watch_*): ONE card for the source Core named, from the activity's own name while
+  //            it wakes ("Starting"). A source awake behind an off room gets nothing (an idle Apple TV isn't playing).
+  //   AUDIO  — every audio endpoint (TV-audio speaker, music speakers, and devices Core's assigned{} lists) that is
+  //            PLAYING ITS OWN CONTENT gets a music card, whatever the verdict says, whatever the brand. Its own
+  //            content: it names something other than the input it is on — a speaker on its TV input ("TV"), or
+  //            reporting only its input ("Line-in", the Bedroom Amp for the moment the TV wakes it), is the TV's
+  //            sound and belongs to the video card. Paused shows only while Core holds the room (music verdict not
+  //            off) — so Off, which stops the speaker (1076), leaves no card behind.
+  //   Not settled (provisional): the video card waits; a speaker genuinely playing still shows.
+  // A monitored room (no devices{}) keeps its per-device cards from assigned{} — Core's own map for it.
   const _committedRoom=!!(_devMap&&Object.keys(_devMap).length&&_hasVerdict);
-  if(_committedRoom && !_verdictProv && (_verdict==='off' || _vAtt('kind')==='music')){
-    const _draw=[];
-    if(_verdict!=='off'){
-      const _me=[_vAtt('audio_entity'),_vAtt('source')].find(x=>x&&candidates.includes(x));
-      if(_me) _draw.push(_me);
+  if(_committedRoom){
+    // VIDEO
+    if(!_verdictProv && /^watch_/.test(_verdict||'')){
+      const _vs=_vAtt('source');
+      const _byKey='media_player.'+String(_verdict).slice(6);
+      const _p=(_vs&&candidates.includes(_vs))?_vs
+              :candidates.includes(_byKey)?_byKey
+              :(_liveTvEid&&videoSources.includes(_liveTvEid))?_liveTvEid
+              :videoSources[0]
+              ||Object.keys(_devMap).find(e=>(_devMap[e]||{}).role==='display'&&candidates.includes(e));
+      if(_p){
+        seen.add(_p);
+        const s=st(_p), playing=(s==='playing'||s==='paused'), isLiveTV=(_p===_liveTvEid);
+        const _waking=['off','standby','unavailable','unknown'].includes(s);
+        const title=isLiveTV?(_selfApp||'Live TV'):(_waking?'Starting':(playing?(att(_p,'media_title')||att(_p,'app_name')||'TV'):'TV'));
+        const artist=playing?(att(_p,'media_artist')||''):'';
+        const srcLabel=isLiveTV?(labelPrefix?`${r.name} · ${_selfApp||'Live TV'}`:(_selfApp||'Live TV')):label(_p);
+        const _vve=volEid||_p;
+        const art=_artOf(_p);
+        rows.push(makeCardFn(_p,_vve,art,title,artist,srcLabel,parseFloat(att(_vve,'volume_level')||0),att(_vve,'volume_level')!=null));
+      }
     }
-    try{
-      const _asn1=_vAtt('assigned')||{};
-      Object.keys(_asn1).forEach(e=>{
-        if(_draw.includes(e)||_devMap[e]) return;               // assigned{} IS the room's membership
-        if(!['playing','paused'].includes(String((_asn1[e]||{}).state))) return;
-        if(att(e,'device_class')==='receiver') return;
-        if(isMaPlayer(e)&&!isMaGroup(e)&&_maTwinOfNative(e,candidates)) return;
-        _draw.push(e);
-      });
-    }catch(x){}
-    _draw.forEach(e=>{
+    // AUDIO
+    const _ownContent=e=>{
+      const src=String(att(e,'source')||''), t=String(att(e,'media_title')||'');
+      if(src==='TV') return false;                                   // relaying the TV
+      if(src && (!t || t===src)) return false;                       // only its input, no content of its own
+      return !!(t||att(e,'media_channel')||att(e,'media_content_id'));
+    };
+    const _musicHeld=!_verdictProv && _verdict!=='off' && _vAtt('kind')==='music';
+    const _aud=[];
+    if(_musicHeld){
+      const _me=[_vAtt('audio_entity'),_vAtt('source')].find(x=>x&&candidates.includes(x));
+      if(_me && ['playing','paused','idle'].includes(st(_me))) _aud.push(_me);   // Core already filtered TV relay
+    }
+    const _ends=Object.keys(_devMap).filter(e=>(_devMap[e]||{}).role==='audio');
+    try{ Object.keys(_vAtt('assigned')||{}).forEach(e=>{ if(!_devMap[e]&&!_ends.includes(e)) _ends.push(e); }); }catch(x){}
+    _ends.forEach(e=>{
+      if(_aud.includes(e)||seen.has(e)) return;
+      if(att(e,'device_class')==='receiver') return;                 // an AV receiver is the volume, never a card
+      if(isMaPlayer(e)&&!isMaGroup(e)&&_maTwinOfNative(e,candidates)) return;
+      if(st(e)==='playing' && _ownContent(e)) _aud.push(e);
+    });
+    _aud.forEach(e=>{
       seen.add(e);
-      const title=att(e,'media_title')||att(e,'media_channel')||att(e,'app_name')||'\u2013';
+      const title=att(e,'media_title')||att(e,'media_channel')||att(e,'app_name')||'–';
       const artist=_npArtistLine(e, att(e,'media_artist')||'');
-      const _ze=(_vAtt('kind')==='music'&&e===_draw[0]&&_verdict!=='off'&&roomVolEndpoint(r,'audio'))||_zoneVolForEntity(e)||e;
+      const _al=roomVolEndpoints(r,'audio');
+      const _ze=(_al.includes(e)?e:null)||_zoneVolForEntity(e)||e;
       rows.push(makeCardFn(e,_ze,_artOf(e),title,artist,label(e),parseFloat(att(_ze,'volume_level')||0),att(_ze,'volume_level')!=null));
     });
-    return rows;
-  }
-  if(_committedRoom && _verdictProv) return rows;
-  if(_devMap && Object.keys(_devMap).length && !_verdictProv && /^watch_/.test(_verdict||'')){
-    // The card shows the source the VERDICT names, even if that source reports
-    // idle/off (an Apple TV reads idle while you watch it — the verdict, not the
-    // device's power state, is the truth). Only needs to be a member of the room.
-    // As the active source changes (Apple TV -> Shield), the verdict changes and
-    // this card's content follows it. Falls back to the lit display / first source
-    // when the verdict names nothing.
-    // 1075: the activity's own name says which source it is (watch_<source>) — Core publishes source only once the
-    // source agrees, so while an Apple TV is still waking that name is the answer, never the speaker's music.
-    const _vs=_vAtt('source');
-    const _byKey='media_player.'+String(_verdict).slice(6);
-    const _p=(_vs&&candidates.includes(_vs))?_vs
-            :candidates.includes(_byKey)?_byKey
-            :(_liveTvEid&&videoSources.includes(_liveTvEid))?_liveTvEid
-            :videoSources[0]
-            ||Object.keys(_devMap).find(e=>(_devMap[e]||{}).role==='display'&&candidates.includes(e));
-    if(!_p) return rows;
-    const s=st(_p), playing=(s==='playing'||s==='paused'), isLiveTV=(_p===_liveTvEid);
-    const _waking=['off','standby','unavailable','unknown'].includes(s);
-    const title=isLiveTV?(_selfApp||'Live TV'):(_waking?'Starting':(playing?(att(_p,'media_title')||att(_p,'app_name')||'TV'):'TV'));
-    const artist=playing?(att(_p,'media_artist')||''):'';
-    const art=_artOf(_p);
-    const srcLabel=isLiveTV?(labelPrefix?`${r.name} · ${_selfApp||'Live TV'}`:(_selfApp||'Live TV')):label(_p);
-    const _vve=volEid||_p;
-    const vVol=parseFloat(att(_vve,'volume_level')||0);
-    const vHasVol=att(_vve,'volume_level')!=null;
-    rows.push(makeCardFn(_p,_vve,art,title,artist,srcLabel,vVol,vHasVol));
-    return rows;   // the one card IS the room — no per-source, no audio duplicates
+    // a generic 'on' (no named activity) still shows its lit devices below, as before
+    if(rows.length || _verdictProv || _verdict==='off' || /^watch_/.test(_verdict||'') || _vAtt('kind')==='music') return rows;
   }
 
   // ── TV-AUDIO MODE (combined card) ─────────────────────────────
