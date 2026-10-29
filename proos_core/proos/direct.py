@@ -571,6 +571,59 @@ def _pick(options):
     return options[0] if len(options) == 1 else random.choice(options)
 
 
+# ── REGISTER 1082: WHAT IS SAID WHEN THE DEVICES HAVEN'T CONFIRMED (Device Truth Review F1–F4) ───────────────────────
+# Dave, 30 Oct 06:56: Assist states a result only after reading the devices back, otherwise it says it was SENT; "if a
+# device can not confirm then it can only send". say_for's words ("Office is off.") are kept for a read-back that
+# confirmed; these are the words for one that didn't (yet) — present tense, what is being done, never that it is done.
+def _art(n):
+    """'the Office' / 'Bec's Office' — a possessive room name takes no article."""
+    t = str(n or "")
+    return t if ("'" in t or "\u2019" in t) else "the " + t
+
+
+_SENT = {"room_off": ("Switching %s off.", "Switching off."),
+         "room_on": ("Switching %s on.", "Switching on.")}
+_SENT_LIGHT = {"turn_on": ("Switching %s lights on.", "Lights switching on."),
+               "turn_off": ("Switching %s lights off.", "Lights switching off.")}
+_SENT_VOL = {"up": ("Turning %s up.", "Turning it up."), "down": ("Turning %s down.", "Turning it down."),
+             "mute": ("Muting %s.", "Muting."), "unmute": ("Unmuting %s.", "Unmuting.")}
+_SENT_MEDIA = {"pause": "Pausing.", "stop": "Stopping.", "play": "Starting it.", "next": "Skipping.",
+               "previous": "Going back."}
+
+
+def sent_for(tool, args, room_name=None, scene_name=None, brief=False):
+    """What ProOS says when the act was sent but the devices have not confirmed it, or None. Same shape as say_for."""
+    args = args or {}
+    n = room_name
+    if not n and tool in ("room_off", "room_on", "room_volume", "area_control"):
+        return None
+    if tool in _SENT:
+        return _SENT[tool][1] if brief else _SENT[tool][0] % _art(n)
+    if tool == "scene_apply":
+        return ("Setting %s." % scene_name) if scene_name else None
+    if tool == "room_volume":
+        act = str(args.get("action") or "")
+        if act == "set":
+            try:
+                lvl = int(args.get("level"))
+            except (TypeError, ValueError):
+                return None
+            return ("Setting it to %d%%." % lvl) if brief else ("Setting %s to %d%%." % (_art(n), lvl))
+        if act not in _SENT_VOL:
+            return None
+        return _SENT_VOL[act][1] if brief else _SENT_VOL[act][0] % _art(n)
+    if tool == "room_media":
+        return _SENT_MEDIA.get(str(args.get("action") or ""))
+    if tool == "area_control":
+        if str(args.get("domain")) != "light":
+            return None
+        a = str(args.get("action") or "")
+        if a not in _SENT_LIGHT:
+            return None
+        return _SENT_LIGHT[a][1] if brief else _SENT_LIGHT[a][0] % _art(n)
+    return None
+
+
 def say_for(tool, args, room_name=None, scene_name=None, brief=False):
     """What ProOS says when this tool has just succeeded, or None.
 

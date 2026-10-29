@@ -2569,7 +2569,10 @@ class ToolRunner:
         if (t["kind"] == "act" and not t.get("error")
                 and getattr(self, "on_act", None)):
             try:
-                self.on_act(name, args or {})
+                try:
+                    self.on_act(name, args or {}, out)       # 1082: the result rides along for the read-back
+                except TypeError:
+                    self.on_act(name, args or {})
             except Exception:                                    # noqa: BLE001
                 pass                       # confirming must never break the work
         return out
@@ -3106,6 +3109,7 @@ class ToolRunner:
         if n is not None:
             out["affected"] = n
             out["targets"] = [d.get("name") or d.get("entity_id") for d in targets]
+            out["target_ids"] = [d.get("entity_id") for d in targets if d.get("entity_id")]   # 1082: for the read-back
         else:
             # STAGE 6 BUILD 4 (16 Aug 2026): the register-105 hole. When the
             # room-contents read itself failed, this fell through to a plain
@@ -7514,6 +7518,52 @@ def _plan_reply(runner, user, session, text, where, t0, reply, how, ai_ms):
             "provider": "plan", "speak_lead": None if _said else reply, "spoken_already": _said, "speak_suppress": bool(_said)}
 
 
+
+# ── REGISTER 1082: READ THE DEVICES BACK BEFORE SAYING IT HAPPENED ────────────────────────────────────────────────────
+# Device Truth Review F1–F4 (Dave 30 Oct 06:56 "3. yes"). Returns True when the devices themselves now show the act,
+# False when they were read and do not, None when there is nothing to read. Patience: up to READBACK_S, read every
+# READBACK_STEP_S — a light or a mute answers inside it; a TV that takes longer is reported as sent, which is true.
+READBACK_S = 3.0
+READBACK_STEP_S = 0.5
+
+
+def _act_confirmed(client, tool, args, out, wait_s=None, sleep=None):
+    args = args or {}
+    if isinstance(out, dict) and out.get("error"):
+        return False
+    if tool in ("room_volume", "room_media"):
+        c = (out or {}).get("confirmed") if isinstance(out, dict) else None
+        return True if c is True else (False if c is False else None)
+    aid = args.get("area_id")
+    ents, test = None, None
+    if tool == "room_off" and aid:
+        sens = "sensor.proos_activity_%s" % aid
+        ents = [sens]
+        test = lambda snap: str(((snap or {}).get(sens) or {}).get("state") or "") == "off"
+    elif (tool == "area_control" and str(args.get("domain")) == "light"
+          and str(args.get("action")) in ("turn_on", "turn_off")):
+        ids = (out or {}).get("target_ids") if isinstance(out, dict) else None
+        if ids:
+            want = "on" if args.get("action") == "turn_on" else "off"
+            ents = list(ids)
+            test = lambda snap: all(str(((snap or {}).get(e) or {}).get("state") or "") == want for e in ids)
+    if not ents:
+        return None
+    import time as _t
+    wait = READBACK_S if wait_s is None else wait_s
+    _sleep = sleep or _t.sleep
+    end = _t.time() + wait
+    while True:
+        try:
+            snap = client.snapshot(ents) or {}
+        except Exception:                                        # noqa: BLE001
+            return None
+        if test(snap):
+            return True
+        if _t.time() >= end:
+            return False
+        _sleep(READBACK_STEP_S)
+
 def chat(client, ws_call, project_mod, user: dict, text: str,
          session: str = "default", home_name: str = "", ma=None,
          where: dict | None = None, awareness=None, mcp=None,
@@ -7557,7 +7607,7 @@ def chat(client, ws_call, project_mod, user: dict, text: str,
 
     runner.said_for_act = {}
 
-    def _on_act(tool, args):
+    def _on_act(tool, args, out=None):
         # REGISTER 512: the model's road asks the same question the fast road
         # asks -- was this room spoken about moments ago -- so a person gets
         # "On." either way. One phrasebook means one set of words AND one rule
@@ -7580,6 +7630,12 @@ def chat(client, ws_call, project_mod, user: dict, text: str,
                                brief=_direct.brief_for(_aid))
         if line:
             line = runner.said_for_act.get(key, line)
+            # REGISTER 1082 (Dave 30 Oct: Assist states a result only after reading the devices back, else "sent"):
+            # the done-words stand only when the devices confirmed; otherwise the sent-words ("Switching the Office
+            # off.").
+            if _act_confirmed(client, tool, args, out) is not True:
+                line = _direct.sent_for(tool, args, _say_rooms.get(_aid),
+                                        brief=_direct.brief_for(_aid)) or line
             runner.said_for_act[key] = line
         # A room this box does not know by name gets no sentence: "the room is
         # off" is not something a person can check.
@@ -7798,7 +7854,11 @@ def chat(client, ws_call, project_mod, user: dict, text: str,
         else:
             # REGISTER 735: an answer that depends on what was FOUND (the music picked and
             # proven playing) is composed by the tool after the act, not before it.
-            reply = _hit["say"] or ((_out or {}).get("say") if isinstance(_out, dict) else None) or "Done."
+            # 1082: the sentence on_act settled on after reading back (done-words or sent-words), never the one composed
+            # before the act; nothing to say and nothing confirmed is "Sent.", not "Done."
+            reply = (runner.said_for_act.get(_say_key(_hit["tool"], _hit["args"])) or _hit["say"]
+                     or ((_out or {}).get("say") if isinstance(_out, dict) else None)
+                     or ("Done." if isinstance(_out, dict) and _out.get("confirmed") is True else "Sent."))
             # REGISTER 512: the room's name has now actually been said, so the
             # next command to it moments later can drop it. Recorded HERE and
             # not at resolve time, because a tool that failed said nothing.
