@@ -679,11 +679,42 @@ def build_room_scripts(client, cluster, commissioning=None) -> dict:
     else:
         seq.append({"alias": "Turn off the TV", "action": "media_player.turn_off",
                     "target": {"entity_id": disp}})
+    # OFF STOPS THE ROOM'S MUSIC TOO (register 1076, Dave 29 Oct 21:01: "Off stops the music too"). Measured that evening
+    # in the Bedroom: Watch Apple TV moved the Sonos onto its TV input; TV Off turned the screen off and the Sonos went
+    # straight back to the song it had been playing, so the room was audibly playing while Core held it Off for the five
+    # minute off window — "music playing, no media card". Off now stops the room's own speakers once the TV is off.
+    # Each speaker is first given up to 15 s to leave its TV input (it resumes its own music, or rests), then stopped
+    # only if it is playing ITS OWN content (never the TV input — if a Watch was pressed meanwhile that is the new
+    # activity's sound) and only if it is not grouped with another room's speakers (stopping a group member would stop
+    # that room's music too). An AV receiver is not touched here: the step above powers it off.
+    _spk = []
+    if audio and audio.get("mode") == "sonos" and audio.get("entity"):
+        _spk.append(audio["entity"])
+    _not_spk = {disp} | {s.entity for s in cluster.sources}
+    if audio and audio.get("mode") == "avr":
+        _not_spk.add(audio.get("entity"))
+    for _d in (cluster.audio or []):
+        if _d.entity and _d.entity not in _not_spk and _d.entity not in _spk:
+            _spk.append(_d.entity)
+    _lbl = {d.entity: cluster.label_for(d) for d in (cluster.audio or [])}
+    for _e in _spk:
+        _l = _lbl.get(_e) or "Speaker"
+        seq.append({"alias": f"Let {_l} leave the TV input", "wait_template":
+                    "{{ state_attr('%s','source') != 'TV' }}" % _e,
+                    "timeout": {"seconds": 15}, "continue_on_timeout": True})
+        seq.append({
+            "alias": f"Stop {_l} (Off stops the room's music)",
+            "if": [{"condition": "template", "value_template":
+                    "{{ is_state('%s','playing') and state_attr('%s','source') != 'TV' and "
+                    "((state_attr('%s','group_members') or ['%s']) | length) <= 1 }}" % (_e, _e, _e, _e)}],
+            "then": [{"action": "media_player.media_stop", "target": {"entity_id": _e},
+                      "continue_on_error": True}],
+        })
     scripts[oid] = {
         "alias": f"ProOS · {cluster.area} · TV Off",
         "icon": "mdi:television-off",
         "mode": "restart",
-        "description": "Sleeps the sources and turns the screen off.",
+        "description": ("Sleeps the sources, turns the screen off and stops the room's music." if _spk else "Sleeps the sources and turns the screen off."),
         "variables": _marker("tv_off", None, cluster.area, room_slug(cluster)),
         "sequence": seq,
     }
