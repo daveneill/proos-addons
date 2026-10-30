@@ -1,6 +1,5 @@
 {
   "_README": "Every platform names the same service differently. This map collapses those variants onto ONE canonical tile, so a single graphic serves Apple TV, Android TV, Samsung and anything added later. Left = slug of the name the device reports; right = the tile file used. Add a variant here rather than duplicating a PNG. Keys starting with _ are ignored.",
-
   "_apple_tv": "names exactly as tvOS reports them",
   "10": "10_play",
   "tenplay": "10_play",
@@ -8,7 +7,6 @@
   "red_bull_tv_live_events": "red_bull_tv",
   "protect": "unifi_protect",
   "tv": "apple_tv",
-
   "_android_tv": "names as leanback apps report them",
   "kayo_sports": "kayo",
   "foxtel_now": "foxtel",
@@ -21,7 +19,6 @@
   "play_store": "app_store",
   "google_play_store": "app_store",
   "nvidia_games": "nvidia_games",
-
   "_cross_platform": "same service, different vendor spelling",
   "amazon_prime_video": "prime_video",
   "amazon_video": "prime_video",
@@ -31,5 +28,7 @@
   "hbo": "hbo_max",
   "paramount_plus": "paramount",
   "apple_tv_plus": "apple_tv",
-  "netflix_tv": "netflix"
+  "netflix_tv": "netflix",
+  "_tv_makers": "1089: the TV tile is its maker's own tile — the maker exactly as the integration reports it in the device registry, slugged",
+  "samsung_electronics": "samsung"
 }

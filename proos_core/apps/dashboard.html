@@ -5019,7 +5019,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102643';
+const PROOS_BUILD='2026102644';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -7320,6 +7320,7 @@ let definedLabels = new Set(); // labels that exist in HA
 let entityNames = {}; // entity_id -> custom display name
 let entityDeviceMap = {}; // entity_id -> device_id
 let deviceNameById = {};  // device_id -> device display name
+let deviceMakerById = {}; // device_id -> maker as its integration reports it (register 1089: the TV tile's brand)
 let deviceModelById = {}; // device_id -> hardware model (e.g. "HomePod Mini") — splits HomePods from Apple TVs when device_class is absent
 // A camera's real name lives on its DEVICE (e.g. "Office", "Pool Area"); the
 // entity is a generic channel ("High resolution channel"). Prefer a real custom
@@ -7376,12 +7377,12 @@ async function fetchEntityRegistry() {
       entityDeviceMap = {};
       for(const k in entityConfigEntry) delete entityConfigEntry[k];
       deviceNameById = {};
-      deviceModelById = {};
+      deviceModelById = {}; deviceMakerById = {};
       // Build device->area + device->name maps from device registry first
       const deviceAreaMap = {};
       try {
         const dr = await snd({type:'config/device_registry/list'});
-        if(dr.result) dr.result.forEach(d => { if(d.area_id) deviceAreaMap[d.id] = d.area_id; if(d.name_by_user || d.name) deviceNameById[d.id] = d.name_by_user || d.name; if(d.model) deviceModelById[d.id] = d.model; });
+        if(dr.result) dr.result.forEach(d => { if(d.area_id) deviceAreaMap[d.id] = d.area_id; if(d.name_by_user || d.name) deviceNameById[d.id] = d.name_by_user || d.name; if(d.model) deviceModelById[d.id] = d.model; if(d.manufacturer) deviceMakerById[d.id] = d.manufacturer; });
       } catch(e) { console.warn('[ProOS] Device registry failed:', e); }
       r.result.forEach(e => {
         if(e.name || e.original_name) entityNames[e.entity_id] = e.name || e.original_name;
@@ -22439,8 +22440,8 @@ document.addEventListener('click', function(e){
 <!-- ══════════════ end ProOS Core fold-in ══════════════ -->
 <!-- ══ REGISTER 1088 — THE ACTIVITIES CARD (Dave 30 Oct 12:52: Round 3 · The Card · Style 2 · Source Tiles) ══════════════
      What the Activities tab opens: a centred card (every popup is a centred card, 12 Oct ruling). The top says what the
-     room IS, word for word from Core (label, the title it reports, and the reading behind it — verified_by, or why it is
-     not confirmed). Each activity is its source's tile; one tap fires it through proosFireActivity, the single firing path.
+     room IS, word for word from Core (its label and the title it reports; 1089: the reading behind it stays in Pro and
+     the logs — Dave 13:53). Each activity is its source's tile; one tap fires it through proosFireActivity, the single firing path.
      The tile Core confirms gets a white ring and an On badge; while Core says Starting it pulses. Off sits alone along the
      bottom, amber while the room is anything but off. Opened from Home (or a room with no activities) it leads with a row
      of the rooms that have activities, each with its own live word. Nothing here decides state — it repeats Core. -->
@@ -22448,10 +22449,10 @@ document.addEventListener('click', function(e){
 #proos-acard{position:fixed;inset:0;z-index:10050;display:none;align-items:center;justify-content:center;padding-right:16px;padding-bottom:16px;padding-left:16px;box-sizing:border-box}
 #proos-acard.open{display:flex}
 #proos-acard .pac-scrim{position:absolute;inset:0;background:rgba(0,0,0,.5);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
-#proos-acard .pac-card{position:relative;width:min(420px,100%);max-height:calc(100vh - 32px);overflow:auto;box-sizing:border-box;padding:18px;border-radius:26px;color:#fff;
+#proos-acard .pac-card{position:relative;width:min(520px,100%);max-height:calc(100vh - 32px);overflow:auto;box-sizing:border-box;padding:22px;border-radius:28px;color:#fff;
   background:rgba(24,24,30,.78);-webkit-backdrop-filter:blur(30px) saturate(160%);backdrop-filter:blur(30px) saturate(160%);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12),0 24px 60px rgba(0,0,0,.55)}
 #proos-acard .pac-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
-#proos-acard .pac-eb{font-size:10.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.66);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#proos-acard .pac-eb{font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.66);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #proos-acard .pac-x{width:44px;height:44px;margin:-6px -6px -6px 0;border-radius:50%;border:0;background:transparent;color:#fff;display:grid;place-items:center;padding:0;cursor:pointer}
 #proos-acard .pac-x span{width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.12);display:grid;place-items:center}
 #proos-acard .pac-x svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
@@ -22464,26 +22465,25 @@ document.addEventListener('click', function(e){
 #proos-acard .pac-rm.sel{background:rgba(255,255,255,.94);color:#000}
 #proos-acard .pac-rm.sel i{color:rgba(0,0,0,.62)}
 #proos-acard .pac-rm.sel.on i{color:#0a6b4c}
-#proos-acard .pac-truth{margin-top:14px;min-height:64px}
-#proos-acard .pac-big{font-size:24px;font-weight:600;letter-spacing:-.02em;line-height:1.15;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#proos-acard .pac-sub{font-size:13.5px;color:rgba(255,255,255,.85);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#proos-acard .pac-basis{font-size:11.5px;color:rgba(255,255,255,.66);margin-top:6px;line-height:1.35}
-#proos-acard .pac-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:18px 0 16px}
-#proos-acard .pac-t{display:flex;flex-direction:column;align-items:stretch;gap:6px;border:0;background:none;padding:0;font:inherit;color:#fff;cursor:pointer;min-width:0}
-#proos-acard .pac-tile{position:relative;aspect-ratio:5/3;border-radius:14px;display:flex;align-items:center;justify-content:center;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);transition:box-shadow var(--m-tap) var(--e-standard),opacity var(--m-tap) var(--e-standard)}
-#proos-acard .pac-tile svg{width:28px;height:28px}
-#proos-acard .pac-art{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:14px}
+#proos-acard .pac-truth{margin-top:14px;min-height:56px}
+#proos-acard .pac-big{font-size:28px;font-weight:600;letter-spacing:-.02em;line-height:1.15;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#proos-acard .pac-sub{font-size:14.5px;color:rgba(255,255,255,.85);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#proos-acard .pac-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin:20px 0 18px}
+#proos-acard .pac-t{display:flex;flex-direction:column;align-items:stretch;gap:8px;border:0;background:none;padding:0;font:inherit;color:#fff;cursor:pointer;min-width:0}
+#proos-acard .pac-tile{position:relative;aspect-ratio:5/3;border-radius:16px;display:flex;align-items:center;justify-content:center;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);transition:box-shadow var(--m-tap) var(--e-standard),opacity var(--m-tap) var(--e-standard)}
+#proos-acard .pac-tile svg{width:32px;height:32px}
+#proos-acard .pac-art{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:16px}
 #proos-acard .pac-badge{z-index:1}
 #proos-acard .pac-t.k-atv .pac-tile{background:#0c0c0c}
 #proos-acard .pac-t.k-shield .pac-tile{background:#141414;color:#76b900}
 #proos-acard .pac-t.k-tv .pac-tile,#proos-acard .pac-t.k-box .pac-tile{background:linear-gradient(160deg,#2b2f38,#16181d)}
-#proos-acard .pac-tl{font-size:11.5px;font-weight:600;text-align:center;color:rgba(255,255,255,.85);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#proos-acard .pac-tl{font-size:13px;font-weight:600;text-align:center;color:rgba(255,255,255,.85);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #proos-acard .pac-badge{display:none;position:absolute;left:7px;bottom:6px;font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:6px;background:rgba(255,255,255,.94);color:#000}
 #proos-acard .pac-t.on .pac-tile{box-shadow:0 0 0 2px #fff,0 0 24px rgba(255,255,255,.35)}
 #proos-acard .pac-t.on .pac-badge{display:block}
 #proos-acard .pac-t.go .pac-tile{box-shadow:0 0 0 2px rgba(255,255,255,.75);animation:pacPulse var(--m-listen) var(--e-standard) infinite}
 #proos-acard .pac-tiles.has-on .pac-t:not(.on):not(.go) .pac-tile{opacity:.6}
-#proos-acard .pac-off{width:100%;min-height:46px;border-radius:16px;border:0;font:inherit;font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;background:rgba(255,255,255,.10);color:rgba(255,255,255,.78);cursor:pointer}
+#proos-acard .pac-off{width:100%;min-height:52px;border-radius:18px;border:0;font:inherit;font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;background:rgba(255,255,255,.10);color:rgba(255,255,255,.78);cursor:pointer}
 #proos-acard .pac-off svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
 #proos-acard .pac-off.lit{background:#FFC46B;color:#2a1700;box-shadow:0 0 22px rgba(255,196,107,.45)}
 #proos-acard .pac-none{font-size:13px;color:rgba(255,255,255,.7);margin:16px 0}
@@ -22528,7 +22528,17 @@ function _pacName(a){ var l=String((a&&a.label)||(a&&a.key)||''); return l.repla
 // box (/apps/art/tile/<slug>.png — shipped pack + Tech Tools uploads, the same source as the App Shortcuts); never
 // drawn here. No tile for the slug yet → the image removes itself and the plain glyph tile shows.
 var _PAC_ART={atv:'apple_tv', shield:'shield'};
-function _pacArt(kind){ var s=_PAC_ART[kind]; return s ? (proosCoreBase()+'/apps/art/tile/'+s+'.png') : ''; }
+// REGISTER 1089 (Dave 14:03, option K): the TV — and any other box — shows its MAKER's own tile, the maker as its integration
+// reports it in the device registry ("Samsung Electronics"), slugged and resolved by Core's tile aliases. Brand-agnostic.
+function _pacMaker(eid){ try{ var d=entityDeviceMap[eid]; return (d && deviceMakerById[d]) || ''; }catch(e){ return ''; } }
+function _pacDisplay(r){ var d=att(_pacV(r),'devices')||{}; for(var e in d){ if(d[e]&&d[e].role==='display') return e; } return ''; }
+function _pacArt(kind, a, r){
+  var s=_PAC_ART[kind] || '';
+  if(!s){ var m=_pacMaker(kind==='tv' ? _pacDisplay(r) : (a&&a.source_eid)); s=m ? _appSlug(m) : ''; }
+  return s ? (proosCoreBase()+'/apps/art/tile/'+s+'.png') : '';
+}
+// how the tiles lay out for this many activities (Dave 13:51: "needs to grow with more devices")
+function _pacCols(n){ return n<=1 ? 1 : (n<=3 ? n : (n===4 ? 2 : 3)); }
 // What the room IS, from Core: its label (the sentence when the label is the bare "On"), the title its media reports,
 // and the reading behind it — verified_by when confirmed, otherwise why it can't be.
 function _pacTruth(r){
@@ -22545,7 +22555,7 @@ function _pacEnsure(){
   el.innerHTML='<div class="pac-scrim"></div><div class="pac-card">'
     +'<div class="pac-head"><div class="pac-eb" id="pac-eb">Activities</div><button type="button" class="pac-x" aria-label="Close"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></span></button></div>'
     +'<div class="pac-rooms" id="pac-rooms"></div>'
-    +'<div class="pac-truth"><div class="pac-big" id="pac-big"></div><div class="pac-sub" id="pac-sub"></div><div class="pac-basis" id="pac-basis"></div></div>'
+    +'<div class="pac-truth"><div class="pac-big" id="pac-big"></div><div class="pac-sub" id="pac-sub"></div></div>'
     +'<div class="pac-tiles" id="pac-tiles"></div>'
     +'<button type="button" class="pac-off" id="pac-off"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v9M6.3 7.3a8 8 0 1 0 11.4 0"/></svg><span id="pac-off-t">Off</span></button>'
     +'</div>';
@@ -22606,7 +22616,7 @@ function _pacRender(){
   var bigHtml=(tr.music?'<span class="pac-eq" aria-hidden="true"><i></i><i></i><i></i></span>':'')+_pacEsc(tr.big), bigEl=document.getElementById('pac-big');
   if(bigEl.dataset.h!==bigHtml){ bigEl.dataset.h=bigHtml; bigEl.innerHTML=bigHtml; }
   document.getElementById('pac-sub').textContent = tr.sub;
-  document.getElementById('pac-basis').textContent = tr.basis;
+  // 1089 (Dave 13:53): "home owner just needs to know its happening" — the reading behind it (tr.basis) is Pro's and the logs', not shown here
   var acts=_pacActs(r), tilesEl=document.getElementById('pac-tiles'), off=document.getElementById('pac-off');
   if(!acts){ tilesEl.innerHTML='<div class="pac-none">Loading…</div>'; off.style.display='none'; return; }
   var watch=acts.filter(function(a){ return a&&a.script&&!_pacIsOffAct(a); });
@@ -22615,13 +22625,14 @@ function _pacRender(){
   if(sig!==_pacSig){
     _pacSig=sig;
     tilesEl.innerHTML = watch.length ? watch.map(function(a){
-      var k=_pacKind(a), art=_pacArt(k);
+      var k=_pacKind(a), art=_pacArt(k, a, r);
       return '<button type="button" class="pac-t k-'+k+'" data-key="'+_pacEsc(a.key)+'" data-script="'+_pacEsc(a.script)+'">'
         +'<span class="pac-tile">'+_pacGlyph(k)
         +(art?'<img class="pac-art" src="'+_pacEsc(art)+'" alt="" onerror="this.remove()">':'')
         +'<span class="pac-badge">On</span></span>'
         +'<span class="pac-tl">'+_pacEsc(_pacName(a))+'</span></button>';
     }).join('') : '<div class="pac-none">No activities are commissioned in this room yet.</div>';
+    tilesEl.style.gridTemplateColumns='repeat('+_pacCols(watch.length||1)+',minmax(0,1fr))';
   }
   var anyOn=false;
   tilesEl.querySelectorAll('.pac-t').forEach(function(b){
