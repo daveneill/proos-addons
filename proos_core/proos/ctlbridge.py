@@ -857,7 +857,7 @@ class ActivityPublisher:
                                           audio=[]), snapall,
                                      area_idx.get if hasattr(area_idx, "get")
                                      else area_idx,
-                                     pause_s=self._pause_cfg(), now=_t.time(),
+                                     pause_s=self._pause_cfg(), now=_t.time(), voice=self._voice_spk(),
                                      area_names=getattr(self, "_last_anames",
                                                         None))
         except Exception:                                        # noqa: BLE001
@@ -913,6 +913,31 @@ class ActivityPublisher:
         except Exception:                                        # noqa: BLE001
             out = cached or {}
         self._pausemap, self._pausemap_t = out, now
+        return out
+
+    def _voice_spk(self) -> set:
+        """media_player ids that are a voice satellite's OWN speaker (register 1110).
+
+        A media_player on the same device as an assist_satellite entity. Read from the
+        entity registry, cached 60 s like _pause_cfg, fails open to the last answer (or
+        none) -- never a guess that could hide a real speaker.
+        """
+        import time as _t
+        now = _t.time()
+        cached = getattr(self, "_voicemap", None)
+        if cached is not None and now - getattr(self, "_voicemap_t", 0) < 60:
+            return cached
+        try:
+            rows = self.client.entity_registry() or []
+            sat_dev = {r.get("device_id") for r in rows
+                       if str(r.get("entity_id") or "").startswith("assist_satellite.")
+                       and r.get("device_id")}
+            out = {r.get("entity_id") for r in rows
+                   if str(r.get("entity_id") or "").startswith("media_player.")
+                   and r.get("device_id") in sat_dev}
+        except Exception:                                        # noqa: BLE001
+            out = cached or set()
+        self._voicemap, self._voicemap_t = out, now
         return out
 
     def _reconcile_published(self, snapall: dict) -> None:
@@ -1184,7 +1209,7 @@ class ActivityPublisher:
         try:
             import time as _t
             d = _music.decide_music(rec, snapall, area_idx.get,
-                                    pause_s=self._pause_cfg(), now=_t.time(),
+                                    pause_s=self._pause_cfg(), now=_t.time(), voice=self._voice_spk(),
                                     area_names=getattr(self, "_last_anames",
                                                        None))
         except Exception as e:                                   # noqa: BLE001

@@ -5033,7 +5033,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102654';
+const PROOS_BUILD='2026102655';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -5808,7 +5808,7 @@ function shouldShowCard(e){
   // and it mirrors onSonosStateChange, which already starts the timer on idle only for HEOS.
   if(s==='playing') return true;
   if(s==='paused')  return _pauseHeld(e);
-  if(s==='idle')    return isAudioPlayer(e)&&_pauseHeld(e);   // idle is a pause-equivalent for ANY speaker (HEOS AND the HomePod), 6 Aug
+  if(s==='idle')    return isAudioPlayer(e)&&!_isVoiceSatSpeaker(e)&&_pauseHeld(e);   // idle is a pause-equivalent for ANY speaker (HEOS AND the HomePod), 6 Aug — never a voice satellite's own speaker resting between answers (1110)
   return false;
 }
 
@@ -13133,6 +13133,14 @@ function renderCtrlGrid(r){
 //   - ATV stops → strip hides even if audio still paused
 //   - Multiple audio players in a room → one row each
 
+// A VOICE SATELLITE'S OWN SPEAKER (register 1110): a media_player on the same device as an
+// assist_satellite entity. It rests at "idle" for ever between answers, so "idle = paused"
+// would hold its card on screen permanently (Dave's Office, 31 Oct). Playing still shows.
+function _isVoiceSatSpeaker(e){
+  const d=entityDeviceMap[e]; if(!d) return false;
+  for(const k in entityDeviceMap){ if(entityDeviceMap[k]===d && k.indexOf('assist_satellite.')===0) return true; }
+  return false;
+}
 function isAudioPlayer(e){
   if(isVideoPlayer(e)) return false;
   return att(e,'volume_level')!=null;

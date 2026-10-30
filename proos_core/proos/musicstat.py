@@ -118,7 +118,7 @@ def _attrs(snap, eid) -> dict:
 
 
 def decide_music(rec, snap, area_of=None, pause_s=None, now=None,
-                 area_names=None):
+                 area_names=None, voice=None):
     """Return the room's status, or None when this producer has nothing to say.
 
     rec      -- the committed area record
@@ -128,6 +128,8 @@ def decide_music(rec, snap, area_of=None, pause_s=None, now=None,
     pause_s  -- {entity_id: auto-clear seconds} from the installer's
                 proos_pause_* labels. Optional; absent = nothing auto-clears.
     now      -- epoch seconds, for the auto-clear clock. Optional.
+    voice    -- set of media_player ids that are a VOICE SATELLITE'S OWN
+                speaker (register 1110). Optional; absent = none known.
 
     None means "not mine, or nothing known" — never a fabricated verdict. A
     device ProOS has never heard from gets no status, exactly as the tile and
@@ -156,8 +158,15 @@ def decide_music(rec, snap, area_of=None, pause_s=None, now=None,
     # The room is playing if ANY of its speakers is. Prefer that one as the
     # subject; otherwise fall back to the first speaker we actually know, so
     # idle and cleared rooms still name an entity for consumers to hang on to.
+    # A VOICE SATELLITE'S OWN SPEAKER IS NOT THE ROOM'S MUSIC (register 1110; Dave 31 Oct 09:37: "office is idle and
+    # media card showing but in the Office sonos its set to autoclear in 30 secs"). Read on his box: the Office's
+    # speakers were the Sonos (30 s auto-clear, paused) AND the Satellite1's own speaker, which rests at "idle" for
+    # ever between answers and carries no auto-clear — so the room could never fall to Off. Resting, such a speaker
+    # says nothing about the room; PLAYING, it still counts (it can play music), judged on its raw state as always.
+    voice = set(voice or ())
     playing = [e for e in known if _st(snap, e) == "playing"]
-    subject = playing[0] if playing else known[0]
+    _lead = [e for e in known if e not in voice] or known
+    subject = playing[0] if playing else _lead[0]
     sub_attrs = _attrs(snap, subject)
 
     # ── grouping ────────────────────────────────────────────────────────────
@@ -184,6 +193,9 @@ def decide_music(rec, snap, area_of=None, pause_s=None, now=None,
     auto_cleared = False
     eff = {}
     for e in known:
+        if e in voice and _st(snap, e) != "playing":
+            eff[e] = "off"               # 1110: resting satellite speaker -- silent, never "auto-cleared"
+            continue
         eff[e] = _eff_state(snap, e, pause_s, now)
         if eff[e] == "off" and _st(snap, e) in _IDLE:
             auto_cleared = True
