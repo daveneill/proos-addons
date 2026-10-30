@@ -535,8 +535,8 @@ def area_sentence(stv, label, provisional, devs, snap, room_name,
         if info:
             return info
         ns = _names_sentence(_lit_names(devs, snap, room_name))
-        # 1085: an off room that is off for a reason (Art Mode, Auto-Cleared) says the reason
-        return ns or (label if label in ("Art Mode", "Auto-Cleared") else "Off")
+        # 1085: an off room resting on Art Mode says so (1086: auto-clear reads plain Off — Dave 11:37)
+        return ns or (label if label == "Art Mode" else "Off")
     # The content phrase when a device reports what's playing — and when
     # WATCHING, the activity's source is folded in so a bare title reads
     # 'Ted Lasso on Apple TV' (Dave, 7 Aug: richer; reverses the 3 Aug

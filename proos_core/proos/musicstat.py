@@ -211,10 +211,9 @@ def decide_music(rec, snap, area_of=None, pause_s=None, now=None,
         label = "Paused"
     elif state == "idle":
         label = "Idle"
-    elif auto_cleared:
-        # 1085: the installer's timer cleared it, not the speaker — the room says so (Dave, 30 Oct: "2. yes")
-        label = "Auto-Cleared"
     else:
+        # 1086: a room the installer's timer cleared reads plain Off (Dave 30 Oct 11:37: "No auto cleared just off");
+        # auto_cleared and the basis still record that the timer did it, for Health and the Master Log.
         label = "Off"
 
     out = {
