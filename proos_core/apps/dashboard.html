@@ -3270,7 +3270,7 @@ html[data-link="remote"]{--m-tap:90ms;--m-move:200ms;--m-page:300ms}
 #proos-inst-overlay,#awareness-overlay,#proos-req-overlay,.pe-ov,.pa-fs,
 #widget-picker,#music-act-sheet,#music-queue-overlay,#scene-edit,.appc-ov,#setup,#pin-overlay,
 #assist-overlay,#all-lights-overlay,#loading,#proos-reboot,#proos-dashupd,#light-overlay,
-#climate-all-overlay,#climate-overlay,#rotate-overlay,#svc-sheet,#proos-sheet,#proos-tv-wait,#pp,#jv,.sg-pop,
+#climate-all-overlay,#climate-overlay,#rotate-overlay,#svc-sheet,#proos-sheet,#proos-tv-wait,#pp,#jv,.sg-pop,#proos-acard,
 #device-chooser{padding-top:var(--proos-sat)}
 /* THE CLEARANCE IS A FLOOR, NOT AN ADDITION (7 Sep 2026, register 362).
    Dave: "Mobile needs to be looked at every page on the dashboard for layout
@@ -5019,7 +5019,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102641';
+const PROOS_BUILD='2026102643';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -9370,6 +9370,13 @@ function updateNavLive(){
       if(e in awakeByEid) b.classList.toggle('active', !!awakeByEid[e]);
     });
   }catch(e){}
+  // REGISTER 1088 — the Activities tab: shown when the home has a room with activities, lit (the bar's own 'live')
+  // when the room it would open is on — this room, or on Home any room with activities — from Core's verdict only.
+  try{ const ab=document.querySelector('#bottom-nav .proos-acts-tab');
+       if(ab){ const rs=(typeof _pacRooms==='function')?_pacRooms():[];
+               ab.style.display = rs.length ? 'flex' : 'none';
+               const here=(r && rs.indexOf(r)>=0) ? [r] : rs;
+               ab.classList.toggle('live', here.some(x=>_pacIsOn(x))); } }catch(e){}
   document.querySelectorAll('#bottom-nav .nav-btn').forEach(b=>{
     const p=b.dataset.page; if(!p) return;
     // only light what this context actually shows — a hidden button lighting up
@@ -9830,12 +9837,9 @@ function loadWidgetLayout(){
   // sensor exists and is not provisional (a monitored-only room has no
   // activities to open). Seeded first, once per load it is missing; a
   // homeowner may still move it.
-  try{
-    if(curRoom>=0 && _roomHasActivities(CONFIG.rooms[curRoom]) && !widgets.some(w=>w&&w.id==='activities')){
-      widgets.unshift({uid:_newWidgetUid(), id:'activities'});
-      localStorage.setItem(key, JSON.stringify(widgets));
-    }
-  }catch(e){}
+  // REGISTER 1088 (Dave 30 Oct 12:44): "the activities widget not default on the rooms with activity" — the Activities
+  // tab in the bar is the door now, so nothing is seeded here any more. The widget stays in the library, added like any
+  // other; a layout that already holds it keeps it (440: a saved layout is the installer's).
   return widgets;
 }
 // Core's word on whether a room has committed activities: its verdict sensor
@@ -9872,12 +9876,9 @@ function _wDefaultLayout(){
      nobody had laid out from what the room has; Dave rules every page starts EMPTY — the installer lays it out — with
      the one exception he kept (09:1x, "Keep Activities only"): a room with a display keeps its Activities widget, the
      door into its activities (register 571/594). Home starts empty. Nothing is written. */
-  const out=[];
-  if(curRoom>=0){
-    const r=CONFIG.rooms[curRoom]; if(!r) return out;
-    try{ if(_roomHasActivities(r)) out.push({uid:'dflt-activities-0', id:'activities'}); }catch(e){}
-  }
-  return out;
+  // REGISTER 1088 (Dave 30 Oct 12:44) — the one exception 984 kept is gone: the Activities tab is the door, so a room
+  // nobody has laid out starts EMPTY like every other page. The widget is in the library as an option.
+  return [];
 }
 // Save widget layout (to this form factor's key)
 function saveWidgetLayout(widgets){
@@ -22436,6 +22437,223 @@ document.addEventListener('click', function(e){
 })();
 </script>
 <!-- ══════════════ end ProOS Core fold-in ══════════════ -->
+<!-- ══ REGISTER 1088 — THE ACTIVITIES CARD (Dave 30 Oct 12:52: Round 3 · The Card · Style 2 · Source Tiles) ══════════════
+     What the Activities tab opens: a centred card (every popup is a centred card, 12 Oct ruling). The top says what the
+     room IS, word for word from Core (label, the title it reports, and the reading behind it — verified_by, or why it is
+     not confirmed). Each activity is its source's tile; one tap fires it through proosFireActivity, the single firing path.
+     The tile Core confirms gets a white ring and an On badge; while Core says Starting it pulses. Off sits alone along the
+     bottom, amber while the room is anything but off. Opened from Home (or a room with no activities) it leads with a row
+     of the rooms that have activities, each with its own live word. Nothing here decides state — it repeats Core. -->
+<style>
+#proos-acard{position:fixed;inset:0;z-index:10050;display:none;align-items:center;justify-content:center;padding-right:16px;padding-bottom:16px;padding-left:16px;box-sizing:border-box}
+#proos-acard.open{display:flex}
+#proos-acard .pac-scrim{position:absolute;inset:0;background:rgba(0,0,0,.5);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+#proos-acard .pac-card{position:relative;width:min(420px,100%);max-height:calc(100vh - 32px);overflow:auto;box-sizing:border-box;padding:18px;border-radius:26px;color:#fff;
+  background:rgba(24,24,30,.78);-webkit-backdrop-filter:blur(30px) saturate(160%);backdrop-filter:blur(30px) saturate(160%);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12),0 24px 60px rgba(0,0,0,.55)}
+#proos-acard .pac-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+#proos-acard .pac-eb{font-size:10.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.66);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#proos-acard .pac-x{width:44px;height:44px;margin:-6px -6px -6px 0;border-radius:50%;border:0;background:transparent;color:#fff;display:grid;place-items:center;padding:0;cursor:pointer}
+#proos-acard .pac-x span{width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.12);display:grid;place-items:center}
+#proos-acard .pac-x svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+#proos-acard .pac-rooms{display:flex;gap:8px;overflow-x:auto;margin-top:12px;padding-bottom:2px;scrollbar-width:none}
+#proos-acard .pac-rooms::-webkit-scrollbar{display:none}
+#proos-acard .pac-rm{flex:0 0 auto;display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:118px;min-height:44px;padding:9px 13px;border:0;border-radius:14px;font:inherit;text-align:left;color:#fff;background:rgba(255,255,255,.08);box-shadow:inset 0 0 0 1px rgba(255,255,255,.08);cursor:pointer}
+#proos-acard .pac-rm b{font-size:13.5px;font-weight:600}
+#proos-acard .pac-rm i{font-style:normal;font-size:11.5px;color:rgba(255,255,255,.66);max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#proos-acard .pac-rm.on i{color:#7CF0C5}
+#proos-acard .pac-rm.sel{background:rgba(255,255,255,.94);color:#000}
+#proos-acard .pac-rm.sel i{color:rgba(0,0,0,.62)}
+#proos-acard .pac-rm.sel.on i{color:#0a6b4c}
+#proos-acard .pac-truth{margin-top:14px;min-height:64px}
+#proos-acard .pac-big{font-size:24px;font-weight:600;letter-spacing:-.02em;line-height:1.15;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#proos-acard .pac-sub{font-size:13.5px;color:rgba(255,255,255,.85);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#proos-acard .pac-basis{font-size:11.5px;color:rgba(255,255,255,.66);margin-top:6px;line-height:1.35}
+#proos-acard .pac-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:18px 0 16px}
+#proos-acard .pac-t{display:flex;flex-direction:column;align-items:stretch;gap:6px;border:0;background:none;padding:0;font:inherit;color:#fff;cursor:pointer;min-width:0}
+#proos-acard .pac-tile{position:relative;aspect-ratio:5/3;border-radius:14px;display:flex;align-items:center;justify-content:center;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);transition:box-shadow var(--m-tap) var(--e-standard),opacity var(--m-tap) var(--e-standard)}
+#proos-acard .pac-tile svg{width:28px;height:28px}
+#proos-acard .pac-art{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:14px}
+#proos-acard .pac-badge{z-index:1}
+#proos-acard .pac-t.k-atv .pac-tile{background:#0c0c0c}
+#proos-acard .pac-t.k-shield .pac-tile{background:#141414;color:#76b900}
+#proos-acard .pac-t.k-tv .pac-tile,#proos-acard .pac-t.k-box .pac-tile{background:linear-gradient(160deg,#2b2f38,#16181d)}
+#proos-acard .pac-tl{font-size:11.5px;font-weight:600;text-align:center;color:rgba(255,255,255,.85);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#proos-acard .pac-badge{display:none;position:absolute;left:7px;bottom:6px;font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:6px;background:rgba(255,255,255,.94);color:#000}
+#proos-acard .pac-t.on .pac-tile{box-shadow:0 0 0 2px #fff,0 0 24px rgba(255,255,255,.35)}
+#proos-acard .pac-t.on .pac-badge{display:block}
+#proos-acard .pac-t.go .pac-tile{box-shadow:0 0 0 2px rgba(255,255,255,.75);animation:pacPulse var(--m-listen) var(--e-standard) infinite}
+#proos-acard .pac-tiles.has-on .pac-t:not(.on):not(.go) .pac-tile{opacity:.6}
+#proos-acard .pac-off{width:100%;min-height:46px;border-radius:16px;border:0;font:inherit;font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;background:rgba(255,255,255,.10);color:rgba(255,255,255,.78);cursor:pointer}
+#proos-acard .pac-off svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+#proos-acard .pac-off.lit{background:#FFC46B;color:#2a1700;box-shadow:0 0 22px rgba(255,196,107,.45)}
+#proos-acard .pac-none{font-size:13px;color:rgba(255,255,255,.7);margin:16px 0}
+#proos-acard .pac-eq{display:inline-flex;gap:2px;align-items:flex-end;height:12px;margin-right:7px;vertical-align:1px}
+#proos-acard .pac-eq i{width:2.5px;background:#7CF0C5;border-radius:1px;animation:pacEq var(--m-listen) var(--e-standard) infinite}
+#proos-acard .pac-eq i:nth-child(2){animation-delay:-.35s}#proos-acard .pac-eq i:nth-child(3){animation-delay:-.7s}
+@keyframes pacEq{0%,100%{height:3px}50%{height:12px}}
+@keyframes pacPulse{0%,100%{opacity:1}50%{opacity:.55}}
+@media (prefers-reduced-motion: reduce){#proos-acard .pac-t.go .pac-tile,#proos-acard .pac-eq i{animation:none}}
+</style>
+<script>
+// The rooms the card can open: Core's word that a room has activities (_roomHasActivities — verdict sensor, not
+// provisional, with a display: registers 571/594), in the home's own room order.
+function _pacRooms(){ try{ return (CONFIG.rooms||[]).filter(function(r){ return _roomHasActivities(r); }); }catch(e){ return []; } }
+function _pacV(r){ return 'sensor.proos_activity_'+((r&&r.id)||''); }
+// ON = Core's verdict for the room is anything but off/unreadable. Nothing here infers from the devices itself.
+function _pacIsOn(r){ var s=String(st(_pacV(r))||''); return !!s && ['off','unknown','unavailable'].indexOf(s)<0; }
+function _pacEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function _pacCap(s){ s=String(s||''); return s ? s.charAt(0).toUpperCase()+s.slice(1) : ''; }
+var _pacRoom=null, _pacChooser=false, _pacTimer=null, _pacSig='';
+function _pacActs(r){
+  var k=window._proosAreaKey?window._proosAreaKey(r):(r&&r.id);
+  var l=(window._proosActsByArea&&window._proosActsByArea[k])||null;
+  if(!l){ try{ window.proosLoadActs&&window.proosLoadActs(r.id); }catch(e){} return null; }
+  return l;
+}
+function _pacIsOffAct(a){ var k=String((a&&a.key)||''); return k==='tv_off' || /_off$/.test(k); }
+function _pacKind(a){
+  var e=a&&a.source_eid;
+  if(!e) return 'tv';
+  try{ if(isAppleTV(e)) return 'atv'; if(isShield(e)) return 'shield'; }catch(_){}
+  return 'box';
+}
+function _pacGlyph(kind){
+  if(kind==='atv') return _ACT_ATV;
+  if(kind==='shield') return _ACT_SH;
+  if(kind==='tv') return _ACT_TV;
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="12" rx="2"/><path d="M10.5 8.8l4 2.2-4 2.2z"/></svg>';
+}
+function _pacName(a){ var l=String((a&&a.label)||(a&&a.key)||''); return l.replace(/^Watch\s+/i,''); }
+// Dave 13:00: "proper Apple TV and Shield branding". The brand's own artwork comes from the product's tile pack on the
+// box (/apps/art/tile/<slug>.png — shipped pack + Tech Tools uploads, the same source as the App Shortcuts); never
+// drawn here. No tile for the slug yet → the image removes itself and the plain glyph tile shows.
+var _PAC_ART={atv:'apple_tv', shield:'shield'};
+function _pacArt(kind){ var s=_PAC_ART[kind]; return s ? (proosCoreBase()+'/apps/art/tile/'+s+'.png') : ''; }
+// What the room IS, from Core: its label (the sentence when the label is the bare "On"), the title its media reports,
+// and the reading behind it — verified_by when confirmed, otherwise why it can't be.
+function _pacTruth(r){
+  var v=_pacV(r), s=String(st(v)||''), lbl=String(att(v,'label')||'');
+  var sen=String(att(v,'sentence')||''), t=String(att(v,'media_title')||''), ar=String(att(v,'media_artist')||'');
+  var big = (lbl==='On' && sen) ? sen : (lbl || (s==='off'?'Off':'No Reading'));
+  var sub = t ? (t+(ar?' · '+ar:'')) : ((sen && sen!==big && sen!=='Off') ? sen : '');
+  var basis = _pacCap(att(v,'verified_by') || att(v,'unconfirmed') || '');
+  return {s:s, big:big, sub:sub, basis:basis, music: s==='playing', key:s, starting: att(v,'starting')===true};
+}
+function _pacEnsure(){
+  var el=document.getElementById('proos-acard'); if(el) return el;
+  el=document.createElement('div'); el.id='proos-acard'; el.setAttribute('role','dialog'); el.setAttribute('aria-modal','true'); el.setAttribute('aria-label','Activities');
+  el.innerHTML='<div class="pac-scrim"></div><div class="pac-card">'
+    +'<div class="pac-head"><div class="pac-eb" id="pac-eb">Activities</div><button type="button" class="pac-x" aria-label="Close"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></span></button></div>'
+    +'<div class="pac-rooms" id="pac-rooms"></div>'
+    +'<div class="pac-truth"><div class="pac-big" id="pac-big"></div><div class="pac-sub" id="pac-sub"></div><div class="pac-basis" id="pac-basis"></div></div>'
+    +'<div class="pac-tiles" id="pac-tiles"></div>'
+    +'<button type="button" class="pac-off" id="pac-off"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v9M6.3 7.3a8 8 0 1 0 11.4 0"/></svg><span id="pac-off-t">Off</span></button>'
+    +'</div>';
+  document.body.appendChild(el);
+  el.querySelector('.pac-scrim').addEventListener('click', closeActivityCard);
+  el.querySelector('.pac-x').addEventListener('click', closeActivityCard);
+  el.querySelector('#pac-rooms').addEventListener('click', function(ev){
+    var b=ev.target.closest('.pac-rm'); if(!b) return;
+    var r=_pacRooms().filter(function(x){ return x.id===b.dataset.room; })[0]; if(r){ _pacRoom=r; _pacSig=''; _pacRender(); }
+  });
+  el.querySelector('#pac-tiles').addEventListener('click', function(ev){
+    var b=ev.target.closest('.pac-t'); if(!b||!_pacRoom) return;
+    _pacFire(b.dataset.script);
+  });
+  el.querySelector('#pac-off').addEventListener('click', function(){
+    var b=document.getElementById('pac-off'); if(b && b.dataset.script) _pacFire(b.dataset.script);
+  });
+  return el;
+}
+function _pacFire(script){
+  if(!script||!_pacRoom) return;
+  try{ localStorage.setItem('proos_acard_last', _pacRoom.id); }catch(e){}
+  try{ window.proosFireActivity && window.proosFireActivity(_pacRoom.id, script); }catch(e){}   // the single firing path
+  // the card stays open: Core's own word moves from Starting to the room's source as the devices confirm it
+}
+function _pacPick(){
+  var rs=_pacRooms(), here=(typeof curRoom!=='undefined' && curRoom>=0) ? CONFIG.rooms[curRoom] : null;
+  if(here && rs.indexOf(here)>=0){ _pacChooser=false; return here; }
+  _pacChooser=true;
+  var on=rs.filter(_pacIsOn); if(on.length===1) return on[0];
+  var last=null; try{ last=localStorage.getItem('proos_acard_last'); }catch(e){}
+  return rs.filter(function(x){ return x.id===last; })[0] || on[0] || rs[0] || null;
+}
+function _pacRender(){
+  var el=_pacEnsure(), r=_pacRoom; if(!r) return;
+  var rs=_pacRooms();
+  var roomsEl=document.getElementById('pac-rooms');
+  roomsEl.style.display = (_pacChooser && rs.length>1) ? 'flex' : 'none';
+  if(_pacChooser){
+    // built once per set of rooms, then only its words and classes move (register 140: never rebuild a button under a finger)
+    var rsig=rs.map(function(x){ return x.id; }).join(',');
+    if(roomsEl.dataset.sig!==rsig){
+      roomsEl.dataset.sig=rsig;
+      roomsEl.innerHTML = rs.map(function(x){
+        return '<button type="button" class="pac-rm" data-room="'+_pacEsc(x.id)+'"><b>'+_pacEsc(x.name)+'</b><i></i></button>';
+      }).join('');
+    }
+    roomsEl.querySelectorAll('.pac-rm').forEach(function(b){
+      var x=rs.filter(function(y){ return y.id===b.dataset.room; })[0]; if(!x) return;
+      var lb=String(att(_pacV(x),'label')||'') || '—';
+      var i=b.querySelector('i'); if(i && i.textContent!==lb) i.textContent=lb;
+      b.classList.toggle('sel', x===r); b.classList.toggle('on', _pacIsOn(x));
+      b.setAttribute('aria-pressed', String(x===r));
+    });
+  }
+  document.getElementById('pac-eb').textContent = r.name+' · Activities';
+  var tr=_pacTruth(r);
+  var bigHtml=(tr.music?'<span class="pac-eq" aria-hidden="true"><i></i><i></i><i></i></span>':'')+_pacEsc(tr.big), bigEl=document.getElementById('pac-big');
+  if(bigEl.dataset.h!==bigHtml){ bigEl.dataset.h=bigHtml; bigEl.innerHTML=bigHtml; }
+  document.getElementById('pac-sub').textContent = tr.sub;
+  document.getElementById('pac-basis').textContent = tr.basis;
+  var acts=_pacActs(r), tilesEl=document.getElementById('pac-tiles'), off=document.getElementById('pac-off');
+  if(!acts){ tilesEl.innerHTML='<div class="pac-none">Loading…</div>'; off.style.display='none'; return; }
+  var watch=acts.filter(function(a){ return a&&a.script&&!_pacIsOffAct(a); });
+  var offAct=acts.filter(function(a){ return a&&a.script&&_pacIsOffAct(a); })[0]||null;
+  var sig=r.id+'|'+watch.map(function(a){ return a.script; }).join(',');
+  if(sig!==_pacSig){
+    _pacSig=sig;
+    tilesEl.innerHTML = watch.length ? watch.map(function(a){
+      var k=_pacKind(a), art=_pacArt(k);
+      return '<button type="button" class="pac-t k-'+k+'" data-key="'+_pacEsc(a.key)+'" data-script="'+_pacEsc(a.script)+'">'
+        +'<span class="pac-tile">'+_pacGlyph(k)
+        +(art?'<img class="pac-art" src="'+_pacEsc(art)+'" alt="" onerror="this.remove()">':'')
+        +'<span class="pac-badge">On</span></span>'
+        +'<span class="pac-tl">'+_pacEsc(_pacName(a))+'</span></button>';
+    }).join('') : '<div class="pac-none">No activities are commissioned in this room yet.</div>';
+  }
+  var anyOn=false;
+  tilesEl.querySelectorAll('.pac-t').forEach(function(b){
+    var mine = tr.key===b.dataset.key, go = mine && tr.starting, on = mine && !tr.starting;
+    b.classList.toggle('on', on); b.classList.toggle('go', go); if(on||go) anyOn=true;
+    b.setAttribute('aria-pressed', String(on));
+    b.setAttribute('aria-label', b.querySelector('.pac-tl').textContent+(on?' — on':(go?' — starting':'')));
+  });
+  tilesEl.classList.toggle('has-on', anyOn);
+  off.style.display = offAct ? 'flex' : 'none';
+  off.dataset.script = offAct ? offAct.script : '';
+  document.getElementById('pac-off-t').textContent = r.name+' Off';
+  off.classList.toggle('lit', _pacIsOn(r));
+}
+function _pacKey(ev){ if(ev.key==='Escape') closeActivityCard(); }
+function openActivityCard(){
+  var el=_pacEnsure();
+  _pacRoom=_pacPick(); _pacSig='';
+  if(!_pacRoom) return;
+  _pacRooms().forEach(function(x){ try{ _pacActs(x); }catch(e){} });   // warm every room's list for the chooser
+  _pacRender();
+  el.classList.add('open');
+  document.addEventListener('keydown', _pacKey);
+  clearInterval(_pacTimer); _pacTimer=setInterval(function(){ try{ _pacRender(); }catch(e){} }, 1000);
+  try{ var x=el.querySelector('.pac-x'); x&&x.focus({preventScroll:true}); }catch(e){}
+}
+function closeActivityCard(){
+  var el=document.getElementById('proos-acard'); if(el) el.classList.remove('open');
+  clearInterval(_pacTimer); _pacTimer=null;
+  document.removeEventListener('keydown', _pacKey);
+}
+</script>
       <div id="player-apps-sheet" style="display:none;position:fixed;inset:0;z-index:9999;flex-direction:column;justify-content:flex-end">
         <div onclick="document.getElementById('player-apps-sheet').style.display='none'" style="flex:1;background:rgba(0,0,0,0.35)"></div>
         <div style="background:#0a0a0c;border-top:0.5px solid rgba(255,255,255,0.08);border-radius:0;padding:16px 20px calc(28px + env(safe-area-inset-bottom));min-height:44dvh;max-height:64dvh;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none">
@@ -24883,14 +25101,19 @@ html.pp-on #app{visibility:hidden}
   // has one place to go.
   var EXTRA=[
     ['Home',"M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10",function(){ try{ closeToContext(); }catch(e){ showPage('home'); } }],
-    ['Rooms',"M4 4h7v7H4zM13 4h7v7h-7zM13 13h7v7h-7zM4 13h7v7H4z",function(){showPage('rooms');}]
+    ['Rooms',"M4 4h7v7H4zM13 4h7v7h-7zM13 13h7v7h-7zM4 13h7v7H4z",function(){showPage('rooms');}],
+    // REGISTER 1088 — ACTIVITIES IS A TAB AGAIN, AS ONE DOOR (Dave 30 Oct 12:44 "the activity icon in the navbar and the
+    // activities widget not default"; 12:52 chose Round 3 · Style 2 · Source Tiles). Third, fixed, on every page. It only
+    // OPENS the activities card (openActivityCard) — nothing fires from the bar, which was the reason 571 took the
+    // per-activity buttons out ("they don't get tapped by mistake").
+    ['Activities',"M3 5h18v12H3zM8 21h8M12 17v4M10.5 8.8l4 2.2-4 2.2z",function(){ try{ openActivityCard(); }catch(e){} }]
   ];
   function buildNav(){
     var nav=document.getElementById('bottom-nav'); if(!nav) return;
     if(!nav.querySelector('.proos-extra')){
       var first=nav.querySelector('.nav-btn');
       // inserted last-first so EXTRA reads left to right on the bar: Home, Rooms (572)
-      EXTRA.slice().reverse().forEach(function(it){var b=document.createElement('button');b.className='nav-btn proos-extra';b.title=it[0];b.addEventListener('click',it[2]);b.innerHTML=svg(it[1])+'<span>'+it[0]+'</span>';nav.insertBefore(b,first);first=b;});
+      EXTRA.slice().reverse().forEach(function(it){var b=document.createElement('button');b.className='nav-btn proos-extra'+(it[0]==='Activities'?' proos-acts-tab':'');b.title=it[0];b.addEventListener('click',it[2]);b.innerHTML=svg(it[1])+'<span>'+it[0]+'</span>';nav.insertBefore(b,first);first=b;});
       // REGISTER 528 — ASSIST IS A TAB. Voice had no home once the floating
       // microphone left the bottom row, and a widget on Home cannot be reached
       // from inside Cameras. It calls the SAME homeMicTap() the circle called;
