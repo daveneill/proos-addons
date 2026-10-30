@@ -3026,7 +3026,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102622';
+const PROOS_BUILD='2026102623';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -12198,11 +12198,29 @@ function _chEditHTML(){
   const seg=[['all','All '+L.count],['check','To Check '+L.to_check],['hidden','Hidden '+L.hidden]].map(([k,t])=>'<button type="button" class="'+(_chv.filter===k?'on':'')+'" onclick="chFilter(\''+k+'\')">'+t+'</button>').join('');
   return '<div class="v3card"><div class="v3dh2"><div class="t">'+_chEsc(L.name)+'</div><div class="s">'+L.count+' channels · '+L.confirmed+' confirmed · '
     +(L.used_by.length?'used by '+L.used_by.map(e=>_chEsc(_chName(e))).join(', '):'not used by a TV yet')+'</div></div>'
+    +_chUsedHTML()
     +'<div class="v3sec"><div class="chl-tools"><input class="chl-q" id="chl-q" placeholder="Search by name or number" value="'+_chEsc(_chv.q)+'" oninput="chQ(this.value)" aria-label="Search channels">'
     +'<div class="v3seg" style="margin:0">'+seg+'</div><button type="button" class="v3btn" onclick="chSel(\'__new\')">+ Add Channel</button></div>'
     +'<div class="chl-split"><div class="chl-tbl"><div class="chl-tr th"><span>Logo</span><span>No.</span><span>Name</span><span class="chl-ty">Type</span><span class="chl-sh">Shown</span><span>Status</span></div>'+tbl+'</div>'
     +'<div class="chl-side" id="chl-side">'+_chSideHTML()+'</div></div></div>'
     +'<div class="v3foot"><button type="button" class="v3btn" onclick="chBack()">‹ Channel Lists</button>'+_chRemoveListHTML()+'</div></div>';
+}
+// REGISTER 1100 (Dave 31 Oct 06:09 "How are you meant to assign a list to a TV"; 06:11 "Yes as one list can be used by
+// multiple TVs"). The TVs could be chosen only when a list was made; an open list now has its own Used By row. One list,
+// any number of TVs; a TV uses one list (Core's set_used_by refuses a TV on another list — said here, greyed out).
+function _chUsedHTML(){
+  const L=_chv.list, lists=(_chv.data&&_chv.data.lists)||[];
+  const chips=((_chv.data&&_chv.data.tuners)||[]).map(t=>{ const on=(L.used_by||[]).includes(t.entity_id); const oth=t.list&&t.list!==L.id?lists.find(x=>x.id===t.list):null;
+    return '<button type="button" class="v3chip '+(on?'blue':'btn')+'"'+(oth||(t.list&&t.list!==L.id)?' disabled title="A TV uses one list"':'')+' onclick="chListUse(\''+_chEsc(t.entity_id)+'\')">'+_chEsc(t.name)+(t.list&&t.list!==L.id?' · uses '+_chEsc(oth?oth.name:'another list'):'')+'</button>'; }).join(' ');
+  return '<div class="v3sec"><div class="h">Used By</div><div class="chl-chips chl-used">'+(chips||'<span class="chl-hint">No TV ProOS can send a channel number to was found.</span>')+'</div>'
+    +'<div class="chl-hint">Tap a TV to add it to this list, tap again to take it off. Every TV here shares these channels. A TV uses one list.</div></div>';
+}
+async function chListUse(eid){
+  const L=_chv.list; if(!L) return; const cur=(L.used_by||[]).slice(); const i=cur.indexOf(eid);
+  if(i>=0) cur.splice(i,1); else cur.push(eid);
+  const r=await _chPost('/channels/'+encodeURIComponent(L.id)+'/used_by',{used_by:cur});
+  if(r.error){ toast(r.error); return; }
+  toast((i>=0?'Taken off: ':'Added: ')+_chName(eid)); _chLoad();
 }
 function _chRemoveListHTML(){
   // register 1097 (Dave 30 Oct 18:31): "Delete this list and Undo" — the words say what it does
