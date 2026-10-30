@@ -1787,7 +1787,9 @@ body.v3 .assist-fab{display:none!important}
 .chl-lg{display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:9px;background:linear-gradient(160deg,#2a2d35,#1a1c21);box-shadow:inset 0 0 0 1px rgba(255,255,255,.1);overflow:hidden;text-align:center;line-height:1.05}
 .chl-lg b{font-weight:700}.chl-lg i{font-style:normal;color:rgba(255,255,255,.62);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:92%}
 .chl-lg.s{width:56px;height:34px}.chl-lg.s b{font-size:13px}.chl-lg.s i{font-size:8.5px}
-.chl-lg.l{width:150px;height:92px;flex:none}.chl-lg.l b{font-size:30px}.chl-lg.l i{font-size:12px;margin-top:2px}
+.chl-lg.l{width:150px;height:92px;flex:none}
+.chl-lg.has-logo{background:#0b0b0d}.chl-lg img{width:100%;height:100%;object-fit:contain;display:block}
+.chl-logo-acts{display:flex;flex-direction:column;align-items:flex-start;gap:8px;min-width:0}.chl-lg.l b{font-size:30px}.chl-lg.l i{font-size:12px;margin-top:2px}
 .chl-side{display:flex;flex-direction:column;gap:12px;padding:16px;border-radius:18px;background:rgba(255,255,255,.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,.075)}
 .chl-sh2{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}.chl-sh2 .h{font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:rgba(255,255,255,.62)}
 .chl-face{display:flex;gap:12px;align-items:center}.chl-face .t2{font-size:12.5px;color:rgba(255,255,255,.5)}
@@ -3024,7 +3026,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102621';
+const PROOS_BUILD='2026102622';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -12124,7 +12126,8 @@ async function _chLoad(){
   renderChannels();
 }
 function _chTile(c, sz){
-  // the channel's face: its logo when it has one; until ProOS's logo library arrives, its number and name on a plain tile
+  // the channel's face: its logo when it has one (register 1098 — from the tile library, channel_<name>), else its number and name
+  if(c&&c.logo_tile) return '<span class="chl-lg has-logo '+(sz||'')+'"><img alt="" src="'+proCoreUrl()+'/apps/art/tile/'+encodeURIComponent(c.logo_tile)+'.png?v='+(window._chLogoV||0)+'"></span>';
   return '<span class="chl-lg '+(sz||'')+'"><b>'+_chEsc(c.number)+'</b><i>'+_chEsc(c.name)+'</i></span>';
 }
 function _chName(eid){ const t=((_chv.data&&_chv.data.tuners)||[]).find(x=>x.entity_id===eid); return t?t.name:eid; }
@@ -12227,7 +12230,10 @@ function _chSideHTML(){
   }
   const conf=c.confirmed?'<span class="v3chip ok">Confirmed on '+_chEsc(_chName(c.confirmed.on))+' · '+_chEsc(new Date(c.confirmed.at*1000).toLocaleDateString())+(c.confirmed.by?' · '+_chEsc(c.confirmed.by):'')+'</span>':(isNew?'':'<span class="v3chip amber">To Check</span>');
   return '<div class="chl-sh2"><div class="h">'+(isNew?'New Channel':'Channel')+'</div>'+conf+'</div>'
-    +'<div class="chl-face">'+_chTile(c,'l')+'<div class="t2">ProOS’s channel logos arrive with its logo library. Until then a channel shows its number and name.</div></div>'
+    +'<div class="chl-face">'+_chTile(c,'l')+'<div class="chl-logo-acts">'+(isNew?'<div class="t2">Save the channel first, then add its logo.</div>'
+      :(c.logo_tile?'<button type="button" class="v3btn" onclick="chLogoPick()">Replace Logo</button><button type="button" class="v3add" onclick="chLogoRemove()">Remove Logo</button>'
+        :'<button type="button" class="v3btn pri" onclick="chLogoPick()">Upload Logo</button><div class="t2">PNG or SVG, ideally on a clear background. ProOS fits and centres it on the tile.</div>'))+'</div></div>'
+    +(c.logo_tile?'<div class="chl-note blue">Every TV that uses '+_chEsc(L.name)+' shows this logo. It is kept in Tech Tools › App Tiles › Channels under the name '+_chEsc(c.name)+', so a channel of that name in any list wears it.</div>':'')
     +'<div class="chl-two"><label>Number<input class="chl-in" id="chl-no" inputmode="numeric" maxlength="4" value="'+_chEsc(c.number)+'"></label><label>Name<input class="chl-in" id="chl-nm" maxlength="60" value="'+_chEsc(c.name)+'"></label></div>'
     +'<label class="chl-f">Also Called (for voice)<input class="chl-in" id="chl-aka" placeholder="ABC, the ABC" value="'+_chEsc((c.aka||[]).join(', '))+'"></label>'
     +'<div class="chl-f">Type<div class="chl-types" id="chl-types">'+types+'</div></div>'
@@ -12251,6 +12257,45 @@ async function chSave(){
 async function chRemove(sure){ if(!sure) return; const r=await _chPost('/channels/'+encodeURIComponent(_chv.lid)+'/remove',{channel:_chv.sel}); if(r.error){ toast(r.error); return; } _chv.sel=null; _chv.ask=null; toast('Removed'); _chLoad(); }
 async function chUnconfirm(){ const r=await _chPost('/channels/'+encodeURIComponent(_chv.lid)+'/unconfirm',{channel:_chv.sel}); if(r.error){ toast(r.error); return; } _chLoad(); }
 async function chRemoveList(sure){ if(!sure) return; const id=_chv.lid, nm=(_chv.list&&_chv.list.name)||'The list'; const r=await _chPost('/channels/'+encodeURIComponent(id)+'/remove_list',{}); if(r.error){ toast(r.error); return; } _chv.undo={id:id, name:nm}; chBack(); }
+// ── REGISTER 1098 — CHANNEL LOGOS (Dave 30 Oct 18:54 mockup "Yes please"; 19:06 "just go with the upload … where are they
+// stored as a default job starts with no lists"; 19:07 "Sure"). A logo is a tile in ProOS's tile library, named
+// channel_<channel name> — Tech Tools › App Tiles › Channels — so it belongs to the name, not to a list, survives updates
+// and factory reset like every uploaded tile, and Export carries it into the shipped pack. FITTED and centred, never
+// cropped (the app-tile builder fills the tile, which is what cut the Samsung wordmark to "ISI").
+function _chLogoTile(src){
+  return new Promise((res,rej)=>{ const img=new Image();
+    img.onload=()=>{ try{
+      const W=img.naturalWidth||600, H=img.naturalHeight||360;
+      const s=document.createElement('canvas'); s.width=W; s.height=H; const sg=s.getContext('2d'); sg.drawImage(img,0,0,W,H);
+      const d=sg.getImageData(0,0,W,H).data; let x0=W,y0=H,x1=-1,y1=-1,clear=false,lum=0,n=0;
+      for(let y=0;y<H;y++) for(let x=0;x<W;x++){ const k=(y*W+x)*4; if(d[k+3]<16){ clear=true; continue; }
+        if(x<x0)x0=x; if(y<y0)y0=y; if(x>x1)x1=x; if(y>y1)y1=y; if(((x+y)&7)===0){ lum+=(0.2126*d[k]+0.7152*d[k+1]+0.0722*d[k+2])/255; n++; } }
+      if(x1<0){ x0=0; y0=0; x1=W-1; y1=H-1; }
+      const sw=x1-x0+1, sh=y1-y0+1, ar=sw/Math.max(1,sh);
+      const box=clear?(ar>=2.2?[0.70,0.42]:(ar>=1?[0.58,0.58]:[0.42,0.70])):[0.86,0.80];   // a finished square/box logo keeps more of the tile
+      const sc=Math.min(600*box[0]/sw, 360*box[1]/sh), w=sw*sc, h=sh*sc;
+      const c=document.createElement('canvas'); c.width=600; c.height=360; const g=c.getContext('2d');
+      const dark=!(clear && n && lum/n<0.35);                // a dark logo on a clear background goes on a light tile
+      g.fillStyle=dark?'rgb(11,11,13)':'rgb(245,245,247)'; g.fillRect(0,0,600,360);
+      g.drawImage(s,x0,y0,sw,sh,Math.round((600-w)/2),Math.round((360-h)/2),Math.round(w),Math.round(h));
+      res(c.toDataURL('image/png')); }catch(e){ rej(e); } };
+    img.onerror=()=>rej(new Error('That file could not be read as a picture')); img.src=src; });
+}
+function _chLogoSlug(name){ return 'channel_'+String(name||'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,''); }
+function chLogoPick(){ const i=document.createElement('input'); i.type='file'; i.accept='image/png,image/svg+xml,image/jpeg,image/webp';
+  i.onchange=()=>{ const f=i.files&&i.files[0]; if(!f) return; const r=new FileReader(); r.onload=()=>chLogoFile(r.result); r.readAsDataURL(f); }; i.click(); }
+async function chLogoFile(dataUrl){
+  const c=((_chv.list&&_chv.list.channels)||[]).find(x=>x.id===_chv.sel); if(!c) return;
+  let png; try{ png=await _chLogoTile(dataUrl); }catch(e){ toast(e.message||'That file could not be read'); return; }
+  const r=await _chPost('/apps/art/upload',{name:_chLogoSlug(c.name), image:png, origin:'uploaded'});
+  if(r.error){ toast(r.error); return; }
+  window._chLogoV=Date.now(); toast('Logo saved for '+c.name); _chLoad();
+}
+async function chLogoRemove(){
+  const c=((_chv.list&&_chv.list.channels)||[]).find(x=>x.id===_chv.sel); if(!c||!c.logo_tile) return;
+  const r=await _chPost('/apps/art/delete',{slug:c.logo_tile}); if(r.error){ toast(r.error); return; }
+  window._chLogoV=Date.now(); toast('Logo removed'); _chLoad();
+}
 // register 1097: Undo — the deleted list comes back exactly as it was (Core keeps it; channels.undo_remove)
 async function chUndoRemove(){ const u=_chv.undo; if(!u) return; const r=await _chPost('/channels/'+encodeURIComponent(u.id)+'/undo_remove',{}); if(r.error){ toast(r.error); return; } _chv.undo=null; toast(u.name+' is back'); _chLoad(); }
 async function _chTvOff(eid){
@@ -13972,8 +14017,9 @@ async function techViewTiles(view){
       +_gone.map(g=>'<button onclick="appRestore(\''+esc(g)+'\')" style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.06);border:0.5px solid var(--line-soft);border-radius:999px;padding:6px 12px;font-size:11px;color:var(--t2);cursor:pointer"><span style="font-family:ui-monospace,Menlo,monospace">'+esc(g)+'</span><span style="color:#84d9b4">Restore</span></button>').join('')
       +'</div></div>';
   }
-  h+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-top:14px">'
-    +tiles.map(t=>{
+  // REGISTER 1098: channel logos (channel_<name>) have their own section below — the app grid is apps only
+  const _chTiles=tiles.filter(t=>/^channel_/.test(t.slug));
+  const _tileCard=t=>{
       // Stable version per page-load (bumped after upload/delete/fetch) so the
       // grid rides the server's cache instead of re-downloading every tile on
       // every render — with the live stream holding a socket, per-render
@@ -14000,8 +14046,20 @@ async function techViewTiles(view){
         +'<div style="padding:8px 10px;display:flex;align-items:center;justify-content:space-between;gap:6px">'
         +'<div style="min-width:0"><div style="font-size:12px;color:var(--t1);font-family:ui-monospace,Menlo,monospace;overflow:hidden;text-overflow:ellipsis">'+esc(t.slug)+'</div>'
         +'<span style="font-size:9px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:1px 6px;border-radius:5px;background:'+bcol+'">'+badge+'</span></div>'
-        +'<div style="display:flex;flex-direction:column;align-items:flex-end">'+act+rm+'</div></div></div>';
-    }).join('')+'</div>';
+        +'<div style="display:flex;flex-direction:column;align-items:flex-end">'+act+(/^channel_/.test(t.slug)?'':rm)+'</div></div></div>';
+    };
+  h+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-top:14px">'
+    +tiles.filter(t=>!/^channel_/.test(t.slug)).map(_tileCard).join('')+'</div>';
+  h+='<div class="field" style="border:0.5px solid var(--line);border-radius:12px;padding:14px;margin-top:18px">'
+    +'<div class="field-label">Channels — '+_chTiles.length+' logo'+(_chTiles.length===1?'':'s')+'</div>'
+    +'<div class="wiz-hint" style="margin-top:4px">Channel logos for Channel Lists. A logo belongs to a channel\'s name (channel_nine is any channel called Nine, or Also Called Nine), so a new job\'s lists pick it up. Fitted and centred on the tile. Export carries them into the shipped pack.</div>'
+    +'<div class="field-label" style="margin-top:10px">Upload channel logos — the file name becomes the channel name (Nine.png → Nine)</div>'
+    +'<div style="display:flex;gap:8px;align-items:center;margin-top:6px">'
+    +'<input id="chtile-files" type="file" accept="image/png,image/svg+xml,image/jpeg,image/webp" multiple style="flex:1;min-width:0;color:var(--t2);font-size:12px"/>'
+    +'<button class="btn-primary" style="white-space:nowrap;width:auto;flex:0 0 auto;margin-top:0;padding:12px 26px" onclick="chTilesUpload()">Upload</button></div>'
+    +'<div id="chtile-up-out" class="wiz-hint" style="margin-top:8px;display:none"></div>'
+    +(_chTiles.length?'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-top:12px">'+_chTiles.map(_tileCard).join('')+'</div>':'')
+    +'</div>';
   if(!tiles.length) h+='<div class="empty" style="margin-top:14px"><div class="et">No tiles yet</div><div class="es">Fetch the artwork above, or upload your own — it appears on every dashboard.</div></div>';
   if(tiles.length) h+='<div style="display:flex;gap:14px;align-items:center;margin-top:16px;padding-top:12px;border-top:0.5px solid var(--line-soft)">'
     +'<button onclick="tilesClear(\'fetched\')" style="background:none;border:none;color:var(--t3);font-size:11px;cursor:pointer;padding:4px">Remove fetched artwork</button>'
@@ -14304,6 +14362,28 @@ async function tilesFetch(whole){
     +(fail.length?'<b style="color:#e0564b">Not found:</b> '+esc(fail.join(' · '))
       +'<br><span style="color:var(--t3)">Upload these by hand, or add the brand domain to appart/domains.json.</span>':'');
   toast(ok+' fetched');
+  techViewTiles(document.getElementById('tech-view'));
+}
+// register 1098: channel logos uploaded straight into App Tiles › Channels — fitted, never cropped (_chLogoTile)
+async function chTilesUpload(){
+  const inp=document.getElementById('chtile-files'), out=document.getElementById('chtile-up-out');
+  const files=[...(inp&&inp.files||[])];
+  if(!files.length){ toast('Choose one or more logo files first'); return; }
+  if(out){ out.style.display=''; out.textContent='Uploading…'; }
+  let ok=0; const fail=[];
+  for(const f of files){
+    const name=f.name.replace(/\.[^.]+$/,''), slug=_chLogoSlug(name);
+    if(slug==='channel_'){ fail.push(f.name); continue; }
+    try{
+      const src=await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(f); });
+      const png=await _chLogoTile(src);
+      const r=await fetch(proCoreUrl()+'/apps/art/upload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:slug,image:png})});
+      const d=await r.json().catch(()=>({}));
+      if(r.ok&&d.ok) ok++; else fail.push(f.name+(d.error?' ('+d.error+')':''));
+    }catch(e){ fail.push(f.name); }
+  }
+  if(out) out.innerHTML=(ok?'<b style="color:#84d9b4">'+ok+' logo'+(ok===1?'':'s')+' uploaded.</b> ':'')+(fail.length?'<b style="color:#e0564b">Failed:</b> '+esc(fail.join(', ')):'');
+  toast(ok+' uploaded'); window._tileV=Date.now();
   techViewTiles(document.getElementById('tech-view'));
 }
 async function tilesUpload(){

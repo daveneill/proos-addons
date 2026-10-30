@@ -80,12 +80,29 @@ def lists() -> list:
     return [_summary(x) for x in _all()["lists"].values()]
 
 
+def _logo_tile(c: dict) -> str:
+    """REGISTER 1098 (Dave 30 Oct 19:06–19:07): a channel's logo lives in the tile library (Tech Tools › App Tiles ›
+    Channels) as channel_<name> — it belongs to the channel's NAME, not to a list, so a new job's empty lists pick it up
+    the moment a channel of that name is added, and Export carries it into the shipped pack. Found by the channel's
+    name or any Also Called name; none = the tile keeps its number and name."""
+    try:
+        from proos import appart
+    except Exception:                                       # noqa: BLE001 — no tile library, no logo
+        return ""
+    for n in [c.get("name") or ""] + list(c.get("aka") or []):
+        s = appart.slug(n)
+        if s and appart.tile_path("channel_" + s):
+            return "channel_" + s
+    return ""
+
+
 def get(list_id: str):
     lst = _all()["lists"].get(list_id)
     if not lst:
         return None
     out = dict(lst)
-    out["channels"] = sorted(lst.get("channels") or [], key=lambda c: int(c.get("number") or 0))
+    out["channels"] = [dict(c, logo_tile=_logo_tile(c))
+                       for c in sorted(lst.get("channels") or [], key=lambda c: int(c.get("number") or 0))]
     out.update({k: v for k, v in _summary(lst).items() if k in ("count", "confirmed", "to_check", "hidden", "service_name")})
     return out
 
@@ -346,7 +363,7 @@ def favourites(area_id: str, for_dashboard: bool = True) -> list:
         if for_dashboard and not ok:
             continue
         out.append({"list": f["list"], "channel": c["id"], "device": f["device"], "number": c["number"], "name": c["name"],
-                    "logo": c.get("logo") or "", "type": c.get("type") or "General",
+                    "logo": c.get("logo") or "", "logo_tile": _logo_tile(c), "type": c.get("type") or "General",
                     "confirmed": bool(c.get("confirmed")), "shown": c.get("shown", True)})
     return out
 
