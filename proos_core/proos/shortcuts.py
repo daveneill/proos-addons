@@ -446,6 +446,78 @@ def _state(client, eid: str) -> dict:
         return {}
 
 
+def power_room(client, project, area_id: str, target: str) -> str:
+    """THE ROOM'S POWER STEP before a device is asked to do something — moved out of launch() unchanged (registers
+    3 Aug, 867, 920, 922, 923, 924) so every path uses ONE mechanism. REGISTER 1107 (Dave 31 Oct 07:41: "make sure all
+    the TVs channels are setup like the streaming apps as it needs to allow for turning the TV on if not on like the
+    apps do and if already on then changes"): app shortcuts AND channels. Runs the room's Watch activity for the target
+    unless the TV confirms the room is already on it (then waits for the activity to finish); with no activity, the
+    display's own turn_on and the route to the target's input. Returns "activity" / "display" / "error" / "no display"."""
+    from . import appctl                                   # launch_power_plan (pure, stays)
+    rec = _rec_for_area(project, area_id)
+    disp = rec.get("display")
+    if not (isinstance(disp, str) and disp.startswith("media_player.")):
+        return "no display"
+    try:
+        dst = _state(client, disp)
+        res = project.activities_status(client, project.load(), area_id)
+        acts = (res or {}).get("activities") or []
+        act = next((a for a in acts
+                    if a.get("source_eid") == target
+                    and "off" not in str(a.get("key") or "")
+                    and a.get("entity_id")), None)
+        if act is None and target == disp:
+            # REGISTER 922 (Dave 17 Oct 11:05: a Samsung TV app "works but its not triggering the watch TV activity
+            # … so when I then try and use Apple TV shortcuts it stays on the TV app … as it thinks it is still in
+            # watch Apple TV"). Read on the box: the Bedroom's watch_tv has source_eid null — the display's OWN
+            # activity names no separate source — so a shortcut targeting the display matched nothing, fired
+            # nothing, and the room's activity sensor stayed on watch_apple_tv; the next Apple TV tap read "already
+            # watching" and skipped its activity. An app on the display is the room watching the TV: its Watch TV
+            # activity (no source, or the display itself, and not an off) runs first, exactly as for a source.
+            act = next((a for a in acts
+                        if a.get("source_eid") in (None, "", disp)
+                        and "off" not in str(a.get("key") or "")
+                        and a.get("entity_id")), None)
+        if act:
+            vs = (_state(client, "sensor.proos_activity_%s"
+                         % (rec.get("area_id") or area_id)) or {}).get("state")
+            fire, wait = appctl.launch_power_plan(dst.get("state"), vs, act.get("key"))
+            if not fire and not tv_agrees(dst, rec, target, disp):
+                fire = "fire"                          # REGISTER 923: the TV itself says otherwise — run it
+            if fire:
+                client.call_service("script", "turn_on", act["entity_id"])
+                # REGISTER 920 (Dave 17 Oct 10:11: "with tv off it turns the TV on then off again then on again then
+                # launches app"). Read on the box: the Watch Apple TV activity started 10:07:41 and ran 26 s; the TV
+                # came on at 10:07:49; at 10:07:52 THIS launch sent its own select_source to the still-booting Samsung,
+                # which took it as power and went OFF (logbook context: media_player.select_source); the activity
+                # put it back on at 10:07:59. Two things drove one TV at once. The activity IS the room's power and
+                # input (that is what it was commissioned to do), so when it fired, the launch waits for it to
+                # FINISH — the script's own state, bounded — and sends no power or input of its own.
+                from . import readback as _rb
+                _rb.confirm(client, act["entity_id"],
+                            lambda r: str(r.get("state") or "").lower() == "off", wait=ACTIVITY_DONE_WAIT_S)
+            # Fired (and finished) or already watching this source: the room is already on the box. Nothing more.
+            raise _RoomHandled()
+        dst = _state(client, disp)
+        if str(dst.get("state") or "") in ("off", "standby", "unavailable", ""):
+            # REGISTER 867: a room with no committed watch activity for the target still gets its display ON —
+            # the platform's own turn_on, then a bounded wait for it to read on (the same step appctl got in 865).
+            client.call_service("media_player", "turn_on", disp)
+            from . import readback as _rb
+            _rb.confirm(client, disp, lambda r: str(r.get("state") or "").lower()
+                        not in ("off", "standby", "unavailable", "unknown", ""), wait=appctl.DISPLAY_ON_WAIT_S)
+        if target != disp:                              # route to the source's input
+            inp = (rec.get("inputs") or {}).get(target)
+            if inp:
+                client._req("POST", "/api/services/media_player/select_source",
+                            {"entity_id": disp, "source": inp})
+    except _RoomHandled:                                # the room's activity owns power and input (920)
+        return "activity"
+    except Exception:                                   # power/route is best-effort
+        return "error"
+    return "display"
+
+
 def launch(client, project, area_id: str, sc: dict, power: bool = True) -> dict:
     """Power on + route the target (via the room's watch activity), then fire the
     shortcut's app command. Returns a structured result. `power=False` fires the
@@ -460,63 +532,7 @@ def launch(client, project, area_id: str, sc: dict, power: bool = True) -> dict:
     disp = rec.get("display")
     target = sc["target"]
     if power and isinstance(disp, str) and disp.startswith("media_player."):
-        try:
-            dst = _state(client, disp)
-            res = project.activities_status(client, project.load(), area_id)
-            acts = (res or {}).get("activities") or []
-            act = next((a for a in acts
-                        if a.get("source_eid") == target
-                        and "off" not in str(a.get("key") or "")
-                        and a.get("entity_id")), None)
-            if act is None and target == disp:
-                # REGISTER 922 (Dave 17 Oct 11:05: a Samsung TV app "works but its not triggering the watch TV activity
-                # … so when I then try and use Apple TV shortcuts it stays on the TV app … as it thinks it is still in
-                # watch Apple TV"). Read on the box: the Bedroom's watch_tv has source_eid null — the display's OWN
-                # activity names no separate source — so a shortcut targeting the display matched nothing, fired
-                # nothing, and the room's activity sensor stayed on watch_apple_tv; the next Apple TV tap read "already
-                # watching" and skipped its activity. An app on the display is the room watching the TV: its Watch TV
-                # activity (no source, or the display itself, and not an off) runs first, exactly as for a source.
-                act = next((a for a in acts
-                            if a.get("source_eid") in (None, "", disp)
-                            and "off" not in str(a.get("key") or "")
-                            and a.get("entity_id")), None)
-            if act:
-                vs = (_state(client, "sensor.proos_activity_%s"
-                             % (rec.get("area_id") or area_id)) or {}).get("state")
-                fire, wait = appctl.launch_power_plan(dst.get("state"), vs, act.get("key"))
-                if not fire and not tv_agrees(dst, rec, target, disp):
-                    fire = "fire"                          # REGISTER 923: the TV itself says otherwise — run it
-                if fire:
-                    client.call_service("script", "turn_on", act["entity_id"])
-                    # REGISTER 920 (Dave 17 Oct 10:11: "with tv off it turns the TV on then off again then on again then
-                    # launches app"). Read on the box: the Watch Apple TV activity started 10:07:41 and ran 26 s; the TV
-                    # came on at 10:07:49; at 10:07:52 THIS launch sent its own select_source to the still-booting Samsung,
-                    # which took it as power and went OFF (logbook context: media_player.select_source); the activity
-                    # put it back on at 10:07:59. Two things drove one TV at once. The activity IS the room's power and
-                    # input (that is what it was commissioned to do), so when it fired, the launch waits for it to
-                    # FINISH — the script's own state, bounded — and sends no power or input of its own.
-                    from . import readback as _rb
-                    _rb.confirm(client, act["entity_id"],
-                                lambda r: str(r.get("state") or "").lower() == "off", wait=ACTIVITY_DONE_WAIT_S)
-                # Fired (and finished) or already watching this source: the room is already on the box. Nothing more.
-                raise _RoomHandled()
-            dst = _state(client, disp)
-            if str(dst.get("state") or "") in ("off", "standby", "unavailable", ""):
-                # REGISTER 867: a room with no committed watch activity for the target still gets its display ON —
-                # the platform's own turn_on, then a bounded wait for it to read on (the same step appctl got in 865).
-                client.call_service("media_player", "turn_on", disp)
-                from . import readback as _rb
-                _rb.confirm(client, disp, lambda r: str(r.get("state") or "").lower()
-                            not in ("off", "standby", "unavailable", "unknown", ""), wait=appctl.DISPLAY_ON_WAIT_S)
-            if target != disp:                              # route to the source's input
-                inp = (rec.get("inputs") or {}).get(target)
-                if inp:
-                    client._req("POST", "/api/services/media_player/select_source",
-                                {"entity_id": disp, "source": inp})
-        except _RoomHandled:                                # the room's activity owns power and input (920)
-            pass
-        except Exception:                                   # power/route is best-effort
-            pass
+        power_room(client, project, area_id, target)   # register 1107: the one power step, shared with channels
     # REGISTER 869 (seen on the box 14 Oct 13:41: "Entity media_player.bedroom_bedroom_apple_tv does not support action
     # media_player.select_source"): a streamer that is asleep reports NO app features to the platform; the app command
     # sent while it wakes is refused. So the TARGET is woken too — the platform's own turn_on — and the command waits

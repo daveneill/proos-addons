@@ -10331,6 +10331,14 @@ class Handler(BaseHTTPRequestHandler):
                 call, err = _channels.send_command(dev, number, _shortcuts.platform_of(_client, dev) if _shortcuts else "")
                 if err:
                     return self._send(400, {"error": err})
+                # REGISTER 1107 (Dave 31 Oct 07:41 "make sure all the TVs channels are setup like the streaming apps …
+                # turning the TV on if not on like the apps do and if already on then changes"): the room's power step
+                # first — the SAME one an app shortcut runs (Watch TV unless the TV confirms it is already on it).
+                if _shortcuts:
+                    try:
+                        _shortcuts.power_room(_client, project, parts[1], dev)
+                    except Exception:                            # noqa: BLE001 — power is best-effort, as for apps
+                        pass
                 try:
                     _client.call_service(call[0], call[1], dev, {k: v for k, v in call[2].items() if k != "entity_id"})
                 except Exception as e:                           # noqa: BLE001
