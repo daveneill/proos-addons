@@ -3024,7 +3024,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102618';
+const PROOS_BUILD='2026102619';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -21182,9 +21182,8 @@ function v3RoomDecorate(){
         return row('channels','tv','Channels',t.map(x=>x.name+(x.list?'':' · not on a list yet')).join(' · ')+(f.length?' · '+f.length+' favourite'+(f.length===1?'':'s'):''),'<span class="v3ct">'+f.length+'</span>',true); })():'')
     +row('prove','check','Prove the Room','Runs every activity and app shortcut, and reads the devices back','',true,committed?'openProve()':"toast('"+needSave+"')")
     +row('recovery','shield','Device Recovery','What ProOS may power-cycle when a device stops answering','',true,committed?'openRecovery()':"toast('"+needSave+"')")
-    +((_systemAreas.has(_roomHubArea)||!v3HomeArea())?row('dashboard','grid','Dashboard','Which icons and widgets the homeowner sees')
-      // one bar on every page (register 572): a room has nothing of its own to set, so the row goes where the bar is set
-      :row('dashboard','grid','Dashboard','One bar for every room — set on Home','',false,"openRoomHub('"+esc(v3HomeArea().area_id)+"').then(()=>v3RoomView('dashboard'))"))
+    // register 1094 (Dave 30 Oct 17:19): every room edits its OWN icons — 572's jump to Home's editor removed
+    +row('dashboard','grid','Dashboard',_systemAreas.has(_roomHubArea)?'Which icons and widgets the homeowner sees':'This room\u2019s icons and widgets')
     +row('evidence','diagnostics','Evidence','Device truth, environment, the room\'s timeline','',true)
     +row('options','setup','Room Options','Name, icon, voice replies')
     +'</div></div>');
