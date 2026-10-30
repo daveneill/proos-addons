@@ -3024,7 +3024,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102619';
+const PROOS_BUILD='2026102620';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -20278,7 +20278,7 @@ async function v2RoomIcons(){
     // REGISTER 1094 (Dave 30 Oct 16:36: "Per room") — 572's one bar is reversed: a room edits ITS OWN list, offered only
     // the pages that room has (the dashboard's own per-room capability, /navcaps rooms). Home keeps the Home list.
     if(!isHome && _navDraft && !_navDraft.areas[_roomHubArea]){
-      const _all=Object.keys(NAV_ICONS||{}); _navDraft.areas[_roomHubArea]=_navListFromOrder(NAV_DEF_AREA, _all.filter(p=>(_navDraft._roomCaps&&_navDraft._roomCaps[_roomHubArea]||[]).includes(p)), {});
+      _navDraft.areas[_roomHubArea]=_roomNavList(_roomHubArea, {}, _navDraft._offered||Object.keys(NAV_ICONS||{}));   // 1096
     }
     const list=isHome ? (_navDraft&&_navDraft.home) : (_navDraft&&_navDraft.areas[_roomHubArea]);
     if(!list){ body.textContent='No dashboard pages available yet.'; return; }
@@ -20296,7 +20296,7 @@ async function v2RoomIcons(){
       +'<span style="flex:1;font-size:12.5px;color:'+(it.on?'var(--t1)':'var(--t3)')+'">'+esc(_navLabel(it.page))+'</span>'
       +'<button class="btn-ghost" style="padding:3px 12px;font-size:11.5px" onclick="v2RoomIconToggle('+i+')">'+(it.on?'Shown':'Hidden')+'</button>'
       +'<span class="rh-grip" aria-hidden="true">⠿</span></div>').join('')
-      +'<div data-icon-hint style="font-size:11px;color:var(--t3);margin-top:6px">'+(isHome?'The Home page\u2019s icons.':'This room\u2019s icons only — what the room has.')+' Drag ⠿ to reorder — or hold a row · changes publish to all devices.</div>');
+      +'<div data-icon-hint style="font-size:11px;color:var(--t3);margin-top:6px">'+(isHome?'The Home page\u2019s icons.':'This room\u2019s icons — what the room has is shown; switch on any other to add it.')+' Drag ⠿ to reorder — or hold a row · changes publish to all devices.</div>');
     if(!body._rhDragWired){ body._rhDragWired=true;
       body.addEventListener('pointerdown',_rhDragStart);
       body.addEventListener('touchmove',function(ev){ if(_rhDrag&&_rhDrag.active) ev.preventDefault(); },{passive:false});
@@ -20317,6 +20317,16 @@ function _rhIconsApply(){ clearTimeout(_rhIconsApplyT); _rhIconsApplyT=setTimeou
 // on iPad. Icons & Widgets rows now ride the SAME _rhDragStart machinery as
 // the Devices & AV section on this very page. One drag system, benched.)
 async function v2RoomIconsSave(){ try{ await navSaveLayout(); fetch(proCoreUrl()+'/journal/note',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room:_roomHubArea,type:'icons_saved',data:{room:_rhName(),by:(_me&&_me.name)||'installer'}})}).catch(()=>{}); }catch(e){ toast('Save failed'); } }
+// REGISTER 1096 (Dave 30 Oct 17:38: "they still needed this section in order to add the others to the navbar if they
+// wanted like cameras, lights, irrigation etc"). A room is OFFERED every page the house has. Never saved: what the room
+// has is Shown (its own capability, /navcaps rooms), the rest Hidden. Saved: exactly what the installer chose; a page
+// that never existed when they saved shows only if the room has it.
+function _roomNavList(aid, cfg, projectPages){
+  const has=(_navDraft&&_navDraft._roomCaps&&Array.isArray(_navDraft._roomCaps[aid]))?_navDraft._roomCaps[aid]:projectPages;
+  const saved=!!(cfg&&cfg.areas&&Array.isArray(cfg.areas[aid])&&cfg.areas[aid].length);
+  const ord=saved?cfg.areas[aid]:NAV_DEF_AREA.filter(p=>has.includes(p)).concat(has.filter(p=>!NAV_DEF_AREA.includes(p)));
+  return _navListFromOrder(ord, projectPages, saved?cfg:{}).map(x=>(ord.includes(x.page)?x:{page:x.page,on:!!(x.on&&has.includes(x.page))}));
+}
 async function _v2NavLoad(){
   // load the nav-layout drafts without opening the legacy panel
   const allPages=Object.keys(NAV_ICONS||{});
@@ -20329,10 +20339,7 @@ async function _v2NavLoad(){
   let roomIds=(caps.rooms&&Object.keys(caps.rooms).length)?Object.keys(caps.rooms):_areas.filter(a=>a.area_id&&!_systemAreas.has(a.area_id)).map(a=>a.area_id);
   _navDraft._roomCaps=caps.rooms||{};
   roomIds.forEach(aid=>{   // by area id (register 440)
-    const ord=(cfg.areas&&Array.isArray(cfg.areas[aid])&&cfg.areas[aid].length)?cfg.areas[aid]:NAV_DEF_AREA;
-    // 1094: a room is offered only what IT has (the dashboard's published per-room capability)
-    const roomPages=(caps.rooms&&Array.isArray(caps.rooms[aid]))?allPages.filter(p=>caps.rooms[aid].includes(p)):projectPages;
-    _navDraft.areas[aid]=_navListFromOrder(ord, roomPages, cfg);
+    _navDraft.areas[aid]=_roomNavList(aid, cfg, projectPages);
   });
   _navAreas=Object.keys(_navDraft.areas);
 }

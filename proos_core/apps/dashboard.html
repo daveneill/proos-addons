@@ -5024,7 +5024,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102649';
+const PROOS_BUILD='2026102650';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -9530,7 +9530,13 @@ function renderBottomNav(){
   // serves both and the house-wide pages — access, security, irrigation — are
   // unaffected because _hasCap ignores the room for those by design.
   // Masked until 1.0.722 by the !important that drew every tab regardless.
-  let _show = _cands.filter(p => (list.includes(p) || _navNeverOffered(p)) && _hasCap(p, r));   // 1094: the ROOM's capability (r is null on Home → the house's)
+  // REGISTER 1096 (Dave 30 Oct 17:38): an installer can ADD any page the house has to a room (Cameras in the Kitchen opens
+  // the house's cameras). Home: unchanged. A room's SAVED list: what they chose, if the house has it, plus a page that
+  // never existed when they saved if the room has it. A room nobody has saved: what that room has (1094).
+  const _saved = !home && !!(r && r.id && Array.isArray(cfg.areas[r.id]));
+  let _show = _cands.filter(p => home ? ((list.includes(p) || _navNeverOffered(p)) && _hasCap(p, null))
+    : _saved ? ((list.includes(p) && _hasCap(p, null)) || (_navNeverOffered(p) && _hasCap(p, r)))
+    : _hasCap(p, r));   // 1096
   NAV_ALL.forEach(p=> _setNav(p, _show.includes(p)));
   try{ updateNavLive(); }catch(e){}
   try{ _compactNav(); }catch(e){}            // placement, after the chain has decided (register 559)
