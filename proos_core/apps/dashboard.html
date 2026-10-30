@@ -3422,6 +3422,11 @@ html[data-link="remote"]{--m-tap:90ms;--m-move:200ms;--m-page:300ms}
 #atv-page .tvp-chs.sm{grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:10px}
 @media (max-width:600px){#atv-page .tvp-chs,#atv-page .tvp-chs.sm{grid-template-columns:repeat(3,minmax(0,1fr))}}
 #atv-page .tvp-ch{display:flex;flex-direction:column;gap:6px;background:none;border:0;padding:0;color:#fff;font:inherit;text-align:center;cursor:pointer}
+#atv-page .atv-app .awt.tvp-lg{display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(160deg,#2a2d35,#17191e)}   /* 1108: a channel tile is an app tile */
+#atv-page .atv-app .awt.tvp-lg.tvp-logo{background-color:#0b0b0d;background-size:cover;background-position:center}
+#atv-page .atv-app .awt.tvp-lg b{font:700 30px Inter,sans-serif;line-height:1}#atv-page .atv-app .awt.tvp-lg i{font-style:normal;font-size:12px;color:var(--atv-ink2)}
+#atv-page .tvp-rpad{display:flex;flex-direction:column;gap:10px;width:100%;max-width:420px}
+#atv-page .tvp-last{height:48px;border-radius:14px;background:var(--atv-glass);border:.5px solid rgba(255,255,255,.08);color:#fff;display:flex;align-items:center;justify-content:center;gap:8px;font:600 13.5px Inter,sans-serif}#atv-page .tvp-last svg{width:20px;height:20px}
 #atv-page .tvp-lg.tvp-logo{background-size:cover;background-position:center;background-color:#0b0b0d}   /* 1098: a channel's own logo */
 #atv-page .tvp-ch .tvp-lg{aspect-ratio:16/10}#atv-page .tvp-ch .tvp-lg b{font:700 26px Inter,sans-serif}#atv-page .tvp-chs.sm .tvp-lg b{font-size:20px}
 #atv-page .tvp-ch .tvp-nm{font-size:12.5px;color:var(--atv-ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -3501,6 +3506,9 @@ html[data-link="remote"]{--m-tap:90ms;--m-move:200ms;--m-page:300ms}
   #atv-page .atv-hl,#atv-page .atv-hr{min-width:0}
   #atv-page .atv-cols{grid-template-columns:minmax(0,1fr);gap:22px}
   #atv-page .atv-r:not(.side){display:none}
+  #atv-page .atv-cols:has(.tvp-rside){overflow-y:auto;scrollbar-width:none;align-content:start}#atv-page .atv-cols:has(.tvp-rside)>section{flex:none;min-height:auto}   /* 1108: the TV's pad below the remote, the page scrolls */
+  #atv-page .tvp-rpad{max-width:none}
+  #atv-page .atv-cols:has(.tvp-rside) .atv-l .atv-pad{min-height:min(300px,40vh)}   /* 1108: the touch pad keeps its size; the number pad follows below */
   #atv-page .atv-body:has(.atv-mini){gap:22px}
   #atv-page .atv-mini{display:flex}
   #atv-page .atv-keys{grid-template-columns:repeat(4,1fr)}
@@ -5025,7 +5033,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102653';
+const PROOS_BUILD='2026102654';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -19772,7 +19780,8 @@ const _TVI={
   menu2:'<path d="M4 7h16M4 12h16M4 17h16"/>',
   art:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="m3 16 5-5 4 4 3-3 6 6"/><circle cx="15.5" cy="8.5" r="1.5"/>'};
 function _tvIcon(n){ return _TVI[n]?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">'+_TVI[n]+'</svg>':_atvIcon(n); }
-function _tvChTile(c, cls){ return '<button type="button" class="tvp-ch '+(cls||'')+'" data-ch="'+_hEsc(c.channel||c.id)+'">'+(c.logo_tile?'<span class="tvp-lg tvp-logo" style="background-image:url(\''+proosCoreBase()+'/apps/art/tile/'+_hEsc(c.logo_tile)+'.png\')"></span>':'<span class="tvp-lg"><b>'+_hEsc(c.number)+'</b></span>')+'<span class="tvp-nm">'+_hEsc(c.name)+'</span></button>'; }
+// REGISTER 1108 (Dave 31 Oct 08:16): a channel tile is the Apps tab's tile — the same size, look and name line
+function _tvChTile(c, cls){ return '<button type="button" class="atv-app tvp-ch '+(cls||'')+'" data-ch="'+_hEsc(c.channel||c.id)+'">'+(c.logo_tile?'<span class="awt tvp-lg tvp-logo" style="background-image:url(\''+proosCoreBase()+'/apps/art/tile/'+_hEsc(c.logo_tile)+'.png\')"></span>':'<span class="awt tvp-lg"><b>'+_hEsc(c.number)+'</b><i>'+_hEsc(c.name)+'</i></span>')+'<span class="tvp-nm">'+_hEsc(c.name)+'</span></button>'; }
 function _tvNowHTML(){
   const st=_tvStatus(), s=_atv.sent;
   if(st.k==='art') return '<div class="tvp-now"><span class="tvp-lg art">'+_tvIcon('art')+'</span><div><small>Art Mode</small><b>The Frame is showing art</b><span>Choose a channel to watch TV.</span></div></div>';
@@ -19799,12 +19808,12 @@ function _tvRenderChannels(b){
   else if(!ch.list) right='<div class="atv-hint left">This TV has no channel list yet. Your installer sets one up in ProOS.</div>';
   else if(!ch.chans.length) right='<div class="atv-hint left">No channel has been confirmed on this TV yet. The number pad still works.</div>';
   else { const favIds=new Set(ch.favs.map(f=>f.channel));
-    right=(ch.favs.length?'<div class="atv-sec">Favourites</div><div class="tvp-chs">'+ch.favs.map(f=>_tvChTile(f)).join('')+'</div>':'')
-      +'<div class="atv-sec">All Channels · '+ch.chans.length+'</div><div class="tvp-chs sm">'+ch.chans.map(c=>_tvChTile(c,favIds.has(c.id)?'fav':'')).join('')+'</div>'; }
-  b.innerHTML='<div class="atv-apps"><div class="tvp-live"><section class="tvp-l">'+_tvNowHTML()
-    +'<div class="tvp-chrow"><button type="button" data-tk="chdown">'+_tvIcon('chdn')+'<span>Ch −</span></button><button type="button" data-tk="prech">'+_tvIcon('last')+'<span>Last</span></button>'
-    +'<button type="button" data-tk="chup">'+_tvIcon('chup')+'<span>Ch +</span></button><button type="button" class="padbtn" data-act="pad">'+_tvIcon('num')+'<span>Number Pad</span></button></div>'
-    +'<div class="tvp-padwrap">'+_tvPadHTML()+'</div></section><section class="tvp-r">'+right+'</section></div></div>';
+    right=(ch.favs.length?'<div class="atv-sec">Favourites</div><div class="atv-appgrid tvp-chs">'+ch.favs.map(f=>_tvChTile(f)).join('')+'</div>':'')
+      +'<div class="atv-sec">All Channels · '+ch.chans.length+'<em class="atv-sech">Press and hold a channel to add it to the '+_hEsc((_atv.room&&_atv.room.name)||'room')+' page or Home</em></div>'
+      +'<div class="atv-appgrid tvp-chs">'+ch.chans.map(c=>_tvChTile(c,favIds.has(c.id)?'fav':'')).join('')+'</div>'; }
+  // REGISTER 1108 (Dave 31 Oct 08:16: "TV's never give their info on what's playing etc so move the number pad to the remote
+  // screen … and remove all the TV doesn't report its channel"): the Channels tab is the channels; the pad is on Remote.
+  b.innerHTML='<div class="atv-apps">'+right+'</div>';
   _tvBindChannels(b);
 }
 function _tvBindChannels(b){
@@ -19840,10 +19849,13 @@ function _tvChHold(id){
   const ch=_atv&&_atv.ch, c=ch&&(ch.chans||[]).concat(ch.favs||[]).find(x=>(x.channel||x.id)===id), r=_atv&&_atv.room; if(!c||!r) return;
   const ri=(CONFIG.rooms||[]).indexOf(r);
   const entry={room:r.id, device:_atv.e, channel:c.channel||c.id, number:c.number, name:c.name, logo_tile:c.logo_tile||''};
-  _atvPop('<div class="atv-poph"><b>'+_hEsc(c.name)+' · '+_hEsc(c.number)+'</b></div><div class="atv-npb" style="flex-direction:column;align-items:stretch">'
-    +(ri>=0?'<button type="button" class="atv-pill tvp-pri" data-to="'+ri+'">Add to '+_hEsc(r.name)+' Page</button>':'')
-    +'<button type="button" class="atv-pill" data-to="-1">Add to Home</button></div>',
-    pop=>pop.querySelectorAll('[data-to]').forEach(bt=>bt.onclick=()=>{ _atvPopClose(); _cfAdd(parseInt(bt.dataset.to,10), entry); }));
+  // REGISTER 1108 (Dave 08:16 "the popup … needs to look the same"): the Apps tab's own hold card — tile, question, buttons
+  const tile=_tvChTile(c).replace(/^<button[^>]*>/,'').replace(/<span class="tvp-nm">[\s\S]*$/,'');
+  _atvPop('<div class="atv-holdc"><div class="atv-holdt">'+tile+'</div><b>Add '+_hEsc(c.name)+' to the '+_hEsc(r.name)+' page?</b>'
+    +'<span>A tap on it there puts '+_hEsc(c.number)+' on this TV, turning the room on if it is off.</span></div>'
+    +'<div class="atv-holdb">'+(ri>=0?'<button type="button" class="primary" data-to="'+ri+'">Add to '+_hEsc(r.name)+' Page</button>':'')
+    +'<button type="button" class="ghost" data-to="-1">Add to Home</button><button type="button" class="ghost" data-to="x">Cancel</button></div>',
+    pop=>pop.querySelectorAll('[data-to]').forEach(bt=>bt.onclick=()=>{ _atvPopClose(); if(bt.dataset.to!=='x') _cfAdd(parseInt(bt.dataset.to,10), entry); }), 'hold');
 }
 function _cfAdd(idx, entry){
   if(!entry||!entry.room||!entry.device||!entry.channel||(idx!==-1 && !(idx>=0))) return;
@@ -19886,10 +19898,12 @@ function _tvRenderRemote(b){
     +'<div class="atv-keys">'+keys.filter(k=>_tvHasKeyFor(k[0])).map(k=>'<button type="button" class="atv-key" data-tk="'+k[0]+'">'+_tvIcon(k[1])+'<em>'+k[2]+'</em></button>').join('')+'</div>'
     +'<div class="tvp-colours">'+[['red','#e5484d','Red'],['green','#30a46c','Green'],['yellow','#f5d90a','Yellow'],['blue','#3e63dd','Blue']].filter(c=>_tvHasKeyFor(c[0])).map(c=>'<button type="button" data-tk="'+c[0]+'" aria-label="'+c[2]+'"><i style="background:'+c[1]+'"></i></button>').join('')+'</div>'
     +'<div class="atv-tcap">Hold an arrow to keep moving · the coloured keys are the TV’s own</div></section>'
-    +'<section class="atv-r"><div class="atv-np">'+_tvNowHTML()+'</div></section></div>';
+    +'<section class="atv-r side tvp-rside">'+(['input','art'].indexOf(_tvStatus().k)>=0?'<div class="atv-np">'+_tvNowHTML()+'</div>':'')
+    +'<div class="tvp-rpad">'+_tvPadHTML()+(_tvHasKeyFor('prech')?'<button type="button" class="tvp-last" data-tk="prech">'+_tvIcon('last')+'<span>Last Channel</span></button>':'')+'</div></section></div>';   // 1108
   b.querySelectorAll('.atv-dpad [data-k]').forEach(x=>{ const k=x.dataset.k; let rep=null;
     _atvPress(x,{tap:()=>_tvKey(k), holdStart:()=>{ _tvKey(k); if(k!=='select') rep=setInterval(()=>_tvKey(k),220); }, holdEnd:()=>{ clearInterval(rep); rep=null; }}); });
   b.querySelectorAll('[data-tk]').forEach(x=>_atvPress(x,{tap:()=>_tvKey(x.dataset.tk)}));
+  b.querySelectorAll('[data-pad]').forEach(x=>x.onclick=()=>_tvPad(x.dataset.pad));   // 1108: the number pad lives here
   const w=b.querySelector('[data-act="watchtv"]'); if(w) w.onclick=()=>_tvSource('TV');
   _tvBindBox(b);
 }
