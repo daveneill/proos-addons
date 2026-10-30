@@ -10367,6 +10367,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send_res(_channels.rename(lid, b.get("name") or ""))
                 if act == "remove_list":
                     return self._send_res(_channels.remove_list(lid))
+                if act == "undo_remove":                       # register 1097: Undo a deleted list
+                    return self._send_res(_channels.undo_remove(lid))
                 if act == "add":
                     return self._send_res(_channels.add_channel(lid, b))
                 cid = (b.get("channel") or "").strip()

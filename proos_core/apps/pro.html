@@ -3024,7 +3024,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102620';
+const PROOS_BUILD='2026102621';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -12111,7 +12111,7 @@ function openMaintenance(){ show('maintenance'); }
 // number to a TV that uses the list and the installer looked. Before a send, a TV that is OFF is said (a send turns it
 // on — register 1049, seen on the Bedroom TV). Nothing here says a channel is "on": a send is Sent.
 let _chv={view:'lists', lid:null, sel:null, q:'', filter:'all', data:null, list:null, svc:'fta', region:'', used:[], ask:null, sent:{}, busy:false};
-function openChannels(){ show('channels'); _chv.view='lists'; _chv.ask=null; _chLoad(); }
+function openChannels(){ show('channels'); _chv.view='lists'; _chv.ask=null; _chv.undo=null; _chLoad(); }
 function _chEsc(s){ return esc(s==null?'':String(s)); }
 async function _chGet(path){ const r=await _coreFetch(proCoreUrl()+path); return r.json(); }
 async function _chPost(path, body){
@@ -12144,7 +12144,8 @@ function _chListsHTML(){
       +'<div class="t2">'+l.count+' channels · '+l.confirmed+' confirmed</div></div></div>'
       +'<div>'+(l.to_check?'<span class="v3chip amber">'+l.to_check+' to check</span>':(l.count?'<span class="v3chip ok">All confirmed</span>':'<span class="v3chip">Empty</span>'))+'</div>'
       +'<div class="t2">'+(l.used_by.length?'Used by '+l.used_by.map(e=>'<b>'+_chEsc(_chName(e))+'</b>').join(', '):'Not used by a TV yet')+'</div></button>').join('');
-  return '<div class="v3card"><div class="v3dh2"><div class="t">Channel Lists</div><div class="s">One list per service in this house. Every TV that uses a service shares its list, so a number fixed once is fixed in every room. Nothing in a list reaches the dashboards or voice until it has been confirmed on a TV.</div></div>'
+  const undo=_chv.undo?'<div class="chl-ask" style="margin:0 0 12px">'+_chEsc(_chv.undo.name)+' deleted. <button type="button" class="v3btn" onclick="chUndoRemove()">Undo</button></div>':'';   // 1097
+  return '<div class="v3card">'+undo+'<div class="v3dh2"><div class="t">Channel Lists</div><div class="s">One list per service in this house. Every TV that uses a service shares its list, so a number fixed once is fixed in every room. Nothing in a list reaches the dashboards or voice until it has been confirmed on a TV.</div></div>'
     +'<div class="v3sec"><div class="chl-grid">'+cards
     +'<button type="button" class="chl-card chl-new" onclick="chNew()"><div class="t1">+ New Channel List</div><div class="t2">Free-to-air, Foxtel, Fetch TV or other</div></button></div></div></div>';
 }
@@ -12201,8 +12202,9 @@ function _chEditHTML(){
     +'<div class="v3foot"><button type="button" class="v3btn" onclick="chBack()">‹ Channel Lists</button>'+_chRemoveListHTML()+'</div></div>';
 }
 function _chRemoveListHTML(){
-  if(_chv.ask&&_chv.ask.kind==='list') return '<span class="chl-ask">Take this list away? <button type="button" class="v3btn" onclick="chRemoveList(true)">Take It Away</button> <button type="button" class="v3btn" onclick="chAsk(null)">Keep</button></span>';
-  return '<button type="button" class="v3add" onclick="chAsk({kind:\'list\'})">Take This List Away</button>';
+  // register 1097 (Dave 30 Oct 18:31): "Delete this list and Undo" — the words say what it does
+  if(_chv.ask&&_chv.ask.kind==='list') return '<span class="chl-ask">Delete this list? <button type="button" class="v3btn" onclick="chRemoveList(true)">Delete</button> <button type="button" class="v3btn" onclick="chAsk(null)">Keep</button></span>';
+  return '<button type="button" class="v3add" onclick="chAsk({kind:\'list\'})">Delete This List</button>';
 }
 function chAsk(a){ _chv.ask=a; renderChannels(); }
 function chQ(v){ _chv.q=v; renderChannels(); const q=document.getElementById('chl-q'); if(q){ q.focus(); q.setSelectionRange(v.length,v.length); } }
@@ -12248,7 +12250,9 @@ async function chSave(){
 }
 async function chRemove(sure){ if(!sure) return; const r=await _chPost('/channels/'+encodeURIComponent(_chv.lid)+'/remove',{channel:_chv.sel}); if(r.error){ toast(r.error); return; } _chv.sel=null; _chv.ask=null; toast('Removed'); _chLoad(); }
 async function chUnconfirm(){ const r=await _chPost('/channels/'+encodeURIComponent(_chv.lid)+'/unconfirm',{channel:_chv.sel}); if(r.error){ toast(r.error); return; } _chLoad(); }
-async function chRemoveList(sure){ if(!sure) return; const r=await _chPost('/channels/'+encodeURIComponent(_chv.lid)+'/remove_list',{}); if(r.error){ toast(r.error); return; } toast('List taken away'); chBack(); }
+async function chRemoveList(sure){ if(!sure) return; const id=_chv.lid, nm=(_chv.list&&_chv.list.name)||'The list'; const r=await _chPost('/channels/'+encodeURIComponent(id)+'/remove_list',{}); if(r.error){ toast(r.error); return; } _chv.undo={id:id, name:nm}; chBack(); }
+// register 1097: Undo — the deleted list comes back exactly as it was (Core keeps it; channels.undo_remove)
+async function chUndoRemove(){ const u=_chv.undo; if(!u) return; const r=await _chPost('/channels/'+encodeURIComponent(u.id)+'/undo_remove',{}); if(r.error){ toast(r.error); return; } _chv.undo=null; toast(u.name+' is back'); _chLoad(); }
 async function _chTvOff(eid){
   try{ const m=await snd({type:'get_states'},6000); const s=((m&&m.result)||[]).find(x=>x.entity_id===eid); return !s||s.state==='off'||s.state==='unavailable'||s.state==='standby'; }catch(e){ return false; }
 }

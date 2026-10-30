@@ -295,6 +295,24 @@ def remove_list(list_id: str) -> dict:
     return {"ok": True}
 
 
+def undo_remove(list_id: str) -> dict:
+    """Undo (register 1097, Dave 30 Oct 18:31: "Delete this list and Undo"): the most recently deleted copy of the list
+    comes back exactly as it was, under its own id."""
+    d = _all()
+    gone = d.get("removed") or []
+    i = next((k for k in range(len(gone) - 1, -1, -1) if (gone[k] or {}).get("id") == list_id), None)
+    if i is None:
+        return {"error": "Nothing to undo"}
+    if list_id in d["lists"]:
+        return {"error": "That list is already back"}
+    lst = gone.pop(i)
+    lst.pop("removed_at", None)
+    d["lists"][list_id] = lst
+    d["removed"] = gone
+    _write(d)
+    return {"ok": True}
+
+
 # ── each room's favourite channels (register 1051) ──────────────────────────────────────────────────────────────
 # Kept HERE, beside the lists — not in the room's App Shortcuts. Every reader of that list (voice "open Netflix", the
 # app tiles, the launcher, the watch helper, the sweep) treats an entry as an app, so a channel there would be launched
