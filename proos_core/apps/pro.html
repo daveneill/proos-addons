@@ -1791,7 +1791,8 @@ body.v3 .assist-fab{display:none!important}
 .chl-lg.has-logo{background:#0b0b0d}.chl-lg img{width:100%;height:100%;object-fit:contain;display:block}
 .chl-logo-acts{display:flex;flex-direction:column;align-items:flex-start;gap:8px;min-width:0}.chl-lg.l b{font-size:30px}.chl-lg.l i{font-size:12px;margin-top:2px}
 .chl-side{display:flex;flex-direction:column;gap:12px;padding:16px;border-radius:18px;background:rgba(255,255,255,.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,.075)}
-.chl-sh2{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}.chl-sh2 .h{font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:rgba(255,255,255,.62)}
+.chl-sh2{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.chl-sh2 .v3chip{white-space:normal;max-width:100%;line-height:1.35;overflow-wrap:anywhere}   /* 1102: "Confirmed on … · date · who" wraps inside the panel */.chl-sh2 .h{font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:rgba(255,255,255,.62)}
 .chl-face{display:flex;gap:12px;align-items:center}.chl-face .t2{font-size:12.5px;color:rgba(255,255,255,.5)}
 .chl-two{display:grid;grid-template-columns:100px minmax(0,1fr);gap:10px}
 .chl-two label,.chl-f{display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:600;color:rgba(255,255,255,.62)}
@@ -3026,7 +3027,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102624';
+const PROOS_BUILD='2026102626';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -11276,7 +11277,9 @@ async function loadRoomChannels(area){
   _rhCh[area]=out;
   if(_roomHubArea===area) renderRoomHub();
 }
-function _rhChTile(c, inner){ return '<span class="chl-lg rch"><b>'+esc(c.number)+'</b><i>'+esc(c.name)+'</i></span>'+(inner||''); }
+function _rhChTile(c, inner){   // register 1104: the channel's logo when it has one (1098), else its number and name
+  if(c&&c.logo_tile) return '<span class="chl-lg rch has-logo"><img alt="" src="'+proCoreUrl()+'/apps/art/tile/'+encodeURIComponent(c.logo_tile)+'.png?v='+(window._chLogoV||0)+'"></span>'+(inner||'');
+  return '<span class="chl-lg rch"><b>'+esc(c.number)+'</b><i>'+esc(c.name)+'</i></span>'+(inner||''); }
 function rhChannels(rec){
   const area=_roomHubArea, d=_rhCh[area];
   if(!d){ loadRoomChannels(area); return ''; }
@@ -12242,9 +12245,11 @@ function _chSideHTML(){
   if(!isNew){
     if(!devs.length) test='<div class="chl-note">No TV uses this list yet, so there is nothing to send it to.</div>';
     else test=devs.map(d=>{ const asked=_chv.ask&&_chv.ask.kind==='off'&&_chv.ask.dev===d; const was=_chv.sent[sentKey(d)];
-      return '<div class="chl-test"><div class="rt"><b>'+_chEsc(_chName(d))+'</b>'+(asked?'The TV is off. Sending turns it on.':was?'Sent '+_chEsc(c.number)+'. Look at the TV, then confirm.':'Puts '+_chEsc(c.number)+' on the TV. Look, then confirm.')+'</div>'
+      return '<div class="chl-test"><div class="rt"><b>'+_chEsc(_chName(d))+'</b>'+(asked?'The TV is off. Sending turns it on.':(c.confirmed?(was?'Sent '+_chEsc(c.number)+' to test this TV.':'Puts '+_chEsc(c.number)+' on the TV to test it.'):(was?'Sent '+_chEsc(c.number)+'. Look at the TV, then confirm.':'Puts '+_chEsc(c.number)+' on the TV. Look, then confirm.')))+'</div>'
         +(asked?'<button type="button" class="v3btn" onclick="chSend(\''+_chEsc(d)+'\',true)">Send Anyway</button><button type="button" class="v3btn" onclick="chAsk(null)">Cancel</button>'
-          :'<button type="button" class="v3btn" onclick="chSend(\''+_chEsc(d)+'\',false)">Send</button><button type="button" class="v3btn pri"'+(was?'':' disabled title="Send it first"')+' onclick="chConfirm(\''+_chEsc(d)+'\')">Confirm</button>')+'</div>'; }).join('');
+          :'<button type="button" class="v3btn" onclick="chSend(\''+_chEsc(d)+'\',false)">Send</button>'+(c.confirmed?'':'<button type="button" class="v3btn pri"'+(was?'':' disabled title="Send it first"')+' onclick="chConfirm(\''+_chEsc(d)+'\')">Confirm</button>'))+'</div>'; }).join('');
+    // REGISTER 1103 (Dave 31 Oct 06:53): the numbers are the list's, so one confirmation covers every TV on it; Send stays per TV
+    if(c.confirmed && devs.length) test='<div class="chl-note blue">Confirmed for every TV on this list. Send tests each TV\u2019s own command.</div>'+test;
   }
   const conf=c.confirmed?'<span class="v3chip ok">Confirmed on '+_chEsc(_chName(c.confirmed.on))+' · '+_chEsc(new Date(c.confirmed.at*1000).toLocaleDateString())+(c.confirmed.by?' · '+_chEsc(c.confirmed.by):'')+'</span>':(isNew?'':'<span class="v3chip amber">To Check</span>');
   return '<div class="chl-sh2"><div class="h">'+(isNew?'New Channel':'Channel')+'</div>'+conf+'</div>'
@@ -12305,10 +12310,16 @@ function _chLogoTile(src){
     img.onerror=()=>rej(new Error('That file could not be read as a picture')); img.src=src; });
 }
 function _chLogoSlug(name){ return 'channel_'+String(name||'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,''); }
-function chLogoPick(){ const i=document.createElement('input'); i.type='file'; i.accept='image/png,image/svg+xml,image/jpeg,image/webp';
-  i.onchange=()=>{ const f=i.files&&i.files[0]; if(!f) return; const r=new FileReader(); r.onload=()=>chLogoFile(r.result); r.readAsDataURL(f); }; i.click(); }
-async function chLogoFile(dataUrl){
-  const c=((_chv.list&&_chv.list.channels)||[]).find(x=>x.id===_chv.sel); if(!c) return;
+// REGISTER 1103 (Dave 06:53 "Upload seems to work sometimes and other nothing happens"): the picker was never part of the
+// page, so the Mac/iPad web view could throw it away before the chosen file came back. It is in the page now, and the
+// channel is the one chosen when the picker opened, even if the selection changes while it is open.
+function chLogoPick(){ document.querySelectorAll('input[type=file].chl-file').forEach(x=>x.remove());
+  const sel=_chv.sel, i=document.createElement('input'); i.type='file'; i.className='chl-file'; i.accept='image/png,image/svg+xml,image/jpeg,image/webp';
+  i.style.cssText='position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0'; document.body.appendChild(i);
+  i.onchange=()=>{ const f=i.files&&i.files[0]; if(!f){ i.remove(); return; } const r=new FileReader(); r.onload=()=>{ i.remove(); chLogoFile(r.result, sel); }; r.onerror=()=>{ i.remove(); toast('That file could not be read'); }; r.readAsDataURL(f); };
+  i.click(); }
+async function chLogoFile(dataUrl, sel){
+  const c=((_chv.list&&_chv.list.channels)||[]).find(x=>x.id===(sel||_chv.sel)); if(!c){ toast('That channel has gone'); return; }
   let png; try{ png=await _chLogoTile(dataUrl); }catch(e){ toast(e.message||'That file could not be read'); return; }
   const r=await _chPost('/apps/art/upload',{name:_chLogoSlug(c.name), image:png, origin:'uploaded'});
   if(r.error){ toast(r.error); return; }
