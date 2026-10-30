@@ -5019,7 +5019,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102645';
+const PROOS_BUILD='2026102646';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -9762,6 +9762,7 @@ const WIDGET_LIBRARY = [
   // (the device is implicit), so it stays out of the Add-widget sheet. Fixed 1x1.
   {id:'apps',      name:'App Shortcut', size:1, phone:['S'], hidden:true, requires:r=>!!(r&&r.id), desc:'One-tap launch for a favourite app'},
   {id:'musicfav',  name:'Music Favourite', size:1, phone:['S'], hidden:true, requires:()=>true, desc:'One-tap play for a favourite playlist, album or station'},   // 1073
+  {id:'actfav',    name:'Activity Favourite', size:1, phone:['S'], hidden:true, requires:()=>true, desc:'One-tap start for a room\u2019s activity'},   // 1091
   // ANY ONE THING (9 Sep 2026, register 377). Dave: "I want the ability to add
   // any device, scene, etc through a widget… I believe the widget list is
   // limited". Every other entry in this library is a CATEGORY — "Lights" means
@@ -10161,7 +10162,7 @@ function toggleWidgetSize(uid){
   const widgets=loadWidgetLayout();
   const w=widgets.find(x=>x.uid===uid);
   if(!w) return;
-  if(w.id==='apps'||w.id==='musicfav') return;   // app shortcuts and music favourites are fixed 1x1 (1073)
+  if(w.id==='apps'||w.id==='musicfav'||w.id==='actfav') return;   // app shortcuts, music and activity favourites are fixed 1x1 (1073, 1091)
   const def=WIDGET_LIBRARY.find(x=>x.id===w.id);
   const list=_wSizeList(def);
   if(list.length<2) return;
@@ -11022,6 +11023,17 @@ function renderWidgetContent(w){
         +(_art?`<img class="awt-cov" ${_artAttr(_art)} alt="" onload="this.previousElementSibling&&(this.previousElementSibling.style.display='none')" onerror="this.remove()"/>`:'')+`</span></div>`;
       setTimeout(()=>{ try{ _scanAuthImgs(document.getElementById('widget-grid')); }catch(e){} },0);
       return {icon, label:'Music', value:'', sub:'', html, _appTile:true, hsig:'musicfav:'+w.uid+':'+_mfKey(w)+':'+_art};
+    }
+    case 'actfav': {
+      // REGISTER 1091 (Dave 30 Oct 14:29: "from an activities screen you can then hold and favourite an activity to the area or
+      // home page like everything else"). The activity's brand tile at its own 5:3 shape, nothing behind it — like an App
+      // Shortcut. Ringed while Core confirms it is on, spinning while one this screen started is coming up.
+      const _ar=(CONFIG.rooms||[]).find(x=>x&&x.id===w.room);
+      if(!_ar||!w.key) return {icon, label:'Activity', value:'', sub:'', _hide:true};
+      const html=(typeof _afHTML==='function')?_afHTML(w,_ar):'';
+      const _tr=(typeof _pacTruth==='function')?_pacTruth(_ar):{key:'',starting:false};   // the card's script may not have loaded on the very first paint
+      const _bz=!!(typeof _pacPending!=='undefined'&&_pacPending&&_pacPending.room===w.room&&_pacPending.key===w.key);
+      return {icon, label:'Activity', value:'', sub:'', html, _appTile:true, hsig:'actfav:'+w.uid+':'+w.key+':'+_tr.key+':'+_tr.starting+':'+_bz};
     }
     case 'climate': {
       // On Home the widget carries the room it was pointed at (register 611);
@@ -12594,7 +12606,7 @@ function renderWidgetGrid(){
   for(const w of widgets){
     const def=WIDGET_LIBRARY.find(x=>x.id===w.id);
     if(!def) continue;   // unknown id skips ITSELF, never aborts the grid (3 Aug)
-    const _fx1=w.id==='apps'||w.id==='musicfav';   // fixed 1x1 (1073)
+    const _fx1=w.id==='apps'||w.id==='musicfav'||w.id==='actfav';   // fixed 1x1 (1073, 1091)
     const size=_fx1?1:(w.size||def.size||1);   // app shortcuts are fixed 1x1
     const dims=_fx1?{w:1,h:1}:_widgetDims(w);
     const data=renderWidgetContent(w);
@@ -22500,6 +22512,18 @@ document.addEventListener('click', function(e){
 #proos-acard .pac-spin{display:none;position:absolute;inset:0;z-index:2;border-radius:16px;background:rgba(0,0,0,.5);align-items:center;justify-content:center}
 #proos-acard .pac-spin::after{content:'';width:34px;height:34px;border-radius:50%;border:3px solid rgba(255,255,255,.25);border-top-color:#fff;animation:pacSpin var(--m-listen) linear infinite}
 #proos-acard .pac-t.busy .pac-spin{display:flex}
+.af-tile{position:relative;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.af-tile svg{width:30px;height:30px;color:#fff}
+.af-tile .pac-art{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.af-tile.on{box-shadow:0 0 0 2px #fff,0 0 20px rgba(255,255,255,.3)}
+.af-tile .af-spin{display:none;position:absolute;inset:0;z-index:2;background:rgba(0,0,0,.5);align-items:center;justify-content:center}
+.af-tile .af-spin::after{content:'';width:30px;height:30px;border-radius:50%;border:3px solid rgba(255,255,255,.25);border-top-color:#fff;animation:pacSpin var(--m-listen) linear infinite}
+.af-tile.busy .af-spin{display:flex}
+#proos-acard .pac-hold{position:absolute;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;background:rgba(10,10,14,.72);border-radius:inherit}
+#proos-acard .pac-hold>div{width:min(340px,90%);padding:18px;border-radius:20px;background:rgba(36,36,44,.96);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);display:flex;flex-direction:column;gap:10px}
+#proos-acard .pac-hold b{font-size:16px;font-weight:600}
+#proos-acard .pac-hold button{min-height:46px;border-radius:14px;border:0;font:inherit;font-size:14px;font-weight:600;background:rgba(255,255,255,.12);color:#fff;cursor:pointer}
+#proos-acard .pac-hold button.primary{background:#fff;color:#000}
 #proos-acard .pac-off .pac-ospin{display:none;width:16px;height:16px;border-radius:50%;border:2px solid rgba(42,23,0,.3);border-top-color:#2a1700;animation:pacSpin var(--m-listen) linear infinite}
 #proos-acard .pac-off.busy .pac-ospin{display:inline-block}
 #proos-acard .pac-off.busy svg{display:none}
@@ -22583,6 +22607,13 @@ function _pacEnsure(){
     var b=ev.target.closest('.pac-rm'); if(!b) return;
     var r=_pacRooms().filter(function(x){ return x.id===b.dataset.room; })[0]; if(r){ _pacRoom=r; _pacSig=''; _pacRender(); }
   });
+  // 1091: HOLD a tile → put that activity on its room's page or Home, like a music favourite (_mfAdd)
+  (function(){ var t=null, held=false, tiles=el.querySelector('#pac-tiles');
+    tiles.addEventListener('pointerdown', function(ev){ var b=ev.target.closest('.pac-t'); if(!b) return; held=false; clearTimeout(t);
+      t=setTimeout(function(){ held=true; try{ _proosHaptic('lift'); }catch(e){} _pacHold(b.dataset.key); }, 500); });
+    ['pointerup','pointerleave','pointercancel'].forEach(function(n){ tiles.addEventListener(n, function(){ clearTimeout(t); }); });
+    tiles.addEventListener('click', function(ev){ if(held){ held=false; ev.stopImmediatePropagation(); ev.preventDefault(); } }, true);
+  })();
   el.querySelector('#pac-tiles').addEventListener('click', function(ev){
     var b=ev.target.closest('.pac-t'); if(!b||!_pacRoom) return;
     var tr=_pacTruth(_pacRoom);
@@ -22696,6 +22727,59 @@ function _pacGoControl(r, key){
     closeActivityCard();
     if(e && typeof openPlayer==='function') openPlayer(e);
   }catch(err){}
+}
+// ── REGISTER 1091 — activity favourites ──────────────────────────────────────────────────────────────────────────────
+function _pacHold(key){
+  var r=_pacRoom; if(!r) return; var acts=_pacActs(r)||[], a=acts.filter(function(x){ return x&&x.key===key; })[0]; if(!a) return;
+  var card=document.querySelector('#proos-acard .pac-card'); if(!card) return;
+  var old=card.querySelector('.pac-hold'); if(old) old.remove();
+  var ri=(CONFIG.rooms||[]).indexOf(r), nm=_pacName(a);
+  var h=document.createElement('div'); h.className='pac-hold';
+  h.innerHTML='<div><b>'+_pacEsc(nm)+'</b>'
+    +(ri>=0?'<button type="button" class="primary" data-to="'+ri+'">Add to '+_pacEsc(r.name)+' Page</button>':'')
+    +'<button type="button" data-to="-1">Add to Home</button><button type="button" data-to="x">Cancel</button></div>';
+  h.addEventListener('click', function(ev){ var b=ev.target.closest('button'); if(ev.target===h){ h.remove(); return; } if(!b) return;
+    var to=b.dataset.to; h.remove(); if(to==='x') return; _afAdd(parseInt(to,10), {room:r.id, key:a.key, label:nm}); });
+  card.appendChild(h);
+}
+// put the favourite on a page's own layout (that page's key and form factor), exactly as a music favourite is (_mfAdd)
+function _afAdd(idx, entry){
+  if(!entry||!entry.room||!entry.key||(idx!==-1 && !(idx>=0))) return;
+  var was=curRoom, added=false, dup=false;
+  try{ curRoom=idx; var list=loadWidgetLayout();
+    dup=list.some(function(w){ return w&&w.id==='actfav'&&w.room===entry.room&&w.key===entry.key; });
+    if(!dup){ list.push(Object.assign({uid:_newWidgetUid(), id:'actfav'}, entry)); saveWidgetLayout(list); added=true; }
+  }catch(e){} finally{ curRoom=was; }
+  var where=idx===-1?'Home':(((CONFIG.rooms[idx]&&CONFIG.rooms[idx].name)||'room')+' page');
+  try{ showToast(dup?('Already on '+where):added?('Added to '+where):'Couldn\u2019t add it'); }catch(e){}
+  if(added && (curRoom===idx)){ try{ renderWidgetGrid(); }catch(e){} }
+}
+function _afHTML(w, r){
+  var acts=_pacActs(r)||[], a=acts.filter(function(x){ return x&&x.key===w.key; })[0]||{key:w.key};
+  var k=_pacKind(a), art=_pacArt(k, a, r), tr=_pacTruth(r);
+  var on=tr.key===w.key && !tr.starting, busy=!!(_pacPending&&_pacPending.room===w.room&&_pacPending.key===w.key);
+  return '<div class="aw-full aw-true" data-afroom="'+_pacEsc(w.room)+'" data-afkey="'+_pacEsc(w.key)+'" onclick="event.stopPropagation();_afTap(this)">'
+    +'<span class="awt awt-true af-tile'+(on?' on':'')+(busy?' busy':'')+'" role="img" aria-label="'+_pacEsc(w.label||_pacName(a))+'">'+_pacGlyph(k)
+    +(art?'<img class="pac-art" src="'+_pacEsc(art+'?t='+_pacLoadT)+'" alt="" onerror="this.remove()">':'')
+    +'<span class="af-spin" aria-hidden="true"></span></span></div>';
+}
+// a tap on the favourite: the same as a tap on its tile in the card — already on → its control page; else start it, spin
+// until Core confirms, then its control page (_pacSettle); past Core's start window nothing moves (it was only sent)
+var _afTimer=null;
+function _afTap(el){
+  var r=(CONFIG.rooms||[]).filter(function(x){ return x&&x.id===el.dataset.afroom; })[0], key=el.dataset.afkey; if(!r||!key) return;
+  var tr=_pacTruth(r);
+  if(tr.key===key && !tr.starting){ _pacGoControl(r, key); return; }
+  var acts=_pacActs(r)||[], a=acts.filter(function(x){ return x&&x.key===key; })[0]; if(!a||!a.script) return;
+  _pacPending={room:r.id, key:key, off:false, t0:Date.now()};
+  try{ window.proosFireActivity && window.proosFireActivity(r.id, a.script); }catch(e){}
+  var t=el.querySelector('.af-tile'); if(t) t.classList.add('busy');
+  clearInterval(_afTimer);
+  _afTimer=setInterval(function(){
+    if(!_pacPending){ clearInterval(_afTimer); _afTimer=null; try{ renderWidgetGrid(); }catch(e){} return; }
+    var p=_pacPending, rr=(CONFIG.rooms||[]).filter(function(x){ return x&&x.id===p.room; })[0];
+    if(rr && _pacSettle(rr, _pacTruth(rr))){ clearInterval(_afTimer); _afTimer=null; try{ renderWidgetGrid(); }catch(e){} }
+  }, 500);
 }
 function _pacKey(ev){ if(ev.key==='Escape') closeActivityCard(); }
 function openActivityCard(){
