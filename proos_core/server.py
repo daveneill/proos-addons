@@ -7885,11 +7885,22 @@ class Handler(BaseHTTPRequestHandler):
                 try:
                     with open(p, "rb") as fh:
                         data = fh.read()
+                    # REGISTER 1106: each tile's own cache rule — a channel logo is asked about every time and answered
+                    # "unchanged" only while it is the same, so a replaced logo shows at once; app tiles keep 5 minutes.
+                    _slug = os.path.basename(p)[:-4]
+                    _cc, _et = _appart.cache_for(_slug), _appart.tile_etag(data)
+                    if _appart.etag_matches(_et, self.headers.get("If-None-Match") or ""):
+                        self.send_response(304)
+                        self.send_header("ETag", _et)
+                        self.send_header("Cache-Control", _cc)
+                        self.send_header("Content-Length", "0")
+                        self.end_headers()
+                        return
                     self.send_response(200)
                     self.send_header("Content-Type", "image/png")
                     self.send_header("Content-Length", str(len(data)))
-                    # Short cache so a replacement upload shows within minutes.
-                    self.send_header("Cache-Control", "public, max-age=300")
+                    self.send_header("Cache-Control", _cc)
+                    self.send_header("ETag", _et)
                     self.end_headers()
                     self.wfile.write(data)
                 except Exception as e:  # noqa: BLE001

@@ -456,6 +456,26 @@ def tile_path(name_or_slug: str, package: str = ""):
     return p if os.path.isfile(p) else None
 
 
+# REGISTER 1106 (Dave 31 Oct 07:33 "when I update a logo it does not update on the dashboard even after a refresh"). Every
+# tile was "public, max-age=300": a device may keep it five minutes without asking. A channel logo is replaced from Pro and
+# must show at once, so it is asked about every time and answered "unchanged" only while its bytes are the same. App tiles
+# keep their five-minute cache (dashboards draw many, and a 304 for each would still be a request each).
+def cache_for(slug_: str) -> str:
+    return "no-cache" if str(slug_ or "").startswith("channel_") else "public, max-age=300"
+
+
+def tile_etag(data: bytes) -> str:
+    import hashlib
+    return '"%s"' % hashlib.sha256(data or b"").hexdigest()[:24]
+
+
+def etag_matches(etag: str, if_none_match: str) -> bool:
+    """A front end (ProOS Connect's Caddy) may hand the tag back weak or with its encoding added; the fingerprint is compared."""
+    want = (etag or "").strip('"')
+    seen = [x.strip().replace("W/", "").strip('"').split("-")[0] for x in (if_none_match or "").split(",")]
+    return bool(want) and want in seen
+
+
 def _ls(d) -> set:
     try:
         return {f[:-4] for f in os.listdir(d) if f.endswith(".png")}
