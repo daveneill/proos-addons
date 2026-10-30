@@ -3026,7 +3026,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102623';
+const PROOS_BUILD='2026102624';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -12250,7 +12250,7 @@ function _chSideHTML(){
   return '<div class="chl-sh2"><div class="h">'+(isNew?'New Channel':'Channel')+'</div>'+conf+'</div>'
     +'<div class="chl-face">'+_chTile(c,'l')+'<div class="chl-logo-acts">'+(isNew?'<div class="t2">Save the channel first, then add its logo.</div>'
       :(c.logo_tile?'<button type="button" class="v3btn" onclick="chLogoPick()">Replace Logo</button><button type="button" class="v3add" onclick="chLogoRemove()">Remove Logo</button>'
-        :'<button type="button" class="v3btn pri" onclick="chLogoPick()">Upload Logo</button><div class="t2">PNG or SVG, ideally on a clear background. ProOS fits and centres it on the tile.</div>'))+'</div></div>'
+        :'<button type="button" class="v3btn pri" onclick="chLogoPick()">Upload Logo</button><div class="t2">A finished 600×360 tile fills it as made. A logo on a clear background is fitted and centred.</div>'))+'</div></div>'
     +(c.logo_tile?'<div class="chl-note blue">Every TV that uses '+_chEsc(L.name)+' shows this logo. It is kept in Tech Tools › App Tiles › Channels under the name '+_chEsc(c.name)+', so a channel of that name in any list wears it.</div>':'')
     +'<div class="chl-two"><label>Number<input class="chl-in" id="chl-no" inputmode="numeric" maxlength="4" value="'+_chEsc(c.number)+'"></label><label>Name<input class="chl-in" id="chl-nm" maxlength="60" value="'+_chEsc(c.name)+'"></label></div>'
     +'<label class="chl-f">Also Called (for voice)<input class="chl-in" id="chl-aka" placeholder="ABC, the ABC" value="'+_chEsc((c.aka||[]).join(', '))+'"></label>'
@@ -12289,6 +12289,11 @@ function _chLogoTile(src){
       for(let y=0;y<H;y++) for(let x=0;x<W;x++){ const k=(y*W+x)*4; if(d[k+3]<16){ clear=true; continue; }
         if(x<x0)x0=x; if(y<y0)y0=y; if(x>x1)x1=x; if(y>y1)y1=y; if(((x+y)&7)===0){ lum+=(0.2126*d[k]+0.7152*d[k+1]+0.0722*d[k+2])/255; n++; } }
       if(x1<0){ x0=0; y0=0; x1=W-1; y1=H-1; }
+      // REGISTER 1101 (Dave 31 Oct 06:33 "I did 600x360 and it does not fill it"): a FINISHED tile — no clear background,
+      // already the tile's shape (600×360 or any 5:3, within 3 %) — fills the tile edge to edge, exactly as made.
+      if(!clear && Math.abs(W/H-600/360)/(600/360)<=0.03){
+        const f=document.createElement('canvas'); f.width=600; f.height=360; f.getContext('2d').drawImage(img,0,0,600,360);
+        res(f.toDataURL('image/png')); return; }
       const sw=x1-x0+1, sh=y1-y0+1, ar=sw/Math.max(1,sh);
       const box=clear?(ar>=2.2?[0.70,0.42]:(ar>=1?[0.58,0.58]:[0.42,0.70])):[0.86,0.80];   // a finished square/box logo keeps more of the tile
       const sc=Math.min(600*box[0]/sw, 360*box[1]/sh), w=sw*sc, h=sh*sc;
