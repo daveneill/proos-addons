@@ -5025,7 +5025,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102652';
+const PROOS_BUILD='2026102653';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -9788,6 +9788,7 @@ const WIDGET_LIBRARY = [
   {id:'apps',      name:'App Shortcut', size:1, phone:['S'], hidden:true, requires:r=>!!(r&&r.id), desc:'One-tap launch for a favourite app'},
   {id:'musicfav',  name:'Music Favourite', size:1, phone:['S'], hidden:true, requires:()=>true, desc:'One-tap play for a favourite playlist, album or station'},   // 1073
   {id:'actfav',    name:'Activity Favourite', size:1, phone:['S'], hidden:true, requires:()=>true, desc:'One-tap start for a room\u2019s activity'},   // 1091
+  {id:'chfav',     name:'Channel Favourite', size:1, phone:['S'], hidden:true, requires:()=>true, desc:'One-tap channel on a room\u2019s TV'},   // 1105
   // ANY ONE THING (9 Sep 2026, register 377). Dave: "I want the ability to add
   // any device, scene, etc through a widget… I believe the widget list is
   // limited". Every other entry in this library is a CATEGORY — "Lights" means
@@ -10187,7 +10188,7 @@ function toggleWidgetSize(uid){
   const widgets=loadWidgetLayout();
   const w=widgets.find(x=>x.uid===uid);
   if(!w) return;
-  if(w.id==='apps'||w.id==='musicfav'||w.id==='actfav') return;   // app shortcuts, music and activity favourites are fixed 1x1 (1073, 1091)
+  if(w.id==='apps'||w.id==='musicfav'||w.id==='actfav'||w.id==='chfav') return;   // app shortcuts, music, activity and channel favourites are fixed 1x1 (1073, 1091, 1105)
   const def=WIDGET_LIBRARY.find(x=>x.id===w.id);
   const list=_wSizeList(def);
   if(list.length<2) return;
@@ -11048,6 +11049,12 @@ function renderWidgetContent(w){
         +(_art?`<img class="awt-cov" ${_artAttr(_art)} alt="" onload="this.previousElementSibling&&(this.previousElementSibling.style.display='none')" onerror="this.remove()"/>`:'')+`</span></div>`;
       setTimeout(()=>{ try{ _scanAuthImgs(document.getElementById('widget-grid')); }catch(e){} },0);
       return {icon, label:'Music', value:'', sub:'', html, _appTile:true, hsig:'musicfav:'+w.uid+':'+_mfKey(w)+':'+_art};
+    }
+    case 'chfav': {
+      // REGISTER 1105 (Dave 31 Oct 06:57: "the channels should be able to hold and favourite to the room page like the app, and
+      // music favourites"). The channel's logo tile (1098), or its number and name; a tap sends it to the TV it was saved from.
+      if(!w.room||!w.device||!w.channel) return {icon, label:'Channel', value:'', sub:'', _hide:true};
+      return {icon, label:'Channel', value:'', sub:'', html:_cfHTML(w), _appTile:true, hsig:'chfav:'+w.uid+':'+w.channel+':'+(w.logo_tile||'')};
     }
     case 'actfav': {
       // REGISTER 1091 (Dave 30 Oct 14:29: "from an activities screen you can then hold and favourite an activity to the area or
@@ -12631,7 +12638,7 @@ function renderWidgetGrid(){
   for(const w of widgets){
     const def=WIDGET_LIBRARY.find(x=>x.id===w.id);
     if(!def) continue;   // unknown id skips ITSELF, never aborts the grid (3 Aug)
-    const _fx1=w.id==='apps'||w.id==='musicfav'||w.id==='actfav';   // fixed 1x1 (1073, 1091)
+    const _fx1=w.id==='apps'||w.id==='musicfav'||w.id==='actfav'||w.id==='chfav';   // fixed 1x1 (1073, 1091, 1105)
     const size=_fx1?1:(w.size||def.size||1);   // app shortcuts are fixed 1x1
     const dims=_fx1?{w:1,h:1}:_widgetDims(w);
     const data=renderWidgetContent(w);
@@ -19802,7 +19809,12 @@ function _tvRenderChannels(b){
 }
 function _tvBindChannels(b){
   b.querySelectorAll('[data-tk]').forEach(x=>_atvPress(x,{tap:()=>_tvKey(x.dataset.tk)}));
-  b.querySelectorAll('[data-ch]').forEach(x=>x.onclick=()=>_tvSendChannel(x.dataset.ch));
+  b.querySelectorAll('[data-ch]').forEach(x=>{   // a tap sends it (a click, as before); 1105: a hold puts it on a page instead
+    const stop=()=>clearTimeout(x._cht);
+    x.addEventListener('pointerdown',()=>{ x._chHeld=false; stop(); x._cht=setTimeout(()=>{ x._chHeld=true; _tvChHold(x.dataset.ch); },450); });
+    ['pointerup','pointerleave','pointercancel'].forEach(n=>x.addEventListener(n,stop));
+    x.addEventListener('contextmenu',ev=>ev.preventDefault());
+    x.onclick=()=>{ if(x._chHeld){ x._chHeld=false; return; } _tvSendChannel(x.dataset.ch); }; });
   b.querySelectorAll('[data-pad]').forEach(x=>x.onclick=()=>_tvPad(x.dataset.pad));
   const w=b.querySelector('[data-act="watchtv"]'); if(w) w.onclick=()=>_tvSource('TV');
   _tvBindBox(b);
@@ -19823,6 +19835,41 @@ function _tvSend(body, label){
     .catch(()=>_atvToast('Could not reach ProOS Core'));
 }
 function _tvSendChannel(id){ _tvSend({channel:id}); }
+// REGISTER 1105: hold a channel → put it on this room's page or on Home, as music and activity favourites are (1073, 1091)
+function _tvChHold(id){
+  const ch=_atv&&_atv.ch, c=ch&&(ch.chans||[]).concat(ch.favs||[]).find(x=>(x.channel||x.id)===id), r=_atv&&_atv.room; if(!c||!r) return;
+  const ri=(CONFIG.rooms||[]).indexOf(r);
+  const entry={room:r.id, device:_atv.e, channel:c.channel||c.id, number:c.number, name:c.name, logo_tile:c.logo_tile||''};
+  _atvPop('<div class="atv-poph"><b>'+_hEsc(c.name)+' · '+_hEsc(c.number)+'</b></div><div class="atv-npb" style="flex-direction:column;align-items:stretch">'
+    +(ri>=0?'<button type="button" class="atv-pill tvp-pri" data-to="'+ri+'">Add to '+_hEsc(r.name)+' Page</button>':'')
+    +'<button type="button" class="atv-pill" data-to="-1">Add to Home</button></div>',
+    pop=>pop.querySelectorAll('[data-to]').forEach(bt=>bt.onclick=()=>{ _atvPopClose(); _cfAdd(parseInt(bt.dataset.to,10), entry); }));
+}
+function _cfAdd(idx, entry){
+  if(!entry||!entry.room||!entry.device||!entry.channel||(idx!==-1 && !(idx>=0))) return;
+  const was=curRoom; let added=false, dup=false;
+  try{ curRoom=idx; const list=loadWidgetLayout();
+    dup=list.some(w=>w&&w.id==='chfav'&&w.device===entry.device&&w.channel===entry.channel);
+    if(!dup){ list.push(Object.assign({uid:_newWidgetUid(), id:'chfav'}, entry)); saveWidgetLayout(list); added=true; }
+  }catch(e){} finally{ curRoom=was; }
+  const where=idx===-1?'Home':(((CONFIG.rooms[idx]&&CONFIG.rooms[idx].name)||'room')+' page');
+  try{ showToast(dup?('Already on '+where):added?('Added to '+where):'Couldn\u2019t add it'); }catch(e){}
+  if(added && curRoom===idx){ try{ renderWidgetGrid(); }catch(e){} }
+}
+// the tile: the logo it was saved with, else a logo of the channel's name if one is added later, else its number and name
+function _cfHTML(w){
+  const slug=w.logo_tile||('channel_'+String(w.name||'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,''));
+  return '<div class="aw-full aw-true" data-cfroom="'+_hEsc(w.room)+'" data-cfdev="'+_hEsc(w.device)+'" data-cfch="'+_hEsc(w.channel)+'" onclick="event.stopPropagation();_cfTap(this)">'
+    +'<span class="awt awt-true cf-tile" role="img" aria-label="'+_hEsc(w.name)+'"><span class="cf-num"><b>'+_hEsc(w.number)+'</b><i>'+_hEsc(w.name)+'</i></span>'
+    +'<img class="cf-logo" src="'+proosCoreBase()+'/apps/art/tile/'+_hEsc(slug)+'.png" alt="" onload="this.previousElementSibling&&(this.previousElementSibling.style.display=\'none\')" onerror="this.remove()"></span></div>';
+}
+// a tap: that channel to that TV, through the room's channel route (the TV page's own) — "Sent", never "on"
+function _cfTap(el){
+  const room=el.dataset.cfroom, dev=el.dataset.cfdev, ch=el.dataset.cfch; if(!room||!dev||!ch) return;
+  return _coreFetch(proosCoreBase()+'/areas/'+encodeURIComponent(room)+'/channels/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({device:dev, channel:ch})},15000)
+    .then(r=>r.json().then(j=>({ok:r.ok,j:j}))).then(({ok,j})=>{ showToast((!ok||j.error)?(j.error||'The TV didn\u2019t take it'):('Sent '+j.sent+(j.name?' \u00b7 '+j.name:''))); })
+    .catch(()=>showToast('Could not reach ProOS Core'));
+}
 function _tvSendNumber(n){ _tvSend({number:n}); }
 function _tvKey(k){
   if(!_tvHasKeyFor(k)){ _atvToast('This TV has no '+k+' key ProOS can send'); return; }
@@ -22560,6 +22607,9 @@ document.addEventListener('click', function(e){
 #proos-acard .pac-spin::after{content:'';width:34px;height:34px;border-radius:50%;border:3px solid rgba(255,255,255,.25);border-top-color:#fff;animation:pacSpin var(--m-listen) linear infinite}
 #proos-acard .pac-t.busy .pac-spin{display:flex}
 .af-tile{position:relative;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.cf-tile{position:relative;background:linear-gradient(160deg,#2a2d35,#17191e);display:flex;align-items:center;justify-content:center;overflow:hidden}   /* 1105 */
+.cf-tile .cf-num{display:flex;flex-direction:column;align-items:center;line-height:1.1;color:#fff}.cf-tile .cf-num b{font:700 28px Inter,sans-serif}.cf-tile .cf-num i{font-style:normal;font-size:12px;opacity:.7}
+.cf-tile .cf-logo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .af-tile svg{width:30px;height:30px;color:#fff}
 .af-tile .pac-art{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .af-tile .af-spin{display:none;position:absolute;inset:0;z-index:2;background:rgba(0,0,0,.5);align-items:center;justify-content:center}
