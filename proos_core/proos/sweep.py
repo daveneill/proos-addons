@@ -192,6 +192,17 @@ def check_integrations(r, now, members, ent_dev, dev_entries):
     return out
 
 
+def _resting_off_network(w, entity_state=None):
+    """A display that itself reports off/standby, and that the live watch does not hold as a fault, is RESTING when it
+    is gone from the network — the same rule the live watch uses (watcher.OFFNET_WHEN_OFF), never a second copy of it.
+    A display that says on, says nothing, or is faulted on the live watch is not covered."""
+    from .watcher import OFFNET_WHEN_OFF
+    w = w or {}
+    st = str(w.get("state") or entity_state or "").lower()
+    return (w.get("kind") in OFFNET_WHEN_OFF and st in ("off", "standby")
+            and w.get("status") in ("ok", "standby"))
+
+
 def check_devices(r, now, members, ent_dev, since):
     try:
         items = (r.watchers() or {}).get("items") or []
@@ -235,6 +246,14 @@ def check_devices(r, now, members, ent_dev, since):
         elif wat and wat >= since:
             out.append(_item("3", subj, CONFIRMED, "%s was on the network within the last day (left at %s — %s)"
                              % (name, _when(wat, now), ws), row.get("last_changed")))
+        elif _resting_off_network(w, (states.get(eid) or {}).get("state")):
+            # REGISTER 1087 — Dave's 9 Aug ruling (register, Core 1.0.382), restated 30 Oct 12:27: "a TV does not stay
+            # on the network when in standby as it uses its MAC address to turn it on". The live watch has followed it
+            # since August (watcher.OFFNET_WHEN_OFF); this daily check never did, and filed a resting TV as a fault.
+            _ds = str((w or {}).get("state") or (states.get(eid) or {}).get("state") or "").lower()
+            out.append(_item("3", subj, CONFIRMED, "%s reports %s and has been off the network since %s (%s) — a TV "
+                                                   "leaves the network in standby and is woken by its MAC address"
+                             % (name, _ds, _when(wat, now), ws), row.get("last_changed")))
         else:
             out.append(_item("3", subj, PROBLEM, "%s — the network has not seen it since %s (%s): more than a "
                                                  "day, the sweep's own period." % (name, _when(wat, now), ws),
