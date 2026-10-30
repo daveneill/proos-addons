@@ -3027,7 +3027,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102627';
+const PROOS_BUILD='2026102628';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -10575,7 +10575,7 @@ async function _rhHealMemberAreas(rec){
   return {healed,failed};
 }
 async function avRoomCommit(){
-  const rec=_rhRec(); if(!rec){ toast('This room has no devices yet'); return; }
+  const rec=_rhRec(); if(!rec){ toast(_roomHasAV(_roomHubArea)?'Choose this room\u2019s display or speakers first':'No AV in this room \u2014 its lights and other devices work without saving'); return; }   // 1109
   const _blocked=avCommitBlocker(rec);
   if(_blocked){ rhNeedsDisplay(_blocked); return; }
   const _noIn=avSourcesWithoutInput(rec);
@@ -13583,6 +13583,37 @@ function roomStateClass(state){
   if(s==='on') return 'active';   // 1080: Core's On is a device reading; "manual" claimed who started it (never measured)
   if(s==='idle') return 'idle';
   return 'active';
+}
+// REGISTER 1109 (Dave 31 Oct 08:47: Pro's Home must "work like the room tiles on dashboard — if anything is on in the room it
+// shows and says what it says on the dashboard room tiles"). THE DASHBOARD'S ROOM TILE LINE (_ppLine), read from Pro's own
+// copy of the same readings: Core's room label (and its title, or its sentence for "On"); else the room's lights — one
+// light by name with its level (or "On"), several as "N lights on"; else Off, or Core's reason for Off ("Art Mode"). The
+// lights are the dashboard's: light.* in the room (the entity's area, else its device's), not hidden.
+function _proRoomLine(aid, roomName, allst){
+  const byId={}; (allst||[]).forEach(s=>{ if(s&&s.entity_id) byId[s.entity_id]=s; });
+  const A=(e,k)=>((byId[e]||{}).attributes||{})[k];
+  const v='sensor.proos_activity_'+aid, s=(byId[v]||{}).state||'';
+  let k=null;
+  if(s && s!=='unavailable' && A(v,'provisional')!==true){ if(s!=='unknown') k=s; else if(A(v,'label')==='No Reading') k='unknown'; }
+  if(k && k!=='off'){ const lbl=String(A(v,'label')||''), tt=A(v,'media_title');
+    if(lbl==='On' && A(v,'sentence')) return String(A(v,'sentence'));
+    if(lbl) return lbl+(tt?(' · '+tt):''); }
+  const devArea={}; (_devices||[]).forEach(d=>{ if(d&&d.id) devArea[d.id]=d.area_id; });
+  const on=(_ents||[]).filter(e=>e&&/^light\./.test(e.entity_id||'')&&!(e.hidden===true||e.hidden_by)&&((e.area_id||devArea[e.device_id])===aid)
+    &&(byId[e.entity_id]||{}).state==='on').map(e=>e.entity_id);
+  if(on.length===1){ const e=on[0]; let n=String(A(e,'friendly_name')||e.split('.')[1].replace(/_/g,' '));
+    if(roomName && n.toLowerCase().indexOf(String(roomName).toLowerCase()+' ')===0 && n.length>roomName.length+1) n=n.slice(roomName.length+1);
+    n=n.charAt(0).toUpperCase()+n.slice(1);
+    const m=A(e,'supported_color_modes'), dim=Array.isArray(m)&&m.some(x=>x!=='onoff');
+    const b=parseFloat(A(e,'brightness')), pct=isFinite(b)?Math.max(1,Math.round(b/2.55)):100;
+    return n+(dim?(' · '+pct+'%'):' · On'); }
+  if(on.length>1) return on.length+' lights on';
+  return (k==='off' && A(v,'label')) ? String(A(v,'label')) : 'Off';
+}
+// a room with AV: a media player in the room (the entity's area, else its device's), not hidden. No AV, nothing to save.
+function _roomHasAV(aid){
+  const devArea={}; (_devices||[]).forEach(d=>{ if(d&&d.id) devArea[d.id]=d.area_id; });
+  return (_ents||[]).some(e=>e&&/^media_player\./.test(e.entity_id||'')&&!(e.hidden===true||e.hidden_by)&&!e.disabled_by&&((e.area_id||devArea[e.device_id])===aid));
 }
 function roomStateWord(cls){
   return cls==='active'?'Active':(cls==='manual'?'On · manual'
@@ -19424,7 +19455,10 @@ async function renderHealth(){
   // rooms are quiet · See all rooms ›". Dave: "I don't need the other rooms
   // quiet — it's an installer pro area, they are not idiots that need
   // everything explained." The Home tab is where every room lives.
-  const _busy=rooms.filter(r=>roomStateClass(r.state)!=='off'||((r.attributes||{}).provisional===true));
+  // REGISTER 1109: a room shows when anything in it is on — the dashboard room tile's own rule and words (_proRoomLine)
+  const _lan0={}; (_areas||[]).forEach(x=>{ if(x&&x.area_id) _lan0[x.area_id]=x.name; });
+  const _rid=r=>r.entity_id.replace('sensor.proos_activity_','');
+  const _busy=rooms.filter(r=>_proRoomLine(_rid(r),_lan0[_rid(r)]||(r.attributes||{}).area,allst)!=='Off');
   if(rh) rh.innerHTML=homeRow+(_busy.length?'<div class="hlt-rooms">'+_busy.sort((a,b)=>
       (ord[roomStateClass(a.state)]-ord[roomStateClass(b.state)])
       ||(a.attributes.area||'').localeCompare(b.attributes.area||'')).map(r=>{
@@ -19444,20 +19478,19 @@ async function renderHealth(){
     // 238) and the inference engine's opinion (3 Aug) are not deleted from
     // the product — they ride the Master Log rows and the room hub, where
     // an installer digs. A conscious reversal of 238 for THESE rows only.
-    const sent=proRoomSentence(r.state,a,allst,_lan[aid]||a.area||aid);
+    const sent=_proRoomLine(aid,_lan[aid]||a.area,allst);   // 1109: the dashboard tile's words
     const sub='';
     // MIRROR (13 Aug): same words as the dashboard's row — lights clause
     // stripped (Dave, 9 Aug). The local compose runs ONLY when the attribute
     // is absent (an old Core): a served-but-empty line is Core's own answer.
-    let el=_stripLightsWords((a.env_line)||''); if(!el&&a.env_line==null){ try{ el=_stripLightsWords(envLineText(envSummary(aid,_ents,_devices,allst))); }catch(e){ el=''; } }
+    const el='';   // 1109: the tile's line already says what is on
     return '<div class="rh-mirror hlt-mirror" onclick="openRoomHub(\''+esc(aid)+'\')">'
       +'<div class="art">'+(_roomMediaOn(a,off)?'▶':'◼')+'</div>'
       +'<div style="flex:1;min-width:0"><div class="hm-room">'+esc(_lan[aid]||a.area||aid)+'</div>'
       +((sent||el)?'<div class="hm-act">'+esc([sent,el].filter(Boolean).join(' \u00b7 '))+'</div>':'')
       +(sub?'<div class="hm-sub">'+sub+'</div>':'')
 +'</div>'
-      +(a.provisional?'<span class="hlt-chip prov" style="margin-right:6px">provisional</span>':'')
-      +'<span class="hlt-chip '+cls+'">'+esc((typeof a.label==='string'&&a.label)?a.label:roomStateWord(sc))+'</span></div>';
+      +(a.provisional?'<span class="hlt-chip prov" style="margin-right:6px">provisional</span>':'')+'</div>';   // 1109: the line is the room's word
   }).join('')+'</div>'
   :(rooms.length?'':'<div class="empty"><div class="et">No saved rooms</div></div>'));
 }
@@ -21299,7 +21332,8 @@ function v3RoomDecorate(){
   const needSave='Save the room first';
   setHTML(ov,'<div class="v3hero" style="'+(u?'background-image:url(\''+esc(u)+'\')':'')+'"><span class="hx" onclick="openRoomEdit(\''+esc(_roomHubArea)+'\')">Edit</span><div class="hn">'+esc((a&&a.name)||'Room')+'</div><div class="hs">'+n+' device'+(n===1?'':'s')+(committed?' · committed':' · not saved yet')+'</div></div>'
     +'<div class="v3sec"><div class="h"><span>Set Up This Room</span></div><div class="v3rows v3rgrid">'
-    +row('av','tv','AV Setup',avSub,'<span class="v3chip '+(committed?'ok':'amber')+'">'+(committed?'Committed':'Not Saved')+'</span>')
+    +((!rec && !_roomHasAV(_roomHubArea))?row('av','tv','AV Setup','No AV in this room \u2014 its lights and other devices work without saving','<span class="v3chip">No AV</span>')   // 1109
+      :row('av','tv','AV Setup',avSub,'<span class="v3chip '+(committed?'ok':'amber')+'">'+(committed?'Committed':'Not Saved')+'</span>'))
     +row('devices','plug','Devices',n+' device'+(n===1?'':'s')+' — names, aliases, Shows As','', false,"v3Devices('"+esc(_roomHubArea)+"')")
     +row('activities','play','Activities',actNames.length?actNames.join(' · '):(committed?'None yet':needSave),'<span class="v3ct">'+actNames.length+'</span>',true)
     +row('shortcuts','grid','App Shortcuts',sc.length?sc.map(x=>x.name||x.app).join(' · '):'Tested on the device before they\'re added','<span class="v3ct">'+sc.length+'</span>',true)
