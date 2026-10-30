@@ -5019,7 +5019,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102644';
+const PROOS_BUILD='2026102645';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -22449,7 +22449,7 @@ document.addEventListener('click', function(e){
 #proos-acard{position:fixed;inset:0;z-index:10050;display:none;align-items:center;justify-content:center;padding-right:16px;padding-bottom:16px;padding-left:16px;box-sizing:border-box}
 #proos-acard.open{display:flex}
 #proos-acard .pac-scrim{position:absolute;inset:0;background:rgba(0,0,0,.5);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
-#proos-acard .pac-card{position:relative;width:min(520px,100%);max-height:calc(100vh - 32px);overflow:auto;box-sizing:border-box;padding:22px;border-radius:28px;color:#fff;
+#proos-acard .pac-card{position:relative;width:max-content;min-width:min(420px,100%);max-width:100%;max-height:calc(100vh - 32px);overflow:auto;box-sizing:border-box;padding:22px;border-radius:28px;color:#fff;
   background:rgba(24,24,30,.78);-webkit-backdrop-filter:blur(30px) saturate(160%);backdrop-filter:blur(30px) saturate(160%);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12),0 24px 60px rgba(0,0,0,.55)}
 #proos-acard .pac-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
 #proos-acard .pac-eb{font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.66);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -22468,7 +22468,11 @@ document.addEventListener('click', function(e){
 #proos-acard .pac-truth{margin-top:14px;min-height:56px}
 #proos-acard .pac-big{font-size:28px;font-weight:600;letter-spacing:-.02em;line-height:1.15;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #proos-acard .pac-sub{font-size:14.5px;color:rgba(255,255,255,.85);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#proos-acard .pac-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin:20px 0 18px}
+/* 1090 (Dave 14:27): a tile is the SAME SIZE as a favourites widget on the room page — 200 wide where the widget grid is
+   180–200, and on a phone two across like the favourites; the card grows to hold them. */
+#proos-acard{--pac-tw:200px}
+#proos-acard .pac-tiles{display:grid;grid-template-columns:repeat(3,var(--pac-tw));gap:14px;margin:20px 0 18px}
+@media(max-width:768px){#proos-acard{--pac-tw:calc((100vw - 62px) / 2);padding-right:12px;padding-left:12px}#proos-acard .pac-card{width:100%;padding:14px 14px 16px}#proos-acard .pac-tiles{gap:10px}}
 #proos-acard .pac-t{display:flex;flex-direction:column;align-items:stretch;gap:8px;border:0;background:none;padding:0;font:inherit;color:#fff;cursor:pointer;min-width:0}
 #proos-acard .pac-tile{position:relative;aspect-ratio:5/3;border-radius:16px;display:flex;align-items:center;justify-content:center;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);transition:box-shadow var(--m-tap) var(--e-standard),opacity var(--m-tap) var(--e-standard)}
 #proos-acard .pac-tile svg{width:32px;height:32px}
@@ -22492,6 +22496,14 @@ document.addEventListener('click', function(e){
 #proos-acard .pac-eq i:nth-child(2){animation-delay:-.35s}#proos-acard .pac-eq i:nth-child(3){animation-delay:-.7s}
 @keyframes pacEq{0%,100%{height:3px}50%{height:12px}}
 @keyframes pacPulse{0%,100%{opacity:1}50%{opacity:.55}}
+/* 1090: the spinning circle while an activity this card started is coming up (Dave 14:22) */
+#proos-acard .pac-spin{display:none;position:absolute;inset:0;z-index:2;border-radius:16px;background:rgba(0,0,0,.5);align-items:center;justify-content:center}
+#proos-acard .pac-spin::after{content:'';width:34px;height:34px;border-radius:50%;border:3px solid rgba(255,255,255,.25);border-top-color:#fff;animation:pacSpin var(--m-listen) linear infinite}
+#proos-acard .pac-t.busy .pac-spin{display:flex}
+#proos-acard .pac-off .pac-ospin{display:none;width:16px;height:16px;border-radius:50%;border:2px solid rgba(42,23,0,.3);border-top-color:#2a1700;animation:pacSpin var(--m-listen) linear infinite}
+#proos-acard .pac-off.busy .pac-ospin{display:inline-block}
+#proos-acard .pac-off.busy svg{display:none}
+@keyframes pacSpin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion: reduce){#proos-acard .pac-t.go .pac-tile,#proos-acard .pac-eq i{animation:none}}
 </style>
 <script>
@@ -22504,6 +22516,11 @@ function _pacIsOn(r){ var s=String(st(_pacV(r))||''); return !!s && ['off','unkn
 function _pacEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
 function _pacCap(s){ s=String(s||''); return s ? s.charAt(0).toUpperCase()+s.slice(1) : ''; }
 var _pacRoom=null, _pacChooser=false, _pacTimer=null, _pacSig='';
+// 1090 — what this card started and is waiting on: {room, key, off, t0}. Cleared when Core confirms it (then the card
+// closes and the activity's control page opens), or after Core's own start window with no confirmation (then it was
+// only sent — Dave 30 Oct 06:56: "if a device can not confirm then it can only send" — and nothing moves).
+var _pacPending=null, _PAC_WAIT_MS=90000;   // = Core's BOOT_GRACE_S (cmdstate), so the card gives up when Core does
+var _pacLoadT=Date.now();                    // one fresh fetch of each tile picture per page load (1090)
 function _pacActs(r){
   var k=window._proosAreaKey?window._proosAreaKey(r):(r&&r.id);
   var l=(window._proosActsByArea&&window._proosActsByArea[k])||null;
@@ -22557,7 +22574,7 @@ function _pacEnsure(){
     +'<div class="pac-rooms" id="pac-rooms"></div>'
     +'<div class="pac-truth"><div class="pac-big" id="pac-big"></div><div class="pac-sub" id="pac-sub"></div></div>'
     +'<div class="pac-tiles" id="pac-tiles"></div>'
-    +'<button type="button" class="pac-off" id="pac-off"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v9M6.3 7.3a8 8 0 1 0 11.4 0"/></svg><span id="pac-off-t">Off</span></button>'
+    +'<button type="button" class="pac-off" id="pac-off"><span class="pac-ospin" aria-hidden="true"></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v9M6.3 7.3a8 8 0 1 0 11.4 0"/></svg><span id="pac-off-t">Off</span></button>'
     +'</div>';
   document.body.appendChild(el);
   el.querySelector('.pac-scrim').addEventListener('click', closeActivityCard);
@@ -22568,10 +22585,15 @@ function _pacEnsure(){
   });
   el.querySelector('#pac-tiles').addEventListener('click', function(ev){
     var b=ev.target.closest('.pac-t'); if(!b||!_pacRoom) return;
-    _pacFire(b.dataset.script);
+    var tr=_pacTruth(_pacRoom);
+    if(tr.key===b.dataset.key && !tr.starting){ _pacGoControl(_pacRoom, b.dataset.key); return; }   // already on → its page
+    _pacPending={room:_pacRoom.id, key:b.dataset.key, off:false, t0:Date.now()};
+    _pacFire(b.dataset.script); _pacRender();
   });
   el.querySelector('#pac-off').addEventListener('click', function(){
-    var b=document.getElementById('pac-off'); if(b && b.dataset.script) _pacFire(b.dataset.script);
+    var b=document.getElementById('pac-off'); if(!(b && b.dataset.script)) return;
+    _pacPending={room:_pacRoom.id, key:'off', off:true, t0:Date.now()};
+    _pacFire(b.dataset.script); _pacRender();
   });
   return el;
 }
@@ -22628,15 +22650,19 @@ function _pacRender(){
       var k=_pacKind(a), art=_pacArt(k, a, r);
       return '<button type="button" class="pac-t k-'+k+'" data-key="'+_pacEsc(a.key)+'" data-script="'+_pacEsc(a.script)+'">'
         +'<span class="pac-tile">'+_pacGlyph(k)
-        +(art?'<img class="pac-art" src="'+_pacEsc(art)+'" alt="" onerror="this.remove()">':'')
-        +'<span class="pac-badge">On</span></span>'
+        +(art?'<img class="pac-art" src="'+_pacEsc(art+'?t='+_pacLoadT)+'" alt="" onerror="this.remove()">':'')
+        +'<span class="pac-badge">On</span><span class="pac-spin" aria-hidden="true"></span></span>'
         +'<span class="pac-tl">'+_pacEsc(_pacName(a))+'</span></button>';
     }).join('') : '<div class="pac-none">No activities are commissioned in this room yet.</div>';
-    tilesEl.style.gridTemplateColumns='repeat('+_pacCols(watch.length||1)+',minmax(0,1fr))';
   }
+  var _cols=_pacCols(watch.length||1); if(window.innerWidth<=768) _cols=Math.min(_cols,2);   // a phone: two across, like its favourites
+  var _gtc='repeat('+_cols+',var(--pac-tw))'; if(tilesEl.style.gridTemplateColumns!==_gtc) tilesEl.style.gridTemplateColumns=_gtc;
+  if(_pacPending && _pacSettle(r, tr)) return;
+  var pend=(_pacPending && _pacPending.room===r.id) ? _pacPending : null;
   var anyOn=false;
   tilesEl.querySelectorAll('.pac-t').forEach(function(b){
     var mine = tr.key===b.dataset.key, go = mine && tr.starting, on = mine && !tr.starting;
+    b.classList.toggle('busy', !!(pend && !pend.off && pend.key===b.dataset.key));
     b.classList.toggle('on', on); b.classList.toggle('go', go); if(on||go) anyOn=true;
     b.setAttribute('aria-pressed', String(on));
     b.setAttribute('aria-label', b.querySelector('.pac-tl').textContent+(on?' — on':(go?' — starting':'')));
@@ -22646,6 +22672,30 @@ function _pacRender(){
   off.dataset.script = offAct ? offAct.script : '';
   document.getElementById('pac-off-t').textContent = r.name+' Off';
   off.classList.toggle('lit', _pacIsOn(r));
+  off.classList.toggle('busy', !!(pend && pend.off));
+}
+// 1090 — Is what this card started done? Core confirms the activity (its state is that key, no longer starting) → close
+// the card and open that activity's control page; Off confirmed (state off) → close the card. Past Core's start window
+// with neither → stop the spinner and leave the card showing what Core says. Returns true when the card closed.
+function _pacSettle(r, tr){
+  var p=_pacPending; if(!p || p.room!==r.id) return false;
+  if(p.off ? (tr.s==='off') : (tr.key===p.key && !tr.starting)){
+    _pacPending=null; closeActivityCard();
+    if(!p.off) _pacGoControl(r, p.key);
+    return true;
+  }
+  if(Date.now()-p.t0 > _PAC_WAIT_MS) _pacPending=null;   // only sent — nothing moves
+  return false;
+}
+// the control page for an activity: its source's own page (Apple TV, Shield), the TV's for the TV's own activity — through
+// openPlayer, which already routes each device to its page (registers 1035/1053/1058) with the room's volume
+function _pacGoControl(r, key){
+  try{
+    var acts=_pacActs(r)||[], a=acts.filter(function(x){ return x&&x.key===key; })[0];
+    var e=(a&&a.source_eid) || _pacDisplay(r);
+    closeActivityCard();
+    if(e && typeof openPlayer==='function') openPlayer(e);
+  }catch(err){}
 }
 function _pacKey(ev){ if(ev.key==='Escape') closeActivityCard(); }
 function openActivityCard(){
@@ -22656,12 +22706,12 @@ function openActivityCard(){
   _pacRender();
   el.classList.add('open');
   document.addEventListener('keydown', _pacKey);
-  clearInterval(_pacTimer); _pacTimer=setInterval(function(){ try{ _pacRender(); }catch(e){} }, 1000);
+  clearInterval(_pacTimer); _pacTimer=setInterval(function(){ try{ _pacRender(); }catch(e){} }, 500);
   try{ var x=el.querySelector('.pac-x'); x&&x.focus({preventScroll:true}); }catch(e){}
 }
 function closeActivityCard(){
   var el=document.getElementById('proos-acard'); if(el) el.classList.remove('open');
-  clearInterval(_pacTimer); _pacTimer=null;
+  clearInterval(_pacTimer); _pacTimer=null; _pacPending=null;   // closed by hand: nothing opens later on its own
   document.removeEventListener('keydown', _pacKey);
 }
 </script>
