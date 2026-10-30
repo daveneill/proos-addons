@@ -3290,7 +3290,9 @@ html[data-link="remote"]{--m-tap:90ms;--m-move:200ms;--m-page:300ms}
 
 /* THE APPLE TV PAGE (register 1035) — the approved mockup (docs/mockups/ProOS_Apple_TV_Mockups_2026-10-27.html): near-black,
    dark glass, the room at the top, four tabs, the bottom bar stays above it, popups are centred cards. */
-#atv-page{--atv-glass:rgba(255,255,255,.055);--atv-glass2:rgba(255,255,255,.09);--atv-hair:rgba(255,255,255,.09);--atv-ink2:rgba(255,255,255,.64);--atv-ink3:rgba(255,255,255,.38);
+/* 1092 (Dave 30 Oct 14:54): every tile and button on the Apple TV / TV / Shield pages wears the interface's own tile shade —
+   the widgets' glass (rgba(22,22,28,.42), lit .5) — instead of a light white wash. */
+#atv-page{--atv-glass:rgba(22,22,28,.42);--atv-glass2:rgba(30,30,38,.5);--atv-hair:rgba(255,255,255,.09);--atv-ink2:rgba(255,255,255,.64);--atv-ink3:rgba(255,255,255,.38);
   --atv-on:#5FE3A1;--atv-bad:#FF7A6B;--atv-dim:rgba(255,255,255,.45);--atv-sel:#6FA8FF;
   position:fixed;inset:0;z-index:55;display:none;color:#fff;background:#000;overflow:hidden;
   padding:0 max(28px,env(safe-area-inset-right,0px)) calc(var(--proos-floor,0px) + var(--proos-dock-h,78px) + 14px) max(28px,env(safe-area-inset-left,0px));
@@ -3302,7 +3304,10 @@ html[data-link="remote"]{--m-tap:90ms;--m-move:200ms;--m-page:300ms}
 /* REGISTER 1072 (Dave 29 Oct 19:13: the Apple TV, Shield and TV pages should "have the background like every other page
    … rather than the black"): the room's own picture, blurred and darkened as the other full pages use it. No picture → the
    black ground above. */
-#atv-page .atv-bg.photo{inset:-80px;background:#0b0b10 center/cover no-repeat;filter:blur(28px) brightness(.36);transform:translateZ(0)}
+#atv-page .atv-bg.photo{inset:-80px;background:#0b0b10 center/cover no-repeat;filter:blur(28px);transform:translateZ(0)}
+/* 1092 (Dave 14:54, against Music and Media): the SAME darkening every full page gets — the room shade (#room-bg::after)
+   under the pages' own 60% black (.page:not(#page-home)) — not a lighter one of its own. */
+#atv-page .atv-bg.photo::after{content:'';position:absolute;inset:0;background:linear-gradient(rgba(0,0,0,.60),rgba(0,0,0,.60)),var(--proos-shade,linear-gradient(to bottom,rgba(0,0,0,0.70) 0%,rgba(0,0,0,0.40) 22%,rgba(0,0,0,0.30) 38%,rgba(0,0,0,0.60) 55%,rgba(0,0,0,0.78) 70%,rgba(0,0,0,0.85) 100%))}
 #atv-page .atv-hdr{padding:max(22px,var(--proos-sat)) 0 0;display:flex;align-items:center;gap:18px;min-height:56px;flex:none}
 #atv-page .atv-hl{display:flex;flex-direction:column;gap:2px;min-width:180px;flex:1 1 0}
 #atv-page .atv-bk{display:flex;align-items:center;gap:2px;color:var(--atv-ink2);font-size:13px;padding:0;align-self:flex-start}#atv-page .atv-bk svg{width:16px;height:16px}#atv-page .atv-bk b{font-weight:500}
@@ -3319,8 +3324,8 @@ html[data-link="remote"]{--m-tap:90ms;--m-move:200ms;--m-page:300ms}
 #atv-page .atv-l.wide{min-width:0}
 #atv-page .atv-r.side{overflow-y:auto;scrollbar-width:none;gap:8px}
 /* touch surface / d-pad */
-#atv-page .atv-pad{position:relative;flex:1;min-height:220px;border-radius:26px;background:linear-gradient(160deg,rgba(255,255,255,.075),rgba(255,255,255,.03));box-shadow:inset 0 0 0 1px rgba(255,255,255,.08);overflow:hidden;touch-action:none}
-#atv-page .atv-pad.touching{background:linear-gradient(160deg,rgba(255,255,255,.11),rgba(255,255,255,.05))}
+#atv-page .atv-pad{position:relative;flex:1;min-height:220px;border-radius:26px;background:rgba(22,22,28,.42);box-shadow:inset 0 0 0 1px rgba(255,255,255,.10);overflow:hidden;touch-action:none}
+#atv-page .atv-pad.touching{background:rgba(30,30,38,.55)}
 #atv-page .atv-tog{position:absolute;top:12px;right:12px;display:flex;gap:2px;padding:3px;border-radius:999px;background:rgba(0,0,0,.45);z-index:2}
 #atv-page .atv-tog button{width:38px;height:30px;border-radius:999px;display:grid;place-items:center;color:var(--atv-ink3)}#atv-page .atv-tog button.on{background:rgba(255,255,255,.16);color:#fff}#atv-page .atv-tog svg{width:17px;height:17px}
 #atv-page .atv-tphint{position:absolute;left:0;right:0;bottom:22px;text-align:center;font-size:14px;color:var(--atv-ink2);line-height:1.5;pointer-events:none}#atv-page .atv-tphint span{font-size:12px;color:var(--atv-ink3)}
@@ -3329,7 +3334,7 @@ html[data-link="remote"]{--m-tap:90ms;--m-move:200ms;--m-page:300ms}
    from the pad's own shorter side (cqmin), so the ring is the same shape at every size */
 #atv-page .atv-pad{container-type:size;-webkit-touch-callout:none;-webkit-user-select:none}
 #atv-page .atv-dpad{position:absolute;inset:0;display:grid;place-items:center;--ok:min(118px,38cqmin);--dk:min(64px,21cqmin);--gap:min(14px,4cqmin);--d:calc(var(--ok) / 2 + var(--dk) / 2 + var(--gap))}
-#atv-page .atv-dpad .ok{width:var(--ok);height:var(--ok);border-radius:50%;background:rgba(255,255,255,.1);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);font-weight:600;font-size:18px;letter-spacing:.04em}
+#atv-page .atv-dpad .ok{width:var(--ok);height:var(--ok);border-radius:50%;background:rgba(30,30,38,.6);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);font-weight:600;font-size:18px;letter-spacing:.04em}
 #atv-page .atv-dpad .dk{position:absolute;color:var(--atv-ink2);width:var(--dk);height:var(--dk);left:calc(50% - var(--dk) / 2);top:calc(50% - var(--dk) / 2);display:grid;place-items:center;border-radius:999px}#atv-page .atv-dpad .dk svg{width:47%;height:47%}
 #atv-page .atv-dpad .dk.u{transform:translateY(calc(-1 * var(--d))) rotate(-90deg)}#atv-page .atv-dpad .dk.d{transform:translateY(var(--d)) rotate(90deg)}#atv-page .atv-dpad .dk.l{transform:translateX(calc(-1 * var(--d))) rotate(180deg)}#atv-page .atv-dpad .dk.r{transform:translateX(var(--d))}
 #atv-page .down{opacity:.6}
@@ -5019,7 +5024,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102646';
+const PROOS_BUILD='2026102647';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -18989,7 +18994,8 @@ function _atvPress(el, fn){
 // ── open / close ──────────────────────────────────────────────────────────────────────────────────────────────
 function atvOpen(e, vol){
   const room=CONFIG.rooms.find(r=>r.atv===e||r.media===e||(r.allPlayers&&r.allPlayers.includes(e)))||null;
-  _atv={e:e, vol:vol||e, ce:(window.entityConfigEntry||{})[e]||null, room:room, tab:(_ATV_TABS.includes(_atvLS('tab'))?_atvLS('tab'):'remote'),
+  _atv={e:e, vol:vol||e, ce:(window.entityConfigEntry||{})[e]||null, room:room, tab:'remote',   // 1092 (Dave 14:55): a control page always opens on Remote, never the last tab used
+       
         mode:(_atvLS('mode')==='dpad'?'dpad':'touch'), np:null, accounts:null, kbText:'', search:{q:'',res:null,busy:false,tv:_atvLS('tv')!=='0'}};
   let p=document.getElementById('atv-page');
   if(!p){ p=document.createElement('div'); p.id='atv-page'; document.body.appendChild(p); }
@@ -19635,7 +19641,7 @@ function tvShouldOpen(e){ return !!(states[e]&&states[e].state==='on'); }
 function tvOpen(e, vol){
   const room=CONFIG.rooms.find(r=>r.media===e||r.display===e||(r.allPlayers&&r.allPlayers.includes(e)))||null;
   const t=_atvLS('tv_tab');
-  _atv={kind:'tv', e:e, vol:vol||e, room:room, tab:_TV_TABS.includes(t)?t:'channels', ch:null, sent:null, typed:'', padOpen:false};
+  _atv={kind:'tv', e:e, vol:vol||e, room:room, tab:'remote' /* 1092: always Remote first */, ch:null, sent:null, typed:'', padOpen:false};
   let p=document.getElementById('atv-page');
   if(!p){ p=document.createElement('div'); p.id='atv-page'; document.body.appendChild(p); }
   p.classList.add('open');
@@ -19838,7 +19844,7 @@ function shShouldOpen(e){ return !!(states[e]&&states[e].state==='on'); }
 function shOpen(e, vol){
   const room=CONFIG.rooms.find(r=>r.media===e||(r.allPlayers&&r.allPlayers.includes(e)))||null;
   const t=_atvLS('sh_tab');
-  _atv={kind:'shield', e:e, vol:vol||e, room:room, tab:_SH_TABS.includes(t)?t:'remote', apps:null, appInfo:null, cast:null,
+  _atv={kind:'shield', e:e, vol:vol||e, room:room, tab:'remote' /* 1092: always Remote first */, apps:null, appInfo:null, cast:null,
         mode:(_atvLS('sh_mode')==='dpad'?'dpad':'touch')};   // 1064: Touch Pad or Arrows, as the Apple TV page
   let p=document.getElementById('atv-page');
   if(!p){ p=document.createElement('div'); p.id='atv-page'; document.body.appendChild(p); }
