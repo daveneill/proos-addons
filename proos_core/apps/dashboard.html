@@ -5025,7 +5025,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102651';
+const PROOS_BUILD='2026102652';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -12866,7 +12866,8 @@ function renderWidgetGrid(){
   // position the Add button a fixed gap above the ACTUAL nav top (referencing the nav element
   // directly, not scrollHeight or padding which can't be relied on), so it never lands behind it.
   if(rc){
-    if(_scrollWidgetsToBottom){
+    _keepBottom(rc);   // 1099: the new grid is watched too, so a late widget keeps a resting page at the bottom
+    if(_scrollWidgetsToBottom || rc._atBottom!==false){   // 1099: a page resting at the bottom stays there
       // REGISTER 469: this scrolled until the PILL cleared the floor, because
       // the pill was in the column and could end up under the band. Fixed
       // furniture cannot, so what is left is what it always meant after an
@@ -12905,13 +12906,33 @@ function renderWidgetGrid(){
 // renderWidgetGrid still restores the scroll across its own re-renders — a live
 // repaint must not jump under a finger — and this runs after it, so arriving
 // beats repainting.
+// REGISTER 1099 (Dave 30 Oct 20:01, two phone screenshots: the page loads, "then it adds the additional widgets below
+// the media card as they add it should be moving up"). Scroll 0 was the lowest position only while the column FITS: the
+// auto margin above the widgets took up the slack. Once the content is taller than the screen the margin is gone and 0
+// is the TOP — read on the box at his phone's width: 906 in an 840 view, the third tile under the media card, and a
+// tile arriving after the first paint wholly behind it. So the column RESTS AT THE BOTTOM: arriving puts it there, and
+// while it is resting there anything that makes it taller keeps it there, so a late widget pushes the others up. A
+// person who has scrolled up is left where they are (a repaint must not jump under a finger, 970f).
+function _rcMax(rc){ return Math.max(0, rc.scrollHeight - rc.clientHeight); }
+function _restAtBottom(rc){ if(!rc) return; rc._atBottom=true; rc.scrollTop=rc.scrollHeight; }
+function _keepBottom(rc){
+  if(!rc) return;
+  if(!rc._keepBottomBound){
+    rc._keepBottomBound=true; rc._atBottom=true;
+    rc.addEventListener('scroll',()=>{ rc._atBottom=(_rcMax(rc)-rc.scrollTop)<=4; },{passive:true});
+    if(typeof ResizeObserver==='function') rc._keepRO=new ResizeObserver(()=>{ if(rc._atBottom!==false) rc.scrollTop=rc.scrollHeight; });
+  }
+  if(rc._keepRO){ try{ rc._keepRO.observe(rc); [...rc.children].forEach(k=>rc._keepRO.observe(k));
+    const g=document.getElementById('widget-grid'); if(g) rc._keepRO.observe(g); }catch(e){} }
+}
 function revealAddBtnOnNav(){
   requestAnimationFrame(()=>{
     const rc=document.querySelector('.room-controls');
     if(!rc) return;
     try{ _dockMediaBar(); }catch(e){}   // arriving re-reads the floor (389)
-    rc.scrollTop=0;
-    requestAnimationFrame(()=>{ rc.scrollTop=0; });
+    _keepBottom(rc);
+    _restAtBottom(rc);
+    requestAnimationFrame(()=>{ _restAtBottom(rc); });
   });
 }
 
