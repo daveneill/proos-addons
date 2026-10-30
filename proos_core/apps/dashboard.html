@@ -5024,7 +5024,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102647';
+const PROOS_BUILD='2026102648';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -22467,7 +22467,7 @@ document.addEventListener('click', function(e){
 #proos-acard{position:fixed;inset:0;z-index:10050;display:none;align-items:center;justify-content:center;padding-right:16px;padding-bottom:16px;padding-left:16px;box-sizing:border-box}
 #proos-acard.open{display:flex}
 #proos-acard .pac-scrim{position:absolute;inset:0;background:rgba(0,0,0,.5);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
-#proos-acard .pac-card{position:relative;width:max-content;min-width:min(420px,100%);max-width:100%;max-height:calc(100vh - 32px);overflow:auto;box-sizing:border-box;padding:22px;border-radius:28px;color:#fff;
+#proos-acard .pac-card{position:relative;width:max-content;min-width:min(420px,100%);max-width:100%;max-height:calc(100vh - 32px);overflow:auto;box-sizing:border-box;padding:26px;border-radius:28px;color:#fff;
   background:rgba(24,24,30,.78);-webkit-backdrop-filter:blur(30px) saturate(160%);backdrop-filter:blur(30px) saturate(160%);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12),0 24px 60px rgba(0,0,0,.55)}
 #proos-acard .pac-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
 #proos-acard .pac-eb{font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.66);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -22483,13 +22483,13 @@ document.addEventListener('click', function(e){
 #proos-acard .pac-rm.sel{background:rgba(255,255,255,.94);color:#000}
 #proos-acard .pac-rm.sel i{color:rgba(0,0,0,.62)}
 #proos-acard .pac-rm.sel.on i{color:#0a6b4c}
-#proos-acard .pac-truth{margin-top:14px;min-height:56px}
+#proos-acard .pac-truth{margin-top:12px}   /* 1093 (Dave 16:05): no space held for a second line — the tiles sit centred */
 #proos-acard .pac-big{font-size:28px;font-weight:600;letter-spacing:-.02em;line-height:1.15;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #proos-acard .pac-sub{font-size:14.5px;color:rgba(255,255,255,.85);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* 1090 (Dave 14:27): a tile is the SAME SIZE as a favourites widget on the room page — 200 wide where the widget grid is
    180–200, and on a phone two across like the favourites; the card grows to hold them. */
-#proos-acard{--pac-tw:200px}
-#proos-acard .pac-tiles{display:grid;grid-template-columns:repeat(3,var(--pac-tw));gap:14px;margin:20px 0 18px}
+#proos-acard{--pac-tw:220px}   /* 1093 (Dave 16:06): "a bit wider" — was 200 */
+#proos-acard .pac-tiles{display:grid;grid-template-columns:repeat(3,var(--pac-tw));gap:14px;margin:16px 0 20px}
 @media(max-width:768px){#proos-acard{--pac-tw:calc((100vw - 62px) / 2);padding-right:12px;padding-left:12px}#proos-acard .pac-card{width:100%;padding:14px 14px 16px}#proos-acard .pac-tiles{gap:10px}}
 #proos-acard .pac-t{display:flex;flex-direction:column;align-items:stretch;gap:8px;border:0;background:none;padding:0;font:inherit;color:#fff;cursor:pointer;min-width:0}
 #proos-acard .pac-tile{position:relative;aspect-ratio:5/3;border-radius:16px;display:flex;align-items:center;justify-content:center;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);transition:box-shadow var(--m-tap) var(--e-standard),opacity var(--m-tap) var(--e-standard)}
@@ -22521,7 +22521,6 @@ document.addEventListener('click', function(e){
 .af-tile{position:relative;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden}
 .af-tile svg{width:30px;height:30px;color:#fff}
 .af-tile .pac-art{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-.af-tile.on{box-shadow:0 0 0 2px #fff,0 0 20px rgba(255,255,255,.3)}
 .af-tile .af-spin{display:none;position:absolute;inset:0;z-index:2;background:rgba(0,0,0,.5);align-items:center;justify-content:center}
 .af-tile .af-spin::after{content:'';width:30px;height:30px;border-radius:50%;border:3px solid rgba(255,255,255,.25);border-top-color:#fff;animation:pacSpin var(--m-listen) linear infinite}
 .af-tile.busy .af-spin{display:flex}
@@ -22763,9 +22762,10 @@ function _afAdd(idx, entry){
 function _afHTML(w, r){
   var acts=_pacActs(r)||[], a=acts.filter(function(x){ return x&&x.key===w.key; })[0]||{key:w.key};
   var k=_pacKind(a), art=_pacArt(k, a, r), tr=_pacTruth(r);
-  var on=tr.key===w.key && !tr.starting, busy=!!(_pacPending&&_pacPending.room===w.room&&_pacPending.key===w.key);
+  // 1093 (Dave 16:05): no On ring on a favourite — "only inside the activities card"; it looks like the other favourites
+  var busy=!!(_pacPending&&_pacPending.room===w.room&&_pacPending.key===w.key);
   return '<div class="aw-full aw-true" data-afroom="'+_pacEsc(w.room)+'" data-afkey="'+_pacEsc(w.key)+'" onclick="event.stopPropagation();_afTap(this)">'
-    +'<span class="awt awt-true af-tile'+(on?' on':'')+(busy?' busy':'')+'" role="img" aria-label="'+_pacEsc(w.label||_pacName(a))+'">'+_pacGlyph(k)
+    +'<span class="awt awt-true af-tile'+(busy?' busy':'')+'" role="img" aria-label="'+_pacEsc(w.label||_pacName(a))+'">'+_pacGlyph(k)
     +(art?'<img class="pac-art" src="'+_pacEsc(art+'?t='+_pacLoadT)+'" alt="" onerror="this.remove()">':'')
     +'<span class="af-spin" aria-hidden="true"></span></span></div>';
 }
@@ -22792,7 +22792,10 @@ function openActivityCard(){
   var el=_pacEnsure();
   _pacRoom=_pacPick(); _pacSig='';
   if(!_pacRoom) return;
-  _pacRooms().forEach(function(x){ try{ _pacActs(x); }catch(e){} });   // warm every room's list for the chooser
+  // 1093 (Dave 16:08): the tiles are in the room's AV Setup order, and a move there shows here — so every open asks Core
+  // afresh (proosSyncActs re-reads /rooms/<id>/activities, files it under the room's id, and the card rebuilds its tiles
+  // when the order — its signature — changed). The copy from page load is never trusted for order.
+  _pacRooms().forEach(function(x){ try{ if(window.proosSyncActs) window.proosSyncActs(x.id); else _pacActs(x); }catch(e){} });
   _pacRender();
   el.classList.add('open');
   document.addEventListener('keydown', _pacKey);
