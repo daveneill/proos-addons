@@ -3024,7 +3024,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102617';
+const PROOS_BUILD='2026102618';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -20275,11 +20275,12 @@ async function v2RoomIcons(){
     // the other icons in the navbar to be the same in all rooms." The
     // dashboard reads HOME's list on every page now, so a room's own list
     // would be an edit that changes nothing — the mirror rule says so here.
-    if(!isHome){
-      setHTML(body,'<div class="rh-add-sub" style="padding:6px 2px">The bar is the same in every room — it is set on the <b>Home</b> page.</div>');
-      return;
+    // REGISTER 1094 (Dave 30 Oct 16:36: "Per room") — 572's one bar is reversed: a room edits ITS OWN list, offered only
+    // the pages that room has (the dashboard's own per-room capability, /navcaps rooms). Home keeps the Home list.
+    if(!isHome && _navDraft && !_navDraft.areas[_roomHubArea]){
+      const _all=Object.keys(NAV_ICONS||{}); _navDraft.areas[_roomHubArea]=_navListFromOrder(NAV_DEF_AREA, _all.filter(p=>(_navDraft._roomCaps&&_navDraft._roomCaps[_roomHubArea]||[]).includes(p)), {});
     }
-    const list=(_navDraft&&_navDraft.home);
+    const list=isHome ? (_navDraft&&_navDraft.home) : (_navDraft&&_navDraft.areas[_roomHubArea]);
     if(!list){ body.textContent='No dashboard pages available yet.'; return; }
     _rhIconsDraft=list;
     // LIKE THE REST OF PRO (Dave, 9 Aug 2026): no Save button — a toggle or a
@@ -20295,7 +20296,7 @@ async function v2RoomIcons(){
       +'<span style="flex:1;font-size:12.5px;color:'+(it.on?'var(--t1)':'var(--t3)')+'">'+esc(_navLabel(it.page))+'</span>'
       +'<button class="btn-ghost" style="padding:3px 12px;font-size:11.5px" onclick="v2RoomIconToggle('+i+')">'+(it.on?'Shown':'Hidden')+'</button>'
       +'<span class="rh-grip" aria-hidden="true">⠿</span></div>').join('')
-      +'<div data-icon-hint style="font-size:11px;color:var(--t3);margin-top:6px">Drag ⠿ to reorder — or hold a row · changes publish to all devices.</div>');
+      +'<div data-icon-hint style="font-size:11px;color:var(--t3);margin-top:6px">'+(isHome?'The Home page\u2019s icons.':'This room\u2019s icons only — what the room has.')+' Drag ⠿ to reorder — or hold a row · changes publish to all devices.</div>');
     if(!body._rhDragWired){ body._rhDragWired=true;
       body.addEventListener('pointerdown',_rhDragStart);
       body.addEventListener('touchmove',function(ev){ if(_rhDrag&&_rhDrag.active) ev.preventDefault(); },{passive:false});
@@ -20326,9 +20327,12 @@ async function _v2NavLoad(){
   _navDraft={ home:_navListFromOrder((Array.isArray(cfg.home)&&cfg.home.length)?cfg.home:NAV_DEF_HOME, projectPages, cfg), areas:{} };
   _navDraft._offered=projectPages;   // snapshot: what THIS save could offer — absent pages were never a choice
   let roomIds=(caps.rooms&&Object.keys(caps.rooms).length)?Object.keys(caps.rooms):_areas.filter(a=>a.area_id&&!_systemAreas.has(a.area_id)).map(a=>a.area_id);
+  _navDraft._roomCaps=caps.rooms||{};
   roomIds.forEach(aid=>{   // by area id (register 440)
     const ord=(cfg.areas&&Array.isArray(cfg.areas[aid])&&cfg.areas[aid].length)?cfg.areas[aid]:NAV_DEF_AREA;
-    _navDraft.areas[aid]=_navListFromOrder(ord, projectPages, cfg);
+    // 1094: a room is offered only what IT has (the dashboard's published per-room capability)
+    const roomPages=(caps.rooms&&Array.isArray(caps.rooms[aid]))?allPages.filter(p=>caps.rooms[aid].includes(p)):projectPages;
+    _navDraft.areas[aid]=_navListFromOrder(ord, roomPages, cfg);
   });
   _navAreas=Object.keys(_navDraft.areas);
 }

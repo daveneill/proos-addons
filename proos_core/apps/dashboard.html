@@ -5024,7 +5024,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102648';
+const PROOS_BUILD='2026102649';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -9147,9 +9147,16 @@ function _hasCap(p,r){
       case 'lights':     return rooms.some(x=>x.lights && x.lights.length);
       case 'climate':    return r ? !!r.climate : _climateUnits().length>0;   // rooms + Services thermostats
       case 'cameras':    return r ? !!(r.cameras&&r.cameras.length) : !!(CONFIG.cameras&&CONFIG.cameras.length);
-      case 'access':     return ACCESS_ENTITIES.some(a=>states[a.entity] && st(a.entity)!=='unavailable');
-      case 'security':   return !!(CONFIG.security && (CONFIG.security.alarm || (CONFIG.security.sensors&&CONFIG.security.sensors.length)));
-      case 'irrigation': return !!(CONFIG.irrigation && CONFIG.irrigation.length);
+      // 1094 (Dave 16:38: "With the exception of Home, Room, Assist and Settings everything else only shows if there is some in
+      // the room"): asked of a ROOM, the house-wide pages count only what is ASSIGNED to that room (its area, register 440);
+      // asked of the house (r null, Home), what the house has — as before.
+      case 'access':     return ACCESS_ENTITIES.some(a=>states[a.entity] && st(a.entity)!=='unavailable' && (!r || entityAreaMap[a.entity]===r.id));
+      case 'security':   { const sec=CONFIG.security; if(!sec) return false;
+                           if(!r) return !!(sec.alarm || (sec.sensors&&sec.sensors.length));
+                           const _e=x=>typeof x==='string'?x:(x&&(x.entity_id||x.entity))||'';
+                           return [].concat(sec.alarms||[], sec.alarm?[sec.alarm]:[], sec.sensors||[]).some(x=>entityAreaMap[_e(x)]===r.id); }
+      case 'irrigation': { const z=CONFIG.irrigation||[]; if(!r) return z.length>0;
+                           return z.some(x=>entityAreaMap[typeof x==='string'?x:(x&&(x.entity||x.entity_id))||'']===r.id); }
       case 'media':      return rooms.some(x=>getRoomMediaCandidates(x).length>0);   // any player — audio OR video
       case 'music':      return rooms.some(x=>getRoomMediaCandidates(x).some(e=>!isVideoPlayer(e)));
       case 'heos':       return rooms.some(x=>x.allPlayers && x.allPlayers.some(isHeos));
@@ -9191,10 +9198,10 @@ function _roomNavIcons(r,idx){
   }catch(e){ list=NAV_DEFAULT.area; }
   // renderBottomNav filters with _hasCap(p,null) — GLOBAL capability. The tile
   // must use the identical test or it shows fewer icons than the area page.
-  let pages=(list||[]).filter(p=>{ try{ return _hasCap(p,null); }catch(e){ return false; } });
+  let pages=(list||[]).filter(p=>{ try{ return _hasCap(p,r); }catch(e){ return false; } });   // 1094: the room's own, as its bar
   // capabilities the editor never OFFERED default in, appended after the
   // installer's saved order (same rule as the bottom nav gate above)
-  NAV_ALL.forEach(p=>{ try{ if(!pages.includes(p) && !(list||[]).includes(p) && _navNeverOffered(p) && _hasCap(p,null)) pages.push(p); }catch(e){} });
+  NAV_ALL.forEach(p=>{ try{ if(!pages.includes(p) && !(list||[]).includes(p) && _navNeverOffered(p) && _hasCap(p,r)) pages.push(p); }catch(e){} });
   // the room's activities (TV / Apple TV / Shield) lead, exactly as in its nav
   const acts=_roomActs(r).map(a=>
     '<div class="room-card-icon'+(a.on?' on':'')+'" title="'+a.key+'">'+a.icon+'</div>').join('');
@@ -9380,7 +9387,7 @@ function updateNavLive(){
   // when the room it would open is on — this room, or on Home any room with activities — from Core's verdict only.
   try{ const ab=document.querySelector('#bottom-nav .proos-acts-tab');
        if(ab){ const rs=(typeof _pacRooms==='function')?_pacRooms():[];
-               ab.style.display = rs.length ? 'flex' : 'none';
+               ab.style.display = (r ? rs.indexOf(r)>=0 : rs.length>0) ? 'flex' : 'none';   // 1094: in a room, only if THAT room has activities
                const here=(r && rs.indexOf(r)>=0) ? [r] : rs;
                ab.classList.toggle('live', here.some(x=>_pacIsOn(x))); } }catch(e){}
   document.querySelectorAll('#bottom-nav .nav-btn').forEach(b=>{
@@ -9491,7 +9498,13 @@ function renderBottomNav(){
   // HOME's list and HOME's capabilities on every page, so a thumb finds the
   // same tab in the same place in every room. Per-area lists (440, the Pro
   // room editor) are no longer read here; Pro's room page says so.
-  const list = cfg.home;
+  // REGISTER 1094 — EACH ROOM ITS OWN ICONS (Dave 30 Oct 16:36, reversing 572's one bar: "Per room … when we said icons
+  // staying in same position I was referring to the Home, Rooms, Assist and settings as they were moving around before
+  // … we have a Kitchen with lights and it gives you control of media and music etc and there isnt any in that room").
+  // Home, Rooms and Activities lead and Assist and Settings close in fixed places (EXTRA + _NAV_TRAILING, untouched);
+  // between them a room shows ITS list from Pro (cfg.areas[<area id>], register 440) and only what THAT room has.
+  const list = home ? cfg.home
+             : ((r && r.id && Array.isArray(cfg.areas[r.id])) ? cfg.areas[r.id] : NAV_DEFAULT.area);
   _orderNav(list);
   // REGISTER 523, as 908 left it — the bar holds what this home can do, in the order
   // above, with no cap (908: it scrolls; --nb-per decides how many are visible). An
@@ -9517,7 +9530,7 @@ function renderBottomNav(){
   // serves both and the house-wide pages — access, security, irrigation — are
   // unaffected because _hasCap ignores the room for those by design.
   // Masked until 1.0.722 by the !important that drew every tab regardless.
-  let _show = _cands.filter(p => (list.includes(p) || _navNeverOffered(p)) && _hasCap(p, null));   // the house's capability (572)
+  let _show = _cands.filter(p => (list.includes(p) || _navNeverOffered(p)) && _hasCap(p, r));   // 1094: the ROOM's capability (r is null on Home → the house's)
   NAV_ALL.forEach(p=> _setNav(p, _show.includes(p)));
   try{ updateNavLive(); }catch(e){}
   try{ _compactNav(); }catch(e){}            // placement, after the chain has decided (register 559)
