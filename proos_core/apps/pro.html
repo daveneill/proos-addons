@@ -3027,7 +3027,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102628';
+const PROOS_BUILD='2026102629';
 // IT ONLY EVER LOOKED ONCE, AT LOAD (19 Aug 2026, register 250). Dave copied
 // build 2026081910 into www/ with Pro already open, and Pro went on running
 // 2026081908 — so the new Art button on every scene card simply was not there.
@@ -19467,7 +19467,7 @@ async function renderHealth(){
     // area attribute (Core's copy in flight) is the fallback. Dave's
     // rename test caught this row still reading the frozen copy.
     const _lan={}; (_areas||[]).forEach(x=>{ if(x&&x.area_id) _lan[x.area_id]=x.name; });
-    const a=r.attributes||{}; const sc=roomStateClass(r.state); const off=sc==='off';
+    const a=r.attributes||{}; const sc=roomStateClass(r.state); const off=sc==='off'||!!r._noreading;   // 1109: no room state = nothing playing (Kitchen showed ▶ with only lights on)
     const cls=a.provisional?'prov':(sc==='active'?'live':sc);
     const aid=r.entity_id.replace('sensor.proos_activity_','');
     // ONE VOICE ON THE MIRROR ROW (5 Sep 2026, register 319). Dave: "the
