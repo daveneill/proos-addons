@@ -5041,7 +5041,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102665';
+const PROOS_BUILD='2026102666';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -24764,7 +24764,10 @@ html.pv-room #page-home .room-acts{display:block;margin-top:0}   /* 1119: the li
 .rp-top{border-bottom:0!important;align-items:flex-end!important}
 .rp-h .page-heading{display:flex;align-items:baseline;gap:12px}
 .rp-n{font-size:15px;font-weight:400;color:rgba(255,255,255,.62);letter-spacing:0}
-#page-rooms .rooms-grid{grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;padding:4px 32px 24px}
+/* 1123 (Dave 31 Oct 15:52: "I also want this screen redone to have one room the width of two tiles still one tile on mobile"):
+   a room card is two of the old tiles wide (300 + gap + 300 → 520 is the floor that gives his Mac 3 across, an iPad on its
+   side 2, an upright iPad and a phone 1), the same height. */
+#page-rooms .rooms-grid{grid-template-columns:repeat(auto-fill,minmax(min(520px,100%),1fr));gap:14px;padding:4px 32px 24px}
 #page-rooms .room-card{height:200px;border-radius:20px;border:0;box-shadow:inset 0 0 0 1px rgba(255,255,255,.10),0 10px 30px rgba(0,0,0,.3)}
 #page-rooms .room-card-name{font-weight:600;font-size:19px;margin-bottom:2px}
 .room-card-st{font-size:var(--t-floor);color:rgba(255,255,255,.74);margin-bottom:10px;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}   /* 1083: a long title stops at the card's edge */
