@@ -3035,13 +3035,24 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102631';
+const PROOS_BUILD='2026102632';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
 // screen. Remove with Core's half once the answer is in.
 (function(){ try{
-  var last='', lastAt=0, buf=[], prev=performance.now();
+  var last='', lastAt=0, buf=[], prev=performance.now(), slow=[];
+  // 1118: WHICH OF PRO'S OWN STEPS RAN during a freeze. Chrome builds a Devices page in ~0.27 s; the Mac app froze 2–6 s
+  // on the same clicks (1117's fix did not help). Each named step is timed (the part that holds the page, before any
+  // wait); any over 50 ms is kept briefly and named in the freeze note. Steps that add up to the freeze = Pro's script;
+  // steps that add up to little = the web view drawing the page.
+  setTimeout(function(){ ['openIntegration','renderIntegration','intgPageHTML','intgMirrorHTML','_ipRows','_ipLayout','_fitCols',
+    'ipTap','openDevice','renderDeviceManage','renderEntityManage','setHTML','loadSite','loadConfigEntries','rerenderConfig',
+    'proosRefreshNow','renderHealth','renderRoomHub','_scrollPut','_scrollKeep','show','showGroupTab','renderLibrary'].forEach(function(nm){
+    try{ var f=window[nm]; if(typeof f!=='function'||f.__t) return;
+      var w=function(){ var t0=performance.now(); try{ return f.apply(this,arguments); }
+        finally{ var ms=performance.now()-t0; if(ms>50){ slow.push([performance.now(),nm,Math.round(ms)]); if(slow.length>200) slow.shift(); } } };
+      w.__t=1; window[nm]=w; }catch(_){ } }); },0);
   document.addEventListener('pointerdown',function(e){ try{ var t=e.target, b=(t&&t.closest&&t.closest('button,a,[onclick],[role=button]'))||t;
     last=String((b&&b.getAttribute&&b.getAttribute('aria-label'))||(b&&b.textContent)||(b&&b.tagName)||'').replace(/\s+/g,' ').trim().slice(0,60);
     lastAt=performance.now(); }catch(_){ } },true);
@@ -3049,7 +3060,8 @@ const PROOS_BUILD='2026102631';
     if(g>600 && g<120000 && document.visibilityState==='visible'){
       var pg=''; try{ pg=((document.querySelector('.v2item.on')||{}).textContent||'').trim(); }catch(_){ }
       buf.push({at:new Date().toISOString(), ms:Math.round(g-100), page:String(pg||'').slice(0,60), last:last,
-                since_click: lastAt ? Math.round((n-g)-lastAt) : null}); if(buf.length>50) buf.shift(); } },100);
+                since_click: lastAt ? Math.round((n-g)-lastAt) : null,
+                work: slow.filter(function(x){ return x[0]>=n-g-100; }).map(function(x){ return x[1]+' '+x[2]; }).join(', ').slice(0,300)}); if(buf.length>50) buf.shift(); } },100);
   setInterval(function(){ if(!buf.length) return; var b=buf.splice(0);
     try{ fetch(proCoreUrl()+'/ui/stall',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({app:'pro',build:PROOS_BUILD,stalls:b})}).catch(function(){}); }catch(_){ } },15000);

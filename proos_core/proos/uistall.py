@@ -47,7 +47,8 @@ def record(body, user_agent="", path=None):
         rows.append({"t": round(now, 1), "app": _clean(body.get("app"), 20), "build": _clean(body.get("build"), 20),
                      "ua": _clean(user_agent, 160), "at": _clean(s.get("at"), 30), "ms": ms,
                      "page": _clean(s.get("page"), 60), "last": _clean(s.get("last"), 80),
-                     "since_click": s.get("since_click") if isinstance(s.get("since_click"), (int, float)) else None})
+                     "since_click": s.get("since_click") if isinstance(s.get("since_click"), (int, float)) else None,
+                     "work": _clean(s.get("work"), 300)})   # 1118: Pro's own steps that ran during the freeze
     if not rows:
         return 0
     with _LOCK:
@@ -64,9 +65,10 @@ def record(body, user_agent="", path=None):
         except Exception as e:                                   # noqa: BLE001
             print("  ui-stall · could not keep notes: %s" % e, flush=True)
     for r in rows:
-        print("  ui-stall · %s %s froze %d ms on %s, %s after clicking %s"
+        print("  ui-stall · %s %s froze %d ms on %s, %s after clicking %s%s"
               % (r["app"], r["build"], r["ms"], r["page"] or "?",
-                 ("%d ms" % r["since_click"]) if r["since_click"] is not None else "?", r["last"] or "nothing"),
+                 ("%d ms" % r["since_click"]) if r["since_click"] is not None else "?", r["last"] or "nothing",
+                 (" — running: " + r["work"]) if r["work"] else ""),
               flush=True)
     return len(rows)
 
