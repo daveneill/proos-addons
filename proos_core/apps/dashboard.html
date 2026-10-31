@@ -367,7 +367,12 @@ img,video,.widget-cell,.pa-cam,.pw,.pw-door,.pa-eg-cell,.pa-strip-cell,.pa-tl-it
    same line the house name stands on, which is what the mockups drew.
    A two-line name now does take the clock down with it — and that is correct,
    because it is the name's baseline the clock is answering to. */
-.home-idrow{display:flex;align-items:flex-end;justify-content:space-between;gap:20px}
+.home-idrow{display:flex;align-items:flex-end;justify-content:space-between;gap:6px 20px;flex-wrap:wrap}
+/* 1119 (Dave 31 Oct 15:22: "on mobile a long room or home name starts to run into the time and date"): measured at 390 wide,
+   "The Neill Family Residence" squeezed into 206 px beside the clock and broke over three lines. The name now asks for its
+   own full width first; when name and clock no longer fit side by side the clock drops beneath it, still on the right. */
+.home-idrow>.home-idmain{flex:1 0 auto;max-width:100%}
+.home-idrow>.home-clockrow{margin-left:auto}
 /* min-width:0 is what lets a long house name ELLIPSIS instead of shoving the
    clock off the right edge — a flex item's default min-width is auto, which
    means "never smaller than my content", and that is how a header like this
@@ -544,6 +549,7 @@ body[data-home-state="noticing"] .home-state-go,body[data-home-state="attention"
 
 /* Status bar - sensors */
 .status-bar{display:flex;gap:8px;flex-wrap:wrap}
+#page-home .home-identity .status-bar:not(:empty){margin-top:12px}   /* 1119: the chips, under what is running */
 /* ONE LOOK, AND THE ICON CARRIES THE MEANING (register 393). Every pill used to
    be alert-blue because an open blind used the same class as a triggered sensor,
    which made a sunny afternoon look like a fault. Josh's are all one treatment
@@ -3733,6 +3739,9 @@ try{var _sb=localStorage.getItem('proos_std_bg');if(_sb){document.documentElemen
           <!-- 968s: in a room, under its name, what the mockup (A2/B2/C2) draws there — the room's state
                ("2 lights on · 22°") and its two buttons, All Lights and Scenes. Drawn by _roomHead(). -->
           <div class="room-acts" id="room-acts"></div>
+          <!-- 1119: the room's chips (lights on, blinds open, doors open) — always straight under what is running, so they
+               are in the same spot on every room whatever else the header holds. -->
+          <div class="status-bar" id="status-bar"></div>
           <!-- AND THE STATE LINE FOLLOWS THEM, WITH ITS NOTICES. Dave, asked
                where the two notice cards should go: "these move with the second
                dot as its all part of it". So they are one block, in the order a
@@ -3744,7 +3753,6 @@ try{var _sb=localStorage.getItem('proos_std_bg');if(_sb){document.documentElemen
                  useless"): no fault card and no offer card here any more. -->
           </div>
         </div>
-        <div class="status-bar" id="status-bar"></div>
         <div class="ctrl-grid" id="ctrl-grid"></div>
       </div>
     </div>
@@ -5033,7 +5041,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102661';
+const PROOS_BUILD='2026102662';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -12585,19 +12593,10 @@ function _roomHead(){
   let ln=(typeof _ppLine==='function')?_ppLine(r):'';
   const t=r.climate?att(r.climate,'current_temperature'):null;
   if(t!=null&&t!==''&&isFinite(parseFloat(t))) ln=(ln?ln+' · ':'')+Math.round(parseFloat(t))+'°';
-  const L=(r.lights||[]), anyOn=L.some(l=>st(l)==='on');
-  const bulb='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v8"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/></svg>';
   const moon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg>';
   const html=`<div class="ra-line">${_hEsc(ln)}</div><div class="ra-btns">`
-    +(L.length?`<button type="button" class="ra-b${anyOn?' on':''}" onclick="_roomAllLights()">${bulb}All Lights</button>`:'')
     +((CONFIG.scenes||[]).length?`<button type="button" class="ra-b" onclick="showPage('scenes')">${moon}Scenes</button>`:'')+`</div>`;
   if(el.dataset.sig!==html){ el.innerHTML=html; el.dataset.sig=html; }
-}
-function _roomAllLights(){
-  const r=CONFIG.rooms[curRoom]; if(!r) return; const L=(r.lights||[]); if(!L.length) return;
-  const on=L.some(l=>st(l)==='on'), lg=L.filter(l=>!l.startsWith('switch.')), sw=L.filter(l=>l.startsWith('switch.'));
-  if(lg.length) svc('light', on?'turn_off':'turn_on', {entity_id:lg});
-  if(sw.length) svc('switch', on?'turn_off':'turn_on', {entity_id:sw});
 }
 function renderWidgetGrid(){
   _wvCardLines();
@@ -24410,10 +24409,16 @@ body.proos-popup:has(#page-home.page.active) #widget-add-pill,body:has(#widget-p
 /* (968t: the clock no longer gives way to the + — it moved to the bottom right) */
 /* 968s: a room shows no room chips, no clock and no greeting — the mockups' room is its name, its state and its two
    buttons (All Lights · Scenes); Home keeps its photo cards and its clock */
-html.pv-room #page-home .room-tabs,html.pv-room #page-home .home-clockrow,html.pv-room #page-home .home-rule,html.pv-room #page-home #home-greet{display:none!important}
+/* 1119 (Dave 31 Oct 15:13/15:22): ONE HEADER FOR HOME AND EVERY ROOM — the name, the clock · date · weather on the right,
+   the same faint line under the name with a gap either side, then what is running, then the room's chips, always in that
+   order; no greeting anywhere ("get rid of the good afternoon greeting"); no All Lights; phones too. A room still shows no
+   room cards (968s). */
+html.pv-room #page-home .room-tabs{display:none!important}
+#home-greet{display:none!important}
 .room-acts{display:none}
-html.pv-room #page-home .room-acts{display:block;margin-top:4px}
-.ra-line{font-size:17px;color:rgba(255,255,255,.84);letter-spacing:0}
+html.pv-room #page-home .room-acts{display:block;margin-top:0}   /* 1119: the line's own margin is the gap */
+.ra-line{font-size:15px;color:rgba(255,255,255,.84);letter-spacing:0}   /* 1119: the size of Home's own line under the divider (15; 14 on a phone) */
+@media (max-width:768px){ .ra-line{font-size:14px} }
 .ra-btns{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap}
 .ra-btns:empty{display:none}
 .ra-b{display:inline-flex;align-items:center;gap:8px;height:44px;padding:0 18px;border-radius:22px;border:0;font:inherit;font-size:14px;font-weight:600;color:#fff;background:rgba(22,22,28,.42);-webkit-backdrop-filter:blur(26px) saturate(150%);backdrop-filter:blur(26px) saturate(150%);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);cursor:pointer;text-shadow:none;transition:transform var(--m-tap) var(--e-standard),background var(--m-move) var(--e-standard)}
