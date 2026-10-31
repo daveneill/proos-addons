@@ -5041,7 +5041,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102658';
+const PROOS_BUILD='2026102659';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -24413,7 +24413,9 @@ html.pv-room #page-home .room-acts{display:block;margin-top:4px}
    portrait screen and every window under 1024, so an upright iPad and a narrow Mac window had a hole above the widgets */
 @media (max-width:767px){
   html.pv-room{--proos-shade:linear-gradient(to bottom,rgba(0,0,0,.42) 0%,rgba(0,0,0,.12) 16%,rgba(0,0,0,.22) 30%,rgba(8,8,11,.84) 46%,rgba(8,8,11,.93) 100%)}   /* the photo as a hero */
-  html.pv-room #page-home #ctrl-grid{margin-top:14vh}   /* the identity stays pinned at the top (register 537); the widgets start lower so the photo shows */
+  /* 1114 (Dave 31 Oct 12:30: "the home page is correct but I think the area pages still have the gap"; 12:55 "Yes go ahead"):
+     968m's push (#ctrl-grid margin-top:14vh, "the widgets start lower so the photo shows") is gone — a room's widgets
+     start under its status and alerts, as Home's do. */
 }
 /* ═══ THE PAGES IN THE PANEL'S CARDS (968o) ═══ Dave, 19 Oct 17:59: "all the pages across the whole dashboard are still
    the same as before". The Lights, Media and Rooms pages draw the wall panel's own cards (the mockups' A2/B2 cards):
