@@ -5877,6 +5877,8 @@ def _room_contents(client, project_mod, aid):
                        or ((rec.get("meta") or {}).get(e) or {}).get("integration"))
                 if _ig:
                     _d["integration"] = _ig
+                if "." in e:
+                    _d["entity_id"] = e
                 out.append(_d)
     except Exception:                                            # noqa: BLE001
         pass
@@ -5891,11 +5893,74 @@ def _room_contents(client, project_mod, aid):
                     continue
                 if e:
                     seen.add(e)
-                out.append({"domain": d.get("domain"),
-                            "name": d.get("name") or e})
+                _d = {"domain": d.get("domain"), "name": d.get("name") or e}
+                if e:
+                    _d["entity_id"] = e
+                out.append(_d)
+    except Exception:                                            # noqa: BLE001
+        pass
+    # REGISTER 1136: WHAT EACH ONE IS DOING NOW, read once at the start of the turn. Measured on Dave's box (1135):
+    # "how bright are the bedroom lamps" took four cloud rounds (rooms_overview → area_entities → get_states → the
+    # answer, 11.2 s) because the model was handed names but no ids and no readings, so it looked the room up every
+    # turn. The platform's own live state, read here in one call, rides with each device; the model can act on the id
+    # at once. A reading that fails claims nothing (no "now" key) — unknown is not "off".
+    try:
+        ids = [d["entity_id"] for d in out if d.get("entity_id")]
+        snap = (client.snapshot(ids) or {}) if ids else {}
+        for d in out:
+            st = snap.get(d.get("entity_id") or "")
+            if st:
+                words = _now_words(st, d.get("entity_id"))
+                if words:
+                    d["now"] = words
     except Exception:                                            # noqa: BLE001
         pass
     return out if have else None
+
+
+def _now_words(st, eid=None) -> str:
+    """A short reading of one device for the room list: "on 20%", "off", "playing Triple M 80s, volume 4%",
+    "open 40%", "cooling, set 22°, room 24°", "not responding". Only what the platform reported; '' when nothing."""
+    if not isinstance(st, dict) or st.get("missing"):
+        return ""
+    s = str(st.get("state") or "")
+    a = st.get("attributes") or {}
+    eid = str(eid or st.get("entity_id") or "")
+    dom = eid.split(".", 1)[0] if "." in eid else ""
+    if not s:
+        return ""
+    if s in ("unavailable", "unknown"):
+        return "not responding" if s == "unavailable" else "state unknown"
+    if dom == "light":
+        b = a.get("brightness")
+        if s == "on" and isinstance(b, (int, float)):
+            return "on %d%%" % round(b / 2.55)
+        return s
+    if dom == "cover":
+        p = a.get("current_position")
+        return "%s %d%%" % (s, p) if isinstance(p, (int, float)) and s not in ("closed",) else s
+    if dom == "climate":
+        bits = [s]
+        if a.get("temperature") is not None:
+            bits.append("set %s°" % a.get("temperature"))
+        if a.get("current_temperature") is not None:
+            bits.append("room %s°" % a.get("current_temperature"))
+        return ", ".join(bits)
+    if dom == "media_player":
+        bits = [s]
+        title = a.get("media_title") or a.get("media_channel") or ""
+        if s == "playing" and title:
+            bits = ["playing %s" % str(title)[:40]]
+        v = a.get("volume_level")
+        if isinstance(v, (int, float)) and s not in ("off", "standby"):
+            bits.append("volume %d%%" % round(v * 100))
+        if a.get("is_volume_muted"):
+            bits.append("muted")
+        return ", ".join(bits)
+    return s
+
+
+_ROOM_LIST_MAX = 12   # plumbing: devices of one kind listed by name for the room the person is in (1136; was 6)
 
 
 def _where_prompt(where: dict) -> str:
@@ -5941,9 +6006,16 @@ def _where_prompt(where: dict) -> str:
                 nm = d.get("name") or "?"
                 if d.get("role"):
                     nm += " (%s)" % d["role"]
+                # REGISTER 1136: the id and what it is doing now ride with the name, so the model acts on the
+                # device at once instead of looking the room up (1135: three lookups, ~9 s, every turn)
+                if d.get("entity_id"):
+                    nm += " [%s]" % d["entity_id"]
+                if d.get("now"):
+                    nm += " %s" % d["now"]
                 by.setdefault(d.get("domain") or "other", []).append(nm)
-            parts = ["%s: %s" % (dom, ", ".join(ns[:6])
-                                 + (" +%d more" % (len(ns) - 6) if len(ns) > 6 else ""))
+            # up to _ROOM_LIST_MAX per kind (was 6): a lamp left off the list is a lamp the model must look up
+            parts = ["%s: %s" % (dom, ", ".join(ns[:_ROOM_LIST_MAX])
+                                 + (" +%d more" % (len(ns) - _ROOM_LIST_MAX) if len(ns) > _ROOM_LIST_MAX else ""))
                      for dom, ns in sorted(by.items())]
             # A HINT TO VERIFY, NEVER GOSPEL (register 108). The first
             # version said "the complete list — a device type not listed is
@@ -5953,8 +6025,12 @@ def _where_prompt(where: dict) -> str:
             # held an Apple TV and a Shield. Injected context must inform the
             # model's reasoning, not forbid it: confirm-don't-assume applies
             # to Assist's own inputs too.
-            inv = ("IN THIS ROOM (what the commissioning knows): "
-                   + "; ".join(parts) + ". If they ask for something NOT in "
+            inv = ("IN THIS ROOM (what the commissioning knows; each one's id in [ ] and what it was "
+                   "doing when this turn began): "
+                   + "; ".join(parts) + ". Act on these directly by their id — they need no "
+                   "looking up first, and the tools still read back after acting. Match what was "
+                   "SAID to these names: 'the lamps' means the ones named lamp, not every light. "
+                   "If they ask for something NOT in "
                    "this list, do not assume either way — VERIFY with "
                    "rooms_overview or area_entities first, then say what you "
                    "actually found.\n")
