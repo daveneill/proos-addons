@@ -5041,7 +5041,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102667';
+const PROOS_BUILD='2026102668';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -5057,39 +5057,6 @@ const PROOS_BUILD='2026102667';
       buf.push({at:new Date().toISOString(), ms:Math.round(g-100), page:String(pg||'').slice(0,60), last:last,
                 since_click: lastAt ? Math.round((n-g)-lastAt) : null}); if(buf.length>50) buf.shift(); } },100);
   setInterval(function(){ if(!buf.length) return; var b=buf.splice(0);
-    try{ fetch(proosCoreBase()+'/ui/stall',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({app:'dashboard',build:PROOS_BUILD,stalls:b})}).catch(function(){}); }catch(_){ } },15000);
-}catch(e){} })();
-// 1121 — A DIAGNOSTIC (Dave 31 Oct 16:02: "every home and area page when left sitting on the screen refreshes by itself
-// which means you see everything briefly disappear and reappear … every 60 secs"). Measured in Chrome: a room with 13
-// widgets left alone two minutes rebuilt nothing — so this happens on his screens only, and only his screen can say why.
-// The page notes every time a big part of it is torn down and redrawn, with what happened just before (the connection
-// closing or opening, a command from Pro or Core, a rediscovery, the room cards or the widgets rebuilt — and why), and
-// whether a finger or mouse did it. Posted to Core's /ui/stall like 1116's notes. Changes nothing on the screen.
-(function(){ try{
-  var marks=[], notes=[], lastPress=0, t0=performance.now();
-  window._rdMark=function(k){ try{ marks.push([performance.now(), String(k).slice(0,140)]); if(marks.length>20) marks.shift(); }catch(_){ } };
-  document.addEventListener('pointerdown',function(){ lastPress=performance.now(); },true);
-  var pg=function(){ try{ return (typeof curPage!=='undefined'?curPage:'')+((typeof curRoom==='number'&&curRoom>=0&&CONFIG&&CONFIG.rooms&&CONFIG.rooms[curRoom])?' · '+CONFIG.rooms[curRoom].name:''); }catch(_){ return ''; } };
-  var note=function(what){ var n=performance.now();
-    notes.push({at:new Date().toISOString(), ms:1, page:pg().slice(0,60), last:('REDRAW '+what).slice(0,80),
-      since_click: lastPress ? Math.round(n-lastPress) : null,
-      work: marks.filter(function(m){ return m[0]>=n-4000; }).map(function(m){ return Math.round((m[0]-n)/100)/10+'s '+m[1]; }).join(' ; ').slice(0,300)});
-    if(notes.length>60) notes.shift(); };
-  var nav=''; try{ var e=performance.getEntriesByType('navigation')[0]; nav=e?e.type:''; }catch(_){ }
-  var prevLoad=0; try{ prevLoad=+sessionStorage.getItem('proos_rd_load')||0; sessionStorage.setItem('proos_rd_load', String(Date.now())); }catch(_){ }
-  window._rdMark('page loaded ('+(nav||'?')+(prevLoad?', '+Math.round((Date.now()-prevLoad)/1000)+' s after the last load':'')+')');
-  setTimeout(function(){ note('the whole page (it loaded)'); }, 3000);
-  var pend=null, removed=0, where={};
-  var watch=function(){ var root=document.getElementById('page-home'); if(!root){ setTimeout(watch,1000); return; }
-    new MutationObserver(function(ms){ ms.forEach(function(m){ for(var i=0;i<m.removedNodes.length;i++){ var r=m.removedNodes[i];
-        if(r.nodeType!==1) continue; if(!(r.classList&&(r.classList.contains('widget-cell')||r.classList.contains('rcard')||r.id==='widget-grid'||r.classList.contains('widget-grid')||r.classList.contains('rtab')||r.classList.contains('status-chip')||r.classList.contains('mp-card')))) continue;
-        removed++; var k=r.id||String(r.className).split(' ')[0]; where[k]=(where[k]||0)+1; } });
-      if(removed && !pend) pend=setTimeout(function(){ pend=null; if(removed>=1 && document.visibilityState==='visible')
-        note(Object.keys(where).map(function(k){ return where[k]+' '+k; }).join(', ')); removed=0; where={}; }, 400);
-    }).observe(root,{childList:true,subtree:true}); };
-  watch();
-  setInterval(function(){ if(!notes.length) return; var b=notes.splice(0);
     try{ fetch(proosCoreBase()+'/ui/stall',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({app:'dashboard',build:PROOS_BUILD,stalls:b})}).catch(function(){}); }catch(_){ } },15000);
 }catch(e){} })();
@@ -7063,7 +7030,7 @@ async function connect(){
       setTimeout(()=>{ try{ location.reload(); }catch(e){} }, 1000);
     }
     else if(m.type==='auth_ok'){
-      ws._authed=true; clearTimeout(window._wsAuthTimer); try{_rdMark('the connection to the home opened (all states re-read)')}catch(_e){}
+      ws._authed=true; clearTimeout(window._wsAuthTimer);
       _wsOpening=true;                                                   // 970e: the opening is on its way
       clearTimeout(window._wsOpenCap); window._wsOpenCap=setTimeout(()=>{ _wsOpening=false; }, 5*WS_OPENING_WAIT_MS);   // never stands down for good
       _setLive();                                                        // 969y: commands and Core calls may go now
@@ -7147,7 +7114,7 @@ async function connect(){
     _gateSay('Looking for your home at ' + haUrl.host + '…'); _pcSay('It isn\u2019t answering at '+haUrl.host+' yet \u2014 your rooms keep working on their own; ProOS keeps looking.');
     console.error('WS error',err);
   };
-  ws.onclose = (ev)=>{ try{_rdMark('the connection to the home closed'+((ev&&ev.code)?' ('+ev.code+')':''))}catch(_e){} _wsOpening=false; _pcWsUp=false; if(!_pcWsDownAt) _pcWsDownAt=Date.now(); try{_pcEvaluate();}catch(e){}
+  ws.onclose = (ev)=>{ _wsOpening=false; _pcWsUp=false; if(!_pcWsDownAt) _pcWsDownAt=Date.now(); try{_pcEvaluate();}catch(e){}
     _gateSay('Your home at ' + haUrl.host + ' closed the connection' + ((ev&&ev.code)?(' (' + ev.code + ')'):'') + ' — reconnecting…'); _pcSay('Your home at '+haUrl.host+' closed the connection \u2014 looking for it again\u2026');
     scheduleReconnect(2000); };
 }
@@ -7788,7 +7755,6 @@ function dashCommand(raw){
   if(!raw) return;
   const parts=String(raw).split('|');
   const cmd=(parts[0]||'').trim().toLowerCase();
-  try{_rdMark('a command from Pro/Core: '+cmd+(parts[1]?' '+parts[1]:''))}catch(_e){}
   const arg=(parts[1]||'').trim();
   const nonce=parts[2]||'';
   let last=null; try{ last=localStorage.getItem('dash_cmd_nonce'); }catch(e){}
@@ -8858,7 +8824,6 @@ function _mediaKind(e){
 // the two listeners are gone rather than left to rot — a mechanism kept "in case"
 // is a mechanism nobody maintains.
 function renderRoomTabs(){
-  try{_rdMark('room cards redrawn <'+((new Error().stack||'').split('\n').slice(2,4).map(function(x){return (x.trim().split(' ')[1]||'')}).join('<'))+'>')}catch(_e){}
   const c=document.getElementById('room-tabs');if(!c)return;
   // HOME SHOWS ITS ROOMS AS THE PANEL DOES (968m — Dave approved the app in the wall panel's style, 19 Oct): on
   // Home the row is the rooms as photo cards — the room's own picture, its name, and what it is doing now
@@ -12684,7 +12649,6 @@ function renderWidgetGrid(){
   // from scratch on each state update, so without this the intervals stack and fight,
   // overwriting frames at staggered offsets (flashing). Timers are re-established per
   // instance below; the persistent <img> nodes in _widgetCamImgs are reused, not rebuilt.
-  try{ _rdMark('widgets rebuilt — was ['+(existing?_domSig(existing):'none').slice(0,60)+'] now ['+_layoutSig(widgets).slice(0,60)+'] <'+((new Error().stack||'').split('\n').slice(2,4).map(function(x){return (x.trim().split(' ')[1]||'')}).join('<'))+'>'); }catch(_e){}
   Object.values(_widgetCamTimers).forEach(t=>clearInterval(t));
   _widgetCamTimers={};
   // Preserve scroll position
@@ -15498,7 +15462,6 @@ async function liveRediscover(){
 }
 
 async function rediscover(){
-  try{_rdMark('rediscover')}catch(_e){}
   const el=document.getElementById('rediscover-status');
   if(el) el.textContent='Discovering…';
   await fetchEntityRegistry();
@@ -22436,7 +22399,6 @@ document.addEventListener('click', function(e){
     _dashUpdHideT=setTimeout(function(){ o.classList.remove('on'); setTimeout(function(){ if(o) o.style.display='none'; }, 460); }, 1100);
   }
   function _dashApply(v){
-    try{_rdMark('dashboard update applied ('+v+')')}catch(_e){}
     if(_dashApplying) return; _dashApplying=true;
     _dashShowUpdating(); var _t0=Date.now();
     Promise.resolve().then(function(){ return (typeof liveRediscover==='function')?liveRediscover():null; })
