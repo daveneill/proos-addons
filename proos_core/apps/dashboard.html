@@ -5033,7 +5033,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102655';
+const PROOS_BUILD='2026102656';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -15773,9 +15773,7 @@ function musicSelectSpeaker(eid){
   _musicSpeaker=eid;
   document.querySelectorAll('[id^="music-spk-"]').forEach(b=>{
     const on=b.id===`music-spk-${_mCssId(eid)}`;
-    b.style.background=on?'rgba(255,255,255,0.15)':'rgba(255,255,255,0.06)';
-    b.style.color=on?'#fff':'rgba(255,255,255,0.5)';
-    b.style.borderColor=on?'rgba(255,255,255,0.35)':'rgba(255,255,255,0.15)';
+    b.classList.toggle('on',on);   // 1111: the chips' own lit state (.mus-libchip.on) — inline colours lost to the 968o glass's !important, so no room pill ever lit (Dave 31 Oct)
   });
   renderMusicNowPlaying();
   _updateMusicSourcesBtn(eid);
@@ -17835,9 +17833,7 @@ function selectSonosRoom(r){
   _sonosRoom=r;
   document.querySelectorAll('[id^="sonos-tab-"]').forEach(b=>{
     const active=b.id===`sonos-tab-${r.id}`;
-    b.style.background=active?'rgba(255,255,255,0.15)':'rgba(255,255,255,0.06)';
-    b.style.color=active?'#fff':'rgba(255,255,255,0.5)';
-    b.style.borderColor=active?'rgba(255,255,255,0.35)':'rgba(255,255,255,0.15)';
+    b.classList.toggle('on',active);   // 1111: lit the chips' own way, as the Music room pills
   });
   renderSonosNowPlaying(r);
   const entity=r.sonos;
@@ -17993,9 +17989,7 @@ function selectHeosRoom(r){
   _heosRoom=r;
   document.querySelectorAll('[id^="heos-tab-"]').forEach(b=>{
     const active=b.id===`heos-tab-${r.id}`;
-    b.style.background=active?'rgba(255,255,255,0.15)':'rgba(255,255,255,0.06)';
-    b.style.color=active?'#fff':'rgba(255,255,255,0.5)';
-    b.style.borderColor=active?'rgba(255,255,255,0.35)':'rgba(255,255,255,0.15)';
+    b.classList.toggle('on',active);   // 1111: lit the chips' own way, as the Music room pills
   });
   const entity=r.allPlayers&&r.allPlayers.find(isHeos);
   _heosEntity=entity||null;
