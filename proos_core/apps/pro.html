@@ -455,6 +455,14 @@ html.proos-has-bg #landing::before,html.proos-has-bg #proos-reboot::before,html.
 #sc-actions{display:flex;flex-direction:column;gap:8px;margin-top:14px}
 #sc-actions .btn-primary,#sc-actions .rp-cancel{margin-top:0;width:100%}
 #cfg-edit,#item-edit,#pick{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.55);opacity:0;pointer-events:none;transition:opacity .2s}
+/* 1117 — A CLOSED POPUP IS NOT DRAWN AT ALL (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10
+   seconds and it does not show the hand pointer", "mainly pro", 14:16 "it seems to always be in pages like devices").
+   READ: the Mac app's page logged a 10.1 s freeze on Devices › UniFi Network (119 devices) — register 1116's notes. Every
+   popup here is a full-screen layer that closing only made see-through (opacity 0): 21 of them stayed laid out over every
+   page, each with a frosted sheet (blur 20px), and Apple's web view re-blurred all of them on every change beneath —
+   a row lighting under the mouse, a scroll. Chrome skips see-through layers; the Mac app does not. Closed, they are now
+   hidden outright; the fade still plays (the hiding waits until the fade has finished). */
+#addint-sheet:not(.open),#assist-overlay:not(.open):not(.docked),#bk-auto-edit:not(.open),#bk-create:not(.open),#cfg-edit:not(.open),#choice:not(.open),#danger-confirm:not(.open),#device-sheet:not(.open),#entinfo:not(.open),#factory-confirm:not(.open),#flow-sheet:not(.open),#guide:not(.open),#icon-picker:not(.open),#item-edit:not(.open),#pick:not(.open),#reset-confirm:not(.open),#room-edit:not(.open),#room-picker:not(.open),#scene-art:not(.open),#scene-edit:not(.open),#svc-sheet:not(.open){visibility:hidden;transition:opacity .2s,visibility 0s linear .2s}
 #cfg-edit{z-index:960}#item-edit{z-index:962}#pick{z-index:964}
 #cfg-edit.open,#item-edit.open,#pick.open{opacity:1;pointer-events:auto}
 #cfg-edit.open .rp-sheet,#item-edit.open .rp-sheet,#pick.open .rp-sheet{transform:scale(1)}
@@ -3027,7 +3035,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102630';
+const PROOS_BUILD='2026102631';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
