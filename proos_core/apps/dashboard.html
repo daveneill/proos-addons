@@ -5041,7 +5041,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102668';
+const PROOS_BUILD='2026102669';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -22606,15 +22606,26 @@ document.addEventListener('click', function(e){
 <style>
 #proos-acard{position:fixed;inset:0;z-index:10050;display:none;align-items:center;justify-content:center;padding-right:16px;padding-bottom:16px;padding-left:16px;box-sizing:border-box}
 #proos-acard.open{display:flex}
-#proos-acard .pac-scrim{position:absolute;inset:0;background:rgba(0,0,0,.5);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
-#proos-acard .pac-card{position:relative;width:max-content;min-width:min(420px,100%);max-width:100%;max-height:calc(100vh - 32px);overflow:auto;box-sizing:border-box;padding:26px;border-radius:28px;color:#fff;
-  background:rgba(24,24,30,.78);-webkit-backdrop-filter:blur(30px) saturate(160%);backdrop-filter:blur(30px) saturate(160%);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12),0 24px 60px rgba(0,0,0,.55)}
-#proos-acard .pac-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
-#proos-acard .pac-eb{font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.66);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#proos-acard .pac-x{width:44px;height:44px;margin:-6px -6px -6px 0;border-radius:50%;border:0;background:transparent;color:#fff;display:grid;place-items:center;padding:0;cursor:pointer}
-#proos-acard .pac-x span{width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.12);display:grid;place-items:center}
+/* REGISTER 1126 (Dave 31 Oct 22:22 "just doesn't look premium somethings missing"; 22:32 "Yes" to the preview): the card
+   leads with the ROOM — its own photo across the top fading into the glass, the room's name as the headline with Core's
+   word under it (a dot, green while the room is on), Off as a round power button on the photo (amber while on), the
+   brand tiles below with depth. The screen behind stays visible instead of being dimmed to mud. */
+#proos-acard .pac-scrim{position:absolute;inset:0;background:rgba(0,0,0,.3);-webkit-backdrop-filter:blur(18px) saturate(120%);backdrop-filter:blur(18px) saturate(120%)}
+#proos-acard .pac-card{position:relative;width:max-content;min-width:min(420px,100%);max-width:100%;max-height:calc(100vh - 32px);overflow:auto;box-sizing:border-box;padding:0;border-radius:30px;color:#fff;
+  background:rgba(18,18,24,.8);-webkit-backdrop-filter:blur(40px) saturate(150%);backdrop-filter:blur(40px) saturate(150%);box-shadow:inset 0 1px 0 rgba(255,255,255,.16),inset 0 0 0 1px rgba(255,255,255,.08),0 40px 120px rgba(0,0,0,.65)}
+#proos-acard .pac-photo{position:absolute;left:0;right:0;top:0;height:300px;background-size:cover;background-position:center 42%;pointer-events:none;
+  -webkit-mask-image:linear-gradient(180deg,#000 0%,rgba(0,0,0,.85) 35%,rgba(0,0,0,.25) 70%,transparent 100%);mask-image:linear-gradient(180deg,#000 0%,rgba(0,0,0,.85) 35%,rgba(0,0,0,.25) 70%,transparent 100%)}
+#proos-acard .pac-photo::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0) 20%,rgba(10,10,14,.55) 60%,rgba(10,10,14,.7) 100%)}
+#proos-acard .pac-head{position:absolute;top:22px;right:28px;z-index:3}
+#proos-acard .pac-hero{position:relative;z-index:1;min-height:176px;box-sizing:border-box;display:flex;align-items:flex-end;justify-content:space-between;gap:16px;padding:64px 28px 20px}
+#proos-acard .pac-hero-l{min-width:0;flex:1}
+#proos-acard .pac-eb{font-size:11px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.72);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#proos-acard .pac-name{font-size:34px;font-weight:600;letter-spacing:-.025em;line-height:1.08;margin-top:4px;text-shadow:0 2px 14px rgba(0,0,0,.45);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#proos-acard .pac-x{width:44px;height:44px;margin:-7px;border-radius:50%;border:0;background:transparent;color:#fff;display:grid;place-items:center;padding:0;cursor:pointer}
+#proos-acard .pac-x span{width:30px;height:30px;border-radius:50%;background:rgba(0,0,0,.35);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);box-shadow:inset 0 0 0 1px rgba(255,255,255,.18);display:grid;place-items:center}
 #proos-acard .pac-x svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
-#proos-acard .pac-rooms{display:flex;gap:8px;overflow-x:auto;margin-top:12px;padding-bottom:2px;scrollbar-width:none}
+#proos-acard .pac-body{position:relative;z-index:1;padding:4px 28px 30px}
+#proos-acard .pac-rooms{display:flex;gap:8px;overflow-x:auto;margin:0 0 16px;padding-bottom:2px;scrollbar-width:none}
 #proos-acard .pac-rooms::-webkit-scrollbar{display:none}
 #proos-acard .pac-rm{flex:0 0 auto;display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:118px;min-height:44px;padding:9px 13px;border:0;border-radius:14px;font:inherit;text-align:left;color:#fff;background:rgba(255,255,255,.08);box-shadow:inset 0 0 0 1px rgba(255,255,255,.08);cursor:pointer}
 #proos-acard .pac-rm b{font-size:13.5px;font-weight:600}
@@ -22624,30 +22635,39 @@ document.addEventListener('click', function(e){
 #proos-acard .pac-rm.sel i{color:rgba(0,0,0,.62)}
 #proos-acard .pac-rm.sel.on i{color:#0a6b4c}
 #proos-acard .pac-truth{margin-top:12px}   /* 1093 (Dave 16:05): no space held for a second line — the tiles sit centred */
-#proos-acard .pac-big{font-size:28px;font-weight:600;letter-spacing:-.02em;line-height:1.15;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#proos-acard .pac-sub{font-size:14.5px;color:rgba(255,255,255,.85);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#proos-acard .pac-hero .pac-truth{margin-top:6px;min-width:0}
+#proos-acard .pac-big{font-size:15px;font-weight:500;line-height:1.3;color:rgba(255,255,255,.8);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#proos-acard .pac-big::before{content:'';display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:8px;vertical-align:1px;background:rgba(255,255,255,.35)}
+#proos-acard .pac-card.lit .pac-big::before{background:#7CF0C5;box-shadow:0 0 10px #7CF0C5}
+#proos-acard .pac-card.music .pac-big::before{display:none}
+#proos-acard .pac-sub{font-size:13px;color:rgba(255,255,255,.62);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#proos-acard .pac-sub:empty{display:none}
 /* 1090 (Dave 14:27): a tile is the SAME SIZE as a favourites widget on the room page — 200 wide where the widget grid is
    180–200, and on a phone two across like the favourites; the card grows to hold them. */
 #proos-acard{--pac-tw:220px}   /* 1093 (Dave 16:06): "a bit wider" — was 200 */
-#proos-acard .pac-tiles{display:grid;grid-template-columns:repeat(3,var(--pac-tw));gap:14px;margin:16px 0 20px}
-@media(max-width:768px){#proos-acard{--pac-tw:calc((100vw - 62px) / 2);padding-right:12px;padding-left:12px}#proos-acard .pac-card{width:100%;padding:14px 14px 16px}#proos-acard .pac-tiles{gap:10px}}
-#proos-acard .pac-t{display:flex;flex-direction:column;align-items:stretch;gap:8px;border:0;background:none;padding:0;font:inherit;color:#fff;cursor:pointer;min-width:0}
-#proos-acard .pac-tile{position:relative;aspect-ratio:5/3;border-radius:16px;display:flex;align-items:center;justify-content:center;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);transition:box-shadow var(--m-tap) var(--e-standard),opacity var(--m-tap) var(--e-standard)}
+#proos-acard .pac-tiles{display:grid;grid-template-columns:repeat(3,var(--pac-tw));gap:16px;margin:0}
+@media(max-width:768px){#proos-acard{--pac-tw:calc((100vw - 62px) / 2);padding-right:12px;padding-left:12px}#proos-acard .pac-card{width:100%;padding:0}#proos-acard .pac-tiles{gap:10px}
+  #proos-acard .pac-hero{min-height:148px;padding:54px 14px 16px}#proos-acard .pac-name{font-size:28px}#proos-acard .pac-body{padding:2px 14px 16px}
+  #proos-acard .pac-head{top:14px;right:14px}#proos-acard .pac-off{width:50px;height:50px}#proos-acard .pac-photo{height:240px}}
+#proos-acard .pac-t{display:flex;flex-direction:column;align-items:stretch;gap:12px;border:0;background:none;padding:0;font:inherit;color:#fff;cursor:pointer;min-width:0}
+#proos-acard .pac-tile{position:relative;aspect-ratio:5/3;border-radius:20px;overflow:hidden;display:flex;align-items:center;justify-content:center;box-shadow:0 18px 34px rgba(0,0,0,.5),inset 0 0 0 1px rgba(255,255,255,.09);transition:box-shadow var(--m-tap) var(--e-standard),opacity var(--m-tap) var(--e-standard)}
+#proos-acard .pac-tile::after{content:'';position:absolute;inset:0;z-index:1;border-radius:inherit;pointer-events:none;background:linear-gradient(165deg,rgba(255,255,255,.13) 0%,rgba(255,255,255,.03) 38%,transparent 60%);box-shadow:inset 0 1px 0 rgba(255,255,255,.18)}
 #proos-acard .pac-tile svg{width:32px;height:32px}
-#proos-acard .pac-art{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:16px}
-#proos-acard .pac-badge{z-index:1}
+#proos-acard .pac-art{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:20px}
+#proos-acard .pac-badge{z-index:2}
 #proos-acard .pac-t.k-atv .pac-tile{background:#0c0c0c}
 #proos-acard .pac-t.k-shield .pac-tile{background:#141414;color:#76b900}
 #proos-acard .pac-t.k-tv .pac-tile,#proos-acard .pac-t.k-box .pac-tile{background:linear-gradient(160deg,#2b2f38,#16181d)}
-#proos-acard .pac-tl{font-size:13px;font-weight:600;text-align:center;color:rgba(255,255,255,.85);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#proos-acard .pac-tl{font-size:14px;font-weight:600;text-align:center;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #proos-acard .pac-badge{display:none;position:absolute;left:7px;bottom:6px;font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:6px;background:rgba(255,255,255,.94);color:#000}
-#proos-acard .pac-t.on .pac-tile{box-shadow:0 0 0 2px #fff,0 0 24px rgba(255,255,255,.35)}
+#proos-acard .pac-t.on .pac-tile{box-shadow:0 0 0 2px #fff,0 0 30px rgba(255,255,255,.3),0 18px 34px rgba(0,0,0,.5)}
 #proos-acard .pac-t.on .pac-badge{display:block}
 #proos-acard .pac-t.go .pac-tile{box-shadow:0 0 0 2px rgba(255,255,255,.75);animation:pacPulse var(--m-listen) var(--e-standard) infinite}
 #proos-acard .pac-tiles.has-on .pac-t:not(.on):not(.go) .pac-tile{opacity:.6}
-#proos-acard .pac-off{width:100%;min-height:52px;border-radius:18px;border:0;font:inherit;font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;background:rgba(255,255,255,.10);color:rgba(255,255,255,.78);cursor:pointer}
-#proos-acard .pac-off svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
-#proos-acard .pac-off.lit{background:#FFC46B;color:#2a1700;box-shadow:0 0 22px rgba(255,196,107,.45)}
+#proos-acard .pac-off{flex:none;width:56px;height:56px;border-radius:50%;border:0;padding:0;font:inherit;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.12);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.2),0 8px 24px rgba(0,0,0,.35);cursor:pointer}
+#proos-acard .pac-off svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+#proos-acard .pac-off #pac-off-t{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+#proos-acard .pac-off.lit{background:#FFC46B;color:#2a1700;box-shadow:0 0 28px rgba(255,196,107,.55)}
 #proos-acard .pac-none{font-size:13px;color:rgba(255,255,255,.7);margin:16px 0}
 #proos-acard .pac-eq{display:inline-flex;gap:2px;align-items:flex-end;height:12px;margin-right:7px;vertical-align:1px}
 #proos-acard .pac-eq i{width:2.5px;background:#7CF0C5;border-radius:1px;animation:pacEq var(--m-listen) var(--e-standard) infinite}
@@ -22655,7 +22675,7 @@ document.addEventListener('click', function(e){
 @keyframes pacEq{0%,100%{height:3px}50%{height:12px}}
 @keyframes pacPulse{0%,100%{opacity:1}50%{opacity:.55}}
 /* 1090: the spinning circle while an activity this card started is coming up (Dave 14:22) */
-#proos-acard .pac-spin{display:none;position:absolute;inset:0;z-index:2;border-radius:16px;background:rgba(0,0,0,.5);align-items:center;justify-content:center}
+#proos-acard .pac-spin{display:none;position:absolute;inset:0;z-index:2;border-radius:20px;background:rgba(0,0,0,.5);align-items:center;justify-content:center}
 #proos-acard .pac-spin::after{content:'';width:34px;height:34px;border-radius:50%;border:3px solid rgba(255,255,255,.25);border-top-color:#fff;animation:pacSpin var(--m-listen) linear infinite}
 #proos-acard .pac-t.busy .pac-spin{display:flex}
 .af-tile{position:relative;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden}
@@ -22741,12 +22761,15 @@ function _pacTruth(r){
 function _pacEnsure(){
   var el=document.getElementById('proos-acard'); if(el) return el;
   el=document.createElement('div'); el.id='proos-acard'; el.setAttribute('role','dialog'); el.setAttribute('aria-modal','true'); el.setAttribute('aria-label','Activities');
+  // 1126: the room leads — its photo, its name, Core's word, and Off as the power button on the photo; the tiles below
   el.innerHTML='<div class="pac-scrim"></div><div class="pac-card">'
-    +'<div class="pac-head"><div class="pac-eb" id="pac-eb">Activities</div><button type="button" class="pac-x" aria-label="Close"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></span></button></div>'
-    +'<div class="pac-rooms" id="pac-rooms"></div>'
-    +'<div class="pac-truth"><div class="pac-big" id="pac-big"></div><div class="pac-sub" id="pac-sub"></div></div>'
-    +'<div class="pac-tiles" id="pac-tiles"></div>'
-    +'<button type="button" class="pac-off" id="pac-off"><span class="pac-ospin" aria-hidden="true"></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v9M6.3 7.3a8 8 0 1 0 11.4 0"/></svg><span id="pac-off-t">Off</span></button>'
+    +'<div class="pac-photo" id="pac-photo" aria-hidden="true"></div>'
+    +'<div class="pac-head"><button type="button" class="pac-x" aria-label="Close"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></span></button></div>'
+    +'<div class="pac-hero"><div class="pac-hero-l"><div class="pac-eb" id="pac-eb">Activities</div><div class="pac-name" id="pac-name"></div>'
+    +'<div class="pac-truth"><div class="pac-big" id="pac-big"></div><div class="pac-sub" id="pac-sub"></div></div></div>'
+    +'<button type="button" class="pac-off" id="pac-off"><span class="pac-ospin" aria-hidden="true"></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v9M6.3 7.3a8 8 0 1 0 11.4 0"/></svg><span id="pac-off-t">Off</span></button></div>'
+    +'<div class="pac-body"><div class="pac-rooms" id="pac-rooms"></div>'
+    +'<div class="pac-tiles" id="pac-tiles"></div></div>'
     +'</div>';
   document.body.appendChild(el);
   el.querySelector('.pac-scrim').addEventListener('click', closeActivityCard);
@@ -22812,8 +22835,13 @@ function _pacRender(){
       b.setAttribute('aria-pressed', String(x===r));
     });
   }
-  document.getElementById('pac-eb').textContent = r.name+' · Activities';
+  // 1126: the room's own photo and name lead the card (the photo set only when it changes — no flicker on a re-render)
+  var nmEl=document.getElementById('pac-name'); if(nmEl.textContent!==r.name) nmEl.textContent=r.name;
+  el.setAttribute('aria-label', r.name+' Activities');
+  var phEl=document.getElementById('pac-photo'), phU=r.photo ? "url('"+String(r.photo).replace(/'/g,'%27')+"')" : 'none';
+  if(phEl.dataset.u!==phU){ phEl.dataset.u=phU; phEl.style.backgroundImage=phU; }
   var tr=_pacTruth(r);
+  var cardEl=el.querySelector('.pac-card'); cardEl.classList.toggle('lit', _pacIsOn(r)); cardEl.classList.toggle('music', !!tr.music);
   var bigHtml=(tr.music?'<span class="pac-eq" aria-hidden="true"><i></i><i></i><i></i></span>':'')+_pacEsc(tr.big), bigEl=document.getElementById('pac-big');
   if(bigEl.dataset.h!==bigHtml){ bigEl.dataset.h=bigHtml; bigEl.innerHTML=bigHtml; }
   document.getElementById('pac-sub').textContent = tr.sub;
@@ -22850,6 +22878,7 @@ function _pacRender(){
   off.style.display = offAct ? 'flex' : 'none';
   off.dataset.script = offAct ? offAct.script : '';
   document.getElementById('pac-off-t').textContent = r.name+' Off';
+  off.setAttribute('aria-label', r.name+' Off');
   off.classList.toggle('lit', _pacIsOn(r));
   off.classList.toggle('busy', !!(pend && pend.off));
 }
