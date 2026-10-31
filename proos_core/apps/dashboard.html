@@ -183,8 +183,11 @@ img,video,.widget-cell,.pa-cam,.pw,.pw-door,.pa-eg-cell,.pa-strip-cell,.pa-tl-it
    HALVED (register 625, 26 Sep 2026). Dave, on the iPad and the phone: "to
    dark". June's 0.95-0.98 bottom hid the room under the tiles entirely. Of three
    tried on his Home page he chose the middle: 0.60 at 55%, 0.78 at 70%, 0.85 at
-   the bottom — the room shows under the tiles, the bottom edge still reads dark. */
-#room-bg::after{content:'';position:fixed;inset:0;z-index:1;pointer-events:none;background:var(--proos-shade,linear-gradient(to bottom,rgba(0,0,0,0.70) 0%,rgba(0,0,0,0.40) 22%,rgba(0,0,0,0.30) 38%,rgba(0,0,0,0.60) 55%,rgba(0,0,0,0.78) 70%,rgba(0,0,0,0.85) 100%))}
+   the bottom — the room shows under the tiles, the bottom edge still reads dark.
+   EVEN (register 1128, Dave 1 Nov 05:49 "the shading at the bottom runs out half way up screen … on lighter backgrounds
+   the header disappears"; 05:55 "yes please" to the before/after): the light band between the header and the dark half
+   (.40 at 22%, .30 at 38%) is gone — .70 at the top, never under .62 down to 45%, then the dark as before to .85. */
+#room-bg::after{content:'';position:fixed;inset:0;z-index:1;pointer-events:none;background:var(--proos-shade,linear-gradient(to bottom,rgba(0,0,0,0.70) 0%,rgba(0,0,0,0.62) 25%,rgba(0,0,0,0.62) 45%,rgba(0,0,0,0.72) 60%,rgba(0,0,0,0.80) 75%,rgba(0,0,0,0.85) 100%))}
 .room-bg-layer{position:absolute;inset:0;background-size:cover;background-position:center;transition:opacity .8s ease;opacity:1}
 .room-bg-layer.hidden{opacity:0}
 #room-bg-grad{display:none}
@@ -2429,7 +2432,7 @@ html.proos-has-bg #loading::before,html.proos-has-bg #setup::before,html.proos-h
    page shifts"). The loading screen wears THE HOME SCREEN'S OWN SHADE — the same graded black as
    #room-bg::after over the same photo, framed the same (cover, centre) — so when Home appears behind
    it nothing in the background moves or changes brightness; only the mark fades and Home's words come. */
-html.proos-has-bg #loading::before{background:linear-gradient(to bottom,rgba(0,0,0,0.70) 0%,rgba(0,0,0,0.40) 22%,rgba(0,0,0,0.30) 38%,rgba(0,0,0,0.60) 55%,rgba(0,0,0,0.78) 70%,rgba(0,0,0,0.85) 100%)}
+html.proos-has-bg #loading::before{background:linear-gradient(to bottom,rgba(0,0,0,0.70) 0%,rgba(0,0,0,0.62) 25%,rgba(0,0,0,0.62) 45%,rgba(0,0,0,0.72) 60%,rgba(0,0,0,0.80) 75%,rgba(0,0,0,0.85) 100%)}
 /* …and on the first paint behind it, the photo and the hour's grade arrive at once, not fading in. */
 html.proos-first-paint .room-bg-layer,html.proos-first-paint #tod-dark,html.proos-first-paint #tod-grade,html.proos-first-paint #tod-light{transition:none!important}
 #loading>*,#proos-reboot>*,#proos-dashupd>*{position:relative;z-index:1}
@@ -3313,7 +3316,7 @@ html[data-link="remote"]{--m-tap:90ms;--m-move:200ms;--m-page:300ms}
 #atv-page .atv-bg.photo{inset:-80px;background:#0b0b10 center/cover no-repeat;filter:blur(28px);transform:translateZ(0)}
 /* 1092 (Dave 14:54, against Music and Media): the SAME darkening every full page gets — the room shade (#room-bg::after)
    under the pages' own 60% black (.page:not(#page-home)) — not a lighter one of its own. */
-#atv-page .atv-bg.photo::after{content:'';position:absolute;inset:0;background:linear-gradient(rgba(0,0,0,.60),rgba(0,0,0,.60)),var(--proos-shade,linear-gradient(to bottom,rgba(0,0,0,0.70) 0%,rgba(0,0,0,0.40) 22%,rgba(0,0,0,0.30) 38%,rgba(0,0,0,0.60) 55%,rgba(0,0,0,0.78) 70%,rgba(0,0,0,0.85) 100%))}
+#atv-page .atv-bg.photo::after{content:'';position:absolute;inset:0;background:linear-gradient(rgba(0,0,0,.60),rgba(0,0,0,.60)),var(--proos-shade,linear-gradient(to bottom,rgba(0,0,0,0.70) 0%,rgba(0,0,0,0.62) 25%,rgba(0,0,0,0.62) 45%,rgba(0,0,0,0.72) 60%,rgba(0,0,0,0.80) 75%,rgba(0,0,0,0.85) 100%))}
 #atv-page .atv-hdr{padding:max(22px,var(--proos-sat)) 0 0;display:flex;align-items:center;gap:18px;min-height:56px;flex:none}
 #atv-page .atv-hl{display:flex;flex-direction:column;gap:2px;min-width:180px;flex:1 1 0}
 #atv-page .atv-bk{display:flex;align-items:center;gap:2px;color:var(--atv-ink2);font-size:13px;padding:0;align-self:flex-start}#atv-page .atv-bk svg{width:16px;height:16px}#atv-page .atv-bk b{font-weight:500}
@@ -5041,7 +5044,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102670';
+const PROOS_BUILD='2026102671';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -24475,7 +24478,7 @@ html.pv-room #page-home .room-acts{display:block;margin-top:0}   /* 1119: the li
 /* 968x: the photo-as-hero room is the PHONE's only (Dave: the iPad and the Mac have the space — like Home); it was every
    portrait screen and every window under 1024, so an upright iPad and a narrow Mac window had a hole above the widgets */
 @media (max-width:767px){
-  html.pv-room{--proos-shade:linear-gradient(to bottom,rgba(0,0,0,.42) 0%,rgba(0,0,0,.12) 16%,rgba(0,0,0,.22) 30%,rgba(8,8,11,.84) 46%,rgba(8,8,11,.93) 100%)}   /* the photo as a hero */
+  html.pv-room{--proos-shade:linear-gradient(to bottom,rgba(0,0,0,.70) 0%,rgba(0,0,0,.62) 25%,rgba(0,0,0,.66) 38%,rgba(8,8,11,.84) 52%,rgba(8,8,11,.93) 100%)}   /* 1128: the header sits on shade — the clear band (.12 at 16%, .22 at 30%) ran straight through 1119's taller header */
   /* 1114 (Dave 31 Oct 12:30: "the home page is correct but I think the area pages still have the gap"; 12:55 "Yes go ahead"):
      968m's push (#ctrl-grid margin-top:14vh, "the widgets start lower so the photo shows") is gone — a room's widgets
      start under its status and alerts, as Home's do. */
