@@ -5048,7 +5048,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102673';
+const PROOS_BUILD='2026102674';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -25458,6 +25458,63 @@ html.pp-on #app{visibility:hidden}
     // per-activity buttons out ("they don't get tapped by mistake").
     ['Activities',"M3 5h18v12H3zM8 21h8M12 17v4M10.5 8.8l4 2.2-4 2.2z",function(){ try{ openActivityCard(); }catch(e){} }]
   ];
+  // ── REGISTER 1131 — THE FIXED TABS KEEP THEIR ORDER, AND SAY WHAT MOVED THEM ──────────────────────────────────────
+  // Dave 1 Nov 07:10 (iPad screenshot): "after some time you can open the app on iPad or mobile and the first 3 icons home,
+  // rooms and activities seem to change positions and if I close app and open it then they go back to normal". The
+  // picture reads Activities · Rooms · Home — the three exactly REVERSED, which is what putting them in a second time,
+  // each at the front, would give. No code read on 1 Nov moves them, and nothing tried on the live dashboard (coming
+  // back to the page, the home reconnecting, Return to Start) moved them. 07:19 "okay do that please": the bar notes
+  // EVERY move of one of the three — the call, and the steps that made it — and the moment their order is wrong it posts
+  // the order, the notes and the page to Core (/ui/stall, the freeze notes' door: page "nav-order …"), then puts them
+  // back. A DIAGNOSTIC + a guard: the guard stays only until the cause is found and fixed at its source.
+  var _NAV_FIXED=['Home','Rooms','Activities'], _navMoves=[], _navHealing=false, _navT0=Date.now();
+  // the steps that made the move, the recorder's own three left out; each step as "name:line" so 300 characters hold eight
+  function _navStack(){ try{ return String((new Error()).stack||'').split('\n').slice(4,12).map(function(f){ f=f.trim().replace(/^at /,'');
+      var nm=(f.match(/^([^\s(]+)\s*\(/)||[])[1]||'?', ln=(f.match(/:(\d+):\d+\)?$/)||[])[1]||''; return nm+(ln?':'+ln:''); }).join(' < '); }catch(e){ return ''; } }
+  function _navNote(k, nodes){
+    if(_navHealing) return;
+    var what=[].slice.call(nodes||[]).map(function(n){ return (n&&(n.title||n.nodeName))||String(n); }).join('>');
+    _navMoves.push({k:k, what:what, t:Math.round((Date.now()-_navT0)/1000), stack:_navStack()}); if(_navMoves.length>12) _navMoves.shift();
+  }
+  function _navFixedArm(nav){
+    if(!nav || nav._fixedArmed || !nav.querySelector('.proos-extra')) return; nav._fixedArmed=true;
+    ['insertBefore','appendChild','prepend','append','replaceChildren','removeChild','replaceChild'].forEach(function(k){
+      var o=nav[k]; if(typeof o!=='function') return;
+      nav[k]=function(){ try{ var a=[].slice.call(arguments);
+        if(k==='replaceChildren' || a.some(function(n){ return n&&n.classList&&n.classList.contains('proos-extra'); })) _navNote('bar.'+k, a); }catch(e){}
+        return o.apply(this, arguments); };
+    });
+    [].slice.call(nav.querySelectorAll('.proos-extra')).forEach(function(b){
+      ['before','after','remove','replaceWith'].forEach(function(k){ var o=b[k]; if(typeof o!=='function') return;
+        b[k]=function(){ try{ _navNote(b.title+'.'+k, arguments); }catch(e){} return o.apply(this, arguments); }; });
+    });
+    var pend=false;
+    new MutationObserver(function(){ if(pend) return; pend=true; setTimeout(function(){ pend=false; _navFixedCheck('changed'); }, 0); })
+      .observe(nav,{childList:true});
+    document.addEventListener('visibilitychange', function(){ if(!document.hidden) _navFixedCheck('back'); });
+    setInterval(function(){ _navFixedCheck('tick'); }, 10000);
+  }
+  function _navFixedCheck(why){
+    var nav=document.getElementById('bottom-nav'); if(!nav) return false;
+    var ex=[].slice.call(nav.querySelectorAll(':scope > .proos-extra')), all=document.querySelectorAll('.proos-extra').length;
+    var got=ex.map(function(b){ return b.title; }), want=_NAV_FIXED.filter(function(t){ return got.indexOf(t)>=0; });
+    var lead=[].slice.call(nav.children).slice(0, ex.length).every(function(c){ return c.classList.contains('proos-extra'); });
+    if(got.join()===want.join() && lead && ex.length===all) return false;
+    var pg=''; try{ pg=(typeof curPage!=='undefined'?curPage:'')+((typeof curRoom==='number'&&curRoom>=0&&CONFIG.rooms[curRoom])?' · '+CONFIG.rooms[curRoom].name:''); }catch(e){}
+    var at=new Date().toISOString(), head={at:at, ms:1, page:('nav-order '+why+' '+pg).slice(0,60),
+      last:('was '+got.join(',')+' lead:'+lead+' bars:'+document.querySelectorAll('#bottom-nav').length+' tabs:'+all+' up '+Math.round((Date.now()-_navT0)/60000)+'m').slice(0,80),
+      work:('vis '+document.visibilityState+' · moves '+_navMoves.length).slice(0,300)};
+    var notes=[head].concat(_navMoves.slice(-4).map(function(m){ return {at:at, ms:1, page:('nav-move '+m.k).slice(0,60), last:(m.what+' @'+m.t+'s').slice(0,80), work:m.stack.slice(0,300)}; }));
+    try{ fetch(proosCoreBase()+'/ui/stall',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({app:'dashboard',build:PROOS_BUILD,stalls:notes})}).catch(function(){}); }catch(e){}
+    // put them back: Home, Rooms, Activities at the start of the bar, in that order
+    _navHealing=true;
+    try{ var byT={}; [].slice.call(document.querySelectorAll('.proos-extra')).forEach(function(b){ byT[b.title]=b; });
+         for(var i=_NAV_FIXED.length-1;i>=0;i--){ var b=byT[_NAV_FIXED[i]]; if(b) nav.insertBefore(b, nav.firstChild); } }catch(e){}
+    _navHealing=false;
+    return true;
+  }
+  window._navFixedCheck=_navFixedCheck;
   function buildNav(){
     var nav=document.getElementById('bottom-nav'); if(!nav) return;
     if(!nav.querySelector('.proos-extra')){
@@ -25510,6 +25567,7 @@ html.pp-on #app{visibility:hidden}
       st.addEventListener('click',function(){ openSettingsDoor(); });
       nav.appendChild(st);
     }
+    try{ _navFixedArm(nav); }catch(e){}   // 1131
     // REGISTER 528 — the now-playing pill is retired for real this time. The
     // comment that used to sit here said so while the code below still built
     // it. _npPlaying() and updateNowPlayingPill() STAY: they set
