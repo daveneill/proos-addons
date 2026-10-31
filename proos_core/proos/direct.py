@@ -114,6 +114,17 @@ def platform_recognize(ws_call, text, language=None):
     return (rows or [None])[0]
 
 
+def _phrasebook(rec):
+    """REGISTER 1133: a match from ProOS's own phrasebook for the platform's built-in commands
+    (custom_sentences/en/proos.yaml, voicephrasebook.py) is read exactly like the built-in library — the
+    platform's own command, more ways of saying it. Any other custom file is the installer's, not ours."""
+    try:
+        from proos import voicephrasebook as _vpb
+        return _vpb.is_ours(rec)
+    except Exception:                                            # noqa: BLE001
+        return False
+
+
 def _slot(rec, key):
     d = ((rec or {}).get("details") or {}).get(key) or {}
     v = d.get("value")
@@ -155,8 +166,8 @@ def resolve_platform(rec, text, where=None, rooms=(), scenes=()):
                 return {"tool": "music_search_play", "args": {"area_id": aid, "query": name},
                         "matched": "platform:music", "say": None}
         return None                       # no room anywhere: the platform's door asks "Which room?"
-    if rec.get("source") not in (None, "builtin"):
-        return None                       # a custom sentence or trigger is not ours to map
+    if rec.get("source") not in (None, "builtin") and not _phrasebook(rec):
+        return None                       # a custom sentence or trigger is not ours to map (ProOS's phrasebook is, 1133)
     if "?" in str(text or ""):
         return None
     padded = " " + _norm(text) + " "
@@ -436,7 +447,7 @@ def platform_can_take(rec, text, rooms=()):
     # certain by construction, and the platform's agent runs it.
     if rec.get("source") == "trigger":
         return "trigger"
-    if rec.get("source") not in (None, "builtin"):
+    if rec.get("source") not in (None, "builtin") and not _phrasebook(rec):
         return None
     intent = str(((rec.get("intent") or {}).get("name")) or "")
     if not intent or intent in PLATFORM_LATER or intent in PLATFORM_NEEDS_A_SPEAKER:

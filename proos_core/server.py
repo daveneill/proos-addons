@@ -11843,6 +11843,14 @@ def main():
             except Exception as _vw_e:
                 print(f"  voice · weather skipped: {_vw_e}")
             try:
+                # REGISTER 1133: more ways of saying the platform's own commands ("set the bedroom lights to 50%") —
+                # the platform's own sentences file, so they are instant instead of a 10–17 s cloud AI turn.
+                from proos import voicephrasebook as _vpb
+                _vb = _vpb.write(_client)
+                print(f"  voice · phrasebook: {_vb.get('action')}" + (f" ({_vb.get('error')})" if _vb.get('error') else ""))
+            except Exception as _vb_e:
+                print(f"  voice · phrasebook skipped: {_vb_e}")
+            try:
                 # REGISTER 866: music by name from ANY voice door — the platform's own wildcard sentence, answered with Core's words.
                 from proos import voicemusic as _vmus
                 _vm = _vmus.voice_music(_client)
