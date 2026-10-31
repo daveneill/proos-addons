@@ -1524,7 +1524,11 @@ html.proos-panel #widget-add-btn{display:none!important}
 #music-head{position:sticky;top:0;z-index:6;flex-shrink:0;padding-bottom:6px}
 #music-head::before{content:'';position:absolute;left:0;right:0;top:0;bottom:-16px;z-index:-1;pointer-events:none;
   background:rgba(9,10,13,.86);-webkit-backdrop-filter:blur(28px) saturate(1.1);backdrop-filter:blur(28px) saturate(1.1);   /* 1011b: .55 let the music read through behind the speakers row (seen on the test device) */
-  -webkit-mask:linear-gradient(180deg,#000 calc(100% - 22px),transparent);mask:linear-gradient(180deg,#000 calc(100% - 22px),transparent)}
+  -webkit-mask:linear-gradient(180deg,#000 calc(100% - 22px),transparent);mask:linear-gradient(180deg,#000 calc(100% - 22px),transparent);
+  opacity:0;transition:opacity var(--m-move) var(--e-standard)}
+/* 1112 (Dave 31 Oct 11:44: "Music page seems to have a dark banner behind the player"; agreed (a)): the strip is there only
+   while the music slides under the player — at rest the room's background shows behind the pills and the player. */
+#music-head.under::before{opacity:1}
 @media (min-width:769px){
   #music-speakers,#music-now-playing,#music-cats-row,#music-search-row,#music-grid,#music-discover{padding-left:32px!important;padding-right:32px!important}
 }
@@ -4094,7 +4098,7 @@ try{var _sb=localStorage.getItem('proos_std_bg');if(_sb){document.documentElemen
            at all, painted its Trending row straight over the bar on every
            glass. Now the column is the scroller. _markPageScroller elects it,
            the dock rule pads it, and nothing on this page can reach the bar. -->
-      <div id="music-content" style="flex:1;min-height:0;display:flex;flex-direction:column;overflow-y:auto;overflow-x:hidden;scrollbar-width:none">
+      <div id="music-content" style="flex:1;min-height:0;display:flex;flex-direction:column;overflow-y:auto;overflow-x:hidden;scrollbar-width:none" onscroll="var h=document.getElementById('music-head');if(h)h.classList.toggle('under',this.scrollTop>2)">
         <div id="music-head">
         <div id="music-speakers" style="display:flex;gap:8px;padding:0 16px 12px;overflow-x:auto;flex-shrink:0;scrollbar-width:none"></div>
         <div id="music-now-playing" style="flex-shrink:0"></div>
@@ -5033,7 +5037,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102656';
+const PROOS_BUILD='2026102657';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
