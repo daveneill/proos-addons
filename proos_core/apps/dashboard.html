@@ -1522,9 +1522,13 @@ html.proos-panel #widget-add-btn{display:none!important}
    the player are one block that sticks to the top of the page's one scroller (register 560 keeps a single scroller);
    the categories, search and music scroll up behind it, under a frosted strip that fades at its foot. */
 #music-head{position:sticky;top:0;z-index:6;flex-shrink:0;padding-bottom:6px}
-#music-head::before{content:'';position:absolute;left:0;right:0;top:0;bottom:-16px;z-index:-1;pointer-events:none;
-  background:rgba(9,10,13,.86);-webkit-backdrop-filter:blur(28px) saturate(1.1);backdrop-filter:blur(28px) saturate(1.1);   /* 1011b: .55 let the music read through behind the speakers row (seen on the test device) */
-  -webkit-mask:linear-gradient(180deg,#000 calc(100% - 22px),transparent);mask:linear-gradient(180deg,#000 calc(100% - 22px),transparent);
+/* 1113 (Dave 31 Oct 12:22 "Still looks shocking"; 12:25 "the home page and area pages seem to be okay"; 12:26 "All the pages
+   anything that scrolls behind"): the strip is the HOME PAGE'S OWN SCRIM — the one behind Home's title (#page-home
+   .home-identity::before), same blur, same tint, same 40px soft foot, which hangs below the player so the music fades as
+   it goes under instead of meeting 1011b's near-black wall (.86) with a 22px hard edge. */
+#music-head::before{content:'';position:absolute;left:0;right:0;top:0;bottom:-40px;z-index:-1;pointer-events:none;
+  -webkit-backdrop-filter:blur(30px);backdrop-filter:blur(30px);background:linear-gradient(180deg,rgba(0,0,0,0.46) 0%,rgba(0,0,0,0.30) 100%);
+  -webkit-mask:linear-gradient(180deg,#000 0,#000 calc(100% - 40px),rgba(0,0,0,0) 100%);mask:linear-gradient(180deg,#000 0,#000 calc(100% - 40px),rgba(0,0,0,0) 100%);
   opacity:0;transition:opacity var(--m-move) var(--e-standard)}
 /* 1112 (Dave 31 Oct 11:44: "Music page seems to have a dark banner behind the player"; agreed (a)): the strip is there only
    while the music slides under the player — at rest the room's background shows behind the pills and the player. */
@@ -5037,7 +5041,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102657';
+const PROOS_BUILD='2026102658';
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late
@@ -23532,6 +23536,11 @@ body:not(:has(#page-home.page.active)) #home-media-strip{display:none!important}
    under the bar. This is the one case register 510 is not about: not a second
    opinion in the sheet, but the only way to reach past a style attribute. */
 .page:not(#page-home) .proos-scroller{padding-bottom:calc(var(--proos-floor) + var(--proos-dock-h))!important}
+/* 1113 — WHAT SCROLLS UP BEHIND A PAGE'S HEADER FADES, IT IS NOT CHOPPED (Dave 31 Oct 12:26: "All the pages anything that
+   scrolls behind"). Read on his box: Lights, Cameras, Rooms cut their rows off sharp under the room pills. The page's own
+   scroller (elected above) fades its top 36px once something has gone up behind it. Home and the room pages keep their own
+   scrim (Dave: "okay"); Music's column holds its pinned player, which carries the same scrim instead. */
+.page:not(#page-home) .proos-scroller.proos-top-under:not(#music-content){-webkit-mask-image:linear-gradient(180deg,transparent 0,#000 36px);mask-image:linear-gradient(180deg,transparent 0,#000 36px)}
 
 /* THE BAR EARNS A SCRIM THE SAME WAY THE HEADER DOES — only when something is
    actually behind it. Register 528 says the bar has no surface and the icons
@@ -25639,6 +25648,7 @@ html.pp-on #app{visibility:hidden}
     try{
       var below = el.scrollHeight - el.scrollTop - el.clientHeight;
       document.body.classList.toggle('proos-under-bar', below > 8);
+      el.classList.toggle('proos-top-under', el.scrollTop > 8);   // 1113: something has gone up behind its top edge
     }catch(e){}
   }
   function _markPageScroller(){
