@@ -5041,7 +5041,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102664';
+const PROOS_BUILD='2026102665';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -20711,7 +20711,20 @@ function setScreensaver(v){
 let _retTimer=null;
 function retSecs(){ const v=parseInt(localStorage.getItem('dash_return_secs')||'0',10); return isFinite(v)?v:0; }
 function retReset(){ clearTimeout(_retTimer); _retTimer=null; const s=retSecs(); if(s>0) _retTimer=setTimeout(retFire, s*1000); }
-function retFire(){ if(typeof _widgetEditMode!=='undefined' && _widgetEditMode){ retReset(); return; } if(!_ssActive) applyDefaultLanding(); retReset(); }
+// 1122 (Dave 31 Oct 16:02: "every home and area page when left sitting on the screen refreshes by itself … everything
+// briefly disappear and reappear … every 60 secs"). READ from 1121's notes on his iPad (Office page, "Return to Start
+// After" 1 minute, "Open app to" the Office): 4:29:08 he tapped into the Office; 4:30:08, no touch, the room cards and
+// every widget were torn down and rebuilt — this timer "returning" him to the page he was already on, every minute.
+// Already on the start page, it does nothing; it only brings a screen back from somewhere else.
+function _atDefaultLanding(){
+  try{
+    let target=''; try{ target=localStorage.getItem('dash_default_room')||''; }catch(e){}
+    const idx=target?(CONFIG.rooms||[]).findIndex(r=>r.name===target):-1;
+    const want=idx>=0?idx:-1;
+    return curPage==='home' && curRoom===want && !document.querySelector('.player-overlay.open,#player-overlay.open');
+  }catch(e){ return false; }
+}
+function retFire(){ if(typeof _widgetEditMode!=='undefined' && _widgetEditMode){ retReset(); return; } if(!_ssActive && !_atDefaultLanding()) applyDefaultLanding(); retReset(); }
 function setReturnAfter(v){
   try{ if(v && v!=='0') localStorage.setItem('dash_return_secs', v); else localStorage.removeItem('dash_return_secs'); }catch(e){}
   retReset();
