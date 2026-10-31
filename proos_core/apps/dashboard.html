@@ -5033,7 +5033,26 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102660';
+const PROOS_BUILD='2026102661';
+// 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
+// show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
+// was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
+// screen. Remove with Core's half once the answer is in.
+(function(){ try{
+  var last='', lastAt=0, buf=[], prev=performance.now();
+  document.addEventListener('pointerdown',function(e){ try{ var t=e.target, b=(t&&t.closest&&t.closest('button,a,[onclick],[role=button]'))||t;
+    last=String((b&&b.getAttribute&&b.getAttribute('aria-label'))||(b&&b.textContent)||(b&&b.tagName)||'').replace(/\s+/g,' ').trim().slice(0,60);
+    lastAt=performance.now(); }catch(_){ } },true);
+  setInterval(function(){ var n=performance.now(), g=n-prev; prev=n;
+    if(g>600 && g<120000 && document.visibilityState==='visible'){
+      var pg=''; try{ pg=(typeof curPage!=='undefined'?curPage:'')+((typeof curRoom==='number'&&curRoom>=0&&CONFIG&&CONFIG.rooms&&CONFIG.rooms[curRoom])?' · '+CONFIG.rooms[curRoom].name:''); }catch(_){ }
+      buf.push({at:new Date().toISOString(), ms:Math.round(g-100), page:String(pg||'').slice(0,60), last:last,
+                since_click: lastAt ? Math.round((n-g)-lastAt) : null}); if(buf.length>50) buf.shift(); } },100);
+  setInterval(function(){ if(!buf.length) return; var b=buf.splice(0);
+    try{ fetch(proosCoreBase()+'/ui/stall',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({app:'dashboard',build:PROOS_BUILD,stalls:b})}).catch(function(){}); }catch(_){ } },15000);
+}catch(e){} })();
+
 // FIRST THING, every load: kill any legacy service worker + caches. A stale SW from an
 // older build is the classic "deploy but still the old version" trap — it intercepts and
 // serves the old file, so the self-updater never even runs. Killing it up-front (not late

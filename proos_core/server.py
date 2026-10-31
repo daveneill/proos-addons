@@ -6134,6 +6134,10 @@ class Handler(BaseHTTPRequestHandler):
                     self.wfile.write(data)
                     return
                 return self._send(404, {"error": "app not shipped"})
+            if parts == ["ui", "stall"]:
+                # 1116 — read back the pages' freeze notes (diagnostic; proos/uistall.py)
+                from proos import uistall as _uis
+                return self._send(200, {"stalls": _uis.recent(200)})
             if parts == ["rooms", "art", "styles"]:
                 # curated backgrounds offered in Edit Room, matched to the
                 # room's kind first, then the general pool
@@ -8242,6 +8246,10 @@ class Handler(BaseHTTPRequestHandler):
             print("  accounts · ProOS sign-in %s: %s" % ("let in" if _sr.get("ok") else "refused",
                                                         _sr.get("by") or _sr.get("why")), flush=True)
             return self._send(200, {"ok": True, "name": _sr.get("name")} if _sr.get("ok") else {"ok": False})
+        if _p == "ui/stall":
+            # 1116 — a DIAGNOSTIC: a page's own note of moments it stopped answering (proos/uistall.py). Any signed-in page.
+            from proos import uistall as _uis
+            return self._send(200, {"kept": _uis.record(self._body(), self.headers.get("User-Agent") or "")})
         try:
             # ── Avatar write-shim: the ONLY privileged step. The browser has
             # already uploaded the image to HA's native store and passes us the
