@@ -192,6 +192,7 @@ def memory_view(user_id, recent: int = 10) -> dict:
             "learned": [l.get("text") for l in (rec.get("learned") or []) if l.get("text")],
             "declines": [d.get("text") for d in (rec.get("declines") or []) if d.get("text")],
             "recent": out_recent,
+            "house_rules": [r.get("text") for r in house_rules() if r.get("text")],
             "turns": len(rows)}
 
 
@@ -1118,9 +1119,19 @@ TOOLS = [
                     "('prefers the kitchen HomePod', 'watches Apple TV most weekday evenings') — "
                     "it's kept separately and treated as soft. This is how your memory GROWS: pin "
                     "durable, meaningful patterns as you notice them, never one-offs. Keep it short. "
-                    "forget=true removes a matching item from both. Per person.",
+                    "forget=true removes a matching item from both. Per person. "
+                    "HOUSE RULES (house=true): a rule about how THIS HOME must behave — what a word means "
+                    "here ('lamps' = only the lamps, never the main light), what never to do, how something "
+                    "must be done. It applies to EVERYONE and on EVERY road, not just this person. When "
+                    "you are corrected after getting something wrong ('I said lamps', 'not the volume'), "
+                    "save the correction as a house rule AT ONCE, with `words` = the words that bring it "
+                    "into play ('lamp', 'lamps'), then put the mistake right. A house rule is not optional "
+                    "afterwards: follow it every time.",
      "input_schema": {"type": "object", "properties": {
          "fact": {"type": "string"},
+         "house": {"type": "boolean", "description": "true = a rule for the whole home, every person and every road (needs words)"},
+         "words": {"type": "array", "items": {"type": "string"},
+                   "description": "house rules only: the spoken words that bring the rule into play, e.g. ['lamp','lamps']"},
          "learned": {"type": "boolean", "description": "true = a preference you inferred (soft), not one they stated"},
          "decline": {"type": "boolean", "description": "true = a suggestion they waved off; record it so you never re-offer (a no sticks)"},
          "forget": {"type": "boolean", "description": "true to remove a previously-pinned item matching `fact` from all streams"}},
@@ -2103,6 +2114,40 @@ def apply_scene(client, ws_call, project_mod, ma, scene_entity_id: str,
 # by factory reset with the rest of the assist data.
 _MEM_PATH = os.path.join(os.environ.get("PROOS_DATA_DIR", "/data"), "assist_memory.json")
 _MEM_MAX = 40   # facts per user (oldest dropped)
+
+
+# REGISTER 1137: HOUSE RULES. Dave, 1 Nov 10:07: "it doesnt learn I told it before not to do something and it said it
+# leared but then did it"; 10:31 "if it does [make a mistake] then it does remember what it did wrong". Read on the box:
+# memory_set saved "lamps means only the lamps" for ONE person (the dashboard and Pro are two people to it), and only the
+# AI read it — the instant road and the plan road never did, so the next "turn lamps on" went the instant road and
+# switched every light. The platform keeps no memory of what anyone told its assistant (read in its own code: the only
+# "remember" is the pronoun of one conversation), so this stays ProOS's: the SAME store, one more key.
+_HOUSE_KEY = "_house"
+
+
+class _RuledOut(Exception):
+    """A house rule covers the sentence: the quick roads stand aside (register 1137)."""
+
+
+def _rule_word(w) -> str:
+    return re.sub(r"[^a-z0-9]", "", str(w or "").lower().replace("’", "'").replace("'", ""))
+
+
+def house_rules() -> list:
+    """The home's rules: [{text, words, by, ts}]."""
+    return list(((_mem_load().get(_HOUSE_KEY) or {}).get("rules")) or [])
+
+
+def house_rule_for(text) -> dict | None:
+    """The first house rule whose words are in what was said ("lamps" ~ "lamp"), or None. When one is, no quick road
+    may take the sentence — the AI has it, with the rule in front of it."""
+    said = {_rule_word(t) for t in str(text or "").split()}
+    said |= {w[:-1] for w in said if w.endswith("s") and len(w) > 3}
+    for r in house_rules():
+        for w in r.get("words") or []:
+            if w in said or (w.endswith("s") and w[:-1] in said):
+                return r
+    return None
 
 
 def _mem_load() -> dict:
@@ -5784,8 +5829,24 @@ class ToolRunner:
         facts = rec.setdefault("facts", [])
         learned = rec.setdefault("learned", [])
         declines = rec.setdefault("declines", [])
+        if args.get("house") and not args.get("forget"):
+            # REGISTER 1137: a HOUSE RULE — one store for the home, read by every person's turn and by every road
+            words = [w for w in (_rule_word(x) for x in (args.get("words") or [])) if w]
+            if not words:
+                return {"error": "a house rule needs `words` — the spoken words that bring it into play"}
+            rules = store.setdefault(_HOUSE_KEY, {}).setdefault("rules", [])
+            rules[:] = [r for r in rules if (r.get("text") or "").lower() != fact.lower()]
+            rules.append({"text": fact, "words": words, "by": self.user.get("name") or "",
+                          "ts": round(time.time(), 1)})
+            store[_HOUSE_KEY]["rules"] = rules[-_MEM_MAX:]
+            _mem_save(store)
+            self._audit("memory_set", house=True, words=words)
+            return {"ok": True, "house_rules": [r["text"] for r in store[_HOUSE_KEY]["rules"]]}
         if args.get("forget"):
             low = fact.lower()
+            _hr = store.get(_HOUSE_KEY) or {}
+            if _hr.get("rules"):
+                _hr["rules"] = [r for r in _hr["rules"] if low not in (r.get("text") or "").lower()]
             rec["facts"] = [f for f in facts if low not in f.lower()]
             rec["learned"] = [l for l in learned
                               if low not in (l.get("text", "").lower())]
@@ -6088,6 +6149,11 @@ def _system_context(user: dict, where: dict | None = None) -> str:
         ctx += (" What you've learned about %s from how they use the home (soft — a "
                 "hint to personalise or confirm, never a certainty): %s."
                 % (who, "; ".join(learned)))
+    _rules = house_rules()
+    if _rules:
+        # REGISTER 1137: the home's rules, for everyone, every turn — told once, kept.
+        ctx += (" HOUSE RULES — told to you by the people who live here; follow them EVERY time, for everyone: %s."
+                % "; ".join(r.get("text") or "" for r in _rules))
     if declines:
         # things they've waved off — a no sticks; never re-offer these (H5).
         ctx += (" Suggestions %s has DECLINED — do NOT re-offer these: %s."
@@ -7850,12 +7916,25 @@ def chat(client, ws_call, project_mod, user: dict, text: str,
     # things off in people's houses. Certainty or nothing.
     _hit = None
     _rec = None
+    # REGISTER 1137: A HOUSE RULE ABOUT THESE WORDS — no quick road may take the sentence. The instant road reads the
+    # platform's library, which cannot know that "lamps" here means only the lamps; the AI has the rule in front of it.
+    _ruled = None
     try:
+        _ruled = house_rule_for(text)
+    except Exception:                                            # noqa: BLE001
+        _ruled = None
+    if _ruled:
+        print("  [assist] house rule %r covers %r — no quick road, the AI has it" % (_ruled.get("text"), text), flush=True)
+    try:
+        if _ruled:
+            raise _RuledOut()
         # THE PLATFORM'S OWN SENTENCE LIBRARY RECOGNISES (Dave's ruling, 5 Oct 2026);
         # ProOS maps the intent to its own tool, and acts only on a certain room.
         _rec = _direct.platform_recognize(ws_call, text) if ws_call else None
         _hit = _direct.resolve_platform(_rec, text, where, _direct_rooms(client, project_mod),
                                         lambda: _direct_scenes(runner))
+    except _RuledOut:
+        _hit = None
     except Exception as e:                                       # noqa: BLE001
         print("  [assist] direct path declined (%s) — the model has it" % e,
               flush=True)
@@ -7869,7 +7948,7 @@ def chat(client, ws_call, project_mod, user: dict, text: str,
     # sentence split into parts that must ALL resolve. Every step is the platform's own recogniser; a miss is silent
     # and the turn goes on exactly as before (the app road, the plan road, the AI).
     _steps = None
-    if not _hit and ws_call:
+    if not _hit and ws_call and not _ruled:
         try:
             _steps = _direct.plan_sentence(text, where, lambda s_: _direct.platform_recognize(ws_call, s_),
                                            _direct_rooms(client, project_mod), lambda: _direct_scenes(runner),
@@ -7922,7 +8001,7 @@ def chat(client, ws_call, project_mod, user: dict, text: str,
     # REGISTER 858 (build 6): nothing instant matched — the HOME CATALOGUE ROAD: one AI call with what the home has,
     # one plan from a closed set, done and said at once, learned as an instant sentence when it worked. It declines
     # (None) and the full assistant has the turn exactly as before when there is no AI, no plan, or the plan says assist.
-    if not _hit and not _plat:
+    if not _hit and not _plat and not _ruled:
         # REGISTER 866 (seen on the box 14 Oct 12:10: "Watch Netflix" typed from the Bedroom page took the AI plan road, 20 s,
         # the watch scene then the launch): an app named with any of its verbs, the room from the words or the page, is
         # launched at once — no AI, no plan — and said as the instant sentence says it.
