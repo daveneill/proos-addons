@@ -3035,7 +3035,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102632';
+const PROOS_BUILD='2026102633';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -11465,9 +11465,10 @@ function rhRoomDevices(){
           <span class="rd-eid">${esc(d.entity_id)}</span>
         </div>
         <div class="rh-dev-act">
-          ${(!off&&['light','switch','fan'].includes(d.domain))?`<button class="rd-toggle${d.power_exclude?'':' on'}" onclick="roomDevPowerToggle('${esc(d.entity_id)}')" title="${d.power_exclude?'Skipped by Room Off/On — still individually controllable by the assistant (e.g. equipment plugs that must stay powered)':'Included when the assistant turns the whole room off or on'}">${d.power_exclude?'Power-protected':'Room power'}</button>`:''}
+          ${d.av_part?`<span class="rd-role" title="This control is on the ${esc(d.av_part)} itself. Room Off/On and Assist never switch it — the room's activities (Watch …, TV Off) turn the ${esc(d.av_part)} on and off.">Part of ${esc(d.av_part)} · Activities Only</span>`:''}
+          ${(!off&&!d.av_part&&['light','switch','fan'].includes(d.domain))?`<button class="rd-toggle${d.power_exclude?'':' on'}" onclick="roomDevPowerToggle('${esc(d.entity_id)}')" title="${d.power_exclude?'Skipped by Room Off/On — still individually controllable by the assistant (e.g. equipment plugs that must stay powered)':'Included when the assistant turns the whole room off or on'}">${d.power_exclude?'Power-protected':'Room power'}</button>`:''}
           ${!off?`<button class="rd-toggle${d.awareness_exclude?'':' on'}" onclick="roomDevAwareToggle('${esc(d.entity_id)}')" title="${d.awareness_exclude?'Excluded from awareness — not watched, not counted, never alarmed. For gear the rules can\'t judge: a lamp on a wall switch, seasonal equipment.':'Watched by ProOS awareness — health checks and alarms apply. Turn off for devices that are routinely powered down by hand.'}">${d.awareness_exclude?'Not watched':'Watched'}</button>`:''}
-          <button class="rd-toggle${off?'':' on'}" onclick="roomDevToggle('${esc(d.entity_id)}')" title="${off?'Hidden from assistant':'Available to assistant'}">${off?'Hidden':'Available'}</button>
+          ${d.av_part?'':`<button class="rd-toggle${off?'':' on'}" onclick="roomDevToggle('${esc(d.entity_id)}')" title="${off?'Hidden from assistant':'Available to assistant'}">${off?'Hidden':'Available'}</button>`}
         </div>
       </div>
     </div>`;

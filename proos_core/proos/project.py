@@ -982,7 +982,7 @@ def _security_platforms() -> set:
 
 
 def voice_wants(ent: dict, area: str | None, rooms: set, members: set,
-                security: set) -> bool:
+                security: set, av_devices=frozenset()) -> bool:
     """Whether the platform's voice agent should be told about this entity."""
     eid = ent.get("entity_id") or ""
     domain = eid.split(".", 1)[0]
@@ -996,6 +996,8 @@ def voice_wants(ent: dict, area: str | None, rooms: set, members: set,
         return False
     if domain == "media_player":
         return eid in members
+    if ent.get("device_id") in av_devices and eid not in members:
+        return False          # register 1143: a TV's own Power/Art Mode switch is its activities', not the voice agent's
     if domain in _VOICE_CONTROL:
         return True
     if domain in ("sensor", "binary_sensor"):
@@ -1023,12 +1025,17 @@ def expose_assist(client, project: dict) -> dict:
         if rec:
             members.update(e for e in _area_members(rec) if e)
     security = _security_platforms()
+    try:
+        from . import roomdevices as _rd
+        avd = set(_rd.av_devices(client, project).keys())        # register 1143
+    except Exception:                                            # noqa: BLE001
+        avd = set()
     expose, hide = [], []
     for ent in entities:
         eid = ent.get("entity_id") or ""
         if "." not in eid:
             continue
-        want = voice_wants(ent, area_of(ent, dev_area), rooms, members, security)
+        want = voice_wants(ent, area_of(ent, dev_area), rooms, members, security, avd)
         # No setting stored = the platform's default, which exposes: treat absent as exposed.
         cur = ((ent.get("options") or {}).get("conversation") or {}).get("should_expose", True)
         if want and not cur:

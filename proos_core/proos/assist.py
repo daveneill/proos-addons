@@ -3094,6 +3094,17 @@ class ToolRunner:
         bad = self._unassigned([eid])
         if bad:
             return {"error": self._unassigned_words(bad)}          # register 874
+        # REGISTER 1143: a control ON a committed TV/receiver/projector (its Power or Art Mode switch, its remote) is
+        # never switched raw — that is the room's activities' job (732 for the TV itself; Dave 1 Nov "activities only").
+        if domain not in ("media_player",) and action in ("turn_on", "turn_off", "toggle"):
+            try:
+                from . import roomdevices as _rd
+                _av = _rd.av_part_of(self.client, eid, self.project.load())
+            except Exception:                                    # noqa: BLE001
+                _av = None
+            if _av:
+                return {"error": "that switch is part of the %s — its activities turn it on and off" % _av,
+                        "note": "use room_activity (Watch … / TV Off) for the room, never this switch"}
         if domain == "media_player":
             proj = self.project.load()
             if eid not in self._members(proj):
@@ -3171,7 +3182,13 @@ class ToolRunner:
                     "error": "there are no %ss in the %s, so there was nothing "
                              "to %s" % (domain, area_name, action.replace("_", " ")),
                     "note": "tell them that rather than reporting it done"}
-        payload = {"area_id": aid}
+        # REGISTER 1143: the call names EXACTLY the devices counted above — never the whole area, which would reach a
+        # TV's own Power switch and anything hidden from Assist (the platform's area call takes every entity in it).
+        # Only when the room's contents could not be read does it fall back to the area (fail-open, said as SENT).
+        if targets:
+            payload = {"entity_id": [d.get("entity_id") for d in targets if d.get("entity_id")]}
+        else:
+            payload = {"area_id": aid}
         payload.update({k: v for k, v in data.items() if k not in ("entity_id", "area_id")})
         self.client._req("POST", "/api/services/%s/%s" % (domain, action), payload)
         n = len(targets) if targets is not None else None

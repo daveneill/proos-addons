@@ -409,6 +409,78 @@ def _entities_in_area(client, area_id: str) -> list:
     return out
 
 
+# ── A ROOM'S AV IS ITS ACTIVITIES' (register 1143) ────────────────────────────
+# Read on Dave's box 1 Nov: each Samsung TV's integration gives the platform a "<TV> — Power" switch (and the Frame an
+# "Art Mode" switch) on the SAME device as the TV. They sat in this list as ordinary switches, so Room Off turned the TV
+# off twice (TV Off, then its Power switch), ROOM ON powered every TV raw — register 732's forbidden act — and Assist
+# could switch them one by one. Dave 14:38: "definatley activities only". The record already says which devices are a
+# room's AV (display, sources, TV audio, speakers, audio, switcher); every control on one of those DEVICES belongs to
+# its activities, whatever the integration calls it. The platform's own device registry says which device an entity is on.
+_AV_ROLES = ("display", "sources", "tvaudio", "speakers", "audio", "avswitch")
+
+
+def av_members(project: dict) -> set:
+    """Every committed AV entity in every room of the record."""
+    out = set()
+    for rec in ((project or {}).get("areas") or {}).values():
+        for k in _AV_ROLES:
+            v = (rec or {}).get(k)
+            for e in (v if isinstance(v, (list, tuple)) else [v]):
+                if e:
+                    out.add(e)
+    return out
+
+
+def av_devices(client, project: dict = None) -> dict:
+    """{device_id: the AV's name} for every device that carries a committed AV entity — read from the platform's
+    registry. {} when the registry or the record cannot be read (unknown is not "none": callers fail closed)."""
+    if project is None:
+        try:
+            from . import project as _pj
+            project = _pj.load()
+        except Exception:                                        # noqa: BLE001
+            return {}
+    members = av_members(project)
+    if not members:
+        return {}
+    try:
+        ents = client.entity_registry() or []
+        devs = {d.get("id"): d for d in (client.device_registry() or [])}
+    except Exception:                                            # noqa: BLE001
+        return {}
+    out = {}
+    for e in ents:
+        if e.get("entity_id") in members and e.get("device_id"):
+            d = devs.get(e["device_id"]) or {}
+            out[e["device_id"]] = d.get("name_by_user") or d.get("name") or e.get("name") or e.get("original_name") or e["entity_id"]
+    return out
+
+
+def av_part_of(client, entity_id: str, project: dict = None):
+    """The AV's name when this entity is a control ON a committed AV device but is not the AV entity itself (a TV's
+    Power or Art Mode switch, its remote); else None."""
+    if not entity_id:
+        return None
+    if project is None:
+        try:
+            from . import project as _pj
+            project = _pj.load()
+        except Exception:                                        # noqa: BLE001
+            return None
+    if entity_id in av_members(project):
+        return None
+    devs = av_devices(client, project)
+    if not devs:
+        return None
+    try:
+        for e in client.entity_registry() or []:
+            if e.get("entity_id") == entity_id:
+                return devs.get(e.get("device_id"))
+    except Exception:                                            # noqa: BLE001
+        return None
+    return None
+
+
 def discover(client, area_id: str) -> dict:
     """Full picture for the areas page / assistant: every controllable non-AV
     device in the room, with identifying detail, live state, capabilities, and
@@ -424,6 +496,10 @@ def discover(client, area_id: str) -> dict:
         snap = client.snapshot(eids) or {} if eids else {}
     except Exception:
         snap = {}
+    try:
+        _avd = av_devices(client)                    # register 1143
+    except Exception:                                # noqa: BLE001
+        _avd = {}
     devices = []
     for r in recs:
         eid = r["entity_id"]
@@ -457,6 +533,8 @@ def discover(client, area_id: str) -> dict:
             "offline": (st or {}).get("state") == "unavailable",
             "caps": _caps_for(domain, attrs),
         })
+        if r.get("device_id") in _avd:
+            devices[-1]["av_part"] = _avd[r["device_id"]]   # register 1143: its activities control it
     out = {"area_id": area_id, "devices": devices}
     if healed:
         out["healed"] = healed          # so Pro refreshes its device pages
@@ -466,7 +544,8 @@ def discover(client, area_id: str) -> dict:
 def available(client, area_id: str) -> list:
     """What the ASSISTANT may use in a room: discovered devices minus excluded,
     each with role/name/caps. Access follows the installer's list."""
-    return [d for d in discover(client, area_id).get("devices", []) if not d["excluded"]]
+    # register 1143: a TV's own Power/Art Mode switch is not a room control — the AV's activities are
+    return [d for d in discover(client, area_id).get("devices", []) if not d["excluded"] and not d.get("av_part")]
 
 
 # ── bulk room power (assist room_off / room_on) ──────────────────────────────
@@ -493,6 +572,8 @@ def power_targets(devices) -> dict:
             continue
         if d.get("excluded"):
             continue
+        if d.get("av_part"):
+            continue                  # register 1143: a TV's own controls are its activities', never bulk power
         if d.get("power_exclude"):
             skipped += 1
             continue
