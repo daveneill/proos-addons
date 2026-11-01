@@ -3035,7 +3035,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102636';
+const PROOS_BUILD='2026102637';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -13733,7 +13733,8 @@ async function techViewAssist(view){
     +'<button class="btn-ghost" id="rt-go" onclick="rtToggle()">Start Talking</button></div>'
     +'<div style="display:flex;gap:8px;margin-top:8px"><input id="rt-text" class="set-input" type="text" placeholder="or type: which lamps are on in here" autocapitalize="off" autocorrect="off" spellcheck="false" onkeydown="if(event.key===\'Enter\')rtSendText()"/>'
     +'<button class="btn-ghost" onclick="rtSendText()">Send</button></div>'
-    +'<pre id="rt-log" class="wiz-hint" style="white-space:pre-wrap;margin-top:10px;max-height:320px;overflow:auto"></pre></div>'
+    +'<pre id="rt-log" class="wiz-hint" style="white-space:pre-wrap;margin-top:10px;max-height:320px;overflow:auto"></pre>'
+    +'<div class="bld-sec-h" style="margin-top:12px">Realtime Usage</div><div id="rt-usage" class="wiz-hint">Loading…</div></div>'
     // ── SPEAKER MUSIC TEST (register 741). Proves, from Core on this box, that a speaker reads the
     // home's own music accounts, searches them and plays — the road register 740 proved from a Mac.
     // Reads unless Play is ticked. A test, not a feature: its words are the engine's own.
@@ -13765,7 +13766,7 @@ async function techViewAssist(view){
     +'<div id="mi-out" class="wiz-hint" style="margin-top:10px"></div></div>');
   _asKeys=st.keys_saved||{};
   assistKeyLabel();
-  assistVoiceLoad();
+  assistVoiceLoad(); try{ rtUsageShow(); rtRooms(); }catch(e){}   // register 1151
   appleTokenLoad();
 }
 function _amShow(d){
@@ -13874,10 +13875,22 @@ async function speakerMusicTest(){
 var _rt=null;
 function rtLog(line){ var el=document.getElementById('rt-log'); if(!el) return; var t=new Date(); el.textContent+=('['+t.toTimeString().slice(0,8)+'] '+line+'\n'); el.scrollTop=el.scrollHeight; }
 async function rtRooms(){
+  rtUsageShow();
   var sel=document.getElementById('rt-room'); if(!sel||sel.options.length>1) return;
   try{ var areas=(await snd({type:'config/area_registry/list'})).result||[];
     sel.innerHTML='<option value="">No room (ask which)</option>'+areas.map(function(a){return '<option value="'+esc(a.area_id)+'">'+esc(a.name)+'</option>';}).join('');
   }catch(e){}
+}
+// REGISTER 1151: what it costs — every finished response's tokens and each session's length go to Core's day ledger.
+function rtUsagePost(body){ try{ fetch(proCoreUrl()+'/assist/realtime/usage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(){ rtUsageShow(); }); }catch(e){} }
+async function rtUsageShow(){
+  var el=document.getElementById('rt-usage'); if(!el) return;
+  try{ var d=await (await fetch(proCoreUrl()+'/assist/realtime/usage')).json();
+    var rows=(d.days||[]);
+    if(!rows.length){ el.textContent='Nothing used yet.'; return; }
+    setHTML(el, rows.map(function(r){ return esc(r.day)+' — '+r.sessions+' session'+(r.sessions===1?'':'s')+', '+r.minutes+' min, '+r.responses+' answers, about US$'+Number(r.cost_usd).toFixed(2); }).join('<br>')
+      +'<br><span style="opacity:.7">'+esc(d.note||'')+'</span>');
+  }catch(e){ el.textContent='Could not read usage.'; }
 }
 function rtSendEvent(ev){ if(_rt&&_rt.dc&&_rt.dc.readyState==='open') _rt.dc.send(JSON.stringify(ev)); }
 async function rtStart(withText){
@@ -13911,11 +13924,13 @@ async function rtStart(withText){
   await pc.setRemoteDescription({type:'answer',sdp:ans});
   await opened;
   rtLog('Connected in '+Math.round(performance.now()-rt.t0)+' ms. '+(rt.mic?'Speak now.':'Type below.'));
+  rt.connectedAt=performance.now(); rtUsagePost({session:true});
   var b=document.getElementById('rt-go'); if(b) b.textContent='Stop';
   return rt;
 }
 function rtStop(){
   var rt=_rt; _rt=null; if(!rt) return;
+  if(rt.connectedAt) rtUsagePost({seconds:(performance.now()-rt.connectedAt)/1000});
   try{ rt.dc&&rt.dc.close(); }catch(e){} try{ rt.pc&&rt.pc.close(); }catch(e){}
   try{ rt.mic&&rt.mic.getTracks().forEach(function(t){t.stop();}); }catch(e){} try{ rt.silent&&rt.silent.close(); }catch(e){}
   try{ rt.audio&&rt.audio.remove(); }catch(e){}
@@ -13977,7 +13992,7 @@ async function rtEvent(ev){
       rtSendEvent({type:'conversation.item.create',item:{type:'function_call_output',call_id:ev.call_id,output:JSON.stringify(out).slice(0,12000)}});
       rt.inflight=Math.max(0,(rt.inflight||1)-1); rtMaybeReply(rt);
       break;
-    case 'response.done': rt.responseOpen=false; rtMaybeReply(rt); break;
+    case 'response.done': rt.responseOpen=false; if(ev.response&&ev.response.usage) rtUsagePost({usage:ev.response.usage}); rtMaybeReply(rt); break;
     case 'response.created': rt.responseOpen=true; break;
     case 'error': rtLog('Provider error: '+JSON.stringify(ev.error||ev).slice(0,240)); break;
   }

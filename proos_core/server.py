@@ -3889,6 +3889,11 @@ def factory_reset(clear_proos_data=False, keep_auth=False):
             _roomdevices.clear()
         if _appfavs:
             _appfavs.clear()
+        try:                              # register 1151: the realtime voice's cost ledger
+            from proos import aiusage as _aiusage_mod
+            _aiusage_mod.clear()
+        except Exception:                                        # noqa: BLE001
+            pass
     except Exception as e:  # noqa: BLE001
         out["errors"].append("assist: %s" % e)
     # RESET RESIDUE (Dave, 4 Aug: "a factory reset is exactly that — the only
@@ -7849,6 +7854,18 @@ class Handler(BaseHTTPRequestHandler):
                         or (users and users.is_tech(u.get("id")))):
                     out["answered"] = _sg.answered(hd, _an)
                 return self._send(200, out)
+            if parts == ["assist", "realtime", "usage"]:
+                # REGISTER 1151: the realtime voice's last seven days — sessions, minutes, tokens, estimated cost.
+                u = getattr(self, "_user", None)
+                if not (u and (u.get("is_owner") or (users and users.is_tech(u.get("id"))))):
+                    return self._send(403, {"error": "owner or tech only"})
+                from proos import aiusage as _aiu
+                _pr = {}
+                try:
+                    _pr = (_assist.load_config() or {}).get("realtime_prices") or {} if _assist else {}
+                except Exception:                                # noqa: BLE001
+                    _pr = {}
+                return self._send(200, _aiu.summary(_pr if isinstance(_pr, dict) else {}))
             if parts == ["assist", "status"]:
                 # any signed-in user may ask whether the AI assistant is on;
                 # WHICH provider and model is the tech's business only
@@ -10841,6 +10858,17 @@ class Handler(BaseHTTPRequestHandler):
                         str(b.get("text") or "")))
                 except Exception as e:  # noqa: BLE001
                     return self._send(200, {"error": str(e)})
+            if parts == ["assist", "realtime", "usage"]:
+                # REGISTER 1151: the page hands Core each finished response's token counts (and a session's seconds);
+                # Core keeps the day's line. Owner/tech, like the prototype.
+                u = getattr(self, "_user", None)
+                if not (u and (u.get("is_owner") or (users and users.is_tech(u.get("id"))))):
+                    return self._send(403, {"error": "owner or tech only"})
+                b = self._body() or {}
+                from proos import aiusage as _aiu
+                row = _aiu.record("realtime", usage=b.get("usage") or None, seconds=float(b.get("seconds") or 0),
+                                  session=bool(b.get("session")))
+                return self._send(200, {"ok": True, "today": row})
             if parts in (["assist", "realtime", "session"], ["assist", "realtime", "tool"]):
                 # REGISTER 1148: the realtime voice prototype — the provider hears and speaks, ProOS Assist is the brain.
                 # Owner and tech only while it is a prototype. The home's key never leaves the box: the session route
