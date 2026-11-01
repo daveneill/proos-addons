@@ -5048,7 +5048,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102681';
+const PROOS_BUILD='2026102682';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -15212,8 +15212,13 @@ function renderSettings(){
         <button id="set-loc-btn" onclick="setLocationSharing(!locationSharingOn());renderSettings&&renderSettings()" style="background:none;border:0.5px solid rgba(255,255,255,0.15);border-radius:8px;padding:6px 18px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;color:${locationSharingOn()?'#84d9b4':'rgba(255,255,255,0.45)'}">${locationSharingOn()?'On':'Off'}</button>
       </div>
       <div class="set-row">
-        <div class="sg-tx"><div class="set-label">Talk To ProOS</div><div class="set-field-hint sg-in">Talking to ProOS sends the recording to your home’s transcription service to turn it into words. Off by default — you can always type instead.</div></div>
+        <div class="sg-tx"><div class="set-label">Talk To ProOS</div><div class="set-field-hint sg-in">${(typeof lvRoute==='function'&&lvRoute())?'Ask out loud. With Talk Live, your voice goes to OpenAI’s voice service while the microphone is on so ProOS can answer as you speak. Nothing you say is kept by ProOS.':'Talking to ProOS sends the recording to your home’s transcription service to turn it into words. Off by default — you can always type instead.'}</div></div>
         <button id="set-voice-btn" onclick="setVoiceConsent(!voiceConsentGiven())" style="background:none;border:0.5px solid rgba(255,255,255,0.15);border-radius:8px;padding:6px 18px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;color:${voiceConsentGiven()?'#84d9b4':'rgba(255,255,255,0.45)'}">${voiceConsentGiven()?'On':'Off'}</button>
+      </div>
+      <!-- REGISTER 1165 (Dave 07:38: "add the additional turn voice replys on the device in setting like we did on the IOS apps for this android build also"): the page's own Settings — the Android app's and a browser's — carry Speak Answers, as the iPhone app's native Settings do (1158). -->
+      <div class="set-row">
+        <div class="sg-tx"><div class="set-label">Speak Answers</div><div class="set-field-hint sg-in">ProOS says its answers out loud on this screen in your home’s ProOS voice. Off: answers are shown on screen only. The room speakers are set by your installer.</div></div>
+        <button id="set-speak-btn" onclick="setSpeakAnswers(!speakAnswersOn());renderSettings()" style="background:none;border:0.5px solid rgba(255,255,255,0.15);border-radius:8px;padding:6px 18px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;color:${speakAnswersOn()?'#84d9b4':'rgba(255,255,255,0.45)'}">${speakAnswersOn()?'On':'Off'}</button>
       </div>
     </div>
     <div class="set-section">
@@ -21394,7 +21399,8 @@ function lvProbe(){ try{ lvAvailable(); }catch(e){} }      // warmed when Assist
 function lvRoute(){
   if(typeof _isPanel==='function' && _isPanel()) return null;
   if(_proosApp()){ var c=window._proosAppCaps||[]; return (c.indexOf&&c.indexOf('live')>=0)?'native':'pcm'; }
-  if(_proosAndroid()) return null;
+  // REGISTER 1165: the ProOS Android app answers Talk Live itself (its own microphone and speaker) when it says it can
+  if(_proosAndroid()){ try{ return (window.ProOSAndroid.post('live:caps')===true)?'native':null; }catch(e){ return null; } }
   if(window.isSecureContext && navigator.mediaDevices && navigator.mediaDevices.getUserMedia && (window.AudioContext||window.webkitAudioContext) && window.RTCPeerConnection) return 'browser';
   return null;
 }
@@ -21737,7 +21743,8 @@ function homeMicTap(){
   // 934a: a wall panel listens through its own room microphone — the wake word, not the browser (Dave, 18 Oct)
   if(typeof _isPanel==='function' && _isPanel()){ _panelOpenAssist(); _panelHint(''); return; }
   if(_vcap) return _voiceStop();
-  if(!voiceConsentGiven()){ try{ openAssist(); }catch(e){} return _voiceAsk(); }
+  // 1165: a screen that talks Live asks Live's own question (in toggleDictation), not the dictation one first as well
+  if(!voiceConsentGiven() && !(typeof lvRoute==='function' && lvRoute())){ try{ openAssist(); }catch(e){} return _voiceAsk(); }
   return toggleDictation('mic');
 }
 // Typing is the fallback, and it is asked for. The keyboard sits above the
