@@ -18,8 +18,15 @@ THE SHAPE — ONE BRAIN, A NEW MOUTH:
     house rules, the same "part of the TV" and "hidden from Assist" refusals, the same read-back. Nothing is rebuilt;
     nothing reaches the platform except through Core.
 
-Prototype limits, stated: owner and tech only; the deferred tool groups (more_tools) are not offered — a realtime tool
-call carries no runner from one call to the next; one session per press.
+Limits, stated: the deferred tool groups (more_tools) are not offered — a realtime tool call carries no runner from one
+call to the next; one session per press.
+
+REGISTER 1153 — FOR EVERYONE IN THE HOME (Dave, 1 Nov 18:41: "its a bit useless if it does not work for homeowner as that
+what is meant for"; rulings: every mic becomes Live; everyone, switchable). Talk Live is on for every signed-in person
+unless the installer turns it off for the home (assist.json realtime_enabled) or for one person (realtime_off_for).
+AND THE TOOL ROUTE NOW CHECKS THE PERSON. The model only ever SEES this person's tools, but the tool route takes a name
+from a page — before this build any name ToolRunner knew would have run, whoever asked. run_tool now runs only a tool in
+this person's own list (the same _active_tools a chat turn offers); anything else is refused in words.
 """
 from __future__ import annotations
 
@@ -84,8 +91,30 @@ def new_session(assist_mod, cfg: dict, runner, user: dict, home_name: str, where
             "tools": len(tl), "ms": int((time.time() - t0) * 1000), "voice": "provider" if voice == "provider" else "ryan"}
 
 
-def run_tool(runner, name: str, arguments) -> dict:
-    """One tool the realtime model called, run through Assist's own ToolRunner — every rule applies."""
+def available_for(cfg: dict, user: dict) -> tuple:
+    """(True, "") when this person may use Talk Live now; else (False, the reason in words)."""
+    cfg = cfg or {}
+    if not (user or {}).get("id"):
+        return False, "sign in first"
+    if cfg.get("provider") != "openai" or not cfg.get("api_key"):
+        return False, "Talk Live needs Assist on OpenAI with its key set (Pro › Tech Tools)"
+    if cfg.get("realtime_enabled", True) is False:
+        return False, "Talk Live is turned off for this home"
+    if str(user.get("id")) in {str(x) for x in (cfg.get("realtime_off_for") or [])}:
+        return False, "Talk Live is turned off for you"
+    return True, ""
+
+
+def allowed_names(assist_mod, runner) -> set:
+    """The tools this person may call — exactly the list the model is given."""
+    return {t["name"] for t in tools(assist_mod, runner)}
+
+
+def run_tool(runner, name: str, arguments, allowed=None) -> dict:
+    """One tool the realtime model called, run through Assist's own ToolRunner — every rule applies.
+    `allowed`: this person's own tool names (register 1153) — any other name is refused before anything runs."""
+    if allowed is not None and name not in allowed:
+        return {"error": "that tool is not available to you", "_ms": 0}
     if isinstance(arguments, str):
         try:
             arguments = json.loads(arguments or "{}")

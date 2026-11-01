@@ -7854,6 +7854,14 @@ class Handler(BaseHTTPRequestHandler):
                         or (users and users.is_tech(u.get("id")))):
                     out["answered"] = _sg.answered(hd, _an)
                 return self._send(200, out)
+            if parts == ["assist", "realtime", "status"]:
+                # REGISTER 1153: may THIS person talk Live? Every surface asks before its mic becomes Live.
+                u = getattr(self, "_user", None)
+                if not u:
+                    return self._send(401, {"error": "sign in required"})
+                from proos import realtime as _rts
+                _ok, _why = (_rts.available_for(_assist.load_config(), u) if _assist else (False, "assist not loaded"))
+                return self._send(200, {"available": bool(_ok), "reason": _why})
             if parts == ["assist", "realtime", "usage"]:
                 # REGISTER 1151: the realtime voice's last seven days — sessions, minutes, tokens, estimated cost.
                 u = getattr(self, "_user", None)
@@ -10860,10 +10868,11 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, {"error": str(e)})
             if parts == ["assist", "realtime", "usage"]:
                 # REGISTER 1151: the page hands Core each finished response's token counts (and a session's seconds);
-                # Core keeps the day's line. Owner/tech, like the prototype.
+                # Core keeps the day's line. REGISTER 1153: anyone Talk Live is on for (the home's minutes, one ledger).
                 u = getattr(self, "_user", None)
-                if not (u and (u.get("is_owner") or (users and users.is_tech(u.get("id"))))):
-                    return self._send(403, {"error": "owner or tech only"})
+                from proos import realtime as _rtu
+                if not (u and _assist and _rtu.available_for(_assist.load_config(), u)[0]):
+                    return self._send(403, {"error": "Talk Live is not on for you"})
                 b = self._body() or {}
                 from proos import aiusage as _aiu
                 row = _aiu.record("realtime", usage=b.get("usage") or None, seconds=float(b.get("seconds") or 0),
@@ -10877,8 +10886,11 @@ class Handler(BaseHTTPRequestHandler):
                 if not _assist:
                     return self._send(503, {"error": "assist module not loaded"})
                 u = getattr(self, "_user", None)
-                if not (u and (u.get("is_owner") or (users and users.is_tech(u.get("id"))))):
-                    return self._send(403, {"error": "the realtime voice prototype is for the owner and tech for now"})
+                from proos import realtime as _rt
+                _cfg = _assist.load_config()
+                _ok, _why = _rt.available_for(_cfg, u or {})
+                if not (u and _ok):                              # register 1153: everyone, unless switched off
+                    return self._send(403, {"error": _why or "sign in first"})
                 b = self._body() or {}
                 uinfo = {"id": u.get("id"), "name": u.get("name"), "is_admin": bool(u.get("is_admin")),
                          "is_owner": bool(u.get("is_owner")), "tech": bool(users and users.is_tech(u.get("id")))}
@@ -10895,17 +10907,17 @@ class Handler(BaseHTTPRequestHandler):
                             where["contents"] = _c
                     except Exception:                            # noqa: BLE001
                         pass
-                from proos import realtime as _rt
                 rnr = _assist.ToolRunner(_client, _ws_call, project, uinfo, ma=_ma,
                                          awareness=_assist_awareness(), mcp=_mcp_client())
                 if parts[2] == "session":
                     try:
-                        return self._send(200, _rt.new_session(_assist, _assist.load_config(), rnr, uinfo,
+                        return self._send(200, _rt.new_session(_assist, _cfg, rnr, uinfo,
                                                                globals().get("_ASSIST_HOME_NAME") or "", where,
                                                                voice=(b.get("voice") or "ryan")))
                     except Exception as e:                       # noqa: BLE001
                         return self._send(502, {"error": str(e)[:300]})
-                out = _rt.run_tool(rnr, b.get("name") or "", b.get("arguments") or {})
+                out = _rt.run_tool(rnr, b.get("name") or "", b.get("arguments") or {},
+                                   allowed=_rt.allowed_names(_assist, rnr))   # register 1153: this person's tools only
                 print("  [assist] REALTIME tool %s(%s) → %s in %s ms" % (b.get("name"), str(b.get("arguments"))[:80],
                       "error" if out.get("error") else "ok", out.get("_ms")), flush=True)
                 return self._send(200, out)

@@ -2368,10 +2368,6 @@ body.proos-listening #assist-send{display:none}
    say the same thing the same way. */
 #assist-mic.rec{color:#fff;background:#152BC8;border-color:transparent;
   animation:micpulse var(--m-listen) infinite}
-/* REGISTER 1152: Talk Live (the realtime voice, prototype) — owner and tech only, shown when Core says so. */
-#assist-live{height:40px;padding:0 14px;border-radius:20px;border:1px solid rgba(255,255,255,.25);background:transparent;
-  color:#fff;font-size:14px;font-weight:600;cursor:pointer;flex-shrink:0;align-self:center;margin-left:6px}
-#assist-live.on{background:#2139F0;border-color:transparent;animation:micpulse var(--m-listen) infinite}
 @keyframes assistmic{0%{box-shadow:0 0 0 0 rgba(33,57,240,0.5)}70%{box-shadow:0 0 0 9px rgba(33,57,240,0)}100%{box-shadow:0 0 0 0 rgba(33,57,240,0)}}
 
 .global-summary{grid-column:1/-1;padding:0 2px 6px;display:flex;flex-direction:column;gap:0}
@@ -4340,7 +4336,6 @@ try{var _sb=localStorage.getItem('proos_std_bg');if(_sb){document.documentElemen
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
         </button>
         <button id="assist-mic" onclick="toggleDictation()" aria-label="Speak instead of typing" title="Speak instead of typing"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
-        <button id="assist-live" onclick="lvToggle()" aria-label="Talk Live" title="Talk Live (Prototype)" style="display:none">Live</button>
       </div>
     </div>
   </div>
@@ -5053,7 +5048,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102675';
+const PROOS_BUILD='2026102676';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -21323,10 +21318,13 @@ function _micRec(on){
   try{ document.body.classList.toggle('proos-listening', !!on); }catch(e){}
   try{ if(typeof _jvMic==='function') _jvMic(!!on); }catch(e){}   // 1001: the Jarvis screen's orb
 }
-async function toggleDictation(from){
+async function toggleDictation(from, opts){
   // 934b: a wall panel never starts the browser microphone (its browser gives none — read 18 Oct); every mic on it —
   // the Assist tab, the round mic inside Assist — says the room's wake word instead
   if(typeof _isPanel==='function' && _isPanel()){ try{ _panelOpenAssist(); _panelHint(''); }catch(e){} return; }
+  // REGISTER 1153: THE MIC BECOMES LIVE wherever this screen can talk Live and Core says it is on for this person;
+  // otherwise (or when Live could not connect: opts.noLive) the ordinary microphone below, unchanged.
+  if(!_vcap && !(opts && opts.noLive) && typeof lvTakesPress==='function'){ if(await lvTakesPress(from)) return; }
   if(_vcap) return _voiceStop();
   if(!voiceConsentGiven()) return _voiceAsk();
   _voiceHush();                              // the microphone never hears ProOS
@@ -21367,92 +21365,154 @@ async function toggleDictation(from){
 }
 // Stop WITHOUT sending — the bar was closed mid-recording. Nothing heard
 // leaves the house; the app's late answer (if any) is dropped by the flag.
-// ── TALK LIVE — THE REALTIME VOICE ON THE PHONE (register 1152, 1 Nov 2026) ─────────────────────────────────────
-// Dave, 17:13 "yes both" (the phone app, and the usage log first — 1151); 17:51 "go ahead". The same client as Pro's
-// prototype (register 1148/1150): the provider hears, PROOS ASSIST IS THE BRAIN — every tool the model calls comes back to
-// Core's /assist/realtime/tool and runs through Assist's own ToolRunner (consent, house rules, hidden-from-Assist, a TV's
-// own switches, read-back). The room is the room on screen. Ryan speaks the answers through Core (/assist/speak).
-// THE MICROPHONE IS THE APP'S. This page is opened over the home's plain address, so the browser gives it no microphone;
-// the ProOS app already has one for a camera's Talk (701: "talk:start {rate}" → 16-bit PCM through _paTalkPcm). Talk Live
-// asks for the same thing at 24 kHz and plays the chunks into a WebRTC track — no new app build. Outside the app, a secure
-// page uses the browser's own microphone; anything else is told plainly.
-// HALF-DUPLEX WHILE RYAN SPEAKS: the chunks are dropped while his voice plays, so the model never hears itself (the
-// phone's speaker is next to its microphone). Interrupting him is a later step — stated, not hidden.
-// Owner and tech only for now: the button shows only when Core's usage route answers this person (same gate).
-var _lv=null, _lvOk=null;
-async function lvProbe(){
-  var b=document.getElementById('assist-live'); if(!b) return;
-  if(_lvOk===null){ try{ var r=await fetch(proosCoreBase()+'/assist/realtime/usage'); _lvOk=r.ok; }catch(e){ _lvOk=false; } }
-  b.style.display=_lvOk?'':'none';
+// ── TALK LIVE — EVERY MIC TALKS LIVE (register 1152 → 1153, 1 Nov 2026) ─────────────────────────────────────────
+// Dave, 18:41: "its a bit useless if it does not work for homeowner as that what is meant for so can you do the app
+// properly not cutting corners". His rulings the same minute: THE MIC BECOMES LIVE (one button, every mic in the app —
+// the home bar, the Assist chat, the room), EVERYONE IN THE HOME GETS IT (the installer can switch it off for the home or
+// one person in Pro), and the audio is done NATIVELY in the app.
+// THE BRAIN IS PROOS ASSIST: the provider hears and answers, but every tool it calls comes back to Core's
+// /assist/realtime/tool and runs through Assist's own ToolRunner — and only the tools this person is allowed (1153).
+// The room is the room on screen. Ryan speaks the answers (Core's /assist/speak, the home's own voice).
+// THREE ROADS FOR THE SOUND, best first, chosen by what the screen can do — never guessed:
+//   native — the ProOS app with Talk Live (window._proosAppCaps has 'live'): the app holds the microphone with the phone's
+//            echo canceller and plays Ryan on the SAME engine, so the person can talk over him (barge-in); this page
+//            sends and receives the provider's events through the app.
+//   pcm    — an older ProOS app (camera Talk only, 701): its PCM played into a WebRTC call (1152); the microphone is
+//            ignored while Ryan speaks so the phone never hears itself.
+//   browser— a secure browser: its own microphone with echo cancelling, into a WebRTC call.
+// Anything else (the Android app, a wall panel, a plain browser) keeps the ordinary microphone. If Live cannot connect,
+// the press falls back to the ordinary microphone and says so — a mic that does nothing is never the answer.
+// ITS OWN ASKING (241's law, 342's honesty): the ordinary voice consent in the app says nothing leaves the device — true
+// for dictation, not for Live, whose audio streams to the voice service while it is on. So Live asks once, in its words.
+var _lv=null, _lvStat=null;
+async function lvAvailable(){
+  if(_lvStat && (Date.now()-_lvStat.at)<60000) return _lvStat.ok;
+  var ok=false; try{ var r=await fetch(proosCoreBase()+'/assist/realtime/status'); var d=r.ok?await r.json():null; ok=!!(d&&d.available); }catch(e){ ok=false; }
+  _lvStat={ok:ok, at:Date.now()}; return ok;
 }
-function lvButton(on){ var b=document.getElementById('assist-live'); if(!b) return; b.classList.toggle('on',!!on); b.textContent=on?'End':'Live'; }
+function lvProbe(){ try{ lvAvailable(); }catch(e){} }      // warmed when Assist opens, so the first press is instant
+function lvRoute(){
+  if(typeof _isPanel==='function' && _isPanel()) return null;
+  if(_proosApp()){ var c=window._proosAppCaps||[]; return (c.indexOf&&c.indexOf('live')>=0)?'native':'pcm'; }
+  if(_proosAndroid()) return null;
+  if(window.isSecureContext && navigator.mediaDevices && navigator.mediaDevices.getUserMedia && (window.AudioContext||window.webkitAudioContext) && window.RTCPeerConnection) return 'browser';
+  return null;
+}
+// The ordinary mic asks this first: true when this press is Live's (it has then been handled).
+async function lvTakesPress(from){
+  if(_lv){ lvStop(); return true; }
+  if(!lvRoute()) return false;
+  if(!(await lvAvailable())) return false;
+  lvStart(from); return true;
+}
 function lvUsage(body){ try{ fetch(proosCoreBase()+'/assist/realtime/usage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); }catch(e){} }
-function lvSend(ev){ if(_lv&&_lv.dc&&_lv.dc.readyState==='open') _lv.dc.send(JSON.stringify(ev)); }
-function lvToggle(){ if(_lv) lvStop(); else lvStart(); }
-// ITS OWN ASKING (register 241's law, 342's honesty). The voice consent in the app says nothing leaves the device — true
-// for dictation, NOT for Talk Live, whose audio streams live to the voice service. So Live asks once, in its own words.
+function lvSend(ev){
+  var lv=_lv; if(!lv) return;
+  if(lv.route==='native'){ _proosAppPost('live:send '+JSON.stringify(ev)); return; }
+  if(lv.dc&&lv.dc.readyState==='open') lv.dc.send(JSON.stringify(ev));
+}
+// Assist opens to show the conversation — and no keyboard rises for someone who is talking.
+function lvShowChat(){
+  if(assistOpen) return;
+  openAssist(); setTimeout(function(){ try{ var i=document.getElementById('assist-input'); if(i) i.blur(); }catch(e){} }, 450);
+}
 function lvConsentGiven(){ try{ return localStorage.getItem('proos_live_ok')==='1'; }catch(e){ return false; } }
-function lvConsent(on){ try{ localStorage.setItem('proos_live_ok', on?'1':'0'); }catch(e){} if(on) lvStart(); }
-function lvAsk(){
-  addMsg('assistant','Talk Live streams your voice to OpenAI’s voice service while it is on, so it can answer as you speak. '
-    +'Your home is still controlled only by ProOS. Nothing is kept by ProOS except a count of minutes used.'
+function lvConsent(on, from){
+  try{ localStorage.setItem('proos_live_ok', on?'1':'0'); }catch(e){}
+  if(on) lvStart(from||'panel'); else toggleDictation(from, {noLive:true});
+}
+function lvAsk(from){
+  lvShowChat();
+  var f=JSON.stringify(String(from||'panel')).replace(/"/g,'&quot;');
+  addMsg('assistant','To talk with you live, ProOS streams your voice to OpenAI’s voice service while the microphone is on, and answers as you speak. '
+    +'Your home is still controlled only by ProOS. Nothing you say is kept by ProOS.'
     +'<div class="assist-action">'
-    +'<button class="assist-action-btn confirm" onclick="lvConsent(true)">Talk Live</button>'
-    +'<button class="assist-action-btn" onclick="lvConsent(false)">Not now</button>'
+    +'<button class="assist-action-btn confirm" onclick="lvConsent(true,'+f+')">Use my voice</button>'
+    +'<button class="assist-action-btn" onclick="lvConsent(false,'+f+')">Not now</button>'
     +'</div>', {trusted:true});
 }
-async function lvStart(){
+// It could not connect: the ordinary microphone takes this press, and the person is told why in a word.
+function lvFallback(lv, why){
+  var was=(_lv===lv); lvStop();
+  if(!was) return;
+  showToast((why?why+' — ':'')+'using the normal microphone');
+  toggleDictation(lv.from, {noLive:true});
+}
+async function lvStart(from){
   if(_lv) return;
-  if(!lvConsentGiven()) return lvAsk();
+  var route=lvRoute(); if(!route) return toggleDictation(from, {noLive:true});
+  if(!lvConsentGiven()) return lvAsk(from);
   if(typeof _paTalk!=='undefined' && _paTalk){ showToast('A camera is using the microphone'); return; }
-  var AC=window.AudioContext||window.webkitAudioContext;
-  var lv=_lv={pending:0, buf:'', q:[], playing:null, need:false, open:false, area:(assistWhere().area_id||''), app:false};
-  lv.ac=new AC(); try{ lv.ac.resume(); }catch(e){}          // inside the tap: a phone only starts sound from a gesture
-  lvButton(true);
+  var lv=_lv={route:route, from:from||'panel', buf:'', q:[], pumping:false, playing:null, need:false, open:false, pending:0,
+              area:(assistWhere().area_id||''), app:route==='pcm', saidAny:false};
+  if(route!=='native'){ var AC=window.AudioContext||window.webkitAudioContext; lv.ac=new AC(); try{ lv.ac.resume(); }catch(e){} }  // inside the tap
+  try{ _voiceHush(); }catch(e){}
+  lvShowChat();
+  _micRec(true);
   var note=addMsg('assistant','Connecting…');
+  lv.note=note;
   var s=null;
   try{ var r=await fetch(proosCoreBase()+'/assist/realtime/session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({area_id:lv.area,voice:'ryan'})});
-    s=await r.json().catch(function(){ return null; }); }catch(e){ s=null; }
+    s=await r.json().catch(function(){ return null; }); if(!r.ok && s && !s.error) s.error='HTTP '+r.status; }catch(e){ s=null; }
   if(_lv!==lv){ note.remove(); return; }
-  if(!s||!s.value){ note.remove(); showToast((s&&s.error)||'Talk Live is not available'); lvStop(); return; }
-  var pc=lv.pc=new RTCPeerConnection();
-  var dst=lv.ac.createMediaStreamDestination(); var track=dst.stream.getAudioTracks()[0];
-  lv.dst=dst; lv.next=0;
-  if(_proosApp()){
-    lv.app=true;
-    if(!_proosAppPost('talk:start {"rate":24000}')){ note.remove(); showToast('The app could not start the microphone'); lvStop(); return; }
-  } else if(window.isSecureContext && navigator.mediaDevices && navigator.mediaDevices.getUserMedia){
-    try{ lv.mic=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
-      var src=lv.ac.createMediaStreamSource(lv.mic); lv.gate=lv.ac.createGain(); src.connect(lv.gate); lv.gate.connect(dst); }
-    catch(e){ note.remove(); showToast('The microphone was refused'); lvStop(); return; }
-  } else { note.remove(); showToast('Talk Live needs the ProOS app on this screen'); lvStop(); return; }
-  pc.addTrack(track, dst.stream);
-  var dc=lv.dc=pc.createDataChannel('oai-events');
-  dc.onmessage=function(m){ var ev; try{ ev=JSON.parse(m.data); }catch(e){ return; } lvEvent(lv, ev); };
-  var opened=new Promise(function(res){ dc.onopen=res; });
-  try{
-    var offer=await pc.createOffer(); await pc.setLocalDescription(offer);
-    var rr=await fetch('https://api.openai.com/v1/realtime/calls',{method:'POST',headers:{'Authorization':'Bearer '+s.value,'Content-Type':'application/sdp'},body:offer.sdp});
-    if(!rr.ok) throw new Error('HTTP '+rr.status);
-    await pc.setRemoteDescription({type:'answer',sdp:await rr.text()});
-    await opened;
-  }catch(e){ note.remove(); showToast('Could not reach the voice service'); lvStop(); return; }
-  if(_lv!==lv){ note.remove(); return; }
-  note.remove(); addMsg('assistant','I’m listening — talk normally. Tap End when you’re done.');
+  if(!s||!s.value){ note.remove(); _lvStat=null; return lvFallback(lv, (s&&s.error)||'Live voice is not available'); }
+  if(route==='native'){
+    lv.opened=new Promise(function(res){ lv.openRes=res; });
+    if(!_proosAppPost('live:start '+JSON.stringify({key:s.value, model:s.model||'gpt-realtime-2'}))){ note.remove(); return lvFallback(lv, 'The app could not start Live'); }
+    var okOpen=await Promise.race([lv.opened, new Promise(function(res){ setTimeout(function(){ res(false); }, 12000); })]);
+    if(_lv!==lv){ note.remove(); return; }
+    if(okOpen!==true){ note.remove(); return lvFallback(lv, 'Could not reach the voice service'); }
+  } else {
+    var pc=lv.pc=new RTCPeerConnection();
+    var dst=lv.ac.createMediaStreamDestination(); var track=dst.stream.getAudioTracks()[0]; lv.dst=dst; lv.next=0;
+    if(route==='pcm'){
+      if(!_proosAppPost('talk:start {"rate":24000}')){ note.remove(); return lvFallback(lv, 'The app could not start the microphone'); }
+    } else {
+      try{ lv.mic=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+        var src=lv.ac.createMediaStreamSource(lv.mic); lv.gate=lv.ac.createGain(); src.connect(lv.gate); lv.gate.connect(dst); }
+      catch(e){ note.remove(); return lvFallback(lv, 'The microphone was refused'); }
+    }
+    pc.addTrack(track, dst.stream);
+    var dc=lv.dc=pc.createDataChannel('oai-events');
+    dc.onmessage=function(m){ var ev; try{ ev=JSON.parse(m.data); }catch(e){ return; } lvEvent(lv, ev); };
+    var opened=new Promise(function(res){ dc.onopen=res; });
+    try{
+      var offer=await pc.createOffer(); await pc.setLocalDescription(offer);
+      var rr=await fetch('https://api.openai.com/v1/realtime/calls',{method:'POST',headers:{'Authorization':'Bearer '+s.value,'Content-Type':'application/sdp'},body:offer.sdp});
+      if(!rr.ok) throw new Error('HTTP '+rr.status);
+      await pc.setRemoteDescription({type:'answer',sdp:await rr.text()});
+      await opened;
+    }catch(e){ note.remove(); return lvFallback(lv, 'Could not reach the voice service'); }
+    if(_lv!==lv){ note.remove(); return; }
+  }
+  note.remove(); lv.note=null;
+  addMsg('assistant','I’m listening — talk normally. Tap the microphone when you’re done.');
   lv.at=performance.now(); lvUsage({session:true});
 }
 function lvStop(){
   var lv=_lv; _lv=null; if(!lv) return;
   if(lv.at) lvUsage({seconds:(performance.now()-lv.at)/1000});
-  if(lv.app) _proosAppPost('talk:stop');
+  if(lv.route==='native') _proosAppPost('live:stop');
+  if(lv.route==='pcm') _proosAppPost('talk:stop');
   try{ lv.dc&&lv.dc.close(); }catch(e){} try{ lv.pc&&lv.pc.close(); }catch(e){}
   try{ lv.mic&&lv.mic.getTracks().forEach(function(t){ t.stop(); }); }catch(e){}
-  lvHush(lv); try{ lv.ac&&lv.ac.close(); }catch(e){}
-  lvButton(false);
+  lv.q=[]; try{ lv.playing&&lv.playing.pause&&lv.playing.pause(); }catch(e){} lv.playing=null;
+  try{ lv.ac&&lv.ac.close(); }catch(e){}
+  try{ lv.note&&lv.note.remove(); }catch(e){}
+  _micRec(false);
 }
-// One slice of the app's microphone (16-bit mono, 24 kHz) into the call's track — dropped while Ryan is speaking.
+// The app's Talk Live (native road) — events, state and "Ryan has finished" come back through these.
+window._lvNative=function(text){ var lv=_lv; if(!lv||lv.route!=='native') return; var ev; try{ ev=JSON.parse(text); }catch(e){ return; } lvEvent(lv, ev); };
+window._lvNativeState=function(state, reason){
+  var lv=_lv; if(!lv||lv.route!=='native') return;
+  if(state==='open'){ if(lv.openRes) lv.openRes(true); return; }
+  if(lv.openRes && !lv.at){ lv.openRes(false); return; }           // before it opened: lvStart falls back
+  showToast(reason||'Live voice ended'); lvStop();
+};
+window._lvNativeQuiet=function(){ var lv=_lv; if(lv&&lv.route==='native'&&!lv.q.length&&!lv.pumping) lv.playing=null; };
+// One slice of an older app's microphone (16-bit mono, 24 kHz) into the call — dropped while Ryan is speaking.
 function lvPcm(b64){
-  var lv=_lv; if(!lv||!lv.ac||!lv.dst||!b64) return;
+  var lv=_lv; if(!lv||lv.route!=='pcm'||!lv.ac||!lv.dst||!b64) return;
   if(lv.playing) return;
   try{ var bin=atob(b64), n=bin.length>>1; if(!n) return;
     var buf=lv.ac.createBuffer(1,n,24000), ch=buf.getChannelData(0);
@@ -21461,20 +21521,42 @@ function lvPcm(b64){
     var t=Math.max(lv.ac.currentTime+0.02, lv.next||0); src.start(t); lv.next=t+buf.duration;
   }catch(e){}
 }
+// Ryan: each finished sentence fetched from Core in order, then played — by the app on its engine (native), or here.
+function lvSpeakFetch(text){
+  return fetch(proosCoreBase()+'/assist/speak',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text})})
+    .then(function(r){ return r.ok?r.blob():null; }).catch(function(){ return null; });
+}
+function lvB64(blob){
+  return new Promise(function(res){ try{ var fr=new FileReader(); fr.onload=function(){ var u=String(fr.result||''); res(u.slice(u.indexOf(',')+1)); }; fr.onerror=function(){ res(''); }; fr.readAsDataURL(blob); }catch(e){ res(''); } });
+}
 function lvSpeak(lv, text){
   text=(text||'').trim(); if(!text) return;
-  lv.q.push(_speakFetch(text)); if(!lv.playing) lvPlayNext(lv);
+  lv.q.push(lvSpeakFetch(text)); if(!lv.pumping) lvPump(lv);
 }
-async function lvPlayNext(lv){
-  if(_lv!==lv){ return; }
-  var p=lv.q.shift(); if(!p){ lv.playing=null; if(lv.gate) lv.gate.gain.value=1; return; }
-  lv.playing=true; if(lv.gate) lv.gate.gain.value=0;
-  var blob=await p; if(!blob||_lv!==lv){ lvPlayNext(lv); return; }
-  var a=lv.playing=new Audio(URL.createObjectURL(blob));
-  a.onended=function(){ lvPlayNext(lv); }; a.onerror=function(){ lvPlayNext(lv); };
-  try{ await a.play(); }catch(e){ lvPlayNext(lv); }
+async function lvPump(lv){
+  lv.pumping=true;
+  while(_lv===lv && lv.q.length){
+    var p=lv.q[0]; var blob=await p;
+    if(_lv!==lv || lv.q[0]!==p) continue;                       // hushed while fetching: that sentence is dropped
+    lv.q.shift(); if(!blob) continue;
+    if(lv.route==='native'){
+      var b64=await lvB64(blob); if(_lv!==lv) break;
+      if(b64){ lv.playing=true; _proosAppPost('live:play '+JSON.stringify({type:blob.type||'audio/wav', b64:b64})); }
+      continue;
+    }
+    lv.playing=true; if(lv.gate) lv.gate.gain.value=0;
+    await new Promise(function(res){
+      try{ var a=lv.playing=new Audio(URL.createObjectURL(blob)); a.onended=res; a.onerror=res; var pp=a.play(); if(pp&&pp.catch) pp.catch(res); }catch(e){ res(); }
+    });
+    if(_lv===lv){ lv.playing=null; if(lv.gate) lv.gate.gain.value=1; }
+  }
+  lv.pumping=false;
 }
-function lvHush(lv){ lv.q=[]; lv.buf=''; try{ lv.playing&&lv.playing.pause&&lv.playing.pause(); }catch(e){} lv.playing=null; if(lv.gate) lv.gate.gain.value=1; }
+function lvHush(lv){
+  lv.q=[]; lv.buf='';
+  if(lv.route==='native'){ _proosAppPost('live:hush'); lv.playing=null; return; }
+  try{ lv.playing&&lv.playing.pause&&lv.playing.pause(); }catch(e){} lv.playing=null; if(lv.gate) lv.gate.gain.value=1;
+}
 function lvDelta(lv, d){
   lv.buf+=(d||''); var m;
   while((m=lv.buf.match(/^([\s\S]*?[.!?])(\s+|$)/)) && m[1].length>1){ lvSpeak(lv, m[1]); lv.buf=lv.buf.slice(m[0].length); if(!m[2]) break; }
@@ -21492,11 +21574,12 @@ async function lvEvent(lv, ev){
     case 'response.function_call_arguments.done': {
       lv.pending++; lv.need=true; var out=null;
       try{ var r=await fetch(proosCoreBase()+'/assist/realtime/tool',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:ev.name,arguments:ev.arguments,area_id:lv.area})}); out=await r.json(); }catch(e){ out={error:String(e)}; }
+      if(_lv!==lv) return;
       lvSend({type:'conversation.item.create',item:{type:'function_call_output',call_id:ev.call_id,output:JSON.stringify(out).slice(0,12000)}});
       lv.pending=Math.max(0,lv.pending-1); lvMaybeReply(lv); break; }
     case 'response.created': lv.open=true; break;
     case 'response.done': lv.open=false; if(ev.response&&ev.response.usage) lvUsage({usage:ev.response.usage}); lvMaybeReply(lv); break;
-    case 'error': showToast('Voice service: '+String((ev.error&&ev.error.message)||'error').slice(0,120)); break;
+    case 'error': if(ev.error&&ev.error.code==='response_cancel_not_active') break; showToast('Voice service: '+String((ev.error&&ev.error.message)||'error').slice(0,120)); break;
   }
 }
 document.addEventListener('visibilitychange',function(){ if(document.hidden && _lv) lvStop(); });   // never a live mic on a hidden screen

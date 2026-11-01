@@ -3035,7 +3035,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102637';
+const PROOS_BUILD='2026102638';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -13723,6 +13723,11 @@ async function techViewAssist(view){
     +'<div style="display:flex;gap:8px"><input id="as-try" class="set-input" type="text" placeholder="watch apple tv in the bedroom" autocapitalize="off" autocorrect="off" spellcheck="false" onkeydown="if(event.key===\'Enter\')assistTryIt()"/>'
     +'<button class="btn-ghost" onclick="assistTryIt()">Try</button></div>'
     +'<div id="as-try-out" class="wiz-hint" style="margin-top:10px"></div></div>'
+    // ── TALK LIVE FOR THE HOME (register 1153, Dave 1 Nov 18:41 — everyone, switchable). Every microphone in the ProOS app
+    // talks live; on for everyone unless switched off here, for the home or for one person.
+    +'<div class="bld-sec" style="margin-top:18px"><div class="bld-sec-h">Talk Live</div>'
+    +'<div class="wiz-hint">Every microphone in the ProOS app talks live with Assist — speak, interrupt, follow up — and ProOS Assist does the work through its own tools and rules. Each person is asked once before their voice is used. On for everyone unless it is turned off here.</div>'
+    +'<div id="tl-body" class="wiz-hint">Loading…</div></div>'
     // ── TALK TO ASSIST — REALTIME PROTOTYPE (register 1148, Dave 1 Nov 15:32 "build the prototype so we can see").
     // The browser talks audio straight to the provider's realtime model with a short-lived key from Core; every tool
     // the model calls runs through Core's own Assist. Owner/tech only. Text works without a microphone.
@@ -13766,7 +13771,7 @@ async function techViewAssist(view){
     +'<div id="mi-out" class="wiz-hint" style="margin-top:10px"></div></div>');
   _asKeys=st.keys_saved||{};
   assistKeyLabel();
-  assistVoiceLoad(); try{ rtUsageShow(); rtRooms(); }catch(e){}   // register 1151
+  assistVoiceLoad(); try{ rtUsageShow(); rtRooms(); tlLoad(); }catch(e){}   // registers 1151, 1153
   appleTokenLoad();
 }
 function _amShow(d){
@@ -13870,6 +13875,31 @@ async function speakerMusicTest(){
     const d=await r.json();
     out.textContent=((d.lines||[]).join('\n'))||(d.error||'No answer');
   }catch(e){ out.textContent='ProOS Core unreachable'; }
+}
+// ── TALK LIVE SWITCHES (register 1153): the home, and each person. Saved in Core's Assist settings.
+var _tl={off:[]};
+async function tlLoad(){
+  var el=document.getElementById('tl-body'); if(!el) return;
+  var st=null, people=[];
+  try{ st=await (await fetch(proCoreUrl()+'/assist/status')).json(); }catch(e){}
+  try{ var r=await fetch(proCoreUrl()+'/users'); if(r.ok){ var d=await r.json(); people=(Array.isArray(d)?d:(d.users||[])).filter(function(u){ return !u.system; }); } }catch(e){}
+  if(!st || !('realtime_enabled' in st)){ el.textContent='Installer sign-in required.'; return; }
+  _tl.off=(st.realtime_off_for||[]).slice();
+  var h='<label style="display:flex;align-items:center;gap:10px;margin:6px 0;cursor:pointer"><input type="checkbox" id="tl-home"'+(st.realtime_enabled?' checked':'')+' onchange="tlSave()"/> <b>Talk Live for This Home</b></label>';
+  if(people.length){
+    h+='<div style="margin:8px 0 4px">People</div>';
+    h+=people.map(function(u){ var on=_tl.off.indexOf(u.id)<0;
+      return '<label style="display:flex;align-items:center;gap:10px;margin:4px 0 4px 6px;cursor:pointer"><input type="checkbox" data-tl="'+esc(u.id)+'"'+(on?' checked':'')+(st.realtime_enabled?'':' disabled')+' onchange="tlSave()"/> '+esc(u.name||u.username||u.id)+'</label>'; }).join('');
+  }
+  if(st.provider && st.provider!=='openai') h+='<div style="margin-top:6px;color:var(--warn)">Talk Live needs Assist on OpenAI — it is off until then.</div>';
+  setHTML(el, h);
+}
+async function tlSave(){
+  var home=document.getElementById('tl-home'); if(!home) return;
+  var off=[]; document.querySelectorAll('#tl-body input[data-tl]').forEach(function(c){ if(!c.checked) off.push(c.getAttribute('data-tl')); });
+  try{ var r=await fetch(proCoreUrl()+'/assist/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({realtime_enabled:!!home.checked, realtime_off_for:off})});
+    toast(r.ok?'Talk Live saved':'Could not save Talk Live'); }catch(e){ toast('Could not save Talk Live'); }
+  tlLoad();
 }
 // ── REALTIME PROTOTYPE CLIENT (register 1148) ─────────────────────────────────────────────────────────────────
 var _rt=null;

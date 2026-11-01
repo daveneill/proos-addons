@@ -614,6 +614,11 @@ def save_config(body: dict) -> dict:
     # keep; empty = clear. Lets Claude drive chat while OpenAI makes the images.
     if "image_key" in body:
         cfg["image_key"] = (body.get("image_key") or "").strip()
+    # REGISTER 1153: Talk Live for the home — on unless the installer turns it off; a person can be left out.
+    if "realtime_enabled" in body:
+        cfg["realtime_enabled"] = bool(body.get("realtime_enabled"))
+    if "realtime_off_for" in body:
+        cfg["realtime_off_for"] = sorted({str(x) for x in (body.get("realtime_off_for") or []) if x})
     if cfg.get("provider") not in ("claude", "openai"):
         cfg["provider"] = cfg.get("provider") or ""
     os.makedirs(os.path.dirname(_CFG_PATH), exist_ok=True)
@@ -641,7 +646,9 @@ def status(full: bool = False) -> dict:
             # which providers hold a key, so the form can say "no key saved
             # for Claude yet" before anyone presses Test (register 434)
             "keys_saved": {p: bool((cfg.get("keys") or {}).get(p)) for p in _PROVIDERS},
-            "has_image_key": bool(_image_key(cfg))})
+            "has_image_key": bool(_image_key(cfg)),
+            "realtime_enabled": cfg.get("realtime_enabled", True) is not False,
+            "realtime_off_for": list(cfg.get("realtime_off_for") or [])})
     return out
 
 
