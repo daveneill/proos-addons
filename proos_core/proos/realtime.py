@@ -75,7 +75,15 @@ def new_session(assist_mod, cfg: dict, runner, user: dict, home_name: str, where
     sess = {"type": "realtime", "model": model,
             "instructions": instructions(assist_mod, user, home_name, where),
             "tools": tl, "tool_choice": "auto",
-            "audio": {"input": {"transcription": {"model": "gpt-4o-mini-transcribe"}}}}
+            # REGISTER 1154: the hearing is SAID, not left to the provider's defaults — 24 kHz 16-bit audio (what the app
+            # sends), the provider's own turn detection (it decides when the person has finished, and lets them talk over
+            # an answer), near-field noise reduction for a phone held close, and the words transcribed for the chat.
+            "audio": {"input": {"format": {"type": "audio/pcm", "rate": 24000},
+                                "turn_detection": {"type": "server_vad", "threshold": 0.5,
+                                                   "prefix_padding_ms": 300, "silence_duration_ms": 500,
+                                                   "create_response": True, "interrupt_response": True},
+                                "noise_reduction": {"type": "near_field"},
+                                "transcription": {"model": "gpt-4o-mini-transcribe"}}}}
     if voice == "provider":
         sess["audio"]["output"] = {"voice": cfg.get("realtime_voice") or DEFAULT_VOICE}
     else:

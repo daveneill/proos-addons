@@ -7854,6 +7854,12 @@ class Handler(BaseHTTPRequestHandler):
                         or (users and users.is_tech(u.get("id")))):
                     out["answered"] = _sg.answered(hd, _an)
                 return self._send(200, out)
+            if parts == ["assist", "realtime", "trace"]:
+                # REGISTER 1154: the last Talk Live presses, as the phone wrote them down — owner/tech only.
+                u = getattr(self, "_user", None)
+                if not (u and (u.get("is_owner") or (users and users.is_tech(u.get("id"))))):
+                    return self._send(403, {"error": "owner or tech only"})
+                return self._send(200, {"lines": list(globals().get("_RT_TRACE") or [])})
             if parts == ["assist", "realtime", "status"]:
                 # REGISTER 1153: may THIS person talk Live? Every surface asks before its mic becomes Live.
                 u = getattr(self, "_user", None)
@@ -10866,6 +10872,21 @@ class Handler(BaseHTTPRequestHandler):
                         str(b.get("text") or "")))
                 except Exception as e:  # noqa: BLE001
                     return self._send(200, {"error": str(e)})
+            if parts == ["assist", "realtime", "trace"]:
+                # REGISTER 1154: a Talk Live press's trace from the phone — kept in memory (last 400 lines), never on disk.
+                u = getattr(self, "_user", None)
+                if not u:
+                    return self._send(401, {"error": "sign in required"})
+                b = self._body() or {}
+                import collections as _col
+                tr = globals().get("_RT_TRACE")
+                if tr is None:
+                    tr = globals()["_RT_TRACE"] = _col.deque(maxlen=400)
+                stamp = time.strftime("%H:%M:%S")
+                who = str(u.get("name") or u.get("id") or "?")[:24]
+                for ln in (b.get("lines") or [])[:60]:
+                    tr.append("%s %s | %s" % (stamp, who, str(ln)[:400]))
+                return self._send(200, {"ok": True})
             if parts == ["assist", "realtime", "usage"]:
                 # REGISTER 1151: the page hands Core each finished response's token counts (and a session's seconds);
                 # Core keeps the day's line. REGISTER 1153: anyone Talk Live is on for (the home's minutes, one ledger).

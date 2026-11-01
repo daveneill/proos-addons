@@ -5048,7 +5048,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102676';
+const PROOS_BUILD='2026102677';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -21399,9 +21399,31 @@ function lvRoute(){
   return null;
 }
 // The ordinary mic asks this first: true when this press is Live's (it has then been handled).
+// REGISTER 1154 — THE SOUND WAS NEVER STARTED. Dave 19:32, two screenshots: "keeps saying connecting then says talk and.
+// Nothing happens". The box's ledger read 0 audio tokens for every phone session. On the web roads (an older app's PCM, a
+// secure browser) the page's audio engine was made AFTER the first wait (asking Core whether Live is on); a phone only
+// starts sound inside the tap itself, so the engine stayed paused and the call carried silence. It is made HERE now,
+// before anything is waited on, and lvStart takes it.
+function lvWarmAudio(){
+  try{ var AC=window.AudioContext||window.webkitAudioContext; if(!AC) return;
+    if(!window._lvAC || window._lvAC.state==='closed') window._lvAC=new AC();
+    window._lvAC.resume(); }catch(e){}
+}
+// AND WHAT HAPPENED IS WRITTEN DOWN (1154): each Live press keeps a short trace — the road, the app's abilities, the
+// audio engine's state, how many microphone slices arrived and were played into the call, every event the provider sent
+// — and hands it to Core (POST /assist/realtime/trace), so the next fault is read, not guessed.
+function lvTrace(lv, line){
+  try{ if(!lv) return; lv.trace=lv.trace||[]; lv.trace.push(Math.round(performance.now()-(lv.t0||0))+'ms '+String(line).slice(0,300));
+    if(lv.trace.length>=40) lvTraceFlush(lv); }catch(e){}
+}
+function lvTraceFlush(lv){
+  try{ if(!lv||!lv.trace||!lv.trace.length) return; var lines=lv.trace; lv.trace=[];
+    fetch(proosCoreBase()+'/assist/realtime/trace',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lines:lines})}).catch(function(){}); }catch(e){}
+}
 async function lvTakesPress(from){
   if(_lv){ lvStop(); return true; }
   if(!lvRoute()) return false;
+  if(lvRoute()!=='native') lvWarmAudio();                      // inside the tap, before any wait (1154)
   if(!(await lvAvailable())) return false;
   lvStart(from); return true;
 }
@@ -21433,6 +21455,7 @@ function lvAsk(from){
 }
 // It could not connect: the ordinary microphone takes this press, and the person is told why in a word.
 function lvFallback(lv, why){
+  lvTrace(lv, 'fallback: '+(why||''));
   var was=(_lv===lv); lvStop();
   if(!was) return;
   showToast((why?why+' — ':'')+'using the normal microphone');
@@ -21445,7 +21468,10 @@ async function lvStart(from){
   if(typeof _paTalk!=='undefined' && _paTalk){ showToast('A camera is using the microphone'); return; }
   var lv=_lv={route:route, from:from||'panel', buf:'', q:[], pumping:false, playing:null, need:false, open:false, pending:0,
               area:(assistWhere().area_id||''), app:route==='pcm', saidAny:false};
-  if(route!=='native'){ var AC=window.AudioContext||window.webkitAudioContext; lv.ac=new AC(); try{ lv.ac.resume(); }catch(e){} }  // inside the tap
+  lv.t0=performance.now(); lv.ev={}; lv.slices=0; lv.played=0;
+  lvTrace(lv, 'start road='+route+' from='+lv.from+' caps='+JSON.stringify(window._proosAppCaps||null)+' ua='+navigator.userAgent);
+  if(route!=='native'){ lvWarmAudio(); lv.ac=window._lvAC; window._lvAC=null; }        // made inside the tap (1154)
+  if(lv.ac) lvTrace(lv, 'audio engine '+lv.ac.state+' at '+lv.ac.sampleRate+' Hz');
   try{ _voiceHush(); }catch(e){}
   lvShowChat();
   _micRec(true);
@@ -21455,7 +21481,8 @@ async function lvStart(from){
   try{ var r=await fetch(proosCoreBase()+'/assist/realtime/session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({area_id:lv.area,voice:'ryan'})});
     s=await r.json().catch(function(){ return null; }); if(!r.ok && s && !s.error) s.error='HTTP '+r.status; }catch(e){ s=null; }
   if(_lv!==lv){ note.remove(); return; }
-  if(!s||!s.value){ note.remove(); _lvStat=null; return lvFallback(lv, (s&&s.error)||'Live voice is not available'); }
+  if(!s||!s.value){ lvTrace(lv,'no session: '+((s&&s.error)||'no answer')); lvTraceFlush(lv); note.remove(); _lvStat=null; return lvFallback(lv, (s&&s.error)||'Live voice is not available'); }
+  lvTrace(lv, 'session ok model='+s.model+' tools='+s.tools);
   if(route==='native'){
     lv.opened=new Promise(function(res){ lv.openRes=res; });
     if(!_proosAppPost('live:start '+JSON.stringify({key:s.value, model:s.model||'gpt-realtime-2'}))){ note.remove(); return lvFallback(lv, 'The app could not start Live'); }
@@ -21488,9 +21515,15 @@ async function lvStart(from){
   note.remove(); lv.note=null;
   addMsg('assistant','I’m listening — talk normally. Tap the microphone when you’re done.');
   lv.at=performance.now(); lvUsage({session:true});
+  lvTrace(lv, 'open'+(lv.ac?' — audio engine '+lv.ac.state:''));
+  lv.tick=setInterval(function(){ if(_lv!==lv){ clearInterval(lv.tick); return; }
+    if(lv.ac && lv.ac.state!=='running'){ try{ lv.ac.resume(); }catch(e){} }
+    lvTrace(lv, 'tick slices='+lv.slices+' played='+lv.played+(lv.ac?' engine='+lv.ac.state:'')+' events='+JSON.stringify(lv.ev)); lvTraceFlush(lv); }, 3000);
 }
 function lvStop(){
   var lv=_lv; _lv=null; if(!lv) return;
+  try{ clearInterval(lv.tick); }catch(e){}
+  lvTrace(lv, 'stop slices='+lv.slices+' played='+lv.played+' events='+JSON.stringify(lv.ev||{})); lvTraceFlush(lv);
   if(lv.at) lvUsage({seconds:(performance.now()-lv.at)/1000});
   if(lv.route==='native') _proosAppPost('live:stop');
   if(lv.route==='pcm') _proosAppPost('talk:stop');
@@ -21505,6 +21538,8 @@ function lvStop(){
 window._lvNative=function(text){ var lv=_lv; if(!lv||lv.route!=='native') return; var ev; try{ ev=JSON.parse(text); }catch(e){ return; } lvEvent(lv, ev); };
 window._lvNativeState=function(state, reason){
   var lv=_lv; if(!lv||lv.route!=='native') return;
+  if(state==='stats'){ lvTrace(lv, 'app '+(reason||'')); return; }          // the app's own counts (1154)
+  lvTrace(lv, 'app state '+state+(reason?' — '+reason:''));
   if(state==='open'){ if(lv.openRes) lv.openRes(true); return; }
   if(lv.openRes && !lv.at){ lv.openRes(false); return; }           // before it opened: lvStart falls back
   showToast(reason||'Live voice ended'); lvStop();
@@ -21513,13 +21548,16 @@ window._lvNativeQuiet=function(){ var lv=_lv; if(lv&&lv.route==='native'&&!lv.q.
 // One slice of an older app's microphone (16-bit mono, 24 kHz) into the call — dropped while Ryan is speaking.
 function lvPcm(b64){
   var lv=_lv; if(!lv||lv.route!=='pcm'||!lv.ac||!lv.dst||!b64) return;
+  lv.slices++;
   if(lv.playing) return;
   try{ var bin=atob(b64), n=bin.length>>1; if(!n) return;
     var buf=lv.ac.createBuffer(1,n,24000), ch=buf.getChannelData(0);
     for(var i=0;i<n;i++){ var v=bin.charCodeAt(2*i)|(bin.charCodeAt(2*i+1)<<8); ch[i]=(v>32767?v-65536:v)/32768; }
     var src=lv.ac.createBufferSource(); src.buffer=buf; src.connect(lv.dst);
-    var t=Math.max(lv.ac.currentTime+0.02, lv.next||0); src.start(t); lv.next=t+buf.duration;
-  }catch(e){}
+    var t=Math.max(lv.ac.currentTime+0.02, lv.next||0);
+    if(lv.next && lv.next-lv.ac.currentTime>1){ t=lv.ac.currentTime+0.02; }     // never let the queue run ahead of real time
+    src.start(t); lv.next=t+buf.duration; lv.played++;
+  }catch(e){ lvTrace(lv, 'slice failed: '+e); }
 }
 // Ryan: each finished sentence fetched from Core in order, then played — by the app on its engine (native), or here.
 function lvSpeakFetch(text){
@@ -21565,6 +21603,8 @@ function lvDelta(lv, d){
 function lvMaybeReply(lv){ if(lv&&lv.need&&!(lv.pending>0)&&!lv.open){ lv.need=false; lvSend({type:'response.create'}); } }
 async function lvEvent(lv, ev){
   if(_lv!==lv) return;
+  try{ lv.ev=lv.ev||{}; var k=String(ev.type||'?').replace(/^(conversation\.item\.|input_audio_buffer\.|response\.)/,''); lv.ev[k]=(lv.ev[k]||0)+1;
+    if(ev.type==='error') lvTrace(lv, 'provider error '+JSON.stringify(ev.error||ev).slice(0,240)); }catch(e){}
   switch(ev.type){
     case 'input_audio_buffer.speech_started': lvHush(lv); break;
     case 'conversation.item.input_audio_transcription.completed': { var t=(ev.transcript||'').trim(); if(t) addMsg('user', t); break; }
