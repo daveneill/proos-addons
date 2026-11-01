@@ -3035,7 +3035,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102638';
+const PROOS_BUILD='2026102640';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -13739,7 +13739,7 @@ async function techViewAssist(view){
     +'<div style="display:flex;gap:8px;margin-top:8px"><input id="rt-text" class="set-input" type="text" placeholder="or type: which lamps are on in here" autocapitalize="off" autocorrect="off" spellcheck="false" onkeydown="if(event.key===\'Enter\')rtSendText()"/>'
     +'<button class="btn-ghost" onclick="rtSendText()">Send</button></div>'
     +'<pre id="rt-log" class="wiz-hint" style="white-space:pre-wrap;margin-top:10px;max-height:320px;overflow:auto"></pre>'
-    +'<div class="bld-sec-h" style="margin-top:12px">Realtime Usage</div><div id="rt-usage" class="wiz-hint">Loading…</div></div>'
+    +'<div class="bld-sec-h" style="margin-top:12px">AI Costs</div><div id="rt-usage" class="wiz-hint">Loading…</div></div>'
     // ── SPEAKER MUSIC TEST (register 741). Proves, from Core on this box, that a speaker reads the
     // home's own music accounts, searches them and plays — the road register 740 proved from a Mac.
     // Reads unless Play is ticked. A test, not a feature: its words are the engine's own.
@@ -13914,12 +13914,22 @@ async function rtRooms(){
 // REGISTER 1151: what it costs — every finished response's tokens and each session's length go to Core's day ledger.
 function rtUsagePost(body){ try{ fetch(proCoreUrl()+'/assist/realtime/usage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(){ rtUsageShow(); }); }catch(e){} }
 async function rtUsageShow(){
+  // REGISTER 1162: every AI cost the box is charged for, by kind and model — Talk Live, Assist (the app and the room
+  // mics), the Health engine — with the last seven days' total and what that rate comes to over a month.
   var el=document.getElementById('rt-usage'); if(!el) return;
   try{ var d=await (await fetch(proCoreUrl()+'/assist/realtime/usage')).json();
     var rows=(d.days||[]);
     if(!rows.length){ el.textContent='Nothing used yet.'; return; }
-    setHTML(el, rows.map(function(r){ return esc(r.day)+' — '+r.sessions+' session'+(r.sessions===1?'':'s')+', '+r.minutes+' min, '+r.responses+' answers, about US$'+Number(r.cost_usd).toFixed(2); }).join('<br>')
-      +'<br><span style="opacity:.7">'+esc(d.note||'')+'</span>');
+    var label=function(r){ return r.family==='realtime'?'Talk Live':(r.family==='engine'?'Health Engine · '+r.model:'Assist · '+r.model); };
+    var money=function(r){ return (typeof r.cost_usd==='number')?'about US$'+Number(r.cost_usd).toFixed(2):esc(r.price||'price not known'); };
+    var lines=rows.map(function(r){
+      var what=r.family==='realtime'
+        ? (r.sessions+' session'+(r.sessions===1?'':'s')+', '+r.minutes+' min, '+r.responses+' answers')
+        : (r.turns+' question'+(r.turns===1?'':'s')+', '+r.responses+' model rounds'+(r.web?', '+r.web+' web searches':''));
+      return esc(r.day)+' — '+esc(label(r))+': '+what+', '+money(r); });
+    var head='<b>Last 7 days: about US$'+Number(d.total_usd||0).toFixed(2)+'</b> · at that rate about US$'+Number(d.month_usd||0).toFixed(2)+' a month';
+    if((d.unpriced||[]).length) head+='<br><span style="color:var(--warn)">Not priced (counted only): '+esc(d.unpriced.join(', '))+'</span>';
+    setHTML(el, head+'<br>'+lines.join('<br>')+'<br><span style="opacity:.7">'+esc(d.note||'')+'</span>');
   }catch(e){ el.textContent='Could not read usage.'; }
 }
 function rtSendEvent(ev){ if(_rt&&_rt.dc&&_rt.dc.readyState==='open') _rt.dc.send(JSON.stringify(ev)); }
@@ -14006,7 +14016,12 @@ async function rtEvent(ev){
   switch(ev.type){
     case 'input_audio_buffer.speech_started': rtLog('(hearing you)'); rtHush(rt); break;
     case 'input_audio_buffer.speech_stopped': rt.saidAt=performance.now(); rt.firstVoice=false; break;
-    case 'conversation.item.input_audio_transcription.completed': rtLog('You: '+(ev.transcript||'').trim()); break;
+    case 'conversation.item.input_audio_transcription.completed': {           // register 1163: act on the words
+      var tw=(ev.transcript||'').trim(); rtLog('You: '+tw);
+      if(ev.item_id) rtSendEvent({type:'conversation.item.delete',item_id:ev.item_id});
+      if(tw){ rtSendEvent({type:'conversation.item.create',item:{type:'message',role:'user',content:[{type:'input_text',text:tw}]}});
+        if(rt.responseOpen){ rt.needReply=true; } else { rtSendEvent({type:'response.create'}); } }
+      break; }
     case 'output_audio_buffer.started': rtLog('(Assist starts speaking — '+ms()+' after you finished)'); break;
     case 'response.output_audio_transcript.done': rtLog('Assist: '+(ev.transcript||'').trim()+'  ['+ms()+']'); break;
     case 'response.output_text.delta': if(rt.voice!=='provider') rtTextDelta(rt, ev.delta); break;

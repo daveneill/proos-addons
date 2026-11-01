@@ -5048,7 +5048,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102680';
+const PROOS_BUILD='2026102681';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -21633,7 +21633,16 @@ async function lvEvent(lv, ev){
     if(ev.type==='error') lvTrace(lv, 'provider error '+JSON.stringify(ev.error||ev).slice(0,240)); }catch(e){}
   switch(ev.type){
     case 'input_audio_buffer.speech_started': lvHush(lv); break;
-    case 'conversation.item.input_audio_transcription.completed': { var t=(ev.transcript||'').trim(); if(t) addMsg('user', t); break; }
+    case 'conversation.item.input_audio_transcription.completed': {
+      // REGISTER 1163 — ACT ON THE WRITTEN WORDS (Dave's ruling, 2 Nov 06:47): the caption is shown, the audio item is
+      // taken out of the conversation, and the CAPTION goes to the model as the person's words; then it answers.
+      var t=(ev.transcript||'').trim();
+      if(ev.item_id) lvSend({type:'conversation.item.delete',item_id:ev.item_id});
+      if(!t) break;                                               // nothing said (a cough, a door): nothing to answer
+      addMsg('user', t); lvTrace(lv, 'heard "'+t.slice(0,80)+'"');
+      lvSend({type:'conversation.item.create',item:{type:'message',role:'user',content:[{type:'input_text',text:t}]}});
+      if(lv.open){ lv.need=true; } else { lvSend({type:'response.create'}); }
+      break; }
     case 'response.output_text.delta': lvDelta(lv, ev.delta); break;
     case 'response.output_text.done': { var rest=lv.buf; lv.buf=''; if(rest.trim()) lvSpeak(lv, rest);
       var said=(ev.text||'').trim(); if(said){ addMsg('assistant', said); window._assistLast=said; lvSayInRoom(lv, said); } break; }

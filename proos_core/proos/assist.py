@@ -7339,6 +7339,7 @@ def _chat_openai(cfg, system, history, runner):
         stored.append(turn)
         if not calls:
             _stamp()
+            _count_turn(runner, model, _tm["steps"])            # register 1162
             return _unlink(runner, text.strip()) or "(no reply)", stored
         items.extend(output)          # the provider's own items back, as it documents
         _t1 = time.time()
@@ -7356,7 +7357,19 @@ def _chat_openai(cfg, system, history, runner):
         _tm["tool_ms"] += _step["tool_ms"]
         _partial = text
     _stamp()
+    _count_turn(runner, model, _tm["steps"])                    # register 1162
     return _ran_out(runner, _partial), stored
+
+
+def _count_turn(runner, model, steps):
+    """REGISTER 1162: this turn's rounds go to the day's cost ledger (aiusage) — "engine" for the Health engine's own
+    turns, "assist" for a person's (the app, a room mic). Counting never stops or slows a turn."""
+    try:
+        from . import aiusage
+        kind = "engine" if ((getattr(runner, "user", None) or {}).get("engine")) else "assist"
+        aiusage.record_turn(kind, model, steps)
+    except Exception:                                            # noqa: BLE001
+        pass
 
 
 def _openai_step(resp, model_ms):

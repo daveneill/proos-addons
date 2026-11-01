@@ -7876,7 +7876,13 @@ class Handler(BaseHTTPRequestHandler):
                 from proos import aiusage as _aiu
                 _pr = {}
                 try:
-                    _pr = (_assist.load_config() or {}).get("realtime_prices") or {} if _assist else {}
+                    _acfg = (_assist.load_config() or {}) if _assist else {}
+                    _pr = dict(_acfg.get("realtime_prices") or {})
+                    _mp = _acfg.get("model_prices") or {}       # register 1162: the Assist models' prices, editable
+                    if isinstance(_mp, dict):
+                        _pr["models"] = {k: v for k, v in _mp.items() if isinstance(v, dict)}
+                        if isinstance(_mp.get("web_search_per_call"), (int, float)):
+                            _pr["web_search_per_call"] = _mp["web_search_per_call"]
                 except Exception:                                # noqa: BLE001
                     _pr = {}
                 return self._send(200, _aiu.summary(_pr if isinstance(_pr, dict) else {}))

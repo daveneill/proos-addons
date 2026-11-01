@@ -39,8 +39,9 @@ DEFAULT_VOICE = "marin"              # assist.json "realtime_voice"
 
 VOICE_PREFACE = (
     "YOU ARE SPEAKING OUT LOUD, IN REAL TIME. Keep every answer short and natural — one or two sentences unless asked "
-    "for more. Never read out ids, entity names in brackets, or lists of settings. When you call a tool, you may say a "
-    "few words first ('One moment'); say the result only when the tool has answered, and say only what it confirmed. "
+    "for more. Never read out ids, entity names in brackets, or lists of settings. Before a tool that changes or reads "
+    "something in the house, SAY NOTHING — it is done before your words could be heard; after it answers, say the "
+    "result in a few words, and only what it confirmed. Only before web_search may you say a short 'One moment'. "
     "If you did not hear something clearly, ask — never guess a room, a device or a number. For anything outside this "
     "house — news, who holds an office, sport, weather, what's on — call web_search and answer from what it finds; "
     "never say you cannot check.\n\n")
@@ -88,6 +89,16 @@ def web_lookup(assist_mod, cfg: dict, runner, query: str, post=None) -> dict:
         r = post(assist_mod._OPENAI_RESPONSES, body, {"Authorization": "Bearer %s" % cfg["api_key"]}) or {}
     except Exception as e:                                       # noqa: BLE001
         return {"error": "the web search failed: %s" % str(e)[:160]}
+    try:                                                         # register 1162: the lookup's cost is counted too
+        from . import aiusage as _aiu
+        _u = r.get("usage") or {}
+        _aiu.record_turn("assist", body["model"], [{
+            "input": int(_u.get("input_tokens") or 0),
+            "cached": int(((_u.get("input_tokens_details") or {}).get("cached_tokens")) or 0),
+            "output": int(_u.get("output_tokens") or 0),
+            "web": sum(1 for o in (r.get("output") or []) if isinstance(o, dict) and o.get("type") == "web_search_call")}])
+    except Exception:                                            # noqa: BLE001
+        pass
     text, sources = [], []
     for item in (r.get("output") or []):
         for c in (item.get("content") or []) if isinstance(item, dict) else []:
@@ -130,10 +141,10 @@ def transcription(hints=None) -> dict:
         h = " ".join(str(h or "").split())
         if h and h not in words:
             words.append(h)
-    out = {"model": "gpt-4o-transcribe", "language": "en"}
-    if words:
-        out["prompt"] = ("A person talking to their smart home. Names they may say: " + ", ".join(words))[:600]
-    return out
+    # REGISTER 1163 — THE NAMES CAME OUT AS WORDS. Dave 2 Nov 06:47, screenshots: "lights on" captioned "Office.",
+    # another command "Office Blinds". The list of the home's names handed to the transcriber (1158) made it write a
+    # NAME for a short command. The list is gone; English and the full transcriber stay. (hints are accepted, unused.)
+    return {"model": "gpt-4o-transcribe", "language": "en"}
 
 
 def new_session(assist_mod, cfg: dict, runner, user: dict, home_name: str, where: dict | None, post=None,
@@ -155,9 +166,14 @@ def new_session(assist_mod, cfg: dict, runner, user: dict, home_name: str, where
             # sends), the provider's own turn detection (it decides when the person has finished, and lets them talk over
             # an answer), near-field noise reduction for a phone held close, and the words transcribed for the chat.
             "audio": {"input": {"format": {"type": "audio/pcm", "rate": 24000},
+                                # REGISTER 1163 — ACT ON THE WRITTEN WORDS (Dave 06:47: "what's the weather tomorrow"
+                                # was captioned right but the voice model, hearing the audio itself, looked up the news;
+                                # ruled "Act on the words"). The provider no longer answers the audio by itself: the page
+                                # waits for the caption, removes the audio from the conversation and hands the model the
+                                # CAPTION as the person's words — what is shown is exactly what was acted on.
                                 "turn_detection": {"type": "server_vad", "threshold": 0.5,
                                                    "prefix_padding_ms": 300, "silence_duration_ms": 500,
-                                                   "create_response": True, "interrupt_response": True},
+                                                   "create_response": False, "interrupt_response": True},
                                 "noise_reduction": {"type": "near_field"},
                                 "transcription": transcription(hints)}}}
     if voice == "provider":
