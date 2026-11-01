@@ -3035,7 +3035,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102634';
+const PROOS_BUILD='2026102635';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -13928,6 +13928,9 @@ async function rtSendText(){
   rtSendEvent({type:'conversation.item.create',item:{type:'message',role:'user',content:[{type:'input_text',text:text}]}});
   rtSendEvent({type:'response.create'});
 }
+// ONE reply after ALL of a response's tool calls have answered and the response itself has finished — the model may call
+// several tools at once, and asking for a reply after each one is refused ("already has an active response").
+function rtMaybeReply(rt){ if(rt&&rt.needReply&&!(rt.inflight>0)&&!rt.responseOpen){ rt.needReply=false; rtSendEvent({type:'response.create'}); } }
 async function rtEvent(ev){
   var rt=_rt; if(!rt) return;
   var ms=function(){ return rt.saidAt?Math.round(performance.now()-rt.saidAt)+' ms':''; };
@@ -13938,13 +13941,16 @@ async function rtEvent(ev){
     case 'output_audio_buffer.started': rtLog('(Assist starts speaking — '+ms()+' after you finished)'); break;
     case 'response.output_audio_transcript.done': rtLog('Assist: '+(ev.transcript||'').trim()+'  ['+ms()+']'); break;
     case 'response.function_call_arguments.done':
+      rt.inflight=(rt.inflight||0)+1; rt.needReply=true;
       rtLog('→ ProOS tool '+ev.name+' '+(ev.arguments||'').slice(0,120));
       var t0=performance.now(), out=null;
       try{ var r=await fetch(proCoreUrl()+'/assist/realtime/tool',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:ev.name,arguments:ev.arguments,area_id:rt.area})}); out=await r.json(); }catch(e){ out={error:String(e)}; }
       rtLog('← '+ev.name+(out&&out.error?' refused/failed: '+out.error:' answered')+' in '+Math.round(performance.now()-t0)+' ms');
       rtSendEvent({type:'conversation.item.create',item:{type:'function_call_output',call_id:ev.call_id,output:JSON.stringify(out).slice(0,12000)}});
-      rtSendEvent({type:'response.create'});
+      rt.inflight=Math.max(0,(rt.inflight||1)-1); rtMaybeReply(rt);
       break;
+    case 'response.done': rt.responseOpen=false; rtMaybeReply(rt); break;
+    case 'response.created': rt.responseOpen=true; break;
     case 'error': rtLog('Provider error: '+JSON.stringify(ev.error||ev).slice(0,240)); break;
   }
 }
