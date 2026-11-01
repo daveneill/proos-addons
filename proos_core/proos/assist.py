@@ -3290,10 +3290,11 @@ class ToolRunner:
             except Exception:                                    # noqa: BLE001
                 pass
         # 3 · bulk power for lights/switches/fans, minus the protect list
+        _devs = []
         try:
             from . import roomdevices
-            plan = roomdevices.power_targets(
-                roomdevices.discover(self.client, aid).get("devices"))
+            _devs = roomdevices.discover(self.client, aid).get("devices") or []
+            plan = roomdevices.power_targets(_devs)
         except Exception:                                        # noqa: BLE001
             plan = {"targets": {}, "skipped": 0}
         svc = "turn_on" if on else "turn_off"
@@ -3306,11 +3307,47 @@ class ToolRunner:
             did[dom] = len(eids)
         if plan.get("skipped"):
             did["power_protected_skipped"] = plan["skipped"]
+        _parts = [d.get("name") or d.get("entity_id") for d in _devs if d.get("av_part")]
+        if _parts:
+            did["left_to_activities"] = _parts                    # register 1143: a TV's own switches, never touched
         self.actions.append({"tool": "room_off" if not on else "room_on",
                              "target": aid, "action": svc})
+        # REGISTER 1147: WHAT IS SAID IS WHAT THE DEVICES READ BACK (Dave 30 Oct, Device Truth ruling 3; 1 Nov "what is
+        # logged not being virtual .. has to be actual"). Every light/switch/fan it switched — and, for Off, the room's
+        # own activity verdict when TV Off ran — is read back from the platform for up to READBACK_S. The answer names
+        # what confirmed and what did not; "ok" is true only when everything confirmed.
+        ids = [e for eids in (plan.get("targets") or {}).values() for e in eids]
+        names = {d.get("entity_id"): (d.get("name") or d.get("entity_id")) for d in _devs}
+        want = "on" if on else "off"
+        sens = ("sensor.proos_activity_%s" % aid) if (not on and did.get("av")) else None
+        watch = ids + ([sens] if sens else [])
+        not_yet, unknown = list(ids), False
+        av_off = None
+        if watch:
+            import time as _t
+            end = _t.time() + READBACK_S
+            while True:
+                try:
+                    snap = self.client.snapshot(watch) or {}
+                except Exception:                                # noqa: BLE001
+                    snap, unknown = {}, True
+                not_yet = [e for e in ids if str(((snap.get(e) or {}).get("state")) or "") != want]
+                if sens:
+                    av_off = str(((snap.get(sens) or {}).get("state")) or "") == "off"
+                if unknown or (not not_yet and av_off is not False) or _t.time() >= end:
+                    break
+                _t.sleep(READBACK_STEP_S)
+        did["target_ids"] = ids
+        did["confirmed_" + want] = [names.get(e, e) for e in ids if e not in not_yet]
+        if not_yet:
+            did["not_confirmed"] = [names.get(e, e) for e in not_yet]
+        if sens:
+            did["av_confirmed_off"] = bool(av_off)
+        did["confirmed"] = (not unknown) and not not_yet and av_off is not False
         did["ok"] = True
-        did["note"] = ("verify with the room's verdict sensor; power-protected "
-                       "devices were deliberately left untouched")
+        did["note"] = ("say only what confirmed: name anything in not_confirmed as not yet " + want +
+                       ("; the TV ran its own TV Off" if did.get("av") else "") +
+                       "; power-protected devices and a TV's own switches were deliberately left untouched")
         return did
 
     def t_room_off(self, args):
@@ -7762,6 +7799,8 @@ def _act_confirmed(client, tool, args, out, wait_s=None, sleep=None):
         return True if (isinstance(out, dict) and out.get("opened") is True) else None
     aid = args.get("area_id")
     ents, test = None, None
+    if tool in ("room_off", "room_on") and isinstance(out, dict) and isinstance(out.get("confirmed"), bool):
+        return out["confirmed"]          # register 1147: room off/on read its own devices back already
     if tool == "room_off" and aid:
         sens = "sensor.proos_activity_%s" % aid
         ents = [sens]
