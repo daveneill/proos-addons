@@ -5048,7 +5048,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102677';
+const PROOS_BUILD='2026102678';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -21475,7 +21475,11 @@ async function lvStart(from){
   try{ _voiceHush(); }catch(e){}
   lvShowChat();
   _micRec(true);
-  var note=addMsg('assistant','Connecting…');
+  // REGISTER 1155 — Dave 19:54: "shouldnt have to wait for connectiong before you can talk". In the app the microphone
+  // starts NOW ("live:arm"); what is said while Core and the provider connect is held by the app and sent the moment
+  // the provider is ready. The words on screen say so: listening, not connecting.
+  if(route==='native'){ _proosAppPost('live:arm'); lvTrace(lv, 'armed at the tap'); }
+  var note=addMsg('assistant', route==='native' ? 'Listening — go ahead.' : 'Connecting…');
   lv.note=note;
   var s=null;
   try{ var r=await fetch(proosCoreBase()+'/assist/realtime/session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({area_id:lv.area,voice:'ryan'})});
@@ -21512,8 +21516,8 @@ async function lvStart(from){
     }catch(e){ note.remove(); return lvFallback(lv, 'Could not reach the voice service'); }
     if(_lv!==lv){ note.remove(); return; }
   }
-  note.remove(); lv.note=null;
-  addMsg('assistant','I’m listening — talk normally. Tap the microphone when you’re done.');
+  if(route==='native'){ lv.note=null; }                       // "Listening — go ahead." already stands (1155)
+  else { note.remove(); lv.note=null; addMsg('assistant','I’m listening — talk normally. Tap the microphone when you’re done.'); }
   lv.at=performance.now(); lvUsage({session:true});
   lvTrace(lv, 'open'+(lv.ac?' — audio engine '+lv.ac.state:''));
   lv.tick=setInterval(function(){ if(_lv!==lv){ clearInterval(lv.tick); return; }
