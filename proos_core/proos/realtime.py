@@ -41,12 +41,66 @@ VOICE_PREFACE = (
     "YOU ARE SPEAKING OUT LOUD, IN REAL TIME. Keep every answer short and natural — one or two sentences unless asked "
     "for more. Never read out ids, entity names in brackets, or lists of settings. When you call a tool, you may say a "
     "few words first ('One moment'); say the result only when the tool has answered, and say only what it confirmed. "
-    "If you did not hear something clearly, ask — never guess a room, a device or a number.\n\n")
+    "If you did not hear something clearly, ask — never guess a room, a device or a number. For anything outside this "
+    "house — news, who holds an office, sport, weather, what's on — call web_search and answer from what it finds; "
+    "never say you cannot check.\n\n")
 
 
 def instructions(assist_mod, user: dict, home_name: str, where: dict | None) -> str:
     """Assist's own instructions for this person and this room, with the voice preface."""
     return VOICE_PREFACE + assist_mod._system_prompt(user, home_name, where or {}, False)
+
+
+# REGISTER 1159 — THE WEB, IN TALK LIVE TOO. Dave 21:30, screenshot: asked "current president" and "Is Donald Trump the
+# current president?" — Talk Live answered "I can't check current world leaders with the tools I have here". Typed Assist
+# searches the web as standard (register 970mm: the provider's own web_search tool, switched on, nothing of ours built);
+# the provider's realtime voice offers no such tool, and the doctrine forbids guessing, so it refused. Now the realtime
+# model is given ONE function, web_search, and Core answers it with the SAME provider search typed Assist uses (the
+# Responses API with its web_search tool and the home's country and time zone) — a short answer and its sources. What it
+# finds is someone else's claim, never a reading of the house; the doctrine is unchanged.
+WEB_TOOL = {"type": "function", "name": "web_search",
+            "description": ("Look something up on the web — news, people in office, sport, weather, opening hours, what's "
+                            "on, anything outside this house. Returns a short answer with its sources. Use it instead of "
+                            "saying you cannot check."),
+            "parameters": {"type": "object", "properties": {"query": {"type": "string",
+                                                                       "description": "what to look up, in plain words"}},
+                           "required": ["query"]}}
+
+
+def web_lookup(assist_mod, cfg: dict, runner, query: str, post=None) -> dict:
+    """The provider's own web search (the one typed Assist uses), asked for a short spoken answer."""
+    query = " ".join(str(query or "").split())[:300]
+    if not query:
+        return {"error": "nothing to look up"}
+    cfg = cfg or {}
+    if not assist_mod._web_on(cfg):
+        return {"error": "web search is turned off for this home"}
+    if cfg.get("provider") != "openai" or not cfg.get("api_key"):
+        return {"error": "web search needs Assist on OpenAI with its key set"}
+    body = {"model": cfg.get("fast_model") or cfg.get("model") or "gpt-4.1-mini",
+            "tools": [assist_mod._web_tool_openai(runner)],
+            "input": ("Today is %s. Look this up on the web and answer in one or two short sentences that can be "
+                      "spoken aloud, with no links in the text: %s" % (time.strftime("%A %d %B %Y"), query)),
+            "max_output_tokens": 400}
+    post = post or assist_mod._http_json
+    t0 = time.time()
+    try:
+        r = post(assist_mod._OPENAI_RESPONSES, body, {"Authorization": "Bearer %s" % cfg["api_key"]}) or {}
+    except Exception as e:                                       # noqa: BLE001
+        return {"error": "the web search failed: %s" % str(e)[:160]}
+    text, sources = [], []
+    for item in (r.get("output") or []):
+        for c in (item.get("content") or []) if isinstance(item, dict) else []:
+            if c.get("type") == "output_text":
+                text.append(c.get("text") or "")
+                for a in (c.get("annotations") or []):
+                    if a.get("type") == "url_citation" and a.get("url") and len(sources) < 3:
+                        sources.append({"title": a.get("title") or "", "url": a.get("url")})
+    answer = (r.get("output_text") or " ".join(text)).strip()
+    if not answer:
+        return {"error": "the web search found nothing to say", "ms": int((time.time() - t0) * 1000)}
+    return {"answer": answer[:900], "sources": sources, "ms": int((time.time() - t0) * 1000),
+            "note": "found on the web — someone else's claim, not a reading of the house"}
 
 
 def tools(assist_mod, runner) -> list:
@@ -57,6 +111,11 @@ def tools(assist_mod, runner) -> list:
             continue
         out.append({"type": "function", "name": t["name"], "description": t.get("description") or "",
                     "parameters": t.get("input_schema") or {"type": "object", "properties": {}}})
+    try:
+        if assist_mod._web_on(assist_mod.load_config()) and not any(t["name"] == "web_search" for t in out):
+            out.append(dict(WEB_TOOL))                           # register 1159
+    except Exception:                                            # noqa: BLE001
+        pass
     return out
 
 
@@ -135,7 +194,7 @@ def allowed_names(assist_mod, runner) -> set:
     return {t["name"] for t in tools(assist_mod, runner)}
 
 
-def run_tool(runner, name: str, arguments, allowed=None) -> dict:
+def run_tool(runner, name: str, arguments, allowed=None, assist_mod=None, cfg=None) -> dict:
     """One tool the realtime model called, run through Assist's own ToolRunner — every rule applies.
     `allowed`: this person's own tool names (register 1153) — any other name is refused before anything runs."""
     if allowed is not None and name not in allowed:
@@ -147,6 +206,9 @@ def run_tool(runner, name: str, arguments, allowed=None) -> dict:
             return {"error": "the tool's arguments were not readable"}
     if not isinstance(arguments, dict):
         arguments = {}
+    if name == "web_search" and assist_mod is not None:          # register 1159: the provider's own search, via Core
+        return web_lookup(assist_mod, cfg if cfg is not None else assist_mod.load_config(), runner,
+                          arguments.get("query") or "")
     t0 = time.time()
     try:
         out = runner.run(name, arguments)

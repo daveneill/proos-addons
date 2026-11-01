@@ -10956,7 +10956,8 @@ class Handler(BaseHTTPRequestHandler):
                     except Exception as e:                       # noqa: BLE001
                         return self._send(502, {"error": str(e)[:300]})
                 out = _rt.run_tool(rnr, b.get("name") or "", b.get("arguments") or {},
-                                   allowed=_rt.allowed_names(_assist, rnr))   # register 1153: this person's tools only
+                                   allowed=_rt.allowed_names(_assist, rnr),   # register 1153: this person's tools only
+                                   assist_mod=_assist, cfg=_cfg)               # register 1159: web_search
                 print("  [assist] REALTIME tool %s(%s) → %s in %s ms" % (b.get("name"), str(b.get("arguments"))[:80],
                       "error" if out.get("error") else "ok", out.get("_ms")), flush=True)
                 return self._send(200, out)
