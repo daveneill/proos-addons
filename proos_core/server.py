@@ -1475,6 +1475,11 @@ def _reload_integration(entity, action, rec=None):
         # REGISTER 450 (Dave, 14 Sep 2026): Fix and auto-heal HAND THE FAULT
         # TO ASSIST — no scripted ladder. True only when the device itself
         # read back alive after Assist's turn.
+        # REGISTER 1164: the watcher's AUTOMATIC hand-over — once per device per day (Fix in Pro is not this path).
+        if not _autofix_mod.allowed(entity):
+            print("[watcher] recovery: %s was already handed to Assist automatically in the last 24 h — "
+                  "left on Health for the installer (Fix in Pro still hands it over)" % entity, flush=True)
+            return False
         return bool(_hand_to_assist(entity).get("recovered"))
     if action != "reload_integration":
         return False
@@ -1546,6 +1551,8 @@ def _one_answer(rep, home_only=False):
             rep["summary"] = hero["headline"]
     return rep
 
+
+from proos import autofix as _autofix_mod   # register 1164: the automatic AI hand-over, once per device per day
 
 _ENGINE_USER = {"id": "proos-engine", "name": "ProOS", "is_owner": True, "tech": True,
                 "engine": True}
@@ -3892,6 +3899,10 @@ def factory_reset(clear_proos_data=False, keep_auth=False):
         try:                              # register 1151: the realtime voice's cost ledger
             from proos import aiusage as _aiusage_mod
             _aiusage_mod.clear()
+        except Exception:                                        # noqa: BLE001
+            pass
+        try:                              # register 1164: which devices were handed to the AI automatically today
+            _autofix_mod.clear()
         except Exception:                                        # noqa: BLE001
             pass
     except Exception as e:  # noqa: BLE001
