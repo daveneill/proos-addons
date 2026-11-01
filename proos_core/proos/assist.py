@@ -2397,7 +2397,7 @@ class ToolRunner:
     # Only the direct path calls it, after the platform's own recogniser matched.
     _PLATFORM_NOTHING_DONE = ("no_intent_match", "no_valid_targets")
 
-    def platform_command(self, text, intent=""):
+    def platform_command(self, text, intent="", template=""):
         """REGISTER 731. The platform's OWN agent does one sentence it recognised.
 
         Returns None when the platform did nothing (it found no match or nothing it
@@ -2421,7 +2421,12 @@ class ToolRunner:
         # REGISTER 734: read on the box — the platform answers a QUESTION ("what time is it")
         # with response_type action_done and nothing in success or failed. An act is one
         # that touched something; a sentence trigger (an activity) is an act by definition.
-        acted = kind == "action_done" and bool(done or failed or intent == "trigger")
+        # REGISTER 1166 — Dave 2 Nov 08:25: "Whatever I say it just responds Sent". Read on the box: "What's the weather
+        # today?" → ProOS's own weather sentence (voiceweather) → the platform answered "Today: rain, a high of 19 and low of
+        # 12, about 28 millimetres of rain." — and this said "Sent.", because every sentence trigger counted as an ACT and
+        # an act with nothing to read back is "Sent." (1082b). A weather question acts on nothing; its words ARE the answer.
+        question = intent == "trigger" and _voiceweather_is_question(template)
+        acted = kind == "action_done" and bool(done or failed or (intent == "trigger" and not question))
         if acted:
             self._audit("platform_command", intent=intent, text=str(text or ""),
                         done=done, failed=failed)
@@ -7361,6 +7366,15 @@ def _chat_openai(cfg, system, history, runner):
     return _ran_out(runner, _partial), stored
 
 
+def _voiceweather_is_question(template) -> bool:
+    """Register 1166: is this matched sentence one of ProOS's weather QUESTIONS (a read, not an act)?"""
+    try:
+        from . import voiceweather
+        return voiceweather.is_question(template)
+    except Exception:                                            # noqa: BLE001
+        return False
+
+
 def _count_turn(runner, model, steps):
     """REGISTER 1162: this turn's rounds go to the day's cost ledger (aiusage) — "engine" for the Health engine's own
     turns, "assist" for a person's (the app, a room mic). Counting never stops or slows a turn."""
@@ -8057,7 +8071,7 @@ def chat(client, ws_call, project_mod, user: dict, text: str,
         # one platform step: exactly the old hand-over — the platform's agent does it, and when it did nothing
         # (no match / nothing it was told about) the turn goes on to Assist as before
         try:
-            _plat = runner.platform_command(_steps[0]["text"], _steps[0]["intent"])
+            _plat = runner.platform_command(_steps[0]["text"], _steps[0]["intent"], _steps[0].get("template") or "")
             if _plat is not None and _steps[0]["text"] != text:
                 print("  [assist] DIRECT one-order: %r → %r in %dms" % (text, _steps[0]["text"], int((time.time() - _t0) * 1000)), flush=True)
         except Exception as e:                                   # noqa: BLE001
@@ -8068,7 +8082,7 @@ def chat(client, ws_call, project_mod, user: dict, text: str,
             _says, _err = [], False
             for _st in _steps:
                 if _st["kind"] == "platform":
-                    _r = runner.platform_command(_st["text"], _st["intent"]) or {"say": "I couldn't do that just then.", "error": True}
+                    _r = runner.platform_command(_st["text"], _st["intent"], _st.get("template") or "") or {"say": "I couldn't do that just then.", "error": True}
                     _says.append(_r.get("say") or "Done.")
                     _err = _err or bool(_r.get("error"))
                 else:

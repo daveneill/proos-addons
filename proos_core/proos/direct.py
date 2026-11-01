@@ -336,7 +336,8 @@ def _one(text, room_hint, recognise, rooms, scenes, where):
         return dict(hit, kind="tool", text=text, phrase=phrase_of(rec))
     pi = platform_can_take(rec, text, rooms)
     if pi:
-        return {"kind": "platform", "text": text, "intent": pi, "phrase": phrase_of(rec)}
+        return {"kind": "platform", "text": text, "intent": pi, "phrase": phrase_of(rec),
+                "template": (rec or {}).get("sentence_template")}          # register 1166
     if room_hint and not _room_named(text, rooms) and not (rec and rec.get("match")):
         cand = "%s in the %s" % (str(text or "").strip().rstrip(".!?"), room_hint[1])
         rec2 = recognise(cand)
@@ -348,7 +349,8 @@ def _one(text, room_hint, recognise, rooms, scenes, where):
             return dict(hit, kind="tool", text=cand, phrase=phrase_of(rec2))
         pi = platform_can_take(rec2, cand, rooms)
         if pi:
-            return {"kind": "platform", "text": cand, "intent": pi, "phrase": phrase_of(rec2)}
+            return {"kind": "platform", "text": cand, "intent": pi, "phrase": phrase_of(rec2),
+                    "template": (rec2 or {}).get("sentence_template")}     # register 1166
     return None
 
 

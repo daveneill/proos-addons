@@ -158,3 +158,14 @@ def voice_weather(client) -> dict:
     if out.get("ok"):
         out["provider"] = prov
     return out
+
+
+def is_question(template) -> bool:
+    """REGISTER 1166: True when a matched sentence is one of the weather questions this module writes. Such a trigger
+    READS the forecast and answers — it acts on nothing — so its own words are the answer, not "Sent." (1082b's rule is for
+    acts: words that claim a device changed are said only after it reads back)."""
+    t = str(template or "").strip()
+    if not t:
+        return False
+    cfg = voice_weather_config("weather.question_check") or {}
+    return any(t in (tr.get("command") or []) for tr in cfg.get("triggers") or [])
