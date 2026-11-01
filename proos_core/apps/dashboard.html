@@ -5048,7 +5048,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102683';
+const PROOS_BUILD='2026102684';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -21108,9 +21108,12 @@ function _proosSpeed(label){
   }catch(e){}
 }
 try{ if(_proosAndroid()) setTimeout(()=>_proosSpeed('home'), 8000); }catch(e){}
+try{ if(_proosAndroid()) setTimeout(function(){ if(typeof lvProbe==='function') lvProbe(); }, 5000); }catch(e){}   // 1169: known before the first "Hey Jarvis"
 window._proosWake=function(){
   try{
-    if(_vcap || (typeof _isPanel==='function' && _isPanel()) || !voiceConsentGiven()) return false;
+    if(_vcap || (typeof _isPanel==='function' && _isPanel())) return false;
+    if(typeof _lvWakes==='function' && _lvWakes()) return false;   // 1169: "Hey Jarvis" starts Live (the app's turn does not)
+    if(!voiceConsentGiven()) return false;
     _voiceHush();
     _voiceFrom='mic'; _voiceCancelled=false; _voiceBase=''; _voiceWas='';
     _voiceTurn++;   // REGISTER 481: a new turn, open again
@@ -21426,6 +21429,23 @@ function lvTraceFlush(lv){
   try{ if(!lv||!lv.trace||!lv.trace.length) return; var lines=lv.trace; lv.trace=[];
     fetch(proosCoreBase()+'/assist/realtime/trace',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lines:lines})}).catch(function(){}); }catch(e){}
 }
+// REGISTER 1169 — Dave 08:56 on the Connect Display: "after hey Jarvis it just goes back to not listening"; ruled "Both".
+// "Hey Jarvis" starts Live where the app does Live itself (the Android app's live:caps), Live is on for this person and
+// Core has said so — the Jarvis card opens listening, and the app's own one-question turn is not started (false to the app).
+// First use asks the question (1168: answerable on the card). Not yet known whether Live is on (the first wake after the
+// page loads, before Core has answered) → the old voice takes that one, and the answer is fetched for the next.
+function _lvWakes(){
+  if(_lv) return true;
+  if(lvRoute()!=='native') return false;
+  if(!_lvStat){ lvProbe(); return false; }
+  if((Date.now()-_lvStat.at)>=60000) lvProbe();
+  if(!_lvStat.ok) return false;
+  try{ if(typeof _jvOn==='function' && _jvOn()) jvOpen(); }catch(e){}
+  lvStart('wake'); return true;
+}
+// 1169: on the wall display nobody presses again to finish — Live ends itself after this long with nobody speaking and
+// Ryan silent (plumbing: the same 30 s the Jarvis card already waits before going back to the page).
+var LV_WALL_QUIET_MS=30000;
 async function lvTakesPress(from){
   if(_lv){ lvStop(); return true; }
   if(!lvRoute()) return false;
@@ -21524,10 +21544,12 @@ async function lvStart(from){
   }
   if(route==='native'){ lv.listenNote=note; lv.note=null; }   // "Listening — go ahead." already stands (1155)
   else { note.remove(); lv.note=null; addMsg('assistant','I’m listening — talk normally. Tap the microphone when you’re done.'); }
-  lv.at=performance.now(); lvUsage({session:true});
+  lv.at=performance.now(); lv.lastAct=lv.at; lv.wall=!!_proosAndroid(); lvUsage({session:true});
   lvTrace(lv, 'open'+(lv.ac?' — audio engine '+lv.ac.state:''));
   lv.tick=setInterval(function(){ if(_lv!==lv){ clearInterval(lv.tick); return; }
     if(lv.ac && lv.ac.state!=='running'){ try{ lv.ac.resume(); }catch(e){} }
+    if(lv.wall && !lv.playing && !(lv.q&&lv.q.length) && (performance.now()-lv.lastAct)>=LV_WALL_QUIET_MS){
+      lvTrace(lv, 'nobody spoke for '+(LV_WALL_QUIET_MS/1000)+' s — Live ended (1169)'); lvStop(); return; }
     lvTrace(lv, 'tick slices='+lv.slices+' played='+lv.played+(lv.ac?' engine='+lv.ac.state:'')+' events='+JSON.stringify(lv.ev)); lvTraceFlush(lv); }, 3000);
 }
 function lvStop(){
@@ -21636,6 +21658,7 @@ function lvMaybeReply(lv){ if(lv&&lv.need&&!(lv.pending>0)&&!lv.open){ lv.need=f
 async function lvEvent(lv, ev){
   if(_lv!==lv) return;
   try{ lv.ev=lv.ev||{}; var k=String(ev.type||'?').replace(/^(conversation\.item\.|input_audio_buffer\.|response\.)/,''); lv.ev[k]=(lv.ev[k]||0)+1;
+    if(/^(input_audio_buffer\.speech_|response\.|conversation\.item\.input_audio_transcription)/.test(String(ev.type||''))) lv.lastAct=performance.now();
     if(ev.type==='error') lvTrace(lv, 'provider error '+JSON.stringify(ev.error||ev).slice(0,240)); }catch(e){}
   switch(ev.type){
     case 'input_audio_buffer.speech_started': lvHush(lv); break;
@@ -27210,6 +27233,7 @@ function jvOpen(){
   if(document.body.classList.contains('proos-listening')) _jvMic(true);
 }
 function jvClose(){ var d=_jvEl('jv'); if(d) d.classList.remove('on'); _jv.open=false; _jvHold();
+  try{ if(window._lv && typeof lvStop==='function') lvStop(); }catch(e){}   // 1169: closing the card ends Live
   try{ if(_vcap && typeof _voiceCancel==='function') _voiceCancel(); }catch(e){} }
 function jvType(){ jvClose(); window._jvTyping=true; try{ openAssist(); }finally{ window._jvTyping=false; } }
 function _jvHold(){ clearTimeout(_jv.t); _jv.t=null; }
