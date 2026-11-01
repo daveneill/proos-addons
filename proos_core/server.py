@@ -11544,18 +11544,9 @@ def main():
                     res = _vfavs.handle(_client, data)
                     what = data.get("name")
                 elif data.get("kind") == "plan":
-                    # REGISTER 858: a learned sentence — the exact calls that worked, replayed through the assistant's own
-                    # tools by a runner for the home (the platform can't say who spoke; assist_open decides the surface).
-                    from proos import homeplan as _hp
-                    from proos import voicefavs as _vfavs
-                    try:
-                        calls = [tuple(c) for c in json.loads(data.get("steps") or "[]")]
-                    except Exception:                        # noqa: BLE001
-                        calls = []
-                    rnr = _assist.ToolRunner(_client, _ws_call, project, {"id": "learned", "name": "Home"}, ma=_ma,
-                                             awareness=_assist_awareness(), mcp=_mcp_client())
-                    okp, results, needs = _hp.run_calls(rnr, calls, lambda d: _vfavs.handle(_client, d))
-                    res = {"ok": okp, "played": data.get("text")} if okp else {"error": (results[-1]["result"] or {}).get("error") if results else str(needs)}
+                    # REGISTER 1139: a learned sentence is NEVER replayed — they were the plan road's saved guesses (858/863;
+                    # "No 100%" → Bedroom volume 100 %). A copy an installer kept fires into this and nothing happens.
+                    res = {"error": "learned sentences are retired — ask Assist instead"}
                     what = data.get("text")
                 elif data.get("kind") == "scene":
                     # REGISTER 894: a scene's own phrase — the ONE apply path (the dashboard tap's), companions and all.
@@ -11866,13 +11857,14 @@ def main():
             except Exception as _mw_e:
                 print(f"  voice · music warmer skipped: {_mw_e}")
             try:
-                # REGISTER 863: learned sentences that can't be replayed (an app launch with no device) are dropped.
+                # REGISTER 1139: the plan road's LEARNED sentences are retired with it. Read on Dave's box 1 Nov: five of
+                # its six were saved guesses — "No 100%" → Bedroom volume 100 %, "All of them" → every light on, "Turn on" →
+                # Office lights, "And a lot of" → Office lights off, "Turn it up a bit" → always the Office. ProOS's own
+                # automation is removed (an installer-edited one is left alone — project.voice_write's rule).
+                from proos import project as _pj_l
                 from proos import homeplan as _hpl
-                _lp = _hpl.prune(_client)
-                if _lp.get("dropped"):
-                    print(f"  voice · learned: dropped {len(_lp['dropped'])} that couldn't be replayed ({', '.join(_lp['dropped'])}); {_lp.get('kept', 0)} kept")
-                else:
-                    print(f"  voice · learned: {_lp.get('action')}" + (f" ({_lp.get('kept')} kept)" if _lp.get('kept') is not None else ""))
+                _lp = _pj_l.voice_write(_client, _hpl.VOICE_LEARNED_ID, None)
+                print(f"  voice · learned sentences retired: {_lp.get('action')}")
             except Exception as _lp_e:
                 print(f"  voice · learned skipped: {_lp_e}")
             try:

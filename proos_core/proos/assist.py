@@ -8018,13 +8018,11 @@ def chat(client, ws_call, project_mod, user: dict, text: str,
             _apped = None
         if _apped is not None:
             return _apped
-        try:
-            _planned = _home_plan_turn(runner, client, project_mod, user, text, where, session, _t0)
-        except Exception as e:                                   # noqa: BLE001
-            print("  [assist] plan road declined (%s) — the model has it" % e, flush=True)
-            _planned = None
-        if _planned is not None:
-            return _planned
+        # REGISTER 1139: THE PLAN ROAD (858) IS RETIRED FROM THE TURN. Read on Dave's box, 1 Nov: it guessed "No 100%" as
+        # Bedroom volume 100 %, asked "Which room is Beck's Lamp in?" on the Bedroom page, spent ~2.2 s before every AI
+        # answer it handed on (1135), and SAVED its guesses as instant sentences ("All of them" → every light in the house
+        # on). Dave 10:00: the thinking is what works. A sentence no exact road takes goes to the assistant, which has the
+        # conversation, the room and the house rules. _home_plan_turn is kept for reading, not called.
     if _hit or _plat:
         if _plat:
             _hit = {"tool": "platform_command", "args": {}, "say": _plat["say"],
