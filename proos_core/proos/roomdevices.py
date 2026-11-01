@@ -426,7 +426,11 @@ def av_members(project: dict) -> set:
         for k in _AV_ROLES:
             v = (rec or {}).get(k)
             for e in (v if isinstance(v, (list, tuple)) else [v]):
-                if e:
+                # the record keeps the switcher as {"entity": …, "output": …, "inputs": {…}} (read on Dave's box,
+                # Living Room's Marantz) — its entity is the member; any other shape that is not an id is skipped
+                if isinstance(e, dict):
+                    e = e.get("entity") or e.get("entity_id")
+                if isinstance(e, str) and e:
                     out.add(e)
     return out
 

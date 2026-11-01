@@ -5926,8 +5926,11 @@ def _room_contents(client, project_mod, aid):
                 av.append((e, "speaker"))
             for e in (rec.get("audio") or []):
                 av.append((e, "audio"))
-            if rec.get("avswitch"):
-                av.append((rec["avswitch"], "switcher"))
+            _sw = rec.get("avswitch")
+            if isinstance(_sw, dict):
+                _sw = _sw.get("entity") or _sw.get("entity_id")   # register 1144: the record's switcher shape
+            if isinstance(_sw, str) and _sw:
+                av.append((_sw, "switcher"))
             ids = [e for e, _ in av if e not in seen]
             names = {}
             _live_plat = _platforms_live(client)
