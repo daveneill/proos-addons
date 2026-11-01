@@ -60,8 +60,25 @@ def tools(assist_mod, runner) -> list:
     return out
 
 
+def transcription(hints=None) -> dict:
+    """REGISTER 1158 — THE CAPTION. Dave 20:48, screenshot: he said "turn the bedroom TV off", the TV went off and
+    Assist confirmed it — but the chat showed his words as "Gym TV呀". The realtime model hears the audio itself (it
+    acted rightly); the line in the chat comes from a SEPARATE transcriber that only captions, and the small one
+    misheard with no language and no idea of the home's names. Now: the full transcriber, told it is English, and
+    handed the home's own words — its room names and the devices in the room the person is in."""
+    words = []
+    for h in (hints or []):
+        h = " ".join(str(h or "").split())
+        if h and h not in words:
+            words.append(h)
+    out = {"model": "gpt-4o-transcribe", "language": "en"}
+    if words:
+        out["prompt"] = ("A person talking to their smart home. Names they may say: " + ", ".join(words))[:600]
+    return out
+
+
 def new_session(assist_mod, cfg: dict, runner, user: dict, home_name: str, where: dict | None, post=None,
-                voice: str = "ryan") -> dict:
+                voice: str = "ryan", hints=None) -> dict:
     """Ask the provider for a short-lived key for ONE realtime session configured as ProOS Assist.
 
     REGISTER 1150 — voice "ryan" (the default, Dave 1 Nov 17:16 "okay go"): the model answers in TEXT and the page speaks
@@ -83,7 +100,7 @@ def new_session(assist_mod, cfg: dict, runner, user: dict, home_name: str, where
                                                    "prefix_padding_ms": 300, "silence_duration_ms": 500,
                                                    "create_response": True, "interrupt_response": True},
                                 "noise_reduction": {"type": "near_field"},
-                                "transcription": {"model": "gpt-4o-mini-transcribe"}}}}
+                                "transcription": transcription(hints)}}}
     if voice == "provider":
         sess["audio"]["output"] = {"voice": cfg.get("realtime_voice") or DEFAULT_VOICE}
     else:

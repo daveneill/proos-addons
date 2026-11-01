@@ -10899,6 +10899,18 @@ class Handler(BaseHTTPRequestHandler):
                 row = _aiu.record("realtime", usage=b.get("usage") or None, seconds=float(b.get("seconds") or 0),
                                   session=bool(b.get("session")))
                 return self._send(200, {"ok": True, "today": row})
+            if parts == ["assist", "realtime", "say"]:
+                # REGISTER 1157 — Dave 20:43: "no voice through the speakers only on my phone" → "Both": each finished
+                # Talk Live answer is ALSO spoken in the room, through the room's own voice road (_assist_speak: the
+                # commissioned audio endpoint, the room's voice volume, the home's voice) — the same one the room mic's
+                # replies use. Nothing new is built; the reason it did not speak is returned in words.
+                u = getattr(self, "_user", None)
+                from proos import realtime as _rts2
+                if not (u and _assist and _rts2.available_for(_assist.load_config(), u)[0]):
+                    return self._send(403, {"error": "Talk Live is not on for you"})
+                b = self._body() or {}
+                aid = (b.get("area_id") or "").strip()
+                return self._send(200, {"spoke": _assist_speak({"area_id": aid} if aid else {}, str(b.get("text") or ""))})
             if parts in (["assist", "realtime", "session"], ["assist", "realtime", "tool"]):
                 # REGISTER 1148: the realtime voice prototype — the provider hears and speaks, ProOS Assist is the brain.
                 # Owner and tech only while it is a prototype. The home's key never leaves the box: the session route
@@ -10932,9 +10944,15 @@ class Handler(BaseHTTPRequestHandler):
                                          awareness=_assist_awareness(), mcp=_mcp_client())
                 if parts[2] == "session":
                     try:
+                        _hints = []                              # register 1158: the home's own words, for the caption
+                        try:
+                            _hints = [a.get("name") for a in (_client.area_registry() or []) if a.get("name")]
+                        except Exception:                        # noqa: BLE001
+                            _hints = []
+                        _hints += [d.get("name") for d in (where.get("contents") or []) if isinstance(d, dict)]
                         return self._send(200, _rt.new_session(_assist, _cfg, rnr, uinfo,
                                                                globals().get("_ASSIST_HOME_NAME") or "", where,
-                                                               voice=(b.get("voice") or "ryan")))
+                                                               voice=(b.get("voice") or "ryan"), hints=_hints))
                     except Exception as e:                       # noqa: BLE001
                         return self._send(502, {"error": str(e)[:300]})
                 out = _rt.run_tool(rnr, b.get("name") or "", b.get("arguments") or {},

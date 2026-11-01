@@ -5048,7 +5048,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102678';
+const PROOS_BUILD='2026102680';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -21516,7 +21516,7 @@ async function lvStart(from){
     }catch(e){ note.remove(); return lvFallback(lv, 'Could not reach the voice service'); }
     if(_lv!==lv){ note.remove(); return; }
   }
-  if(route==='native'){ lv.note=null; }                       // "Listening — go ahead." already stands (1155)
+  if(route==='native'){ lv.listenNote=note; lv.note=null; }   // "Listening — go ahead." already stands (1155)
   else { note.remove(); lv.note=null; addMsg('assistant','I’m listening — talk normally. Tap the microphone when you’re done.'); }
   lv.at=performance.now(); lvUsage({session:true});
   lvTrace(lv, 'open'+(lv.ac?' — audio engine '+lv.ac.state:''));
@@ -21536,6 +21536,8 @@ function lvStop(){
   lv.q=[]; try{ lv.playing&&lv.playing.pause&&lv.playing.pause(); }catch(e){} lv.playing=null;
   try{ lv.ac&&lv.ac.close(); }catch(e){}
   try{ lv.note&&lv.note.remove(); }catch(e){}
+  // 1157: the screen never says "Listening" after the microphone has been let go (Dave's 20:45 screenshot).
+  try{ var lb=lv.listenNote&&lv.listenNote.querySelector('.assist-bubble'); if(lb) lb.textContent='Finished listening.'; }catch(e){}
   _micRec(false);
 }
 // The app's Talk Live (native road) — events, state and "Ryan has finished" come back through these.
@@ -21553,7 +21555,7 @@ window._lvNativeQuiet=function(){ var lv=_lv; if(lv&&lv.route==='native'&&!lv.q.
 function lvPcm(b64){
   var lv=_lv; if(!lv||lv.route!=='pcm'||!lv.ac||!lv.dst||!b64) return;
   lv.slices++;
-  if(lv.playing) return;
+  if(lv.playing || (lv.deafUntil && performance.now()<lv.deafUntil)) return;     // 1157: the room is speaking
   try{ var bin=atob(b64), n=bin.length>>1; if(!n) return;
     var buf=lv.ac.createBuffer(1,n,24000), ch=buf.getChannelData(0);
     for(var i=0;i<n;i++){ var v=bin.charCodeAt(2*i)|(bin.charCodeAt(2*i+1)<<8); ch[i]=(v>32767?v-65536:v)/32768; }
@@ -21573,6 +21575,9 @@ function lvB64(blob){
 }
 function lvSpeak(lv, text){
   text=(text||'').trim(); if(!text) return;
+  // REGISTER 1158: "Speak Answers" (the app's Settings) decides whether the PHONE says the answer; off = on screen only.
+  // The room's speaker is the installer's, in Pro (the room's voice replies), and is not touched by this.
+  if(typeof speakAnswersOn==='function' && !speakAnswersOn()) return;
   lv.q.push(lvSpeakFetch(text)); if(!lv.pumping) lvPump(lv);
 }
 async function lvPump(lv){
@@ -21603,6 +21608,23 @@ function lvDelta(lv, d){
   lv.buf+=(d||''); var m;
   while((m=lv.buf.match(/^([\s\S]*?[.!?])(\s+|$)/)) && m[1].length>1){ lvSpeak(lv, m[1]); lv.buf=lv.buf.slice(m[0].length); if(!m[2]) break; }
 }
+// REGISTER 1157 — Dave 20:43 "no voice through the speakers only on my phone" → "Both": each finished answer is also
+// spoken in the room through Core's own room-voice road (the room's speaker, at its voice volume). The phone's
+// microphone would hear the room speaker and the provider would take Ryan's words for the person's — so while the room
+// speaks, the microphone is ignored for as long as the words take (about 0.42 s a word, plus 1.5 s for the speaker to
+// start). Interrupting him through the room speaker is therefore not possible; on the phone's own speaker it still is.
+function lvSayInRoom(lv, text){
+  if(!lv.area) return;
+  fetch(proosCoreBase()+'/assist/realtime/say',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({area_id:lv.area,text:text})})
+    .then(function(r){ return r.json(); }).then(function(d){
+      var sp=(d&&d.spoke)||{}; if(_lv!==lv) return;
+      lvTrace(lv, 'room voice '+(sp.sent?'sent':'not sent — '+(sp.why||d.error||'no answer')));
+      if(!sp.sent) return;
+      var ms=Math.round(text.split(/\s+/).length*420+1500);
+      if(lv.route==='native') _proosAppPost('live:deaf '+JSON.stringify({ms:ms}));
+      else lv.deafUntil=performance.now()+ms;
+    }).catch(function(){});
+}
 // One reply after ALL of a response's tool calls have answered and the response has finished (1149's lesson).
 function lvMaybeReply(lv){ if(lv&&lv.need&&!(lv.pending>0)&&!lv.open){ lv.need=false; lvSend({type:'response.create'}); } }
 async function lvEvent(lv, ev){
@@ -21614,7 +21636,7 @@ async function lvEvent(lv, ev){
     case 'conversation.item.input_audio_transcription.completed': { var t=(ev.transcript||'').trim(); if(t) addMsg('user', t); break; }
     case 'response.output_text.delta': lvDelta(lv, ev.delta); break;
     case 'response.output_text.done': { var rest=lv.buf; lv.buf=''; if(rest.trim()) lvSpeak(lv, rest);
-      var said=(ev.text||'').trim(); if(said){ addMsg('assistant', said); window._assistLast=said; } break; }
+      var said=(ev.text||'').trim(); if(said){ addMsg('assistant', said); window._assistLast=said; lvSayInRoom(lv, said); } break; }
     case 'response.function_call_arguments.done': {
       lv.pending++; lv.need=true; var out=null;
       try{ var r=await fetch(proosCoreBase()+'/assist/realtime/tool',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:ev.name,arguments:ev.arguments,area_id:lv.area})}); out=await r.json(); }catch(e){ out={error:String(e)}; }
