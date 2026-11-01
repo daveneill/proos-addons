@@ -92,6 +92,59 @@ def area_overlay(area_id: str) -> dict:
     return (load().get(area_id) or {}) if area_id else {}
 
 
+# ── HIDDEN FROM ASSIST IS THE PLATFORM'S OWN "EXPOSE TO ASSIST" (register 1146) ─────────────────────────────────
+# Dave, 1 Nov 14:28: "I am pissed off that hidden from assist has been missed again … please fix properly not a patch";
+# 14:38 "hide device from assist not health". There were TWO lists that never met: this module's overlay `excluded`
+# (read by Room Off/On and Assist's room list) and the platform's own Expose to Assist (read by its voice agent). The
+# platform's is the one: Pro's Available/Hidden button now writes it, and every Assist road reads it here. Monitoring
+# keeps its own axis (awareness_exclude) — hiding from Assist never hides from Health.
+ASSISTANT = "conversation"          # the platform's own name for its voice agent in the exposure settings
+
+
+def assist_hidden(client) -> set:
+    """Entity ids the platform holds as NOT exposed to its voice assistant — read from its own entity registry
+    (options.conversation.should_expose is False). Raises when the registry can't be read: unknown is not "none"."""
+    out = set()
+    for e in client.entity_registry() or []:
+        opt = ((e.get("options") or {}).get(ASSISTANT) or {})
+        if opt.get("should_expose") is False:
+            out.add(e.get("entity_id"))
+    return out
+
+
+def set_assist_hidden(client, entity_id: str, hidden: bool) -> dict:
+    """The ONE writer: the platform's own expose command. The installer's choice is theirs — ProOS's start-up rules
+    never undo it (project.expose_assist acts only where its rule's outcome changed — register 1146)."""
+    from .ha_ws import ws_command
+    ws_command(client.base_url, client._token, "homeassistant/expose_entity",
+               assistants=[ASSISTANT], entity_ids=[entity_id], should_expose=not hidden)
+    return {"ok": True, "entity_id": entity_id, "hidden": bool(hidden)}
+
+
+def migrate_hidden(client) -> dict:
+    """Once: any device still marked Hidden in ProOS's old overlay is written to the platform's setting, and the old
+    field is dropped. Nothing is lost and nothing is kept twice."""
+    d = load()
+    moved = []
+    for area_id, area in list(d.items()):
+        for eid, rec in list((area or {}).items()):
+            if isinstance(rec, dict) and "excluded" in rec:
+                if rec.get("excluded"):
+                    set_assist_hidden(client, eid, True)
+                    moved.append(eid)
+                rec.pop("excluded", None)
+                if rec:
+                    area[eid] = rec
+                else:
+                    area.pop(eid, None)
+        if area:
+            d[area_id] = area
+        else:
+            d.pop(area_id, None)
+    _write(d)
+    return {"ok": True, "moved": moved}
+
+
 def set_devices(area_id: str, updates: list, client=None) -> dict:
     """Apply a list of {entity_id, excluded?, role?, name?} to an area. A field
     left out is unchanged; setting role to '' clears it. A `name` is NOT an
@@ -118,7 +171,15 @@ def set_devices(area_id: str, updates: list, client=None) -> dict:
                 r = rename(client, eid, u.get("name"))
                 (errors if r.get("error") else renamed).append(r)
         if "excluded" in u:
-            rec["excluded"] = bool(u.get("excluded"))
+            # register 1146: Hidden from Assist is the platform's own setting — written there, never kept here
+            rec.pop("excluded", None)
+            if client is None:
+                errors.append({"entity_id": eid, "error": "hiding from Assist needs the platform"})
+            else:
+                try:
+                    set_assist_hidden(client, eid, bool(u.get("excluded")))
+                except Exception as e:                   # noqa: BLE001
+                    errors.append({"entity_id": eid, "error": "the platform refused: %s" % e})
         if "power_exclude" in u:
             # Second axis, deliberately separate from `excluded` (spec, Dave
             # 1 Aug): the device stays fully assist-ACCESSIBLE, but bulk
@@ -507,6 +568,11 @@ def discover(client, area_id: str) -> dict:
         snap = client.snapshot(eids) or {} if eids else {}
     except Exception:
         snap = {}
+    try:
+        _hidden = assist_hidden(client)              # register 1146: the platform's own Expose to Assist
+        _hidden_err = None
+    except Exception as e:                           # noqa: BLE001
+        _hidden, _hidden_err = set(), "%s: %s" % (type(e).__name__, e)
     _av_err = None
     try:
         _avd = av_devices(client, strict=True)       # register 1143
@@ -538,7 +604,7 @@ def discover(client, area_id: str) -> dict:
             "ha_name": fn or eid,
             "name": auto or eid,
             "role": ov.get("role"),
-            "excluded": bool(ov.get("excluded")),
+            "excluded": eid in _hidden,              # register 1146: the platform's setting, not a ProOS copy
             "power_exclude": bool(ov.get("power_exclude")),
             "awareness_exclude": bool(ov.get("awareness_exclude")),
             "state": (st or {}).get("state"),
@@ -550,6 +616,8 @@ def discover(client, area_id: str) -> dict:
     out = {"area_id": area_id, "devices": devices, "av_devices": len(_avd)}
     if _av_err:
         out["av_error"] = _av_err[:200]     # register 1143: why the room's AV could not be read — said, never silent
+    if _hidden_err:
+        out["hidden_error"] = _hidden_err[:200]   # register 1146: the platform's exposure could not be read
     if healed:
         out["healed"] = healed          # so Pro refreshes its device pages
     return out

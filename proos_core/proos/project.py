@@ -294,12 +294,13 @@ def clear(path: str = DEFAULT_PATH) -> bool:
     factory .storage wipe DON'T touch — so without this it would survive a reset stale,
     pointing at rooms/entities that were wiped."""
     ok = True
-    try:
-        os.remove(path)
-    except FileNotFoundError:
-        pass
-    except Exception:
-        ok = False
+    for _p in (path, _RULE_STATE_PATH):          # register 1146: the voice rule outcomes go with the record
+        try:
+            os.remove(_p)
+        except FileNotFoundError:
+            pass
+        except Exception:
+            ok = False
     return ok
 
 
@@ -1006,6 +1007,35 @@ def voice_wants(ent: dict, area: str | None, rooms: set, members: set,
     return False
 
 
+# REGISTER 1146: THE INSTALLER'S CHOICE STANDS. The platform's Expose to Assist is the one list (roomdevices). ProOS's
+# rules above still decide at start-up — security never exposed, nothing outside a room, a TV's own switches — but only
+# for an entity whose RULE OUTCOME CHANGED since ProOS last applied it (first sight, a room committed, a speaker
+# recorded). An entity whose rule says the same as last time is left exactly as the platform holds it, so a device the
+# installer hid — in Pro or in the platform's own page — is never exposed again behind their back. ProOS keeps the
+# outcome IT last applied per entity: a record of its own act, not a copy of the platform's setting.
+_RULE_STATE_PATH = os.path.join(os.environ.get("PROOS_DATA_DIR", "/data"), "voice_rule_state.json")
+
+
+def _rule_state():
+    try:
+        with open(_RULE_STATE_PATH, encoding="utf-8") as fh:
+            v = json.load(fh)
+        return v if isinstance(v, dict) else None
+    except Exception:                                            # noqa: BLE001
+        return None
+
+
+def _rule_state_write(state: dict) -> None:
+    try:
+        os.makedirs(os.path.dirname(_RULE_STATE_PATH), exist_ok=True)
+        tmp = _RULE_STATE_PATH + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(state, fh, sort_keys=True)
+        os.replace(tmp, _RULE_STATE_PATH)
+    except Exception:                                            # noqa: BLE001
+        pass
+
+
 def expose_assist(client, project: dict) -> dict:
     """Write the commissioning into the platform's voice exposure (the rules above)."""
     try:
@@ -1031,11 +1061,16 @@ def expose_assist(client, project: dict) -> dict:
     except Exception:                                            # noqa: BLE001
         avd = set()
     expose, hide = [], []
+    last = _rule_state()                                         # register 1146: the outcomes ProOS last applied
+    state = {}
     for ent in entities:
         eid = ent.get("entity_id") or ""
         if "." not in eid:
             continue
         want = voice_wants(ent, area_of(ent, dev_area), rooms, members, security, avd)
+        state[eid] = bool(want)
+        if last is not None and last.get(eid) == bool(want):
+            continue                         # the rule says what it said last time: the installer's setting stands
         # No setting stored = the platform's default, which exposes: treat absent as exposed.
         cur = ((ent.get("options") or {}).get("conversation") or {}).get("should_expose", True)
         if want and not cur:
@@ -1050,6 +1085,7 @@ def expose_assist(client, project: dict) -> dict:
         if hide:
             ws_command(client.base_url, client._token, "homeassistant/expose_entity",
                        assistants=["conversation"], entity_ids=sorted(hide), should_expose=False)
+        _rule_state_write(state)                                 # register 1146: what ProOS applied, this time
     except Exception as exc:  # noqa: BLE001
         out = {"ok": False, "error": str(exc), "exposed": sorted(expose), "hidden": sorted(hide)}
     return out

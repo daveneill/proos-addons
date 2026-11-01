@@ -3094,6 +3094,15 @@ class ToolRunner:
         bad = self._unassigned([eid])
         if bad:
             return {"error": self._unassigned_words(bad)}          # register 874
+        # REGISTER 1146: hidden from Assist (the platform's own Expose to Assist, set in Pro) means Assist does not
+        # control it — the same list every other road reads. Unhiding it in Pro is the way back.
+        try:
+            from . import roomdevices as _rd0
+            if eid in _rd0.assist_hidden(self.client):
+                return {"error": "that device is hidden from Assist — it can be made available again in Pro",
+                        "note": "say so; do not try another tool to reach it"}
+        except Exception:                                        # noqa: BLE001
+            pass
         # REGISTER 1143: a control ON a committed TV/receiver/projector (its Power or Art Mode switch, its remote) is
         # never switched raw — that is the room's activities' job (732 for the TV itself; Dave 1 Nov "activities only").
         if domain not in ("media_player",) and action in ("turn_on", "turn_off", "toggle"):

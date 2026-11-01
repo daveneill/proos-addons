@@ -11761,6 +11761,14 @@ def main():
             except Exception:
                 pass
             try:
+                # REGISTER 1146: anything still Hidden in ProOS's old overlay moves to the platform's own setting, once.
+                try:
+                    if _roomdevices is not None:
+                        _mh = _roomdevices.migrate_hidden(_client)
+                        if _mh.get("moved"):
+                            print(f"  voice · hidden-from-Assist moved to the platform's setting: {', '.join(_mh['moved'])}")
+                except Exception as _mh_e:               # noqa: BLE001
+                    print(f"  voice · hidden-from-Assist move skipped: {_mh_e}")
                 # REGISTER 730: the platform's voice agent is told exactly what is
                 # commissioned, at every start (and every commission, via mirror).
                 _vx = project.expose_assist(_client, project.load())
