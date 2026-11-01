@@ -5048,7 +5048,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102682';
+const PROOS_BUILD='2026102683';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -25640,6 +25640,10 @@ html.pp-on #app{visibility:hidden}
 #jv .jv-q{text-align:center;font-size:34px;font-weight:200;letter-spacing:-.6px;line-height:1.2;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 #jv .jv-a{text-align:center;font-size:18px;font-weight:300;color:rgba(255,255,255,.75);line-height:1.5;margin:12px auto 0;max-width:600px;min-height:27px;display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden}
 #jv .jv-sg{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin-top:26px;padding-top:22px;border-top:.5px solid rgba(255,255,255,.10)}
+#jv .jv-ac{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin-top:18px}
+#jv .jv-ac:empty{display:none}
+#jv .jv-ac button{height:42px;padding:0 20px;border:0;border-radius:999px;background:rgba(255,255,255,.10);box-shadow:inset 0 0 0 1px rgba(255,255,255,.16);color:#fff;font:500 15px 'Inter',-apple-system,sans-serif}
+#jv .jv-ac button.y{background:rgba(255,255,255,.92);color:#15151b;box-shadow:none}
 #jv .jv-sg button{height:38px;padding:0 16px;border:0;border-radius:999px;background:rgba(255,255,255,.07);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);color:rgba(255,255,255,.85);font:400 14px 'Inter',-apple-system,sans-serif}
 /* centred card (12 Oct 2026 ruling) */
 .pp-pop{position:absolute;inset:0;background:rgba(0,0,0,.5);display:grid;place-items:center;opacity:0;pointer-events:none;transition:opacity var(--m-move) var(--e-standard);z-index:40}
@@ -27186,6 +27190,8 @@ function jvOpen(){
       if(ev.target===d){ jvClose(); return; }   // a tap outside the card closes it, as every centred card does
       var b=ev.target.closest('button'); if(!b) return;
       if(b.hasAttribute('data-say')){ _jvHold(); _ppAsk(b.getAttribute('data-say')); return; }
+      // REGISTER 1168: a question's own buttons, shown on the card — the tap is the original button's tap
+      if(b.hasAttribute('data-jvact')){ var o=(_jv.acts||[])[+b.getAttribute('data-jvact')]; _jvActs([]); if(o) o.click(); return; }
       if(b.getAttribute('data-cmd')==='orb'){ _jvHold(); try{ homeMicTap(); }catch(e){} return; }
       if(b.hasAttribute('data-jvtype')){ jvType(); return; }
       if(b.hasAttribute('data-jvx')){ jvClose(); return; } });
@@ -27195,7 +27201,7 @@ function jvOpen(){
     d.innerHTML='<div class="jv-c"><div class="jv-hd"><div class="jv-eb">JARVIS</div><div class="jv-btns">'
       +'<button class="jv-btn t" data-jvtype>'+_jvKb()+'Type</button><button class="jv-btn" data-jvx aria-label="Close">'+_ppIc('x')+'</button></div></div>'
       +'<div class="jv-ow idle" id="jv-orb"><div class="jv-rg"></div><div class="jv-rg"></div><div class="jv-rg"></div><button class="jv-orb" data-cmd="orb" aria-label="Talk">'+_ppIc('mic')+'</button></div>'
-      +'<div class="jv-q" id="jv-aa"></div><div class="jv-a" id="jv-ab"></div>'
+      +'<div class="jv-q" id="jv-aa"></div><div class="jv-a" id="jv-ab"></div><div class="jv-ac" id="jv-ac"></div>'
       +'<div class="jv-sg">'+_jvSugHTML()+'</div></div>';
     _jvIdle();
   }
@@ -27208,7 +27214,12 @@ function jvClose(){ var d=_jvEl('jv'); if(d) d.classList.remove('on'); _jv.open=
 function jvType(){ jvClose(); window._jvTyping=true; try{ openAssist(); }finally{ window._jvTyping=false; } }
 function _jvHold(){ clearTimeout(_jv.t); _jv.t=null; }
 function _jvLater(){ _jvHold(); _jv.t=setTimeout(function(){ if(_jv.open && !document.body.classList.contains('proos-listening')) jvClose(); }, 30000); }
-function _jvIdle(){ var A=_jvEl('jv-aa'), B=_jvEl('jv-ab'); if(!A) return; A.textContent='Say \u201CHey Jarvis\u201D'; B.textContent='or tap a suggestion'; }
+function _jvIdle(){ _jvActs([]); var A=_jvEl('jv-aa'), B=_jvEl('jv-ab'); if(!A) return; A.textContent='Say \u201CHey Jarvis\u201D'; B.textContent='or tap a suggestion'; }
+// REGISTER 1168 — Dave 08:56 (photo of the display): Live's "Use my voice / Not now" showed on the card as words run
+// together ("ProOS.Use my voiceNot now") — the card copied the answer's TEXT, so a question asked there could never be
+// answered and Live never started on the display. The answer's own buttons are now shown on the card as buttons.
+function _jvActs(list){ _jv.acts=list||[]; var c=_jvEl('jv-ac'); if(!c) return;
+  c.innerHTML=_jv.acts.map(function(b,i){ return '<button data-jvact="'+i+'"'+(b.classList&&b.classList.contains('confirm')?' class="y"':'')+'>'+_ppE((b.textContent||'').trim())+'</button>'; }).join(''); }
 function _jvOrb(state){ var o=_jvEl('jv-orb'); if(o) o.className='jv-ow '+(state||'idle'); }
 // the suggestions are built from what is on NOW — and again after each answer (1001d, read on the test device: after
 // "Turn on the Study lights" the card still offered "Turn on the Study lights")
@@ -27219,7 +27230,7 @@ function _jvKb(){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentCo
 function _jvMic(on){
   if(!_jv.open) return;
   var A=_jvEl('jv-aa'), B=_jvEl('jv-ab'); if(!A) return;
-  if(on){ _jvHold(); _jvOrb('listening'); A.textContent='Listening\u2026'; B.textContent=''; }
+  if(on){ _jvHold(); _jvActs([]); _jvOrb('listening'); A.textContent='Listening\u2026'; B.textContent=''; }
   else { _jvOrb('thinking');   // the words go to Assist a moment after the microphone closes; if none came, back to idle
     clearTimeout(_jv.m); _jv.m=setTimeout(function(){ var a=_jvEl('jv-aa'); if(_jv.open && a && a.textContent==='Listening\u2026'){ _jvOrb('idle'); _jvIdle(); _jvLater(); } }, 1500); }
 }
@@ -27232,11 +27243,14 @@ function _jvSeen(){
   // the last of the person's own messages, not only when it happens to be the last thing in the history
   var us=h.querySelectorAll('.assist-msg.user'), u=us.length?us[us.length-1]:null;
   var ut=u?(u.querySelector('.assist-bubble')||u).textContent.trim():''; if(ut) A.textContent='\u201C'+ut+'\u201D';
-  if(last.classList.contains('user')){ _jvHold(); B.textContent='Thinking\u2026'; _jvOrb('thinking'); return; }
+  if(last.classList.contains('user')){ _jvHold(); _jvActs([]); B.textContent='Thinking\u2026'; _jvOrb('thinking'); return; }
   var th=!!last.querySelector('.assist-bubble.thinking');
-  var txt=(last.querySelector('.assist-bubble')||last).textContent.trim(); if(!txt && !th) return;
-  B.textContent=th?'Thinking\u2026':txt; _jvOrb(th?'thinking':'idle');
-  if(!th){ _jvLater(); clearTimeout(_jv.s); _jv.s=setTimeout(_jvSug, 1500); }   // the house has changed: fresh suggestions
+  var bub=last.querySelector('.assist-bubble')||last, txt=bub.textContent.trim();
+  var acts=(!th && last.querySelectorAll) ? Array.prototype.slice.call(last.querySelectorAll('.assist-action button')) : [];
+  if(acts.length && bub.cloneNode){ var cl=bub.cloneNode(true); Array.prototype.forEach.call(cl.querySelectorAll('.assist-action'), function(x){ x.remove(); }); txt=cl.textContent.trim(); }
+  if(!txt && !th) return;
+  B.textContent=th?'Thinking\u2026':txt; _jvOrb(th?'thinking':'idle'); _jvActs(acts);
+  if(!th){ if(acts.length) _jvHold(); else _jvLater(); clearTimeout(_jv.s); _jv.s=setTimeout(_jvSug, 1500); }   // a question waits for its answer   // the house has changed: fresh suggestions
 }
 </script>
 
