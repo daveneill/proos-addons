@@ -7490,6 +7490,12 @@ def try_it(client, ws_call, project_mod, user: dict, text: str, where=None) -> d
                  "slots": rec.get("slots") or {}, "sentence": rec.get("sentence_template"),
                  "near_miss": bool(rec.get("fuzzy_match"))}
     out = {"text": text, "recognised": recog, "recognise_ms": ms}
+    # REGISTER 1138: the dry run tells the truth about a house rule — chat() lets no quick road take these words (1137)
+    _rule = house_rule_for(text)
+    if _rule:
+        out.update({"road": "ai", "by": "Assist (cloud AI)", "would": "Assist reasons it out, with the house rule in front of it",
+                    "why": "a house rule covers these words: %s" % (_rule.get("text") or ""), "ai_ready": True})
+        return out
     hit = _direct.resolve_platform(rec, text, where, rooms, lambda: _direct_scenes(runner))
     if hit:
         a = dict(hit.get("args") or {})
