@@ -5048,7 +5048,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102684';
+const PROOS_BUILD='2026102685';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -21505,7 +21505,9 @@ async function lvStart(from){
   // starts NOW ("live:arm"); what is said while Core and the provider connect is held by the app and sent the moment
   // the provider is ready. The words on screen say so: listening, not connecting.
   if(route==='native'){ _proosAppPost('live:arm'); lvTrace(lv, 'armed at the tap'); }
-  var note=addMsg('assistant', route==='native' ? 'Listening — go ahead.' : 'Connecting…');
+  // 1170: on the full-screen conversation the orb says it — no "listening" line in the conversation (Dave 09:39)
+  var note=(typeof _jvOn==='function' && _jvOn()) ? {remove:function(){}, querySelector:function(){ return null; }}
+    : addMsg('assistant', route==='native' ? 'Listening — go ahead.' : 'Connecting…');
   lv.note=note;
   var s=null;
   try{ var r=await fetch(proosCoreBase()+'/assist/realtime/session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({area_id:lv.area,voice:'ryan'})});
@@ -25267,6 +25269,19 @@ html.pv-room #page-home .room-acts{display:block;margin-top:0}   /* 1119: the li
 .widget-cell[data-wid="irrigation"] .irw-v{font-size:15.5px;font-weight:600}
 .widget-cell .wc-lbl{font-size:10px;font-weight:700;letter-spacing:.12em;color:rgba(255,255,255,.5)}
 @media (prefers-reduced-motion:reduce){.widget-cell,.wv-glow,.wv-flow i,.wv-sc,.wxv-ic svg,.env-l i,.wv-scan,.wv-bell{animation:none!important;transition:none!important}}
+/* 1170: the full-screen conversation on wider glass (kept out of the one type scale block below, which holds no media query) */
+@media (min-width:700px){
+  html #jv .jv-q{font-size:32px} html #jv .jv-a{font-size:26px} html #jv .jv-m{font-size:21px} html #jv .jv-m.u{font-size:18px}
+}
+@media (min-width:900px){
+  html #jv .jv-c{padding:calc(var(--proos-sat) + 26px) 44px calc(env(safe-area-inset-bottom,0px) + 26px)}
+  html #jv .jv-body{flex-direction:row-reverse;gap:56px}
+  html #jv .jv-side{flex:0 0 300px;justify-content:center;padding-top:0;gap:16px}
+  html #jv .jv-ow{width:140px;height:140px}
+  html #jv .jv-orb svg{width:38px;height:38px}
+  html #jv .jv-st{font-size:19px;font-weight:300}
+  html #jv .jv-sg{margin:0;padding:20px 0 0;justify-content:center;flex-wrap:wrap;overflow:visible}
+}
 :root{ --t-floor:13px; --tap:44px; }
 .page-title,.ll-room-name,.ll-pct,.set-section-title,.set-field-label,.set-field-hint,.set-value,
 .mp-room,.mp-artist,.mp-vol-pct,.aw-sb,.ctrl-sub,.top-bar-btn,
@@ -25642,16 +25657,49 @@ html.pp-on #app{visibility:hidden}
 .pp-sugg button{height:36px;padding:0 14px;border-radius:999px;font-size:12px;color:rgba(255,255,255,.8);white-space:nowrap}
 /* 1001c: the Jarvis screen in the Android app — the dashboard's own centred card (the 12 Oct centred-card ruling, the
    popup's own glass: .sg-pop/.sg-pop-card), laid out at the screen's real size; Dave approved the drawing 25 Oct 21:44 */
-#jv{position:fixed;inset:0;z-index:9500;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.55);color:#fff;font-family:'Inter',-apple-system,'Helvetica Neue',sans-serif;-webkit-user-select:none;user-select:none}
-#jv.on{display:flex}
-#jv .jv-c{width:min(760px,calc(100% - 48px));background:rgba(24,24,30,.92);-webkit-backdrop-filter:blur(40px);backdrop-filter:blur(40px);border-radius:24px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12),0 30px 80px rgba(0,0,0,.5);padding:26px 32px 28px}
-#jv .jv-hd{display:flex;align-items:center;justify-content:space-between}
-#jv .jv-eb{font-size:12px;font-weight:500;letter-spacing:4px;color:rgba(255,255,255,.55)}
+/* REGISTER 1170 — THE CONVERSATION IS THE WHOLE SCREEN. Dave 09:39: "when assist is tapped … opens full screen listening
+   already and so you can see a whole conversation while its happening"; 09:52: room background blurred, keep Jarvis,
+   suggestions. The page behind is frosted (its own room photo — never a second photo, 1 Nov ruling); the conversation
+   since the screen opened scrolls above, the newest question and answer large; the orb and what it is doing below
+   (phone) or to the left (wide screens). Nothing scrolls under a dark band — the log fades out by a mask (31 Oct). */
+#jv{position:fixed;inset:0;z-index:9500;display:none;color:#fff;font-family:'Inter',-apple-system,'Helvetica Neue',sans-serif;-webkit-user-select:none;user-select:none;background:rgba(10,10,14,.46);-webkit-backdrop-filter:blur(34px) saturate(1.15);backdrop-filter:blur(34px) saturate(1.15);opacity:0;transition:opacity var(--m-move) var(--e-standard)}
+#jv.on{display:block}
+#jv.shown{opacity:1}
+#jv .jv-c{position:absolute;inset:0;box-sizing:border-box;display:flex;flex-direction:column;padding:calc(var(--proos-sat) + 14px) 20px calc(env(safe-area-inset-bottom,0px) + 16px);transform:translateY(16px);transition:transform var(--m-page) var(--e-sheet)}
+#jv.shown .jv-c{transform:none}
+#jv .jv-hd{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px}
+#jv .jv-l{display:flex;align-items:center;gap:12px;min-width:0}
+#jv .jv-eb{font-size:12px;font-weight:500;letter-spacing:4px;color:rgba(255,255,255,.72)}
+#jv .jv-rm{height:30px;padding:0 12px;border-radius:999px;background:rgba(255,255,255,.10);box-shadow:inset 0 0 0 1px rgba(255,255,255,.14);display:flex;align-items:center;font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:42vw}
+#jv .jv-rm:empty{display:none}
 #jv .jv-btns{display:flex;gap:10px}
-#jv .jv-btn{height:36px;min-width:36px;padding:0;border:0;border-radius:999px;background:rgba(255,255,255,.08);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);color:rgba(255,255,255,.8);display:flex;align-items:center;justify-content:center;gap:7px;font:400 13px 'Inter',-apple-system,sans-serif}
-#jv .jv-btn.t{padding:0 14px}
-#jv .jv-btn svg{width:16px;height:16px}
-#jv .jv-ow{position:relative;width:112px;height:112px;margin:18px auto 22px}
+#jv .jv-btn{height:44px;min-width:44px;padding:0;border:0;border-radius:999px;background:rgba(255,255,255,.08);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);color:rgba(255,255,255,.85);display:flex;align-items:center;justify-content:center;gap:7px;font:400 14px 'Inter',-apple-system,sans-serif}
+#jv .jv-btn.t{padding:0 16px}
+#jv .jv-btn svg{width:17px;height:17px}
+#jv .jv-body{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
+#jv .jv-main{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;gap:16px;width:100%;max-width:780px;margin:0 auto}
+#jv .jv-log{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;gap:16px;padding-top:60px;-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 70px);mask-image:linear-gradient(to bottom,transparent 0,#000 70px);scrollbar-width:none}
+#jv .jv-log::-webkit-scrollbar{display:none}
+#jv .jv-log>:first-child{margin-top:auto}
+#jv .jv-m{font-size:18px;font-weight:300;line-height:1.45;color:rgba(255,255,255,.66);overflow-wrap:anywhere}
+#jv .jv-m.u{align-self:flex-end;max-width:78%;padding:10px 16px;border-radius:20px 20px 6px 20px;background:rgba(255,255,255,.12);box-shadow:inset 0 0 0 .5px rgba(255,255,255,.18);font-size:16px;font-weight:400;color:rgba(255,255,255,.82)}
+#jv .jv-q{flex:0 0 auto;align-self:flex-end;max-width:84%;text-align:right;font-size:27px;font-weight:300;letter-spacing:-.4px;line-height:1.25;overflow-wrap:anywhere}
+#jv .jv-q:empty{display:none}
+#jv .jv-a{flex:0 0 auto;font-size:22px;font-weight:300;line-height:1.42;color:#fff;overflow-wrap:anywhere;max-height:40vh;overflow-y:auto}
+#jv .jv-a:empty{display:none}
+#jv.idle .jv-q{align-self:center;text-align:center}
+#jv.idle .jv-a{text-align:center;font-size:17px;color:rgba(255,255,255,.62)}
+#jv .jv-ac{flex:0 0 auto;display:flex;flex-wrap:wrap;gap:10px}
+#jv .jv-ac:empty{display:none}
+#jv .jv-ac button{height:44px;padding:0 20px;border:0;border-radius:999px;background:rgba(255,255,255,.10);box-shadow:inset 0 0 0 1px rgba(255,255,255,.16);color:#fff;font:500 15px 'Inter',-apple-system,sans-serif}
+#jv .jv-ac button.y{background:rgba(255,255,255,.92);color:#15151b;box-shadow:none}
+#jv .jv-side{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:10px;padding-top:20px}
+#jv .jv-ow{position:relative;width:88px;height:88px;margin:0}
+#jv .jv-st{font-size:15px;font-weight:400;color:rgba(255,255,255,.88);min-height:20px;text-align:center}
+#jv .jv-sg{flex:0 0 auto;display:flex;gap:10px;overflow-x:auto;margin:0 -20px;padding:16px 20px 2px;scrollbar-width:none;transition:opacity var(--m-move) var(--e-standard)}
+#jv .jv-sg::-webkit-scrollbar{display:none}
+#jv .jv-sg button{flex:0 0 auto;height:40px;padding:0 16px;border:0;border-radius:999px;background:rgba(255,255,255,.08);box-shadow:inset 0 0 0 1px rgba(255,255,255,.13);color:rgba(255,255,255,.88);font:400 14px 'Inter',-apple-system,sans-serif;white-space:nowrap}
+#jv.busy .jv-sg{opacity:0;pointer-events:none}
 #jv .jv-orb{position:absolute;inset:0;border:0;padding:0;border-radius:50%;background:radial-gradient(circle at 35% 30%,#9fd0ff,#5B8CFF 45%,#7a4dff 80%);box-shadow:0 0 44px rgba(91,140,255,.45);display:grid;place-items:center;color:#fff}
 #jv .jv-orb svg{width:30px;height:30px}
 #jv .jv-rg{position:absolute;inset:0;border-radius:50%;border:1.5px solid rgba(140,180,255,.55);opacity:0;pointer-events:none}
@@ -25660,14 +25708,7 @@ html.pp-on #app{visibility:hidden}
 #jv .jv-ow.listening .jv-rg:nth-child(3){animation-delay:1.33s}
 #jv .jv-ow.thinking .jv-orb{animation:ppSpin calc(var(--m-move)*4) linear infinite;background:conic-gradient(from 0deg,#5B8CFF,#9fd0ff,#7a4dff,#5B8CFF)}
 #jv .jv-ow.idle .jv-orb{animation:ppBreath calc(var(--m-listen)*3) ease-in-out infinite}
-#jv .jv-q{text-align:center;font-size:34px;font-weight:200;letter-spacing:-.6px;line-height:1.2;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-#jv .jv-a{text-align:center;font-size:18px;font-weight:300;color:rgba(255,255,255,.75);line-height:1.5;margin:12px auto 0;max-width:600px;min-height:27px;display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden}
-#jv .jv-sg{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin-top:26px;padding-top:22px;border-top:.5px solid rgba(255,255,255,.10)}
-#jv .jv-ac{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin-top:18px}
-#jv .jv-ac:empty{display:none}
-#jv .jv-ac button{height:42px;padding:0 20px;border:0;border-radius:999px;background:rgba(255,255,255,.10);box-shadow:inset 0 0 0 1px rgba(255,255,255,.16);color:#fff;font:500 15px 'Inter',-apple-system,sans-serif}
-#jv .jv-ac button.y{background:rgba(255,255,255,.92);color:#15151b;box-shadow:none}
-#jv .jv-sg button{height:38px;padding:0 16px;border:0;border-radius:999px;background:rgba(255,255,255,.07);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);color:rgba(255,255,255,.85);font:400 14px 'Inter',-apple-system,sans-serif}
+#jv .jv-orb svg{width:28px;height:28px}
 /* centred card (12 Oct 2026 ruling) */
 .pp-pop{position:absolute;inset:0;background:rgba(0,0,0,.5);display:grid;place-items:center;opacity:0;pointer-events:none;transition:opacity var(--m-move) var(--e-standard);z-index:40}
 .pp-pop.on{opacity:1;pointer-events:auto}
@@ -27204,7 +27245,9 @@ function _ppAsk(text){
    Assist history (what was asked, the answer as it streams). Android app only — the iPad keeps its chat, the panel its
    own screens. Typing is one tap away (Type opens today's chat). ── */
 var _jv={open:false, t:null, m:null, s:null, obs:false};
-function _jvOn(){ try{ return _proosAndroid() && !(typeof _isPanel==='function' && _isPanel()); }catch(e){ return false; } }
+// 1170: the iPhone/iPad app has the same full-screen conversation as the Android app (a plain browser keeps the chat)
+function _jvOn(){ try{ return (_proosAndroid() || (typeof _proosApp==='function' && _proosApp())) && !(typeof _isPanel==='function' && _isPanel()); }catch(e){ return false; } }
+function _jvRoom(){ try{ if(typeof curRoom==='number' && curRoom>=0){ var r=(CONFIG.rooms||[])[curRoom]; return (r && r.name) || ''; } }catch(e){} return ''; }
 function _jvEl(id){ return document.getElementById(id); }
 function jvOpen(){
   var d=_jvEl('jv');
@@ -27220,31 +27263,54 @@ function jvOpen(){
       if(b.hasAttribute('data-jvx')){ jvClose(); return; } });
   }
   if(!_jv.open){
-    // 1001c: the dashboard's own centred card at the screen's real size (no longer the panel's screen scaled up)
-    d.innerHTML='<div class="jv-c"><div class="jv-hd"><div class="jv-eb">JARVIS</div><div class="jv-btns">'
+    // 1170: the whole screen (1001c's centred card retired) — the conversation since it opened, the newest turn large,
+    // the orb and its state, the suggestions; the page behind frosted
+    d.innerHTML='<div class="jv-c"><div class="jv-hd"><div class="jv-l"><div class="jv-eb">JARVIS</div><div class="jv-rm" id="jv-rm"></div></div><div class="jv-btns">'
       +'<button class="jv-btn t" data-jvtype>'+_jvKb()+'Type</button><button class="jv-btn" data-jvx aria-label="Close">'+_ppIc('x')+'</button></div></div>'
-      +'<div class="jv-ow idle" id="jv-orb"><div class="jv-rg"></div><div class="jv-rg"></div><div class="jv-rg"></div><button class="jv-orb" data-cmd="orb" aria-label="Talk">'+_ppIc('mic')+'</button></div>'
-      +'<div class="jv-q" id="jv-aa"></div><div class="jv-a" id="jv-ab"></div><div class="jv-ac" id="jv-ac"></div>'
+      +'<div class="jv-body"><div class="jv-main"><div class="jv-log" id="jv-log"></div>'
+      +'<div class="jv-q" id="jv-aa"></div><div class="jv-a" id="jv-ab"></div><div class="jv-ac" id="jv-ac"></div></div>'
+      +'<div class="jv-side"><div class="jv-ow idle" id="jv-orb"><div class="jv-rg"></div><div class="jv-rg"></div><div class="jv-rg"></div><button class="jv-orb" data-cmd="orb" aria-label="Talk">'+_ppIc('mic')+'</button></div>'
+      +'<div class="jv-st" id="jv-st"></div></div></div>'
       +'<div class="jv-sg">'+_jvSugHTML()+'</div></div>';
+    try{ var hh=_jvEl('assist-history'); _jv.base=hh&&hh.querySelectorAll?hh.querySelectorAll('.assist-msg').length:0; }catch(e){ _jv.base=0; }
+    var rm=_jvEl('jv-rm'); if(rm) rm.textContent=_jvRoom();
     _jvIdle();
   }
   d.classList.add('on'); _jv.open=true; _jvHold();
+  setTimeout(function(){ if(_jv.open) d.classList.add('shown'); }, 20);   // fades in and rises (1170)
   if(!_jv.obs){ var h=_jvEl('assist-history'); if(h){ _jv.obs=true; new MutationObserver(_jvSeen).observe(h,{childList:true,subtree:true,characterData:true}); } }
   if(document.body.classList.contains('proos-listening')) _jvMic(true);
 }
-function jvClose(){ var d=_jvEl('jv'); if(d) d.classList.remove('on'); _jv.open=false; _jvHold();
+function jvClose(){ var d=_jvEl('jv'); if(d){ d.classList.remove('on'); d.classList.remove('shown'); } _jv.open=false; _jvHold();
   try{ if(window._lv && typeof lvStop==='function') lvStop(); }catch(e){}   // 1169: closing the card ends Live
   try{ if(_vcap && typeof _voiceCancel==='function') _voiceCancel(); }catch(e){} }
 function jvType(){ jvClose(); window._jvTyping=true; try{ openAssist(); }finally{ window._jvTyping=false; } }
 function _jvHold(){ clearTimeout(_jv.t); _jv.t=null; }
 function _jvLater(){ _jvHold(); _jv.t=setTimeout(function(){ if(_jv.open && !document.body.classList.contains('proos-listening')) jvClose(); }, 30000); }
-function _jvIdle(){ _jvActs([]); var A=_jvEl('jv-aa'), B=_jvEl('jv-ab'); if(!A) return; A.textContent='Say \u201CHey Jarvis\u201D'; B.textContent='or tap a suggestion'; }
+function _jvIdle(){ _jvActs([]); var d=_jvEl('jv'); if(d) d.classList.add('idle'); var A=_jvEl('jv-aa'), B=_jvEl('jv-ab'); if(!A) return;
+  var wake=false; try{ wake=!!_proosAndroid(); }catch(e){}   // only the Android app has "Hey Jarvis"
+  A.textContent=wake?'Say \u201CHey Jarvis\u201D':'Tap to talk'; B.textContent='or tap a suggestion'; }
+// 1170: the conversation since the screen opened, up to (not including) the given message — the words without any buttons
+var _JV_SKIP=/^(Listening \u2014 go ahead\.|Finished listening\.|Connecting\u2026)$/;
+function _jvText(b){ try{ if(b.cloneNode && b.querySelector && b.querySelector('.assist-action')){ var c=b.cloneNode(true); Array.prototype.forEach.call(c.querySelectorAll('.assist-action'), function(x){ x.remove(); }); return c.textContent.trim(); } }catch(e){}
+  return String(b.textContent||'').trim(); }
+function _jvLog(h, upto){
+  var L=_jvEl('jv-log'); if(!L||!h||!h.querySelectorAll) return;
+  var all=Array.prototype.slice.call(h.querySelectorAll('.assist-msg')), end=upto?all.indexOf(upto):all.length; if(end<0) end=all.length;
+  var out=[];
+  for(var i=Math.max(_jv.base||0, end-40); i<end; i++){ var m=all[i];
+    if(m.querySelector && m.querySelector('.assist-bubble.thinking')) continue;
+    var t=_jvText((m.querySelector&&m.querySelector('.assist-bubble'))||m); if(!t || _JV_SKIP.test(t)) continue;
+    out.push('<div class="jv-m'+(m.classList.contains('user')?' u':'')+'">'+_ppE(t)+'</div>'); }
+  var html=out.join(''); if(L._h!==html){ L._h=html; L.innerHTML=html; L.scrollTop=L.scrollHeight; } }
 // REGISTER 1168 — Dave 08:56 (photo of the display): Live's "Use my voice / Not now" showed on the card as words run
 // together ("ProOS.Use my voiceNot now") — the card copied the answer's TEXT, so a question asked there could never be
 // answered and Live never started on the display. The answer's own buttons are now shown on the card as buttons.
 function _jvActs(list){ _jv.acts=list||[]; var c=_jvEl('jv-ac'); if(!c) return;
   c.innerHTML=_jv.acts.map(function(b,i){ return '<button data-jvact="'+i+'"'+(b.classList&&b.classList.contains('confirm')?' class="y"':'')+'>'+_ppE((b.textContent||'').trim())+'</button>'; }).join(''); }
-function _jvOrb(state){ var o=_jvEl('jv-orb'); if(o) o.className='jv-ow '+(state||'idle'); }
+function _jvOrb(state){ var o=_jvEl('jv-orb'); if(o) o.className='jv-ow '+(state||'idle');
+  var d=_jvEl('jv'); if(d && d.classList) d.classList.toggle('busy', state==='listening'||state==='thinking');
+  var st=_jvEl('jv-st'); if(st) st.textContent=state==='listening'?'Listening':state==='thinking'?'Thinking':''; }
 // the suggestions are built from what is on NOW — and again after each answer (1001d, read on the test device: after
 // "Turn on the Study lights" the card still offered "Turn on the Study lights")
 function _jvSugHTML(){ return _ppSuggest().map(function(t){ return '<button data-say="'+_ppE(t)+'">'+_ppE(t)+'</button>'; }).join(''); }
@@ -27254,7 +27320,9 @@ function _jvKb(){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentCo
 function _jvMic(on){
   if(!_jv.open) return;
   var A=_jvEl('jv-aa'), B=_jvEl('jv-ab'); if(!A) return;
-  if(on){ _jvHold(); _jvActs([]); _jvOrb('listening'); A.textContent='Listening\u2026'; B.textContent=''; }
+  if(on){ _jvHold(); _jvActs([]); var d=_jvEl('jv'); if(d) d.classList.remove('idle');
+    _jvLog(_jvEl('assist-history'), null);   // 1170: the turns so far stay on screen while the next is heard
+    _jvOrb('listening'); A.textContent='Listening\u2026'; B.textContent=''; }
   else { _jvOrb('thinking');   // the words go to Assist a moment after the microphone closes; if none came, back to idle
     clearTimeout(_jv.m); _jv.m=setTimeout(function(){ var a=_jvEl('jv-aa'); if(_jv.open && a && a.textContent==='Listening\u2026'){ _jvOrb('idle'); _jvIdle(); _jvLater(); } }, 1500); }
 }
@@ -27266,7 +27334,14 @@ function _jvSeen(){
   // 1001a, read on the test device: the question and the "thinking" reply arrive together, so the question is read as
   // the last of the person's own messages, not only when it happens to be the last thing in the history
   var us=h.querySelectorAll('.assist-msg.user'), u=us.length?us[us.length-1]:null;
-  var ut=u?(u.querySelector('.assist-bubble')||u).textContent.trim():''; if(ut) A.textContent='\u201C'+ut+'\u201D';
+  // 1170: only this screen's conversation — a question from before it opened is not shown as the current one
+  // (a message the screen itself asks — Live's first-use question — shows with no question above it)
+  var allm=null; try{ allm=h.querySelectorAll?Array.prototype.slice.call(h.querySelectorAll('.assist-msg')):null; }catch(e){}
+  if(allm && allm.indexOf(last) < (_jv.base||0)) return;
+  if(u && allm && allm.indexOf(u) < (_jv.base||0)) u=null;
+  var dd=_jvEl('jv'); if(dd) dd.classList.remove('idle');
+  _jvLog(h, u||last);   // with no question yet, everything before the newest message (never the newest twice)
+  var ut=u?(u.querySelector('.assist-bubble')||u).textContent.trim():''; A.textContent=ut?'\u201C'+ut+'\u201D':'';
   if(last.classList.contains('user')){ _jvHold(); _jvActs([]); B.textContent='Thinking\u2026'; _jvOrb('thinking'); return; }
   var th=!!last.querySelector('.assist-bubble.thinking');
   var bub=last.querySelector('.assist-bubble')||last, txt=bub.textContent.trim();
