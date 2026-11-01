@@ -431,22 +431,29 @@ def av_members(project: dict) -> set:
     return out
 
 
-def av_devices(client, project: dict = None) -> dict:
+def av_devices(client, project: dict = None, strict: bool = False) -> dict:
     """{device_id: the AV's name} for every device that carries a committed AV entity — read from the platform's
-    registry. {} when the registry or the record cannot be read (unknown is not "none": callers fail closed)."""
+    registry. {} when the registry or the record cannot be read (unknown is not "none": callers fail closed);
+    strict=True raises instead, so a caller can SAY why (discover reports it)."""
     if project is None:
         try:
             from . import project as _pj
             project = _pj.load()
         except Exception:                                        # noqa: BLE001
+            if strict:
+                raise
             return {}
     members = av_members(project)
     if not members:
+        if strict:
+            raise ValueError("no committed AV in the record")
         return {}
     try:
         ents = client.entity_registry() or []
         devs = {d.get("id"): d for d in (client.device_registry() or [])}
     except Exception:                                            # noqa: BLE001
+        if strict:
+            raise
         return {}
     out = {}
     for e in ents:
@@ -496,10 +503,11 @@ def discover(client, area_id: str) -> dict:
         snap = client.snapshot(eids) or {} if eids else {}
     except Exception:
         snap = {}
+    _av_err = None
     try:
-        _avd = av_devices(client)                    # register 1143
-    except Exception:                                # noqa: BLE001
-        _avd = {}
+        _avd = av_devices(client, strict=True)       # register 1143
+    except Exception as e:                           # noqa: BLE001
+        _avd, _av_err = {}, "%s: %s" % (type(e).__name__, e)
     devices = []
     for r in recs:
         eid = r["entity_id"]
@@ -535,7 +543,9 @@ def discover(client, area_id: str) -> dict:
         })
         if r.get("device_id") in _avd:
             devices[-1]["av_part"] = _avd[r["device_id"]]   # register 1143: its activities control it
-    out = {"area_id": area_id, "devices": devices}
+    out = {"area_id": area_id, "devices": devices, "av_devices": len(_avd)}
+    if _av_err:
+        out["av_error"] = _av_err[:200]     # register 1143: why the room's AV could not be read — said, never silent
     if healed:
         out["healed"] = healed          # so Pro refreshes its device pages
     return out
