@@ -5048,7 +5048,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102685';
+const PROOS_BUILD='2026102686';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -25275,12 +25275,12 @@ html.pv-room #page-home .room-acts{display:block;margin-top:0}   /* 1119: the li
 }
 @media (min-width:900px){
   html #jv .jv-c{padding:calc(var(--proos-sat) + 26px) 44px calc(env(safe-area-inset-bottom,0px) + 26px)}
-  html #jv .jv-body{flex-direction:row-reverse;gap:56px}
-  html #jv .jv-side{flex:0 0 300px;justify-content:center;padding-top:0;gap:16px}
-  html #jv .jv-ow{width:140px;height:140px}
-  html #jv .jv-orb svg{width:38px;height:38px}
-  html #jv .jv-st{font-size:19px;font-weight:300}
-  html #jv .jv-sg{margin:0;padding:20px 0 0;justify-content:center;flex-wrap:wrap;overflow:visible}
+  /* 1171 — Dave 10:23: "I would prefer the mic etc to always be in the same centre position so even for iPad landscape":
+     no left column — the orb stays bottom centre on every glass, only larger here */
+  html #jv .jv-ow{width:112px;height:112px}
+  html #jv .jv-orb svg{width:32px;height:32px}
+  html #jv .jv-st{font-size:17px}
+  html #jv .jv-sg{margin:0;padding:18px 0 0;justify-content:center;flex-wrap:wrap;overflow:visible}
 }
 :root{ --t-floor:13px; --tap:44px; }
 .page-title,.ll-room-name,.ll-pct,.set-section-title,.set-field-label,.set-field-hint,.set-value,
@@ -25693,7 +25693,7 @@ html.pp-on #app{visibility:hidden}
 #jv .jv-ac:empty{display:none}
 #jv .jv-ac button{height:44px;padding:0 20px;border:0;border-radius:999px;background:rgba(255,255,255,.10);box-shadow:inset 0 0 0 1px rgba(255,255,255,.16);color:#fff;font:500 15px 'Inter',-apple-system,sans-serif}
 #jv .jv-ac button.y{background:rgba(255,255,255,.92);color:#15151b;box-shadow:none}
-#jv .jv-side{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:10px;padding-top:20px}
+#jv .jv-side{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:34px;padding-top:44px}
 #jv .jv-ow{position:relative;width:88px;height:88px;margin:0}
 #jv .jv-st{font-size:15px;font-weight:400;color:rgba(255,255,255,.88);min-height:20px;text-align:center}
 #jv .jv-sg{flex:0 0 auto;display:flex;gap:10px;overflow-x:auto;margin:0 -20px;padding:16px 20px 2px;scrollbar-width:none;transition:opacity var(--m-move) var(--e-standard)}
@@ -27322,9 +27322,12 @@ function _jvMic(on){
   var A=_jvEl('jv-aa'), B=_jvEl('jv-ab'); if(!A) return;
   if(on){ _jvHold(); _jvActs([]); var d=_jvEl('jv'); if(d) d.classList.remove('idle');
     _jvLog(_jvEl('assist-history'), null);   // 1170: the turns so far stay on screen while the next is heard
-    _jvOrb('listening'); A.textContent='Listening\u2026'; B.textContent=''; }
+    // 1171 — Dave 10:23 (photo): "Listening…" sat on the right, where your words go, and said it twice; the word is the
+    // orb's alone now, and the place for your words stays empty until they come
+    _jv.listening=true; _jvOrb('listening'); A.textContent=''; B.textContent=''; }
   else { _jvOrb('thinking');   // the words go to Assist a moment after the microphone closes; if none came, back to idle
-    clearTimeout(_jv.m); _jv.m=setTimeout(function(){ var a=_jvEl('jv-aa'); if(_jv.open && a && a.textContent==='Listening\u2026'){ _jvOrb('idle'); _jvIdle(); _jvLater(); } }, 1500); }
+    var was=_jv.listening; _jv.listening=false;
+    clearTimeout(_jv.m); _jv.m=setTimeout(function(){ var a=_jvEl('jv-aa'); if(_jv.open && was && a && !a.textContent && !_jv.listening){ _jvOrb('idle'); _jvIdle(); _jvLater(); } }, 1500); }
 }
 // what was asked, and the answer as it arrives — read from the app's own Assist history
 function _jvSeen(){
