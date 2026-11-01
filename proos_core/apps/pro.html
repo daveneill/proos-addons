@@ -3035,7 +3035,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102633';
+const PROOS_BUILD='2026102634';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -13723,6 +13723,16 @@ async function techViewAssist(view){
     +'<div style="display:flex;gap:8px"><input id="as-try" class="set-input" type="text" placeholder="watch apple tv in the bedroom" autocapitalize="off" autocorrect="off" spellcheck="false" onkeydown="if(event.key===\'Enter\')assistTryIt()"/>'
     +'<button class="btn-ghost" onclick="assistTryIt()">Try</button></div>'
     +'<div id="as-try-out" class="wiz-hint" style="margin-top:10px"></div></div>'
+    // ── TALK TO ASSIST — REALTIME PROTOTYPE (register 1148, Dave 1 Nov 15:32 "build the prototype so we can see").
+    // The browser talks audio straight to the provider's realtime model with a short-lived key from Core; every tool
+    // the model calls runs through Core's own Assist. Owner/tech only. Text works without a microphone.
+    +'<div class="bld-sec" style="margin-top:18px"><div class="bld-sec-h">Talk to Assist — Realtime (Prototype)</div>'
+    +'<div class="wiz-hint">A spoken conversation with Assist: speak, interrupt, follow up. ProOS Assist does the work through its own tools and rules. Times are shown for every turn. The microphone needs a secure page (or Safari › Develop › Allow Media Capture on Insecure Sites); typing works anywhere.</div>'
+    +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><select id="rt-room" class="set-input" style="max-width:220px" onfocus="rtRooms()" onmousedown="rtRooms()"><option value="">Choose a room…</option></select>'
+    +'<button class="btn-ghost" id="rt-go" onclick="rtToggle()">Start Talking</button></div>'
+    +'<div style="display:flex;gap:8px;margin-top:8px"><input id="rt-text" class="set-input" type="text" placeholder="or type: which lamps are on in here" autocapitalize="off" autocorrect="off" spellcheck="false" onkeydown="if(event.key===\'Enter\')rtSendText()"/>'
+    +'<button class="btn-ghost" onclick="rtSendText()">Send</button></div>'
+    +'<pre id="rt-log" class="wiz-hint" style="white-space:pre-wrap;margin-top:10px;max-height:320px;overflow:auto"></pre></div>'
     // ── SPEAKER MUSIC TEST (register 741). Proves, from Core on this box, that a speaker reads the
     // home's own music accounts, searches them and plays — the road register 740 proved from a Mac.
     // Reads unless Play is ticked. A test, not a feature: its words are the engine's own.
@@ -13858,6 +13868,85 @@ async function speakerMusicTest(){
     const d=await r.json();
     out.textContent=((d.lines||[]).join('\n'))||(d.error||'No answer');
   }catch(e){ out.textContent='ProOS Core unreachable'; }
+}
+// ── REALTIME PROTOTYPE CLIENT (register 1148) ─────────────────────────────────────────────────────────────────
+var _rt=null;
+function rtLog(line){ var el=document.getElementById('rt-log'); if(!el) return; var t=new Date(); el.textContent+=('['+t.toTimeString().slice(0,8)+'] '+line+'\n'); el.scrollTop=el.scrollHeight; }
+async function rtRooms(){
+  var sel=document.getElementById('rt-room'); if(!sel||sel.options.length>1) return;
+  try{ var areas=(await snd({type:'config/area_registry/list'})).result||[];
+    sel.innerHTML='<option value="">No room (ask which)</option>'+areas.map(function(a){return '<option value="'+esc(a.area_id)+'">'+esc(a.name)+'</option>';}).join('');
+  }catch(e){}
+}
+function rtSendEvent(ev){ if(_rt&&_rt.dc&&_rt.dc.readyState==='open') _rt.dc.send(JSON.stringify(ev)); }
+async function rtStart(withText){
+  if(_rt) return _rt;
+  var area=(document.getElementById('rt-room')||{}).value||'';
+  var rt=_rt={t0:performance.now(), area:area, pending:{}, saidAt:null};
+  rtLog('Asking ProOS for a session…');
+  var s=null;
+  try{ var r=await fetch(proCoreUrl()+'/assist/realtime/session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({area_id:area})}); s=await r.json(); }catch(e){ s={error:String(e)}; }
+  if(!s||!s.value){ rtLog('No session: '+((s&&s.error)||'no answer')+(s&&s.detail?' — '+s.detail:'')); _rt=null; return null; }
+  rtLog('Session ready ('+s.model+', '+s.tools+' Assist tools, '+s.ms+' ms).');
+  var pc=rt.pc=new RTCPeerConnection();
+  var audio=rt.audio=document.createElement('audio'); audio.autoplay=true; document.body.appendChild(audio);
+  pc.ontrack=function(e){ audio.srcObject=e.streams[0]; };
+  var track=null;
+  if(window.isSecureContext && navigator.mediaDevices && navigator.mediaDevices.getUserMedia && !withText){
+    try{ rt.mic=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}}); track=rt.mic.getTracks()[0]; }
+    catch(e){ rtLog('Microphone refused — typing only.'); }
+  } else if(!withText){ rtLog('This page is not secure, so the browser gives no microphone — typing only.'); }
+  if(!track){ var ac=new (window.AudioContext||window.webkitAudioContext)(); var dst=ac.createMediaStreamDestination(); track=dst.stream.getAudioTracks()[0]; rt.silent=ac; }
+  pc.addTrack(track);
+  var dc=rt.dc=pc.createDataChannel('oai-events');
+  dc.onmessage=function(m){ var ev; try{ ev=JSON.parse(m.data); }catch(e){ return; } rtEvent(ev); };
+  var opened=new Promise(function(res){ dc.onopen=res; });
+  var offer=await pc.createOffer(); await pc.setLocalDescription(offer);
+  var ans=null;
+  try{ var rr=await fetch('https://api.openai.com/v1/realtime/calls',{method:'POST',headers:{'Authorization':'Bearer '+s.value,'Content-Type':'application/sdp'},body:offer.sdp});
+    if(!rr.ok){ rtLog('The provider refused the call: HTTP '+rr.status+' '+(await rr.text()).slice(0,200)); rtStop(); return null; }
+    ans=await rr.text(); }catch(e){ rtLog('Could not reach the provider: '+e); rtStop(); return null; }
+  await pc.setRemoteDescription({type:'answer',sdp:ans});
+  await opened;
+  rtLog('Connected in '+Math.round(performance.now()-rt.t0)+' ms. '+(rt.mic?'Speak now.':'Type below.'));
+  var b=document.getElementById('rt-go'); if(b) b.textContent='Stop';
+  return rt;
+}
+function rtStop(){
+  var rt=_rt; _rt=null; if(!rt) return;
+  try{ rt.dc&&rt.dc.close(); }catch(e){} try{ rt.pc&&rt.pc.close(); }catch(e){}
+  try{ rt.mic&&rt.mic.getTracks().forEach(function(t){t.stop();}); }catch(e){} try{ rt.silent&&rt.silent.close(); }catch(e){}
+  try{ rt.audio&&rt.audio.remove(); }catch(e){}
+  var b=document.getElementById('rt-go'); if(b) b.textContent='Start Talking';
+  rtLog('Ended.');
+}
+function rtToggle(){ rtRooms(); if(_rt) rtStop(); else rtStart(false); }
+async function rtSendText(){
+  var inp=document.getElementById('rt-text'); var text=(inp&&inp.value||'').trim(); if(!text) return; inp.value='';
+  await rtRooms(); var rt=_rt||await rtStart(true); if(!rt) return;
+  rt.saidAt=performance.now(); rtLog('You: '+text);
+  rtSendEvent({type:'conversation.item.create',item:{type:'message',role:'user',content:[{type:'input_text',text:text}]}});
+  rtSendEvent({type:'response.create'});
+}
+async function rtEvent(ev){
+  var rt=_rt; if(!rt) return;
+  var ms=function(){ return rt.saidAt?Math.round(performance.now()-rt.saidAt)+' ms':''; };
+  switch(ev.type){
+    case 'input_audio_buffer.speech_started': rtLog('(hearing you)'); break;
+    case 'input_audio_buffer.speech_stopped': rt.saidAt=performance.now(); break;
+    case 'conversation.item.input_audio_transcription.completed': rtLog('You: '+(ev.transcript||'').trim()); break;
+    case 'output_audio_buffer.started': rtLog('(Assist starts speaking — '+ms()+' after you finished)'); break;
+    case 'response.output_audio_transcript.done': rtLog('Assist: '+(ev.transcript||'').trim()+'  ['+ms()+']'); break;
+    case 'response.function_call_arguments.done':
+      rtLog('→ ProOS tool '+ev.name+' '+(ev.arguments||'').slice(0,120));
+      var t0=performance.now(), out=null;
+      try{ var r=await fetch(proCoreUrl()+'/assist/realtime/tool',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:ev.name,arguments:ev.arguments,area_id:rt.area})}); out=await r.json(); }catch(e){ out={error:String(e)}; }
+      rtLog('← '+ev.name+(out&&out.error?' refused/failed: '+out.error:' answered')+' in '+Math.round(performance.now()-t0)+' ms');
+      rtSendEvent({type:'conversation.item.create',item:{type:'function_call_output',call_id:ev.call_id,output:JSON.stringify(out).slice(0,12000)}});
+      rtSendEvent({type:'response.create'});
+      break;
+    case 'error': rtLog('Provider error: '+JSON.stringify(ev.error||ev).slice(0,240)); break;
+  }
 }
 async function assistTryIt(){
   const inp=document.getElementById('as-try'), out=document.getElementById('as-try-out');

@@ -10841,6 +10841,45 @@ class Handler(BaseHTTPRequestHandler):
                         str(b.get("text") or "")))
                 except Exception as e:  # noqa: BLE001
                     return self._send(200, {"error": str(e)})
+            if parts in (["assist", "realtime", "session"], ["assist", "realtime", "tool"]):
+                # REGISTER 1148: the realtime voice prototype — the provider hears and speaks, ProOS Assist is the brain.
+                # Owner and tech only while it is a prototype. The home's key never leaves the box: the session route
+                # hands the browser a short-lived key; every tool the model calls comes back here and runs through
+                # Assist's own ToolRunner (consent, house rules, hidden-from-Assist, a TV's own switches, read-back).
+                if not _assist:
+                    return self._send(503, {"error": "assist module not loaded"})
+                u = getattr(self, "_user", None)
+                if not (u and (u.get("is_owner") or (users and users.is_tech(u.get("id"))))):
+                    return self._send(403, {"error": "the realtime voice prototype is for the owner and tech for now"})
+                b = self._body() or {}
+                uinfo = {"id": u.get("id"), "name": u.get("name"), "is_admin": bool(u.get("is_admin")),
+                         "is_owner": bool(u.get("is_owner")), "tech": bool(users and users.is_tech(u.get("id")))}
+                where = {}
+                aid = (b.get("area_id") or "").strip()
+                if aid:
+                    where = {"area_id": aid, "confidence": "certain", "area_name": aid}
+                    try:
+                        for a in (_client.area_registry() or []):
+                            if a.get("area_id") == aid:
+                                where["area_name"] = a.get("name") or aid
+                        _c = _assist._room_contents(_client, project, aid)
+                        if _c is not None:
+                            where["contents"] = _c
+                    except Exception:                            # noqa: BLE001
+                        pass
+                from proos import realtime as _rt
+                rnr = _assist.ToolRunner(_client, _ws_call, project, uinfo, ma=_ma,
+                                         awareness=_assist_awareness(), mcp=_mcp_client())
+                if parts[2] == "session":
+                    try:
+                        return self._send(200, _rt.new_session(_assist, _assist.load_config(), rnr, uinfo,
+                                                               globals().get("_ASSIST_HOME_NAME") or "", where))
+                    except Exception as e:                       # noqa: BLE001
+                        return self._send(502, {"error": str(e)[:300]})
+                out = _rt.run_tool(rnr, b.get("name") or "", b.get("arguments") or {})
+                print("  [assist] REALTIME tool %s(%s) → %s in %s ms" % (b.get("name"), str(b.get("arguments"))[:80],
+                      "error" if out.get("error") else "ok", out.get("_ms")), flush=True)
+                return self._send(200, out)
             if parts == ["assist", "chat"]:
                 if not _assist:
                     return self._send(503, {"error": "assist module not loaded"})
