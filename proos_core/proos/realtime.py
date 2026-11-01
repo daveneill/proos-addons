@@ -53,16 +53,27 @@ def tools(assist_mod, runner) -> list:
     return out
 
 
-def new_session(assist_mod, cfg: dict, runner, user: dict, home_name: str, where: dict | None, post=None) -> dict:
-    """Ask the provider for a short-lived key for ONE realtime session configured as ProOS Assist."""
+def new_session(assist_mod, cfg: dict, runner, user: dict, home_name: str, where: dict | None, post=None,
+                voice: str = "ryan") -> dict:
+    """Ask the provider for a short-lived key for ONE realtime session configured as ProOS Assist.
+
+    REGISTER 1150 — voice "ryan" (the default, Dave 1 Nov 17:16 "okay go"): the model answers in TEXT and the page speaks
+    each sentence in the HOME'S OWN voice through Core (/assist/speak — the ProOS voice pipeline's en_GB-ryan, the same
+    voice as every room), so the product keeps one voice; the provider's spoken output is not used (and not paid for).
+    voice "provider": the provider speaks with its own voice, the fastest road."""
     if (cfg or {}).get("provider") != "openai" or not cfg.get("api_key"):
         return {"error": "the realtime voice needs Assist on OpenAI with its key set (Pro › Tech Tools)"}
     model = cfg.get("realtime_model") or DEFAULT_MODEL
     tl = tools(assist_mod, runner)
-    body = {"session": {"type": "realtime", "model": model,
-                        "instructions": instructions(assist_mod, user, home_name, where),
-                        "tools": tl, "tool_choice": "auto",
-                        "audio": {"output": {"voice": cfg.get("realtime_voice") or DEFAULT_VOICE}}}}
+    sess = {"type": "realtime", "model": model,
+            "instructions": instructions(assist_mod, user, home_name, where),
+            "tools": tl, "tool_choice": "auto",
+            "audio": {"input": {"transcription": {"model": "gpt-4o-mini-transcribe"}}}}
+    if voice == "provider":
+        sess["audio"]["output"] = {"voice": cfg.get("realtime_voice") or DEFAULT_VOICE}
+    else:
+        sess["output_modalities"] = ["text"]      # register 1150: the home's own voice speaks the words
+    body = {"session": sess}
     post = post or assist_mod._http_json
     t0 = time.time()
     r = post(CLIENT_SECRETS, body, {"Authorization": "Bearer %s" % cfg["api_key"]})
@@ -70,7 +81,7 @@ def new_session(assist_mod, cfg: dict, runner, user: dict, home_name: str, where
     if not value:
         return {"error": "the provider gave no session key", "detail": str(r)[:200]}
     return {"ok": True, "value": value, "expires_at": r.get("expires_at"), "model": model,
-            "tools": len(tl), "ms": int((time.time() - t0) * 1000)}
+            "tools": len(tl), "ms": int((time.time() - t0) * 1000), "voice": "provider" if voice == "provider" else "ryan"}
 
 
 def run_tool(runner, name: str, arguments) -> dict:

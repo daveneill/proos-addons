@@ -10873,7 +10873,8 @@ class Handler(BaseHTTPRequestHandler):
                 if parts[2] == "session":
                     try:
                         return self._send(200, _rt.new_session(_assist, _assist.load_config(), rnr, uinfo,
-                                                               globals().get("_ASSIST_HOME_NAME") or "", where))
+                                                               globals().get("_ASSIST_HOME_NAME") or "", where,
+                                                               voice=(b.get("voice") or "ryan")))
                     except Exception as e:                       # noqa: BLE001
                         return self._send(502, {"error": str(e)[:300]})
                 out = _rt.run_tool(rnr, b.get("name") or "", b.get("arguments") or {})

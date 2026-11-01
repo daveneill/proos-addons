@@ -3035,7 +3035,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102635';
+const PROOS_BUILD='2026102636';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -13729,6 +13729,7 @@ async function techViewAssist(view){
     +'<div class="bld-sec" style="margin-top:18px"><div class="bld-sec-h">Talk to Assist — Realtime (Prototype)</div>'
     +'<div class="wiz-hint">A spoken conversation with Assist: speak, interrupt, follow up. ProOS Assist does the work through its own tools and rules. Times are shown for every turn. The microphone needs a secure page (or Safari › Develop › Allow Media Capture on Insecure Sites); typing works anywhere.</div>'
     +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><select id="rt-room" class="set-input" style="max-width:220px" onfocus="rtRooms()" onmousedown="rtRooms()"><option value="">Choose a room…</option></select>'
+    +'<select id="rt-voice" class="set-input" style="max-width:220px"><option value="ryan" selected>Voice: Ryan (ProOS)</option><option value="provider">Voice: OpenAI (fastest)</option></select>'
     +'<button class="btn-ghost" id="rt-go" onclick="rtToggle()">Start Talking</button></div>'
     +'<div style="display:flex;gap:8px;margin-top:8px"><input id="rt-text" class="set-input" type="text" placeholder="or type: which lamps are on in here" autocapitalize="off" autocorrect="off" spellcheck="false" onkeydown="if(event.key===\'Enter\')rtSendText()"/>'
     +'<button class="btn-ghost" onclick="rtSendText()">Send</button></div>'
@@ -13882,12 +13883,13 @@ function rtSendEvent(ev){ if(_rt&&_rt.dc&&_rt.dc.readyState==='open') _rt.dc.sen
 async function rtStart(withText){
   if(_rt) return _rt;
   var area=(document.getElementById('rt-room')||{}).value||'';
-  var rt=_rt={t0:performance.now(), area:area, pending:{}, saidAt:null};
+  var voice=(document.getElementById('rt-voice')||{}).value||'ryan';
+  var rt=_rt={t0:performance.now(), area:area, pending:{}, saidAt:null, voice:voice, buf:'', q:[], playing:null, firstVoice:false};
   rtLog('Asking ProOS for a session…');
   var s=null;
-  try{ var r=await fetch(proCoreUrl()+'/assist/realtime/session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({area_id:area})}); s=await r.json(); }catch(e){ s={error:String(e)}; }
+  try{ var r=await fetch(proCoreUrl()+'/assist/realtime/session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({area_id:area,voice:voice})}); s=await r.json(); }catch(e){ s={error:String(e)}; }
   if(!s||!s.value){ rtLog('No session: '+((s&&s.error)||'no answer')+(s&&s.detail?' — '+s.detail:'')); _rt=null; return null; }
-  rtLog('Session ready ('+s.model+', '+s.tools+' Assist tools, '+s.ms+' ms).');
+  rtLog('Session ready ('+s.model+', '+s.tools+' Assist tools, '+s.ms+' ms, voice: '+(s.voice==='provider'?'OpenAI':'Ryan')+').');
   var pc=rt.pc=new RTCPeerConnection();
   var audio=rt.audio=document.createElement('audio'); audio.autoplay=true; document.body.appendChild(audio);
   pc.ontrack=function(e){ audio.srcObject=e.streams[0]; };
@@ -13924,9 +13926,31 @@ function rtToggle(){ rtRooms(); if(_rt) rtStop(); else rtStart(false); }
 async function rtSendText(){
   var inp=document.getElementById('rt-text'); var text=(inp&&inp.value||'').trim(); if(!text) return; inp.value='';
   await rtRooms(); var rt=_rt||await rtStart(true); if(!rt) return;
-  rt.saidAt=performance.now(); rtLog('You: '+text);
+  rt.saidAt=performance.now(); rt.firstVoice=false; rtHush(rt); rtLog('You: '+text);
   rtSendEvent({type:'conversation.item.create',item:{type:'message',role:'user',content:[{type:'input_text',text:text}]}});
   rtSendEvent({type:'response.create'});
+}
+// REGISTER 1150: RYAN SPEAKS. In "ryan" mode the model answers in text; each finished sentence is spoken in the home's own
+// voice through Core (/assist/speak — the ProOS voice pipeline's voice), queued in order; speaking again stops it.
+function rtSpeakSentence(rt, text){
+  text=(text||'').trim(); if(!text) return;
+  var p=fetch(proCoreUrl()+'/assist/speak',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text})})
+    .then(function(r){ return r.ok?r.blob():null; }).catch(function(){ return null; });
+  rt.q.push(p); if(!rt.playing) rtPlayNext(rt);
+}
+async function rtPlayNext(rt){
+  if(_rt!==rt) return;
+  var p=rt.q.shift(); if(!p){ rt.playing=null; return; }
+  var blob=await p; if(!blob||_rt!==rt){ rtPlayNext(rt); return; }
+  var a=rt.playing=new Audio(URL.createObjectURL(blob));
+  a.onended=function(){ rtPlayNext(rt); }; a.onerror=function(){ rtPlayNext(rt); };
+  if(!rt.firstVoice){ rt.firstVoice=true; rtLog('(Ryan starts speaking — '+(rt.saidAt?Math.round(performance.now()-rt.saidAt)+' ms':'')+' after you finished)'); }
+  try{ await a.play(); }catch(e){ rtPlayNext(rt); }
+}
+function rtHush(rt){ rt.q=[]; rt.buf=''; try{ rt.playing&&rt.playing.pause(); }catch(e){} rt.playing=null; }
+function rtTextDelta(rt, d){
+  rt.buf+=(d||'');
+  var m; while((m=rt.buf.match(/^([\s\S]*?[.!?])(\s+|$)/)) && m[1].length>1){ rtSpeakSentence(rt, m[1]); rt.buf=rt.buf.slice(m[0].length); if(!m[2]) break; }
 }
 // ONE reply after ALL of a response's tool calls have answered and the response itself has finished — the model may call
 // several tools at once, and asking for a reply after each one is refused ("already has an active response").
@@ -13935,11 +13959,15 @@ async function rtEvent(ev){
   var rt=_rt; if(!rt) return;
   var ms=function(){ return rt.saidAt?Math.round(performance.now()-rt.saidAt)+' ms':''; };
   switch(ev.type){
-    case 'input_audio_buffer.speech_started': rtLog('(hearing you)'); break;
-    case 'input_audio_buffer.speech_stopped': rt.saidAt=performance.now(); break;
+    case 'input_audio_buffer.speech_started': rtLog('(hearing you)'); rtHush(rt); break;
+    case 'input_audio_buffer.speech_stopped': rt.saidAt=performance.now(); rt.firstVoice=false; break;
     case 'conversation.item.input_audio_transcription.completed': rtLog('You: '+(ev.transcript||'').trim()); break;
     case 'output_audio_buffer.started': rtLog('(Assist starts speaking — '+ms()+' after you finished)'); break;
     case 'response.output_audio_transcript.done': rtLog('Assist: '+(ev.transcript||'').trim()+'  ['+ms()+']'); break;
+    case 'response.output_text.delta': if(rt.voice!=='provider') rtTextDelta(rt, ev.delta); break;
+    case 'response.output_text.done':
+      if(rt.voice!=='provider'){ var rest=rt.buf; rt.buf=''; if(rest.trim()) rtSpeakSentence(rt, rest); }
+      rtLog('Assist: '+(ev.text||'').trim()+'  [text ready '+ms()+']'); break;
     case 'response.function_call_arguments.done':
       rt.inflight=(rt.inflight||0)+1; rt.needReply=true;
       rtLog('→ ProOS tool '+ev.name+' '+(ev.arguments||'').slice(0,120));
