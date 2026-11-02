@@ -147,6 +147,23 @@ def transcription(hints=None) -> dict:
     return {"model": "gpt-4o-transcribe", "language": "en"}
 
 
+# REGISTER 1174 — HOW SURE THE PROVIDER MUST BE THAT SOMEONE IS SPEAKING (its turn detection, 0–1). Dave 20:15, after
+# the phone's echo canceller started working (1173): "was hearing a lot I had tv on in the room but it was pretty bad" —
+# read: eight turns in 30 s that were the TV ("Era correcta", "Churchill", "The streets"…), each cutting Ryan off and
+# sent as a question. His voice at the phone reached ~17,000 on the microphone, the TV 3,000–9,000. Ruled "let's try it":
+# less sensitive to distant sound (was 0.5), and stricter still while Ryan is speaking, so stopping him takes a clear,
+# close voice; the page switches between the two (session.update) as Ryan starts and finishes. Plumbing — both values
+# are a first setting to tune by what Dave's trace shows.
+VAD_NORMAL = 0.7
+VAD_WHILE_SPEAKING = 0.9
+
+
+def turn_detection(threshold: float) -> dict:
+    """The provider's turn detection at the given certainty — the same shape everywhere it is sent."""
+    return {"type": "server_vad", "threshold": threshold, "prefix_padding_ms": 300, "silence_duration_ms": 500,
+            "create_response": False, "interrupt_response": True}
+
+
 def new_session(assist_mod, cfg: dict, runner, user: dict, home_name: str, where: dict | None, post=None,
                 voice: str = "ryan", hints=None) -> dict:
     """Ask the provider for a short-lived key for ONE realtime session configured as ProOS Assist.
@@ -171,9 +188,7 @@ def new_session(assist_mod, cfg: dict, runner, user: dict, home_name: str, where
                                 # ruled "Act on the words"). The provider no longer answers the audio by itself: the page
                                 # waits for the caption, removes the audio from the conversation and hands the model the
                                 # CAPTION as the person's words — what is shown is exactly what was acted on.
-                                "turn_detection": {"type": "server_vad", "threshold": 0.5,
-                                                   "prefix_padding_ms": 300, "silence_duration_ms": 500,
-                                                   "create_response": False, "interrupt_response": True},
+                                "turn_detection": turn_detection(VAD_NORMAL),
                                 "noise_reduction": {"type": "near_field"},
                                 "transcription": transcription(hints)}}}
     if voice == "provider":
@@ -188,7 +203,9 @@ def new_session(assist_mod, cfg: dict, runner, user: dict, home_name: str, where
     if not value:
         return {"error": "the provider gave no session key", "detail": str(r)[:200]}
     return {"ok": True, "value": value, "expires_at": r.get("expires_at"), "model": model,
-            "tools": len(tl), "ms": int((time.time() - t0) * 1000), "voice": "provider" if voice == "provider" else "ryan"}
+            "tools": len(tl), "ms": int((time.time() - t0) * 1000), "voice": "provider" if voice == "provider" else "ryan",
+            # 1174: the two settings the page switches between as Ryan starts and stops speaking
+            "vad": {"normal": turn_detection(VAD_NORMAL), "speaking": turn_detection(VAD_WHILE_SPEAKING)}}
 
 
 def available_for(cfg: dict, user: dict) -> tuple:

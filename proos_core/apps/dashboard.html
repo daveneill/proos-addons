@@ -5048,7 +5048,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102686';
+const PROOS_BUILD='2026102687';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -21515,6 +21515,7 @@ async function lvStart(from){
   if(_lv!==lv){ note.remove(); return; }
   if(!s||!s.value){ lvTrace(lv,'no session: '+((s&&s.error)||'no answer')); lvTraceFlush(lv); note.remove(); _lvStat=null; return lvFallback(lv, (s&&s.error)||'Live voice is not available'); }
   lvTrace(lv, 'session ok model='+s.model+' tools='+s.tools);
+  lv.vad=s.vad||null; lv.vadMode='normal';   // 1174: how sure the provider must be that someone is speaking
   if(route==='native'){
     lv.opened=new Promise(function(res){ lv.openRes=res; });
     if(!_proosAppPost('live:start '+JSON.stringify({key:s.value, model:s.model||'gpt-realtime-2'}))){ note.remove(); return lvFallback(lv, 'The app could not start Live'); }
@@ -21580,7 +21581,7 @@ window._lvNativeState=function(state, reason){
   if(lv.openRes && !lv.at){ lv.openRes(false); return; }           // before it opened: lvStart falls back
   showToast(reason||'Live voice ended'); lvStop();
 };
-window._lvNativeQuiet=function(){ var lv=_lv; if(lv&&lv.route==='native'&&!lv.q.length&&!lv.pumping) lv.playing=null; };
+window._lvNativeQuiet=function(){ var lv=_lv; if(lv&&lv.route==='native'&&!lv.q.length&&!lv.pumping){ lv.playing=null; lvVad(lv, 'normal'); } };
 // One slice of an older app's microphone (16-bit mono, 24 kHz) into the call — dropped while Ryan is speaking.
 function lvPcm(b64){
   var lv=_lv; if(!lv||lv.route!=='pcm'||!lv.ac||!lv.dst||!b64) return;
@@ -21603,12 +21604,34 @@ function lvSpeakFetch(text){
 function lvB64(blob){
   return new Promise(function(res){ try{ var fr=new FileReader(); fr.onload=function(){ var u=String(fr.result||''); res(u.slice(u.indexOf(',')+1)); }; fr.onerror=function(){ res(''); }; fr.readAsDataURL(blob); }catch(e){ res(''); } });
 }
+// REGISTER 1174 — Dave 20:15: with the phone's echo canceller working, the TV across the room was taken for him (eight
+// false turns in 30 s, each cutting Ryan off). Ruled "let's try it": while Ryan speaks the provider must be surer that
+// someone is talking (a clear, close voice stops him; a TV does not); when he has finished, the normal setting returns.
+function lvVad(lv, mode){
+  if(!lv || !lv.vad || !lv.vad[mode] || lv.vadMode===mode) return;
+  lv.vadMode=mode;
+  lvSend({type:'session.update', session:{type:'realtime', audio:{input:{turn_detection:lv.vad[mode]}}}});
+  lvTrace(lv, 'hearing '+(mode==='speaking'?'stricter while Ryan speaks':'back to normal'));
+}
+// 1174: a one- or two-word scrap heard with nothing else ("People", "Churchill") is the room, not a request — it is not
+// shown or acted on, unless ProOS just asked a question (a short answer is expected) or it is plainly an instruction
+// (a control word, or one of the home's own room or device names).
+var LV_SHORT_OK=/\b(on|off|stop|pause|play|resume|mute|unmute|up|down|louder|quieter|softer|light|lights|yes|yeah|yep|no|nope|cancel|next|skip|back|open|close|lock|unlock|dim|brighter|warmer|cooler|help)\b/i;
+function lvScrap(t){
+  var words=String(t||'').replace(/[^A-Za-z0-9' ]+/g,' ').trim().split(/\s+/).filter(Boolean);
+  if(words.length>2) return false;
+  if(/\?\s*$/.test(String(window._assistLast||''))) return false;
+  if(LV_SHORT_OK.test(t)) return false;
+  try{ var low=String(t).toLowerCase(); if((typeof _voiceNames==='function'?_voiceNames():[]).some(function(n){ n=String(n||'').toLowerCase(); return n && (low.indexOf(n)>=0 || n.indexOf(low.replace(/[^a-z0-9' ]/g,'').trim())===0); })) return false; }catch(e){}
+  return true;
+}
 function lvSpeak(lv, text){
   text=(text||'').trim(); if(!text) return;
   // REGISTER 1158: "Speak Answers" (the app's Settings) decides whether the PHONE says the answer; off = on screen only.
   // The room's speaker is the installer's, in Pro (the room's voice replies), and is not touched by this.
   if(typeof speakAnswersOn==='function' && !speakAnswersOn()) return;
   lv.q.push(lvSpeakFetch(text)); if(!lv.pumping) lvPump(lv);
+  lvVad(lv, 'speaking');
 }
 async function lvPump(lv){
   lv.pumping=true;
@@ -21630,7 +21653,7 @@ async function lvPump(lv){
   lv.pumping=false;
 }
 function lvHush(lv){
-  lv.q=[]; lv.buf='';
+  lv.q=[]; lv.buf=''; lvVad(lv, 'normal');
   if(lv.route==='native'){ _proosAppPost('live:hush'); lv.playing=null; return; }
   try{ lv.playing&&lv.playing.pause&&lv.playing.pause(); }catch(e){} lv.playing=null; if(lv.gate) lv.gate.gain.value=1;
 }
@@ -21670,6 +21693,7 @@ async function lvEvent(lv, ev){
       var t=(ev.transcript||'').trim();
       if(ev.item_id) lvSend({type:'conversation.item.delete',item_id:ev.item_id});
       if(!t) break;                                               // nothing said (a cough, a door): nothing to answer
+      if(lvScrap(t)){ lvTrace(lv, 'ignored "'+t.slice(0,40)+'" — a scrap, not a request (1174)'); break; }
       addMsg('user', t); lvTrace(lv, 'heard "'+t.slice(0,80)+'"');
       lvSend({type:'conversation.item.create',item:{type:'message',role:'user',content:[{type:'input_text',text:t}]}});
       if(lv.open){ lv.need=true; } else { lvSend({type:'response.create'}); }
