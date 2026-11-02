@@ -1591,6 +1591,75 @@ def _outcome_phones(user_id):
     return sorted(set(out))
 
 
+_health_handed: set = set()     # register 1180: Health problems already offered to Assist in this run (by id)
+
+
+def _health_to_assist(inc):
+    """REGISTER 1180: one Health problem handed to Assist (the 14 Sep road: diagnose and fix as a Developer session
+    does), as the engine, in its own session; the reply is journalled where Pro's Master Log shows it."""
+    cfg = (_assist.load_config() if (_assist is not None and hasattr(_assist, "load_config")) else {})
+    if _assist is None or not (cfg.get("provider") and cfg.get("api_key")):
+        print("  [health→assist] Assist is not configured — %s stays on Health" % inc.get("title"), flush=True)
+        return None
+    try:
+        if _healthmon_mod is not None and hasattr(_healthmon_mod, "_mark_healing") and inc.get("id"):
+            _healthmon_mod._mark_healing(inc["id"], time.time())       # the card says ProOS is on it (register 347)
+    except Exception:                                            # noqa: BLE001
+        pass
+    print("  [health→assist] handing over: %s" % inc.get("title"), flush=True)
+    try:
+        res = _assist.chat(_client, _ws_call, project, dict(_ENGINE_USER), _autofix_mod.health_brief(inc),
+                           session="engine:health:%s" % (inc.get("id") or _autofix_mod.health_subject(inc)),
+                           home_name=_ASSIST_HOME_NAME, ma=_ma, where=None, awareness=_assist_awareness(),
+                           mcp=_mcp_client(),
+                           on_runner=lambda r: setattr(r, "opened_tools",
+                                                       set(getattr(r, "opened_tools", None) or ())
+                                                       | {"diagnostics", "platform"}))
+    except Exception as e:                                       # noqa: BLE001
+        print("  [health→assist] Assist could not take %s: %s" % (inc.get("title"), e), flush=True)
+        return None
+    try:
+        _assist_journal_turn(dict(_ENGINE_USER), res)
+    except Exception:                                            # noqa: BLE001
+        pass
+    reply = str((res or {}).get("reply") or (res or {}).get("error") or "").strip()
+    try:
+        if _journal_mod is not None:
+            _journal_mod.emit(inc.get("slug") or "site", "assist_repair",
+                              {"id": inc.get("id"), "kind": inc.get("kind"), "title": inc.get("title"),
+                               "subject": inc.get("subject"), "reply": reply[:1200],
+                               "acts": [a.get("tool") for a in ((res or {}).get("actions") or [])][:20]})
+    except Exception:                                            # noqa: BLE001
+        pass
+    print("  [health→assist] %s — %s" % (inc.get("title"), reply[:240].replace("\n", " ")), flush=True)
+    return res
+
+
+def _health_assist_loop():
+    """REGISTER 1180 — the audit's item 2 (Dave 22:29 "Just go"): every new Health problem that is something broken in
+    the running home (autofix.AUTO_KINDS) is handed to Assist automatically, once per subject per day (the 2 Nov rule,
+    shared with the watcher's road, so the same device is never handed over twice). Commissioning choices and
+    look-and-confirm checks keep their buttons in Pro."""
+    time.sleep(60)
+    while True:
+        try:
+            for inc in ((_healthmon_mod.incidents() if _healthmon_mod is not None else []) or []):
+                iid = inc.get("id") or "%s:%s" % (inc.get("kind"), inc.get("subject"))
+                if inc.get("kind") not in _autofix_mod.AUTO_KINDS or iid in _health_handed:
+                    continue
+                _health_handed.add(iid)
+                subj = _autofix_mod.health_subject(inc)
+                if not _autofix_mod.allowed(subj):
+                    print("  [health→assist] %s was already handed to Assist in the last 24 h — left on Health"
+                          % (inc.get("title") or subj), flush=True)
+                    continue
+                threading.Thread(target=_health_to_assist, args=(dict(inc),), name="proos-health-assist",
+                                 daemon=True).start()
+        except Exception as e:                                   # noqa: BLE001
+            print("  [health→assist] check failed: %s" % e, flush=True)
+        time.sleep(15)
+
+
 def _outcome_loop():
     """REGISTER 1179: decide the watched requests from the rooms' own records; a failure the conversation did not
     pick up goes to the phone of the person who asked (Dave 22:29 "Just go" — the audit's item 1: their own failed
@@ -12478,6 +12547,7 @@ def main():
     threading.Thread(target=_sweep_loop, name="proos-sweep-daily", daemon=True).start()
     threading.Thread(target=_platform_faults_loop, name="proos-platform-faults", daemon=True).start()
     threading.Thread(target=_outcome_loop, name="proos-outcome", daemon=True).start()   # register 1179
+    threading.Thread(target=_health_assist_loop, name="proos-health-assist", daemon=True).start()   # register 1180
     threading.Thread(target=_reconnect_loop, name="proos-reconnect", daemon=True).start()
     if _WATCH_REDISCOVER_SEC > 0:
         threading.Thread(target=_watch_rediscover_loop, name="proos-watch-heal", daemon=True).start()

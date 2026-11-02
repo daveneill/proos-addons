@@ -53,3 +53,40 @@ def clear() -> None:
         os.remove(PATH)
     except FileNotFoundError:
         pass
+
+
+# ── REGISTER 1180 — EVERY HEALTH PROBLEM GOES TO ASSIST, NOT ONLY A DROPPED DEVICE (the audit's item 2) ────────────────
+# Dave 21:23: "this product was meant to be able to report and fix issues with integrations, connections anything but I
+# spend so much time just reporting it to you"; the audit (1178) read that only ONE problem kind was ever acted on without
+# a button (a watched device's fault); 22:29 "Just go". The 14 Sep ruling decides the shape: no scripted ladder — the
+# problem goes to Assist, which diagnoses and fixes it as a Developer session with the platform does. The same once-a-day
+# rule (2 Nov) bounds it: one automatic hand-over per subject per day, whichever road it came by.
+#
+# Which problems go: the ones that are something BROKEN in the running home. Not: a commissioning choice the installer
+# makes (a room renamed, an input unassigned, a witness to bind, a display's settings, a record to rebuild, a commit to
+# redo, a device missing from the platform), a confirmation that needs someone to LOOK (27 Oct ruling), or an update
+# that is simply available. Those keep their buttons in Pro.
+AUTO_KINDS = ("activity_missed", "committed_unavailable", "frozen_session", "link_unstable", "off_with_traffic",
+              "witness_blackout", "witness_broken", "music_wedged", "music_service_slow", "provider_auth",
+              "infra_down", "network_blind", "core_blind", "push_failing")
+
+
+def health_subject(inc: dict) -> str:
+    """The one name a Health problem is rate-limited by: its subject (a device) or, without one, its own id."""
+    return str((inc or {}).get("subject") or (inc or {}).get("id") or (inc or {}).get("kind") or "")
+
+
+def health_brief(inc: dict) -> str:
+    """What Assist is handed for a Health problem — the problem as Health worded it, and the job."""
+    inc = inc or {}
+    return ("Health has raised a problem in this home and it needs fixing: \"%s\"%s. What Health read: %s "
+            "Diagnose it as you would for a pro: read what has already been tried and what each attempt read back "
+            "(recovery_history), the devices' live state (device_liveness, get_states), and the platform's own word on "
+            "the integration and its log (ha_get_integration, ha_get_logs). Then act through the platform's own controls "
+            "(device_recover; ha_call_service, including a button.press the integration offers), reading back after "
+            "each act, until it is fixed or you have established why it cannot be. Do not start, turn on or play "
+            "anything the household has not just asked for. Report in plain words what you found, what you did and what "
+            "each act read back. Do not repeat a fix that read back as changing nothing."
+            % (inc.get("title") or inc.get("kind") or "a problem",
+               (" (%s)" % inc.get("room")) if inc.get("room") else "",
+               str(inc.get("cause") or "no detail.").strip()))
