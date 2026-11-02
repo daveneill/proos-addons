@@ -1213,6 +1213,7 @@ def _assist_journal_turn(user, res):
             "reads": reads, "acts": acts})
     except Exception:                                            # noqa: BLE001
         pass                         # the record must never break the reply
+    _outcome_watch(user, (res or {}).get("actions") or [], (res or {}).get("heard") or "")   # register 1179
 _ha_stream = None    # Stage 1: the live HA event stream (proos.ha_stream)
 _cfg: dict | None = None
 
@@ -1553,6 +1554,73 @@ def _one_answer(rep, home_only=False):
 
 
 from proos import autofix as _autofix_mod   # register 1164: the automatic AI hand-over, once per device per day
+from proos import outcome as _outcome_mod   # register 1179: the person who asked is told how it turned out
+
+
+def _outcome_rooms():
+    """[(area id, name)] — the commissioned rooms, as the room journals and the project name them."""
+    try:
+        return [(aid, (rec or {}).get("name") or aid)
+                for aid, rec in ((project.load() if project else {}) or {}).get("areas", {}).items()]
+    except Exception:                                            # noqa: BLE001
+        return []
+
+
+def _outcome_watch(user, acts, words=""):
+    """REGISTER 1179: an Assist turn that started something in a room — watch that room's own verdict."""
+    try:
+        _outcome_mod.watch(user or {}, acts or [], words or "", _outcome_rooms())
+    except Exception:                                            # noqa: BLE001
+        pass
+
+
+def _outcome_phones(user_id):
+    """The notify services of THIS person's ProOS iPhone/iPad app registrations (the platform's own store, as
+    _alert_recipients reads it) — empty when none, never everyone's."""
+    try:
+        with open(_HA_STORAGE_ENTRIES) as f:
+            store = json.load(f)
+    except Exception:                                            # noqa: BLE001
+        return []
+    out = []
+    for e in (store.get("data") or {}).get("entries", []) or []:
+        d = e.get("data") or {}
+        if (e.get("domain") == "mobile_app" and d.get("user_id") == user_id and d.get("device_name")
+                and str(d.get("app_id") or "").startswith(_PUSH_APP_PREFIX)):
+            out.append("mobile_app_" + _slug_ha(d["device_name"]))
+    return sorted(set(out))
+
+
+def _outcome_loop():
+    """REGISTER 1179: decide the watched requests from the rooms' own records; a failure the conversation did not
+    pick up goes to the phone of the person who asked (Dave 22:29 "Just go" — the audit's item 1: their own failed
+    request, even though it is a warning)."""
+    time.sleep(10)
+    while True:
+        try:
+            done = _outcome_mod.check(lambda rid, since: (_journal_mod.read(rid, limit=200, since=since)
+                                                         if _journal_mod is not None else []))
+            for p in done:
+                try:
+                    if _journal_mod is not None:
+                        _journal_mod.emit(p["rooms"][0][0], "assist_outcome",
+                                          {"result": p["result"], "said": p["said"], "by": p.get("who")})
+                except Exception:                                # noqa: BLE001
+                    pass
+                print("  [outcome] %s for %s: %s" % (p["result"], p.get("who") or "?", p["said"]), flush=True)
+            for p in _outcome_mod.due():
+                phones = _outcome_phones(p.get("user"))
+                for svc in phones:
+                    try:
+                        _client._req("POST", "/api/services/notify/%s" % svc,
+                                     {"title": "ProOS", "message": p["said"]})
+                    except Exception:                            # noqa: BLE001
+                        continue
+                print("  [outcome] told %s's phone (%d device(s)): %s" % (p.get("who") or "?", len(phones), p["said"]),
+                      flush=True)
+        except Exception as e:                                   # noqa: BLE001
+            print("  [outcome] check failed: %s" % e, flush=True)
+        time.sleep(5)
 
 _ENGINE_USER = {"id": "proos-engine", "name": "ProOS", "is_owner": True, "tech": True,
                 "engine": True}
@@ -7871,6 +7939,13 @@ class Handler(BaseHTTPRequestHandler):
                 if not (u and (u.get("is_owner") or (users and users.is_tech(u.get("id"))))):
                     return self._send(403, {"error": "owner or tech only"})
                 return self._send(200, {"lines": list(globals().get("_RT_TRACE") or [])})
+            if parts == ["assist", "outcomes"]:
+                # REGISTER 1179: how this person's own requests turned out (the rooms' verdicts), not yet said —
+                # the conversation reads it while it is open and says each one; read once.
+                u = getattr(self, "_user", None)
+                if not u:
+                    return self._send(401, {"error": "sign in required"})
+                return self._send(200, {"outcomes": _outcome_mod.collect(u.get("id"))})
             if parts == ["assist", "realtime", "status"]:
                 # REGISTER 1153: may THIS person talk Live? Every surface asks before its mic becomes Live.
                 u = getattr(self, "_user", None)
@@ -10975,6 +11050,8 @@ class Handler(BaseHTTPRequestHandler):
                 out = _rt.run_tool(rnr, b.get("name") or "", b.get("arguments") or {},
                                    allowed=_rt.allowed_names(_assist, rnr),   # register 1153: this person's tools only
                                    assist_mod=_assist, cfg=_cfg)               # register 1159: web_search
+                # REGISTER 1179: what this tool started in a room is watched until the room's own verdict says
+                _outcome_watch(uinfo, list(rnr.actions or []), json.dumps(b.get("arguments") or {}, default=str))
                 print("  [assist] REALTIME tool %s(%s) → %s in %s ms" % (b.get("name"), str(b.get("arguments"))[:80],
                       "error" if out.get("error") else "ok", out.get("_ms")), flush=True)
                 return self._send(200, out)
@@ -12400,6 +12477,7 @@ def main():
     threading.Thread(target=_habits_loop, name="proos-habits", daemon=True).start()
     threading.Thread(target=_sweep_loop, name="proos-sweep-daily", daemon=True).start()
     threading.Thread(target=_platform_faults_loop, name="proos-platform-faults", daemon=True).start()
+    threading.Thread(target=_outcome_loop, name="proos-outcome", daemon=True).start()   # register 1179
     threading.Thread(target=_reconnect_loop, name="proos-reconnect", daemon=True).start()
     if _WATCH_REDISCOVER_SEC > 0:
         threading.Thread(target=_watch_rediscover_loop, name="proos-watch-heal", daemon=True).start()

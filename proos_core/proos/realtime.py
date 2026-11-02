@@ -47,7 +47,11 @@ VOICE_PREFACE = (
     "never say you cannot check. "
     # REGISTER 1175 — Dave 21:00 (photo): a quiet, arm's-length phrase came back from the transcriber as Spanish ("Por
     # supuesto que lo pienso.") and the answer was in Spanish. The home's language is English.
-    "Always answer in English, whatever language the words you are given are in.\n\n")
+    "Always answer in English, whatever language the words you are given are in. "
+    # REGISTER 1179: an activity's outcome is only known when the room confirms it (a TV takes up to ~90 s); ProOS then
+    # tells the person itself, in the conversation or on their phone.
+    "When you start an activity, a TV or an app, say it is starting — never that it is on; ProOS tells the person "
+    "when the room confirms it.\n\n")
 
 
 def instructions(assist_mod, user: dict, home_name: str, where: dict | None) -> str:
