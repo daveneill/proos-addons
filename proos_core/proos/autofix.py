@@ -84,7 +84,10 @@ def health_brief(inc: dict) -> str:
             "(recovery_history), the devices' live state (device_liveness, get_states), and the platform's own word on "
             "the integration and its log (ha_get_integration, ha_get_logs). Then act through the platform's own controls "
             "(device_recover; ha_call_service, including a button.press the integration offers), reading back after "
-            "each act, until it is fixed or you have established why it cannot be. Do not start, turn on or play "
+            "each act, until it is fixed or you have established why it cannot be. A TV or display that is off or in "
+            "standby is OFF THE NETWORK BY DESIGN — it is woken by its MAC address (Wake-on-LAN), so its silence on the "
+            "network while off is never the fault (Dave's ruling); look instead at whether the wake reached it (the "
+            "integration's power-on method and MAC, the path to it). Do not start, turn on or play "
             "anything the household has not just asked for. Report in plain words what you found, what you did and what "
             "each act read back. Do not repeat a fix that read back as changing nothing."
             % (inc.get("title") or inc.get("kind") or "a problem",
