@@ -44,7 +44,10 @@ VOICE_PREFACE = (
     "result in a few words, and only what it confirmed. Only before web_search may you say a short 'One moment'. "
     "If you did not hear something clearly, ask — never guess a room, a device or a number. For anything outside this "
     "house — news, who holds an office, sport, weather, what's on — call web_search and answer from what it finds; "
-    "never say you cannot check.\n\n")
+    "never say you cannot check. "
+    # REGISTER 1175 — Dave 21:00 (photo): a quiet, arm's-length phrase came back from the transcriber as Spanish ("Por
+    # supuesto que lo pienso.") and the answer was in Spanish. The home's language is English.
+    "Always answer in English, whatever language the words you are given are in.\n\n")
 
 
 def instructions(assist_mod, user: dict, home_name: str, where: dict | None) -> str:
