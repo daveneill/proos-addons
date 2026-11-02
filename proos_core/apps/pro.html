@@ -3035,7 +3035,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102640';
+const PROOS_BUILD='2026102641';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -10844,11 +10844,26 @@ async function _recEnt(entity){
 function _recSetM(m){ _recCurMethod=m; _recRenderEnt(); }
 function _recRenderEnt(){
   const entity=_recCurEnt, c=_recCfg[entity]||{}, method=_recCurMethod;
-  const plugs=(_ents||[]).map(e=>e.entity_id).filter(id=>/^(switch|light)\./.test(id)&&!/_port_/.test(id));
+  // REGISTER 1184 — Dave 3 Nov 09:30: "not every site will have a wattbox thats why we had the recovery section that we can
+  // allocate devices that the room has". The list was every switch and light in the HOUSE — including a TV's own power
+  // switch from its integration, which cuts nothing. Now: the power devices THIS ROOM has first, then the rest of the home
+  // (a rack's outlets may sit in no room), never the device's own controls.
+  const _devOf=id=>{ const r=(_ents||[]).find(x=>x.entity_id===id); return r?r.device_id:null; };
+  const _areaOf=r=>r.area_id||(((_devices||[]).find(d=>d.id===r.device_id))||{}).area_id||null;
+  const _self=_devOf(entity);
+  const _pw=(_ents||[]).filter(r=>/^(switch|light)\./.test(r.entity_id)&&!/_port_/.test(r.entity_id)&&!(_self&&r.device_id===_self));
+  const plugsRoom=_pw.filter(r=>_areaOf(r)===_roomHubArea).map(r=>r.entity_id);
+  const plugsElse=_pw.filter(r=>_areaOf(r)!==_roomHubArea).map(r=>r.entity_id);
+  const plugs=plugsRoom.concat(plugsElse);
+  const _opt=p=>'<option value="'+p+'" '+(c.plug===p?'selected':'')+'>'+esc(entName(p))+'</option>';
   const seg=(v,lbl)=>'<button onclick="_recSetM(\''+v+'\')" style="flex:1;padding:9px;border:none;border-radius:8px;cursor:pointer;font-family:inherit;background:'+(method===v?'#2139f0':'#2a2c34')+';color:#fff">'+lbl+'</button>';
   let body='<div style="display:flex;gap:6px;margin:10px 0 14px">'+seg('reload','Reload')+seg('power_cycle','Smart plug')+seg('poe_cycle','UniFi PoE')+'</div>';
   if(method==='reload') body+='<div style="font-size:12px;color:#9aa8b8">Restarts the device\'s integration connection. No wiring — the default.</div>';
-  if(method==='power_cycle') body+='<div class="field-label">Smart plug / switch</div><select id="rec-plug" class="set-input">'+(plugs.length?plugs.map(p=>'<option value="'+p+'" '+(c.plug===p?'selected':'')+'>'+esc(entName(p))+'</option>').join(''):'<option value="">No switches found</option>')+'</select>';
+  if(method==='power_cycle') body+='<div class="field-label">Power Device</div><select id="rec-plug" class="set-input">'+(plugs.length
+      ?((plugsRoom.length?'<optgroup label="In This Room">'+plugsRoom.map(_opt).join('')+'</optgroup>':'')
+        +(plugsElse.length?'<optgroup label="Elsewhere in the Home">'+plugsElse.map(_opt).join('')+'</optgroup>':''))
+      :'<option value="">No power devices found</option>')+'</select>'
+      +(plugsRoom.length?'':'<div style="font-size:12px;color:#9aa8b8;margin-top:6px">This room has no power device of its own — a plug or outlet elsewhere can still be chosen, or keep Reload.</div>');
   if(method==='poe_cycle'){
     if(!_recPoePorts||!_recPoePorts.length) body+='<div style="font-size:12px;color:#e0a33a">No UniFi PoE ports found — is the UniFi Network integration added?</div>';
     else body+='<div class="field-label">UniFi PoE port</div><select id="rec-poe" class="set-input">'+_recPoePorts.map(p=>'<option value="'+p.entity_id+'" '+(c.poe_switch===p.entity_id?'selected':'')+'>'+esc(p.name)+(p.enabled?'':' — will enable')+'</option>').join('')+'</select><div style="font-size:12px;color:#9aa8b8;margin-top:6px">ProOS enables the port control for you automatically.</div>';
