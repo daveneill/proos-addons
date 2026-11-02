@@ -4518,7 +4518,24 @@ def _platform_log_read():
                     d.get("area_id") for d in dev_by_entry.get(en.get("entry_id"), []) if d.get("area_id"))
     except Exception:                                            # noqa: BLE001
         pass
-    return _pl.ingest(rows, ent_area=ent_area, host_areas=host_areas)
+    out = _pl.ingest(rows, ent_area=ent_area, host_areas=host_areas)
+    # REGISTER 1182 — the audit's item 4 (Dave 3 Nov 08:58 "yes" to 10 an hour): a platform warning whose OWN count rose
+    # by autofix.REPEAT_PER_HOUR within the hour goes to Assist like any Health problem — once per message per day.
+    try:
+        for row in _autofix_mod.repeating(rows):
+            inc = _autofix_mod.repeat_incident(row)
+            print("  [platform-log] repeating: %s — %s" % (inc["title"], inc["cause"][:200]), flush=True)
+            try:
+                if _journal_mod is not None:
+                    _journal_mod.emit("site", "platform_warning_repeating",
+                                      {"title": inc["title"], "cause": inc["cause"], "rose": row.get("rose")})
+            except Exception:                                    # noqa: BLE001
+                pass
+            if _autofix_mod.allowed(inc["subject"]):
+                threading.Thread(target=_health_to_assist, args=(inc,), name="proos-log-assist", daemon=True).start()
+    except Exception as e:                                       # noqa: BLE001
+        print("  [platform-log] repeat check failed: %s" % e, flush=True)
+    return out
 
 
 def _platform_faults_loop():
