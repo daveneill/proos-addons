@@ -192,7 +192,7 @@ def new_session(assist_mod, cfg: dict, runner, user: dict, home_name: str, where
             "tools": tl, "tool_choice": "auto",
             # REGISTER 1154: the hearing is SAID, not left to the provider's defaults — 24 kHz 16-bit audio (what the app
             # sends), the provider's own turn detection (it decides when the person has finished, and lets them talk over
-            # an answer), near-field noise reduction for a phone held close, and the words transcribed for the chat.
+            # an answer), room (far-field) noise reduction — 1198, and the words transcribed for the chat.
             "audio": {"input": {"format": {"type": "audio/pcm", "rate": 24000},
                                 # REGISTER 1163 — ACT ON THE WRITTEN WORDS (Dave 06:47: "what's the weather tomorrow"
                                 # was captioned right but the voice model, hearing the audio itself, looked up the news;
@@ -200,7 +200,12 @@ def new_session(assist_mod, cfg: dict, runner, user: dict, home_name: str, where
                                 # waits for the caption, removes the audio from the conversation and hands the model the
                                 # CAPTION as the person's words — what is shown is exactly what was acted on.
                                 "turn_detection": turn_detection(VAD_NORMAL),
-                                "noise_reduction": {"type": "near_field"},
+                                # REGISTER 1198 — Dave 3 Nov 20:18: heard only "a couple of inches from the screen and
+                                # talking loud", where ChatGPT hears him "anywhere in the room". 1154 chose the
+                                # provider's headset kind ("for close-talking microphones such as headphones"), which
+                                # suppresses a voice that is not at the microphone. The room kind ("for far-field
+                                # microphones such as laptop or conference room microphones") is what a phone or iPad is.
+                                "noise_reduction": {"type": "far_field"},
                                 "transcription": transcription(hints)}}}
     if voice == "provider":
         sess["audio"]["output"] = {"voice": cfg.get("realtime_voice") or DEFAULT_VOICE}
