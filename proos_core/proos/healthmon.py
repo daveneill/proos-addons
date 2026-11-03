@@ -1572,6 +1572,28 @@ def _when(ts):
 
 
 PUSH_STATUS_FN = None      # -> {phone: {ok, words, at}} — set by server (plan B1)
+ADDR_SOURCES_FN = None     # -> (config entries, device registry) — set by server (register 1201)
+
+
+def address_drift_check(seen, snapall):
+    """REGISTER 1201 — Dave 3 Nov 21:21: the Bedroom TV's address changed on the network and its integration kept
+    talking to the old one; nothing said so. Two readings compared (proos/addrdrift.py): the address each integration
+    was set up with, and the address the network controller sees for the same device's MAC right now. Any brand, any
+    integration that controls by address. No network controller in the home → nothing said (it cannot be known)."""
+    if ADDR_SOURCES_FN is None:
+        return
+    from . import addrdrift as _ad
+    try:
+        entries, devices = ADDR_SOURCES_FN()
+    except Exception:                                            # noqa: BLE001
+        return
+    rows = [dict(v or {}, entity_id=k) for k, v in (snapall or {}).items()]
+    res = _ad.drifts(entries or [], devices or [], rows)
+    for d in res.get("drifts") or []:
+        inc = _ad.incident(d)
+        cid = _iid("address_drift", "network", inc["subject"])
+        seen.add(cid)
+        _ensure(cid, inc)
 
 
 def push_check(seen):
@@ -1738,6 +1760,12 @@ def _scan(snapall, project_mod, get_controller, witnesses):
         push_check(seen)
     except Exception as e:                                       # noqa: BLE001
         print("  [healthmon] push check failed: %s" % e, flush=True)
+
+    # 1201 · an integration talking to an address its device no longer has (the network sees it elsewhere)
+    try:
+        address_drift_check(seen, snapall)
+    except Exception as e:                                       # noqa: BLE001
+        print("  [healthmon] address check failed: %s" % e, flush=True)
 
     # plan A3 · a device whose own sources disagree is asked about, not assumed
     try:

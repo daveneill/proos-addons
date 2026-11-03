@@ -68,7 +68,8 @@ def clear() -> None:
 # that is simply available. Those keep their buttons in Pro.
 AUTO_KINDS = ("activity_missed", "committed_unavailable", "frozen_session", "link_unstable", "off_with_traffic",
               "witness_blackout", "witness_broken", "music_wedged", "music_service_slow", "provider_auth",
-              "infra_down", "network_blind", "core_blind", "push_failing")
+              "infra_down", "network_blind", "core_blind", "push_failing",
+              "address_drift")   # 1201: an integration talking to an address its device no longer has
 
 
 def health_subject(inc: dict) -> str:

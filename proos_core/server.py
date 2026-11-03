@@ -12692,6 +12692,11 @@ def main():
                     (_netev_mod.load_witnesses() if _netev_mod else {}))
                 _ctlbridge.gearcheck = _healthmon_mod.gear_pass        # plan A1: the gear card on the sweep's clock
                 _healthmon_mod.PUSH_STATUS_FN = push_status              # plan B1: alerts that fail are said
+                def _addr_sources():                            # 1201: the integrations' own records + devices
+                    with open(_HA_STORAGE_ENTRIES) as f:
+                        ents = (json.load(f).get("data") or {}).get("entries", []) or []
+                    return ents, (_client.device_registry() or [])
+                _healthmon_mod.ADDR_SOURCES_FN = _addr_sources
                 def _device_reading(eid):                       # plan A2: device watch's own item
                     if _watcher is None:
                         return None
