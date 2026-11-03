@@ -30,6 +30,7 @@ from .const import (
     DEFAULT_OUTLET_METERING,
     DOMAIN_DATA,
     OUTLET_SENSOR_TYPES,
+    POWER_STATUS_SENSORS,
     SENSOR_TYPES,
     UPS_ONLY_SENSORS,
 )
@@ -53,9 +54,11 @@ def _is_supported(hass: HomeAssistant, name: str, sensor_type: str) -> bool:
     every reload, and the entities come back by themselves if a UPS is later
     attached.
     """
+    wattbox = hass.data.get(DOMAIN_DATA, {}).get(name)
+    if sensor_type in POWER_STATUS_SENSORS:
+        return wattbox is None or bool(getattr(wattbox, "supports_power_status", True))
     if sensor_type not in UPS_ONLY_SENSORS:
         return True
-    wattbox = hass.data.get(DOMAIN_DATA, {}).get(name)
     return wattbox is None or bool(getattr(wattbox, "has_ups", False))
 
 
@@ -99,8 +102,12 @@ async def async_setup_entry(
         # battery sensors stuck at `unavailable` forever.
         async_prune_unsupported(hass, entry, unsupported)
 
-        # Add a Total Energy sensor that integrates the power reading over time.
-        entities.append(WattBoxEnergySensor(hass, conf_name, clean_name))
+        # Add a Total Energy sensor that integrates the power reading over time
+        # -- only where there is a power reading to integrate (register 1188).
+        if getattr(wattbox, "supports_power_status", True):
+            entities.append(WattBoxEnergySensor(hass, conf_name, clean_name))
+        else:
+            async_prune_unsupported(hass, entry, {f"{clean_name}_total_energy"})
 
         entities.extend(_outlet_sensors(hass, entry, conf_name))
 

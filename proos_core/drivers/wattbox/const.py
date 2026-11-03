@@ -87,6 +87,14 @@ DEFAULT_CONNECTION_TYPE: Final[str] = CONNECTION_TELNET
 UPS_ONLY_SENSORS: Final[frozenset[str]] = frozenset(
     {"battery_charge", "battery_load", "est_run_time"}
 )
+#: ProOS (register 1188): whole-unit readings a WattBox that answers #Error to
+#: ?PowerStatus (the 150/250, per Integration Protocol v2.4) can never fill. Not
+#: created there -- and the Total Energy sensor neither -- instead of sitting at
+#: unknown, or at a made-up 0.0 kWh, forever.
+POWER_STATUS_SENSORS: Final[frozenset[str]] = frozenset(
+    {"power_value", "current_value", "voltage_value"}
+)
+POWER_STATUS_BINARY_SENSORS: Final[frozenset[str]] = frozenset({"safe_voltage_status"})
 UPS_ONLY_BINARY_SENSORS: Final[frozenset[str]] = frozenset(
     {"audible_alarm", "battery_health", "battery_test", "mute"}
 )

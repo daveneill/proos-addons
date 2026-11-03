@@ -14,6 +14,7 @@ from .const import (
     BINARY_SENSOR_TYPES,
     DOMAIN_DATA,
     HTTP_ONLY_BINARY_SENSORS,
+    POWER_STATUS_BINARY_SENSORS,
     UPS_ONLY_BINARY_SENSORS,
 )
 from .entity import WattBoxEntity, async_prune_unsupported
@@ -36,6 +37,10 @@ def _is_supported(hass: HomeAssistant, name: str, sensor_type: str) -> bool:
     wattbox = hass.data.get(DOMAIN_DATA, {}).get(name)
     if wattbox is None:
         return True
+    if sensor_type in POWER_STATUS_BINARY_SENSORS and not getattr(
+        wattbox, "supports_power_status", True
+    ):
+        return False
     if sensor_type in UPS_ONLY_BINARY_SENSORS and not getattr(
         wattbox, "has_ups", False
     ):

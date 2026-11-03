@@ -58,7 +58,10 @@ class BaseWattBox(ABC):
         self.mute: bool = False
         self.power_lost: bool = False
 
-        # Whole-unit power.
+        # Whole-unit power. ProOS (register 1188): whether the device answers
+        # for it at all -- the IP driver asks once at setup (a WB-250 answers
+        # #Error); the HTTP API always carries it.
+        self.supports_power_status: bool = True
         self.current_value: float = 0.0  # A
         self.power_value: float = 0.0  # W
         self.safe_voltage_status: bool = True

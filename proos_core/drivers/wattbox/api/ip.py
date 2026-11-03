@@ -533,6 +533,9 @@ class IpWattBox(BaseWattBox):
         self.has_ups = await self._optional(REQ_UPS_CONNECTION) == "1"
         self.hostname = await self._optional(REQ_HOSTNAME) or ""
         self.serial_number = await self._exchange(REQ_SERVICE_TAG)
+        # ProOS (register 1188): asked once and answered by the device itself,
+        # so a power sensor is only made where a reading can ever exist.
+        self.supports_power_status = await self._optional(REQ_POWER_STATUS) is not None
         count = await self._exchange(REQ_OUTLET_COUNT)
         try:
             self._set_outlet_layout(int(count))
