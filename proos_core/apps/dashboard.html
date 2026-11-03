@@ -5048,7 +5048,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102692';
+const PROOS_BUILD='2026102693';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -25364,15 +25364,15 @@ html.pv-room #page-home .room-acts{display:block;margin-top:0}   /* 1119: the li
 @media (prefers-reduced-motion:reduce){.widget-cell,.wv-glow,.wv-flow i,.wv-sc,.wxv-ic svg,.env-l i,.wv-scan,.wv-bell{animation:none!important;transition:none!important}}
 /* 1170: the full-screen conversation on wider glass (kept out of the one type scale block below, which holds no media query) */
 @media (min-width:700px){
-  html #jv .jv-q{font-size:32px} html #jv .jv-a{font-size:26px} html #jv .jv-m{font-size:21px} html #jv .jv-m.u{font-size:18px}
+  html #jv .jv-q{font-size:22px} html #jv .jv-a{font-size:18px} html #jv .jv-m{font-size:16px} html #jv .jv-m.u{font-size:15px}   /* 1196: was 32/26/21/18 */
 }
 @media (min-width:900px){
   html #jv .jv-c{padding:calc(var(--proos-sat) + 26px) 44px calc(env(safe-area-inset-bottom,0px) + 26px)}
   /* 1171 — Dave 10:23: "I would prefer the mic etc to always be in the same centre position so even for iPad landscape":
      no left column — the orb stays bottom centre on every glass, only larger here */
-  html #jv .jv-ow{width:112px;height:112px}
+  html #jv .jv-ow{width:80px;height:80px}   /* 1196: was 112 */
   html #jv .jv-orb svg{width:32px;height:32px}
-  html #jv .jv-st{font-size:17px}
+  html #jv .jv-st{font-size:15px}
   html #jv .jv-sg{margin:0;padding:18px 0 0;justify-content:center;flex-wrap:wrap;overflow:visible}
 }
 :root{ --t-floor:13px; --tap:44px; }
@@ -25774,11 +25774,11 @@ html.pp-on #app{visibility:hidden}
 #jv .jv-log{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;gap:16px;padding-top:60px;-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 70px);mask-image:linear-gradient(to bottom,transparent 0,#000 70px);scrollbar-width:none}
 #jv .jv-log::-webkit-scrollbar{display:none}
 #jv .jv-log>:first-child{margin-top:auto}
-#jv .jv-m{font-size:18px;font-weight:300;line-height:1.45;color:rgba(255,255,255,.66);overflow-wrap:anywhere}
-#jv .jv-m.u{align-self:flex-end;max-width:78%;padding:10px 16px;border-radius:20px 20px 6px 20px;background:rgba(255,255,255,.12);box-shadow:inset 0 0 0 .5px rgba(255,255,255,.18);font-size:16px;font-weight:400;color:rgba(255,255,255,.82)}
-#jv .jv-q{flex:0 0 auto;align-self:flex-end;max-width:84%;text-align:right;font-size:27px;font-weight:300;letter-spacing:-.4px;line-height:1.25;overflow-wrap:anywhere}
+#jv .jv-m{font-size:15px;font-weight:300;line-height:1.45;color:rgba(255,255,255,.66);overflow-wrap:anywhere}
+#jv .jv-m.u{align-self:flex-end;max-width:78%;padding:10px 16px;border-radius:20px 20px 6px 20px;background:rgba(255,255,255,.12);box-shadow:inset 0 0 0 .5px rgba(255,255,255,.18);font-size:15px;font-weight:400;color:rgba(255,255,255,.82)}
+#jv .jv-q{flex:0 0 auto;align-self:flex-end;max-width:84%;text-align:right;font-size:20px;font-weight:400;letter-spacing:-.2px;line-height:1.25;overflow-wrap:anywhere}
 #jv .jv-q:empty{display:none}
-#jv .jv-a{flex:0 0 auto;font-size:22px;font-weight:300;line-height:1.42;color:#fff;overflow-wrap:anywhere;max-height:40vh;overflow-y:auto}
+#jv .jv-a{flex:0 0 auto;font-size:17px;font-weight:300;line-height:1.42;color:#fff;overflow-wrap:anywhere;max-height:40vh;overflow-y:auto}
 #jv .jv-a:empty{display:none}
 #jv.idle .jv-q{align-self:center;text-align:center}
 #jv.idle .jv-a{text-align:center;font-size:17px;color:rgba(255,255,255,.62)}
@@ -25787,8 +25787,8 @@ html.pp-on #app{visibility:hidden}
 #jv .jv-ac button{height:44px;padding:0 20px;border:0;border-radius:999px;background:rgba(255,255,255,.10);box-shadow:inset 0 0 0 1px rgba(255,255,255,.16);color:#fff;font:500 15px 'Inter',-apple-system,sans-serif}
 #jv .jv-ac button.y{background:rgba(255,255,255,.92);color:#15151b;box-shadow:none}
 #jv .jv-side{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:34px;padding-top:44px}
-#jv .jv-ow{position:relative;width:88px;height:88px;margin:0}
-#jv .jv-st{font-size:15px;font-weight:400;color:rgba(255,255,255,.88);min-height:20px;text-align:center}
+#jv .jv-ow{position:relative;width:72px;height:72px;margin:0}   /* 1196 (Dave 16:59 "font is too large"; 19:11 "yes" to the canvas sizes): question 20, answer 17, earlier lines 15, orb 72 — was 27/22/18/88 */
+#jv .jv-st{font-size:14px;font-weight:400;color:rgba(255,255,255,.88);min-height:20px;text-align:center}
 #jv .jv-sg{flex:0 0 auto;display:flex;gap:10px;overflow-x:auto;margin:0 -20px;padding:16px 20px 2px;scrollbar-width:none;transition:opacity var(--m-move) var(--e-standard)}
 #jv .jv-sg::-webkit-scrollbar{display:none}
 #jv .jv-sg button{flex:0 0 auto;height:40px;padding:0 16px;border:0;border-radius:999px;background:rgba(255,255,255,.08);box-shadow:inset 0 0 0 1px rgba(255,255,255,.13);color:rgba(255,255,255,.88);font:400 14px 'Inter',-apple-system,sans-serif;white-space:nowrap}
