@@ -549,7 +549,14 @@ class IpWattBox(BaseWattBox):
     async def _update(self) -> None:
         if (auto_reboot := await self._optional(REQ_AUTO_REBOOT)) is not None:
             self.auto_reboot = auto_reboot == "1"
-        self._apply_power_status(await self._exchange(REQ_POWER_STATUS))
+        # ProOS (register 1186): optional. A WB-250 answers `#Error` here -- it
+        # does not measure power -- and as a must it never connected at all.
+        if (power := await self._optional(REQ_POWER_STATUS)) is not None:
+            self._apply_power_status(power)
+        else:
+            # Unknown, never the 0 W / 0 V / "safe" defaults it never measured.
+            self.current_value = self.power_value = self.voltage_value = None
+            self.safe_voltage_status = None
         self._apply_outlet_names(
             parse_outlet_names(await self._exchange(REQ_OUTLET_NAME))
         )
