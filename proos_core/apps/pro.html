@@ -1950,8 +1950,9 @@ body.v3.railmin .aw-screen{left:108px!important}
 .v3rooms .v3chip.on{background:#fff;color:#111}
 .v3rooms .v3chip .v3ct{opacity:.55;margin-left:2px}
 /* ── 1010: INTEGRATION TILES — the name always gets the width (two lines if it needs them), the buttons have
-   their own row under it, ProOS Certified reads as a blue edge and the words. Three across on an iPad either way
-   round, four on the Mac. */
+   their own row under it. Three across on an iPad either way round, four on the Mac.
+   register 1190 (Dave, 3 Nov 15:39): the plain green CERTIFIED badge is back on certified tiles — not "ProOS
+   Certified" words and a blue edge. */
 #app.v3 #panel-library .itile{display:grid;grid-template-columns:46px minmax(0,1fr) auto;align-items:center;column-gap:12px;row-gap:12px;min-height:78px;padding:14px;border-radius:18px}
 #app.v3 #panel-library .itile-ico{width:46px;height:46px;border-radius:12px;grid-column:1;grid-row:1}
 #app.v3 #panel-library .itile-ico .intg-logo,#app.v3 #panel-library .itile-ico .intg-mono{width:30px;height:30px}
@@ -1963,10 +1964,6 @@ body.v3.railmin .aw-screen{left:108px!important}
 #app.v3 #panel-library .itile-act:has(button) .itile-chev{display:none}
 #app.v3 #panel-library .itile-nm{font-size:15px;font-weight:600;white-space:normal;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;line-height:1.25}
 #app.v3 #panel-library .itile-sub{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;text-transform:none}
-#app.v3 #panel-library .itile .cert-pill{display:none}
-#app.v3 #panel-library .itile:has(.cert-pill){border:1px solid rgba(110,130,255,.32);background:rgba(33,57,240,.09)!important}
-#app.v3 #panel-library .itile-body:has(.cert-pill) .itile-sub::before{content:"ProOS Certified";color:#aab4ff;display:block}
-#app.v3 #panel-library .itile-body:has(.cert-pill):not(:has(.itile-sub))::after{content:"ProOS Certified";color:#aab4ff;font-size:12.5px;display:block;margin-top:3px}
 /* the iPad mini in portrait: a tile is ~190 px wide, so the name goes under the icon and takes the tile's whole width */
 @media (max-width:767px){
   #app.v3 #panel-library .itile-body{grid-column:1/-1;grid-row:2}
@@ -2121,7 +2118,7 @@ body.v3.railmin .aw-screen{left:108px!important}
            system off the screen), and folds on its heading when it is long. -->
       <div class="section-label il-sec il-fold" id="il-disc-h" onclick="ilToggleDisc()">Discovered <span class="il-ct" id="il-disc-ct"></span></div>
       <div id="lib-flows"><div class="empty"><div class="et">Checking for new devices…</div></div></div>
-      <div class="section-label il-sec">ProOS Certified · Ready to Add</div>
+      <div class="section-label il-sec">Certified · Ready to Add</div>
       <div id="lib-certified"></div>
     </div>
 
@@ -3035,7 +3032,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102642';
+const PROOS_BUILD='2026102643';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -4934,7 +4931,7 @@ function _unifiNetCard(){
   const from=s.source==='unifiprotect'?'the UniFi Protect integration':(s.source==='unifi'?'the UniFi Network integration':'');
   const statusTxt=!conn?'no controller login in either UniFi integration':(reach?('Connected'+(s.clients!=null?(' · '+s.clients+' clients'):'')+(inh?' · via the UniFi Protect login':'')):('Can’t reach the controller'+(s.error?(' · '+esc(s.error)):'')));
   let head='<div class="wiz-hint">One certified integration. ProOS uses the controller’s client list, through this integration, as each device’s network witness — matched by the device’s own network address (MAC). ProOS does not read switch ports. The controller’s address and login are the integration’s own — ProOS reads them from it and keeps no copy.</div>';
-  head+='<div class="cred-card"><div class="cred-top"><span class="cred-dot '+dot+'"></span><span class="cred-name">UniFi Network</span><span class="cred-badge" style="margin-left:auto">ProOS Certified</span></div>'
+  head+='<div class="cred-card"><div class="cred-top"><span class="cred-dot '+dot+'"></span><span class="cred-name">UniFi Network</span><span class="cert-pill" style="margin-left:auto">CERTIFIED</span></div>'
     +'<div class="unifi-status"><div class="unifi-row"><span class="cred-dot '+dot+'"></span><span class="unifi-row-l">Controller access</span><span class="unifi-row-d">'+statusTxt+'</span></div></div></div>';
   let s1='';
   if(conn){
@@ -15451,7 +15448,7 @@ async function renderUnifi(){
 
   let html='<div class="wiz-hint">One certified integration. ProOS Core owns the native Protect integration (cameras &amp; live) <b>and</b> the private API (events, thumbnails &amp; clips) from a single connection — the underlying platform stays invisible.</div>';
   const odot=(st.status==='ok')?'on':((st.status==='pending')?'warn':'off');
-  html+=`<div class="cred-card"><div class="cred-top"><span class="cred-dot ${odot}"></span><span class="cred-name">UniFi Protect</span><span class="cred-badge" style="margin-left:auto">ProOS Certified</span></div><div class="unifi-status">`
+  html+=`<div class="cred-card"><div class="cred-top"><span class="cred-dot ${odot}"></span><span class="cred-name">UniFi Protect</span><span class="cert-pill" style="margin-left:auto">CERTIFIED</span></div><div class="unifi-status">`
     +`<div class="unifi-row"><span class="cred-dot ${native.status==='ok'?'on':'off'}"></span><span class="unifi-row-l">Cameras &amp; live</span><span class="unifi-row-d">${native.loaded?((native.cameras||0)+' camera'+((native.cameras===1)?'':'s')+' · integration loaded'):'not set up'}</span></div>`
     +`<div class="unifi-row"><span class="cred-dot ${priv.private_ok?'on':'off'}"></span><span class="unifi-row-l">Events, thumbnails &amp; clips</span><span class="unifi-row-d">${priv.private_ok?('Ready'+(priv.application_version?' · Protect '+esc(String(priv.application_version)):'')):(priv.reachable?'add a local user':'—')}</span></div>`
     +`</div></div>`;
