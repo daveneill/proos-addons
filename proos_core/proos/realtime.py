@@ -194,11 +194,10 @@ def new_session(assist_mod, cfg: dict, runner, user: dict, home_name: str, where
             # sends), the provider's own turn detection (it decides when the person has finished, and lets them talk over
             # an answer), room (far-field) noise reduction — 1198, and the words transcribed for the chat.
             "audio": {"input": {"format": {"type": "audio/pcm", "rate": 24000},
-                                # REGISTER 1163 — ACT ON THE WRITTEN WORDS (Dave 06:47: "what's the weather tomorrow"
-                                # was captioned right but the voice model, hearing the audio itself, looked up the news;
-                                # ruled "Act on the words"). The provider no longer answers the audio by itself: the page
-                                # waits for the caption, removes the audio from the conversation and hands the model the
-                                # CAPTION as the person's words — what is shown is exactly what was acted on.
+                                # REGISTER 1163 → 1199. The provider does not answer by itself: the page waits for the
+                                # caption, so a scrap or a non-English mishearing can be dropped unanswered (1174/1175).
+                                # Since 1199 (Dave 3 Nov 20:37, "act on the words" reversed) the audio STAYS and the model
+                                # answers what it HEARS, as ChatGPT's does; the caption is what is shown.
                                 "turn_detection": turn_detection(VAD_NORMAL),
                                 # REGISTER 1198 — Dave 3 Nov 20:18: heard only "a couple of inches from the screen and
                                 # talking loud", where ChatGPT hears him "anywhere in the room". 1154 chose the

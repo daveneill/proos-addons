@@ -5048,7 +5048,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102694';
+const PROOS_BUILD='2026102695';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -21694,15 +21694,15 @@ async function lvEvent(lv, ev){
   switch(ev.type){
     case 'input_audio_buffer.speech_started': lvHush(lv); break;
     case 'conversation.item.input_audio_transcription.completed': {
-      // REGISTER 1163 — ACT ON THE WRITTEN WORDS (Dave's ruling, 2 Nov 06:47): the caption is shown, the audio item is
-      // taken out of the conversation, and the CAPTION goes to the model as the person's words; then it answers.
+      // REGISTER 1199 (Dave 3 Nov 20:37 "yes" — 1163's "act on the words" reversed): the MODEL HEARS THE VOICE, as ChatGPT's
+      // does. The caption is shown as what was heard; the audio stays in the conversation and the model answers it. Only a
+      // caption that is nothing, a scrap (1174) or not English (1175) takes the audio out, unanswered.
       var t=(ev.transcript||'').trim();
-      if(ev.item_id) lvSend({type:'conversation.item.delete',item_id:ev.item_id});
-      if(!t) break;                                               // nothing said (a cough, a door): nothing to answer
-      if(lvScrap(t)){ lvTrace(lv, 'ignored "'+t.slice(0,40)+'" — a scrap, not a request (1174)'); break; }
-      if(lvForeign(t)){ lvTrace(lv, 'ignored "'+t.slice(0,40)+'" — not English, misheard (1175)'); addMsg('assistant', 'Sorry, I didn\u2019t catch that.'); break; }
+      var drop=function(){ if(ev.item_id) lvSend({type:'conversation.item.delete',item_id:ev.item_id}); };
+      if(!t){ drop(); break; }                                    // nothing said (a cough, a door): nothing to answer
+      if(lvScrap(t)){ drop(); lvTrace(lv, 'ignored "'+t.slice(0,40)+'" — a scrap, not a request (1174)'); break; }
+      if(lvForeign(t)){ drop(); lvTrace(lv, 'ignored "'+t.slice(0,40)+'" — not English, misheard (1175)'); addMsg('assistant', 'Sorry, I didn\u2019t catch that.'); break; }
       addMsg('user', t); lvTrace(lv, 'heard "'+t.slice(0,80)+'"');
-      lvSend({type:'conversation.item.create',item:{type:'message',role:'user',content:[{type:'input_text',text:t}]}});
       if(lv.open){ lv.need=true; } else { lvSend({type:'response.create'}); }
       break; }
     case 'response.output_text.delta': lvDelta(lv, ev.delta); break;
