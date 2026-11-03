@@ -52,7 +52,10 @@ REQ_OUTLET_STATUS: Final[str] = "?OutletStatus"
 REQ_UPS_STATUS: Final[str] = "?UPSStatus"
 REQ_OUTLET_POWER_STATUS: Final[str] = "?OutletPowerStatus={index}"
 
-CMD_OUTLET_SET: Final[str] = "!OutletSet={index},{action},0"
+# ProOS (register 1187): as Integration Protocol v2.4 spells it. DELAY is for
+# RESET only and must be 1-600 s; upstream sent ",0" on every action. With no
+# delay a reset uses the outlet's own configured reset time.
+CMD_OUTLET_SET: Final[str] = "!OutletSet={index},{action}"
 CMD_EXIT: Final[str] = "!Exit"
 
 
