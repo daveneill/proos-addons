@@ -5048,7 +5048,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102689';
+const PROOS_BUILD='2026102690';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -23068,6 +23068,57 @@ document.addEventListener('click', function(e){
 #proos-acard .pac-off.busy svg{display:none}
 @keyframes pacSpin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion: reduce){#proos-acard .pac-t.go .pac-tile,#proos-acard .pac-eq i{animation:none}}
+/* REGISTER 1192 (Dave 3 Nov 17:17 "full screen … to match every other page from the navbar everything launches to a full
+   page its just the mobile that everything looks cramped"; 17:20 "it needs to support homes that have 5-10 activities in a
+   room"; 17:22 "okay go" — canvas option C): Activities is a FULL PAGE on every device, over the same frosted room the
+   Assist screen uses. Phone: the rooms run across the top as tabs (they scroll, never squash), the room's word, then the
+   tiles two across, scrolling when a room has many; Off stays put at the bottom centre. iPad and Mac: the rooms down the
+   left, the room's name large, the tiles by count (up to three across), Off at the bottom right. Behaviour is unchanged. */
+#proos-acard{padding:0;align-items:stretch;justify-content:stretch;--pac-tw:clamp(200px,calc((100vw - 470px) / 3),300px)}
+#proos-acard .pac-scrim{background:rgba(10,10,14,.5);-webkit-backdrop-filter:blur(34px) saturate(115%);backdrop-filter:blur(34px) saturate(115%)}
+#proos-acard .pac-card{width:100%;min-width:0;max-width:none;height:100%;max-height:none;overflow:hidden;border-radius:0;background:transparent;-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:none;display:flex;flex-direction:column;padding:calc(var(--proos-sat,0px) + 20px) 40px calc(env(safe-area-inset-bottom,0px) + 24px)}
+#proos-acard .pac-head{position:static;flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px}
+#proos-acard .pac-head .pac-eb{font-size:13px;letter-spacing:.16em}
+#proos-acard .pac-x{margin:0}
+#proos-acard .pac-x span{width:44px;height:44px}
+#proos-acard .pac-x svg{width:16px;height:16px}
+#proos-acard .pac-main{flex:1 1 auto;min-height:0;display:flex;gap:48px;margin-top:20px}
+#proos-acard .pac-rooms{flex:0 0 240px;flex-direction:column;gap:6px;margin:0;overflow-x:hidden;overflow-y:auto}
+#proos-acard .pac-rm{width:100%;min-width:0;min-height:64px;padding:10px 16px;border-radius:16px;background:transparent;box-shadow:none;justify-content:center}
+#proos-acard .pac-rm b{font-size:18px;font-weight:500;color:rgba(255,255,255,.8)}
+#proos-acard .pac-rm i{font-size:13px;max-width:none}
+#proos-acard .pac-rm.sel{background:rgba(255,255,255,.14);color:#fff}
+#proos-acard .pac-rm.sel b{color:#fff;font-weight:600}
+#proos-acard .pac-rm.sel i{color:rgba(255,255,255,.75)}
+#proos-acard .pac-rm.sel.on i{color:#7CF0C5}
+#proos-acard .pac-pane{flex:1 1 auto;min-width:0;min-height:0;display:flex;flex-direction:column}
+#proos-acard .pac-hero{display:block;padding:0 0 22px}
+#proos-acard .pac-name{font-size:44px;font-weight:300;letter-spacing:-.02em;margin:0;white-space:normal;text-shadow:none}
+#proos-acard .pac-hero .pac-truth{margin-top:8px}
+#proos-acard .pac-big{font-size:16px}
+#proos-acard .pac-body{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:6px 24px 44px;margin:0 -24px;scrollbar-width:none;-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 40px),transparent);mask-image:linear-gradient(to bottom,#000 calc(100% - 40px),transparent)}
+#proos-acard .pac-body::-webkit-scrollbar{display:none}
+#proos-acard .pac-tiles{gap:20px}
+#proos-acard .pac-foot{flex:0 0 auto;display:flex;justify-content:flex-end;padding-top:14px}
+#proos-acard .pac-off{height:56px;border-radius:28px;padding:0 30px 0 24px;font-size:17px;gap:10px}
+#proos-acard .pac-off svg{width:20px;height:20px}
+@media(max-width:768px){
+  #proos-acard{--pac-tw:calc((100vw - 54px) / 2)}
+  #proos-acard .pac-card{padding:calc(var(--proos-sat,0px) + 12px) 20px calc(env(safe-area-inset-bottom,0px) + 20px)}
+  #proos-acard .pac-main{flex-direction:column;gap:0;margin-top:10px}
+  #proos-acard .pac-rooms{flex:0 0 auto;flex-direction:row;gap:24px;overflow-x:auto;overflow-y:hidden;margin:0 -20px 18px;padding:0 20px;box-shadow:inset 0 -1px 0 rgba(255,255,255,.12)}
+  #proos-acard .pac-rm{width:auto;min-height:44px;padding:0 0 8px;border-radius:0;background:transparent;justify-content:flex-end}
+  #proos-acard .pac-rm b{font-size:20px;font-weight:600;color:rgba(255,255,255,.5);white-space:nowrap}
+  #proos-acard .pac-rm i{display:none}
+  #proos-acard .pac-rm.sel{background:transparent;box-shadow:inset 0 -2px 0 #fff}
+  #proos-acard .pac-rm.sel b{color:#fff}
+  #proos-acard .pac-card.chooser .pac-name{display:none}
+  #proos-acard .pac-name{font-size:30px;font-weight:600;letter-spacing:-.02em}
+  #proos-acard .pac-hero{padding:0 0 16px}
+  #proos-acard .pac-body{padding:4px 20px 44px;margin:0 -20px}
+  #proos-acard .pac-tiles{gap:14px}
+  #proos-acard .pac-foot{justify-content:center}
+}
 </style>
 <script>
 // The rooms the card can open: Core's word that a room has activities (_roomHasActivities — verdict sensor, not
@@ -23133,13 +23184,15 @@ function _pacEnsure(){
   var el=document.getElementById('proos-acard'); if(el) return el;
   el=document.createElement('div'); el.id='proos-acard'; el.setAttribute('role','dialog'); el.setAttribute('aria-modal','true'); el.setAttribute('aria-label','Activities');
   // 1126/1127: the room leads — its name, Core's word and Off at the top (no photo: the page's own background shows through); the tiles below
+  // 1192: a full page — the head (Activities, Close), the rooms (tabs on a phone, a list on the left elsewhere), the room's
+  // name and Core's word, the tiles in their own scroller, and Off along the bottom where it stays put
   el.innerHTML='<div class="pac-scrim"></div><div class="pac-card">'
-    +'<div class="pac-head"><button type="button" class="pac-x" aria-label="Close"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></span></button></div>'
-    +'<div class="pac-hero"><div class="pac-hero-l"><div class="pac-eb" id="pac-eb">Activities</div><div class="pac-name" id="pac-name"></div>'
-    +'<div class="pac-truth"><div class="pac-big" id="pac-big"></div><div class="pac-sub" id="pac-sub"></div></div></div>'
-    +'<button type="button" class="pac-off" id="pac-off"><span class="pac-ospin" aria-hidden="true"></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v9M6.3 7.3a8 8 0 1 0 11.4 0"/></svg><span id="pac-off-t">Off</span></button></div>'
-    +'<div class="pac-body"><div class="pac-rooms" id="pac-rooms"></div>'
-    +'<div class="pac-tiles" id="pac-tiles"></div></div>'
+    +'<div class="pac-head"><div class="pac-eb" id="pac-eb">Activities</div><button type="button" class="pac-x" aria-label="Close"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></span></button></div>'
+    +'<div class="pac-main"><div class="pac-rooms" id="pac-rooms"></div><div class="pac-pane">'
+    +'<div class="pac-hero"><div class="pac-hero-l"><div class="pac-name" id="pac-name"></div>'
+    +'<div class="pac-truth"><div class="pac-big" id="pac-big"></div><div class="pac-sub" id="pac-sub"></div></div></div></div>'
+    +'<div class="pac-body"><div class="pac-tiles" id="pac-tiles"></div></div></div></div>'
+    +'<div class="pac-foot"><button type="button" class="pac-off" id="pac-off"><span class="pac-ospin" aria-hidden="true"></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v9M6.3 7.3a8 8 0 1 0 11.4 0"/></svg><span id="pac-off-t">Off</span></button></div>'
     +'</div>';
   document.body.appendChild(el);
   el.querySelector('.pac-scrim').addEventListener('click', closeActivityCard);
@@ -23188,6 +23241,7 @@ function _pacRender(){
   var rs=_pacRooms();
   var roomsEl=document.getElementById('pac-rooms');
   roomsEl.style.display = (_pacChooser && rs.length>1) ? 'flex' : 'none';
+  el.querySelector('.pac-card').classList.toggle('chooser', !!(_pacChooser && rs.length>1));   // 1192: a phone's tab names the room
   if(_pacChooser){
     // built once per set of rooms, then only its words and classes move (register 140: never rebuild a button under a finger)
     var rsig=rs.map(function(x){ return x.id; }).join(',');
@@ -23347,6 +23401,10 @@ function closeActivityCard(){
   clearInterval(_pacTimer); _pacTimer=null; _pacPending=null;   // closed by hand: nothing opens later on its own
   document.removeEventListener('keydown', _pacKey);
 }
+// 1192 (Dave 16:45: "it seems to take time to load its not instant"): every room's activities are asked for as soon as the
+// rooms are known, so the page opens on its tiles instead of "Loading…" (read 3 Nov: 75 ms Family Room, 696 ms Bedroom from
+// a tab on the LAN — longer on a phone). Opening still re-reads them for order (1093).
+var _pacPre=setInterval(function(){ try{ var rs=_pacRooms(); if(!rs.length) return; rs.forEach(function(x){ _pacActs(x); }); clearInterval(_pacPre); }catch(e){} }, 1500);
 </script>
       <div id="player-apps-sheet" style="display:none;position:fixed;inset:0;z-index:9999;flex-direction:column;justify-content:flex-end">
         <div onclick="document.getElementById('player-apps-sheet').style.display='none'" style="flex:1;background:rgba(0,0,0,0.35)"></div>
