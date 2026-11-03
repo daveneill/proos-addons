@@ -5048,7 +5048,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102693';
+const PROOS_BUILD='2026102694';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -23409,6 +23409,93 @@ function closeActivityCard(){
 // rooms are known, so the page opens on its tiles instead of "Loading…" (read 3 Nov: 75 ms Family Room, 696 ms Bedroom from
 // a tab on the LAN — longer on a phone). Opening still re-reads them for order (1093).
 var _pacPre=setInterval(function(){ try{ var rs=_pacRooms(); if(!rs.length) return; rs.forEach(function(x){ _pacActs(x); }); clearInterval(_pacPre); }catch(e){} }, 1500);
+</script>
+<!-- ══ REGISTER 1197 — SWIPE DOWN TO CLOSE, LIKE APPLE MUSIC (Dave 3 Nov 18:54, with Apple Music's player: "the horizontal line at
+     top centre … that you swipe down to close and it slides up to pull screen from the bottom"; 19:11 "yes"). In the iPhone and
+     iPad app every full page and popup listed below carries the bar at its top centre, slides up from the bottom as it opens,
+     and follows a finger dragged down: let go past a quarter of the screen (or flick) and it closes through its OWN close
+     (what the X does), else it springs back. A drag inside a list only closes it once the list is at its top; a surface that
+     takes its own drags (the Apple TV touchpad, sliders, a camera) is never a handle. The X stays. -->
+<style>
+.proos-grab{position:absolute;left:50%;top:calc(var(--proos-sat,0px) + 7px);width:38px;height:5px;margin-left:-19px;border-radius:3px;background:rgba(255,255,255,.42);z-index:2147483000;pointer-events:none}
+</style>
+<script>
+// The pages and popups that close like a sheet: [selector, how it closes (its own close — never a second road), opens with
+// its own rise already?]. Each "close" is the function its X calls.
+var _PROOS_SHEETS=[
+  ['#proos-acard', function(){ closeActivityCard(); }],
+  ['#jv', function(){ jvClose(); }, true],
+  ['#player-overlay', function(){ closePlayer(); }, true],
+  ['#player-apps-sheet', function(el){ el.style.display='none'; }],
+  ['#light-overlay', function(){ closeLightOverlay(); }],
+  ['#all-lights-overlay', function(){ closeAllLights(); }],
+  ['#climate-overlay', function(el){ el.classList.remove('open'); }],
+  ['#climate-all-overlay', function(el){ el.classList.remove('open'); }],
+  ['#music-queue-overlay', function(){ closeMusicQueue(); }],
+  ['#music-act-sheet', function(){ closeMusicAct(); }],
+  ['#player-group-sheet', function(){ closeGroupSheet(); }],
+  ['#proos-sheet', function(){ window.closeProosSheet(); }],
+  ['#svc-sheet', function(){ closeSvc(); }],
+  ['#people-map-ov', function(){ closePeopleMap(); }],
+  ['#scene-edit', function(){ closeSceneEdit(); }],
+  ['#widget-picker', function(){ closeWidgetPicker(); }],
+  ['#awareness-overlay', function(){ closeAwareness(); }],
+  ['#set-assist-mem-pop', function(){ closeAssistMem(); }],
+  ['#assist-overlay', function(){ closeAssist(); }],
+  ['#app-chooser', function(){ closeAppChooser(); }]
+];
+var _PROOS_SHEET_SKIP='.atv-pad,.atv-dpad,input,textarea,select,canvas,video,[data-nosheet]';
+function _proosSheetOpen(el){
+  if(!el || !el.isConnected) return false;
+  if(el.classList.contains('open') || el.classList.contains('on')) return true;
+  var cs=getComputedStyle(el);
+  return cs.display!=='none' && cs.visibility!=='hidden' && !(cs.pointerEvents==='none' && parseFloat(cs.opacity)<0.05);
+}
+function _proosSheetInstall(doc, sheets){
+  var win=doc.defaultView, was=new Map();
+  function each(fn){ sheets.forEach(function(s){ var el=doc.querySelector(s[0]); if(el) fn(el, s); }); }
+  function grab(el){ if(!el.querySelector(':scope > .proos-grab')){ var g=doc.createElement('div'); g.className='proos-grab'; g.setAttribute('aria-hidden','true'); el.appendChild(g); } }
+  // opening: the bar, and the rise from the bottom (before it is painted — an observer runs ahead of the paint)
+  function sweep(){ each(function(el, s){ var o=_proosSheetOpen(el); if(o) grab(el);
+    if(o && !was.get(el) && !s[2] && el.animate){ try{ el.animate([{transform:'translateY(100%)'},{transform:'translateY(0)'}],{duration:320,easing:'cubic-bezier(.2,.8,.2,1)'}); }catch(e){} }
+    was.set(el, o); }); }
+  new win.MutationObserver(sweep).observe(doc.body, {subtree:true, childList:true, attributes:true, attributeFilter:['class','style']});
+  sweep();
+  // the drag
+  var d=null;
+  function top(t){ var hit=null; each(function(el){ if(_proosSheetOpen(el) && el.contains(t)) hit=el; }); return hit; }
+  function scroller(t, el){ for(var n=t; n && n!==el; n=n.parentElement){ var cs=getComputedStyle(n); if(/(auto|scroll)/.test(cs.overflowY) && n.scrollHeight>n.clientHeight+1) return n; } return null; }
+  doc.addEventListener('touchstart', function(e){
+    d=null; if(e.touches.length!==1) return;
+    var t=e.target, el=top(t); if(!el || (t.closest && t.closest(_PROOS_SHEET_SKIP))) return;
+    var s=sheets.filter(function(x){ return doc.querySelector(x[0])===el; })[0], p=e.touches[0];
+    d={el:el, close:s[1], y0:p.clientY, x0:p.clientX, t0:Date.now(), sc:scroller(t, el), on:false, dy:0};
+  }, {passive:true});
+  doc.addEventListener('touchmove', function(e){
+    if(!d || e.defaultPrevented) { if(d && !d.on) d=null; return; }
+    var p=e.touches[0], dy=p.clientY-d.y0, dx=p.clientX-d.x0;
+    if(!d.on){
+      if(Math.abs(dy)<8 && Math.abs(dx)<8) return;
+      if(dy<=0 || Math.abs(dx)>Math.abs(dy) || (d.sc && d.sc.scrollTop>0)){ d=null; return; }   // up, sideways, or a list mid-scroll
+      d.on=true; d.el.style.transition='none';
+    }
+    d.dy=Math.max(0, dy); d.el.style.transform='translateY('+d.dy+'px)'; if(e.cancelable) e.preventDefault();
+  }, {passive:false});
+  function sheetEnd(){
+    if(!d || !d.on){ d=null; return; }
+    var g=d; d=null; var h=g.el.getBoundingClientRect().height||win.innerHeight, v=g.dy/Math.max(1, Date.now()-g.t0);
+    g.el.style.transition='transform .22s cubic-bezier(.2,.8,.2,1)';
+    if(g.dy>h*0.25 || (v>0.6 && g.dy>40)){
+      g.el.style.transform='translateY(100%)';
+      setTimeout(function(){ try{ g.close(g.el); }catch(err){} g.el.style.transition='none'; g.el.style.transform=''; was.set(g.el, false); }, 220);
+    } else { g.el.style.transform=''; setTimeout(function(){ g.el.style.transition=''; }, 240); }
+  }
+  doc.addEventListener('touchend', sheetEnd, {passive:true}); doc.addEventListener('touchcancel', sheetEnd, {passive:true});
+}
+// the iPhone and iPad app only (the wall display and the Mac keep their own)
+try{ if(_proosApp() && /iPhone|iPad|iPod/.test(navigator.userAgent||'') || (_proosApp() && navigator.maxTouchPoints>1 && /Macintosh/.test(navigator.userAgent||''))){
+  if(document.body) _proosSheetInstall(document, _PROOS_SHEETS); else document.addEventListener('DOMContentLoaded', function(){ _proosSheetInstall(document, _PROOS_SHEETS); });
+} }catch(e){}
 </script>
       <div id="player-apps-sheet" style="display:none;position:fixed;inset:0;z-index:9999;flex-direction:column;justify-content:flex-end">
         <div onclick="document.getElementById('player-apps-sheet').style.display='none'" style="flex:1;background:rgba(0,0,0,0.35)"></div>
