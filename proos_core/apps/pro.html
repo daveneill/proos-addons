@@ -3035,7 +3035,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102641';
+const PROOS_BUILD='2026102642';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -7422,7 +7422,8 @@ function renderFlowForm(step){
   const recipe = flowRecipeFor(step);
   const titleHtml = flowStepTitleHtml(recipe);
   const rawErr=step.errors&&(step.errors.base||Object.values(step.errors)[0]);
-  const firstErr=rawErr?(_flowPlatformWords('error', rawErr)||(_flowIsSamsung()&&FLOW_ERRORS[rawErr])||String(rawErr).replace(/_/g,' ')):'';
+  // register 1189: the integration's own reason ({error_detail} etc.) filled in, as the intro already was.
+  const firstErr=rawErr?_flowInterp(_flowPlatformWords('error', rawErr)||(_flowIsSamsung()&&FLOW_ERRORS[rawErr])||String(rawErr).replace(/_/g,' '), step):'';
   const errs=firstErr?`<div class="wiz-hint" style="color:var(--warn)">${esc(firstErr)}</div>`:'';
   // Guided intro: per-step copy wins, then the options-flow intro, then a generic hint.
   const introTxt = (recipe && (recipe._isStep ? recipe.intro : recipe.optionsIntro)) || FLOW_HINTS[_flow&&_flow.handler] || '';
