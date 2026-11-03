@@ -161,7 +161,11 @@ def transcription(hints=None) -> dict:
 # less sensitive to distant sound (was 0.5), and stricter still while Ryan is speaking, so stopping him takes a clear,
 # close voice; the page switches between the two (session.update) as Ryan starts and finishes. Plumbing — both values
 # are a first setting to tune by what Dave's trace shows.
-VAD_NORMAL = 0.7
+# REGISTER 1193 — Dave 3 Nov 17:39: "ours gets everything I say wrong since we were playing with settings for noise".
+# Read 17:36: his voice reached 2,200–4,400 on the microphone (1174 had switched the phone's own voice level off), and
+# at 0.7 the start of a quieter sentence was caught late — words cut, misheard. Listening is back to the provider's
+# standard 0.5; only while Ryan speaks does it stay at 0.9, so a TV still cannot cut him off.
+VAD_NORMAL = 0.5
 VAD_WHILE_SPEAKING = 0.9
 
 
