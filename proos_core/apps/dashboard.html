@@ -5048,7 +5048,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102691';
+const PROOS_BUILD='2026102692';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -27358,7 +27358,9 @@ function jvOpen(){
   if(!_jv.open){
     // 1170: the whole screen (1001c's centred card retired) — the conversation since it opened, the newest turn large,
     // the orb and its state, the suggestions; the page behind frosted
-    d.innerHTML='<div class="jv-c"><div class="jv-hd"><div class="jv-l"><div class="jv-eb">JARVIS</div><div class="jv-rm" id="jv-rm"></div></div><div class="jv-btns">'
+    // 1195 (Dave 3 Nov 16:59, 18:54): "JARVIS" only where a wake word is used — the Android app on the wall display; the
+    // iPhone, iPad and a browser have none, so the room's chip leads the header
+    d.innerHTML='<div class="jv-c"><div class="jv-hd"><div class="jv-l">'+(_proosAndroid()?'<div class="jv-eb">JARVIS</div>':'')+'<div class="jv-rm" id="jv-rm"></div></div><div class="jv-btns">'
       +'<button class="jv-btn t" data-jvtype>'+_jvKb()+'Type</button><button class="jv-btn" data-jvx aria-label="Close">'+_ppIc('x')+'</button></div></div>'
       +'<div class="jv-body"><div class="jv-main"><div class="jv-log" id="jv-log"></div>'
       +'<div class="jv-q" id="jv-aa"></div><div class="jv-a" id="jv-ab"></div><div class="jv-ac" id="jv-ac"></div></div>'
