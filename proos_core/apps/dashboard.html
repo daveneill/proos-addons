@@ -5048,7 +5048,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102690';
+const PROOS_BUILD='2026102691';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -23074,7 +23074,11 @@ document.addEventListener('click', function(e){
    Assist screen uses. Phone: the rooms run across the top as tabs (they scroll, never squash), the room's word, then the
    tiles two across, scrolling when a room has many; Off stays put at the bottom centre. iPad and Mac: the rooms down the
    left, the room's name large, the tiles by count (up to three across), Off at the bottom right. Behaviour is unchanged. */
-#proos-acard{padding:0;align-items:stretch;justify-content:stretch;--pac-tw:clamp(200px,calc((100vw - 470px) / 3),300px)}
+#proos-acard{padding:0;align-items:stretch;justify-content:stretch;--pac-tw:180px}
+/* 1194 (Dave 17:56: "in landscape are to big … the same size as they are on the corresponding … app shortcuts screen or
+   Widget shortcut"): on an iPad or Mac a tile is a widget's width (.widget-grid minmax(180px,1fr)) and the row takes as
+   many as fit, like the widgets; a phone keeps two across, which Dave said is about right. */
+@media(min-width:769px){#proos-acard .pac-tiles{grid-template-columns:repeat(auto-fill,var(--pac-tw))!important}}
 #proos-acard .pac-scrim{background:rgba(10,10,14,.5);-webkit-backdrop-filter:blur(34px) saturate(115%);backdrop-filter:blur(34px) saturate(115%)}
 #proos-acard .pac-card{width:100%;min-width:0;max-width:none;height:100%;max-height:none;overflow:hidden;border-radius:0;background:transparent;-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:none;display:flex;flex-direction:column;padding:calc(var(--proos-sat,0px) + 20px) 40px calc(env(safe-area-inset-bottom,0px) + 24px)}
 #proos-acard .pac-head{position:static;flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px}
