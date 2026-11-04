@@ -5048,7 +5048,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102696';
+const PROOS_BUILD='2026102697';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -21574,6 +21574,10 @@ function lvStop(){
 // The app's Talk Live (native road) — events, state and "Ryan has finished" come back through these.
 window._lvNative=function(text){ var lv=_lv; if(!lv||lv.route!=='native') return; var ev; try{ ev=JSON.parse(text); }catch(e){ return; } lvEvent(lv, ev); };
 window._lvNativeState=function(state, reason){
+  // REGISTER 1204: when a press ends the app hands over its last 30 s of exactly what it sent (a WAV, base64) — it
+  // arrives after Live has closed, so it is taken first and given to Core to be listened to (memory only, last three).
+  if(state==='clip'){ try{ var bin=atob(reason||''), u8=new Uint8Array(bin.length); for(var i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i);
+    fetch(proosCoreBase()+'/assist/realtime/clip',{method:'POST',headers:{'Content-Type':'audio/wav'},body:u8}).catch(function(){}); }catch(e){} return; }
   var lv=_lv; if(!lv||lv.route!=='native') return;
   if(state==='stats'){ lvTrace(lv, 'app '+(reason||'')); return; }          // the app's own counts (1154)
   lvTrace(lv, 'app state '+state+(reason?' — '+reason:''));

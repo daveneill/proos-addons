@@ -8021,10 +8021,29 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, out)
             if parts == ["assist", "realtime", "trace"]:
                 # REGISTER 1154: the last Talk Live presses, as the phone wrote them down — owner/tech only.
+                # REGISTER 1204 (Dave 4 Nov 17:12 "Go"): the installer's own sign-in reads it too, so the voice can be
+                # looked into without changing who is signed in.
                 u = getattr(self, "_user", None)
-                if not (u and (u.get("is_owner") or (users and users.is_tech(u.get("id"))))):
-                    return self._send(403, {"error": "owner or tech only"})
+                if not (u and (u.get("is_owner") or u.get("is_admin") or (users and users.is_tech(u.get("id"))))):
+                    return self._send(403, {"error": "owner, installer or tech only"})
                 return self._send(200, {"lines": list(globals().get("_RT_TRACE") or [])})
+            if parts == ["assist", "realtime", "clips"]:
+                # REGISTER 1204: the last three recordings of exactly what an app sent to the voice service — the
+                # list, or one (?n=0 newest) as base64 WAV. Kept in memory only; owner, installer or tech.
+                u = getattr(self, "_user", None)
+                if not (u and (u.get("is_owner") or u.get("is_admin") or (users and users.is_tech(u.get("id"))))):
+                    return self._send(403, {"error": "owner, installer or tech only"})
+                clips = list(globals().get("_RT_CLIPS") or [])[::-1]
+                q = parse_qs(urlparse(self.path).query)
+                if "n" in q:
+                    try:
+                        c = clips[int(q["n"][0])]
+                    except Exception:                            # noqa: BLE001
+                        return self._send(404, {"error": "no such recording"})
+                    return self._send(200, {"at": c["at"], "who": c["who"], "seconds": c["seconds"],
+                                            "wav_b64": __import__("base64").b64encode(c["wav"]).decode()})
+                return self._send(200, {"clips": [{"n": i, "at": c["at"], "who": c["who"], "seconds": c["seconds"]}
+                                                  for i, c in enumerate(clips)]})
             if parts == ["assist", "outcomes"]:
                 # REGISTER 1179: how this person's own requests turned out (the rooms' verdicts), not yet said —
                 # the conversation reads it while it is open and says each one; read once.
@@ -11064,6 +11083,25 @@ class Handler(BaseHTTPRequestHandler):
                 who = str(u.get("name") or u.get("id") or "?")[:24]
                 for ln in (b.get("lines") or [])[:60]:
                     tr.append("%s %s | %s" % (stamp, who, str(ln)[:400]))
+                return self._send(200, {"ok": True})
+            if parts == ["assist", "realtime", "clip"]:
+                # REGISTER 1204 — WHAT THE PROVIDER ACTUALLY HEARD: the app's last 30 s of exactly the audio it sent,
+                # as a WAV, handed over when a Live press ends. Memory only, the last three, never on disk.
+                u = getattr(self, "_user", None)
+                if not u:
+                    return self._send(401, {"error": "sign in required"})
+                raw, err = self._raw_body()
+                if err:
+                    return self._send(400, {"error": err})
+                if raw[:4] != b"RIFF" or raw[8:12] != b"WAVE" or len(raw) < 44:
+                    return self._send(400, {"error": "not a WAV recording"})
+                import collections as _col
+                cl = globals().get("_RT_CLIPS")
+                if cl is None:
+                    cl = globals()["_RT_CLIPS"] = _col.deque(maxlen=3)
+                rate = int.from_bytes(raw[24:28], "little") or 24000
+                cl.append({"at": time.strftime("%H:%M:%S"), "who": str(u.get("name") or u.get("id") or "?")[:24],
+                           "seconds": round((len(raw) - 44) / 2.0 / rate, 1), "wav": raw})
                 return self._send(200, {"ok": True})
             if parts == ["assist", "realtime", "usage"]:
                 # REGISTER 1151: the page hands Core each finished response's token counts (and a session's seconds);
