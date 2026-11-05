@@ -2259,10 +2259,19 @@ body.v3.railmin .aw-screen{left:108px!important}
       <div id="credentials-body"><div class="empty"><div class="et">Reading credentials…</div></div></div>
     </div>
 
+    <!-- UNIFI SUITE — register 1215: one console connection, then a page per product -->
+    <div class="panel" id="panel-unifi-suite">
+      <div class="panel-head">
+        <button class="back" onclick="goHome()">‹ Back</button>
+        <div class="panel-title">UniFi</div>
+      </div>
+      <div id="unisuite-body"><div class="empty"><div class="et">Checking the console…</div></div></div>
+    </div>
+
     <!-- UNIFI PROTECT -->
     <div class="panel" id="panel-unifi">
       <div class="panel-head">
-        <button class="back" onclick="goHome()">‹ Back</button>
+        <button class="back" onclick="openUnifiSuite()">‹ UniFi</button>
         <div class="panel-title">UniFi Protect</div>
       </div>
       <div id="unifi-body"><div class="empty"><div class="et">Checking connection…</div></div></div>
@@ -2271,7 +2280,7 @@ body.v3.railmin .aw-screen{left:108px!important}
     <!-- UNIFI NETWORK (dedicated panel — part of the UniFi suite, same shape as Protect/Access/Alarm) -->
     <div class="panel" id="panel-unifi-net">
       <div class="panel-head">
-        <button class="back" onclick="goHome()">‹ Back</button>
+        <button class="back" onclick="openUnifiSuite()">‹ UniFi</button>
         <div class="panel-title">UniFi Network</div>
         <button class="itile-add" style="margin-left:auto" onclick="addIntegration('unifi')">Add Device</button>
       </div>
@@ -3032,7 +3041,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102645';
+const PROOS_BUILD='2026102646';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -15447,6 +15456,89 @@ function credRevoke(svc){
 }
 
 // ── Certified UniFi Protect: connect the console (host + local API key) via ProCore ──
+// ── THE UNIFI SUITE (register 1215; rulings 1214) ─────────────────────────────────────────────────────────────────
+// Dave, 5 Nov 2026: UniFi is ONE suite — one console connection, then a page per product (Network, Protect, Access,
+// Connect). Stage 1: the console card (address, ProOS's own local user, ProOS's own API key, the Access token) and the
+// apps the console answered for. Protect and Network open their existing pages; Access and Connect pages are stages 5
+// and 6. Nothing secret is ever shown: Core answers only "set" and the last four characters.
+async function openUnifiSuite(){ show('unifi-suite'); renderUnifiSuite(true); renderUnifiSuite(false); }
+async function renderUnifiSuite(quick){
+  const body=document.getElementById('unisuite-body'); if(!body) return;
+  let st=null;
+  try{ const r=await fetch(proCoreUrl()+'/unifi/console'+(quick?'?quick=1':'')); if(r.status===403){ setHTML(body,'<div class="empty"><div class="et">Installer access required</div></div>'); return; } st=await r.json(); }
+  catch(e){ if(!body.dataset.rendered) setHTML(body,'<div class="empty"><div class="et">Couldn\'t reach ProOS Core</div></div>'); return; }
+  const signed=!!st.signed_in, keySet=!!(st.key&&st.key.set), accSet=!!(st.access_token&&st.access_token.set);
+  const dot=on=>`<span class="cred-dot ${on===true?'on':(on===false?'off':'warn')}"></span>`;
+  let h='<div class="wiz-hint">One connection for every UniFi app on the console. ProOS signs in with its own local user and creates its own API key from it — the same way the Control4 UniFi drivers work. Where the platform already does something, ProOS uses it; ProOS adds the rest.</div>';
+  // The console card
+  const cs=quick&&!body.dataset.rendered?'Checking…':(signed?'Signed In':(st.user_set?'Not Signing In':'Not Set Up'));
+  h+=`<div class="cred-card"><div class="cred-top">${dot(quick?null:signed)}<span class="cred-name">Console</span><span class="cert-pill" style="margin-left:auto">CERTIFIED</span></div><div class="unifi-status">`
+    +`<div class="unifi-row"><span class="unifi-row-l">Address</span><span class="unifi-row-d">${st.host?esc(st.host)+(st.host_from?' · from '+esc(st.host_from):''):'not known yet'}</span></div>`
+    +`<div class="unifi-row"><span class="unifi-row-l">Local User</span><span class="unifi-row-d">${esc(cs)}${st.why&&!signed?' — '+esc(st.why):''}</span></div>`
+    +`<div class="unifi-row"><span class="unifi-row-l">ProOS API Key</span><span class="unifi-row-d">${keySet?'Created · ends '+esc(st.key.last4||''):'not created yet'}</span></div>`
+    +`<div class="unifi-row"><span class="unifi-row-l">Access Token</span><span class="unifi-row-d">${accSet?'Saved · ends '+esc(st.access_token.last4||''):'not saved'}</span></div>`
+    +`</div></div>`;
+  // Step 1 — the local user
+  const fromInt=st.host_from==='your UniFi integration';
+  let s1=`<div class="wiz-hint" style="margin-bottom:10px">On the console: <b>Admin &amp; Users → Create New</b> → tick <b>Admin</b> and <b>Restrict to Local Access Only</b>, a username and password, untick <b>Use a Predefined Role</b>, give <b>Full Management</b> to each UniFi app, and leave two-factor off for this user.</div>`;
+  if(!fromInt) s1+=`<div class="field"><div class="field-label">Console Address</div><input id="us-host" placeholder="192.168.1.1" value="${esc(st.host||'')}"/></div>`;
+  s1+=`<div class="field"><div class="field-label">Username</div><input id="us-user" autocomplete="off" placeholder="${st.user_set?'Saved — enter again to change':'the local user'}"/></div>`
+    +`<div class="field"><div class="field-label">Password</div><input id="us-pass" type="password" autocomplete="new-password"/></div>`
+    +`<button class="btn-primary" onclick="unifiSuiteSignIn()">${st.user_set?'Change Sign-In':'Sign In'}</button>`;
+  const step=(n,name,cls,pill,inner)=>`<div class="mstep${cls==='ok'?' done':''}"><div class="mstep-head"><span class="mstep-num">${n}</span><span class="mstep-name">${name}</span><span class="mstep-pill ${cls}">${pill}</span></div><div class="mstep-body">${inner}</div></div>`;
+  h+=step(1,'Local User',signed?'ok':'',signed?'Signed In':(st.user_set?'Check':'Needed'),s1);
+  // Step 2 — ProOS's own API key, created from the sign-in
+  const s2=keySet?`<div class="wiz-hint">ProOS's key opens Ubiquiti's official Network and Protect interfaces.</div><button class="btn-primary" onclick="unifiSuiteKey()">Create a New Key</button>`
+    :(signed?`<div class="wiz-hint">ProOS creates its own API key on the console from the local user — nothing to copy.</div><button class="btn-primary" onclick="unifiSuiteKey()">Create ProOS API Key</button>`:'<div class="mstep-locked">Sign in first.</div>');
+  h+=step(2,'API Key',keySet?'ok':'',keySet?'Created':'Needed',s2);
+  // Step 3 — the Access token (Access has its own)
+  const s3=`<div class="wiz-hint">UniFi Access uses its own token: in the Access app, <b>Settings → General → API Token</b>. Paste it here.</div><div class="field"><div class="field-label">Access API Token</div><input id="us-acc" type="password" autocomplete="off" placeholder="${accSet?'Saved — paste again to change':''}"/></div><button class="btn-primary" onclick="unifiSuiteAccess()">${accSet?'Replace Token':'Save Token'}</button>`;
+  h+=step(3,'Access Token',accSet?'ok':'',accSet?'Saved':'For Access',s3);
+  // The apps, as the console answered
+  const pages={protect:['Open',"openUnifi()"],network:['Open',"openUniNet()"],access:['Page coming (stage 5)',''],connect:['Page coming (stage 6)',''],talk:['No interface from Ubiquiti yet','']};
+  const cnt=st.counts||{};
+  const extra={protect:cnt.cameras!=null?cnt.cameras+' camera'+(cnt.cameras===1?'':'s'):'',network:cnt.network_devices!=null?cnt.network_devices+' UniFi device'+(cnt.network_devices===1?'':'s'):'',access:cnt.doors!=null?cnt.doors+' door'+(cnt.doors===1?'':'s'):''};
+  const rows=(st.apps||[{app:'network',name:'UniFi Network'},{app:'protect',name:'UniFi Protect'},{app:'access',name:'UniFi Access'},{app:'connect',name:'UniFi Connect'},{app:'talk',name:'UniFi Talk'}]).map(a=>{
+    const p=pages[a.app]||['',''];
+    const said=[a.version?'v'+a.version:'',extra[a.app]||'',a.answer?'console '+a.answer:''].filter(Boolean).join(' · ');
+    const btn=(p[1]&&a.found!==false)?`<button class="btn-primary" style="width:auto;padding:6px 14px;margin-left:auto" onclick="${p[1]}">${p[0]}</button>`:`<span class="unifi-row-d" style="margin-left:auto">${esc(p[0])}</span>`;
+    return `<div class="unifi-row">${dot(a.found)}<span class="unifi-row-l">${esc(a.name)}</span><span class="unifi-row-d">${esc(said||(quick?'checking…':'—'))}</span>${btn}</div>`;
+  }).join('');
+  h+=`<div class="bld-sec-h" style="margin-top:20px">Apps on the Console</div><div class="cred-card"><div class="unifi-status">${rows}</div></div>`;
+  if(st.user_set) h+=`<div style="margin-top:14px"><button onclick="unifiSuiteForget()" style="width:100%;padding:12px;border-radius:12px;background:transparent;border:1px solid rgba(225,112,85,.5);color:#e17055;font-size:14px;font-weight:500;cursor:pointer">Remove ProOS's Sign-In and Key</button></div>`;
+  setHTML(body,h); body.dataset.rendered='1';
+}
+async function _unifiSuitePost(path,payload){
+  const r=await fetch(proCoreUrl()+'/unifi/console/'+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload||{})});
+  if(r.status===403){ toast('Installer access required'); return null; }
+  return r.json().catch(()=>({}));
+}
+async function unifiSuiteSignIn(){
+  const user=(document.getElementById('us-user')||{}).value||'', pass=(document.getElementById('us-pass')||{}).value||'';
+  const hostEl=document.getElementById('us-host'); const host=hostEl?(hostEl.value||'').trim():'';
+  if(!user.trim()||!pass){ toast('Enter the local user\'s username and password'); return; }
+  toast('Signing in to the console…');
+  try{ const d=await _unifiSuitePost('signin',{host,username:user,password:pass}); if(!d) return;
+    toast(d.ok?'Signed in to the console':('Not signed in — '+(d.why||'the console refused')));
+    renderUnifiSuite(false);
+  }catch(e){ toast(_coreFailWords('',e)); }
+}
+async function unifiSuiteKey(){
+  toast('Creating ProOS\'s API key…');
+  try{ const d=await _unifiSuitePost('key'); if(!d) return;
+    toast(d.ok?('API key created'+(d.protect_too?' — Protect uses it too':'')):('No key — '+(d.why||'the console refused')));
+    renderUnifiSuite(false);
+  }catch(e){ toast(_coreFailWords('',e)); }
+}
+async function unifiSuiteAccess(){
+  const t=((document.getElementById('us-acc')||{}).value||'').trim(); if(!t){ toast('Paste the Access API token'); return; }
+  try{ const d=await _unifiSuitePost('access',{token:t}); if(!d) return; toast(d.ok?'Access token saved':(d.why||'Not saved')); renderUnifiSuite(false); }
+  catch(e){ toast(_coreFailWords('',e)); }
+}
+async function unifiSuiteForget(){
+  if(!await proAsk('Remove ProOS\'s console sign-in and API key?\n\nThe UniFi integrations themselves are not touched. Features that need the local user stop until it is entered again.')) return;
+  try{ await _unifiSuitePost('forget'); toast('Removed'); renderUnifiSuite(false); }catch(e){ toast(_coreFailWords('',e)); }
+}
 async function openUnifi(){ show('unifi'); renderUnifi(); try{ await loadSite(); await loadConfigEntries(); }catch(e){} renderUnifi(); }
 async function renderUnifi(){
   const body=document.getElementById('unifi-body'); if(!body) return;
@@ -18583,7 +18675,7 @@ function ahRemove(){
     });
 }
 
-const PANELS=['home','library','manage','backups','channels','maintenance','site','credentials','unifi','unifi-net','users','room','integration','rooms','activities','automations','scripts','irrigation','savant','helpers','blueprints','labels','tech','music','applehome','dashremote','wallpanel','remotecfg','wpedit','navlayout','hub','assist2','systems','toolbox','device','history'];
+const PANELS=['home','library','manage','backups','channels','maintenance','site','credentials','unifi-suite','unifi','unifi-net','users','room','integration','rooms','activities','automations','scripts','irrigation','savant','helpers','blueprints','labels','tech','music','applehome','dashremote','wallpanel','remotecfg','wpedit','navlayout','hub','assist2','systems','toolbox','device','history'];
 function show(panel){
   PANELS.forEach(p=>{ const el=document.getElementById('panel-'+p); if(el) el.classList.toggle('active', p===panel); });
   // One-shot entrance arm: content pops in on panel ENTRY, then disarms so
@@ -19126,7 +19218,7 @@ const V2SECTIONS=[['health','Health'],['hub','Home'],['assist2','Assist'],['syst
 const V2MAP={home:'health',manage:'health',
  hub:'hub',commission:'hub',room:'hub',rooms:'hub',activities:'hub',labels:'hub',
  assist2:'assist2',
- systems:'systems',library:'systems',integration:'systems',unifi:'systems','unifi-net':'systems',
+ systems:'systems',library:'systems',integration:'systems','unifi-suite':'systems',unifi:'systems','unifi-net':'systems',
  music:'systems',applehome:'systems',backups:'systems',users:'systems',credentials:'systems',
  site:'systems',maintenance:'systems',
  toolbox:'toolbox',tech:'toolbox',automations:'toolbox',scripts:'toolbox',helpers:'toolbox',
@@ -21366,7 +21458,8 @@ const V3SETUP=[['site','Building Settings','home',()=>openSite()],['users','Mana
   ['backups','Backups','clock',()=>openBackups()],['music','Music Services','music',()=>openMusic()],
   ['dashremote','Dashboards','grid',()=>openDashRemote()],['channels','Channel Lists','list',()=>openChannels()],['notify','Notifications','bolt',()=>openTech('notify')],['net','Network','map',()=>openTech('net')],
   ['credentials','Credentials','shield',()=>openCredentials()],['maintenance','Maintenance','setup',()=>openMaintenance()]];
-const V3SYSTEMS=[['applehome','Apple Home','home',()=>openAppleHome()],['unifi','UniFi Protect','cam',()=>openUnifi()],['unifi-net','UniFi Network','map',()=>openUniNet()],
+// REGISTER 1215: UniFi is ONE suite (Dave 5 Nov) — Protect and Network open from inside it.
+const V3SYSTEMS=[['applehome','Apple Home','home',()=>openAppleHome()],['unifi-suite','UniFi','map',()=>openUnifiSuite()],
   ['savant','Savant','remote',()=>openSavant()],['irrigation','Irrigation','drop',()=>openIrrigation()]];
 const V3TOOLS=[['log','Logs','log'],['health','Box Diagnostics','diagnostics'],['prepare','Prepare','check'],['integrations','Recovery Log','plug'],['inspect','Inspect','spark'],
   ['dev','Developer','tag'],['terminal','Terminal','box'],['actions','Actions','bolt'],['assist','Assist AI','assist'],['tiles','App Tiles','grid'],
@@ -21392,6 +21485,7 @@ if(typeof renderToolbox==='function'){
 }
 function v3SetupKey(p){
   if(p==='history') return 'users'; if(p==='v3software') return 'software'; if(p==='integration') return 'library'; if(p==='navlayout') return 'dashremote';
+  if(p==='unifi'||p==='unifi-net') return 'unifi-suite';   // register 1215: the product pages live inside the UniFi suite
   if(p==='tech') return _techView; return p;
 }
 function v3Side(sec){

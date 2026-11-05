@@ -5583,6 +5583,7 @@ proos/sysadmin.py
 proos/terminal.py
 proos/uistall.py
 proos/unifi.py
+proos/uniconsole.py
 proos/unifinet.py
 proos/usage.py
 proos/users.py

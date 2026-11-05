@@ -6169,6 +6169,33 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def _unifi_console(self, parts, method, body=None):
+        """REGISTER 1215 — the UniFi suite's one console connection (proos/uniconsole.py). Installer, tech or owner
+        only; every answer is masked (no password or key ever leaves the box)."""
+        u = getattr(self, "_user", None)
+        if not (u and users and users.tier_of(u) in users.PRO_TIERS):
+            return self._send(403, {"error": "installer access required"})
+        from proos import uniconsole as _uc
+        try:
+            from proos import platform_entries as _pe
+            ph = _pe.host_of("unifi") or _pe.host_of("unifiprotect") or None
+        except Exception:                                        # noqa: BLE001
+            ph = None
+        b = body or {}
+        sub = parts[2] if len(parts) > 2 else ""
+        if method == "GET" and sub == "":
+            qs = parse_qs(urlparse(self.path).query)
+            return self._send(200, _uc.status(_creds, ph, deep=(qs.get("quick") or ["0"])[0] != "1"))
+        if method == "POST" and sub == "signin":
+            return self._send(200, _uc.signin(_creds, b.get("host"), b.get("username"), b.get("password"), ph))
+        if method == "POST" and sub == "key":
+            return self._send(200, _uc.create_key(_creds, ph))
+        if method == "POST" and sub == "access":
+            return self._send(200, _uc.set_access(_creds, b.get("token")))
+        if method == "POST" and sub == "forget":
+            return self._send(200, _uc.forget(_creds))
+        return self._send(404, {"error": "unknown console route"})
+
     def _unifi(self, parts, method, body=None):
         qs = parse_qs(urlparse(self.path).query)
         try:
@@ -6833,6 +6860,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(403, {"error": "tech access required"})
                 from proos import sysadmin as _sa, platformupdates as _pu
                 return self._send(200, _pu.status(_sa._info))
+            if parts[:2] == ["unifi", "console"]:
+                return self._unifi_console(parts, "GET")                 # register 1215
             if parts and parts[0] == "unifi" and (len(parts) < 2 or parts[1] not in ("net", "poe")):
                 if getattr(self, "_user", None) is None:
                     return self._send(403, {"error": "authentication required"})
@@ -9397,6 +9426,8 @@ class Handler(BaseHTTPRequestHandler):
                                                                        "words": res.get("words")})
                     return self._send(200 if res.get("ok") else 409, res)
                 return self._send(404, {"error": "unknown sysadmin route"})
+            if parts[:2] == ["unifi", "console"]:
+                return self._unifi_console(parts, "POST", self._body())  # register 1215
             if parts and parts[0] == "unifi":
                 return self._unifi(parts, "POST", self._body())
             if parts == ["watchers", "audit", "clear"]:
