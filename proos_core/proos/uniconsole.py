@@ -258,10 +258,54 @@ def counts(creds, h, http=None):
 # console's sign-in (measured on Dave's console: /proxy/<app>/favicon.svg answers 401 without one), so they are asked
 # for with ProOS's own session; the console's own mark (its front-page icon) needs none. Only real images are kept —
 # an app that is not there answers with the console's web page, which is refused for not being an image.
+#
+# FIRST INSTALL (1.0.1314, measured on the box): only the console's mark came back. The apps do not keep a favicon at
+# the guessed addresses; each app's own page DECLARES its icon (a <link rel="icon">), and that page is behind the
+# sign-in. So each app's page is read with ProOS's session and the icon it declares is the one fetched — what a
+# browser does. The guessed addresses stay as the fallback, and where each logo came from (or why none did) is kept
+# in icons_from so the box can say it.
 ICON_PATHS = ("favicon.svg", "apple-touch-icon.png", "favicon.png", "favicon.ico")
 ICON_MAX = 96 * 1024
 ICON_SECONDS = 24 * 3600
-_ICONS = {}                                                      # host -> {"at": t, "icons": {app: data URI}}
+ICON_RETRY_SECONDS = 600                                         # no app logo at all: ask again in ten minutes
+_ICONS = {}                                                      # host -> {"at": t, "ttl": s, "icons": {}, "from": {}}
+_LINK_RE = None
+
+
+def _declared_icons(raw):
+    """The icon addresses an app's page declares, best first (an SVG icon, then apple-touch, then any icon)."""
+    global _LINK_RE
+    import re
+    if _LINK_RE is None:
+        _LINK_RE = re.compile(r"<link\b[^>]*>", re.I)
+    html = (raw or b"").decode("utf-8", "ignore")
+    found = []
+    for tag in _LINK_RE.findall(html):
+        rel = re.search(r"""rel\s*=\s*["']([^"']+)["']""", tag, re.I)
+        href = re.search(r"""href\s*=\s*["']([^"']+)["']""", tag, re.I)
+        if not (rel and href):
+            continue
+        r = rel.group(1).lower()
+        if "icon" not in r:
+            continue
+        hv = href.group(1).strip()
+        rank = 0 if hv.lower().split("?")[0].endswith(".svg") else (1 if "apple-touch" in r else 2)
+        found.append((rank, hv))
+    return [hv for _r, hv in sorted(found, key=lambda x: x[0])]
+
+
+def _resolve(h, root, href):
+    """An app page's href as a URL on THIS console only (an address elsewhere is never fetched)."""
+    if href.startswith("data:"):
+        return None
+    if href.startswith("//") or "://" in href:
+        tail = href.split("://", 1)[-1].lstrip("/")
+        if tail.split("/", 1)[0] != h:
+            return None
+        return _base(h) + "/" + (tail.split("/", 1)[1] if "/" in tail else "")
+    if href.startswith("/"):
+        return _base(h) + href
+    return _base(h) + root + href.lstrip("./")
 
 
 def _as_image(st, hd, raw):
@@ -277,27 +321,56 @@ def icons(creds, h, found=None, http=None):
     Cached a day per console; an app missing from the answer simply has no logo (Pro keeps its plain symbol)."""
     http = http or HTTP
     c = _ICONS.get(h)
-    if c and time.time() - c["at"] < ICON_SECONDS:
+    if c and time.time() - c["at"] < c.get("ttl", ICON_SECONDS):
         return dict(c["icons"])
-    out = {}
+    out, came = {}, {}
     for p in ("favicon.svg", "apple-touch-icon.png"):
         img = _as_image(*http("GET", _base(h) + "/" + p, None, {"Accept": "image/*"}))
         if img:
-            out["console"] = img
+            out["console"], came["console"] = img, "/" + p
             break
-    hd, _why = _session(creds, h, http)
-    if hd is not None:
-        for app, _name, root, _info in APPS:
-            if found is not None and found.get(app) is False:
+    hd, why = _session(creds, h, http)
+    for app, _name, root, _info in APPS:
+        if found is not None and found.get(app) is False:
+            came[app] = "not asked: the console has no %s" % app
+            continue
+        if hd is None:
+            came[app] = "not asked: " + (why or "not signed in")
+            continue
+        st, phd, page = http("GET", _base(h) + root, None, dict(hd, Accept="text/html"))
+        tried = []
+        for href in _declared_icons(page if st == 200 else b"")[:4]:
+            url = _resolve(h, root, href)
+            if not url:
                 continue
-            for p in ICON_PATHS:
-                img = _as_image(*http("GET", _base(h) + root + p, None, dict(hd, Accept="image/*")))
-                if img:
-                    out[app] = img
-                    break
-    if out:
-        _ICONS[h] = {"at": time.time(), "icons": out}
+            r = http("GET", url, None, dict(hd, Accept="image/*"))
+            img = _as_image(*r)
+            path = url.split(h, 1)[-1].split("?")[0]
+            if img:
+                out[app], came[app] = img, "declared by its page: " + path
+                break
+            tried.append("%s %s" % (path, r[0]))
+        if app in out:
+            continue
+        for p in ICON_PATHS:
+            r = http("GET", _base(h) + root + p, None, dict(hd, Accept="image/*"))
+            img = _as_image(*r)
+            if img:
+                out[app], came[app] = img, root + p
+                break
+            tried.append("%s%s %s" % (root, p, r[0]))
+        if app not in out:
+            came[app] = "no logo: its page answered %s; tried %s" % (st, ", ".join(tried[:6]) or "nothing declared")
+    apps_with = [a for a in out if a != "console"]
+    _ICONS[h] = {"at": time.time(), "ttl": ICON_SECONDS if apps_with else ICON_RETRY_SECONDS,
+                 "icons": out, "from": came}
     return out
+
+
+def icons_from(h):
+    """Where each logo came from, or why none did — plain words, nothing secret (paths and HTTP answers only)."""
+    c = _ICONS.get(h) or {}
+    return dict(c.get("from") or {})
 
 
 def status(creds, platform_host=None, http=None, deep=True):
@@ -319,4 +392,5 @@ def status(creds, platform_host=None, http=None, deep=True):
     out["apps"] = apps(creds, h, http)
     out["counts"] = counts(creds, h, http)
     out["icons"] = icons(creds, h, {a["app"]: a.get("found") for a in out["apps"]}, http)
+    out["icons_from"] = icons_from(h)
     return out
