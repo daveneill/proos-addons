@@ -6466,6 +6466,26 @@ class Handler(BaseHTTPRequestHandler):
                         failed.append({"entity_id": e["entity_id"], "why": str(ex)[:120]})
             return self._send(200, {"ok": not failed, "enabled": len(done), "failed": failed,
                                     "note": "the platform reloads its UniFi integration to bring them online (about 30 seconds)"})
+        if method == "GET" and sub == "network":
+            # REGISTER 1225 — Network → Devices, Clients, Wi-Fi: the controller's own tables through ProOS's local user,
+            # passed through unifinet's NAMED-FIELD views (the Wi-Fi records hold the passwords; none leave Core). Read only.
+            from proos import unifinet as _un
+            base = "/proxy/network/api/s/default/"
+            devs, why = _uc.get_json(_creds, ph, base + "stat/device")
+            if devs is None:
+                return self._send(200, {"ok": False, "why": why})
+            cls, why2 = _uc.get_json(_creds, ph, base + "stat/sta")
+            wl, why3 = _uc.get_json(_creds, ph, base + "rest/wlanconf")
+            hl, _w4 = _uc.get_json(_creds, ph, base + "stat/health")
+            D = (devs or {}).get("data") or []
+            C = ((cls or {}).get("data") or []) if cls is not None else None
+            wan = next((x for x in ((hl or {}).get("data") or []) if x.get("subsystem") == "wan"), {}) if hl else {}
+            return self._send(200, {"ok": True, "devices": _un.devices_view(D),
+                                    "clients": _un.clients_view(C, D) if C is not None else None, "why_clients": why2,
+                                    "wifi": _un.wifi_view(((wl or {}).get("data") or []), C or []) if wl is not None else None,
+                                    "why_wifi": why3,
+                                    "internet": {"status": wan.get("status"), "isp": wan.get("isp_name"),
+                                                 "latency_ms": wan.get("latency")} if wan else None})
         if method == "GET" and sub == "ports" and sub2 == "where":
             # REGISTER 1223 — which switch port a device (by MAC) is on: live, the controller's history, or where ProOS
             # last saw it — the same locate Assist uses (1222). Read only. Protect's Live View links an offline camera

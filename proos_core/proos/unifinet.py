@@ -633,3 +633,74 @@ def clear(path=None):
         return True
     except OSError:
         return False
+
+
+# ── REGISTER 1225 — NETWORK → DEVICES, CLIENTS, WI-FI (the agreed mockup's other Network sections; Dave 6 Nov "sure go") ──
+# Read through ProOS's own console sign-in from the controller's own tables. Each view is an explicit list of plain
+# fields: the Wi-Fi records carry the networks' passwords, and NOTHING outside the named fields ever leaves Core.
+_KIND = {"udm": "Gateway", "ugw": "Gateway", "uxg": "Gateway", "usw": "Switch", "uap": "Access Point"}
+_SEC = {"wpapsk": "WPA Personal", "wpaeap": "WPA Enterprise", "open": "Open", "wep": "WEP"}
+
+
+def _f(v):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def devices_view(devices):
+    names = {_mac(d.get("mac")): d.get("name") or d.get("model") for d in (devices or [])}
+    out = []
+    for d in (devices or []):
+        up = d.get("uplink") or {}
+        out.append({
+            "mac": _mac(d.get("mac")), "name": d.get("name") or d.get("model") or _mac(d.get("mac")),
+            "model": d.get("model"), "kind": _KIND.get(str(d.get("type") or ""), str(d.get("type") or "").upper() or None),
+            "online": None if d.get("state") is None else d.get("state") == 1,
+            "ip": d.get("ip"), "version": d.get("version") or d.get("displayable_version"),
+            "upgradable": bool(d.get("upgradable")), "upgrade_to": d.get("upgrade_to_firmware") if d.get("upgradable") else None,
+            "clients": d.get("num_sta"), "uptime_s": d.get("uptime"),
+            "uplink": names.get(_mac(up.get("uplink_mac"))) or (up.get("uplink_device_name") or None),
+            "uplink_port": up.get("uplink_remote_port"),
+            "temperature": next((_f(t.get("value")) for t in (d.get("temperatures") or []) if isinstance(t, dict)), None),
+            "ports": len(d.get("port_table") or []) if str(d.get("type") or "") != "uap" else None,
+        })
+    order = {"Gateway": 0, "Switch": 1, "Access Point": 2}
+    out.sort(key=lambda x: (order.get(x["kind"], 3), str(x["name"]).lower()))
+    return out
+
+
+def clients_view(clients, devices):
+    names = {_mac(d.get("mac")): d.get("name") or d.get("model") for d in (devices or [])}
+    out = []
+    for c in (clients or []):
+        wired = bool(c.get("is_wired"))
+        out.append({
+            "mac": _mac(c.get("mac")), "name": c.get("name") or c.get("hostname") or c.get("oui") or _mac(c.get("mac")),
+            "ip": c.get("ip"), "wired": wired, "network": c.get("network"),
+            "switch": names.get(_mac(c.get("sw_mac"))) if wired else None, "switch_mac": _mac(c.get("sw_mac")) if wired else None,
+            "port": c.get("sw_port") if wired else None,
+            "wifi": c.get("essid") if not wired else None, "ap": names.get(_mac(c.get("ap_mac"))) if not wired else None,
+            "signal": c.get("signal") if not wired else None, "band": c.get("radio") if not wired else None,
+            "uptime_s": c.get("uptime"), "maker": c.get("oui") or None,
+        })
+    out.sort(key=lambda x: str(x["name"]).lower())
+    return out
+
+
+def wifi_view(wlans, clients):
+    count = {}
+    for c in (clients or []):
+        if c.get("essid") and not c.get("is_wired"):
+            count[c["essid"]] = count.get(c["essid"], 0) + 1
+    out = []
+    for w in (wlans or []):
+        bands = w.get("wlan_bands") or ([w["wlan_band"]] if w.get("wlan_band") else [])
+        out.append({                                   # NAMED FIELDS ONLY — the record also holds the password
+            "id": w.get("_id"), "name": w.get("name"), "enabled": bool(w.get("enabled")),
+            "security": _SEC.get(str(w.get("security") or ""), str(w.get("security") or "") or None),
+            "wpa_mode": w.get("wpa_mode"), "bands": [{"2g": "2.4 GHz", "5g": "5 GHz", "6g": "6 GHz"}.get(b, b) for b in bands],
+            "guest": bool(w.get("is_guest")), "hidden": bool(w.get("hide_ssid")), "clients": count.get(w.get("name"), 0),
+        })
+    return out

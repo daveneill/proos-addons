@@ -174,6 +174,17 @@ select option,select optgroup{background:#1a1c20;color:#fff}
 .unp-red{color:#ff8a73;font-style:normal}
 .unp-pt{font-size:12px;color:var(--t2)}
 .unp-pn{font-size:18px;font-weight:600;margin:3px 0 4px;word-break:break-word}
+/* NETWORK → DEVICES, CLIENTS, WI-FI — register 1225 */
+.und-dot{flex:0 0 38px!important;display:flex;align-items:center}
+.und-dot::before{content:"";width:9px;height:9px;border-radius:50%;background:#46e3a0}
+.und-dot.off::before{background:#ff8a73}
+.und-sub{color:var(--t2);font-size:12px;font-weight:400}
+.und-upd{font-style:normal;color:#f5b041}
+.und-ico{color:var(--t2);font-size:15px}
+.und-rh>*:nth-child(3),.unp-row .und-conn{flex:0 0 150px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.und-q{flex:1 1 180px;min-width:120px;max-width:280px;font-size:13px;padding:6px 11px;border-radius:9px;border:0.5px solid var(--line);background:rgba(0,0,0,.25);color:#fff;font-family:inherit}
+.und-wifis{display:flex;flex-wrap:wrap;gap:14px}
+.und-wifi{flex:1 1 300px;max-width:440px}
 /* PROTECT → ALARM — register 1224 */
 .ual .unp-panel{order:-1}
 .ual-devs{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:0}
@@ -3152,7 +3163,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102654';
+const PROOS_BUILD='2026102655';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -5019,8 +5030,8 @@ async function _uniNetRefresh(again){
 // on the bottom, lit in the link-speed colour — from Core's port map (1219: the controller's own tables through ProOS's
 // local user). What each port carries, PoE watts, and the LOCKS (the switch's uplink, ports feeding other UniFi gear,
 // the ProOS box's port). Read only in this build: switching uses the platform's own port controls, next.
-let _uniNetSection='ports', _uniPorts=null, _uniPortSw=null, _uniPortSel=null, _uniPortFilter='use';
-function uniNetSection(s){ _uniNetSection=s; renderUniNet(); }
+let _uniNetSection='devices', _uniPorts=null, _uniPortSw=null, _uniPortSel=null, _uniPortFilter='use';   // 1225: Devices first, as the mockup
+function uniNetSection(s){ _uniNetSection=s; _uniNetSel=null; renderUniNet(); }
 function _upSpeed(p){ const s=Number(p.speed)||0; if(!p.link) return ''; return s>=10000?'10 GbE':s>=2500?'2.5 GbE':s>=1000?'GbE':s>0?'FE':''; }
 function _upColor(p){
   if(p.enabled===false) return null;            // switched off: dark, red dashed edge
@@ -5117,10 +5128,71 @@ function _uniPortsHTML(){
   h+=`<div class="unp-split"><section class="unp-list"><div class="unp-chips">${chips}<button class="unp-chip" style="margin-left:auto" onclick="_uniPorts=null;renderUniNet();_uniPortsLoad()">Refresh</button></div><div class="unp-rh"><b>Port</b><span>Carries</span><span>Speed</span><span>PoE</span><span></span></div>${rows}</section><aside class="unp-panel">${panel}</aside></div>`;
   return h;
 }
+// ── REGISTER 1225 — NETWORK → DEVICES, CLIENTS, WI-FI (the mockup's other Network sections; Dave 6 Nov: "sure go").
+// One read from Core (/unifi/console/network: the controller's own tables through ProOS's local user, named fields only —
+// the Wi-Fi records hold passwords and none leave Core). Devices: the gateway, switches and access points with firmware,
+// update waiting, clients and uptime; Clients: every client, wired by switch and port or Wi-Fi by network, access point and
+// signal; Wi-Fi: each network, its security, bands and how many are on it. Read only.
+let _uniNet=null, _uniNetSel=null, _uniCliFilter='all', _uniCliQ='';
+async function _uniNetLoad(){
+  try{ const r=await fetch(proCoreUrl()+'/unifi/console/network'); _uniNet=r.ok?await r.json():{ok:false,why:'Core answered '+r.status}; }
+  catch(e){ _uniNet={ok:false,why:'Couldn\'t reach ProOS Core'}; }
+  if(panelActive('unifi-net')&&['devices','clients','wifi'].includes(_uniNetSection)) renderUniNet();
+}
+function uniNetPick(k){ _uniNetSel=k; renderUniNet(); }
+function uniCliFilter(f){ _uniCliFilter=f; renderUniNet(); }
+function uniCliSearch(v){ _uniCliQ=String(v||''); clearTimeout(window._uniCliT); window._uniCliT=setTimeout(()=>{ renderUniNet(); const i=document.getElementById('uni-cli-q'); if(i){ i.focus(); i.setSelectionRange(i.value.length,i.value.length); } },250); }
+function _upTime(s){ s=Number(s)||0; if(!s) return '—'; const d=Math.floor(s/86400), h=Math.floor(s%86400/3600), m=Math.floor(s%3600/60); return d?d+'d '+h+'h':(h?h+'h '+m+'m':m+'m'); }
+function _uniNetHTML(){
+  const d=_uniNet;
+  if(!d) return '<div class="empty"><div class="et">Reading the network…</div></div>';
+  if(!d.ok) return `<div class="empty"><div class="et">Couldn't read the network</div><div class="es">${esc(d.why||'')}. The console sign-in is on the UniFi Overview page, under Console Settings.</div></div>`;
+  const kv=(k,v)=>`<div class="unifi-row"><span class="unifi-row-l">${k}</span><span class="unifi-row-d">${v}</span></div>`;
+  const refresh=`<button class="unp-chip" style="margin-left:auto" onclick="_uniNet=null;renderUniNet();_uniNetLoad()">Refresh</button>`;
+  const inet=d.internet?`<span class="unp-chip" style="cursor:default">Internet: ${d.internet.status==='ok'?'<span style="color:#46e3a0">● Up</span>':esc(d.internet.status||'—')}${d.internet.isp?' · '+esc(d.internet.isp):''}</span>`:'';
+  if(_uniNetSection==='devices'){
+    const L=d.devices||[], sel=L.find(x=>x.mac===_uniNetSel);
+    const rows=L.map(x=>`<button class="unp-row${x.mac===_uniNetSel?' on':''}" onclick="uniNetPick('${esc(x.mac)}')"><span class="und-dot ${x.online===false?'off':'on'}"></span><span class="unp-c"><b>${esc(x.name)}</b> <span class="und-sub">${esc(x.kind||'')} · ${esc(x.model||'')}</span></span><span>${esc(x.ip||'—')}</span><span>${x.upgradable?'<em class="und-upd">Update</em>':esc(x.version||'—')}</span><span>${x.clients!=null?x.clients:'—'}</span></button>`).join('');
+    let panel='<div class="es">Tap a device to see it.</div>';
+    if(sel){ panel=`<div class="unp-pt">${esc(sel.kind||'')} · ${esc(sel.model||'')}</div><div class="unp-pn">${esc(sel.name)}</div><div class="unifi-status">`
+      +kv('State',sel.online===false?'<em class="unp-red">Offline</em>':'<span style="color:#46e3a0">● Online</span>')+kv('Address',esc(sel.ip||'—'))
+      +kv('Firmware',esc(sel.version||'—')+(sel.upgradable?' — <em class="und-upd">'+esc(sel.upgrade_to||'update')+' waiting</em>':''))
+      +kv('Clients',sel.clients!=null?sel.clients:'—')+kv('Up For',_upTime(sel.uptime_s))
+      +(sel.uplink?kv('Uplink',esc(sel.uplink)+(sel.uplink_port!=null?' · port '+sel.uplink_port:'')):'')
+      +(sel.temperature!=null?kv('Temperature',sel.temperature.toFixed(0)+' °C'):'')+'</div>'
+      +(sel.ports?`<button class="unp-act" onclick="_uniPortSw='${esc(sel.mac)}';_uniPortSel=null;uniNetSection('ports')">See Its ${sel.ports} Ports</button>`:''); }
+    return `<div class="unp-chips">${inet}${refresh}</div><div class="unp-split"><section class="unp-list"><div class="unp-rh und-rh"><b></b><span>Device</span><span>Address</span><span>Firmware</span><span>Clients</span></div>${rows}</section><aside class="unp-panel">${panel}</aside></div>`;
+  }
+  if(_uniNetSection==='clients'){
+    if(!d.clients) return `<div class="empty"><div class="et">Couldn't read the clients</div><div class="es">${esc(d.why_clients||'')}</div></div>`;
+    const q=_uniCliQ.trim().toLowerCase();
+    const F={all:['All',()=>true],wired:['Wired',c=>c.wired],wifi:['Wi-Fi',c=>!c.wired]};
+    const chips=Object.entries(F).map(([k,[l,fn]])=>`<button class="unp-chip${_uniCliFilter===k?' on':''}" onclick="uniCliFilter('${k}')">${l} ${d.clients.filter(fn).length}</button>`).join('');
+    const L=d.clients.filter(F[_uniCliFilter][1]).filter(c=>!q||[c.name,c.ip,c.mac,c.maker,c.wifi,c.switch].some(v=>String(v||'').toLowerCase().includes(q)));
+    const sel=d.clients.find(c=>c.mac===_uniNetSel);
+    const conn=c=>c.wired?(c.switch?esc(c.switch)+' · port '+c.port:'Wired'):(esc(c.wifi||'Wi-Fi')+(c.signal!=null?' · '+c.signal+' dBm':''));
+    const rows=L.map(c=>`<button class="unp-row${c.mac===_uniNetSel?' on':''}" onclick="uniNetPick('${esc(c.mac)}')"><span class="und-ico">${c.wired?'⌁':'◠'}</span><span class="unp-c">${esc(c.name)}</span><span>${esc(c.ip||'—')}</span><span class="und-conn">${conn(c)}</span><span>${_upTime(c.uptime_s)}</span></button>`).join('')||'<div class="es" style="padding:10px">No clients match.</div>';
+    let panel='<div class="es">Tap a client to see it.</div>';
+    if(sel){ panel=`<div class="unp-pt">${sel.wired?'Wired':'Wi-Fi'} client</div><div class="unp-pn">${esc(sel.name)}</div><div class="unifi-status">`
+      +kv('Address',esc(sel.ip||'—'))+kv('Network',esc(sel.network||'—'))+(sel.maker?kv('Maker',esc(sel.maker)):'')
+      +(sel.wired?kv('Plugged Into',sel.switch?esc(sel.switch)+' · port '+sel.port:'—'):kv('Wi-Fi',esc(sel.wifi||'—'))+kv('Access Point',esc(sel.ap||'—'))+kv('Signal',sel.signal!=null?sel.signal+' dBm':'—'))
+      +kv('Connected For',_upTime(sel.uptime_s))+'</div>'
+      +(sel.wired&&sel.switch_mac?`<button class="unp-act" onclick="uniGoPort('${esc(sel.switch_mac)}',${Number(sel.port)})">See Its Port</button>`:''); }
+    return `<div class="unp-chips">${chips}<input id="uni-cli-q" class="und-q" placeholder="Search name, address, maker…" value="${esc(_uniCliQ)}" oninput="uniCliSearch(this.value)"/>${refresh}</div><div class="unp-split"><section class="unp-list"><div class="unp-rh und-rh"><b></b><span>Client</span><span>Address</span><span>Connected By</span><span>For</span></div>${rows}</section><aside class="unp-panel">${panel}</aside></div>`;
+  }
+  // wifi
+  if(!d.wifi) return `<div class="empty"><div class="et">Couldn't read the Wi-Fi networks</div><div class="es">${esc(d.why_wifi||'')}</div></div>`;
+  const cards=d.wifi.map(w=>`<div class="unp-card und-wifi"><div class="unp-head"><b>${esc(w.name||'Wi-Fi')}</b><span>${w.enabled?'<span style="color:#46e3a0">● On</span>':'<em class="unp-red">Off</em>'}</span></div><div class="unifi-status">`
+    +kv('Security',esc(w.security||'—')+(w.wpa_mode?' ('+esc(String(w.wpa_mode).toUpperCase())+')':''))+kv('Bands',esc((w.bands||[]).join(' · ')||'—'))
+    +kv('On It Now',w.clients+' client'+(w.clients===1?'':'s'))+(w.guest?kv('Guest Network','Yes'):'')+(w.hidden?kv('Hidden','Yes'):'')+'</div></div>').join('')||'<div class="es">No Wi-Fi networks.</div>';
+  return `<div class="unp-chips">${inet}${refresh}</div><div class="und-wifis">${cards}</div>`;
+}
 function renderUniNet(){
   const body=document.getElementById('uninet-body'); if(!body) return;
-  const seg=`<div class="unp-seg"><button class="${_uniNetSection==='ports'?'on':''}" onclick="uniNetSection('ports')">Ports</button><button class="${_uniNetSection==='integration'?'on':''}" onclick="uniNetSection('integration')">Integration</button></div>`;
+  const segb=(k,l)=>`<button class="${_uniNetSection===k?'on':''}" onclick="uniNetSection('${k}')">${l}</button>`;
+  const seg=`<div class="unp-seg">${segb('devices','Devices')}${segb('ports','Ports')}${segb('clients','Clients')}${segb('wifi','Wi-Fi')}${segb('integration','Integration')}</div>`;
   if(_uniNetSection==='ports'){ setHTML(body, seg+_uniPortsHTML()); if(!_uniPorts) _uniPortsLoad(); return; }
+  if(['devices','clients','wifi'].includes(_uniNetSection)){ setHTML(body, seg+_uniNetHTML()); if(!_uniNet) _uniNetLoad(); return; }
   // ONE DEVICE LIST, NOT TWO (register 415). This panel carried its own
   // _uniNetDeviceRows — a near-copy of the generic page's list, written before
   // the mirror existed, and therefore missing the model, the entity count, the
