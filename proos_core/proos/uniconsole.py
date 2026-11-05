@@ -343,9 +343,14 @@ def icons(creds, h, found=None, http=None):
             url = _resolve(h, root, href)
             if not url:
                 continue
+            path = url.split(h, 1)[-1].split("?")[0]
+            if not path.startswith(root):
+                # MEASURED (1.0.1316 on the box): the pages also declare /apple-touch-icon.png — the same "U" as a
+                # PNG. An icon at the console's root is the CONSOLE's; only one under the app's own address is its.
+                tried.append("%s is the console's own mark" % path)
+                continue
             r = http("GET", url, None, dict(hd, Accept="image/*"))
             img = _as_image(*r)
-            path = url.split(h, 1)[-1].split("?")[0]
             if img and img == out.get("console"):
                 # MEASURED (1.0.1315 on the box): every app's page declares /favicon.svg — the console's own "U".
                 # That is the console's mark, not the app's logo; showing it on every tile would say nothing.
