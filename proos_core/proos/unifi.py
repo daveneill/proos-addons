@@ -230,6 +230,23 @@ class ProtectClient:
     def alarm_webhook(self, trigger_id):
         return self._req("POST", INTEGRATION, f"/v1/alarm-manager/webhook/{urllib.parse.quote(str(trigger_id), safe='')}")
 
+    # ---- sirens ----  (REGISTER 1226: back INSIDE the class — 1224's module-level block was dropped between the
+    # class's last methods and them, which made these four functions dead code and broke the camera list)
+    def siren_play(self, sid):
+        return self._req("POST", INTEGRATION, f"/v1/sirens/{sid}/play")
+
+    def siren_stop(self, sid):
+        return self._req("POST", INTEGRATION, f"/v1/sirens/{sid}/stop")
+
+    # ---- generic read-only collection passthrough ----
+    def collection(self, name):
+        if name not in _GET_COLLECTIONS:
+            raise ProtectError(404, f"unknown collection {name}")
+        return self._req("GET", INTEGRATION, f"/v1/{name}")
+
+    def meta_info(self):
+        return self._req("GET", INTEGRATION, "/v1/meta/info")
+
 
 # ── REGISTER 1224 — THE ALARM PAGE (Dave, 6 Nov: "Build both") ─────────────────────────────────────────────────────
 # MEASURED on Dave's console: /v1/arm-profiles answers 400 "This operation is not available when global alarm manager is
@@ -293,22 +310,6 @@ def alarm_view(client) -> dict:
         except ProtectError as e:
             out[key], out.setdefault("unread", {})[key] = None, e.message[:160]
     return out
-
-    # ---- sirens ----
-    def siren_play(self, sid):
-        return self._req("POST", INTEGRATION, f"/v1/sirens/{sid}/play")
-
-    def siren_stop(self, sid):
-        return self._req("POST", INTEGRATION, f"/v1/sirens/{sid}/stop")
-
-    # ---- generic read-only collection passthrough ----
-    def collection(self, name):
-        if name not in _GET_COLLECTIONS:
-            raise ProtectError(404, f"unknown collection {name}")
-        return self._req("GET", INTEGRATION, f"/v1/{name}")
-
-    def meta_info(self):
-        return self._req("GET", INTEGRATION, "/v1/meta/info")
 
 # ---------------------------------------------------------------------------
 # HTTP dispatch — called from server.py do_GET / do_POST when parts[0]=="unifi".
