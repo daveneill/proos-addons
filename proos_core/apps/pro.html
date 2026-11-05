@@ -3167,7 +3167,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102656';
+const PROOS_BUILD='2026102657';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -5144,6 +5144,20 @@ async function _uniNetLoad(){
   if(panelActive('unifi-net')&&['devices','clients','wifi'].includes(_uniNetSection)) renderUniNet();
 }
 function uniNetPick(k){ _uniNetSel=k; renderUniNet(); }
+// REGISTER 1227 — a Wi-Fi network on or off, through the platform's own Wi-Fi switch; Core reads it back from the controller.
+async function uniWifiSet(id,on){
+  const w=((_uniNet&&_uniNet.wifi)||[]).find(x=>x.id===id)||{};
+  const name=w.name||'this network', mine=_uniNet&&_uniNet.you_are_on===w.name;
+  const q=on?('Turn '+name+' on?')
+    :('Turn '+name+' off?\n\n'+(w.clients?w.clients+' device'+(w.clients===1?' is':'s are')+' on it now and will drop off.':'Nothing is on it now.')
+      +(mine?'\n\nThis screen is on '+name+' — it will lose ProOS until '+name+' is back on (turn it on from the UniFi app, or from a screen on another network).':''));
+  if(!await proAsk(q)) return;
+  toast((on?'Turning ':'Turning off ')+name+(on?' on…':'…'));
+  try{ const r=await fetch(proCoreUrl()+'/unifi/console/network/wifi',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,on})}); const d=await r.json();
+    toast(!d.ok?(d.why||'Not done'):(d.confirmed?(name+' is '+(on?'on':'off')+' — confirmed by the controller'):(d.said||'Sent')));
+  }catch(e){ toast(_coreFailWords('',e)); }
+  _uniNet=null; if(panelActive('unifi-net')){ renderUniNet(); _uniNetLoad(); }
+}
 function uniCliFilter(f){ _uniCliFilter=f; renderUniNet(); }
 function uniCliSearch(v){ _uniCliQ=String(v||''); clearTimeout(window._uniCliT); window._uniCliT=setTimeout(()=>{ renderUniNet(); const i=document.getElementById('uni-cli-q'); if(i){ i.focus(); i.setSelectionRange(i.value.length,i.value.length); } },250); }
 function _upTime(s){ s=Number(s)||0; if(!s) return '—'; const d=Math.floor(s/86400), h=Math.floor(s%86400/3600), m=Math.floor(s%3600/60); return d?d+'d '+h+'h':(h?h+'h '+m+'m':m+'m'); }
@@ -5188,7 +5202,12 @@ function _uniNetHTML(){
   if(!d.wifi) return `<div class="empty"><div class="et">Couldn't read the Wi-Fi networks</div><div class="es">${esc(d.why_wifi||'')}</div></div>`;
   const cards=d.wifi.map(w=>`<div class="unp-card und-wifi"><div class="unp-head"><b>${esc(w.name||'Wi-Fi')}</b><span>${w.enabled?'<span style="color:#46e3a0">● On</span>':'<em class="unp-red">Off</em>'}</span></div><div class="unifi-status">`
     +kv('Security',esc(w.security||'—')+(w.wpa_mode?' ('+esc(String(w.wpa_mode).toUpperCase())+')':''))+kv('Bands',esc((w.bands||[]).join(' · ')||'—'))
-    +kv('On It Now',w.clients+' client'+(w.clients===1?'':'s'))+(w.guest?kv('Guest Network','Yes'):'')+(w.hidden?kv('Hidden','Yes'):'')+'</div></div>').join('')||'<div class="es">No Wi-Fi networks.</div>';
+    +kv('On It Now',w.clients+' client'+(w.clients===1?'':'s'))+(w.guest?kv('Guest Network','Yes'):'')+(w.hidden?kv('Hidden','Yes'):'')+'</div>'
+    // register 1227: on/off through the platform's own Wi-Fi switch, asked first
+    +(w.control&&w.control.enabled?`<div class="unp-acts"><button class="${w.enabled?'unp-act':'btn-primary'}" onclick="uniWifiSet('${esc(w.id)}',${!w.enabled})">${w.enabled?'Turn '+(w.guest?'Guest Network':'Network')+' Off':'Turn '+(w.guest?'Guest Network':'Network')+' On'}</button></div>`
+      :(w.control?'<div class="es" style="margin-top:8px">The platform\'s switch for this network is switched off.</div>':'<div class="es" style="margin-top:8px">The platform offers no switch for this network.</div>'))
+    +(d.you_are_on&&d.you_are_on===w.name?'<div class="es" style="margin-top:8px">This screen is on this network.</div>':'')
+    +'</div>').join('')||'<div class="es">No Wi-Fi networks.</div>';
   return `<div class="unp-chips">${inet}${refresh}</div><div class="und-wifis">${cards}</div>`;
 }
 function renderUniNet(){

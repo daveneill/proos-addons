@@ -689,7 +689,14 @@ def clients_view(clients, devices):
     return out
 
 
-def wifi_view(wlans, clients):
+def wifi_view(wlans, clients, entities=None):
+    # register 1226b (Wi-Fi on/off): each network is joined to the PLATFORM's own Wi-Fi switch by its unique id
+    # "wlan-<id>" — the switch that turns it on and off is the platform's; ProOS only presses it.
+    ctl = {}
+    for e in (entities or []):
+        uid = str(e.get("unique_id") or "")
+        if e.get("platform") == "unifi" and uid.startswith("wlan-"):
+            ctl[uid[5:]] = {"entity_id": e.get("entity_id"), "enabled": not e.get("disabled_by")}
     count = {}
     for c in (clients or []):
         if c.get("essid") and not c.get("is_wired"):
@@ -702,5 +709,6 @@ def wifi_view(wlans, clients):
             "security": _SEC.get(str(w.get("security") or ""), str(w.get("security") or "") or None),
             "wpa_mode": w.get("wpa_mode"), "bands": [{"2g": "2.4 GHz", "5g": "5 GHz", "6g": "6 GHz"}.get(b, b) for b in bands],
             "guest": bool(w.get("is_guest")), "hidden": bool(w.get("hide_ssid")), "clients": count.get(w.get("name"), 0),
+            "control": ctl.get(str(w.get("_id") or "")),
         })
     return out

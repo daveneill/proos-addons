@@ -6479,13 +6479,48 @@ class Handler(BaseHTTPRequestHandler):
             hl, _w4 = _uc.get_json(_creds, ph, base + "stat/health")
             D = (devs or {}).get("data") or []
             C = ((cls or {}).get("data") or []) if cls is not None else None
+            try:
+                ents = [e for e in (_client.entity_registry() or []) if e.get("platform") == "unifi"]
+            except Exception:                                    # noqa: BLE001
+                ents = []
+            # which Wi-Fi network the screen asking is on (best effort, by its address) — so Pro can warn before it
+            # turns off the network it is itself using
+            me = (getattr(self, "client_address", None) or [""])[0]
+            mine = next((c.get("essid") for c in (C or []) if c.get("ip") == me and not c.get("is_wired")), None)
             wan = next((x for x in ((hl or {}).get("data") or []) if x.get("subsystem") == "wan"), {}) if hl else {}
             return self._send(200, {"ok": True, "devices": _un.devices_view(D),
                                     "clients": _un.clients_view(C, D) if C is not None else None, "why_clients": why2,
-                                    "wifi": _un.wifi_view(((wl or {}).get("data") or []), C or []) if wl is not None else None,
-                                    "why_wifi": why3,
+                                    "wifi": _un.wifi_view(((wl or {}).get("data") or []), C or [], ents) if wl is not None else None,
+                                    "why_wifi": why3, "you_are_on": mine,
                                     "internet": {"status": wan.get("status"), "isp": wan.get("isp_name"),
                                                  "latency_ms": wan.get("latency")} if wan else None})
+        if method == "POST" and sub == "network" and sub2 == "wifi":
+            # REGISTER 1227 — turn one Wi-Fi network on or off through the PLATFORM's own Wi-Fi switch (wlan-<id>), then
+            # read the network back from the controller. Dave, 6 Nov: "Yup go" (on/off and guest networks, each asked
+            # first in Pro). "Confirmed" only when the controller reports the network in the new state.
+            import time as _t
+            wid, on = str(b.get("id") or ""), bool(b.get("on"))
+            try:
+                e = next((x for x in (_client.entity_registry() or [])
+                          if x.get("platform") == "unifi" and str(x.get("unique_id") or "") == "wlan-" + wid), None)
+            except Exception:                                    # noqa: BLE001
+                e = None
+            if not wid or e is None:
+                return self._send(200, {"ok": False, "why": "the platform offers no switch for that Wi-Fi network"})
+            if e.get("disabled_by"):
+                return self._send(200, {"ok": False, "why": "the platform's switch for that Wi-Fi network is switched off"})
+            try:
+                _client.call_service("switch", "turn_on" if on else "turn_off", e["entity_id"])
+            except Exception as ex:                              # noqa: BLE001
+                return self._send(200, {"ok": False, "why": "the platform refused: %s" % str(ex)[:160]})
+            for _ in range(8):
+                _t.sleep(2)
+                wl2, _w = _uc.get_json(_creds, ph, "/proxy/network/api/s/default/rest/wlanconf")
+                row = next((x for x in ((wl2 or {}).get("data") or []) if str(x.get("_id")) == wid), None)
+                if row is not None and bool(row.get("enabled")) == on:
+                    return self._send(200, {"ok": True, "confirmed": True, "name": row.get("name"), "on": on})
+            return self._send(200, {"ok": True, "confirmed": False,
+                                    "said": "the platform took the command but the controller did not report the change within 16 seconds"})
         if method == "GET" and sub == "ports" and sub2 == "where":
             # REGISTER 1223 — which switch port a device (by MAC) is on: live, the controller's history, or where ProOS
             # last saw it — the same locate Assist uses (1222). Read only. Protect's Live View links an offline camera
