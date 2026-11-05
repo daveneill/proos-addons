@@ -129,6 +129,18 @@ select option,select optgroup{background:#1a1c20;color:#fff}
 .uni-tile-p{font-size:13px;color:var(--t2);line-height:1.45}
 .uni-tile-foot{margin-top:auto;display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--t2)}
 .uni-tile-foot button{margin-left:auto;font-size:13px;font-weight:600;color:#fff;background:var(--accent);border:0;border-radius:10px;padding:8px 14px;cursor:pointer}
+/* REGISTER 1229 — the mockup's left-side section list for Protect and Network (Dave, 6 Nov: "yes all of it please").
+   Sections down the left, the page on the right; a scrolling row on a phone. A section not built yet is greyed with
+   "Coming" and cannot be opened — nothing is drawn to look finished. */
+.uni-split{display:grid;grid-template-columns:200px minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:700px){.uni-split{grid-template-columns:minmax(0,1fr)}}
+.uni-main{min-width:0}
+.uni-side{display:flex;flex-direction:column;gap:2px;padding:6px;border-radius:14px;background:rgba(0,0,0,0.35);position:sticky;top:12px}
+.uni-side button{display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left;font-size:13.5px;padding:9px 12px;border-radius:9px;border:0;background:transparent;color:rgba(255,255,255,0.82);cursor:pointer}
+.uni-side button.on{background:var(--card-hi);color:#fff;font-weight:600}
+.uni-side button:disabled{color:rgba(255,255,255,0.38);cursor:default}
+.uni-soon{font-size:10.5px;font-weight:500;padding:2px 6px;border-radius:6px;background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.45)}
+@media (max-width:700px){.uni-side{flex-direction:row;overflow-x:auto;position:static}.uni-side button{white-space:nowrap}}
 /* NETWORK → PORTS — register 1220: the switch's face as RJ45 sockets (Dave: "ports not rectangular") */
 .unp-seg{display:inline-flex;gap:2px;padding:3px;border-radius:11px;background:rgba(0,0,0,0.35);margin-bottom:14px}
 .unp-seg button{font-size:13.5px;padding:7px 16px;border-radius:9px;border:0;background:transparent;color:rgba(255,255,255,0.8);cursor:pointer}
@@ -2397,9 +2409,10 @@ body.v3.railmin .aw-screen{left:108px!important}
         <div class="panel-title">UniFi Protect</div>
       </div>
       <div id="unibar-protect"></div>
-      <div id="unifi-seg"></div>
-      <div id="unifi-live" style="display:none"></div>
-      <div id="unifi-body"><div class="empty"><div class="et">Checking connection…</div></div></div>
+      <div class="uni-split"><div id="unifi-seg"></div><div class="uni-main">
+        <div id="unifi-live" style="display:none"></div>
+        <div id="unifi-body"><div class="empty"><div class="et">Checking connection…</div></div></div>
+      </div></div>
     </div>
 
     <!-- UNIFI NETWORK (dedicated panel — part of the UniFi suite, same shape as Protect/Access/Alarm) -->
@@ -3167,7 +3180,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102657';
+const PROOS_BUILD='2026102658';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -5036,6 +5049,19 @@ async function _uniNetRefresh(again){
 // the ProOS box's port). Read only in this build: switching uses the platform's own port controls, next.
 let _uniNetSection='devices', _uniPorts=null, _uniPortSw=null, _uniPortSel=null, _uniPortFilter='use';   // 1225: Devices first, as the mockup
 function uniNetSection(s){ _uniNetSection=s; _uniNetSel=null; renderUniNet(); }
+// REGISTER 1229 — the mockup's section lists. [key, label, built]. A section not built is listed (so the installer sees
+// the whole app) but greyed with "Coming" and cannot be opened; each build flips its own entry to true.
+const UNI_PROTECT_SECTIONS=[['live','Live View',true],['detections','Detections',false],['alarm','Alarm Manager',true],
+  ['cameras','Cameras',false],['doorbell','Doorbell',false],['lights','Lights & Chimes',false],['sensors','Sensors',false],
+  ['relays','Relays & Sirens',false],['viewports','Viewports',false],['recordings','Recordings',false],['setup','Setup',true]];
+const UNI_NET_SECTIONS=[['devices','Devices',true],['ports','Ports',true],['clients','Clients',true],['wifi','Wi-Fi',true],
+  ['networks','Networks',false],['internet','Internet',false],['guests','Guests',false],['firewall','Firewall & Rules',false],
+  ['power','Power',false],['events','Events',false],['integration','Integration',true]];
+function _uniSide(items,cur,fn){
+  return `<nav class="uni-side" aria-label="Sections">${items.map(([k,l,ok])=>ok
+    ?`<button class="${cur===k?'on':''}" onclick="${fn}('${k}')">${esc(l)}</button>`
+    :`<button disabled title="Not built yet">${esc(l)}<span class="uni-soon">Coming</span></button>`).join('')}</nav>`;
+}
 function _upSpeed(p){ const s=Number(p.speed)||0; if(!p.link) return ''; return s>=10000?'10 GbE':s>=2500?'2.5 GbE':s>=1000?'GbE':s>0?'FE':''; }
 function _upColor(p){
   if(p.enabled===false) return null;            // switched off: dark, red dashed edge
@@ -5212,10 +5238,10 @@ function _uniNetHTML(){
 }
 function renderUniNet(){
   const body=document.getElementById('uninet-body'); if(!body) return;
-  const segb=(k,l)=>`<button class="${_uniNetSection===k?'on':''}" onclick="uniNetSection('${k}')">${l}</button>`;
-  const seg=`<div class="unp-seg">${segb('devices','Devices')}${segb('ports','Ports')}${segb('clients','Clients')}${segb('wifi','Wi-Fi')}${segb('integration','Integration')}</div>`;
-  if(_uniNetSection==='ports'){ setHTML(body, seg+_uniPortsHTML()); if(!_uniPorts) _uniPortsLoad(); return; }
-  if(['devices','clients','wifi'].includes(_uniNetSection)){ setHTML(body, seg+_uniNetHTML()); if(!_uniNet) _uniNetLoad(); return; }
+  // register 1229: the left-side section list (the mockup) — wrap(page) puts the page beside it
+  const wrap=h=>`<div class="uni-split">${_uniSide(UNI_NET_SECTIONS,_uniNetSection,'uniNetSection')}<div class="uni-main">${h}</div></div>`;
+  if(_uniNetSection==='ports'){ setHTML(body, wrap(_uniPortsHTML())); if(!_uniPorts) _uniPortsLoad(); return; }
+  if(['devices','clients','wifi'].includes(_uniNetSection)){ setHTML(body, wrap(_uniNetHTML())); if(!_uniNet) _uniNetLoad(); return; }
   // ONE DEVICE LIST, NOT TWO (register 415). This panel carried its own
   // _uniNetDeviceRows — a near-copy of the generic page's list, written before
   // the mirror existed, and therefore missing the model, the entity count, the
@@ -5223,9 +5249,9 @@ function renderUniNet(){
   // would have shown every UniFi device twice. The near-copy is gone and the
   // shared mirror takes its place under the SAME "Devices" heading this panel
   // has always used, so the page reads as it did and says more.
-  setHTML(body, seg + _unifiNetCard()
+  setHTML(body, wrap(_unifiNetCard()
     + certMirrorHTML('unifi',{name:'Devices'})
-    + _uniNetRemoveRow());
+    + _uniNetRemoveRow()));
 }
 function _uniNetRemoveRow(){
   // Installer-facing remove & re-add — Core deletes the native entry with its
@@ -15923,7 +15949,7 @@ let _uniProtectSection='live', _uniCams=null, _uniCamSel=null, _uniCamFilter='al
 function uniProtectSection(s){
   _uniProtectSection=s;
   const seg=document.getElementById('unifi-seg'), live=document.getElementById('unifi-live'), body=document.getElementById('unifi-body');
-  if(seg) setHTML(seg,`<div class="unp-seg"><button class="${s==='live'?'on':''}" onclick="uniProtectSection('live')">Live View</button><button class="${s==='alarm'?'on':''}" onclick="uniProtectSection('alarm')">Alarm</button><button class="${s==='setup'?'on':''}" onclick="uniProtectSection('setup')">Setup</button></div>`);
+  if(seg) setHTML(seg,_uniSide(UNI_PROTECT_SECTIONS,s,'uniProtectSection'));
   if(live) live.style.display=s==='setup'?'none':'';
   if(body) body.style.display=s==='setup'?'':'none';
   if(s!=='live'&&_uniCamTimer){ clearInterval(_uniCamTimer); _uniCamTimer=null; }
