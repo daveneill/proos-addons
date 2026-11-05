@@ -6466,6 +6466,18 @@ class Handler(BaseHTTPRequestHandler):
                         failed.append({"entity_id": e["entity_id"], "why": str(ex)[:120]})
             return self._send(200, {"ok": not failed, "enabled": len(done), "failed": failed,
                                     "note": "the platform reloads its UniFi integration to bring them online (about 30 seconds)"})
+        if method == "GET" and sub == "alarms":
+            # REGISTER 1230 — Protect → Alarm Manager: the console's own alarm list through ProOS's local user, passed
+            # through protectalarms' NAMED-FIELD view (actions hold web addresses; bootstrap holds the access key and the
+            # users — none leave Core). Read only.
+            from proos import protectalarms as _pa
+            au, why = _uc.get_json(_creds, ph, "/proxy/protect/api/automations")
+            if au is None:
+                return self._send(200, {"ok": False, "why": why})
+            bs, _wb = _uc.get_json(_creds, ph, "/proxy/protect/api/bootstrap")
+            al = _pa.alarms_view(au if isinstance(au, list) else [], bs if isinstance(bs, dict) else None)
+            return self._send(200, {"ok": True, "alarms": al, "names_read": bs is not None,
+                                    "on": sum(1 for x in al if x["on"]), "total": len(al)})
         if method == "GET" and sub == "network":
             # REGISTER 1225 — Network → Devices, Clients, Wi-Fi: the controller's own tables through ProOS's local user,
             # passed through unifinet's NAMED-FIELD views (the Wi-Fi records hold the passwords; none leave Core). Read only.

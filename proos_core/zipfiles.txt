@@ -5585,6 +5585,7 @@ proos/uistall.py
 proos/unifi.py
 proos/uniconsole.py
 proos/unifinet.py
+proos/protectalarms.py
 proos/usage.py
 proos/users.py
 proos/visibility.py
