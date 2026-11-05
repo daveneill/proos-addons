@@ -3196,7 +3196,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102661';
+const PROOS_BUILD='2026102662';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -16159,7 +16159,9 @@ function renderUniDets(){
   if(!d.ok){ setHTML(el,`<div class="empty"><div class="et">Couldn't read the detections</div><div class="es">${esc(d.why||'')}. ProOS reads them with its own console user (Console Settings on the UniFi page).</div></div>`); return; }
   const C=d.counts||{};
   const chips=`<button class="unp-chip${!_uniDetOnly?' on':''}" onclick="uniDetFilter('')">All ${d.total}</button>`
-    +UNI_DET_CHIPS.filter(([k])=>C[k]||_uniDetOnly===k).map(([k,l])=>`<button class="unp-chip${_uniDetOnly===k?' on':''}" onclick="uniDetFilter('${k}')">${l} ${C[k]||0}</button>`).join('')
+    // 1232c: the chosen filter shows how many Core found asking the console for that kind (only_total), the rest
+    // count within the newest events
+    +UNI_DET_CHIPS.filter(([k])=>C[k]||_uniDetOnly===k).map(([k,l])=>`<button class="unp-chip${_uniDetOnly===k?' on':''}" onclick="uniDetFilter('${k}')">${l} ${_uniDetOnly===k&&d.only===k&&d.only_total!=null?d.only_total:(C[k]||0)}</button>`).join('')
     +`<button class="unp-chip" style="margin-left:auto" onclick="_uniDet=null;renderUniDets();_uniDetLoad()">Refresh</button>`;
   const hm=t=>{ const n=Number(t); return n>0?new Date(n).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}):''; };
   const L=d.detections||[];

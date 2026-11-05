@@ -94,13 +94,25 @@ EV2 = [{"id": "690c11aa22bb33cc44dd55f1", "type": "lightMotion", "lightId": "F4E
        {"id": "690c11aa22bb33cc44dd55f2", "type": "sensorOpened", "deviceId": SEN, "start": 4, "end": 4},
        {"id": "690c11aa22bb33cc44dd55f3", "type": "access", "note": "Driveway", "user": CAM, "start": 3, "end": 3}]
 w2 = {x["id"][-2:]: x["device"] for x in pe.events_view(EV2, BOOT)}
+EV3 = [{"id": "690c11aa22bb33cc44dd55f4", "type": "lightMotion", "metadata": {"lightId": {"text": "F4:E2:C6:A1:B2:C3"}}, "start": 2, "end": 2},
+       {"id": "690c11aa22bb33cc44dd55f5", "type": "sensorClosed", "metadata": {"sensorId": {"text": "77aa11bb22cc33dd44ee5599"}}, "start": 1, "end": 1}]
+w3 = {x["id"][-2:]: x["device"] for x in pe.events_view(EV3, BOOT)}
+paths = pe.id_paths(EV3[1])
+ok(w3 == {"f4": "Driveway", "f5": "Unnamed device"} and paths == ["metadata.sensorId.text"] and "77aa" not in json.dumps(paths),
+   "7b · a device nested in the event's details is named by exact id or MAC; an unknown one reports only WHERE its id sits")
 ok(w2 == {"f1": "Driveway", "f2": "Garage Door", "f3": "Unnamed device"},
    "7 · a device under another field is named by its exact id or MAC; a word or the user field never names it")
+# 1232c — MEASURED on Dave's box: 235 of the newest 300 were motion, so a filter only saw what was inside them.
+q = pe.console_query(1000, 2000, "person")
+ok(q == "/proxy/protect/api/events?start=1000&end=2000&limit=300&types=smartDetectZone&types=smartDetectLine"
+   and pe.console_query(1, 2) == "/proxy/protect/api/events?start=1&end=2&limit=300"
+   and "types=sensorOpened" in pe.console_query(1, 2, "sensor") and pe.console_query(1, 2, "nonsense").endswith("limit=300"),
+   "8 · a filter asks the console for its own event types; no filter (or an unknown one) asks for everything")
 src = open(os.path.join(HERE, "..", "server.py"), encoding="utf-8").read()
 i = src.index('if method == "GET" and sub == "detections" and sub2 == "thumb":')
 route = src[i:src.index('if method == "GET" and sub == "network":', i)]
 ok("_pev.safe_id(eid)" in route and '_uc.get_image(_creds, ph, "/proxy/protect/api/events/" + eid + "/thumbnail")' in route
-   and '_uc.get_json(_creds, ph, "/proxy/protect/api/events?start=%d&end=%d&limit=300"' in route and "_pev.events_view(" in route
+   and "_uc.get_json(_creds, ph, _pev.console_query(t0, now))" in route and "_pev.console_query(t0, now, only)" in route and "_pev.events_view(" in route
    and "send_json" not in route and "call_service" not in route and '"detections": ev' not in route,
    "6 · the routes read only, through ProOS's own console user, and send the view")
 print("\n%d checks passed, %d failed" % (PASS, len(FAIL)))

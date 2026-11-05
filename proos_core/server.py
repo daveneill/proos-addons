@@ -6502,14 +6502,27 @@ class Handler(BaseHTTPRequestHandler):
                 hours = 24
             only = (qs.get("only") or [""])[0] or None
             now = int(_t.time() * 1000)
-            ev, why = _uc.get_json(_creds, ph, "/proxy/protect/api/events?start=%d&end=%d&limit=300" % (now - hours * 3600000, now))
+            t0 = now - hours * 3600000
+            ev, why = _uc.get_json(_creds, ph, _pev.console_query(t0, now))
             if ev is None:
                 return self._send(200, {"ok": False, "why": why})
             bs, _wb = _uc.get_json(_creds, ph, "/proxy/protect/api/bootstrap")
-            allv = _pev.events_view(ev if isinstance(ev, list) else [], bs if isinstance(bs, dict) else None)
-            view = [x for x in allv if not only or set(_pev.FILTERS.get(only, ())) & set(x["kinds"])]
+            B = bs if isinstance(bs, dict) else None
+            allv = _pev.events_view(ev if isinstance(ev, list) else [], B)
+            if only in _pev.FILTERS:
+                # 1232c: a filter asks the console for its own types, so it reaches past a flood of motion
+                ev2, why2 = _uc.get_json(_creds, ph, _pev.console_query(t0, now, only))
+                view = _pev.events_view(ev2 if isinstance(ev2, list) else [], B, only=only) if ev2 is not None else []
+                hit = isinstance(ev2, list) and len(ev2) >= 300
+            else:
+                view, hit = allv, isinstance(ev, list) and len(ev) >= 300
             return self._send(200, {"ok": True, "hours": hours, "detections": view[:200], "counts": _pev.counts(allv),
-                                    "total": len(allv), "read_limit_hit": isinstance(ev, list) and len(ev) >= 300})
+                                    "total": len(allv), "read_limit_hit": hit, "only": only if only in _pev.FILTERS else None,
+                                    "only_total": len(view) if only in _pev.FILTERS else None,
+                                    # box check only: WHERE an unnamed event keeps its ids (field paths, never values)
+                                    "unnamed_paths": sorted({p for e in (ev if isinstance(ev, list) else [])
+                                                             for x in _pev.events_view([e], B) if x["device"] == "Unnamed device"
+                                                             for p in _pev.id_paths(e)})[:30]})
         if method == "GET" and sub == "network":
             # REGISTER 1225 — Network → Devices, Clients, Wi-Fi: the controller's own tables through ProOS's local user,
             # passed through unifinet's NAMED-FIELD views (the Wi-Fi records hold the passwords; none leave Core). Read only.
