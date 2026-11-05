@@ -3200,7 +3200,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102666';
+const PROOS_BUILD='2026102667';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -5075,8 +5075,8 @@ const UNI_PROTECT_SECTIONS=[['live','Live View',true],['detections','Detections'
   ['cameras','Cameras',true],['doorbell','Doorbell',true],['lights','Lights & Chimes',true],['sensors','Sensors',true],
   ['relays','Relays & Sirens',true],['viewports','Viewports',true],['recordings','Recordings',true],['setup','Setup',true]];
 const UNI_NET_SECTIONS=[['devices','Devices',true],['ports','Ports',true],['clients','Clients',true],['wifi','Wi-Fi',true],
-  ['networks','Networks',false],['internet','Internet',false],['guests','Guests',false],['firewall','Firewall & Rules',false],
-  ['power','Power',false],['events','Events',false],['integration','Integration',true]];
+  ['networks','Networks',true],['internet','Internet',true],['guests','Guests',true],['firewall','Firewall & Rules',true],
+  ['power','Power',true],['events','Events',true],['integration','Integration',true]];
 function _uniSide(items,cur,fn){
   return `<nav class="uni-side" aria-label="Sections">${items.map(([k,l,ok])=>ok
     ?`<button class="${cur===k?'on':''}" onclick="${fn}('${k}')">${esc(l)}</button>`
@@ -5256,12 +5256,64 @@ function _uniNetHTML(){
     +'</div>').join('')||'<div class="es">No Wi-Fi networks.</div>';
   return `<div class="unp-chips">${inet}${refresh}</div><div class="und-wifis">${cards}</div>`;
 }
+// ── REGISTER 1237 — NETWORK → NETWORKS · INTERNET · GUESTS · FIREWALL & RULES · POWER · EVENTS (Core: /unifi/console/netsec,
+// the controller's own tables as named fields — no VPN keys, pre-shared keys or portal secrets). Read only.
+const UNI_NS_KEYS=['networks','internet','guests','firewall','power','events'];
+let _uniNS={};
+async function _uniNSLoad(sec){
+  try{ const r=await fetch(proCoreUrl()+'/unifi/console/netsec?section='+sec); _uniNS[sec]=r.ok?await r.json():{ok:false,why:'Core answered '+r.status}; }
+  catch(e){ _uniNS[sec]={ok:false,why:'Couldn\'t reach ProOS Core'}; }
+  if(panelActive('unifi-net')&&_uniNetSection===sec) renderUniNet();
+}
+function _uniNSHTML(sec){
+  const d=_uniNS[sec];
+  if(!d) return '<div class="empty"><div class="et">Reading the controller…</div></div>';
+  if(!d.ok) return `<div class="empty"><div class="et">Couldn't read it</div><div class="es">${esc(d.why||'')}. ProOS reads the controller with its own console user (Console Settings on the UniFi page).</div></div>`;
+  const kv=(k,v)=>`<div class="unifi-row"><span class="unifi-row-l">${k}</span><span class="unifi-row-d">${v}</span></div>`;
+  const card=(t,inner,note)=>`<div class="unp-card"><div class="unp-head"><b>${t}</b>${note?`<span class="es" style="margin-left:auto">${note}</span>`:''}</div>${inner}</div>`;
+  const pill=(on,a,b)=>`<span class="ual-pill${on?' on':''}">${on?(a||'On'):(b||'Off')}</span>`;
+  const row=(cells,p)=>`<div class="ual-row" style="cursor:default">${cells.map((c,i)=>`<span class="${i?'ual-rw':'ual-rn'}">${c}</span>`).join('')}${p||''}</div>`;
+  const refresh=`<div class="unp-chips"><button class="unp-chip" style="margin-left:auto" onclick="_uniNS['${sec}']=null;renderUniNet();_uniNSLoad('${sec}')">Refresh</button></div>`;
+  const dur=s=>{ const n=Number(s); if(!(n>0)) return '—'; const dd=Math.floor(n/86400), h=Math.floor(n%86400/3600); return dd?dd+' d '+h+' h':h+' h '+Math.floor(n%3600/60)+' min'; };
+  const when=t=>{ const n=Number(t); return n>0?new Date(n).toLocaleString([], {weekday:'short',hour:'numeric',minute:'2-digit'}):''; };
+  if(sec==='networks'){
+    const L=d.networks||[];
+    return refresh+card('Networks',L.length?`<div class="ual-list">${L.map(n=>row([esc(n.name),esc(n.kind),n.vlan!=null?'VLAN '+esc(n.vlan):'',esc(n.subnet||n.wan_slot||''),n.dhcp===true?'DHCP '+esc(n.dhcp_range||'on'):(n.dhcp===false?'No DHCP':'')],pill(n.enabled,'On','Off'))).join('')}</div>`:'<div class="es">No networks.</div>',L.length+' network'+(L.length===1?'':'s'));
+  }
+  if(sec==='internet'){
+    const i=d.internet||{}, ok=String(i.status||'').toLowerCase()==='ok';
+    return refresh+card('Internet',`<div class="unifi-status">${kv('Status',ok?'<span style="color:#46e3a0">● Up</span>':'<em class="unp-red">'+esc(i.status||'Not known')+'</em>')}${kv('Provider',esc(i.isp||'—'))}${kv('Public Address',esc(i.address||'—'))}${kv('Latency',i.latency_ms!=null?esc(i.latency_ms)+' ms':'—')}${kv('Up For',dur(i.uptime_s))}${kv('Last Speed Test',i.down_mbps!=null?esc(Math.round(i.down_mbps))+' Mbps down · '+esc(Math.round(i.up_mbps||0))+' Mbps up':'None stored on the console')}</div>`)
+      +card('Internet Connections',(i.wans||[]).length?`<div class="ual-list">${i.wans.map(w=>row([esc(w.name),esc(w.slot||''),esc(w.type||'')],pill(w.enabled))).join('')}</div>`:'<div class="es">No internet connections listed.</div>');
+  }
+  if(sec==='guests'){
+    const g=d.guests||{};
+    return refresh+card('Guest Access',`<div class="unifi-status">${kv('Guest Wi-Fi',(g.guest_wifi||[]).length?esc(g.guest_wifi.join(', ')):'None — no Wi-Fi network is marked as a guest network')}${kv('Guest Portal',g.portal?'On':'Off')}${g.portal?kv('Sign-In',esc(g.how||'—'))+kv('Access Lasts',g.expires_min?esc(g.expires_min)+' min':'—'):''}</div>`)
+      +card('Guests Now',(g.guests_now||[]).length?`<div class="ual-list">${g.guests_now.map(x=>row([esc(x.name),x.minutes_left!=null?esc(x.minutes_left)+' min left':''],pill(x.authorized,'Signed In','Waiting'))).join('')}</div>`:'<div class="es">No guests on the network.</div>');
+  }
+  if(sec==='firewall'){
+    const f=d.firewall||{}, R=f.rules||[];
+    const cust=R.filter(r=>!r.built_in), built=R.filter(r=>r.built_in);
+    const rr=r=>row([esc(r.name),esc(r.action||''),esc(r.from)+' → '+esc(r.to),esc(r.protocol||'')],pill(r.enabled));
+    return refresh+card('Your Rules',cust.length?`<div class="ual-list">${cust.map(rr).join('')}</div>`:'<div class="es">No rules of your own.</div>',cust.length+' rule'+(cust.length===1?'':'s')+' · zones: '+esc((f.zones||[]).join(', ')))
+      +card('Port Forwards',(f.port_forwards||[]).length?`<div class="ual-list">${f.port_forwards.map(x=>row([esc(x.name),'Port '+esc(x.outside_port||'—'),'→ '+esc(x.to||'—')+(x.to_port?':'+esc(x.to_port):''),esc(x.protocol||''),'From '+esc(x.from)],pill(x.enabled))).join('')}</div>`:'<div class="es">No port forwards.</div>')
+      +card('Traffic Rules',(f.traffic_rules||[]).length?`<div class="ual-list">${f.traffic_rules.map(x=>row([esc(x.name),esc(x.action||'')],pill(x.enabled))).join('')}</div>`:'<div class="es">No traffic rules.</div>')
+      +card('Built-In Rules',built.length?`<div class="ual-list">${built.map(rr).join('')}</div>`:'<div class="es">None.</div>',built.length+' from UniFi');
+  }
+  if(sec==='power'){
+    const L=d.power||[];
+    return refresh+(L.length?L.map(sw=>card(esc(sw.name),`<div class="unifi-status">${kv('PoE In Use',esc(sw.used_w)+' W'+(sw.budget_w?' of '+esc(sw.budget_w)+' W':''))}${kv('Ports Powered',esc(sw.ports_powered))}${(sw.top||[]).map(p=>kv('Port '+esc(p.port)+(p.name&&!/^Port \d+$/.test(p.name)?' · '+esc(p.name):''),esc(p.watts)+' W')).join('')}${(sw.outlets||[]).map(o=>kv(esc(o.name||'Outlet'),o.on?'On':'Off')).join('')}</div>`,esc(sw.model||''))).join(''):card('Power','<div class="es">No PoE switches or power strips report power.</div>'));
+  }
+  const L=d.events||[];
+  return refresh+card('Events — Last 24 Hours',L.length?`<div class="ual-list">${L.map(e=>row([esc(e.kind),esc(e.message||''),when(e.when)])).join('')}</div>`:'<div class="es">No events in the last 24 hours.</div>',L.length+' shown');
+}
 function renderUniNet(){
   const body=document.getElementById('uninet-body'); if(!body) return;
   // register 1229: the left-side section list (the mockup) — wrap(page) puts the page beside it
   const wrap=h=>`<div class="uni-split">${_uniSide(UNI_NET_SECTIONS,_uniNetSection,'uniNetSection')}<div class="uni-main">${h}</div></div>`;
   if(_uniNetSection==='ports'){ setHTML(body, wrap(_uniPortsHTML())); if(!_uniPorts) _uniPortsLoad(); return; }
   if(['devices','clients','wifi'].includes(_uniNetSection)){ setHTML(body, wrap(_uniNetHTML())); if(!_uniNet) _uniNetLoad(); return; }
+  // register 1237: Networks · Internet · Guests · Firewall & Rules · Power · Events (read only, named fields from Core)
+  if(UNI_NS_KEYS.includes(_uniNetSection)){ setHTML(body, wrap(_uniNSHTML(_uniNetSection))); if(!_uniNS[_uniNetSection]) _uniNSLoad(_uniNetSection); return; }
   // ONE DEVICE LIST, NOT TWO (register 415). This panel carried its own
   // _uniNetDeviceRows — a near-copy of the generic page's list, written before
   // the mirror existed, and therefore missing the model, the entity count, the

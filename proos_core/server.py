@@ -6704,6 +6704,45 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, {"ok": True, "confirmed": True, "name": row.get("name"), "on": on})
             return self._send(200, {"ok": True, "confirmed": False,
                                     "said": "the platform took the command but the controller did not report the change within 16 seconds"})
+        if method == "GET" and sub == "netsec" and not sub2:
+            # REGISTER 1237 — Network → Networks · Internet · Guests · Firewall & Rules · Power · Events: the controller's own
+            # tables through ProOS's local user, through networkviews' NAMED-FIELD views (VPN keys, pre-shared keys, RADIUS
+            # and portal secrets never leave Core). Read only — Events is the console's own search (a POST that changes
+            # nothing; its own log search answers only to that).
+            import time as _t
+            from proos import networkviews as _nv
+            sec = (parse_qs(urlparse(self.path).query).get("section") or [""])[0]
+            B, V = "/proxy/network/api/s/default/", "/proxy/network/v2/api/site/default/"
+            D = lambda j: (j or {}).get("data") if isinstance(j, dict) else j          # noqa: E731
+            if sec == "networks":
+                nc, why = _uc.get_json(_creds, ph, B + "rest/networkconf")
+                return self._send(200, {"ok": nc is not None, "why": why, "networks": _nv.networks_view(D(nc)) if nc is not None else []})
+            if sec == "internet":
+                hl, why = _uc.get_json(_creds, ph, B + "stat/health")
+                nc, _w = _uc.get_json(_creds, ph, B + "rest/networkconf")
+                return self._send(200, {"ok": hl is not None, "why": why, "internet": _nv.internet_view(D(hl), D(nc)) if hl is not None else None})
+            if sec == "guests":
+                gs, why = _uc.get_json(_creds, ph, B + "stat/guest")
+                ga, _w1 = _uc.get_json(_creds, ph, B + "get/setting/guest_access")
+                wl, _w2 = _uc.get_json(_creds, ph, B + "rest/wlanconf")
+                return self._send(200, {"ok": gs is not None, "why": why, "guests": _nv.guests_view(D(gs), D(ga), D(wl)) if gs is not None else None})
+            if sec == "firewall":
+                fp, why = _uc.get_json(_creds, ph, V + "firewall-policies")
+                fz, _w1 = _uc.get_json(_creds, ph, V + "firewall/zone")
+                pf, _w2 = _uc.get_json(_creds, ph, B + "rest/portforward")
+                tr, _w3 = _uc.get_json(_creds, ph, V + "trafficrules")
+                return self._send(200, {"ok": fp is not None, "why": why,
+                                        "firewall": _nv.firewall_view(D(fp), D(fz), D(pf), D(tr)) if fp is not None else None})
+            if sec == "power":
+                dv, why = _uc.get_json(_creds, ph, B + "stat/device")
+                return self._send(200, {"ok": dv is not None, "why": why, "power": _nv.power_view(D(dv)) if dv is not None else []})
+            if sec == "events":
+                now = int(_t.time() * 1000)
+                ev, why = _uc.send_json(_creds, ph, "POST", V + "system-log/all",
+                                        {"timestampFrom": now - 86400000, "timestampTo": now, "pageSize": 100, "pageNumber": 0})
+                rows = (ev or {}).get("data") if isinstance(ev, dict) else ev
+                return self._send(200, {"ok": ev is not None, "why": why, "events": _nv.events_view(rows if isinstance(rows, list) else [])})
+            return self._send(400, {"error": "section is networks, internet, guests, firewall, power or events"})
         if method == "GET" and sub == "ports" and sub2 == "where":
             # REGISTER 1223 — which switch port a device (by MAC) is on: live, the controller's history, or where ProOS
             # last saw it — the same locate Assist uses (1222). Read only. Protect's Live View links an offline camera
