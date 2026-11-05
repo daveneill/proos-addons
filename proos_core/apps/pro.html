@@ -129,6 +129,48 @@ select option,select optgroup{background:#1a1c20;color:#fff}
 .uni-tile-p{font-size:13px;color:var(--t2);line-height:1.45}
 .uni-tile-foot{margin-top:auto;display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--t2)}
 .uni-tile-foot button{margin-left:auto;font-size:13px;font-weight:600;color:#fff;background:var(--accent);border:0;border-radius:10px;padding:8px 14px;cursor:pointer}
+/* NETWORK → PORTS — register 1220: the switch's face as RJ45 sockets (Dave: "ports not rectangular") */
+.unp-seg{display:inline-flex;gap:2px;padding:3px;border-radius:11px;background:rgba(0,0,0,0.35);margin-bottom:14px}
+.unp-seg button{font-size:13.5px;padding:7px 16px;border-radius:9px;border:0;background:transparent;color:rgba(255,255,255,0.8);cursor:pointer}
+.unp-seg button.on{background:var(--card-hi);color:#fff;font-weight:600}
+.unp-sws{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.unp-sw{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:9px 13px;border-radius:12px;border:0.5px solid var(--line);background:var(--card);color:#fff;cursor:pointer;font-size:13.5px}
+.unp-sw span{font-size:11.5px;color:var(--t2)}
+.unp-sw.on{border-color:var(--accent-line);background:var(--accent-soft)}
+.unp-card{border:0.5px solid var(--line);border-radius:16px;padding:14px 16px;background:var(--card);margin-bottom:14px}
+.unp-head{display:flex;flex-wrap:wrap;align-items:center;gap:10px;font-size:13px;margin-bottom:10px}
+.unp-head b{font-size:15px;font-weight:600}.unp-head span{color:var(--t2)}
+.unp-on{margin-left:auto;color:#46e3a0!important}.unp-on.off{color:#ff8a73!important}
+.unp-faceplate{display:flex;gap:18px;align-items:flex-start;overflow-x:auto;padding:4px 2px;border-radius:12px;background:#0f1218}
+.unp-face{display:grid;grid-template-columns:repeat(var(--cols),minmax(30px,46px));gap:4px 5px;flex:1 1 auto}
+.unp-face.unp-sfp{flex:0 0 auto}
+.unp-port{display:flex;flex-direction:column;align-items:center;gap:2px;padding:0;border:0;background:transparent;cursor:pointer;min-width:0;color:var(--t2)}
+.unp-sock{position:relative;display:block;width:100%}
+.unp-sock svg{display:block;width:100%;height:auto}
+.unp-lbl{font-size:9.5px;line-height:12px;height:12px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.unp-b{position:absolute;right:-4px;font-size:9px;line-height:14px;width:14px;height:14px;border-radius:50%;background:#0d1015;border:0.5px solid rgba(255,255,255,0.2);text-align:center}
+.unp-bt{top:-4px}.unp-bb{bottom:-4px}
+.unp-legend{display:flex;flex-wrap:wrap;gap:14px;font-size:11.5px;color:var(--t2);margin-top:10px}
+.unp-legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.unp-split{display:flex;gap:14px;align-items:flex-start}
+.unp-list{flex:1 1 auto;min-width:0;border:0.5px solid var(--line);border-radius:16px;padding:12px;background:var(--card)}
+.unp-panel{flex:0 0 300px;border:0.5px solid var(--line);border-radius:16px;padding:16px;background:var(--card)}
+@media (max-width:700px){.unp-split{flex-direction:column}.unp-panel{flex:1 1 auto;width:100%}}
+.unp-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.unp-chip{font-size:12.5px;padding:6px 11px;border-radius:9px;border:0;background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.85);cursor:pointer}
+.unp-chip.on{background:var(--accent-soft);color:#cfd9ff}
+.unp-rh,.unp-row{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px}
+.unp-rh{font-size:11.5px;color:var(--t2);padding-bottom:4px}
+.unp-row{width:100%;border:0;border-radius:9px;background:transparent;color:#fff;cursor:pointer;text-align:left}
+.unp-row.on{background:var(--accent-soft)}
+.unp-rh>*:nth-child(1),.unp-row>*:nth-child(1){flex:0 0 38px}
+.unp-rh>*:nth-child(2),.unp-row>*:nth-child(2){flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.unp-rh>*:nth-child(3),.unp-row>*:nth-child(3){flex:0 0 90px}
+.unp-rh>*:nth-child(4),.unp-row>*:nth-child(4){flex:0 0 62px;color:var(--t2)}
+.unp-rh>*:nth-child(5),.unp-row>*:nth-child(5){flex:0 0 20px}
+.unp-red{color:#ff8a73;font-style:normal}
+.unp-pt{font-size:12px;color:var(--t2)}
+.unp-pn{font-size:18px;font-weight:600;margin:3px 0 4px;word-break:break-word}
 .unifi-cams{display:flex;flex-direction:column;gap:1px}
 .unifi-cam{display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:0.5px solid rgba(255,255,255,0.06)}
 .unifi-cam:last-child{border-bottom:none}
@@ -3075,7 +3117,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102649';
+const PROOS_BUILD='2026102650';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -4921,7 +4963,7 @@ async function openIntegration(dom){
   renderIntegration(dom); show('integration'); try{ await loadConfigEntries(); }catch(e){} if(_curIntegration===dom) renderIntegration(dom); }
 // ── UniFi Network — dedicated panel (config card + device list), part of the UniFi suite ──
 async function openUniNet(){
-  _curIntegration='unifi'; show('unifi-net'); paintUniBar('network');
+  _curIntegration='unifi'; show('unifi-net'); paintUniBar('network'); _uniPorts=null;
   const body=document.getElementById('uninet-body'); if(body) body.innerHTML='<div class="empty"><div class="et">Checking connection…</div></div>';
   try{ await loadConfigEntries(); }catch(e){}
   try{ const r=await fetch(proCoreUrl()+'/unifi/net/status'); _unifiNetStatus=r.ok?await r.json():null; }catch(e){ _unifiNetStatus=null; }
@@ -4937,8 +4979,83 @@ async function _uniNetRefresh(again){
   const s=_unifiNetStatus||{};
   if(!again && !(s.configured && s.reachable!==false)) setTimeout(()=>{ if(panelActive('unifi-net')) _uniNetRefresh(true); },4000);
 }
+// ── REGISTER 1220 — NETWORK → PORTS (stage 2; the mockup Dave agreed: "make sure the ports in port manager looks like
+// ports and ports are not rectangular"). The switch's face drawn as RJ45 sockets — latch notch up on the top row, down
+// on the bottom, lit in the link-speed colour — from Core's port map (1219: the controller's own tables through ProOS's
+// local user). What each port carries, PoE watts, and the LOCKS (the switch's uplink, ports feeding other UniFi gear,
+// the ProOS box's port). Read only in this build: switching uses the platform's own port controls, next.
+let _uniNetSection='ports', _uniPorts=null, _uniPortSw=null, _uniPortSel=null, _uniPortFilter='use';
+function uniNetSection(s){ _uniNetSection=s; renderUniNet(); }
+function _upSpeed(p){ const s=Number(p.speed)||0; if(!p.link) return ''; return s>=10000?'10 GbE':s>=2500?'2.5 GbE':s>=1000?'GbE':s>0?'FE':''; }
+function _upColor(p){
+  if(p.enabled===false) return null;            // switched off: dark, red dashed edge
+  if(!p.link) return '#0d1015';
+  const s=Number(p.speed)||0; return s>=10000?'#2f6fd6':s>=2500?'#4d9be0':s>=1000?'#3fbf6a':'#a8c94a';
+}
+function _upSfp(p){ return /sfp/i.test(String(p.media||'')); }
+function _upSocket(p,top,sel){
+  const lit=p.enabled!==false&&p.link, fill=_upColor(p)||'#0d1015';
+  const hole=top?'M4 14 H15 V5 H29 V14 H40 V35 H4 Z':'M4 3 H40 V24 H29 V33 H15 V24 H4 Z', py=top?[29,34]:[4,9];
+  let pins=''; for(let x=9;x<37;x+=4) pins+=`<line x1="${x}" y1="${py[0]}" x2="${x}" y2="${py[1]}" stroke="${lit?'rgba(0,0,0,0.35)':'#b8964a'}" stroke-width="1.6"/>`;
+  const edge=p.enabled===false?'stroke="#ff8a73" stroke-width="1.6" stroke-dasharray="3 2"':'stroke="rgba(0,0,0,0.6)" stroke-width="1"';
+  const bez=sel?'stroke="#fff" stroke-width="2.2"':'stroke="rgba(255,255,255,0.16)" stroke-width="1"';
+  const num=lit?'#0b0e13':(p.enabled===false?'#ff8a73':'rgba(255,255,255,0.45)');
+  const svg=_upSfp(p)
+    ?`<svg viewBox="0 0 44 38" aria-hidden="true"><rect x="1" y="1" width="42" height="36" rx="3" fill="#232832" ${bez}/><rect x="5" y="11" width="34" height="16" rx="1.5" fill="${lit?fill:'#0d1015'}" ${edge}/><text x="22" y="22.5" text-anchor="middle" font-size="8.5" font-weight="700" fill="${num}">${p.idx}</text></svg>`
+    :`<svg viewBox="0 0 44 38" aria-hidden="true"><rect x="1" y="1" width="42" height="36" rx="4" fill="#232832" ${bez}/><path d="${hole}" fill="${fill}" ${edge}/>${pins}<text x="22" y="${top?25:18}" text-anchor="middle" font-size="9.5" font-weight="700" fill="${num}">${p.idx}</text></svg>`;
+  const bolt=(p.poe&&p.poe.watts>0)?'<span class="unp-b unp-bt" title="PoE">⚡</span>':'';
+  const lock=p.lock?'<span class="unp-b unp-bb" title="Locked">🔒</span>':'';
+  const lbl=(p.carries[0]||{}).name||'';
+  return `<button class="unp-port${sel?' on':''}" aria-label="Port ${p.idx}${lbl?', '+esc(lbl):''}" onclick="uniPortPick(${p.idx})">${top?`<span class="unp-lbl">${esc(lbl)}</span>`:''}<span class="unp-sock">${svg}${bolt}${lock}</span>${top?'':`<span class="unp-lbl">${esc(lbl)}</span>`}</button>`;
+}
+function uniPortSwitch(mac){ _uniPortSw=mac; _uniPortSel=null; renderUniNet(); }
+function uniPortPick(idx){ _uniPortSel=idx; renderUniNet(); }
+function uniPortFilter(f){ _uniPortFilter=f; renderUniNet(); }
+async function _uniPortsLoad(){
+  try{ const r=await fetch(proCoreUrl()+'/unifi/console/ports'); _uniPorts=r.ok?await r.json():{ok:false,why:'Core answered '+r.status}; }
+  catch(e){ _uniPorts={ok:false,why:'Couldn\'t reach ProOS Core'}; }
+  if(panelActive('unifi-net')&&_uniNetSection==='ports') renderUniNet();
+}
+function _uniPortsHTML(){
+  const d=_uniPorts;
+  if(!d) return '<div class="empty"><div class="et">Reading the switches…</div></div>';
+  if(!d.ok) return `<div class="empty"><div class="et">Couldn't read the switches</div><div class="es">${esc(d.why||'')}. The console sign-in is on the UniFi Overview page, under Console Settings.</div></div>`;
+  const sws=d.switches||[]; if(!sws.length) return '<div class="empty"><div class="et">The controller reports no switches</div></div>';
+  const sw=sws.find(s=>s.mac===_uniPortSw)||sws[0]; _uniPortSw=sw.mac;
+  const W=sw.ports.reduce((a,p)=>a+((p.poe&&p.poe.watts)||0),0);
+  let h='<div class="unp-sws">'+sws.map(s=>`<button class="unp-sw${s.mac===sw.mac?' on':''}" onclick="uniPortSwitch('${esc(s.mac)}')"><b>${esc(s.name)}</b><span>${esc(s.model||'')} · ${s.ports.length} ports</span></button>`).join('')+'</div>';
+  const rj=sw.ports.filter(p=>!_upSfp(p)), sfp=sw.ports.filter(_upSfp);
+  const top=rj.filter((p,i)=>i%2===0), bot=rj.filter((p,i)=>i%2===1);
+  const cols=Math.max(top.length,1);
+  const row=(arr,t)=>arr.map(p=>_upSocket(p,t,p.idx===_uniPortSel)).join('');
+  h+=`<div class="unp-card"><div class="unp-head"><b>${esc(sw.name)}</b><span>${esc(sw.model||'')} · ${sw.ports.length} ports · ${W.toFixed(1)} W PoE in use</span><span class="unp-on${sw.online===false?' off':''}">${sw.online===false?'Offline':'● Online'}</span></div>`
+    +`<div class="unp-faceplate"><div class="unp-face" style="--cols:${cols}">${row(top,true)}${row(bot,false)}</div>`
+    +(sfp.length?`<div class="unp-face unp-sfp" style="--cols:${Math.ceil(sfp.length/2)}">${row(sfp.filter((p,i)=>i%2===0),true)}${row(sfp.filter((p,i)=>i%2===1),false)}</div>`:'')+'</div>'
+    +'<div class="unp-legend"><span><i style="background:#3fbf6a"></i>GbE</span><span><i style="background:#a8c94a"></i>FE</span><span><i style="background:#4d9be0"></i>2.5 GbE</span><span><i style="background:#2f6fd6"></i>10 GbE</span><span><i style="background:#0d1015;border:1px solid rgba(255,255,255,.25)"></i>Nothing Connected</span><span><i style="border:1.5px dashed #ff8a73"></i>Switched Off</span><span>⚡ PoE</span><span>🔒 Locked: feeds the network or this box</span></div></div>';
+  const F={all:['All',()=>true],use:['In Use',p=>p.link||p.carries.length],lock:['Locked',p=>!!p.lock],off:['Switched Off',p=>p.enabled===false],poe:['PoE',p=>p.poe&&p.poe.watts>0]};
+  const chips=Object.entries(F).map(([k,[l,fn]])=>`<button class="unp-chip${_uniPortFilter===k?' on':''}" onclick="uniPortFilter('${k}')">${l} ${sw.ports.filter(fn).length}</button>`).join('');
+  const rows=sw.ports.filter(F[_uniPortFilter][1]).map(p=>`<button class="unp-row${p.idx===_uniPortSel?' on':''}" onclick="uniPortPick(${p.idx})"><b>${p.idx}</b><span class="unp-c">${esc(p.carries.map(c=>c.name).join(', ')||'—')}</span><span>${p.enabled===false?'<em class="unp-red">Switched off</em>':(_upSpeed(p)||'Down')}</span><span>${p.poe&&p.poe.watts>0?p.poe.watts.toFixed(1)+' W':'—'}</span><span>${p.lock?'🔒':''}</span></button>`).join('')||'<div class="es" style="padding:10px">No ports here.</div>';
+  const sel=sw.ports.find(p=>p.idx===_uniPortSel);
+  let panel='<div class="es">Tap a port to see what it carries.</div>';
+  if(sel){
+    const kv=(k,v)=>`<div class="unifi-row"><span class="unifi-row-l">${k}</span><span class="unifi-row-d">${v}</span></div>`;
+    const ctl=(c,name)=>c?(c.enabled?'On in the platform':'Off in the platform (as it ships)'):'Not offered for this port';
+    panel=`<div class="unp-pt">${esc(sw.name)} · Port ${sel.idx}</div><div class="unp-pn">${esc(sel.carries.map(c=>c.name).join(', ')||sel.name)}</div><div class="unifi-status">`
+      +kv('Link',sel.link?esc(_upSpeed(sel)||'Up'):'Down')+kv('Port',sel.enabled===false?'<em class="unp-red">Switched off</em>':(sel.enabled?'On':'—'))
+      +kv('PoE',sel.poe?(sel.poe.watts!=null?sel.poe.watts.toFixed(1)+' W':'—')+(sel.poe.mode?' · '+esc(sel.poe.mode):''):'No PoE on this port')
+      +kv('Carries',esc(sel.carries.map(c=>c.name+(c.ip?' ('+c.ip+')':'')).join(', ')||(sel.known?'Nothing':'Not known')))
+      +kv('Lock',sel.lock?'🔒 '+esc(sel.lock):(sel.known?'Free':'Not known — treated as locked'))
+      +`</div><div class="bld-sec-h" style="margin-top:14px">The Platform's Controls</div><div class="unifi-status">`
+      +kv('Port On / Off',ctl(sel.controls.port))+kv('PoE On / Off',ctl(sel.controls.poe))+kv('Power-Cycle PoE',ctl(sel.controls.power_cycle))
+      +`</div><div class="es" style="margin-top:12px">Switching from here comes in the next build, using these platform controls.</div>`;
+  }
+  h+=`<div class="unp-split"><section class="unp-list"><div class="unp-chips">${chips}<button class="unp-chip" style="margin-left:auto" onclick="_uniPorts=null;renderUniNet();_uniPortsLoad()">Refresh</button></div><div class="unp-rh"><b>Port</b><span>Carries</span><span>Speed</span><span>PoE</span><span></span></div>${rows}</section><aside class="unp-panel">${panel}</aside></div>`;
+  return h;
+}
 function renderUniNet(){
   const body=document.getElementById('uninet-body'); if(!body) return;
+  const seg=`<div class="unp-seg"><button class="${_uniNetSection==='ports'?'on':''}" onclick="uniNetSection('ports')">Ports</button><button class="${_uniNetSection==='integration'?'on':''}" onclick="uniNetSection('integration')">Integration</button></div>`;
+  if(_uniNetSection==='ports'){ setHTML(body, seg+_uniPortsHTML()); if(!_uniPorts) _uniPortsLoad(); return; }
   // ONE DEVICE LIST, NOT TWO (register 415). This panel carried its own
   // _uniNetDeviceRows — a near-copy of the generic page's list, written before
   // the mirror existed, and therefore missing the model, the entity count, the
@@ -4946,9 +5063,9 @@ function renderUniNet(){
   // would have shown every UniFi device twice. The near-copy is gone and the
   // shared mirror takes its place under the SAME "Devices" heading this panel
   // has always used, so the page reads as it did and says more.
-  body.innerHTML = _unifiNetCard()
+  setHTML(body, seg + _unifiNetCard()
     + certMirrorHTML('unifi',{name:'Devices'})
-    + _uniNetRemoveRow();
+    + _uniNetRemoveRow());
 }
 function _uniNetRemoveRow(){
   // Installer-facing remove & re-add — Core deletes the native entry with its
