@@ -61,7 +61,12 @@ GROUPS = ("Picture & Recording", "On the Camera", "On-Screen", "Detections", "Do
 READINGS = {"door": ("Door", "open"), "leak": ("Leak", "wet"), "motion": ("Motion", "seen"), "tampering": ("Tamper", "alert"),
             "battery_low": ("Battery Low", "alert"), "battery_level": ("Battery", "%"), "temperature_level": ("Temperature", "unit"),
             "humidity_level": ("Humidity", "unit"), "light_level": ("Light Level", "unit"), "dark": ("Dark", "yesno"),
-            "alarm_sound": ("Alarm Sound", "text")}
+            "alarm_sound": ("Alarm Sound", "text"),
+            # REGISTER 1235 — the recorder (NVR), measured on Dave's box: storage and recording-capacity sensors and the disk
+            "storage_utilization": ("Storage Used", "unit"), "record_rotating": ("Continuous Recordings", "unit"),
+            "record_detections": ("Detection Recordings", "unit"), "record_timelapse": ("Timelapse", "unit"),
+            "record_capacity": ("Recording Capacity", "unit"), "resolution_4K": ("4K Video", "unit"),
+            "resolution_HD": ("HD Video", "unit"), "resolution_free": ("Free Space", "unit"), "disk_health_0": ("Disk 1", "problem")}
 
 
 def _mac(v):
@@ -102,6 +107,8 @@ def readings_for(mac, entities, states):
             words = "Detected" if v == "on" else "None"
         elif spec[1] == "alert":
             words = "Yes" if v == "on" else "No"
+        elif spec[1] == "problem":
+            words = "Problem" if v == "on" else "Healthy"
         elif spec[1] == "yesno":
             words = "Yes" if v == "on" else "No"
         elif spec[1] == "%":
@@ -111,7 +118,7 @@ def readings_for(mac, entities, states):
         else:
             words = str(v)[:40]
         out.append({"key": key, "label": spec[0], "value": words,
-                    "alert": spec[1] in ("open", "wet", "alert") and v == "on"})
+                    "alert": spec[1] in ("open", "wet", "alert", "problem") and v == "on"})
     order = {k: i for i, k in enumerate(READINGS)}
     out.sort(key=lambda r: order.get(r["key"], 99))
     return out

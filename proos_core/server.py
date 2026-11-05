@@ -6514,6 +6514,55 @@ class Handler(BaseHTTPRequestHandler):
             except Exception:                                    # noqa: BLE001
                 ents, sts = [], []
             return self._send(200, {"ok": True, "kind": kind, "devices": _pc.devices_view(devs if isinstance(devs, list) else [], ents, sts)})
+        if method == "GET" and sub == "viewports" and not sub2:
+            # REGISTER 1235 — Protect → Viewports: the official interface's viewports and Live View layouts. Read only.
+            from proos import unifi as _u
+            pc_ = _u.ProtectClient(_creds)
+            try:
+                vw, lv = pc_.collection("viewers"), pc_.collection("liveviews")
+            except Exception as ex:                              # noqa: BLE001
+                return self._send(200, {"ok": False, "why": "Protect's key did not answer: %s" % str(ex)[:120]})
+            lv = lv if isinstance(lv, list) else []
+            names = {str(x.get("id")): x.get("name") for x in lv if isinstance(x, dict)}
+            return self._send(200, {"ok": True,
+                "viewports": [{"name": v.get("name") or "Viewport", "online": str(v.get("state") or "").upper() == "CONNECTED",
+                               "layout": names.get(str(v.get("liveview") or ""))} for v in (vw if isinstance(vw, list) else []) if isinstance(v, dict)],
+                "layouts": [{"name": x.get("name") or "Live View", "default": bool(x.get("isDefault")),
+                             "slots": len(x.get("slots") or [])} for x in lv if isinstance(x, dict)]})
+        if method == "GET" and sub == "recordings" and not sub2:
+            # REGISTER 1235 — Protect → Recordings: the recorder's own storage, from the PLATFORM's recorder sensors joined
+            # by the NVR's MAC (protectcams.readings_for). Read only.
+            from proos import protectcams as _pc
+            from proos import unifi as _u
+            try:
+                nv = _u.ProtectClient(_creds).collection("nvrs")
+            except Exception as ex:                              # noqa: BLE001
+                return self._send(200, {"ok": False, "why": "Protect's key did not answer: %s" % str(ex)[:120]})
+            nv = nv if isinstance(nv, list) else ([nv] if isinstance(nv, dict) else [])
+            try:
+                ents = [e for e in (_client.entity_registry() or []) if e.get("platform") == "unifiprotect"]
+                sts = [x for x in (_client.all_states() or []) if str(x.get("entity_id", "")).split(".")[0] in ("sensor", "binary_sensor")]
+            except Exception:                                    # noqa: BLE001
+                ents, sts = [], []
+            return self._send(200, {"ok": True, "recorders": [{"name": n.get("name") or "Recorder", "model": n.get("modelKey") or n.get("type"),
+                                                                 "readings": _pc.readings_for(n.get("mac"), ents, sts)} for n in nv if isinstance(n, dict)]})
+        if method == "GET" and sub == "clip" and not sub2:
+            # REGISTER 1235 — one detection's video clip from the console, through ProOS's own user: the event is read for
+            # its camera and times, padded 2 s either side, at most 60 s. Only a video answer counts.
+            from proos import protectevents as _pev
+            eid = (parse_qs(urlparse(self.path).query).get("id") or [""])[0]
+            if not _pev.safe_id(eid):
+                return self._send(400, {"error": "id required"})
+            ev, why = _uc.get_json(_creds, ph, "/proxy/protect/api/events/" + eid)
+            if not isinstance(ev, dict) or not ev.get("camera") or not _pev.safe_id(ev.get("camera")):
+                return self._send(404, {"ok": False, "why": why or "that detection has no camera"})
+            t0 = int(ev.get("start") or 0) - 2000
+            t1 = min(int(ev.get("end") or ev.get("start") or 0) + 2000, t0 + 60000)
+            vid, ct, why2 = _uc.get_media(_creds, ph, "/proxy/protect/api/video/export?camera=%s&channel=0&start=%d&end=%d"
+                                          % (ev["camera"], t0, t1), "video/")
+            if vid is None:
+                return self._send(404, {"ok": False, "why": why2})
+            return self._send_bytes(200, ct, vid, cache="private, max-age=3600")
         if method == "POST" and sub == "cameras" and sub2 == "set":
             # REGISTER 1233 — change ONE of the platform's own camera controls (Pro asks first), then read the platform's
             # state back: "confirmed" only when it shows the new value.
