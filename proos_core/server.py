@@ -6570,6 +6570,31 @@ class Handler(BaseHTTPRequestHandler):
                                     "poe_watts": (p.get("poe") or {}).get("watts")})
         if method == "POST" and sub == "ports" and sub2 == "act":
             return self._send(200, _port_act(b.get("mac"), b.get("idx"), str(b.get("action") or "")))
+        if method == "POST" and sub == "alarms" and sub2 == "set":
+            # REGISTER 1231 — turn one Alarm Manager alarm on or off (Dave, 6 Nov: "yes all of it please"; Pro asks
+            # first). The alarm must be in the console's own list right now; the change is ONLY its "enable"; then the
+            # list is read back and "confirmed" only when the console reports the alarm in the new state.
+            import time as _t
+            aid, on = str(b.get("id") or ""), bool(b.get("on"))
+            au, why = _uc.get_json(_creds, ph, "/proxy/protect/api/automations")
+            if au is None:
+                return self._send(200, {"ok": False, "why": why})
+            row = next((x for x in (au if isinstance(au, list) else []) if str(x.get("id")) == aid and not x.get("deleted")), None)
+            if not aid or row is None:
+                return self._send(200, {"ok": False, "why": "that alarm is not in Alarm Manager"})
+            if not row.get("editable", True):
+                return self._send(200, {"ok": False, "why": "UniFi marks that alarm as not editable"})
+            _r, why2 = _uc.send_json(_creds, ph, "PATCH", "/proxy/protect/api/automations/" + aid, {"enable": on})
+            if why2:
+                return self._send(200, {"ok": False, "why": why2})
+            for _ in range(6):
+                _t.sleep(1.5)
+                au2, _w = _uc.get_json(_creds, ph, "/proxy/protect/api/automations")
+                r2 = next((x for x in (au2 if isinstance(au2, list) else []) if str(x.get("id")) == aid), None)
+                if r2 is not None and bool(r2.get("enable")) == on:
+                    return self._send(200, {"ok": True, "confirmed": True, "name": r2.get("name"), "on": on})
+            return self._send(200, {"ok": True, "confirmed": False,
+                                    "said": "the console took the change but did not report it within 9 seconds"})
         return self._send(404, {"error": "unknown console route"})
 
     def _unifi(self, parts, method, body=None):

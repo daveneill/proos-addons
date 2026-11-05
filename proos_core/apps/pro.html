@@ -3190,7 +3190,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102659';
+const PROOS_BUILD='2026102660';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -15996,8 +15996,8 @@ async function uniTrigSave(removeId){
   _uniTrigEdit=false; renderUniAlarm();
 }
 // ── REGISTER 1230 — ALARM MANAGER: the console's own alarm list (Core: /unifi/console/alarms, named fields only) — each
-// alarm's name, on or off, what it watches for, which devices, what it does; tap one for When · Where · Then. Read only:
-// the on/off switch is the next build.
+// alarm's name, on or off, what it watches for, which devices, what it does; tap one for When · Where · Then. 1231 adds
+// Turn Alarm Off / On in that view (uniAlarmSet — asked first, read back).
 let _uniAlarms=null, _uniAlarmSel=null;
 async function _uniAlarmsLoad(){
   try{ const r=await fetch(proCoreUrl()+'/unifi/console/alarms'); _uniAlarms=r.ok?await r.json():{ok:false,why:'Core answered '+r.status}; }
@@ -16005,6 +16005,20 @@ async function _uniAlarmsLoad(){
   if(panelActive('unifi')&&_uniProtectSection==='alarm') renderUniAlarm();
 }
 function uniAlarmSel(id){ _uniAlarmSel=_uniAlarmSel===id?null:id; renderUniAlarm(); }
+// REGISTER 1231 — one alarm on or off through Core's own route; asked first; "confirmed" only from the console's read-back
+async function uniAlarmSet(id,on){
+  const a=((_uniAlarms&&_uniAlarms.alarms)||[]).find(x=>x.id===id); if(!a) return;
+  const q=(on?'Turn on':'Turn off')+' the alarm "'+a.name+'"?'
+    +(on?'':'\n\nUniFi stops running it — no '+(a.actions.join(' or ')||'action').toLowerCase()+' when '+(a.watches.slice(0,3).join(', ')||'it would trigger').toLowerCase()+'.')
+    +(a.used_in_arm_mode?'\n\nThis alarm is used when the system is armed.':'');
+  if(!await proAsk(q)) return;
+  try{
+    const r=await fetch(proCoreUrl()+'/unifi/console/alarms/set',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,on})});
+    const d=await r.json().catch(()=>({}));
+    toast(!d.ok?('Not done — '+(d.why||'Core answered '+r.status)):d.confirmed?('"'+a.name+'" is '+(on?'on':'off')+' — confirmed by the console'):('Sent, not confirmed — '+(d.said||'')));
+  }catch(e){ toast(_coreFailWords('',e)); }
+  _uniAlarmsLoad();
+}
 function _uniAlarmsHTML(){
   const d=_uniAlarms, head=t=>`<div class="unp-card"><div class="unp-head"><b>Alarms</b>${t||''}</div>`;
   if(!d) return head()+'<div class="es">Reading Alarm Manager…</div></div>';
@@ -16027,7 +16041,11 @@ function _uniAlarmsHTML(){
       +kv('Schedule',esc(a.schedule))+kv('Cooldown',a.cooldown_s?a.cooldown_s+' s':'None')
       +kv('Last Fired',ago(a.last_fired)+(a.fired_total!=null?' · '+a.fired_total+' time'+(a.fired_total===1?'':'s'):''))
       +(a.used_in_arm_mode?kv('Arm Mode','Used when armed'):'')
-      +`</div><div class="es" style="margin-top:6px">Edit this alarm in UniFi's Alarm Manager. Turning it on or off from here is the next build.</div></div>`;
+      +`</div>`
+      // register 1231: on/off — asked first, the console's own read-back decides "confirmed"
+      +(a.editable===false?'<div class="es" style="margin-top:6px">UniFi marks this alarm as not editable.</div>'
+        :`<div class="unp-acts"><button class="${a.on?'unp-act':'btn-primary'}" onclick="uniAlarmSet('${esc(a.id)}',${!a.on})">${a.on?'Turn Alarm Off':'Turn Alarm On'}</button></div>`)
+      +`<div class="es" style="margin-top:6px">Edit what this alarm does in UniFi's Alarm Manager.</div></div>`;
   }).join('');
   return head(`<span class="es" style="margin-left:auto">${d.on} of ${d.total} on</span>`)+`<div class="ual-list">${rows}</div></div>`;
 }

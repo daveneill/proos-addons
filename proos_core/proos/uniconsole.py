@@ -261,6 +261,30 @@ def get_json(creds, platform_host, path, http=None):
     return None, "the console refused ProOS's sign-in"
 
 
+def send_json(creds, platform_host, method, path, body, http=None):
+    """(data, why-not): one signed-in CHANGE on the console (register 1231 — turning an Alarm Manager alarm on or off).
+    The same session and CSRF token as get_json; a stale sign-in is renewed once. Callers ask the person first and read
+    the result back — this only sends."""
+    http = http or HTTP
+    if method not in ("PATCH", "PUT", "POST"):
+        return None, "not a change"
+    h, _ = host(creds, platform_host)
+    if not h:
+        return None, "the console's address is not known yet"
+    for attempt in (0, 1):
+        hd, why = _session(creds, h, http)
+        if hd is None:
+            return None, why
+        st, rh, raw = http(method, _base(h) + path, body, hd)
+        if st in (401, 403) and attempt == 0:
+            _SESSION.update({"cookie": None, "at": 0.0})
+            continue
+        if st not in (200, 201, 204) or _is_web_page(rh, raw):
+            return None, "the console answered %s" % (st if st else "nothing")
+        return (_json(raw) or {}), None
+    return None, "the console refused ProOS's change"
+
+
 def apps(creds, h, http=None):
     """Each app on the console, from evidence (register 1218 — see above). found True / False / None (not confirmed);
     answer says, in plain words, what the evidence was."""
