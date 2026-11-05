@@ -89,6 +89,13 @@ c2 = uc.get_image(Creds(), None, "/p", http=http)
 uc._session = orig
 ok(a == (b"\xff\xd8JPEG", "image/jpeg", None) and b[0] is None and b[2] and c2[0] is None and c2[2],
    "5 · get_image takes only a picture; a web page or JSON answer is a why-not")
+# 1232b — MEASURED on Dave's box: light-motion and door events came back unnamed (their device sits under another field).
+EV2 = [{"id": "690c11aa22bb33cc44dd55f1", "type": "lightMotion", "lightId": "F4E2C6A1B2C3", "start": 5, "end": 6},
+       {"id": "690c11aa22bb33cc44dd55f2", "type": "sensorOpened", "deviceId": SEN, "start": 4, "end": 4},
+       {"id": "690c11aa22bb33cc44dd55f3", "type": "access", "note": "Driveway", "user": CAM, "start": 3, "end": 3}]
+w2 = {x["id"][-2:]: x["device"] for x in pe.events_view(EV2, BOOT)}
+ok(w2 == {"f1": "Driveway", "f2": "Garage Door", "f3": "Unnamed device"},
+   "7 · a device under another field is named by its exact id or MAC; a word or the user field never names it")
 src = open(os.path.join(HERE, "..", "server.py"), encoding="utf-8").read()
 i = src.index('if method == "GET" and sub == "detections" and sub2 == "thumb":')
 route = src[i:src.index('if method == "GET" and sub == "network":', i)]

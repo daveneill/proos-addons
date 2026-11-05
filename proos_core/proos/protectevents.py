@@ -68,6 +68,16 @@ def events_view(events, bootstrap=None, only=None):
                 dev = names.get(_pa._key(e.get(f)))
                 if dev:
                     break
+        if not dev:
+            # 1232b — MEASURED on Dave's box: light-motion, door opened/closed and Access events came back unnamed —
+            # they name their device under another field. Any other plain field whose value is EXACTLY a known device's
+            # id or MAC names it (never the event's own id, never a word).
+            for f, val in e.items():
+                if f in ("id", "user", "userId") or not isinstance(val, str) or len(_pa._key(val)) < 12:
+                    continue
+                dev = names.get(_pa._key(val))
+                if dev:
+                    break
         start, end = e.get("start"), e.get("end")
         out.append({"id": e["id"], "kinds": k, "device": dev or "Unnamed device", "start": start,
                     "seconds": int((end - start) / 1000) if isinstance(start, (int, float)) and isinstance(end, (int, float)) and end >= start else None,
