@@ -39,12 +39,96 @@ CONTROLS = {
     "smart_glass_break": ("switch", "Glass Breaking", "Detections", "changes what this camera listens for"),
     "doorbell_text": ("select", "Doorbell Message", "Doorbell", "changes the message on the doorbell's screen"),
     "doorbell_ring_volume": ("number", "Ring Volume", "Doorbell", "changes how loud the doorbell rings"),
+    # REGISTER 1234 — lights, sensors and chimes (MEASURED on Dave's box: floodlights carry the light itself (unique id =
+    # the MAC alone), light_motion, sensitivity, duration, paired_camera, status_light; sensors carry mount_type,
+    # sensitivity, paired_camera, status_light, the temperature / humidity / light / motion / alarm reading switches and
+    # clear_tamper)
+    "_main_light": ("light", "Light", "Light", "turns this light on or off"),
+    "light_motion": ("select", "Turns On", "Light", "changes when this light turns itself on"),
+    "duration": ("number", "Stays On For", "Light", "changes how long it stays on"),
+    "sensitivity": ("number", "Motion Sensitivity", "Sensing", "changes how easily motion sets it off"),
+    "paired_camera": ("select", "Paired Camera", "Sensing", "changes which camera records when it triggers"),
+    "mount_type": ("select", "Mounted On", "Sensing", "changes what the sensor reports as open and closed"),
+    "temperature": ("switch", "Temperature Readings", "Readings", "changes what the sensor reports"),
+    "humidity": ("switch", "Humidity Readings", "Readings", "changes what the sensor reports"),
+    "light": ("switch", "Light Readings", "Readings", "changes what the sensor reports"),
+    "alarm": ("switch", "Alarm Sound Readings", "Readings", "changes what the sensor listens for"),
+    "clear_tamper": ("button", "Clear Tamper", "Sensing", "clears the tamper alert"),
+    "volume": ("number", "Volume", "Chime", "changes how loud the chime rings"),
 }
-GROUPS = ("Picture & Recording", "On the Camera", "On-Screen", "Detections", "Doorbell")
+GROUPS = ("Picture & Recording", "On the Camera", "On-Screen", "Detections", "Doorbell", "Light", "Sensing", "Readings", "Chime")
+# readings shown, never pressed: key → (label, kind of value)
+READINGS = {"door": ("Door", "open"), "leak": ("Leak", "wet"), "motion": ("Motion", "seen"), "tampering": ("Tamper", "alert"),
+            "battery_low": ("Battery Low", "alert"), "battery_level": ("Battery", "%"), "temperature_level": ("Temperature", "unit"),
+            "humidity_level": ("Humidity", "unit"), "light_level": ("Light Level", "unit"), "dark": ("Dark", "yesno"),
+            "alarm_sound": ("Alarm Sound", "text")}
 
 
 def _mac(v):
     return re.sub(r"[^0-9a-f]", "", str(v or "").lower())
+
+
+def _key_of(uid, m):
+    """The control key in a platform unique id "<MAC>_<key>" for this MAC; the light itself is the MAC alone."""
+    if _mac(uid[:12]) != m or len(re.sub(r"[^0-9A-Fa-f]", "", uid[:12])) != 12:
+        return None
+    if len(uid) == 12:
+        return "_main_light"
+    return uid[13:] if uid[12:13] == "_" else None
+
+
+def readings_for(mac, entities, states):
+    """What a light or sensor reports now (door, leak, motion, tamper, battery, temperature …) — shown, never pressed."""
+    m = _mac(mac)
+    st = {s.get("entity_id"): s for s in (states or []) if isinstance(s, dict)}
+    out = []
+    for e in (entities or []):
+        if e.get("platform") != "unifiprotect" or e.get("disabled_by"):
+            continue
+        key = _key_of(str(e.get("unique_id") or ""), m)
+        spec = READINGS.get(key or "")
+        eid = str(e.get("entity_id") or "")
+        if not spec or eid.split(".")[0] not in ("binary_sensor", "sensor"):
+            continue
+        s = st.get(eid) or {}
+        v, a = s.get("state"), s.get("attributes") or {}
+        if v in (None, "unavailable", "unknown"):
+            words = "Not answering"
+        elif spec[1] == "open":
+            words = "Open" if v == "on" else "Closed"
+        elif spec[1] == "wet":
+            words = "Wet" if v == "on" else "Dry"
+        elif spec[1] == "seen":
+            words = "Detected" if v == "on" else "None"
+        elif spec[1] == "alert":
+            words = "Yes" if v == "on" else "No"
+        elif spec[1] == "yesno":
+            words = "Yes" if v == "on" else "No"
+        elif spec[1] == "%":
+            words = "%s%%" % v
+        elif spec[1] == "unit":
+            words = "%s%s" % (v, (" " + a["unit_of_measurement"]) if a.get("unit_of_measurement") else "")
+        else:
+            words = str(v)[:40]
+        out.append({"key": key, "label": spec[0], "value": words,
+                    "alert": spec[1] in ("open", "wet", "alert") and v == "on"})
+    order = {k: i for i, k in enumerate(READINGS)}
+    out.sort(key=lambda r: order.get(r["key"], 99))
+    return out
+
+
+def devices_view(devices, entities, states):
+    """Lights, sensors or chimes (the official interface's list) as named fields, with their controls and readings."""
+    out = []
+    for d in (devices or []):
+        if not isinstance(d, dict):
+            continue
+        ctl, dis = controls_for(d.get("mac"), entities, states)
+        out.append({"id": d.get("id"), "name": d.get("name") or "Device", "model": d.get("type") or d.get("modelKey"),
+                    "online": str(d.get("state") or "").upper() == "CONNECTED", "mac": d.get("mac"),
+                    "controls": ctl, "controls_disabled": dis, "readings": readings_for(d.get("mac"), entities, states)})
+    out.sort(key=lambda x: str(x["name"]).lower())
+    return out
 
 
 def controls_for(mac, entities, states):
@@ -58,9 +142,9 @@ def controls_for(mac, entities, states):
         if e.get("platform") != "unifiprotect":
             continue
         uid = str(e.get("unique_id") or "")
-        if _mac(uid[:12]) != m or uid[12:13] != "_":
+        key = _key_of(uid, m)
+        if key is None:
             continue
-        key = uid[13:]
         spec = CONTROLS.get(key)
         eid = str(e.get("entity_id") or "")
         if not spec or eid.split(".")[0] != spec[0]:
@@ -106,17 +190,22 @@ def plan(entity, state, value):
     if not entity or entity.get("platform") != "unifiprotect":
         return None, None, "that is not one of the platform's UniFi Protect controls"
     uid = str(entity.get("unique_id") or "")
-    spec = CONTROLS.get(uid[13:]) if len(_mac(uid[:12])) == 12 and uid[12:13] == "_" else None
+    k = _key_of(uid, _mac(uid[:12]))
+    spec = CONTROLS.get(k) if k else None
     eid = str(entity.get("entity_id") or "")
     if not spec or eid.split(".")[0] != spec[0]:
         return None, None, "ProOS does not offer that control"
     if entity.get("disabled_by"):
         return None, None, "the platform has that control switched off"
     a = (state or {}).get("attributes") or {}
-    if spec[0] == "switch":
+    if spec[0] in ("switch", "light"):
         if not isinstance(value, bool):
             return None, None, "on or off"
-        return "switch", "turn_on" if value else "turn_off", {}
+        return spec[0], "turn_on" if value else "turn_off", {}
+    if spec[0] == "button":
+        if value is not True:
+            return None, None, "press"
+        return "button", "press", {}
     if spec[0] == "select":
         if str(value) not in [str(o) for o in (a.get("options") or [])]:
             return None, None, "that is not one of its choices"
@@ -134,7 +223,9 @@ def plan(entity, state, value):
 def landed(domain, state, value):
     """Whether the platform's state now shows the value asked for."""
     s = (state or {}).get("state")
-    if domain == "switch":
+    if domain == "button":
+        return s not in (None, "unavailable", "unknown")          # a press claims nothing beyond the platform taking it
+    if domain in ("switch", "light"):
         return s == ("on" if value else "off")
     if domain == "select":
         return s == str(value)

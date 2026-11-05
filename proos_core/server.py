@@ -6495,6 +6495,25 @@ class Handler(BaseHTTPRequestHandler):
             except Exception:                                    # noqa: BLE001
                 ents, sts = [], []
             return self._send(200, {"ok": True, "cameras": _pc.cameras_view(cams if isinstance(cams, list) else [], ents, sts)})
+        if method == "GET" and sub == "devices" and not sub2:
+            # REGISTER 1234 — Protect → Lights & Chimes / Sensors: each device from the official interface, joined to the
+            # platform's own controls and readings by MAC (protectcams). Read only.
+            from proos import protectcams as _pc
+            from proos import unifi as _u
+            kind = (parse_qs(urlparse(self.path).query).get("kind") or [""])[0]
+            if kind not in ("lights", "sensors", "chimes"):
+                return self._send(400, {"error": "kind is lights, sensors or chimes"})
+            try:
+                devs = _u.ProtectClient(_creds).collection(kind)
+            except Exception as ex:                              # noqa: BLE001
+                return self._send(200, {"ok": False, "why": "Protect's key did not answer: %s" % str(ex)[:120]})
+            try:
+                ents = [e for e in (_client.entity_registry() or []) if e.get("platform") == "unifiprotect"]
+                sts = [x for x in (_client.all_states() or []) if str(x.get("entity_id", "")).split(".")[0]
+                       in ("switch", "select", "number", "light", "button", "sensor", "binary_sensor")]
+            except Exception:                                    # noqa: BLE001
+                ents, sts = [], []
+            return self._send(200, {"ok": True, "kind": kind, "devices": _pc.devices_view(devs if isinstance(devs, list) else [], ents, sts)})
         if method == "POST" and sub == "cameras" and sub2 == "set":
             # REGISTER 1233 — change ONE of the platform's own camera controls (Pro asks first), then read the platform's
             # state back: "confirmed" only when it shows the new value.
@@ -6509,6 +6528,7 @@ class Handler(BaseHTTPRequestHandler):
             dom, svc, data = _pc.plan(ent, st, val)
             if dom is None:
                 return self._send(200, {"ok": False, "why": data})
+            before = (st or {}).get("state")
             try:
                 _client.call_service(dom, svc, eid, data or None)
             except Exception as ex:                              # noqa: BLE001
@@ -6519,7 +6539,9 @@ class Handler(BaseHTTPRequestHandler):
                     st2 = next((s for s in (_client.all_states() or []) if s.get("entity_id") == eid), None)
                 except Exception:                                # noqa: BLE001
                     st2 = None
-                if _pc.landed(dom, st2, val):
+                # a button (1234) has no setting: it is confirmed when the platform records a new press time
+                if (dom == "button" and (st2 or {}).get("state") not in (None, before, "unavailable", "unknown")) \
+                        or (dom != "button" and _pc.landed(dom, st2, val)):
                     return self._send(200, {"ok": True, "confirmed": True, "state": (st2 or {}).get("state")})
             return self._send(200, {"ok": True, "confirmed": False,
                                     "said": "the platform took the change but did not show it within 8 seconds"})

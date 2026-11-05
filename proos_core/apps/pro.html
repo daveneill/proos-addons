@@ -3200,7 +3200,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102663';
+const PROOS_BUILD='2026102664';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -5072,8 +5072,8 @@ function uniNetSection(s){ _uniNetSection=s; _uniNetSel=null; renderUniNet(); }
 // REGISTER 1229 — the mockup's section lists. [key, label, built]. A section not built is listed (so the installer sees
 // the whole app) but greyed with "Coming" and cannot be opened; each build flips its own entry to true.
 const UNI_PROTECT_SECTIONS=[['live','Live View',true],['detections','Detections',true],['alarm','Alarm Manager',true],
-  ['cameras','Cameras',true],['doorbell','Doorbell',true],['lights','Lights & Chimes',false],['sensors','Sensors',false],
-  ['relays','Relays & Sirens',false],['viewports','Viewports',false],['recordings','Recordings',false],['setup','Setup',true]];
+  ['cameras','Cameras',true],['doorbell','Doorbell',true],['lights','Lights & Chimes',true],['sensors','Sensors',true],
+  ['relays','Relays & Sirens',true],['viewports','Viewports',false],['recordings','Recordings',false],['setup','Setup',true]];
 const UNI_NET_SECTIONS=[['devices','Devices',true],['ports','Ports',true],['clients','Clients',true],['wifi','Wi-Fi',true],
   ['networks','Networks',false],['internet','Internet',false],['guests','Guests',false],['firewall','Firewall & Rules',false],
   ['power','Power',false],['events','Events',false],['integration','Integration',true]];
@@ -15977,6 +15977,8 @@ function uniProtectSection(s){
   if(s==='alarm'){ renderUniAlarm(); _uniAlarmLoad(); _uniAlarmsLoad(); }
   if(s==='detections'){ renderUniDets(); _uniDetLoad(); }
   if(s==='cameras'||s==='doorbell'){ renderUniCC(); _uniCCLoad(); }
+  if(s==='lights'||s==='sensors'){ _uniDV=null; renderUniDV(); _uniDVLoad(); }
+  if(s==='relays'){ renderUniRS(); _uniRSLoad(); }
 }
 // ── REGISTER 1224 — PROTECT → ALARM (Dave, 6 Nov: "Build both"). The console's MODE decides arming: with arm profiles,
 // Arm / Disarm and the profile buttons work through them; in Global Alarm Manager mode (Dave's console — Ubiquiti lets no
@@ -16187,15 +16189,17 @@ async function _uniCCLoad(){
 }
 function uniCCPick(id){ _uniCCSel=id; renderUniCC(); }
 async function uniCamSet(cid,eid,value){
-  const c=((_uniCC&&_uniCC.cameras)||[]).find(x=>x.id===cid); const r=c&&c.controls.find(x=>x.entity_id===eid); if(!r) return;
-  const words=r.domain==='switch'?(value?'On':'Off'):String(value)+(r.unit?' '+r.unit:'');
-  if(!await proAsk('Set '+r.label+' on "'+c.name+'" to '+words+'?\n\nThis '+r.does+'.')){ renderUniCC(); return; }
+  // 1234: cameras, lights, sensors and chimes share this one road
+  const c=[...((_uniCC&&_uniCC.cameras)||[]),...((_uniDV&&_uniDV.devices)||[])].find(x=>x.id===cid); const r=c&&c.controls.find(x=>x.entity_id===eid); if(!r) return;
+  const words=(r.domain==='switch'||r.domain==='light')?(value?'On':'Off'):r.domain==='button'?'':String(value)+(r.unit?' '+r.unit:'');
+  const q=r.domain==='button'?(r.label+' on "'+c.name+'"?'):('Set '+r.label+' on "'+c.name+'" to '+words+'?');
+  if(!await proAsk(q+'\n\nThis '+r.does+'.')){ renderUniCC(); renderUniDV(); return; }
   try{
     const res=await fetch(proCoreUrl()+'/unifi/console/cameras/set',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({entity_id:eid,value})});
     const d=await res.json().catch(()=>({}));
-    toast(!d.ok?('Not done — '+(d.why||'Core answered '+res.status)):d.confirmed?(r.label+' on '+c.name+' is '+words+' — confirmed'):('Sent, not confirmed — '+(d.said||'')));
+    toast(!d.ok?('Not done — '+(d.why||'Core answered '+res.status)):d.confirmed?(r.label+' on '+c.name+(words?' is '+words:' done')+' — confirmed'):('Sent, not confirmed — '+(d.said||'')));
   }catch(e){ toast(_coreFailWords('',e)); }
-  _uniCCLoad();
+  if(_uniCC) _uniCCLoad(); if(_uniDV) _uniDVLoad();
 }
 function renderUniCC(){
   const el=document.getElementById('unifi-live'); if(!el||!['cameras','doorbell'].includes(_uniProtectSection)) return;
@@ -16211,7 +16215,8 @@ function renderUniCC(){
   const ctl=r=>{
     const id=`'${esc(sel.id)}','${esc(r.entity_id)}'`;
     if(!r.available) return '<span class="es">Not answering</span>';
-    if(r.domain==='switch') return `<button class="ual-pill${r.state==='on'?' on':''}" onclick="uniCamSet(${id},${r.state!=='on'})">${r.state==='on'?'On':'Off'}</button>`;
+    if(r.domain==='switch'||r.domain==='light') return `<button class="ual-pill${r.state==='on'?' on':''}" onclick="uniCamSet(${id},${r.state!=='on'})">${r.state==='on'?'On':'Off'}</button>`;
+    if(r.domain==='button') return `<button class="unp-act" onclick="uniCamSet(${id},true)">${esc(r.label)}</button>`;
     if(r.domain==='select') return `<select class="ucc-sel" onchange="uniCamSet(${id},this.value)">${(r.options||[]).map(o=>`<option${o===r.state?' selected':''}>${esc(o)}</option>`).join('')}</select>`;
     return `<input class="ucc-rng" type="range" min="${Number(r.min)||0}" max="${Number(r.max)||100}" step="${Number(r.step)||1}" value="${Number(r.state)||0}" onchange="uniCamSet(${id},Number(this.value))"> <span class="es">${esc(String(r.state))}${r.unit?' '+esc(r.unit):''}</span>`;
   };
@@ -16223,6 +16228,71 @@ function renderUniCC(){
     +(sel.controls_disabled?kv('Platform Controls Off',sel.controls_disabled+' (switched off in the platform)'):'')+'</div></div>';
   setHTML(el,`<div class="unp-chips"><button class="unp-chip" style="margin-left:auto" onclick="_uniCC=null;renderUniCC();_uniCCLoad()">Refresh</button></div>`
     +`<div class="unp-split ual"><aside class="unp-panel"><div class="ual-list">${list}</div></aside><section class="ual-devs">${info}${groups||'<div class="es">The platform offers no controls for this camera.</div>'}</section></div>`);
+}
+// ── REGISTER 1234 — LIGHTS & CHIMES · SENSORS: each device with the platform's own controls and what it reports now (Core:
+// /unifi/console/devices?kind=), the same rows, cards and one change road (uniCamSet) as Cameras. RELAYS & SIRENS: the
+// official interface's sirens, relays and alarm hubs, with Sound / Stop asked first (the Alarm page's own uniSiren).
+let _uniDV=null, _uniDVSel=null;
+async function _uniDVLoad(){
+  const s=_uniProtectSection, kinds=s==='lights'?['lights','chimes']:s==='sensors'?['sensors']:[];
+  if(!kinds.length) return;
+  const all=[]; let why=null;
+  for(const k of kinds){
+    try{ const r=await fetch(proCoreUrl()+'/unifi/console/devices?kind='+k); const d=r.ok?await r.json():{ok:false,why:'Core answered '+r.status};
+      if(d.ok) all.push(...(d.devices||[]).map(x=>Object.assign({kind:k},x))); else why=d.why; }
+    catch(e){ why='Couldn\'t reach ProOS Core'; }
+  }
+  _uniDV=(all.length||!why)?{ok:true,section:s,devices:all}:{ok:false,why,section:s};
+  if(panelActive('unifi')&&_uniProtectSection===s) renderUniDV();
+}
+function uniDVPick(id){ _uniDVSel=id; renderUniDV(); }
+function renderUniDV(){
+  const el=document.getElementById('unifi-live'); const s=_uniProtectSection; if(!el||!['lights','sensors'].includes(s)) return;
+  const d=_uniDV;
+  if(!d||d.section!==s){ setHTML(el,'<div class="empty"><div class="et">Reading…</div></div>'); return; }
+  if(!d.ok){ setHTML(el,`<div class="empty"><div class="et">Couldn't read them</div><div class="es">${esc(d.why||'')}. Protect's key is set on the UniFi Overview page, under Console Settings.</div></div>`); return; }
+  const L=d.devices||[];
+  if(!L.length){ setHTML(el,`<div class="empty"><div class="et">${s==='lights'?'No lights or chimes on this console':'No sensors on this console'}</div></div>`); return; }
+  if(!L.find(x=>x.id===_uniDVSel)) _uniDVSel=L[0].id;
+  const sel=L.find(x=>x.id===_uniDVSel);
+  const kv=(k,v)=>`<div class="unifi-row"><span class="unifi-row-l">${k}</span><span class="unifi-row-d">${v}</span></div>`;
+  const list=L.map(x=>`<button class="ual-row${x.id===_uniDVSel?' on':''}" onclick="uniDVPick('${esc(x.id)}')"><span class="ual-rn">${esc(x.name)}</span><span class="ual-rw">${esc(x.model||'')}</span><span class="ual-pill${x.online?' on':''}">${x.online?'Online':'Offline'}</span></button>`).join('');
+  const id=r=>`'${esc(sel.id)}','${esc(r.entity_id)}'`;
+  const ctl=r=>{
+    if(!r.available) return '<span class="es">Not answering</span>';
+    if(r.domain==='switch'||r.domain==='light') return `<button class="ual-pill${r.state==='on'?' on':''}" onclick="uniCamSet(${id(r)},${r.state!=='on'})">${r.state==='on'?'On':'Off'}</button>`;
+    if(r.domain==='button') return `<button class="unp-act" onclick="uniCamSet(${id(r)},true)">${esc(r.label)}</button>`;
+    if(r.domain==='select') return `<select class="ucc-sel" onchange="uniCamSet(${id(r)},this.value)">${(r.options||[]).map(o=>`<option${o===r.state?' selected':''}>${esc(o)}</option>`).join('')}</select>`;
+    return `<input class="ucc-rng" type="range" min="${Number(r.min)||0}" max="${Number(r.max)||100}" step="${Number(r.step)||1}" value="${Number(r.state)||0}" onchange="uniCamSet(${id(r)},Number(this.value))"> <span class="es">${esc(String(r.state))}${r.unit?' '+esc(r.unit):''}</span>`;
+  };
+  const now=`<div class="unp-card"><div class="unp-head"><b>${esc(sel.name)}</b><span class="es" style="margin-left:auto">${esc(sel.model||'')}</span></div><div class="unifi-status">`
+    +kv('State',sel.online?'<span style="color:#46e3a0">● Online</span>':'<em class="unp-red">Offline</em>')
+    +(sel.readings||[]).map(x=>kv(esc(x.label),x.alert?`<em class="unp-red">${esc(x.value)}</em>`:esc(x.value))).join('')
+    +(sel.controls_disabled?kv('Platform Controls Off',sel.controls_disabled+' (switched off in the platform)'):'')+'</div></div>';
+  const groups=['Light','Chime','Sensing','Readings','On the Camera','Detections'].map(g=>{ const rows=(sel.controls||[]).filter(r=>r.group===g);
+    return rows.length?`<div class="unp-card"><div class="unp-head"><b>${g==='On the Camera'?'On the Device':g==='Detections'?'Motion':g}</b></div><div class="unifi-status">${rows.map(r=>kv(esc(r.label),ctl(r))).join('')}</div></div>`:''; }).join('');
+  setHTML(el,`<div class="unp-chips"><button class="unp-chip" style="margin-left:auto" onclick="_uniDV=null;renderUniDV();_uniDVLoad()">Refresh</button></div>`
+    +`<div class="unp-split ual"><aside class="unp-panel"><div class="ual-list">${list}</div></aside><section class="ual-devs">${now}${groups}</section></div>`);
+}
+let _uniRS=null;
+async function _uniRSLoad(){
+  try{ const r=await fetch(proCoreUrl()+'/unifi/protect/alarm'); _uniRS=r.ok?await r.json():{error:'Core answered '+r.status}; }
+  catch(e){ _uniRS={error:'Couldn\'t reach ProOS Core'}; }
+  if(panelActive('unifi')&&_uniProtectSection==='relays') renderUniRS();
+}
+function renderUniRS(){
+  const el=document.getElementById('unifi-live'); if(!el||_uniProtectSection!=='relays') return;
+  const d=_uniRS;
+  if(!d){ setHTML(el,'<div class="empty"><div class="et">Reading…</div></div>'); return; }
+  if(d.error){ setHTML(el,`<div class="empty"><div class="et">Couldn't read them</div><div class="es">${esc(d.error)}</div></div>`); return; }
+  const kv=(k,v)=>`<div class="unifi-row"><span class="unifi-row-l">${k}</span><span class="unifi-row-d">${v}</span></div>`;
+  const st=x=>String(x.state||'').toUpperCase()==='CONNECTED'?'<span style="color:#46e3a0">● Connected</span>':'<em class="unp-red">'+esc(String(x.state||'—').toLowerCase())+'</em>';
+  const card=(t,rows,empty)=>`<div class="unp-card"><div class="unp-head"><b>${t}</b></div>${rows||`<div class="es">${empty}</div>`}</div>`;
+  const sirens=(d.sirens||[]).map(x=>`<div class="ual-dev"><b>${esc(x.name||'Siren')}</b><div class="unifi-status">${kv('State',st(x))}</div><div class="unp-acts"><button class="unp-act" onclick="uniSiren('${esc(x.id)}',true)">Sound</button><button class="unp-act" onclick="uniSiren('${esc(x.id)}',false)">Stop</button></div></div>`).join('');
+  const relays=(d.relays||[]).map(x=>`<div class="ual-dev"><b>${esc(x.name||'Relay')}</b><div class="unifi-status">${kv('State',st(x))}</div></div>`).join('');
+  const hubs=(d.hubs||[]).map(x=>`<div class="ual-dev"><b>${esc(x.name||'Alarm Hub')}</b><div class="unifi-status">${kv('State',st(x))}</div></div>`).join('');
+  setHTML(el,`<div class="unp-chips"><button class="unp-chip" style="margin-left:auto" onclick="_uniRS=null;renderUniRS();_uniRSLoad()">Refresh</button></div>`
+    +`<div class="ual-devs">${card('Sirens',sirens,'No sirens on this console.')}${card('Relays',relays,'No relays on this console.')}${card('Alarm Hubs',hubs,'No alarm hubs on this console.')}</div>`);
 }
 function renderUniCams(){
   const el=document.getElementById('unifi-live'); if(!el) return;
