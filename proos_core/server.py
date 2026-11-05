@@ -6480,6 +6480,49 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, {"ok": True, "alarms": al, "names_read": bs is not None,
                                     "on": sum(1 for x in al if x["on"]), "total": len(al),
                                     "unnamed_id_lengths": _pa.unnamed_shapes(_A, _B)})
+        if method == "GET" and sub == "cameras" and not sub2:
+            # REGISTER 1233 — Protect → Cameras: each camera from the official interface, joined to the PLATFORM's own
+            # UniFi Protect controls (protectcams: "<MAC>_<key>"), with their state now. Read only.
+            from proos import protectcams as _pc
+            from proos import unifi as _u
+            try:
+                cams = _u.ProtectClient(_creds).cameras()
+            except Exception as ex:                              # noqa: BLE001
+                return self._send(200, {"ok": False, "why": "Protect's key did not answer: %s" % str(ex)[:120]})
+            try:
+                ents = [e for e in (_client.entity_registry() or []) if e.get("platform") == "unifiprotect"]
+                sts = [s for s in (_client.all_states() or []) if str(s.get("entity_id", "")).split(".")[0] in ("switch", "select", "number")]
+            except Exception:                                    # noqa: BLE001
+                ents, sts = [], []
+            return self._send(200, {"ok": True, "cameras": _pc.cameras_view(cams if isinstance(cams, list) else [], ents, sts)})
+        if method == "POST" and sub == "cameras" and sub2 == "set":
+            # REGISTER 1233 — change ONE of the platform's own camera controls (Pro asks first), then read the platform's
+            # state back: "confirmed" only when it shows the new value.
+            import time as _t
+            from proos import protectcams as _pc
+            eid, val = str(b.get("entity_id") or ""), b.get("value")
+            try:
+                ent = next((x for x in (_client.entity_registry() or []) if x.get("entity_id") == eid), None)
+                st = next((s for s in (_client.all_states() or []) if s.get("entity_id") == eid), None)
+            except Exception:                                    # noqa: BLE001
+                ent, st = None, None
+            dom, svc, data = _pc.plan(ent, st, val)
+            if dom is None:
+                return self._send(200, {"ok": False, "why": data})
+            try:
+                _client.call_service(dom, svc, eid, data or None)
+            except Exception as ex:                              # noqa: BLE001
+                return self._send(200, {"ok": False, "why": "the platform refused: %s" % str(ex)[:160]})
+            for _ in range(8):
+                _t.sleep(1)
+                try:
+                    st2 = next((s for s in (_client.all_states() or []) if s.get("entity_id") == eid), None)
+                except Exception:                                # noqa: BLE001
+                    st2 = None
+                if _pc.landed(dom, st2, val):
+                    return self._send(200, {"ok": True, "confirmed": True, "state": (st2 or {}).get("state")})
+            return self._send(200, {"ok": True, "confirmed": False,
+                                    "said": "the platform took the change but did not show it within 8 seconds"})
         if method == "GET" and sub == "detections" and sub2 == "thumb":
             # REGISTER 1232 — one detection's picture, through ProOS's own console user. The id must look like an id.
             from proos import protectevents as _pev

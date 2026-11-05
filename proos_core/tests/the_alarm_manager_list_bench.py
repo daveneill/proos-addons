@@ -74,7 +74,8 @@ ok(v2["devices"] == ["Driveway", "Office"] and v2["devices_unknown"] == 2 and pa
    "6 · a source naming its device by MAC (any spelling) is named; a name is never an id; unmatched ids report only their length")
 src = open(os.path.join(HERE, "..", "server.py"), encoding="utf-8").read()
 i = src.index('if method == "GET" and sub == "alarms":')
-route = src[i:src.index('if method == "GET" and sub == "network":', i)]
+# (pin narrowed, register 1233: the Cameras routes — which do switch — now follow the alarm route; it still only reads)
+route = src[i:src.index('if method == "GET" and sub == "cameras" and not sub2:', i)]
 ok('_uc.get_json(_creds, ph, "/proxy/protect/api/automations")' in route and "_pa.alarms_view(" in route
    and "call_service" not in route and "POST" not in route and '"alarms": au' not in route and '"bootstrap"' not in route.split("_pa.alarms_view")[1],
    "5 · the route reads only, through ProOS's own console user, and sends the view, never the raw records")
