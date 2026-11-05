@@ -253,6 +253,53 @@ def counts(creds, h, http=None):
     return out
 
 
+# REGISTER 1217 — the apps' own logos (Dave, 5 Nov: "would be good if you could use the brand logos instead of icons").
+# ProOS never draws Ubiquiti's marks: it shows the ones the console itself serves. Each app keeps its icon behind the
+# console's sign-in (measured on Dave's console: /proxy/<app>/favicon.svg answers 401 without one), so they are asked
+# for with ProOS's own session; the console's own mark (its front-page icon) needs none. Only real images are kept —
+# an app that is not there answers with the console's web page, which is refused for not being an image.
+ICON_PATHS = ("favicon.svg", "apple-touch-icon.png", "favicon.png", "favicon.ico")
+ICON_MAX = 96 * 1024
+ICON_SECONDS = 24 * 3600
+_ICONS = {}                                                      # host -> {"at": t, "icons": {app: data URI}}
+
+
+def _as_image(st, hd, raw):
+    import base64
+    ct = (hd.get("content-type") or "").split(";")[0].strip().lower()
+    if st != 200 or not ct.startswith("image/") or not raw or len(raw) > ICON_MAX:
+        return None
+    return "data:%s;base64,%s" % (ct, base64.b64encode(raw).decode("ascii"))
+
+
+def icons(creds, h, found=None, http=None):
+    """{app: data URI} for the apps whose logo the console served, plus 'console' for the console's own mark.
+    Cached a day per console; an app missing from the answer simply has no logo (Pro keeps its plain symbol)."""
+    http = http or HTTP
+    c = _ICONS.get(h)
+    if c and time.time() - c["at"] < ICON_SECONDS:
+        return dict(c["icons"])
+    out = {}
+    for p in ("favicon.svg", "apple-touch-icon.png"):
+        img = _as_image(*http("GET", _base(h) + "/" + p, None, {"Accept": "image/*"}))
+        if img:
+            out["console"] = img
+            break
+    hd, _why = _session(creds, h, http)
+    if hd is not None:
+        for app, _name, root, _info in APPS:
+            if found is not None and found.get(app) is False:
+                continue
+            for p in ICON_PATHS:
+                img = _as_image(*http("GET", _base(h) + root + p, None, dict(hd, Accept="image/*")))
+                if img:
+                    out[app] = img
+                    break
+    if out:
+        _ICONS[h] = {"at": time.time(), "icons": out}
+    return out
+
+
 def status(creds, platform_host=None, http=None, deep=True):
     """The console card, masked. deep=False skips asking the console (for quick page loads)."""
     h, frm = host(creds, platform_host)
@@ -261,6 +308,9 @@ def status(creds, platform_host=None, http=None, deep=True):
            "user_set": bool(login.get("set")), "key": creds.status(SVC_KEY),
            "access_token": creds.status(SVC_ACCESS), "protect_key_set": bool(creds.get(SVC_PROTECT))}
     if not (deep and h):
+        cached = _ICONS.get(h) if h else None
+        if cached:
+            out["icons"] = dict(cached["icons"])                 # what the console already served — no asking
         return out
     hd, why = _session(creds, h, http) if login.get("set") else (None, "no local user is saved yet")
     out["signed_in"] = hd is not None
@@ -268,4 +318,5 @@ def status(creds, platform_host=None, http=None, deep=True):
         out["why"] = why
     out["apps"] = apps(creds, h, http)
     out["counts"] = counts(creds, h, http)
+    out["icons"] = icons(creds, h, {a["app"]: a.get("found") for a in out["apps"]}, http)
     return out

@@ -103,6 +103,7 @@ select option,select optgroup{background:#1a1c20;color:#fff}
 .uni-bar{display:flex;flex-wrap:wrap;gap:6px;padding:6px;border-radius:14px;background:rgba(0,0,0,0.35);border:0.5px solid var(--line-soft);margin-bottom:16px}
 .uni-tab{display:flex;align-items:center;gap:7px;padding:8px 13px;border-radius:10px;border:0;background:transparent;color:rgba(255,255,255,0.82);font-size:14px;cursor:pointer}
 .uni-tab svg{width:17px;height:17px;flex:0 0 auto}
+.uni-tab img.uni-logo{width:20px;height:20px;border-radius:5px;flex:0 0 auto;object-fit:contain}
 .uni-tab.on{background:var(--accent);color:#fff;font-weight:600}
 .uni-tab.later{color:var(--t3)}
 .uni-tab-note{font-size:10px;font-weight:600;color:var(--t2);border:0.5px solid var(--line);border-radius:6px;padding:1px 6px;white-space:nowrap}
@@ -117,6 +118,7 @@ select option,select optgroup{background:#1a1c20;color:#fff}
 .uni-tile-top{display:flex;align-items:center;gap:11px}
 .uni-tile-ico{width:42px;height:42px;border-radius:12px;background:rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;flex:0 0 auto}
 .uni-tile-ico svg{width:22px;height:22px}
+.uni-tile-ico img.uni-logo{width:34px;height:34px;border-radius:9px;object-fit:contain}
 .uni-tile-name{font-size:17px;font-weight:600}
 .uni-tile-sub{font-size:12px;color:var(--t2)}
 .uni-tile-st{margin-left:auto;font-size:12px;color:var(--t2);text-align:right}
@@ -3073,7 +3075,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102647';
+const PROOS_BUILD='2026102648';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -15507,17 +15509,32 @@ const UNI_ICONS={
 function _uniIco(k){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(UNI_ICONS[k]||'')+'</svg>'; }
 let _uniLast=null;            // Core's last console answer: which apps the console has (the app bar's notes come from it)
 let _uniSettingsOpen=false;   // Console Settings, once connected, stay folded until asked for
+// REGISTER 1217: the apps' own logos, as the console serves them (Core fetches them with ProOS's sign-in and hands
+// them over as images). ProOS never draws Ubiquiti's marks; where the console gave none, the plain symbol stays.
+let _uniIcons={};
+function _uniMark(k){
+  const src=_uniIcons[k==='overview'?'console':k];
+  return (typeof src==='string'&&/^data:image\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/=]+$/i.test(src))?`<img class="uni-logo" src="${src}" alt="">`:_uniIco(k);
+}
 function uniAppBar(active){
   const apps=(_uniLast&&_uniLast.apps)||[]; const found=k=>{ const a=apps.find(x=>x.app===k); return a?a.found:null; };
   const tabs=[['overview','Overview','openUnifiSuite()'],['network','Network','openUniNet()'],['protect','Protect','openUnifi()'],['access','Access',''],['connect','Connect',''],['talk','Talk','']];
   const note={access:found('access')===false?'Set Up Later':'Page Coming',connect:found('connect')===false?'Not on Console':'Page Coming',talk:'Waiting on Ubiquiti'};
   return '<div class="uni-bar" role="tablist" aria-label="UniFi apps">'+tabs.map(([k,l,go])=>{
     const on=k===active, n=note[k];
-    return `<button class="uni-tab${on?' on':''}${n?' later':''}" role="tab" aria-selected="${on}" onclick="${go||`uniLater('${k}')`}">${_uniIco(k)}${l}${n?`<span class="uni-tab-note">${n}</span>`:''}</button>`;
+    return `<button class="uni-tab${on?' on':''}${n?' later':''}" role="tab" aria-selected="${on}" onclick="${go||`uniLater('${k}')`}">${_uniMark(k)}${l}${n?`<span class="uni-tab-note">${n}</span>`:''}</button>`;
   }).join('')+'</div>';
 }
 function uniLater(k){ toast({access:'Access gets its own page in stage 5. It works once Access is on the console.',connect:'Connect gets its own page in stage 6.',talk:'Ubiquiti has no way in for other systems yet. Talk is built the day there is.'}[k]||''); }
-function paintUniBar(active){ const el=document.getElementById('unibar-'+active); if(el) setHTML(el,uniAppBar(active)); }
+function paintUniBar(active){
+  const el=document.getElementById('unibar-'+active); if(el) setHTML(el,uniAppBar(active));
+  // Opened straight onto Protect or Network: the logos the console already served come with Core's quick answer
+  if(el && !Object.keys(_uniIcons).length && active!=='overview'){
+    fetch(proCoreUrl()+'/unifi/console?quick=1').then(r=>r.ok?r.json():null).then(d=>{
+      if(d&&d.icons&&Object.keys(d.icons).length){ _uniIcons=d.icons; setHTML(el,uniAppBar(active)); }
+    }).catch(()=>{});
+  }
+}
 function uniToggleSettings(){ _uniSettingsOpen=!_uniSettingsOpen; const s=document.getElementById('uni-settings'); if(s) s.hidden=!_uniSettingsOpen; }
 async function openUnifiSuite(){ show('unifi-suite'); paintUniBar('overview'); renderUnifiSuite(true); renderUnifiSuite(false); }
 async function renderUnifiSuite(quick){
@@ -15525,6 +15542,7 @@ async function renderUnifiSuite(quick){
   let st=null;
   try{ const r=await fetch(proCoreUrl()+'/unifi/console'+(quick?'?quick=1':'')); if(r.status===403){ setHTML(body,'<div class="empty"><div class="et">Installer access required</div></div>'); return; } st=await r.json(); }
   catch(e){ if(!body.dataset.rendered) setHTML(body,'<div class="empty"><div class="et">Couldn\'t reach ProOS Core</div></div>'); return; }
+  if(st.icons&&Object.keys(st.icons).length) _uniIcons=st.icons;
   if(!quick || !_uniLast){ _uniLast=st; if(typeof paintUniBar==='function') paintUniBar('overview'); }
   const signed=!!st.signed_in, keySet=!!(st.key&&st.key.set), accSet=!!(st.access_token&&st.access_token.set);
   const ready=signed&&keySet;
@@ -15546,7 +15564,7 @@ async function renderUnifiSuite(quick){
     const foot=f===false&&a.answer?'console '+a.answer:(o.foot||'');
     const stats=(o.stats||[]).filter(s=>s[0]!=null).map(s=>`<div><div class="uni-stat-v">${esc(String(s[0]))}</div><div class="uni-stat-l">${esc(s[1])}</div></div>`).join('');
     const btn=(o.open&&f!==false)?`<button onclick="${o.open}">Open</button>`:'';
-    return `<article class="uni-tile${later?' later':''}" style="--uni-tint:${tint}"><div class="uni-tile-top"><div class="uni-tile-ico">${_uniIco(k)}</div><div><div class="uni-tile-name">${name}</div><div class="uni-tile-sub">${esc(sub)}</div></div><span class="uni-tile-st ${stc}">${esc(stTxt)}</span></div>`
+    return `<article class="uni-tile${later?' later':''}" style="--uni-tint:${tint}"><div class="uni-tile-top"><div class="uni-tile-ico">${_uniMark(k)}</div><div><div class="uni-tile-name">${name}</div><div class="uni-tile-sub">${esc(sub)}</div></div><span class="uni-tile-st ${stc}">${esc(stTxt)}</span></div>`
       +(stats?`<div class="uni-stats">${stats}</div>`:'')+(o.p?`<div class="uni-tile-p">${o.p(f)}</div>`:'')
       +`<div class="uni-tile-foot"><span>${esc(foot)}</span>${btn}</div></article>`;
   };
