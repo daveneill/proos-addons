@@ -174,6 +174,16 @@ select option,select optgroup{background:#1a1c20;color:#fff}
 .unp-red{color:#ff8a73;font-style:normal}
 .unp-pt{font-size:12px;color:var(--t2)}
 .unp-pn{font-size:18px;font-weight:600;margin:3px 0 4px;word-break:break-word}
+/* PROTECT → ALARM — register 1224 */
+.ual .unp-panel{order:-1}
+.ual-devs{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:0}
+.ual-dev{padding:10px 0;border-top:0.5px solid var(--line-soft)}
+.ual-dev:first-of-type{border-top:0}
+.ual-dev>b{font-size:14px;font-weight:600}
+.ual-trig{display:flex;gap:6px;align-items:center}
+.ual-trig .unp-act{flex:1 1 auto}
+.ual-x{flex:0 0 38px;height:38px;border-radius:10px;border:0;background:rgba(225,112,85,.15);color:#ff8a73;cursor:pointer}
+.unp-act.on{background:var(--accent-soft);color:#cfd9ff}
 /* PROTECT → LIVE VIEW — register 1223 */
 .uni-cams{flex:1 1 auto;min-width:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;align-content:start}
 @media (max-width:1439px){.uni-cams{grid-template-columns:repeat(3,minmax(0,1fr))}}
@@ -3142,7 +3152,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102653';
+const PROOS_BUILD='2026102654';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -15818,11 +15828,79 @@ let _uniProtectSection='live', _uniCams=null, _uniCamSel=null, _uniCamFilter='al
 function uniProtectSection(s){
   _uniProtectSection=s;
   const seg=document.getElementById('unifi-seg'), live=document.getElementById('unifi-live'), body=document.getElementById('unifi-body');
-  if(seg) setHTML(seg,`<div class="unp-seg"><button class="${s==='live'?'on':''}" onclick="uniProtectSection('live')">Live View</button><button class="${s==='setup'?'on':''}" onclick="uniProtectSection('setup')">Setup</button></div>`);
-  if(live) live.style.display=s==='live'?'':'none';
-  if(body) body.style.display=s==='live'?'none':'';
+  if(seg) setHTML(seg,`<div class="unp-seg"><button class="${s==='live'?'on':''}" onclick="uniProtectSection('live')">Live View</button><button class="${s==='alarm'?'on':''}" onclick="uniProtectSection('alarm')">Alarm</button><button class="${s==='setup'?'on':''}" onclick="uniProtectSection('setup')">Setup</button></div>`);
+  if(live) live.style.display=s==='setup'?'none':'';
+  if(body) body.style.display=s==='setup'?'':'none';
+  if(s!=='live'&&_uniCamTimer){ clearInterval(_uniCamTimer); _uniCamTimer=null; }
   if(s==='live'){ renderUniCams(); if(!_uniCams) _uniCamsLoad(); _uniCamTick(); }
-  else if(_uniCamTimer){ clearInterval(_uniCamTimer); _uniCamTimer=null; }
+  if(s==='alarm'){ renderUniAlarm(); _uniAlarmLoad(); }
+}
+// ── REGISTER 1224 — PROTECT → ALARM (Dave, 6 Nov: "Build both"). The console's MODE decides arming: with arm profiles,
+// Arm / Disarm and the profile buttons work through them; in Global Alarm Manager mode (Dave's console — Ubiquiti lets no
+// other system arm) arming stays in UniFi and the installer's Alarm Manager webhook triggers are fired from here. Every
+// alarm hub, sensor, siren and relay as the official interface reports it. Every action asks first.
+let _uniAlarm=null, _uniTrigEdit=false;
+async function _uniAlarmLoad(){
+  try{ const r=await fetch(proCoreUrl()+'/unifi/protect/alarm'); _uniAlarm=r.ok?await r.json():{error:'Core answered '+r.status}; }
+  catch(e){ _uniAlarm={error:'Couldn\'t reach ProOS Core'}; }
+  if(panelActive('unifi')&&_uniProtectSection==='alarm') renderUniAlarm();
+}
+async function _uniAlarmPost(path,body,ask,done){
+  if(ask&&!await proAsk(ask)) return;
+  try{ const r=await fetch(proCoreUrl()+'/unifi/protect/'+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})}); const d=await r.json().catch(()=>({}));
+    toast(r.ok&&!d.errorMessage?done:(d.errorMessage||'Not done'));
+  }catch(e){ toast(_coreFailWords('',e)); }
+  _uniAlarmLoad();
+}
+function uniAlarmFire(id,name){ _uniAlarmPost('alarm-manager/webhook/'+encodeURIComponent(id),{},'Fire the Alarm Manager trigger "'+name+'"?\n\nUniFi runs whatever that alarm is set to do (notify, siren, lights…).','Sent "'+name+'" to Alarm Manager'); }
+function uniAlarmArm(on){ _uniAlarmPost('arm-profiles/'+(on?'enable':'disable'),{},on?'Arm the alarm with the current profile?':'Disarm the alarm?',on?'Arm sent':'Disarm sent'); }
+function uniAlarmProfile(id,name){ _uniAlarmPost('arm-profiles/settings',{armProfileId:id},'Set the arm profile to "'+name+'"?','Profile set to '+name); }
+function uniSiren(id,play){ _uniAlarmPost('sirens/'+encodeURIComponent(id)+'/'+(play?'play':'stop'),{},play?'Sound this siren now?':'Stop this siren?',play?'Siren sounding':'Siren stopped'); }
+function uniTrigEdit(on){ _uniTrigEdit=on; renderUniAlarm(); }
+async function uniTrigSave(removeId){
+  const list=((_uniAlarm&&_uniAlarm.triggers)||[]).filter(t=>t.id!==removeId).map(t=>({id:t.id,name:t.name}));
+  if(!removeId){ const n=(document.getElementById('ut-name')||{}).value||'', i=((document.getElementById('ut-id')||{}).value||'').trim(); if(!i){ toast('Paste the trigger ID from UniFi'); return; } list.push({id:i,name:n.trim()||i}); }
+  try{ const r=await fetch(proCoreUrl()+'/unifi/protect/alarm-triggers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({triggers:list})}); const d=await r.json(); if(_uniAlarm) _uniAlarm.triggers=d.triggers||[]; toast(removeId?'Trigger removed':'Trigger saved'); }
+  catch(e){ toast(_coreFailWords('',e)); }
+  _uniTrigEdit=false; renderUniAlarm();
+}
+function renderUniAlarm(){
+  const el=document.getElementById('unifi-live'); if(!el||_uniProtectSection!=='alarm') return;
+  const d=_uniAlarm;
+  if(!d){ setHTML(el,'<div class="empty"><div class="et">Reading the alarm…</div></div>'); return; }
+  if(d.error){ setHTML(el,`<div class="empty"><div class="et">Couldn't read the alarm</div><div class="es">${esc(d.error)}</div></div>`); return; }
+  const kv=(k,v)=>`<div class="unifi-row"><span class="unifi-row-l">${k}</span><span class="unifi-row-d">${v}</span></div>`;
+  const when=t=>{ const n=Number(t); return n>0?new Date(n).toLocaleString():'—'; };
+  // arming
+  let arm='';
+  if(d.mode==='global'){
+    arm=`<div class="unp-pt">Arming</div><div class="unp-pn">Done in UniFi</div><div class="es">Your console runs UniFi's Global Alarm Manager. In that mode Ubiquiti lets no other system arm or disarm, so arm and disarm in UniFi. ProOS fires your Alarm Manager triggers below.</div>`;
+  } else if(d.mode==='profiles'){
+    const P=d.profiles||{}, list=Array.isArray(P)?P:(P.armProfiles||P.data||[]);
+    const cur=P.currentArmProfileId||P.armProfileId||null, armed=(P.isArmed===true||/arm/i.test(String(P.armMode||P.state||''))&&!/disarm/i.test(String(P.armMode||P.state||'')));
+    arm=`<div class="unp-pt">Arming</div><div class="unp-pn">${armed?'Armed':'Disarmed'}</div>`
+      +`<div class="unp-acts">${list.map(x=>`<button class="unp-act${x.id===cur?' on':''}" onclick="uniAlarmProfile('${esc(x.id)}','${esc(x.name||x.id)}')">${esc(x.name||x.id)}${x.id===cur?' ✓':''}</button>`).join('')}`
+      +`<button class="btn-primary" onclick="uniAlarmArm(true)">Arm</button><button class="unp-act" onclick="uniAlarmArm(false)">Disarm</button></div>`;
+  } else {
+    arm=`<div class="unp-pt">Arming</div><div class="unp-pn">Not known</div><div class="es">${esc(d.why||'The console did not say how its alarm is managed.')}</div>`;
+  }
+  // triggers
+  const T=d.triggers||[];
+  let trig=`<div class="bld-sec-h" style="margin-top:16px">Alarm Manager Triggers</div>`
+    +(T.length?`<div class="unp-acts">${T.map(t=>`<div class="ual-trig"><button class="unp-act" onclick="uniAlarmFire('${esc(t.id)}','${esc(t.name)}')">${esc(t.name)}</button>${_uniTrigEdit?`<button class="ual-x" title="Remove" onclick="uniTrigSave('${esc(t.id)}')">✕</button>`:''}</div>`).join('')}</div>`:'<div class="es">No triggers yet.</div>');
+  trig+=_uniTrigEdit
+    ?`<div class="es" style="margin-top:10px">In UniFi: Alarm Manager → Create Alarm → Trigger: Webhook (custom). Give it its actions, then copy its ID here.</div><div class="field"><div class="field-label">Name</div><input id="ut-name" placeholder="e.g. Panic — Sirens On"/></div><div class="field"><div class="field-label">Trigger ID</div><input id="ut-id" autocomplete="off"/></div><button class="btn-primary" onclick="uniTrigSave()">Save Trigger</button><button class="unp-act" onclick="uniTrigEdit(false)">Done</button>`
+    :`<button class="unp-act" onclick="uniTrigEdit(true)">Add or Remove Triggers</button>`;
+  // devices
+  const card=(title,rows,empty)=>`<div class="unp-card"><div class="unp-head"><b>${title}</b></div>${rows||`<div class="es">${empty}</div>`}</div>`;
+  const hubs=(d.hubs||[]).map(h=>{ const a=h.alarmHub||{}; return `<div class="ual-dev"><b>${esc(h.name||'Alarm Hub')}</b><div class="unifi-status">${kv('State',String(h.state).toUpperCase()==='CONNECTED'?'<span style="color:#46e3a0">● Connected</span>':'<em class="unp-red">'+esc(String(h.state||'—').toLowerCase())+'</em>')}${kv('Armed',esc(a.armed||'—'))}${kv('Tamper',a.deviceTamperStatus==='tampered'?'<em class="unp-red">Tampered</em>':esc(a.deviceTamperStatus||'—'))}${kv('Last Event',when(h.lastEvent))}</div></div>`; }).join('');
+  const sensors=(d.sensors||[]).map(s=>{ const b=s.batteryStatus||{}; const door=s.mountType&&s.mountType!=='none'; return `<div class="ual-dev"><b>${esc(s.name||'Sensor')}</b><div class="unifi-status">${door?kv(esc(String(s.mountType).replace(/^./,x=>x.toUpperCase())),s.isOpened?'<em class="unp-red">Open</em>':'Closed'):''}${kv('Motion',s.isMotionDetected?'Detected':'None')}${kv('Battery',b.percentage!=null?b.percentage+'%'+(b.isLow?' — <em class="unp-red">low</em>':''):'—')}${String(s.state||'').toUpperCase()!=='CONNECTED'?kv('State','<em class="unp-red">'+esc(String(s.state||'').toLowerCase())+'</em>'):''}</div></div>`; }).join('');
+  const sirens=(d.sirens||[]).map(s=>`<div class="ual-dev"><b>${esc(s.name||'Siren')}</b><div class="unp-acts"><button class="unp-act" onclick="uniSiren('${esc(s.id)}',true)">Sound</button><button class="unp-act" onclick="uniSiren('${esc(s.id)}',false)">Stop</button></div></div>`).join('');
+  const relays=(d.relays||[]).map(s=>`<div class="ual-dev"><b>${esc(s.name||'Relay')}</b><div class="unifi-status">${kv('State',esc(String(s.state||'—').toLowerCase()))}</div></div>`).join('');
+  setHTML(el,`<div class="unp-chips"><button class="unp-chip" style="margin-left:auto" onclick="_uniAlarm=null;renderUniAlarm();_uniAlarmLoad()">Refresh</button></div>`
+    +`<div class="unp-split ual"><aside class="unp-panel">${arm}${trig}</aside><section class="ual-devs">`
+    +card('Alarm Hubs',hubs,'No alarm hubs on this console.')+card('Sensors',sensors,'No Protect sensors.')
+    +card('Sirens',sirens,'No sirens on this console.')+card('Relays',relays,'No relays on this console.')+'</section></div>');
 }
 function _uniCamOnline(c){ return String(c.state||'').toUpperCase()==='CONNECTED'; }
 async function _uniCamsLoad(){

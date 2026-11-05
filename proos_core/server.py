@@ -4282,6 +4282,11 @@ def factory_reset(clear_proos_data=False, keep_auth=False):
             _portseen_mod.clear()
         except Exception:                                        # noqa: BLE001
             pass
+        try:                              # register 1224: this site's Alarm Manager webhook triggers
+            from proos import unifi as _alarmtrig_mod
+            _alarmtrig_mod.triggers_clear()
+        except Exception:                                        # noqa: BLE001
+            pass
     except Exception as e:  # noqa: BLE001
         out["errors"].append("assist: %s" % e)
     # RESET RESIDUE (Dave, 4 Aug: "a factory reset is exactly that — the only

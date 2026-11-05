@@ -225,6 +225,75 @@ class ProtectClient:
         return self._req("PATCH", INTEGRATION, "/v1/arm-profiles/settings",
                          body={"armProfileId": profile_id})
 
+    # ---- REGISTER 1224: Alarm Manager custom webhook triggers (work in Global mode too — Cindev's 30 Sep 2026
+    # driver: "now supports Global Alarm manager custom webhooks") ----
+    def alarm_webhook(self, trigger_id):
+        return self._req("POST", INTEGRATION, f"/v1/alarm-manager/webhook/{urllib.parse.quote(str(trigger_id), safe='')}")
+
+
+# ── REGISTER 1224 — THE ALARM PAGE (Dave, 6 Nov: "Build both") ─────────────────────────────────────────────────────
+# MEASURED on Dave's console: /v1/arm-profiles answers 400 "This operation is not available when global alarm manager is
+# enabled". In Global mode Ubiquiti lets no other system arm (Chowmain arms through the same door; Cindev's newest driver
+# says "Arm/disarm ... are not provided" and fires Alarm Manager webhooks instead). So: the page reads the console's MODE
+# from that answer — profiles → Arm / Disarm through the arm profiles; global → arming stays in UniFi and the
+# installer's Alarm Manager webhook triggers are fired from ProOS. The trigger list (a name and the trigger ID the
+# installer created in UniFi) is ProOS's own per-site record; a factory reset clears it.
+def _triggers_path():
+    return os.path.join(os.environ.get("PROOS_DATA_DIR", "/data"), "unifi_alarm_triggers.json")
+
+
+def triggers_load() -> list:
+    try:
+        with open(_triggers_path()) as f:
+            d = json.load(f)
+        return [t for t in d if isinstance(t, dict) and t.get("id")] if isinstance(d, list) else []
+    except Exception:                                            # noqa: BLE001
+        return []
+
+
+def triggers_save(items) -> list:
+    import re as _re
+    out = []
+    for t in (items or [])[:40]:
+        tid = str((t or {}).get("id") or "").strip()
+        name = " ".join(str((t or {}).get("name") or "").split())[:60]
+        if tid and _re.fullmatch(r"[A-Za-z0-9_.:-]{1,80}", tid) and not any(x["id"] == tid for x in out):
+            out.append({"id": tid, "name": name or tid})
+    tmp = _triggers_path() + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(out, f)
+    os.replace(tmp, _triggers_path())
+    return out
+
+
+def triggers_clear() -> bool:
+    try:
+        os.remove(_triggers_path())
+        return True
+    except OSError:
+        return False
+
+
+def alarm_view(client) -> dict:
+    """The Alarm page in one read: the console's mode (from its own answer), its arm profiles when it has them, and
+    every alarm hub, sensor, siren and relay as the official interface reports them."""
+    out = {"mode": None, "profiles": None, "triggers": triggers_load()}
+    try:
+        prof = client.arm_profiles()
+        out["mode"], out["profiles"] = "profiles", prof
+    except ProtectError as e:
+        msg = str(e.message or "")
+        if "global alarm manager" in msg.lower():
+            out["mode"], out["why"] = "global", "the console runs UniFi's Global Alarm Manager; it lets no other system arm"
+        else:
+            out["mode"], out["why"] = None, msg[:200]
+    for coll, key in (("alarm-hubs", "hubs"), ("sensors", "sensors"), ("sirens", "sirens"), ("relays", "relays")):
+        try:
+            out[key] = client._req("GET", INTEGRATION, "/v1/%s" % coll) or []
+        except ProtectError as e:
+            out[key], out.setdefault("unread", {})[key] = None, e.message[:160]
+    return out
+
     # ---- sirens ----
     def siren_play(self, sid):
         return self._req("POST", INTEGRATION, f"/v1/sirens/{sid}/play")
@@ -346,6 +415,20 @@ def handle(method, parts, qs, body, creds, layer=None):
                     return 200, "application/json", client.ptz_patrol_start(p[1], p[5])
                 if p[3] == "patrol" and len(p) == 5 and p[4] == "stop":
                     return 200, "application/json", client.ptz_patrol_stop(p[1])
+
+        # REGISTER 1224 — the Alarm page
+        if p == ["alarm"] and method == "GET":
+            return 200, "application/json", alarm_view(client)
+        if p == ["alarm-triggers"] and method == "GET":
+            return 200, "application/json", {"triggers": triggers_load()}
+        if p == ["alarm-triggers"] and method == "POST":
+            return 200, "application/json", {"triggers": triggers_save((body or {}).get("triggers"))}
+        if len(p) == 3 and p[:2] == ["alarm-manager", "webhook"] and method == "POST":
+            # only a trigger the installer saved can be fired — never an ID typed into a request
+            if not any(t["id"] == p[2] for t in triggers_load()):
+                return 404, "application/json", {"errorMessage": "that trigger is not one of this site's saved triggers"}
+            client.alarm_webhook(p[2])
+            return 200, "application/json", {"ok": True, "fired": p[2]}
 
         # arm profiles
         if p and p[0] == "arm-profiles":
