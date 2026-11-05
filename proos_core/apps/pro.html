@@ -98,6 +98,35 @@ select option,select optgroup{background:#1a1c20;color:#fff}
 .unifi-row{display:flex;align-items:center;gap:9px;font-size:13px}
 .unifi-row-l{color:var(--t2,rgba(255,255,255,0.85))}
 .unifi-row-d{margin-left:auto;color:var(--t1,rgba(255,255,255,0.55));text-align:right}
+/* UNIFI SUITE look — register 1216 (the mockup Dave agreed 5 Nov): an app bar like UniFi OS's, the console on one
+   line, a tile per product carrying only what the console answered. */
+.uni-bar{display:flex;flex-wrap:wrap;gap:6px;padding:6px;border-radius:14px;background:rgba(0,0,0,0.35);border:0.5px solid var(--line-soft);margin-bottom:16px}
+.uni-tab{display:flex;align-items:center;gap:7px;padding:8px 13px;border-radius:10px;border:0;background:transparent;color:rgba(255,255,255,0.82);font-size:14px;cursor:pointer}
+.uni-tab svg{width:17px;height:17px;flex:0 0 auto}
+.uni-tab.on{background:var(--accent);color:#fff;font-weight:600}
+.uni-tab.later{color:var(--t3)}
+.uni-tab-note{font-size:10px;font-weight:600;color:var(--t2);border:0.5px solid var(--line);border-radius:6px;padding:1px 6px;white-space:nowrap}
+.uni-chip{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:10px 12px 10px 14px;border-radius:14px;background:var(--card);border:0.5px solid var(--line-soft);margin-bottom:16px;font-size:13px}
+.uni-chip b{font-weight:600}
+.uni-chip-d{color:var(--t2)}
+.uni-chip button{margin-left:auto;font-size:13px;color:#fff;background:var(--card-hi);border:0;border-radius:9px;padding:7px 12px;cursor:pointer}
+.uni-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:18px}
+@media (max-width:700px){.uni-tiles{grid-template-columns:minmax(0,1fr)}}
+.uni-tile{border-radius:18px;padding:18px;background:linear-gradient(160deg,var(--uni-tint,rgba(255,255,255,0.04)),rgba(255,255,255,0.03));border:0.5px solid var(--line);display:flex;flex-direction:column;gap:12px;min-height:200px}
+.uni-tile.later{border-style:dashed;background:rgba(255,255,255,0.025)}
+.uni-tile-top{display:flex;align-items:center;gap:11px}
+.uni-tile-ico{width:42px;height:42px;border-radius:12px;background:rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.uni-tile-ico svg{width:22px;height:22px}
+.uni-tile-name{font-size:17px;font-weight:600}
+.uni-tile-sub{font-size:12px;color:var(--t2)}
+.uni-tile-st{margin-left:auto;font-size:12px;color:var(--t2);text-align:right}
+.uni-tile-st.on{color:#46e3a0}
+.uni-stats{display:flex;gap:22px}
+.uni-stat-v{font-size:26px;font-weight:700}
+.uni-stat-l{font-size:12px;color:var(--t2)}
+.uni-tile-p{font-size:13px;color:var(--t2);line-height:1.45}
+.uni-tile-foot{margin-top:auto;display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--t2)}
+.uni-tile-foot button{margin-left:auto;font-size:13px;font-weight:600;color:#fff;background:var(--accent);border:0;border-radius:10px;padding:8px 14px;cursor:pointer}
 .unifi-cams{display:flex;flex-direction:column;gap:1px}
 .unifi-cam{display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:0.5px solid rgba(255,255,255,0.06)}
 .unifi-cam:last-child{border-bottom:none}
@@ -2265,6 +2294,7 @@ body.v3.railmin .aw-screen{left:108px!important}
         <button class="back" onclick="goHome()">‹ Back</button>
         <div class="panel-title">UniFi</div>
       </div>
+      <div id="unibar-overview"></div>
       <div id="unisuite-body"><div class="empty"><div class="et">Checking the console…</div></div></div>
     </div>
 
@@ -2274,6 +2304,7 @@ body.v3.railmin .aw-screen{left:108px!important}
         <button class="back" onclick="openUnifiSuite()">‹ UniFi</button>
         <div class="panel-title">UniFi Protect</div>
       </div>
+      <div id="unibar-protect"></div>
       <div id="unifi-body"><div class="empty"><div class="et">Checking connection…</div></div></div>
     </div>
 
@@ -2284,6 +2315,7 @@ body.v3.railmin .aw-screen{left:108px!important}
         <div class="panel-title">UniFi Network</div>
         <button class="itile-add" style="margin-left:auto" onclick="addIntegration('unifi')">Add Device</button>
       </div>
+      <div id="unibar-network"></div>
       <div id="uninet-body"><div class="empty"><div class="et">Checking connection…</div></div></div>
     </div>
 
@@ -3041,7 +3073,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102646';
+const PROOS_BUILD='2026102647';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -4887,7 +4919,7 @@ async function openIntegration(dom){
   renderIntegration(dom); show('integration'); try{ await loadConfigEntries(); }catch(e){} if(_curIntegration===dom) renderIntegration(dom); }
 // ── UniFi Network — dedicated panel (config card + device list), part of the UniFi suite ──
 async function openUniNet(){
-  _curIntegration='unifi'; show('unifi-net');
+  _curIntegration='unifi'; show('unifi-net'); paintUniBar('network');
   const body=document.getElementById('uninet-body'); if(body) body.innerHTML='<div class="empty"><div class="et">Checking connection…</div></div>';
   try{ await loadConfigEntries(); }catch(e){}
   try{ const r=await fetch(proCoreUrl()+'/unifi/net/status'); _unifiNetStatus=r.ok?await r.json():null; }catch(e){ _unifiNetStatus=null; }
@@ -15461,17 +15493,74 @@ function credRevoke(svc){
 // Connect). Stage 1: the console card (address, ProOS's own local user, ProOS's own API key, the Access token) and the
 // apps the console answered for. Protect and Network open their existing pages; Access and Connect pages are stages 5
 // and 6. Nothing secret is ever shown: Core answers only "set" and the last four characters.
-async function openUnifiSuite(){ show('unifi-suite'); renderUnifiSuite(true); renderUnifiSuite(false); }
+// REGISTER 1216 — THE LOOK (Dave, 5 Nov: "pro needs to look a lot better to showcase all of the unifi suite and its
+// confusing as hell"; then the mockup, built on UniFi OS's own layouts: "Yeah go"). An app bar across the top of every
+// UniFi page, like UniFi OS's; the console on one line; a tile per product with only what the console answered; the
+// setup steps behind Console Settings once ProOS is signed in and holds its key.
+const UNI_ICONS={
+  overview:'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+  network:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/>',
+  protect:'<rect x="7" y="2.5" width="10" height="19" rx="5"/><circle cx="12" cy="8.5" r="2.2"/>',
+  access:'<rect x="8" y="2.5" width="8" height="19" rx="2"/><path d="M12 7v3"/>',
+  connect:'<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>',
+  talk:'<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/>'};
+function _uniIco(k){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(UNI_ICONS[k]||'')+'</svg>'; }
+let _uniLast=null;            // Core's last console answer: which apps the console has (the app bar's notes come from it)
+let _uniSettingsOpen=false;   // Console Settings, once connected, stay folded until asked for
+function uniAppBar(active){
+  const apps=(_uniLast&&_uniLast.apps)||[]; const found=k=>{ const a=apps.find(x=>x.app===k); return a?a.found:null; };
+  const tabs=[['overview','Overview','openUnifiSuite()'],['network','Network','openUniNet()'],['protect','Protect','openUnifi()'],['access','Access',''],['connect','Connect',''],['talk','Talk','']];
+  const note={access:found('access')===false?'Set Up Later':'Page Coming',connect:found('connect')===false?'Not on Console':'Page Coming',talk:'Waiting on Ubiquiti'};
+  return '<div class="uni-bar" role="tablist" aria-label="UniFi apps">'+tabs.map(([k,l,go])=>{
+    const on=k===active, n=note[k];
+    return `<button class="uni-tab${on?' on':''}${n?' later':''}" role="tab" aria-selected="${on}" onclick="${go||`uniLater('${k}')`}">${_uniIco(k)}${l}${n?`<span class="uni-tab-note">${n}</span>`:''}</button>`;
+  }).join('')+'</div>';
+}
+function uniLater(k){ toast({access:'Access gets its own page in stage 5. It works once Access is on the console.',connect:'Connect gets its own page in stage 6.',talk:'Ubiquiti has no way in for other systems yet. Talk is built the day there is.'}[k]||''); }
+function paintUniBar(active){ const el=document.getElementById('unibar-'+active); if(el) setHTML(el,uniAppBar(active)); }
+function uniToggleSettings(){ _uniSettingsOpen=!_uniSettingsOpen; const s=document.getElementById('uni-settings'); if(s) s.hidden=!_uniSettingsOpen; }
+async function openUnifiSuite(){ show('unifi-suite'); paintUniBar('overview'); renderUnifiSuite(true); renderUnifiSuite(false); }
 async function renderUnifiSuite(quick){
   const body=document.getElementById('unisuite-body'); if(!body) return;
   let st=null;
   try{ const r=await fetch(proCoreUrl()+'/unifi/console'+(quick?'?quick=1':'')); if(r.status===403){ setHTML(body,'<div class="empty"><div class="et">Installer access required</div></div>'); return; } st=await r.json(); }
   catch(e){ if(!body.dataset.rendered) setHTML(body,'<div class="empty"><div class="et">Couldn\'t reach ProOS Core</div></div>'); return; }
+  if(!quick || !_uniLast){ _uniLast=st; if(typeof paintUniBar==='function') paintUniBar('overview'); }
   const signed=!!st.signed_in, keySet=!!(st.key&&st.key.set), accSet=!!(st.access_token&&st.access_token.set);
+  const ready=signed&&keySet;
   const dot=on=>`<span class="cred-dot ${on===true?'on':(on===false?'off':'warn')}"></span>`;
-  let h='<div class="wiz-hint">One connection for every UniFi app on the console. ProOS signs in with its own local user and creates its own API key from it — the same way the Control4 UniFi drivers work. Where the platform already does something, ProOS uses it; ProOS adds the rest.</div>';
-  // The console card
   const cs=quick&&!body.dataset.rendered?'Checking…':(signed?'Signed In':(st.user_set?'Not Signing In':'Not Set Up'));
+  // The console, on one line
+  let h=`<div class="uni-chip">${dot(quick&&!body.dataset.rendered?null:ready)}<b>Console${st.host?' '+esc(st.host):''}</b><span class="uni-chip-d">${esc(cs)}${signed?' · '+(keySet?'Key Ready':'No Key Yet'):''}</span>`
+    +(ready?`<button onclick="uniToggleSettings()">Console Settings</button>`:'')+`</div>`;
+  // A tile per product — only what the console answered
+  const A={}; (st.apps||[]).forEach(a=>{ A[a.app]=a; });
+  const cnt=st.counts||{};
+  const tile=(k,name,tint,o)=>{
+    const a=A[k]||{}, f=a.found, checking=quick&&!body.dataset.rendered&&f==null;
+    const later=o.later||f===false;
+    const sub=checking?'Checking…':(a.version?'v'+a.version:(f===false?(o.notSub||'Not on this console'):(f?'Found on the console':'')));
+    // "Online" only where the app's own information call answered (it gave a version); found-by-address says Found
+    const stc=f&&a.version?'on':'';
+    const stTxt=f&&a.version?'● Online':'';
+    const foot=f===false&&a.answer?'console '+a.answer:(o.foot||'');
+    const stats=(o.stats||[]).filter(s=>s[0]!=null).map(s=>`<div><div class="uni-stat-v">${esc(String(s[0]))}</div><div class="uni-stat-l">${esc(s[1])}</div></div>`).join('');
+    const btn=(o.open&&f!==false)?`<button onclick="${o.open}">Open</button>`:'';
+    return `<article class="uni-tile${later?' later':''}" style="--uni-tint:${tint}"><div class="uni-tile-top"><div class="uni-tile-ico">${_uniIco(k)}</div><div><div class="uni-tile-name">${name}</div><div class="uni-tile-sub">${esc(sub)}</div></div><span class="uni-tile-st ${stc}">${esc(stTxt)}</span></div>`
+      +(stats?`<div class="uni-stats">${stats}</div>`:'')+(o.p?`<div class="uni-tile-p">${o.p(f)}</div>`:'')
+      +`<div class="uni-tile-foot"><span>${esc(foot)}</span>${btn}</div></article>`;
+  };
+  h+='<div class="uni-tiles">'
+    +tile('network','Network','rgba(33,57,240,0.20)',{online:true,open:'openUniNet()',stats:[[cnt.network_devices,'UniFi Devices']],foot:'Devices · Ports · Clients · Wi-Fi'})
+    +tile('protect','Protect','rgba(70,227,160,0.13)',{online:true,open:'openUnifi()',stats:[[cnt.cameras,'Cameras']],foot:'Live View · Detections · Alarm'})
+    +tile('access','Access','rgba(255,255,255,0.04)',{online:true,notSub:'Set up later',stats:[[cnt.doors,'Doors']],
+        p:f=>f===false?'Doors, people, visitors, PINs and cards, schedules and the access log. Built in stage 5; it lights up when Access is on the console.':'Doors, people, visitors and the access log get their own page in stage 5.',foot:'Doors · People · Activity'})
+    +tile('connect','Connect','rgba(245,176,65,0.13)',{online:true,p:f=>f===false?'Displays and casts, when there are some on the console.':'Displays: power, volume, brightness and what each one shows. Its page comes in stage 6.',foot:'Displays'})
+    +tile('talk','Talk','rgba(255,255,255,0.04)',{later:true,p:()=>'Phones and call routing. Built the day Ubiquiti opens a way in for other systems.',foot:'Waiting on Ubiquiti'})
+    +'</div>';
+  // Console Settings: the connection itself. Shown until ProOS is signed in and holds its key; folded after that.
+  h+=`<div id="uni-settings"${ready&&!_uniSettingsOpen?' hidden':''}><div class="bld-sec-h">${ready?'Console Settings':'Connect the Console'}</div>`;
+  h+='<div class="wiz-hint">One connection for every UniFi app on the console. ProOS signs in with its own local user and creates its own API key from it — the same way the Control4 UniFi drivers work. Where the platform already does something, ProOS uses it; ProOS adds the rest.</div>';
   h+=`<div class="cred-card"><div class="cred-top">${dot(quick?null:signed)}<span class="cred-name">Console</span><span class="cert-pill" style="margin-left:auto">CERTIFIED</span></div><div class="unifi-status">`
     +`<div class="unifi-row"><span class="unifi-row-l">Address</span><span class="unifi-row-d">${st.host?esc(st.host)+(st.host_from?' · from '+esc(st.host_from):''):'not known yet'}</span></div>`
     +`<div class="unifi-row"><span class="unifi-row-l">Local User</span><span class="unifi-row-d">${esc(cs)}${st.why&&!signed?' — '+esc(st.why):''}</span></div>`
@@ -15494,18 +15583,8 @@ async function renderUnifiSuite(quick){
   // Step 3 — the Access token (Access has its own)
   const s3=`<div class="wiz-hint">UniFi Access uses its own token: in the Access app, <b>Settings → General → API Token</b>. Paste it here.</div><div class="field"><div class="field-label">Access API Token</div><input id="us-acc" type="password" autocomplete="off" placeholder="${accSet?'Saved — paste again to change':''}"/></div><button class="btn-primary" onclick="unifiSuiteAccess()">${accSet?'Replace Token':'Save Token'}</button>`;
   h+=step(3,'Access Token',accSet?'ok':'',accSet?'Saved':'For Access',s3);
-  // The apps, as the console answered
-  const pages={protect:['Open',"openUnifi()"],network:['Open',"openUniNet()"],access:['Page coming (stage 5)',''],connect:['Page coming (stage 6)',''],talk:['No interface from Ubiquiti yet','']};
-  const cnt=st.counts||{};
-  const extra={protect:cnt.cameras!=null?cnt.cameras+' camera'+(cnt.cameras===1?'':'s'):'',network:cnt.network_devices!=null?cnt.network_devices+' UniFi device'+(cnt.network_devices===1?'':'s'):'',access:cnt.doors!=null?cnt.doors+' door'+(cnt.doors===1?'':'s'):''};
-  const rows=(st.apps||[{app:'network',name:'UniFi Network'},{app:'protect',name:'UniFi Protect'},{app:'access',name:'UniFi Access'},{app:'connect',name:'UniFi Connect'},{app:'talk',name:'UniFi Talk'}]).map(a=>{
-    const p=pages[a.app]||['',''];
-    const said=[a.version?'v'+a.version:'',extra[a.app]||'',a.answer?'console '+a.answer:''].filter(Boolean).join(' · ');
-    const btn=(p[1]&&a.found!==false)?`<button class="btn-primary" style="width:auto;padding:6px 14px;margin-left:auto" onclick="${p[1]}">${p[0]}</button>`:`<span class="unifi-row-d" style="margin-left:auto">${esc(p[0])}</span>`;
-    return `<div class="unifi-row">${dot(a.found)}<span class="unifi-row-l">${esc(a.name)}</span><span class="unifi-row-d">${esc(said||(quick?'checking…':'—'))}</span>${btn}</div>`;
-  }).join('');
-  h+=`<div class="bld-sec-h" style="margin-top:20px">Apps on the Console</div><div class="cred-card"><div class="unifi-status">${rows}</div></div>`;
   if(st.user_set) h+=`<div style="margin-top:14px"><button onclick="unifiSuiteForget()" style="width:100%;padding:12px;border-radius:12px;background:transparent;border:1px solid rgba(225,112,85,.5);color:#e17055;font-size:14px;font-weight:500;cursor:pointer">Remove ProOS's Sign-In and Key</button></div>`;
+  h+='</div>';
   setHTML(body,h); body.dataset.rendered='1';
 }
 async function _unifiSuitePost(path,payload){
@@ -15539,7 +15618,7 @@ async function unifiSuiteForget(){
   if(!await proAsk('Remove ProOS\'s console sign-in and API key?\n\nThe UniFi integrations themselves are not touched. Features that need the local user stop until it is entered again.')) return;
   try{ await _unifiSuitePost('forget'); toast('Removed'); renderUnifiSuite(false); }catch(e){ toast(_coreFailWords('',e)); }
 }
-async function openUnifi(){ show('unifi'); renderUnifi(); try{ await loadSite(); await loadConfigEntries(); }catch(e){} renderUnifi(); }
+async function openUnifi(){ show('unifi'); paintUniBar('protect'); renderUnifi(); try{ await loadSite(); await loadConfigEntries(); }catch(e){} renderUnifi(); }
 async function renderUnifi(){
   const body=document.getElementById('unifi-body'); if(!body) return;
   if(!body.innerHTML || !body.dataset.rendered) body.innerHTML='<div class="empty"><div class="et">Checking connection…</div></div>';
