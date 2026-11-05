@@ -239,6 +239,28 @@ def _controllers(h, hd, http):
     return out
 
 
+def get_json(creds, platform_host, path, http=None):
+    """(data, why-not): one signed-in read from the console (register 1219: the controller's own device and client
+    tables for the port map). A stale sign-in is renewed once; the console's web page is never taken as an answer."""
+    http = http or HTTP
+    h, _ = host(creds, platform_host)
+    if not h:
+        return None, "the console's address is not known yet"
+    for attempt in (0, 1):
+        hd, why = _session(creds, h, http)
+        if hd is None:
+            return None, why
+        st, rh, raw = http("GET", _base(h) + path, None, hd)
+        if st in (401, 403) and attempt == 0:
+            _SESSION.update({"cookie": None, "at": 0.0})
+            continue
+        if st != 200 or _is_web_page(rh, raw):
+            return None, "the console answered %s for %s" % (st if st else "nothing", path)
+        d = _json(raw)
+        return (d, None) if d is not None else (None, "the console's answer for %s was not readable" % path)
+    return None, "the console refused ProOS's sign-in"
+
+
 def apps(creds, h, http=None):
     """Each app on the console, from evidence (register 1218 — see above). found True / False / None (not confirmed);
     answer says, in plain words, what the evidence was."""

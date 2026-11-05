@@ -425,3 +425,108 @@ def vlan_isolation(clients, ip=None, mac=None):
         "main_network": main.get("network") or main_net,
         "main_vlan": main.get("gw_vlan"),
     }
+
+
+# ── REGISTER 1219 — THE PORT MAP (stage 2 of the UniFi suite) ────────────────────────────────────────────────────
+# Dave, 5 Nov 2026: the camera test — turn off the port a camera hangs off and Assist must find it, report the port is
+# off and, with permission, turn it back on. The mockup he agreed draws every switch's face: what is on each port,
+# link, speed, PoE watts, and the ports that must never be switched off. The tables come from the controller through
+# ProOS's own local user (uniconsole, 1214/1215) — the same /stat/device and /stat/sta these helpers were written for
+# before 691 left them unfed. Switching itself stays the PLATFORM's (its Port N / PoE switches and Power-Cycle
+# buttons, matched here by their unique ids "port-", "poe-", "power_cycle-" + switch MAC + "_" + port).
+#
+# LOCKED PORTS — the guardrail Dave agreed in the mockup ("a 🔒 port feeds the uplink, an access point, the console or
+# this box and can't be switched off"). Each lock is read from the tables, never assumed: the switch's own uplink port
+# (port is_uplink, or the device's uplink names it), a port other UniFi gear hangs off (that gear's uplink names this
+# switch and port), a port carrying the ProOS box (a wired client with the box's address). A port whose carriage
+# cannot be read gets no lock and no "free" either — `known` is False and the guard keeps refusing it.
+
+def _port_enabled(p):
+    if p.get("enable") is False or str(p.get("forward") or "").lower() == "disabled":
+        return False
+    if p.get("enable") is True:
+        return True
+    return None
+
+
+def port_map(devices, clients, entities=None, box_ips=()):
+    """Every switch the controller reports, each with its ports as the controller describes them.
+
+    Returns [{mac, name, model, type, online, ports: [...]}] (switches only — gear with a port table and not an access
+    point). Each port: idx, name, link, enabled, speed, media, poe {capable, on, mode, watts}, uplink, carries [{kind,
+    name, mac, ip}], lock (why it must never be switched off, or None), known (could ProOS read what it carries),
+    controls {port, poe, power_cycle: {entity_id, enabled} or None}. Absent facts are None — never guessed."""
+    gear = gear_list(devices)
+    box = {str(i).strip() for i in (box_ips or ()) if i}
+    by_uid = {}
+    for e in (entities or []):
+        if e.get("platform") == "unifi" and e.get("unique_id"):
+            by_uid[str(e["unique_id"]).lower()] = e
+
+    def control(kind, mac, idx):
+        e = by_uid.get("%s-%s_%s" % (kind, mac, idx))
+        return {"entity_id": e.get("entity_id"), "enabled": not e.get("disabled_by")} if e else None
+
+    downstream = {}                                       # (switch mac, port) -> [gear names]
+    for d in (devices or []):
+        up = d.get("uplink") or {}
+        um, rp = _mac(up.get("uplink_mac")), up.get("uplink_remote_port")
+        if um and rp is not None:
+            downstream.setdefault((um, int(rp)), []).append(d.get("name") or d.get("model") or _mac(d.get("mac")))
+    on_port = {}                                          # (switch mac, port) -> wired clients
+    clients_read = clients is not None
+    for c in (clients or []):
+        if c.get("is_wired") is False:
+            continue
+        sm, sp = _mac(c.get("sw_mac")), c.get("sw_port")
+        if sm and sp is not None:
+            on_port.setdefault((sm, int(sp)), []).append(c)
+
+    out = []
+    for d in (devices or []):
+        m = _mac(d.get("mac"))
+        table = d.get("port_table") or []
+        if not m or not table or str(d.get("type") or "") == "uap":
+            continue
+        own_up = (d.get("uplink") or {}).get("port_idx")
+        ports = []
+        for p in table:
+            idx = p.get("port_idx")
+            if idx is None:
+                continue
+            idx = int(idx)
+            gear_here = downstream.get((m, idx), [])
+            cl_here = on_port.get((m, idx), [])
+            carries = [{"kind": "gear", "name": n} for n in gear_here] + [
+                {"kind": "client", "name": c.get("name") or c.get("hostname") or c.get("oui") or _mac(c.get("mac")),
+                 "mac": _mac(c.get("mac")), "ip": c.get("ip")} for c in cl_here]
+            uplink = bool(p.get("is_uplink")) or (own_up is not None and int(own_up) == idx)
+            if uplink:
+                lock = "this switch's own uplink: switching it off cuts the switch off"
+            elif gear_here:
+                lock = "feeds " + ", ".join(gear_here)
+            elif any(str(c.get("ip") or "") in box for c in cl_here):
+                lock = "carries this ProOS box"
+            else:
+                lock = None
+            w = _watts(p)
+            capable = bool(p.get("port_poe")) or p.get("poe_caps") not in (None, 0)
+            ports.append({
+                "idx": idx, "name": p.get("name") or ("Port %d" % idx),
+                "link": None if p.get("up") is None else bool(p.get("up")),
+                "enabled": _port_enabled(p),
+                "speed": p.get("speed"), "media": p.get("media"),
+                "poe": {"capable": capable,
+                        "on": (None if not capable else bool(p.get("poe_enable")) and (w or 0.0) > 0.0),
+                        "mode": p.get("poe_mode"), "watts": w} if capable else None,
+                "uplink": uplink, "carries": carries, "lock": lock,
+                "known": clients_read,
+                "controls": {"port": control("port", m, idx), "poe": control("poe", m, idx),
+                             "power_cycle": control("power_cycle", m, idx)},
+            })
+        ports.sort(key=lambda x: x["idx"])
+        g = gear.get(m) or {}
+        out.append({"mac": m, "name": g.get("name") or m, "model": d.get("model"), "type": d.get("type"),
+                    "online": g.get("online"), "ports": ports})
+    out.sort(key=lambda s: (-len(s["ports"]), str(s["name"]).lower()))
+    return out

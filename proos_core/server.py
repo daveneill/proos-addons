@@ -6194,6 +6194,22 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, _uc.set_access(_creds, b.get("token")))
         if method == "POST" and sub == "forget":
             return self._send(200, _uc.forget(_creds))
+        if method == "GET" and sub == "ports":
+            # REGISTER 1219 — the port map: the controller's own tables through ProOS's local user, joined to the
+            # platform's own port controls (unifinet.port_map). Read only; nothing is switched here.
+            from proos import unifinet as _un
+            devs, why = _uc.get_json(_creds, ph, "/proxy/network/api/s/default/stat/device")
+            if devs is None:
+                return self._send(200, {"ok": False, "why": why, "switches": []})
+            cls, why2 = _uc.get_json(_creds, ph, "/proxy/network/api/s/default/stat/sta")
+            try:
+                ents = [e for e in (_client.entity_registry() or []) if e.get("platform") == "unifi"]
+            except Exception:                                    # noqa: BLE001
+                ents = []
+            sw = _un.port_map((devs or {}).get("data") or [],
+                              ((cls or {}).get("data") if cls is not None else None), ents, _box_ips())
+            return self._send(200, {"ok": True, "switches": sw,
+                                    "clients_read": cls is not None, "why_clients": why2})
         return self._send(404, {"error": "unknown console route"})
 
     def _unifi(self, parts, method, body=None):
