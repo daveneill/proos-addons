@@ -6499,13 +6499,25 @@ class Handler(BaseHTTPRequestHandler):
             # read the network back from the controller. Dave, 6 Nov: "Yup go" (on/off and guest networks, each asked
             # first in Pro). "Confirmed" only when the controller reports the network in the new state.
             import time as _t
+            from proos import unifinet as _un
             wid, on = str(b.get("id") or ""), bool(b.get("on"))
+            # 1228: the network is found by its record id, then joined to the platform's switch by the SAME exact-id
+            # join the page was drawn from (unifinet.wlan_control_for) — never by name
+            wl0, why0 = _uc.get_json(_creds, ph, "/proxy/network/api/s/default/rest/wlanconf")
+            if wl0 is None:
+                return self._send(200, {"ok": False, "why": why0})
+            rec = next((x for x in ((wl0 or {}).get("data") or []) if str(x.get("_id")) == wid), None) if wid else None
             try:
-                e = next((x for x in (_client.entity_registry() or [])
-                          if x.get("platform") == "unifi" and str(x.get("unique_id") or "") == "wlan-" + wid), None)
+                ctl = _un.wlan_controls(_client.entity_registry() or [])
             except Exception:                                    # noqa: BLE001
-                e = None
-            if not wid or e is None:
+                ctl = {}
+            c0, _f = _un.wlan_control_for(rec, ctl)
+            if c0 and sum(1 for x in ((wl0 or {}).get("data") or []) if _un.wlan_control_for(x, ctl)[0] == c0) > 1:
+                c0 = None                                    # one switch claimed by two networks is nobody's
+            e = None
+            if c0:
+                e = {"entity_id": c0["entity_id"], "disabled_by": None if c0["enabled"] else "platform"}
+            if not wid or rec is None or e is None:
                 return self._send(200, {"ok": False, "why": "the platform offers no switch for that Wi-Fi network"})
             if e.get("disabled_by"):
                 return self._send(200, {"ok": False, "why": "the platform's switch for that Wi-Fi network is switched off"})

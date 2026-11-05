@@ -689,14 +689,41 @@ def clients_view(clients, devices):
     return out
 
 
-def wifi_view(wlans, clients, entities=None):
-    # register 1226b (Wi-Fi on/off): each network is joined to the PLATFORM's own Wi-Fi switch by its unique id
-    # "wlan-<id>" — the switch that turns it on and off is the platform's; ProOS only presses it.
+def wlan_controls(entities):
+    """The platform's own Wi-Fi switches, keyed by the id in their unique id "wlan-<id>"."""
     ctl = {}
     for e in (entities or []):
         uid = str(e.get("unique_id") or "")
-        if e.get("platform") == "unifi" and uid.startswith("wlan-"):
+        if e.get("platform") == "unifi" and uid.startswith("wlan-") and len(uid) > 5:
             ctl[uid[5:]] = {"entity_id": e.get("entity_id"), "enabled": not e.get("disabled_by")}
+    return ctl
+
+
+def wlan_control_for(w, ctl):
+    """REGISTER 1228 — which of the platform's Wi-Fi switches is this network's. MEASURED on Dave's box: the
+    platform names the switch by a 24-character id (wlan-…68f7) while the record ProOS reads carries a different,
+    36-character _id — so a join on _id alone found nothing. The record is searched for the platform's id EXACTLY
+    (its _id first, then any other plain field); never by name. Returns (control, field it was found in) or
+    (None, None). Only the field's NAME is ever reported — never a value (the record also holds the password)."""
+    if not ctl or not isinstance(w, dict):
+        return None, None
+    own = str(w.get("_id") or "")
+    if own in ctl:
+        return ctl[own], "_id"
+    import re as _re
+    for k, v in w.items():
+        # an ID, not a word: the platform's ids are long hex strings. A field holding a name ("Guest") is never a
+        # match, even if a switch's id happened to read the same (caught by the bench, 1228)
+        if k != "name" and isinstance(v, str) and v in ctl and _re.fullmatch(r"[0-9a-fA-F-]{16,}", v):
+            return ctl[v], str(k)
+    return None, None
+
+
+def wifi_view(wlans, clients, entities=None):
+    # register 1226b (Wi-Fi on/off): each network is joined to the PLATFORM's own Wi-Fi switch by its unique id
+    # "wlan-<id>" — the switch that turns it on and off is the platform's; ProOS only presses it. 1228: the join is
+    # wlan_control_for (an exact id, wherever the record keeps it).
+    ctl = wlan_controls(entities)
     count = {}
     for c in (clients or []):
         if c.get("essid") and not c.get("is_wired"):
@@ -704,11 +731,20 @@ def wifi_view(wlans, clients, entities=None):
     out = []
     for w in (wlans or []):
         bands = w.get("wlan_bands") or ([w["wlan_band"]] if w.get("wlan_band") else [])
+        control, found_in = wlan_control_for(w, ctl)
         out.append({                                   # NAMED FIELDS ONLY — the record also holds the password
             "id": w.get("_id"), "name": w.get("name"), "enabled": bool(w.get("enabled")),
             "security": _SEC.get(str(w.get("security") or ""), str(w.get("security") or "") or None),
             "wpa_mode": w.get("wpa_mode"), "bands": [{"2g": "2.4 GHz", "5g": "5 GHz", "6g": "6 GHz"}.get(b, b) for b in bands],
             "guest": bool(w.get("is_guest")), "hidden": bool(w.get("hide_ssid")), "clients": count.get(w.get("name"), 0),
-            "control": ctl.get(str(w.get("_id") or "")),
+            "control": control, "control_found_in": found_in,
         })
+    # one switch, one network: a switch two records both point at is nobody's — no button rather than a guess
+    seen = {}
+    for x in out:
+        if x["control"]:
+            seen[x["control"]["entity_id"]] = seen.get(x["control"]["entity_id"], 0) + 1
+    for x in out:
+        if x["control"] and seen[x["control"]["entity_id"]] > 1:
+            x["control"], x["control_found_in"] = None, None
     return out
