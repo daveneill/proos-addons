@@ -216,7 +216,7 @@ _TEMPLATE = """
   {%% for k in known %%}
     {%% if e in integration_entities(k) %%}{%% set integ.v = k %%}{%% endif %%}
   {%% endfor %%}
-  {%% set ns.rows = ns.rows + [{'entity': e, 'name': state_attr(e,'friendly_name'), 'integration': integ.v, 'device_class': state_attr(e,'device_class'), 'model': device_attr(device_id(e),'model')}] %%}
+  {%% set ns.rows = ns.rows + [{'entity': e, 'name': state_attr(e,'friendly_name'), 'integration': integ.v, 'device_class': state_attr(e,'device_class'), 'model': device_attr(device_id(e),'model'), 'features': state_attr(e,'supported_features')}] %%}
 {%% endfor %%}
 {{ ns.rows | to_json }}
 """
@@ -433,6 +433,7 @@ class Device:
     device_class: str | None = None
     tier: str = "compatible"   # certified | compatible (set from integration in discover_av)
     model: str | None = None   # HA device model, e.g. "HomePod Mini" / "Apple TV 4K" — the reliable audio/video discriminator for apple_tv
+    features: int | None = None  # the media_player's supported_features — what it CAN do (register 1210)
 
 
 @dataclass
@@ -490,7 +491,22 @@ class AVCluster:
         return label
 
 
-def role_for(integration: str, dev_class, has_remote=None, model=None):
+# REGISTER 1210 (Dave 5 Nov 13:31, the new Office HomePod "seen as an Apple TV"). The platform's media-player
+# capability bit for choosing an input/app (MediaPlayerEntityFeature.SELECT_SOURCE). Every Apple TV on his box has it
+# (450487, 40+ apps, even when off); all three HomePods do not (448439, no source list).
+SELECT_SOURCE = 2048
+
+
+def can_select_source(features):
+    """True/False from the device's own capability flags; None when it did not say (unavailable). Pure."""
+    try:
+        f = int(features)
+    except (TypeError, ValueError):
+        return None
+    return bool(f & SELECT_SOURCE)
+
+
+def role_for(integration: str, dev_class, has_remote=None, model=None, features=None):
     """Natural role for a discovered media_player. Pure; benched
     (tests/discovery_role_bench.py). Matrix #2's discovery half.
 
@@ -519,7 +535,16 @@ def role_for(integration: str, dev_class, has_remote=None, model=None):
         # model string ("HomePod ..." vs "Apple TV ..."); that is what an
         # AV professional reads off the box. Model first, then the older
         # device_class / remote fallbacks for firmwares that omit the model.
-        if (model and "homepod" in model.lower()) or dev_class == "speaker" or has_remote is False:
+        #
+        # REGISTER 1210 — THE MODEL WORD WAS NOT ENOUGH EITHER. Dave's new Office HomePod (5 Nov) reports
+        # Apple's raw identifier "AudioAccessory11,1" (the driver has no friendly name for it yet), so
+        # "homepod" was not in it, it stayed a Source, and Pro demanded a Display. Two readings now decide,
+        # both from the device itself: Apple's own HomePod family identifier (AudioAccessory…), and the
+        # CAPABILITY — a box that cannot choose an input or app (no SELECT_SOURCE) is not a video source.
+        # Unknown capability (unavailable) never re-roles.
+        m = (model or "").lower().replace(" ", "")
+        if ("homepod" in m or m.startswith("audioaccessory") or dev_class == "speaker"
+                or has_remote is False or can_select_source(features) is False):
             role = "audio"
     return role
 
@@ -573,11 +598,11 @@ def discover_av(client, area_id: str) -> AVCluster:
             continue
         integ = r.get("integration", "unknown")
         dev = Device(r["entity"], r.get("name") or r["entity"], integ,
-                     r.get("device_class"), tier(integ), model=r.get("model"))
+                     r.get("device_class"), tier(integ), model=r.get("model"), features=r.get("features"))
         role = role_for(dev.integration, dev.device_class,
                         _apple_tv_has_remote(client, dev)
                         if dev.integration == "apple_tv" else None,
-                        model=dev.model)
+                        model=dev.model, features=dev.features)
         if role == "display" and cluster.display is None:
             cluster.display = dev
         elif role == "source":

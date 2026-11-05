@@ -3032,7 +3032,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102643';
+const PROOS_BUILD='2026102644';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -9940,7 +9940,11 @@ function avOfferableRoles(rec,e,o){
   const c=(rec&&rec.candidates)||{};
   const inD=(c.display||[]).indexOf(e)>=0;
   const inS=(c.sources||[]).indexOf(e)>=0;
-  const audioOnly=(o.dc==='speaker')||(o.integration==='apple_tv'&&!o.hasRemote);
+  // REGISTER 1210 (Dave 5 Nov, the new Office HomePod offered as a source that "needs a Display"): an Apple box that
+  // CANNOT choose an input or app (no SELECT_SOURCE — every HomePod on his box) is audio-only; so is one Core's own
+  // scan filed as audio. A HomePod has its own remote, so the remote check alone never caught one.
+  const audioOnly=(o.dc==='speaker')||(o.integration==='apple_tv'&&(!o.hasRemote||o.selectSource===false
+    ||(c.audio||[]).indexOf(e)>=0));
   const display=!audioOnly&&(inD||(o.dc==='tv'&&!inS));
   // A RECEIVER IS NEVER A SOURCE (register 910, Dave 16 Oct, Living Room Marantz: "so what your saying is a reciever
   // should never have a source as an option" — "Yes"). In a TV room a receiver is the box the sources plug into (AV
@@ -9969,6 +9973,14 @@ function _hasPairedRemote(e){
   const me=(_ents||[]).find(x=>x.entity_id===e);
   if(!me||!me.device_id) return false;
   return (_ents||[]).some(x=>x.device_id===me.device_id&&x.entity_id.indexOf('remote.')===0);
+}
+// REGISTER 1210: can this media player choose an input/app? Its own capability flags (SELECT_SOURCE = 2048).
+// true / false, or null when it did not say (unavailable) — unknown never re-roles.
+function _canSelectSource(e){
+  const st=(_states||[]).find(x=>x.entity_id===e);
+  const f=st&&st.attributes?Number(st.attributes.supported_features):NaN;
+  if(!isFinite(f)) return null;
+  return (f & 2048)!==0;
 }
 // ── MEMBERSHIP IS THE ROOM'S ASSIGNMENT ─────────────────────────────────────
 // Dave, 4 Aug: "when you add an integration or a device you assign it to a
@@ -10041,7 +10053,7 @@ function rhSeedRoles(rec,members){
     // 910: a receiver, and anything Core's own scan filed as AUDIO, starts as audio — never as a source that would
     // demand a TV input (the Living Room Marantz was seeded a Source although Core's candidates said audio).
     return dc==='speaker' || dc==='receiver' || (c.audio||[]).indexOf(e)>=0
-      || (m.integration==='apple_tv' && !_hasPairedRemote(e));
+      || (m.integration==='apple_tv' && (!_hasPairedRemote(e) || _canSelectSource(e)===false));   // 1210
   };
   const taken=()=>_rhMemberSet(rec);
   if(!rec.display){
@@ -10069,6 +10081,7 @@ function rhDeviceRow(e,rec,inputs,first){
     integration:meta.integration||'',
     srcCount:_avrSrcList(e).length,
     hasRemote:_hasPairedRemote(e),
+    selectSource:_canSelectSource(e),   // 1210
   });
   // A role already COMMITTED on this device stays visible even if the gate
   // would no longer offer it — the installer must always be able to see and
