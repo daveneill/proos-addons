@@ -6475,9 +6475,11 @@ class Handler(BaseHTTPRequestHandler):
             if au is None:
                 return self._send(200, {"ok": False, "why": why})
             bs, _wb = _uc.get_json(_creds, ph, "/proxy/protect/api/bootstrap")
-            al = _pa.alarms_view(au if isinstance(au, list) else [], bs if isinstance(bs, dict) else None)
+            _A, _B = (au if isinstance(au, list) else []), (bs if isinstance(bs, dict) else None)
+            al = _pa.alarms_view(_A, _B)
             return self._send(200, {"ok": True, "alarms": al, "names_read": bs is not None,
-                                    "on": sum(1 for x in al if x["on"]), "total": len(al)})
+                                    "on": sum(1 for x in al if x["on"]), "total": len(al),
+                                    "unnamed_id_lengths": _pa.unnamed_shapes(_A, _B)})
         if method == "GET" and sub == "network":
             # REGISTER 1225 — Network → Devices, Clients, Wi-Fi: the controller's own tables through ProOS's local user,
             # passed through unifinet's NAMED-FIELD views (the Wi-Fi records hold the passwords; none leave Core). Read only.

@@ -26,14 +26,25 @@ def _words(v):
     return out
 
 
+def _key(v):
+    """One spelling for an identifier: a MAC with or without colons, any case, reads the same (1230b)."""
+    return re.sub(r"[^0-9a-z]", "", str(v or "").lower())
+
+
 def device_names(bootstrap):
-    """{device id: name} from Protect's bootstrap — the names only."""
+    """{identifier: name} from Protect's bootstrap — the names only. MEASURED on Dave's box (1230 on the box): an
+    alarm's sources did not match the devices' ids — 12 unnamed on the faces/plates alarm, with 12 cameras — so each
+    device is known by its id AND its MAC, matched exactly."""
     names = {}
     b = bootstrap if isinstance(bootstrap, dict) else {}
     for k in _DEVICE_LISTS:
         for d in (b.get(k) or []):
-            if isinstance(d, dict) and d.get("id"):
-                names[str(d["id"])] = d.get("name") or d.get("displayName") or d.get("type") or "Unnamed"
+            if not isinstance(d, dict):
+                continue
+            n = d.get("name") or d.get("displayName") or d.get("type") or "Unnamed"
+            for ident in (d.get("id"), d.get("mac")):
+                if ident and len(_key(ident)) >= 8:
+                    names[_key(ident)] = n
     return names
 
 
@@ -54,6 +65,18 @@ def _watches(conditions):
     return seen
 
 
+def unnamed_shapes(automations, bootstrap=None):
+    """For the box check only: the LENGTHS of source identifiers no device answers to — never the identifiers."""
+    names = device_names(bootstrap)
+    out = set()
+    for a in (automations or []):
+        for s in ((a or {}).get("sources") or []) if isinstance(a, dict) else []:
+            k = _key((s or {}).get("device")) if isinstance(s, dict) else ""
+            if k and k not in names:
+                out.add(len(k))
+    return sorted(out)
+
+
 def alarms_view(automations, bootstrap=None):
     """Each alarm as named fields only. Deleted alarms are left out."""
     names = device_names(bootstrap)
@@ -63,7 +86,7 @@ def alarms_view(automations, bootstrap=None):
             continue
         devs, unknown = [], 0
         for s in (a.get("sources") or []):
-            did = str((s or {}).get("device") or "") if isinstance(s, dict) else ""
+            did = _key((s or {}).get("device")) if isinstance(s, dict) else ""
             if did in names:
                 if names[did] not in devs:
                     devs.append(names[did])

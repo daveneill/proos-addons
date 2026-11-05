@@ -63,6 +63,15 @@ ok(p["schedule"] == "Always" and by["Garage Left Open"]["schedule"] == "2 schedu
    and p["fired_total"] == 14 and p["last_fired"] == 1762390000000 and p["used_in_arm_mode"]
    and "Old Deleted" not in by and [x["name"] for x in v] == ["Garage Left Open", "Person at Front Door"],
    "4 · schedule, cooldown, last fired and count; deleted alarms left out; sorted by name")
+# 1230b — MEASURED on Dave's box: a faces/plates alarm's 12 sources matched no device id (he has 12 cameras). A source
+# may name a device by its MAC, with or without colons, in either case — matched exactly, never by name.
+BOOT2 = {"cameras": [{"id": CAM, "mac": "F4E2C6A1B2C3", "name": "Driveway"}, {"id": "65f0aa11bb22cc33dd44ee77", "mac": "f4:e2:c6:a1:b2:c4", "name": "Office"}]}
+A2 = [{"id": "m1", "name": "Plates", "enable": True,
+       "sources": [{"device": "f4:e2:c6:a1:b2:c3"}, {"device": "F4E2C6A1B2C4"}, {"device": "Driveway"}, {"device": "aabbccddeeff00112233"}]}]
+v2 = pa.alarms_view(A2, BOOT2)[0]
+ok(v2["devices"] == ["Driveway", "Office"] and v2["devices_unknown"] == 2 and pa.unnamed_shapes(A2, BOOT2) == [8, 20]
+   and "aabbcc" not in json.dumps(pa.unnamed_shapes(A2, BOOT2)),
+   "6 · a source naming its device by MAC (any spelling) is named; a name is never an id; unmatched ids report only their length")
 src = open(os.path.join(HERE, "..", "server.py"), encoding="utf-8").read()
 i = src.index('if method == "GET" and sub == "alarms":')
 route = src[i:src.index('if method == "GET" and sub == "network":', i)]
