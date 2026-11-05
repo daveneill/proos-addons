@@ -141,8 +141,11 @@ select option,select optgroup{background:#1a1c20;color:#fff}
 .unp-head{display:flex;flex-wrap:wrap;align-items:center;gap:10px;font-size:13px;margin-bottom:10px}
 .unp-head b{font-size:15px;font-weight:600}.unp-head span{color:var(--t2)}
 .unp-on{margin-left:auto;color:#46e3a0!important}.unp-on.off{color:#ff8a73!important}
-.unp-faceplate{display:flex;gap:18px;align-items:flex-start;overflow-x:auto;padding:4px 2px;border-radius:12px;background:#0f1218}
-.unp-face{display:grid;grid-template-columns:repeat(var(--cols),minmax(30px,46px));gap:4px 5px;flex:1 1 auto}
+.unp-faceplate{display:flex;gap:14px;align-items:flex-start;overflow-x:auto;padding:6px 4px;border-radius:12px;background:#0f1218;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.18) transparent}
+.unp-faceplate::-webkit-scrollbar{height:6px}.unp-faceplate::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.18);border-radius:3px}.unp-faceplate::-webkit-scrollbar-track{background:transparent}
+/* 1.0.1321: a 48-port face fits the iPad and Mac (sockets shrink to 22px before the faceplate scrolls; on a phone it
+   scrolls sideways inside the faceplate, with a dark thin bar — the white bar on the box was the browser's default) */
+.unp-face{display:grid;grid-template-columns:repeat(var(--cols),minmax(22px,46px));gap:4px 4px;flex:1 1 auto}
 .unp-face.unp-sfp{flex:0 0 auto}
 .unp-port{display:flex;flex-direction:column;align-items:center;gap:2px;padding:0;border:0;background:transparent;cursor:pointer;min-width:0;color:var(--t2)}
 .unp-sock{position:relative;display:block;width:100%}
@@ -3117,7 +3120,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102650';
+const PROOS_BUILD='2026102651';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
