@@ -174,6 +174,21 @@ select option,select optgroup{background:#1a1c20;color:#fff}
 .unp-red{color:#ff8a73;font-style:normal}
 .unp-pt{font-size:12px;color:var(--t2)}
 .unp-pn{font-size:18px;font-weight:600;margin:3px 0 4px;word-break:break-word}
+/* PROTECT → LIVE VIEW — register 1223 */
+.uni-cams{flex:1 1 auto;min-width:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;align-content:start}
+@media (max-width:1439px){.uni-cams{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:700px){.uni-cams{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.ucam{position:relative;aspect-ratio:16/9;border-radius:12px;overflow:hidden;border:1px solid var(--line-soft);background:linear-gradient(160deg,#2b3544,#131920);padding:0;cursor:pointer;color:#fff}
+.ucam.on{border:2px solid var(--accent)}
+.ucam img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.ucam img:not([src]){display:none}
+.ucam-n{position:absolute;left:0;right:0;bottom:0;padding:16px 9px 7px;background:linear-gradient(transparent,rgba(0,0,0,.72));font-size:12px;font-weight:600;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ucam.off{background:#161a21;border-color:rgba(225,112,85,.5)}
+.ucam-off{position:absolute;inset:0 0 26px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:6px;text-align:center;font-size:11px;color:var(--t2)}
+.ucam-off b{color:#ff8a73;font-size:12.5px}
+.ucam-big{aspect-ratio:16/9;border-radius:10px;overflow:hidden;background:#131920;margin-bottom:10px}
+.ucam-big img{width:100%;height:100%;object-fit:cover;display:block}
+.ucam-big img:not([src]){display:none}
 .unp-acts{display:flex;flex-direction:column;gap:8px;margin-top:14px}
 .unp-acts .btn-primary{margin:0}
 .unp-act{width:100%;margin-top:8px;font-size:14px;padding:11px;border-radius:12px;border:0;background:var(--card-hi);color:#fff;cursor:pointer}
@@ -2357,6 +2372,8 @@ body.v3.railmin .aw-screen{left:108px!important}
         <div class="panel-title">UniFi Protect</div>
       </div>
       <div id="unibar-protect"></div>
+      <div id="unifi-seg"></div>
+      <div id="unifi-live" style="display:none"></div>
       <div id="unifi-body"><div class="empty"><div class="et">Checking connection…</div></div></div>
     </div>
 
@@ -3125,7 +3142,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102652';
+const PROOS_BUILD='2026102653';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -15792,7 +15809,91 @@ async function unifiSuiteForget(){
   if(!await proAsk('Remove ProOS\'s console sign-in and API key?\n\nThe UniFi integrations themselves are not touched. Features that need the local user stop until it is entered again.')) return;
   try{ await _unifiSuitePost('forget'); toast('Removed'); renderUnifiSuite(false); }catch(e){ toast(_coreFailWords('',e)); }
 }
-async function openUnifi(){ show('unifi'); paintUniBar('protect'); renderUnifi(); try{ await loadSite(); await loadConfigEntries(); }catch(e){} renderUnifi(); }
+async function openUnifi(){ show('unifi'); paintUniBar('protect'); _uniCams=null; uniProtectSection(_uniProtectSection); renderUnifi(); try{ await loadSite(); await loadConfigEntries(); }catch(e){} renderUnifi(); }
+// ── REGISTER 1223 — PROTECT → LIVE VIEW (the mockup Dave agreed; 6 Nov: "protect looks the same as before"). Every camera
+// the console reports, as a snapshot tile refreshed while the page is open, with All / Online / Offline; tap one for its
+// details. An offline camera says which switch port it hangs off (Core's locate — live, the controller's history, or where
+// ProOS last saw it) and links to it on Network → Ports. Setup (the existing page) is the second section. Read only.
+let _uniProtectSection='live', _uniCams=null, _uniCamSel=null, _uniCamFilter='all', _uniCamImg={}, _uniCamWhere={}, _uniCamTimer=null;
+function uniProtectSection(s){
+  _uniProtectSection=s;
+  const seg=document.getElementById('unifi-seg'), live=document.getElementById('unifi-live'), body=document.getElementById('unifi-body');
+  if(seg) setHTML(seg,`<div class="unp-seg"><button class="${s==='live'?'on':''}" onclick="uniProtectSection('live')">Live View</button><button class="${s==='setup'?'on':''}" onclick="uniProtectSection('setup')">Setup</button></div>`);
+  if(live) live.style.display=s==='live'?'':'none';
+  if(body) body.style.display=s==='live'?'none':'';
+  if(s==='live'){ renderUniCams(); if(!_uniCams) _uniCamsLoad(); _uniCamTick(); }
+  else if(_uniCamTimer){ clearInterval(_uniCamTimer); _uniCamTimer=null; }
+}
+function _uniCamOnline(c){ return String(c.state||'').toUpperCase()==='CONNECTED'; }
+async function _uniCamsLoad(){
+  try{ const r=await fetch(proCoreUrl()+'/unifi/protect/cameras'); const d=r.ok?await r.json():null; _uniCams=Array.isArray(d)?d:(d&&Array.isArray(d.data)?d.data:{error:(d&&d.errorMessage)||('Core answered '+r.status)}); }
+  catch(e){ _uniCams={error:'Couldn\'t reach ProOS Core'}; }
+  renderUniCams(); _uniCamSnaps();
+  (Array.isArray(_uniCams)?_uniCams:[]).filter(c=>!_uniCamOnline(c)&&c.mac).forEach(c=>_uniCamWhereLoad(c));
+}
+async function _uniCamWhereLoad(c){
+  try{ const r=await fetch(proCoreUrl()+'/unifi/console/ports/where?mac='+encodeURIComponent(String(c.mac).toLowerCase().replace(/[^0-9a-f]/g,'').replace(/(..)(?!$)/g,'$1:'))); _uniCamWhere[c.id]=await r.json(); }
+  catch(e){ _uniCamWhere[c.id]={ok:false}; }
+  renderUniCams();
+}
+async function _uniCamSnaps(){
+  // one at a time, so a dozen cameras never land on the console (or the iPad) at once; online cameras only
+  for(const c of (Array.isArray(_uniCams)?_uniCams:[])){
+    if(!panelActive('unifi')||_uniProtectSection!=='live') return;
+    if(!_uniCamOnline(c)) continue;
+    try{ const r=await fetch(proCoreUrl()+'/unifi/protect/cameras/'+encodeURIComponent(c.id)+'/snapshot?q=low');
+      if(r.ok&&String(r.headers.get('content-type')||'').startsWith('image/')){ const u=URL.createObjectURL(await r.blob()); if(_uniCamImg[c.id]) URL.revokeObjectURL(_uniCamImg[c.id].url); _uniCamImg[c.id]={url:u,at:Date.now()};
+        document.querySelectorAll('img[data-cam="'+c.id+'"]').forEach(im=>{ im.src=u; }); }
+    }catch(e){}
+  }
+}
+function _uniCamTick(){ if(_uniCamTimer) return; _uniCamTimer=setInterval(()=>{ if(!panelActive('unifi')||_uniProtectSection!=='live'){ clearInterval(_uniCamTimer); _uniCamTimer=null; return; } _uniCamSnaps(); },20000); }
+function uniCamPick(id){ _uniCamSel=id; renderUniCams(); }
+function uniCamFilter(f){ _uniCamFilter=f; renderUniCams(); }
+function uniGoPort(mac,idx){ _uniPortSw=mac; _uniPortSel=idx; _uniPortFilter='all'; _uniNetSection='ports'; openUniNet(); }
+function _uniCamPortLine(w){
+  if(!w) return 'Finding its switch port…';
+  if(!w.ok) return 'Its switch port could not be read';
+  if(!w.found) return 'ProOS has not seen it on a switch port';
+  const how=w.source==='live'?'':(w.source==='controller'?' (the controller\'s record)':' (where ProOS last saw it)');
+  return `${esc(w.switch)} · port ${w.port}${w.port_switched_on===false?' — <em class="unp-red">switched off</em>':(w.link===false?' — no link':'')}${how}`;
+}
+function renderUniCams(){
+  const el=document.getElementById('unifi-live'); if(!el) return;
+  const d=_uniCams;
+  if(!d){ setHTML(el,'<div class="empty"><div class="et">Reading the cameras…</div></div>'); return; }
+  if(!Array.isArray(d)){ setHTML(el,`<div class="empty"><div class="et">Couldn't read the cameras</div><div class="es">${esc(d.error||'')}. Protect's key is set on the UniFi Overview page, under Console Settings.</div></div>`); return; }
+  const on=d.filter(_uniCamOnline), off=d.filter(c=>!_uniCamOnline(c));
+  const F={all:['All',d],online:['Online',on],offline:['Offline',off]};
+  const chips=Object.entries(F).map(([k,[l,a]])=>`<button class="unp-chip${_uniCamFilter===k?' on':''}" onclick="uniCamFilter('${k}')">${l} ${a.length}</button>`).join('');
+  const tile=c=>{
+    const sel=c.id===_uniCamSel, img=_uniCamImg[c.id];
+    if(!_uniCamOnline(c)){
+      const w=_uniCamWhere[c.id];
+      return `<button class="ucam off${sel?' on':''}" onclick="uniCamPick('${esc(c.id)}')"><span class="ucam-off"><b>Offline</b><span>${_uniCamPortLine(w)}</span></span><span class="ucam-n">${esc(c.name||'Camera')}</span></button>`;
+    }
+    return `<button class="ucam${sel?' on':''}" onclick="uniCamPick('${esc(c.id)}')"><img data-cam="${esc(c.id)}" alt="" ${img?`src="${img.url}"`:''}><span class="ucam-n">${esc(c.name||'Camera')}</span></button>`;
+  };
+  const list=F[_uniCamFilter][1];
+  const sel=d.find(c=>c.id===_uniCamSel);
+  let panel='<div class="es">Tap a camera to see its details.</div>';
+  if(sel){
+    const ff=sel.featureFlags||{}, img=_uniCamImg[sel.id], w=_uniCamWhere[sel.id];
+    if(sel.mac&&!w) _uniCamWhereLoad(sel);
+    const kv=(k,v)=>`<div class="unifi-row"><span class="unifi-row-l">${k}</span><span class="unifi-row-d">${v}</span></div>`;
+    const yes=b=>b?'Yes':'No';
+    const smart=(ff.smartDetectTypes||[]).map(t=>String(t).replace(/^./,x=>x.toUpperCase())).join(' · ');
+    panel=(_uniCamOnline(sel)?`<div class="ucam-big"><img data-cam="${esc(sel.id)}" alt="" ${img?`src="${img.url}"`:''}></div>`:'')
+      +`<div class="unp-pn">${esc(sel.name||'Camera')}</div><div class="unifi-status">`
+      +kv('State',_uniCamOnline(sel)?'<span style="color:#46e3a0">● Online</span>':'<em class="unp-red">Offline</em>')
+      +kv('Switch Port',_uniCamPortLine(w)+(w&&w.found?` <a href="#" onclick="uniGoPort('${esc(w.switch_mac)}',${Number(w.port)});return false">See Port ›</a>`:''))
+      +kv('Microphone',ff.hasMic?(sel.isMicEnabled?'On':'Off'):'None')+kv('Speaker',yes(ff.hasSpeaker))+kv('HDR',yes(ff.hasHdr))
+      +(smart?kv('Smart Detect',esc(smart)):'')+(img?kv('Snapshot',new Date(img.at).toLocaleTimeString()):'')
+      +'</div><div class="es" style="margin-top:10px">Only what this camera reports is shown.</div>';
+  }
+  setHTML(el,`<div class="unp-chips">${chips}<button class="unp-chip" style="margin-left:auto" onclick="_uniCams=null;renderUniCams();_uniCamsLoad()">Refresh</button></div>`
+    +`<div class="unp-split"><section class="uni-cams">${list.map(tile).join('')||'<div class="es">No cameras here.</div>'}</section><aside class="unp-panel">${panel}</aside></div>`);
+}
 async function renderUnifi(){
   const body=document.getElementById('unifi-body'); if(!body) return;
   if(!body.innerHTML || !body.dataset.rendered) body.innerHTML='<div class="empty"><div class="et">Checking connection…</div></div>';

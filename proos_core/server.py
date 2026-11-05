@@ -6461,6 +6461,27 @@ class Handler(BaseHTTPRequestHandler):
                         failed.append({"entity_id": e["entity_id"], "why": str(ex)[:120]})
             return self._send(200, {"ok": not failed, "enabled": len(done), "failed": failed,
                                     "note": "the platform reloads its UniFi integration to bring them online (about 30 seconds)"})
+        if method == "GET" and sub == "ports" and sub2 == "where":
+            # REGISTER 1223 — which switch port a device (by MAC) is on: live, the controller's history, or where ProOS
+            # last saw it — the same locate Assist uses (1222). Read only. Protect's Live View links an offline camera
+            # to its port with it.
+            from proos import unifinet as _un
+            qs = parse_qs(urlparse(self.path).query)
+            mac = (qs.get("mac") or [""])[0].strip().lower()
+            if not mac:
+                return self._send(400, {"error": "mac required"})
+            sw, why, _w2 = _port_map_now()
+            if sw is None:
+                return self._send(200, {"ok": False, "why": why})
+            s, p, how = _un.locate(sw, mac)
+            if not p:
+                s, p, how = _un.locate(sw, mac, history=_client_history())
+            if not p:
+                return self._send(200, {"ok": True, "found": False})
+            return self._send(200, {"ok": True, "found": True, "source": how["source"], "seen": how.get("seen"),
+                                    "switch": s.get("name"), "switch_mac": s.get("mac"), "port": p.get("idx"),
+                                    "port_switched_on": p.get("enabled"), "link": p.get("link"), "lock": p.get("lock"),
+                                    "poe_watts": (p.get("poe") or {}).get("watts")})
         if method == "POST" and sub == "ports" and sub2 == "act":
             return self._send(200, _port_act(b.get("mac"), b.get("idx"), str(b.get("action") or "")))
         return self._send(404, {"error": "unknown console route"})
