@@ -6480,6 +6480,36 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, {"ok": True, "alarms": al, "names_read": bs is not None,
                                     "on": sum(1 for x in al if x["on"]), "total": len(al),
                                     "unnamed_id_lengths": _pa.unnamed_shapes(_A, _B)})
+        if method == "GET" and sub == "detections" and sub2 == "thumb":
+            # REGISTER 1232 — one detection's picture, through ProOS's own console user. The id must look like an id.
+            from proos import protectevents as _pev
+            eid = (parse_qs(urlparse(self.path).query).get("id") or [""])[0]
+            if not _pev.safe_id(eid):
+                return self._send(400, {"error": "id required"})
+            img, ct, why = _uc.get_image(_creds, ph, "/proxy/protect/api/events/" + eid + "/thumbnail")
+            if img is None:
+                return self._send(404, {"ok": False, "why": why})
+            return self._send_bytes(200, ct, img, cache="private, max-age=3600")
+        if method == "GET" and sub == "detections" and not sub2:
+            # REGISTER 1232 — Protect → Detections: the console's own event list for the last N hours (default 24,
+            # at most 72), through ProOS's own console user, as protectevents' NAMED-FIELD view. Read only.
+            import time as _t
+            from proos import protectevents as _pev
+            qs = parse_qs(urlparse(self.path).query)
+            try:
+                hours = max(1, min(72, int((qs.get("hours") or ["24"])[0])))
+            except ValueError:
+                hours = 24
+            only = (qs.get("only") or [""])[0] or None
+            now = int(_t.time() * 1000)
+            ev, why = _uc.get_json(_creds, ph, "/proxy/protect/api/events?start=%d&end=%d&limit=300" % (now - hours * 3600000, now))
+            if ev is None:
+                return self._send(200, {"ok": False, "why": why})
+            bs, _wb = _uc.get_json(_creds, ph, "/proxy/protect/api/bootstrap")
+            allv = _pev.events_view(ev if isinstance(ev, list) else [], bs if isinstance(bs, dict) else None)
+            view = [x for x in allv if not only or set(_pev.FILTERS.get(only, ())) & set(x["kinds"])]
+            return self._send(200, {"ok": True, "hours": hours, "detections": view[:200], "counts": _pev.counts(allv),
+                                    "total": len(allv), "read_limit_hit": isinstance(ev, list) and len(ev) >= 300})
         if method == "GET" and sub == "network":
             # REGISTER 1225 — Network → Devices, Clients, Wi-Fi: the controller's own tables through ProOS's local user,
             # passed through unifinet's NAMED-FIELD views (the Wi-Fi records hold the passwords; none leave Core). Read only.

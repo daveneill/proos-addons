@@ -236,6 +236,12 @@ select option,select optgroup{background:#1a1c20;color:#fff}
 .ucam-big{aspect-ratio:16/9;border-radius:10px;overflow:hidden;background:#131920;margin-bottom:10px}
 .ucam-big img{width:100%;height:100%;object-fit:cover;display:block}
 .ucam-big img:not([src]){display:none}
+/* REGISTER 1232 — Protect → Detections: a picture per detection, the camera tile's look; four / three / two across */
+.uni-dets{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;align-content:start}
+@media (max-width:1439px){.uni-dets{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:700px){.uni-dets{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.udet-k{position:absolute;left:8px;top:8px;font-size:11px;font-weight:700;padding:3px 8px;border-radius:20px;background:rgba(0,0,0,.6);color:#fff}
+.udet-t{display:block;font-weight:500;font-size:11px;color:rgba(255,255,255,.75)}
 .unp-acts{display:flex;flex-direction:column;gap:8px;margin-top:14px}
 .unp-acts .btn-primary{margin:0}
 .unp-act{width:100%;margin-top:8px;font-size:14px;padding:11px;border-radius:12px;border:0;background:var(--card-hi);color:#fff;cursor:pointer}
@@ -3190,7 +3196,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102660';
+const PROOS_BUILD='2026102661';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -5061,7 +5067,7 @@ let _uniNetSection='devices', _uniPorts=null, _uniPortSw=null, _uniPortSel=null,
 function uniNetSection(s){ _uniNetSection=s; _uniNetSel=null; renderUniNet(); }
 // REGISTER 1229 — the mockup's section lists. [key, label, built]. A section not built is listed (so the installer sees
 // the whole app) but greyed with "Coming" and cannot be opened; each build flips its own entry to true.
-const UNI_PROTECT_SECTIONS=[['live','Live View',true],['detections','Detections',false],['alarm','Alarm Manager',true],
+const UNI_PROTECT_SECTIONS=[['live','Live View',true],['detections','Detections',true],['alarm','Alarm Manager',true],
   ['cameras','Cameras',false],['doorbell','Doorbell',false],['lights','Lights & Chimes',false],['sensors','Sensors',false],
   ['relays','Relays & Sirens',false],['viewports','Viewports',false],['recordings','Recordings',false],['setup','Setup',true]];
 const UNI_NET_SECTIONS=[['devices','Devices',true],['ports','Ports',true],['clients','Clients',true],['wifi','Wi-Fi',true],
@@ -15965,6 +15971,7 @@ function uniProtectSection(s){
   if(s!=='live'&&_uniCamTimer){ clearInterval(_uniCamTimer); _uniCamTimer=null; }
   if(s==='live'){ renderUniCams(); if(!_uniCams) _uniCamsLoad(); _uniCamTick(); }
   if(s==='alarm'){ renderUniAlarm(); _uniAlarmLoad(); _uniAlarmsLoad(); }
+  if(s==='detections'){ renderUniDets(); _uniDetLoad(); }
 }
 // ── REGISTER 1224 — PROTECT → ALARM (Dave, 6 Nov: "Build both"). The console's MODE decides arming: with arm profiles,
 // Arm / Disarm and the profile buttons work through them; in Global Alarm Manager mode (Dave's console — Ubiquiti lets no
@@ -16121,6 +16128,46 @@ function _uniCamPortLine(w){
   if(!w.found) return 'ProOS has not seen it on a switch port';
   const how=w.source==='live'?'':(w.source==='controller'?' (the controller\'s record)':' (where ProOS last saw it)');
   return `${esc(w.switch)} · port ${w.port}${w.port_switched_on===false?' — <em class="unp-red">switched off</em>':(w.link===false?' — no link':'')}${how}`;
+}
+// ── REGISTER 1232 — PROTECT → DETECTIONS: the console's own events for the last 24 hours (Core: /unifi/console/detections,
+// named fields only), newest first, a picture each, filtered Person / Vehicle / Animal / Package / Face / Motion / Sensor /
+// Doorbell Ring with counts from Core. Pictures are fetched one at a time (the newest 40), as Live View does. Read only.
+let _uniDet=null, _uniDetOnly='', _uniDetImg={};
+const UNI_DET_CHIPS=[['person','Person'],['vehicle','Vehicle'],['animal','Animal'],['package','Package'],['face','Face'],['ring','Doorbell Ring'],['motion','Motion'],['sensor','Sensor']];
+async function _uniDetLoad(){
+  try{ const r=await fetch(proCoreUrl()+'/unifi/console/detections?hours=24'+(_uniDetOnly?'&only='+encodeURIComponent(_uniDetOnly):'')); _uniDet=r.ok?await r.json():{ok:false,why:'Core answered '+r.status}; }
+  catch(e){ _uniDet={ok:false,why:'Couldn\'t reach ProOS Core'}; }
+  if(panelActive('unifi')&&_uniProtectSection==='detections'){ renderUniDets(); _uniDetSnaps(); }
+}
+function uniDetFilter(k){ _uniDetOnly=_uniDetOnly===k?'':k; _uniDet=null; renderUniDets(); _uniDetLoad(); }
+async function _uniDetSnaps(){
+  const L=((_uniDet&&_uniDet.detections)||[]).filter(x=>x.picture).slice(0,40);
+  for(const x of L){
+    if(!panelActive('unifi')||_uniProtectSection!=='detections') return;
+    if(_uniDetImg[x.id]) continue;
+    try{ const r=await fetch(proCoreUrl()+'/unifi/console/detections/thumb?id='+encodeURIComponent(x.id));
+      if(r.ok&&String(r.headers.get('content-type')||'').startsWith('image/')){ const u=URL.createObjectURL(await r.blob()); _uniDetImg[x.id]=u;
+        document.querySelectorAll('img[data-det="'+x.id+'"]').forEach(im=>{ im.src=u; }); }
+      else _uniDetImg[x.id]='';
+    }catch(e){}
+  }
+}
+function renderUniDets(){
+  const el=document.getElementById('unifi-live'); if(!el||_uniProtectSection!=='detections') return;
+  const d=_uniDet;
+  if(!d){ setHTML(el,'<div class="empty"><div class="et">Reading today\'s detections…</div></div>'); return; }
+  if(!d.ok){ setHTML(el,`<div class="empty"><div class="et">Couldn't read the detections</div><div class="es">${esc(d.why||'')}. ProOS reads them with its own console user (Console Settings on the UniFi page).</div></div>`); return; }
+  const C=d.counts||{};
+  const chips=`<button class="unp-chip${!_uniDetOnly?' on':''}" onclick="uniDetFilter('')">All ${d.total}</button>`
+    +UNI_DET_CHIPS.filter(([k])=>C[k]||_uniDetOnly===k).map(([k,l])=>`<button class="unp-chip${_uniDetOnly===k?' on':''}" onclick="uniDetFilter('${k}')">${l} ${C[k]||0}</button>`).join('')
+    +`<button class="unp-chip" style="margin-left:auto" onclick="_uniDet=null;renderUniDets();_uniDetLoad()">Refresh</button>`;
+  const hm=t=>{ const n=Number(t); return n>0?new Date(n).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}):''; };
+  const L=d.detections||[];
+  const tiles=L.map(x=>`<div class="ucam">${x.picture?`<img data-det="${esc(x.id)}" alt="" ${_uniDetImg[x.id]?`src="${_uniDetImg[x.id]}"`:''}>`:''}`
+    +`<span class="udet-k">${esc(x.kinds.join(' · '))}</span><span class="ucam-n">${esc(x.device)}<span class="udet-t">${hm(x.start)}${x.seconds!=null?' · '+x.seconds+' s':''}</span></span></div>`).join('');
+  setHTML(el,`<div class="unp-chips">${chips}</div>`
+    +(d.read_limit_hit?'<div class="es" style="margin-bottom:8px">Showing the newest the console handed over — there were more in the last 24 hours.</div>':'')
+    +(L.length?`<div class="uni-dets">${tiles}</div>`:'<div class="empty"><div class="et">Nothing in the last 24 hours</div></div>'));
 }
 function renderUniCams(){
   const el=document.getElementById('unifi-live'); if(!el) return;

@@ -261,6 +261,28 @@ def get_json(creds, platform_host, path, http=None):
     return None, "the console refused ProOS's sign-in"
 
 
+def get_image(creds, platform_host, path, http=None):
+    """(bytes, content type, why-not): one signed-in picture from the console (register 1232 — a detection's
+    thumbnail). Only an image answer counts; anything else is a why-not."""
+    http = http or HTTP
+    h, _ = host(creds, platform_host)
+    if not h:
+        return None, None, "the console's address is not known yet"
+    for attempt in (0, 1):
+        hd, why = _session(creds, h, http)
+        if hd is None:
+            return None, None, why
+        st, rh, raw = http("GET", _base(h) + path, None, dict(hd, Accept="image/*"))
+        if st in (401, 403) and attempt == 0:
+            _SESSION.update({"cookie": None, "at": 0.0})
+            continue
+        ct = str((rh or {}).get("content-type") or "")
+        if st != 200 or not ct.startswith("image/") or not raw:
+            return None, None, "the console answered %s" % (st if st else "nothing")
+        return raw, ct, None
+    return None, None, "the console refused ProOS's sign-in"
+
+
 def send_json(creds, platform_host, method, path, body, http=None):
     """(data, why-not): one signed-in CHANGE on the console (register 1231 — turning an Alarm Manager alarm on or off).
     The same session and CSRF token as get_json; a stale sign-in is renewed once. Callers ask the person first and read
