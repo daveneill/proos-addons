@@ -346,6 +346,11 @@ def icons(creds, h, found=None, http=None):
             r = http("GET", url, None, dict(hd, Accept="image/*"))
             img = _as_image(*r)
             path = url.split(h, 1)[-1].split("?")[0]
+            if img and img == out.get("console"):
+                # MEASURED (1.0.1315 on the box): every app's page declares /favicon.svg — the console's own "U".
+                # That is the console's mark, not the app's logo; showing it on every tile would say nothing.
+                tried.append("%s is the console's own mark" % path)
+                continue
             if img:
                 out[app], came[app] = img, "declared by its page: " + path
                 break
@@ -355,7 +360,7 @@ def icons(creds, h, found=None, http=None):
         for p in ICON_PATHS:
             r = http("GET", _base(h) + root + p, None, dict(hd, Accept="image/*"))
             img = _as_image(*r)
-            if img:
+            if img and img != out.get("console"):
                 out[app], came[app] = img, root + p
                 break
             tried.append("%s%s %s" % (root, p, r[0]))
