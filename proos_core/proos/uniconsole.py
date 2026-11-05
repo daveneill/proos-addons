@@ -199,23 +199,76 @@ def _answer_words(st):
     return "answered HTTP %s" % st
 
 
+# REGISTER 1218 — what counts as an app being on the console. MEASURED on Dave's console (5 Nov, while finding the
+# logos): the console answers ANY address it has no app behind with its own web page (HTTP 200, text/html) — and it
+# answers /proxy/network/ and /proxy/protect/ with that same page even though both apps run. So "it answered 200"
+# proves nothing either way, and 1.0.1312 called Talk "found" off it. Evidence now, best first:
+#   1. the console's own list of its apps (UniFi OS: /api/controllers), when it gives one — installed / version
+#   2. the app's official information call answering with a version (Network, Protect)
+#   3. an answer at the app's address that is NOT the console's web page: a 404/502 = not here; anything else = an app
+#      answered
+# A web page alone = no evidence: found is None ("not confirmed"), never True.
+CONTROLLERS = "/api/controllers"
+
+
+def _is_web_page(hd, raw):
+    ct = (hd.get("content-type") or "").lower()
+    return "text/html" in ct or (raw or b"")[:200].lstrip().lower().startswith((b"<!doctype html", b"<html"))
+
+
+def _controllers(h, hd, http):
+    """{app: {installed, running, version}} from the console's own list, or {} when it gives none. Tolerant of shape:
+    reads only the plain installed / running / version words, wherever the console puts the app's name."""
+    if hd is None:
+        return {}
+    st, rh, raw = http("GET", _base(h) + CONTROLLERS, None, hd)
+    d = _json(raw) if st == 200 and not _is_web_page(rh, raw) else None
+    if isinstance(d, dict) and isinstance(d.get("data"), (dict, list)):
+        d = d["data"]
+    rows = d.items() if isinstance(d, dict) else ((x.get("name"), x) for x in d if isinstance(x, dict)) if isinstance(d, list) else ()
+    out = {}
+    for name, v in rows:
+        if not isinstance(v, dict) or not name:
+            continue
+        k = str(name).lower().replace("unifi", "").strip(" -_")
+        inst = v.get("isInstalled", v.get("installed"))
+        run = v.get("isRunning", v.get("running"))
+        ver = v.get("version") or v.get("uiVersion")
+        out[k] = {"installed": inst if isinstance(inst, bool) else None,
+                  "running": run if isinstance(run, bool) else None, "version": str(ver) if ver else None}
+    return out
+
+
 def apps(creds, h, http=None):
-    """Each app as the console answered for it. found = the console answered at that app's address with anything
-    but 'not here' (404) or 'no app behind this' (502); version only from an official info call."""
+    """Each app on the console, from evidence (register 1218 — see above). found True / False / None (not confirmed);
+    answer says, in plain words, what the evidence was."""
     http = http or HTTP
     hd, why = _session(creds, h, http)
     key = creds.get(SVC_KEY) or creds.get(SVC_PROTECT)
+    ctl = _controllers(h, hd, http)
     out = []
     for app, name, root, info in APPS:
         row = {"app": app, "name": name}
-        if hd is not None:
-            st, _hh, _raw = http("GET", _base(h) + root, None, hd)
-            row["answer"] = _answer_words(st)
-            row["found"] = st not in (0, 404, 502)
+        listed = ctl.get(app)
+        if listed and listed.get("installed") is not None:
+            row["found"] = listed["installed"]
+            row["answer"] = "the console lists it as %s" % ("installed" + (", not running" if listed.get("running") is False else "")
+                                                             if listed["installed"] else "not installed")
+            if listed.get("version") and listed["installed"]:
+                row["version"] = listed["version"]
+        elif hd is not None:
+            st, rh, raw = http("GET", _base(h) + root, None, hd)
+            if st == 200 and _is_web_page(rh, raw):
+                row["answer"], row["found"] = "only the console's own web page answers at its address", None
+            else:
+                row["answer"] = _answer_words(st)
+                row["found"] = False if st in (0, 404, 502) else True
+                if st == 0:
+                    row["found"] = None
         else:
             row["answer"] = "not asked — " + (why or "not signed in")
             row["found"] = None
-        if info and key:
+        if info and key and row.get("found") is not False:
             st, _hh, raw = http("GET", _base(h) + info, None, {"X-API-KEY": key})
             v = (_json(raw) or {}).get("applicationVersion") if st == 200 else None
             if v:

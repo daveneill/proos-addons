@@ -3075,7 +3075,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102648';
+const PROOS_BUILD='2026102649';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -15557,7 +15557,8 @@ async function renderUnifiSuite(quick){
   const tile=(k,name,tint,o)=>{
     const a=A[k]||{}, f=a.found, checking=quick&&!body.dataset.rendered&&f==null;
     const later=o.later||f===false;
-    const sub=checking?'Checking…':(a.version?'v'+a.version:(f===false?(o.notSub||'Not on this console'):(f?'Found on the console':'')));
+    // register 1218: found is True / False / None — None (no evidence either way) is said as "Not confirmed", never Found
+    const sub=checking?'Checking…':(a.version?'v'+a.version:(f===false?(o.notSub||'Not on this console'):(f?'Found on the console':(a.app?'Not confirmed on this console':''))));
     // "Online" only where the app's own information call answered (it gave a version); found-by-address says Found
     const stc=f&&a.version?'on':'';
     const stTxt=f&&a.version?'● Online':'';
