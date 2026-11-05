@@ -2394,12 +2394,20 @@ def _assist_awareness():
         return _healthmon_mod.resolve_action(_client, str(iid or ""), action_kind)
 
     def _port_facts(entity):
-        # REGISTER 450 handed Assist the physical path as readings. REGISTER 1021: there are none — since 691 ProOS
-        # does not sign in to the controller and the platform does not say which port a device is on. Said plainly,
-        # so Assist never reasons from a port it cannot see.
-        return {"entity_id": entity, "port": None,
-                "note": "ProOS cannot see switch ports: the platform does not report which port a device is "
-                        "plugged into, and ProOS does not sign in to the network controller"}
+        # REGISTER 450 handed Assist the physical path as readings; 1021 said there were none (no controller tables
+        # since 691). REGISTER 1222: ProOS reads them again through its own console sign-in (1215/1219) — the device's
+        # port from the live map, the controller's own client history, or where ProOS last saw it, said as such.
+        return _device_port_facts(entity)
+
+    def _port_act_for(entity, action):
+        """REGISTER 1222 — switch_port: act on the port this device is plugged into, through _port_act (the platform's
+        own control, guarded, read back). The port comes from _device_port_facts — never from the caller."""
+        f = _device_port_facts(entity)
+        if not f.get("port"):
+            return {"ok": False, "why": f.get("note") or "the device's port is not known"}
+        out = _port_act(f.get("switch_mac"), f.get("port"), action)
+        out["switch"], out["port"] = f.get("switch"), f.get("port")
+        return out
 
     def _enable_control(entity):
         from proos import readback as _rb
@@ -2440,7 +2448,7 @@ def _assist_awareness():
             "recover": _recover, "flag": _flag_add,
             "room_record": _room_record, "room_member": _room_member,
             "incident_fix": _incident_fix,
-            "port": _port_facts, "enable_control": _enable_control,
+            "port": _port_facts, "enable_control": _enable_control, "port_act": _port_act_for,
             "port_guard": _port_guard_for, "confirm": _assist_confirm}
 
 
@@ -2483,7 +2491,104 @@ def _port_map_now():
         ents = []
     sw = _un.port_map((devs or {}).get("data") or [], ((cls or {}).get("data") if cls is not None else None),
                       ents, _box_ips())
+    if cls is not None:
+        _un.remember(sw)                 # register 1222: where each wired device was seen, with the time (never raises)
     return sw, None, (None if cls is not None else (why2 or "the client table was not read"))
+
+
+def _client_history():
+    """REGISTER 1222: the controller's own record of clients that are NOT online now (the ones a switched-off port
+    takes away). Read only when a device is not in the live map; tolerant of which of its two doors answers."""
+    from proos import uniconsole as _uc
+    try:
+        from proos import platform_entries as _pe
+        ph = _pe.host_of("unifi") or _pe.host_of("unifiprotect") or None
+    except Exception:                                            # noqa: BLE001
+        ph = None
+    for path in ("/proxy/network/v2/api/site/default/clients/history?withinHours=168&onlyNonBlocked=true",
+                 "/proxy/network/api/s/default/stat/alluser?within=168"):
+        d, _why = _uc.get_json(_creds, ph, path)
+        rows = d if isinstance(d, list) else ((d or {}).get("data") if isinstance(d, dict) else None)
+        if isinstance(rows, list) and rows:
+            return rows
+    return []
+
+
+def _device_ids(entity):
+    """(MACs, addresses) the platform holds for an entity's device: its device's network connections and any address
+    the entity itself reports. What the platform says — nothing derived from names."""
+    macs, ips = [], []
+    try:
+        ent = next((e for e in (_client.entity_registry() or []) if e.get("entity_id") == entity), None)
+        did = ent.get("device_id") if ent else None
+        if did:
+            for d in (_client.device_registry() or []):
+                if d.get("id") == did:
+                    for pair in (d.get("connections") or []):
+                        if isinstance(pair, (list, tuple)) and len(pair) > 1 and str(pair[0]).lower() in ("mac", "network_mac"):
+                            macs.append(str(pair[1]).lower())
+    except Exception:                                            # noqa: BLE001
+        pass
+    try:
+        st = (_client.snapshot([entity]) or {}).get(entity) or {}
+        a = st.get("attributes") or {}
+        for k in ("ip", "ip_address", "host"):
+            if a.get(k):
+                ips.append(str(a[k]))
+        if a.get("mac"):
+            macs.append(str(a["mac"]).lower())
+    except Exception:                                            # noqa: BLE001
+        pass
+    return macs, ips
+
+
+def _device_port_facts(entity):
+    """REGISTER 1222 — Assist's device_port: where this device is plugged in and what that port says NOW, from the
+    live port map; when the device is not in it (a switched-off port takes it away), from the controller's own client
+    history, else from where ProOS last saw it — said with its source and time. Never a guess."""
+    import time as _t
+    macs, ips = _device_ids(entity)
+    if not macs and not ips:
+        return {"entity_id": entity, "port": None,
+                "note": "the platform holds no network address for this device, so its switch port cannot be found"}
+    sw, why, why2 = _port_map_now()
+    if sw is None:
+        return {"entity_id": entity, "port": None, "note": "the switch port map could not be read: %s" % why}
+    from proos import unifinet as _un
+    s = p = how = None
+    for m in (macs or [None]):
+        s, p, how = _un.locate(sw, m, (ips or [None])[0])
+        if p:
+            break
+    if not p:
+        hist = _client_history()
+        for m in (macs or [None]):
+            s, p, how = _un.locate(sw, m, (ips or [None])[0], history=hist)
+            if p:
+                break
+    if not p:
+        return {"entity_id": entity, "port": None, "device_macs": macs,
+                "note": "this device is not on any switch port ProOS can see (it may be wireless, or was never seen "
+                        "while online); the controller keeps no port for it"}
+    seen = how.get("seen")
+    src = {"live": "the switch reports it on this port now",
+           "controller": "not online now — the controller's own record says it was last on this port",
+           "seen": "not online now — ProOS last saw it on this port"}[how["source"]]
+    if seen:
+        try:
+            src += " (%s)" % _t.strftime("%d %b %H:%M", _t.localtime(float(seen)))
+        except Exception:                                        # noqa: BLE001
+            pass
+    lock = p.get("lock") or (None if p.get("known") else "what this port carries is not known")
+    return {"entity_id": entity, "device_macs": macs, "source": how["source"], "how_known": src,
+            "switch": s.get("name"), "switch_mac": s.get("mac"), "switch_online": s.get("online"),
+            "port": p.get("idx"), "port_switched_on": p.get("enabled"), "link": p.get("link"),
+            "speed_mbps": p.get("speed"), "poe": p.get("poe"),
+            "carries_now": [c.get("name") for c in p.get("carries") or []],
+            "may_switch_off": lock is None, "lock": lock,
+            "controls": {k: (v or {}).get("entity_id") and {"entity_id": v["entity_id"], "enabled": v.get("enabled")}
+                         for k, v in (p.get("controls") or {}).items()},
+            "to_act": "switch_port with this entity_id — it asks the person first"}
 
 
 def _find_port(switches, mac, idx):
@@ -4170,6 +4275,11 @@ def factory_reset(clear_proos_data=False, keep_auth=False):
             pass
         try:                              # register 1164: which devices were handed to the AI automatically today
             _autofix_mod.clear()
+        except Exception:                                        # noqa: BLE001
+            pass
+        try:                              # register 1222: where ProOS last saw this house's devices on its switches
+            from proos import unifinet as _portseen_mod
+            _portseen_mod.clear()
         except Exception:                                        # noqa: BLE001
             pass
     except Exception as e:  # noqa: BLE001
@@ -12789,6 +12899,22 @@ def main():
                 print(f"  weather · pass failed: {_wse}", flush=True)
             time.sleep(300)
     threading.Thread(target=_weather_std_loop, name="proos-weather-std", daemon=True).start()
+
+    # REGISTER 1222 — keep "where ProOS last saw each wired device" fresh, so a device a switched-off port has taken
+    # off the network can still be found. One read of the map every ten minutes, only when the installer has given
+    # ProOS its console sign-in; the sign-in is reused for ten minutes (uniconsole.SESSION_SECONDS), so this costs the
+    # console one login per ten minutes at most.
+    def _port_seen_loop():
+        from proos import uniconsole as _uc
+        time.sleep(90)
+        while True:
+            try:
+                if _creds.get(_uc.SVC_LOGIN):
+                    _port_map_now()
+            except Exception as _pse:                                    # noqa: BLE001
+                print(f"  ports · seen pass failed: {_pse}", flush=True)
+            time.sleep(600)
+    threading.Thread(target=_port_seen_loop, name="proos-port-seen", daemon=True).start()
     threading.Thread(target=_habits_loop, name="proos-habits", daemon=True).start()
     threading.Thread(target=_sweep_loop, name="proos-sweep-daily", daemon=True).start()
     threading.Thread(target=_platform_faults_loop, name="proos-platform-faults", daemon=True).start()

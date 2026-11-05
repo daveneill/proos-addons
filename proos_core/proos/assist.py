@@ -1350,6 +1350,22 @@ TOOLS = [
                     "to look at. A wireless device has no port — the answer says so.",
      "input_schema": {"type": "object", "properties": {
          "entity_id": {"type": "string"}}, "required": ["entity_id"]}},
+    # REGISTER 1222 — Dave's camera test: find the port, report it, and with permission turn it back on and re-test.
+    {"name": "switch_port",
+     "description": "Act on the switch port a device is plugged into (found by device_port, never "
+                    "chosen by you): port_on, port_off, poe_on, poe_off or power_cycle, through the "
+                    "platform's own control for that port; the switch is then read back and the answer "
+                    "says whether the switch confirmed it. Off and power_cycle are refused on a locked "
+                    "port (an uplink, a port feeding other gear or several devices, this box) or one "
+                    "ProOS cannot read; port_on is always allowed. ASK FIRST, in plain words — which "
+                    "port, on which switch, what it carries — and call with consented=true only after a "
+                    "clear yes. After port_on or power_cycle, check the device itself again "
+                    "(device_liveness / cameras_status) before saying it is back.",
+     "input_schema": {"type": "object", "properties": {
+         "entity_id": {"type": "string", "description": "the DEVICE whose port to act on"},
+         "action": {"type": "string", "enum": ["port_on", "port_off", "poe_on", "poe_off", "power_cycle"]},
+         "consented": {"type": "boolean", "description": "the person said yes to exactly this"}},
+         "required": ["entity_id", "action", "consented"]}},
     {"name": "platform_control_enable",
      "description": "Enable a platform control the integration ships DISABLED — for "
                     "example a switch's PoE port control reported by device_port as "
@@ -1469,6 +1485,7 @@ TOOLS = [
 # last lock and lock tools vanish — nothing hardcoded per site.
 _TOOL_GATES = {
     "platform_control_enable": {"pro": True},
+    "switch_port":  {"pro": True},           # register 1222: switching a switch port is a professional's tool
     "room_record":  {"pro": True},
     "room_member":  {"pro": True},
     "incident_fix": {"pro": True},
@@ -1673,7 +1690,7 @@ _TOOL_GROUPS = {
         "what": "deep fault-finding: switch ports, power history, recovery "
                 "history, forcing a device's control back on, and the proof run",
         "tools": {"device_port", "device_powerlog", "recovery_history",
-                  "platform_control_enable", "usage_history", "history_search"},
+                  "platform_control_enable", "usage_history", "history_search", "switch_port"},
     },
     "knowledge": {
         "what": "the installer's own written knowledge about this site",
@@ -5600,6 +5617,30 @@ class ToolRunner:
             return fn(eid) or {}
         except Exception as e:  # noqa: BLE001
             return {"error": str(e)}
+
+    def t_switch_port(self, args):
+        # REGISTER 1222: consent is a parameter the tool refuses to run without (the 12 Aug law), proven from the
+        # conversation itself (consent_ok), exactly as device_confirm.
+        if args.get("consented") and not getattr(self, "consent_ok", False):
+            return {"error": _CONSENT_UNPROVEN}
+        if not args.get("consented"):
+            return {"error": "ask the person first, in plain words: which port on which switch, what it carries, "
+                             "and that you will turn it on/off. Call again with consented=true only after a clear yes"}
+        fn = self.awareness.get("port_act")
+        if not fn:
+            return {"error": "switching ports isn't available on this system"}
+        eid = (args.get("entity_id") or "").strip()
+        action = (args.get("action") or "").strip()
+        if not eid or "." not in eid or action not in ("port_on", "port_off", "poe_on", "poe_off", "power_cycle"):
+            return {"error": "entity_id and action (port_on|port_off|poe_on|poe_off|power_cycle) required"}
+        try:
+            out = fn(eid, action) or {}
+        except Exception as e:  # noqa: BLE001
+            return {"error": str(e)}
+        self._audit("switch_port", entity=eid, action=action, result=out.get("ok"),
+                    confirmed=out.get("confirmed"), consent="person-answered")
+        self.actions.append({"tool": "switch_port", "target": eid, "action": action, "read_back": out.get("confirmed")})
+        return out
 
     def t_platform_control_enable(self, args):
         fn = self.awareness.get("enable_control")

@@ -530,3 +530,106 @@ def port_map(devices, clients, entities=None, box_ips=()):
                     "online": g.get("online"), "ports": ports})
     out.sort(key=lambda s: (-len(s["ports"]), str(s["name"]).lower()))
     return out
+
+
+# ── REGISTER 1222 — WHERE A DEVICE IS (Dave's camera test) ───────────────────────────────────────────────────────
+# A device on a port that has been switched off DROPS OUT of the controller's live client table — exactly when Assist
+# is asked "why has the camera gone offline". So ProOS keeps what it has SEEN: each time the map is read with the
+# client table, every wired device's switch and port is written down with the time it was seen there. That is an
+# observation with its date on it — never a guess — and it is said as "last seen on … at …". The controller's own
+# client history (fields it keeps for offline clients) is read too when it offers them.
+
+def _mem_path():
+    import os
+    return os.path.join(os.environ.get("PROOS_DATA_DIR", "/data"), "unifi_port_seen.json")
+
+
+def remember(switches, path=None, now=None):
+    """Write down where every wired device in the map was seen. Never raises."""
+    import json as _j
+    import os
+    import time as _t
+    path = path or _mem_path()
+    try:
+        seen = _j.load(open(path)) if os.path.exists(path) else {}
+    except Exception:                                            # noqa: BLE001
+        seen = {}
+    ts = now or _t.time()
+    for s in (switches or []):
+        for p in s.get("ports") or []:
+            for c in p.get("carries") or []:
+                m = _mac(c.get("mac"))
+                if c.get("kind") == "client" and m:
+                    seen[m] = {"switch": s.get("mac"), "switch_name": s.get("name"), "port": p.get("idx"),
+                               "ip": c.get("ip"), "name": c.get("name"), "seen": ts}
+    try:
+        tmp = path + ".tmp"
+        with open(tmp, "w") as f:
+            _j.dump(seen, f)
+        os.replace(tmp, path)
+    except Exception:                                            # noqa: BLE001
+        pass
+    return len(seen)
+
+
+def recall(mac=None, ip=None, path=None):
+    """Where ProOS last saw this device (by MAC, else address), or None."""
+    import json as _j
+    import os
+    path = path or _mem_path()
+    try:
+        seen = _j.load(open(path)) if os.path.exists(path) else {}
+    except Exception:                                            # noqa: BLE001
+        return None
+    m = _mac(mac)
+    if m and m in seen:
+        return dict(seen[m], mac=m)
+    if ip:
+        for k, v in seen.items():
+            if str(v.get("ip") or "") == str(ip):
+                return dict(v, mac=k)
+    return None
+
+
+def locate(switches, mac=None, ip=None, history=None, path=None):
+    """(switch, port, how) for a device: live in the map; else the controller's own client history; else where ProOS
+    last saw it. how = {"source": "live" | "controller" | "seen", "seen": time or None}. (None, None, None) when
+    nothing is known — never a guess."""
+    m, ipn = _mac(mac), str(ip or "").strip()
+    by_mac = {s.get("mac"): s for s in (switches or [])}
+
+    def port_of(sm, idx):
+        s = by_mac.get(_mac(sm))
+        if not s or idx is None:
+            return None, None
+        p = next((x for x in s.get("ports") or [] if x.get("idx") == int(idx)), None)
+        return (s, p) if p else (None, None)
+
+    for s in (switches or []):
+        for p in s.get("ports") or []:
+            for c in p.get("carries") or []:
+                if (m and _mac(c.get("mac")) == m) or (not m and ipn and str(c.get("ip") or "") == ipn):
+                    return s, p, {"source": "live", "seen": None}
+    for c in (history or []):
+        if (m and _mac(c.get("mac")) == m) or (not m and ipn and str(c.get("last_ip") or c.get("ip") or "") == ipn):
+            sm = c.get("last_uplink_mac") or c.get("sw_mac")
+            idx = c.get("last_uplink_remote_port") or c.get("sw_port")
+            s, p = port_of(sm, idx)
+            if p:
+                return s, p, {"source": "controller", "seen": c.get("last_seen")}
+    r = recall(m, ipn, path)
+    if r:
+        s, p = port_of(r.get("switch"), r.get("port"))
+        if p:
+            return s, p, {"source": "seen", "seen": r.get("seen")}
+    return None, None, None
+
+
+def clear(path=None):
+    """Factory reset (register 1222): where ProOS saw this house's devices is per-site — it goes with the house."""
+    import os
+    try:
+        os.remove(path or _mem_path())
+        return True
+    except OSError:
+        return False
