@@ -2409,27 +2409,31 @@ def _assist_awareness():
                 "state": rb.get("state")}
 
     def _port_guard_for(entity):
-        """Why a PoE port control must not be switched off, or None.
+        """Why a switch-port control must not be switched off (or pressed), or None.
 
-        REGISTER 1021 — FAILS CLOSED. This guard refused a port that feeds other gear, carries more than one device
-        or carries this box, read from the controller's own tables. Since 691 those tables are never filled, so it
-        answered None — "allowed" — for EVERY port: Assist could cut the port the ProOS box itself hangs off, or an
-        uplink to a whole switch. With no way to read what a port carries, switching a PoE port off is refused
-        ("it needs to not be possible" beats a warning — Dave, 5 Sep). The installer's own bound PoE-cycle recovery
-        (a port he chose by hand in Pro) is his decision and is not routed through here."""
+        REGISTER 1021 — FAILS CLOSED; REGISTER 1221 — READS THE MAP. Since 691 the controller's tables were never
+        filled, so this refused every PoE port off. With ProOS's own console sign-in (1215) the port map is read again
+        (1219), so the answer is the map's: a port that is the switch's uplink, feeds other gear, carries more than one
+        device or carries this box is refused with that reason (register 450's guard); a port ProOS cannot read is
+        still refused. It now guards all three of the platform's port controls — Port N (port-), PoE (poe-) and
+        Power-Cycle (power_cycle-) — because 1221 switches the first two on in the platform (Dave: "1.yes", 5 Nov).
+        The installer's own bound PoE-cycle recovery (a port he chose by hand in Pro) is not routed through here."""
         try:
             ents = _client.entity_registry() or []
         except Exception:  # noqa: BLE001
             ents = None
         e = next((x for x in (ents or []) if x.get("entity_id") == entity), None)
-        if e is None and ents is None and "poe" not in str(entity).lower():
-            return None                  # registry unreadable: refuse only what looks like a PoE port
-        if e is not None and (e.get("platform") != "unifi" or not str(e.get("unique_id") or "").startswith("poe-")):
-            return None
+        if e is None and ents is None and ("poe" not in str(entity).lower() and "port" not in str(entity).lower()):
+            return None                  # registry unreadable: refuse only what looks like a port control
         if e is None and ents is not None:
             return None                  # not a registered entity at all — not a switch port
-        return ("ProOS cannot read what this switch port carries (the platform does not say which devices are "
-                "behind a port), so it will not switch it off — it could be feeding other equipment or this box")
+        if e is not None:
+            kind, mac, idx = _port_control_of(e)
+            if kind is None:
+                return None
+            return _port_lock(mac, idx)
+        return ("ProOS cannot read what this switch port carries, so it will not switch it off — it could be "
+                "feeding other equipment or this box")
 
     return {"watchers": _watchers, "monitor": _monitor_all,
             "room_health": _room_health, "audit": _audit_events,
@@ -2438,6 +2442,132 @@ def _assist_awareness():
             "incident_fix": _incident_fix,
             "port": _port_facts, "enable_control": _enable_control,
             "port_guard": _port_guard_for, "confirm": _assist_confirm}
+
+
+_PORT_KINDS = ("power_cycle", "poe", "port")       # the platform's unifi port controls, by unique-id prefix
+
+
+def _port_control_of(e):
+    """(kind, switch mac, port) for one of the platform's unifi port controls, else (None, None, None)."""
+    if not e or e.get("platform") != "unifi":
+        return None, None, None
+    uid = str(e.get("unique_id") or "").lower()
+    for k in _PORT_KINDS:
+        if uid.startswith(k + "-"):
+            rest = uid[len(k) + 1:]
+            mac, _, idx = rest.rpartition("_")
+            try:
+                return k, mac, int(idx)
+            except ValueError:
+                return None, None, None
+    return None, None, None
+
+
+def _port_map_now():
+    """REGISTER 1219/1221: the live port map — (switches, why-not). Read fresh from the controller through ProOS's
+    own console sign-in and joined to the platform's port controls. One reader for the Ports page, the switching
+    route and the guard."""
+    from proos import uniconsole as _uc, unifinet as _un
+    try:
+        from proos import platform_entries as _pe
+        ph = _pe.host_of("unifi") or _pe.host_of("unifiprotect") or None
+    except Exception:                                            # noqa: BLE001
+        ph = None
+    devs, why = _uc.get_json(_creds, ph, "/proxy/network/api/s/default/stat/device")
+    if devs is None:
+        return None, why, None
+    cls, why2 = _uc.get_json(_creds, ph, "/proxy/network/api/s/default/stat/sta")
+    try:
+        ents = [e for e in (_client.entity_registry() or []) if e.get("platform") == "unifi"]
+    except Exception:                                            # noqa: BLE001
+        ents = []
+    sw = _un.port_map((devs or {}).get("data") or [], ((cls or {}).get("data") if cls is not None else None),
+                      ents, _box_ips())
+    return sw, None, (None if cls is not None else (why2 or "the client table was not read"))
+
+
+def _find_port(switches, mac, idx):
+    m = str(mac or "").lower()
+    for s in (switches or []):
+        if s.get("mac") == m:
+            for p in s.get("ports") or []:
+                if p.get("idx") == idx:
+                    return s, p
+    return None, None
+
+
+def _port_lock(mac, idx):
+    """Why this switch port must not be switched off or power-cycled, or None when it may be. FAILS CLOSED: a map
+    that cannot be read, a port not in it, or a port whose carriage is not known is refused."""
+    try:
+        sw, why, _ = _port_map_now()
+    except Exception as e:                                       # noqa: BLE001
+        sw, why = None, str(e)[:120]
+    if sw is None:
+        return "ProOS cannot read the switch's port map right now (%s), so it will not switch this port off" % (why or "no answer")
+    s, p = _find_port(sw, mac, idx)
+    if p is None:
+        return "the controller does not report port %s on that switch" % idx
+    if p.get("lock"):
+        return p["lock"]
+    if not p.get("known"):
+        return "ProOS cannot read what port %s carries, so it will not switch it off" % idx
+    return None
+
+
+_PORT_ACTIONS = {
+    # action: (control kind, service domain, service, guarded, what the map must then say)
+    "port_off": ("port", "switch", "turn_off", True, lambda p: p.get("enabled") is False),
+    "port_on": ("port", "switch", "turn_on", False, lambda p: p.get("enabled") is True),
+    "poe_off": ("poe", "switch", "turn_off", True, lambda p: bool(p.get("poe")) and (p["poe"].get("mode") == "off" or not p["poe"].get("watts"))),
+    "poe_on": ("poe", "switch", "turn_on", False, lambda p: bool(p.get("poe")) and p["poe"].get("mode") not in (None, "off")),
+    "power_cycle": ("power_cycle", "button", "press", True, None),
+}
+
+
+def _port_act(mac, idx, action):
+    """REGISTER 1221 — act on one switch port through the PLATFORM's own control, then read the port back.
+    Turning off and power-cycling are refused on a locked or unreadable port (_port_lock, fails closed); turning on
+    is always allowed. The answer says what the controller reports afterwards — "done" only when the map shows it."""
+    import time as _t
+    spec = _PORT_ACTIONS.get(action)
+    if not spec:
+        return {"ok": False, "why": "unknown action"}
+    try:
+        idx = int(idx)
+    except (TypeError, ValueError):
+        return {"ok": False, "why": "no port number"}
+    kind, dom, svc, guarded, want = spec
+    sw, why, _ = _port_map_now()
+    if sw is None:
+        return {"ok": False, "why": "the port map could not be read: %s" % why}
+    s, p = _find_port(sw, mac, idx)
+    if p is None:
+        return {"ok": False, "why": "the controller does not report that port"}
+    if guarded:
+        lock = _port_lock(mac, idx)
+        if lock:
+            return {"ok": False, "refused": True, "why": "refused: " + lock}
+    c = (p.get("controls") or {}).get(kind)
+    if not c:
+        return {"ok": False, "why": "the platform offers no %s control for this port" % kind.replace("_", "-")}
+    if not c.get("enabled"):
+        return {"ok": False, "why": "the platform's %s control for this port is switched off — switch on the platform's port controls first" % kind.replace("_", "-")}
+    try:
+        _client.call_service(dom, svc, c["entity_id"])
+    except Exception as e:                                       # noqa: BLE001
+        return {"ok": False, "why": "the platform refused: %s" % str(e)[:160]}
+    if want is None:
+        return {"ok": True, "confirmed": None, "said": "pressed — the controller does not report a power-cycle as a state",
+                "entity_id": c["entity_id"]}
+    for _ in range(8):
+        _t.sleep(2)
+        sw2, _w, _x = _port_map_now()
+        _s2, p2 = _find_port(sw2, mac, idx)
+        if p2 is not None and want(p2):
+            return {"ok": True, "confirmed": True, "port": p2, "entity_id": c["entity_id"]}
+    return {"ok": True, "confirmed": False, "entity_id": c["entity_id"],
+            "said": "the platform took the command but the controller did not report the change within 16 seconds"}
 
 
 def _box_ips():
@@ -6194,22 +6324,35 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, _uc.set_access(_creds, b.get("token")))
         if method == "POST" and sub == "forget":
             return self._send(200, _uc.forget(_creds))
-        if method == "GET" and sub == "ports":
+        sub2 = parts[3] if len(parts) > 3 else ""
+        if method == "GET" and sub == "ports" and not sub2:
             # REGISTER 1219 — the port map: the controller's own tables through ProOS's local user, joined to the
             # platform's own port controls (unifinet.port_map). Read only; nothing is switched here.
-            from proos import unifinet as _un
-            devs, why = _uc.get_json(_creds, ph, "/proxy/network/api/s/default/stat/device")
-            if devs is None:
+            sw, why, why2 = _port_map_now()
+            if sw is None:
                 return self._send(200, {"ok": False, "why": why, "switches": []})
-            cls, why2 = _uc.get_json(_creds, ph, "/proxy/network/api/s/default/stat/sta")
+            return self._send(200, {"ok": True, "switches": sw, "clients_read": why2 is None, "why_clients": why2})
+        if method == "POST" and sub == "ports" and sub2 == "controls":
+            # REGISTER 1221 — switch ON the platform's own Port N and PoE controls (they ship disabled by the
+            # integration). Dave, 5 Nov: "1.yes". The platform's own registry write (live_ha.enable_entity); only the
+            # unifi integration's port- and poe- switches; Power-Cycle buttons ship enabled and are left alone.
+            done, failed = [], []
             try:
-                ents = [e for e in (_client.entity_registry() or []) if e.get("platform") == "unifi"]
-            except Exception:                                    # noqa: BLE001
-                ents = []
-            sw = _un.port_map((devs or {}).get("data") or [],
-                              ((cls or {}).get("data") if cls is not None else None), ents, _box_ips())
-            return self._send(200, {"ok": True, "switches": sw,
-                                    "clients_read": cls is not None, "why_clients": why2})
+                ents = _client.entity_registry() or []
+            except Exception as e:                               # noqa: BLE001
+                return self._send(200, {"ok": False, "why": "the platform's entity list could not be read: %s" % str(e)[:120]})
+            for e in ents:
+                kind, _m, _i = _port_control_of(e)
+                if kind in ("port", "poe") and str(e.get("entity_id") or "").startswith("switch.") and e.get("disabled_by"):
+                    try:
+                        _client.enable_entity(e["entity_id"])
+                        done.append(e["entity_id"])
+                    except Exception as ex:                      # noqa: BLE001
+                        failed.append({"entity_id": e["entity_id"], "why": str(ex)[:120]})
+            return self._send(200, {"ok": not failed, "enabled": len(done), "failed": failed,
+                                    "note": "the platform reloads its UniFi integration to bring them online (about 30 seconds)"})
+        if method == "POST" and sub == "ports" and sub2 == "act":
+            return self._send(200, _port_act(b.get("mac"), b.get("idx"), str(b.get("action") or "")))
         return self._send(404, {"error": "unknown console route"})
 
     def _unifi(self, parts, method, body=None):

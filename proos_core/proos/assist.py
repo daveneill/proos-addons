@@ -3133,7 +3133,9 @@ class ToolRunner:
         # REGISTER 450: a switch port that feeds other gear, carries several
         # devices or carries this box is REFUSED at the source, whoever asks —
         # the controller's own tables say which. Not a warning: not possible.
-        if domain == "switch" and action in ("turn_off", "toggle"):
+        # REGISTER 1221: the platform's Power-Cycle button cuts a port's power too, so pressing one asks the guard
+        # exactly as switching a port off does (the guard answers None for anything that is not a port control).
+        if (domain == "switch" and action in ("turn_off", "toggle")) or (domain == "button" and action == "press"):
             _g = self.awareness.get("port_guard") if isinstance(getattr(self, "awareness", None), dict) else None
             if _g:
                 try:

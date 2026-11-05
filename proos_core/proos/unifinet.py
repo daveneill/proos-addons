@@ -501,14 +501,14 @@ def port_map(devices, clients, entities=None, box_ips=()):
                 {"kind": "client", "name": c.get("name") or c.get("hostname") or c.get("oui") or _mac(c.get("mac")),
                  "mac": _mac(c.get("mac")), "ip": c.get("ip")} for c in cl_here]
             uplink = bool(p.get("is_uplink")) or (own_up is not None and int(own_up) == idx)
+            # ONE MECHANISM (register 1221): the locks are register 450's port guard (portpath.port_guard — feeds other
+            # gear, carries more than one device, carries the box), plus the switch's own uplink, which that guard
+            # cannot see from the far side. 1219 had its own copy of the first and third and missed the second.
             if uplink:
                 lock = "this switch's own uplink: switching it off cuts the switch off"
-            elif gear_here:
-                lock = "feeds " + ", ".join(gear_here)
-            elif any(str(c.get("ip") or "") in box for c in cl_here):
-                lock = "carries this ProOS box"
             else:
-                lock = None
+                from . import portpath as _pp
+                lock = _pp.port_guard(devices, clients if clients_read else [], m, idx, box_ips=list(box))
             w = _watts(p)
             capable = bool(p.get("port_poe")) or p.get("poe_caps") not in (None, 0)
             ports.append({

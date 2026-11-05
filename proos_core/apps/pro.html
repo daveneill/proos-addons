@@ -174,6 +174,11 @@ select option,select optgroup{background:#1a1c20;color:#fff}
 .unp-red{color:#ff8a73;font-style:normal}
 .unp-pt{font-size:12px;color:var(--t2)}
 .unp-pn{font-size:18px;font-weight:600;margin:3px 0 4px;word-break:break-word}
+.unp-acts{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+.unp-acts .btn-primary{margin:0}
+.unp-act{width:100%;margin-top:8px;font-size:14px;padding:11px;border-radius:12px;border:0;background:var(--card-hi);color:#fff;cursor:pointer}
+.unp-acts .unp-act{margin-top:0}
+.unp-act:disabled{opacity:.4;cursor:not-allowed}
 .unifi-cams{display:flex;flex-direction:column;gap:1px}
 .unifi-cam{display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:0.5px solid rgba(255,255,255,0.06)}
 .unifi-cam:last-child{border-bottom:none}
@@ -3120,7 +3125,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102651';
+const PROOS_BUILD='2026102652';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -5014,6 +5019,26 @@ function _upSocket(p,top,sel){
 function uniPortSwitch(mac){ _uniPortSw=mac; _uniPortSel=null; renderUniNet(); }
 function uniPortPick(idx){ _uniPortSel=idx; renderUniNet(); }
 function uniPortFilter(f){ _uniPortFilter=f; renderUniNet(); }
+// REGISTER 1221 — switching, through the PLATFORM's own controls. Core guards (locked / unreadable ports are refused for
+// Off and Power-Cycle) and reads the port back; Pro says what the controller reported, never assumes it.
+async function uniPortControlsOn(){
+  if(!await proAsk('Switch on the platform\'s Port and PoE controls?\n\nYour UniFi integration ships them switched off. Turning them on lets ProOS turn ports and PoE on and off from this page. The integration reloads itself (about 30 seconds). ProOS keeps locked ports locked.')) return;
+  try{ const r=await fetch(proCoreUrl()+'/unifi/console/ports/controls',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}); const d=await r.json();
+    toast(d.ok?('Switched on '+d.enabled+' platform controls — they come online in about 30 seconds'):('Not all switched on — '+((d.failed&&d.failed[0]&&d.failed[0].why)||d.why||'the platform refused')));
+    setTimeout(()=>{ _uniPorts=null; if(panelActive('unifi-net')) { renderUniNet(); _uniPortsLoad(); } },32000);
+  }catch(e){ toast(_coreFailWords('',e)); }
+}
+async function uniPortAct(mac,idx,action){
+  const words={port_off:'Turn port '+idx+' off',port_on:'Turn port '+idx+' on',poe_off:'Turn PoE off on port '+idx,poe_on:'Turn PoE on on port '+idx,power_cycle:'Power-cycle PoE on port '+idx}[action]||action;
+  const sw=((_uniPorts&&_uniPorts.switches)||[]).find(s=>s.mac===mac)||{}; const p=(sw.ports||[]).find(x=>x.idx===idx)||{};
+  const what=(p.carries||[]).map(c=>c.name).join(', ');
+  if(!await proAsk(words+' on '+(sw.name||'the switch')+'?'+(what?'\n\nIt carries: '+what+'.':''))) return;
+  toast(words+'…');
+  try{ const r=await fetch(proCoreUrl()+'/unifi/console/ports/act',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mac,idx,action})}); const d=await r.json();
+    toast(!d.ok?(d.why||'Not done'):(d.confirmed===true?(words+' — confirmed by the switch'):(d.said||'Sent')));
+  }catch(e){ toast(_coreFailWords('',e)); }
+  _uniPorts=null; if(panelActive('unifi-net')){ renderUniNet(); _uniPortsLoad(); }
+}
 async function _uniPortsLoad(){
   try{ const r=await fetch(proCoreUrl()+'/unifi/console/ports'); _uniPorts=r.ok?await r.json():{ok:false,why:'Core answered '+r.status}; }
   catch(e){ _uniPorts={ok:false,why:'Couldn\'t reach ProOS Core'}; }
@@ -5050,7 +5075,17 @@ function _uniPortsHTML(){
       +kv('Lock',sel.lock?'🔒 '+esc(sel.lock):(sel.known?'Free':'Not known — treated as locked'))
       +`</div><div class="bld-sec-h" style="margin-top:14px">The Platform's Controls</div><div class="unifi-status">`
       +kv('Port On / Off',ctl(sel.controls.port))+kv('PoE On / Off',ctl(sel.controls.poe))+kv('Power-Cycle PoE',ctl(sel.controls.power_cycle))
-      +`</div><div class="es" style="margin-top:12px">Switching from here comes in the next build, using these platform controls.</div>`;
+      +'</div>';
+    // REGISTER 1221 — act through the platform's own controls. Off and Power-Cycle are offered only on a FREE port
+    // (Core refuses them on a locked or unreadable one anyway); On is always offered. Each asks first.
+    const free=!sel.lock&&sel.known, c=sel.controls||{};
+    const act=(a,label,enabled,primary)=>`<button class="${primary?'btn-primary':'unp-act'}" ${enabled?'':'disabled'} onclick="uniPortAct('${esc(sw.mac)}',${sel.idx},'${a}')">${label}</button>`;
+    let acts='';
+    if(c.port&&c.port.enabled) acts+=sel.enabled===false?act('port_on','Turn Port On',true,true):act('port_off','Turn Port Off',free);
+    if(c.poe&&c.poe.enabled&&sel.poe) acts+=(sel.poe.mode==='off')?act('poe_on','PoE On',true):act('poe_off','PoE Off',free);
+    if(c.power_cycle&&c.power_cycle.enabled&&sel.poe&&sel.poe.mode!=='off') acts+=act('power_cycle','Power-Cycle PoE',free);
+    if(acts) panel+=`<div class="unp-acts">${acts}</div>`+(free?'':`<div class="es" style="margin-top:8px">Locked: ${esc(sel.lock||'what this port carries is not known')}. It can be turned on, never off, from here.</div>`);
+    if((c.port&&!c.port.enabled)||(c.poe&&!c.poe.enabled)) panel+=`<div class="es" style="margin-top:10px">The platform's Port and PoE controls are switched off, as they ship.</div><button class="unp-act" onclick="uniPortControlsOn()">Switch On the Platform's Port Controls</button>`;
   }
   h+=`<div class="unp-split"><section class="unp-list"><div class="unp-chips">${chips}<button class="unp-chip" style="margin-left:auto" onclick="_uniPorts=null;renderUniNet();_uniPortsLoad()">Refresh</button></div><div class="unp-rh"><b>Port</b><span>Carries</span><span>Speed</span><span>PoE</span><span></span></div>${rows}</section><aside class="unp-panel">${panel}</aside></div>`;
   return h;
