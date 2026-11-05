@@ -242,6 +242,21 @@ def allowed_names(assist_mod, runner) -> set:
     return {t["name"] for t in tools(assist_mod, runner)}
 
 
+# REGISTER 1213 — "How many times do I have to say yes" (Dave 5 Nov 16:34, Talk Live on the iPhone: "Can you try and fix
+# it?" → asked for permission → "Yes." → "Please reply with exactly 'Yes, try fixing Bec's Lamp'" → "Yes." → the same).
+# Core proves a yes itself (ruling 5 Oct, _consent_proven): the last thing Assist said was a question and these words
+# are a plain yes. The typed road holds that conversation on the box; Talk Live never handed it over, so every tool that
+# needs a yes was refused on this road, however often he said it. The page now sends, with each tool call, what Assist
+# last said before the person's latest words and those words (both shown on his screen), and the SAME check decides.
+def consent_from(assist_mod, asked, heard) -> bool:
+    """The typed road's own yes-check, on what Talk Live showed: Assist's last line before the words, and the words."""
+    asked = str(asked or "")[-600:]
+    heard = str(heard or "")[:300]
+    if not asked.strip() or not heard.strip():
+        return False
+    return bool(assist_mod._consent_proven([{"role": "assistant", "content": asked}], heard))
+
+
 def run_tool(runner, name: str, arguments, allowed=None, assist_mod=None, cfg=None) -> dict:
     """One tool the realtime model called, run through Assist's own ToolRunner — every rule applies.
     `allowed`: this person's own tool names (register 1153) — any other name is refused before anything runs."""

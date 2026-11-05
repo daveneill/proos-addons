@@ -5048,7 +5048,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102698';
+const PROOS_BUILD='2026102699';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -21716,15 +21716,17 @@ async function lvEvent(lv, ev){
       if(lvScrap(t)){ lvTrace(lv, 'ignored "'+t.slice(0,40)+'" — a scrap, not a request (1174)'); break; }
       if(lvForeign(t)){ lvTrace(lv, 'ignored "'+t.slice(0,40)+'" — not English, misheard (1175)'); addMsg('assistant', 'Sorry, I didn\u2019t catch that.'); break; }
       addMsg('user', t); lvTrace(lv, 'heard "'+t.slice(0,80)+'"');
+      // REGISTER 1213: what Assist last said BEFORE these words, and the words — Core proves a yes from exactly this pair.
+      lv.ask=lv.said||''; lv.heard=t;
       lvSend({type:'conversation.item.create',item:{type:'message',role:'user',content:[{type:'input_text',text:t}]}});
       if(lv.open){ lv.need=true; } else { lvSend({type:'response.create'}); }
       break; }
     case 'response.output_text.delta': lvDelta(lv, ev.delta); break;
     case 'response.output_text.done': { var rest=lv.buf; lv.buf=''; if(rest.trim()) lvSpeak(lv, rest);
-      var said=(ev.text||'').trim(); if(said){ addMsg('assistant', said); window._assistLast=said; lvSayInRoom(lv, said); } break; }
+      var said=(ev.text||'').trim(); if(said){ lv.said=said; addMsg('assistant', said); window._assistLast=said; lvSayInRoom(lv, said); } break; }
     case 'response.function_call_arguments.done': {
       lv.pending++; lv.need=true; var out=null;
-      try{ var r=await fetch(proosCoreBase()+'/assist/realtime/tool',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:ev.name,arguments:ev.arguments,area_id:lv.area})}); out=await r.json(); }catch(e){ out={error:String(e)}; }
+      try{ var r=await fetch(proosCoreBase()+'/assist/realtime/tool',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:ev.name,arguments:ev.arguments,area_id:lv.area,asked:(lv.ask||'').slice(-600),heard:(lv.heard||'').slice(0,300)})}); out=await r.json(); }catch(e){ out={error:String(e)}; }
       if(_lv!==lv) return;
       lvSend({type:'conversation.item.create',item:{type:'function_call_output',call_id:ev.call_id,output:JSON.stringify(out).slice(0,12000)}});
       lv.pending=Math.max(0,lv.pending-1); lvMaybeReply(lv); break; }

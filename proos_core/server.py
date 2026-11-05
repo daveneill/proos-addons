@@ -11171,6 +11171,7 @@ class Handler(BaseHTTPRequestHandler):
                                                                voice=(b.get("voice") or "ryan"), hints=_hints))
                     except Exception as e:                       # noqa: BLE001
                         return self._send(502, {"error": str(e)[:300]})
+                rnr.consent_ok = _rt.consent_from(_assist, b.get("asked"), b.get("heard"))   # register 1213: the yes, proven
                 out = _rt.run_tool(rnr, b.get("name") or "", b.get("arguments") or {},
                                    allowed=_rt.allowed_names(_assist, rnr),   # register 1153: this person's tools only
                                    assist_mod=_assist, cfg=_cfg)               # register 1159: web_search
