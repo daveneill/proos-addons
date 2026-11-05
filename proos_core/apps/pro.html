@@ -182,6 +182,10 @@ select option,select optgroup{background:#1a1c20;color:#fff}
 .und-upd{font-style:normal;color:#f5b041}
 .und-ico{color:var(--t2);font-size:15px}
 .und-rh>*:nth-child(3),.unp-row .und-conn{flex:0 0 150px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* 1.0.1327 (seen on the box): the shared row gave the 5th column 20px, so "3h 16m" wrapped; Network's lists get room */
+.und-list .unp-rh>*:nth-child(5),.und-list .unp-row>*:nth-child(5){flex:0 0 64px!important;white-space:nowrap;text-align:right}
+.und-list .unp-rh>*:nth-child(4),.und-list .unp-row>*:nth-child(4){flex:0 0 210px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.und-list .unp-rh>*:nth-child(3),.und-list .unp-row>*:nth-child(3){flex:0 0 120px!important;white-space:nowrap}
 .und-q{flex:1 1 180px;min-width:120px;max-width:280px;font-size:13px;padding:6px 11px;border-radius:9px;border:0.5px solid var(--line);background:rgba(0,0,0,.25);color:#fff;font-family:inherit}
 .und-wifis{display:flex;flex-wrap:wrap;gap:14px}
 .und-wifi{flex:1 1 300px;max-width:440px}
@@ -3163,7 +3167,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102655';
+const PROOS_BUILD='2026102656';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -5161,7 +5165,7 @@ function _uniNetHTML(){
       +(sel.uplink?kv('Uplink',esc(sel.uplink)+(sel.uplink_port!=null?' · port '+sel.uplink_port:'')):'')
       +(sel.temperature!=null?kv('Temperature',sel.temperature.toFixed(0)+' °C'):'')+'</div>'
       +(sel.ports?`<button class="unp-act" onclick="_uniPortSw='${esc(sel.mac)}';_uniPortSel=null;uniNetSection('ports')">See Its ${sel.ports} Ports</button>`:''); }
-    return `<div class="unp-chips">${inet}${refresh}</div><div class="unp-split"><section class="unp-list"><div class="unp-rh und-rh"><b></b><span>Device</span><span>Address</span><span>Firmware</span><span>Clients</span></div>${rows}</section><aside class="unp-panel">${panel}</aside></div>`;
+    return `<div class="unp-chips">${inet}${refresh}</div><div class="unp-split"><section class="unp-list und-list"><div class="unp-rh und-rh"><b></b><span>Device</span><span>Address</span><span>Firmware</span><span>Clients</span></div>${rows}</section><aside class="unp-panel">${panel}</aside></div>`;
   }
   if(_uniNetSection==='clients'){
     if(!d.clients) return `<div class="empty"><div class="et">Couldn't read the clients</div><div class="es">${esc(d.why_clients||'')}</div></div>`;
@@ -5178,7 +5182,7 @@ function _uniNetHTML(){
       +(sel.wired?kv('Plugged Into',sel.switch?esc(sel.switch)+' · port '+sel.port:'—'):kv('Wi-Fi',esc(sel.wifi||'—'))+kv('Access Point',esc(sel.ap||'—'))+kv('Signal',sel.signal!=null?sel.signal+' dBm':'—'))
       +kv('Connected For',_upTime(sel.uptime_s))+'</div>'
       +(sel.wired&&sel.switch_mac?`<button class="unp-act" onclick="uniGoPort('${esc(sel.switch_mac)}',${Number(sel.port)})">See Its Port</button>`:''); }
-    return `<div class="unp-chips">${chips}<input id="uni-cli-q" class="und-q" placeholder="Search name, address, maker…" value="${esc(_uniCliQ)}" oninput="uniCliSearch(this.value)"/>${refresh}</div><div class="unp-split"><section class="unp-list"><div class="unp-rh und-rh"><b></b><span>Client</span><span>Address</span><span>Connected By</span><span>For</span></div>${rows}</section><aside class="unp-panel">${panel}</aside></div>`;
+    return `<div class="unp-chips">${chips}<input id="uni-cli-q" class="und-q" placeholder="Search name, address, maker…" value="${esc(_uniCliQ)}" oninput="uniCliSearch(this.value)"/>${refresh}</div><div class="unp-split"><section class="unp-list und-list"><div class="unp-rh und-rh"><b></b><span>Client</span><span>Address</span><span>Connected By</span><span>For</span></div>${rows}</section><aside class="unp-panel">${panel}</aside></div>`;
   }
   // wifi
   if(!d.wifi) return `<div class="empty"><div class="et">Couldn't read the Wi-Fi networks</div><div class="es">${esc(d.why_wifi||'')}</div></div>`;
