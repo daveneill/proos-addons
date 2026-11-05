@@ -5048,7 +5048,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102697';
+const PROOS_BUILD='2026102698';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -5717,7 +5717,14 @@ function isVideoPlayer(e){
 // HomePod = the Apple TV integration's SPEAKER (device_class=speaker). A real Apple TV is
 // apple_tv with class tv/None. Split by class, not by the entity name (which HA derives from
 // the room, e.g. media_player.office_2_office_2 — a name match misses it entirely).
-function isHomePod(e){ if(entityPlatformMap[e]!=='apple_tv') return false; if(att(e,'device_class')==='speaker') return true; return /homepod/i.test(deviceModelById[entityDeviceMap[e]]||''); }  // some HomePods report NO device_class → fall back to the device MODEL (the reliable signal)
+// REGISTER 1212 (Dave 5 Nov 14:56: the new Office HomePod missing from Music, and its album art opening the Apple TV
+// remote). Its model is Apple's raw "AudioAccessory11,1" — no "HomePod" in it. Same cure as Core/Pro (1210): Apple's
+// HomePod family identifier, and the device's own capability — an Apple box that cannot choose an input or app
+// (no SELECT_SOURCE, 2048) is a speaker. Every Apple TV on his box has it; no HomePod does. Unknown never re-roles.
+function isHomePod(e){ if(entityPlatformMap[e]!=='apple_tv') return false; if(att(e,'device_class')==='speaker') return true;
+  const m=String(deviceModelById[entityDeviceMap[e]]||'').replace(/\s/g,'');
+  if(/homepod/i.test(m) || /^audioaccessory/i.test(m)) return true;
+  const f=Number(att(e,'supported_features')); return isFinite(f) && f>0 && (f & 2048)===0; }
 
 // ── SONOS MUSIC PAUSE TIMERS ──────────────────────────────────────
 // When Sonos pauses music (not TV), keep its card visible for 5 min
