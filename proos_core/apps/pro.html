@@ -3032,7 +3032,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102644';
+const PROOS_BUILD='2026102645';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -9932,10 +9932,7 @@ function avOfferableRoles(rec,e,o){
   //   3. the paired remote — the certified register's own discriminator for
   //      apple_tv devices: a real Apple TV has remote.<oid>, a HomePod does
   //      not (dc is NULL on both, which is exactly how it beat discovery).
-  // Speaker and TV-audio stay offered for everything: audio-out is near-
-  // universal, over-offering an audio role breaks nothing, and the Office
-  // HomePod sits mis-bucketed in candidates.sources today (matrix #2) — an
-  // audio-bucket gate would strip the roles it genuinely has.
+  // Speaker stays offered for everything (audio-out is near-universal). TV-audio no longer is — register 1211, below.
   o=o||{};
   const c=(rec&&rec.candidates)||{};
   const inD=(c.display||[]).indexOf(e)>=0;
@@ -9960,7 +9957,12 @@ function avOfferableRoles(rec,e,o){
     // already-committed Source still shows (roles filter keeps committed) so a
     // past mistake can be undone.
     source:!audioOnly && !receiver && !(rec&&rec.avswitch&&rec.avswitch.entity===e),
-    tvaudio:true,
+    // REGISTER 1211 (Dave 5 Nov 13:46: "if a HomePod has not got a tv input then tv audio should not show either any av
+    // integration needs to only show what it has"). TV-audio is the box that carries the TV's sound, so it is offered
+    // only where that can happen, read off the device: the room's TV itself (its own speakers), a receiver, or a
+    // speaker that reports inputs (a Sonos Amp: "Line-in", "TV"). A speaker with no inputs (HomePod, Sonos One, a
+    // camera speaker) and a streamer (an Apple TV's list is apps) are not offered it.
+    tvaudio:display || receiver || (audioOnly && (o.srcCount||0)>0),
     speaker:true,
     // A switch needs selectable inputs AND must not be an audio endpoint, a
     // source, or the room's display. srcCount alone let the Sonos through —
