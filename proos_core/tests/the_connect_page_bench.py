@@ -43,7 +43,31 @@ ok(v["name"] == "UC-Display-SE-21" and v["model"] == "UniFi Connect Display SE 2
 blob = json.dumps(v)
 ok(not any(x in blob for x in ("192.168", "SECRET", "secret", "AA:BB", "CC:DD", "com.", "https")), "2 · no address, MAC, fingerprint, controller id, app or page leaves Core")
 ok("<script>" not in blob, "3 · an action name that is not a plain word is dropped")
+# REGISTER 1240 — the actions (names measured on Dave's display): only ones ProOS offers AND the display supports; a number
+# within the display's own range; confirmed only from the display's own state.
+DEV = {"id": "c1", "extraInfo": {"maxBrightness": 255, "maxVolume": 100},
+       "type": {"supportedActions": [{"name": "display_on", "id": "A1"}, {"name": "display_off", "id": "A2"}, {"name": "brightness", "id": "A3"},
+                                     {"name": "reboot", "id": "A4"}, {"name": "launch_app", "id": "A5"}]}, "shadow": {"display": False, "brightness": 191}}
+p1 = nv.connect_plan(DEV, "display_on")
+p2 = nv.connect_plan(DEV, "brightness", 120)
+p3 = nv.connect_plan(DEV, "brightness", 300)
+p4 = nv.connect_plan(DEV, "volume", 20)          # ProOS offers it, this display does not list it
+p5 = nv.connect_plan(DEV, "launch_app")          # the display lists it, ProOS does not offer it
+p6 = nv.connect_plan(None, "display_on")
+p7 = nv.connect_plan(DEV, "reboot")
+ok(p1[0] == {"name": "display_on", "id": "A1"} and p1[1] == ("display", True) and p2[0] == {"name": "brightness", "id": "A3", "args": {"value": 120}}
+   and p2[1] == ("brightness", 120) and p3[0] is None and p4[0] is None and p5[0] is None and p6[0] is None and p7[1] is None,
+   "5 · an action only if ProOS offers it AND the display supports it; numbers in the display's range; a press has nothing to read back")
+ok(nv.connect_landed({"shadow": {"display": True}}, ("display", True)) and not nv.connect_landed({"shadow": {"display": False}}, ("display", True))
+   and not nv.connect_landed(None, ("display", True)) and not nv.connect_landed({"shadow": {}}, None),
+   "6 · confirmed only when the display's own state shows the change")
 src = open(os.path.join(HERE, "..", "server.py"), encoding="utf-8").read()
+j = src.index('if method == "POST" and sub == "connect" and sub2 == "act":')
+act = src[j:src.index('if method == "POST" and sub == "alarms" and sub2 == "set":', j)]
+ok("body, check, why2 = _nv.connect_plan(dev, act, val)" in act and "if body is None:" in act and act.count("send_json(") == 1
+   and '"/proxy/connect/api/v2/devices/%s/status" % did, body' in act and "_nv.connect_landed(d2, check)" in act
+   and '"confirmed": False' in act and "call_service" not in act,
+   "7 · the action route sends only what connect_plan allows and confirms only from the read-back")
 i = src.index('if method == "GET" and sub == "connect" and not sub2:')
 r = src[i:src.index('if method == "GET" and sub == "probe" and not sub2:', i)]
 ok('_uc.get_json(_creds, ph, "/proxy/connect/api/v2/devices?shadow=true")' in r and "_nv.connect_view(" in r

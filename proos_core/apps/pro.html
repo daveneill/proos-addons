@@ -3210,7 +3210,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102669';
+const PROOS_BUILD='2026102670';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -15917,14 +15917,28 @@ function uniAppBar(active){
   }).join('')+'</div>';
 }
 // ── REGISTER 1239 — CONNECT: each display with its live state (Core: /unifi/console/connect — the Connect app's own list,
-// named fields only) and the actions the display says it supports. Read only in this build; the controls come once those
-// action names are measured on the box.
+// named fields only) and the actions the display says it supports. 1240: the controls — only for actions the display
+// supports, each asked first, confirmed from the display's own state.
 let _uniConn=null;
 async function openUniConnect(){ show('unifi-connect'); paintUniBar('connect'); _uniConn=null; renderUniConnect(); _uniConnLoad(); }
 async function _uniConnLoad(){
   try{ const r=await fetch(proCoreUrl()+'/unifi/console/connect'); _uniConn=r.ok?await r.json():{ok:false,why:'Core answered '+r.status}; }
   catch(e){ _uniConn={ok:false,why:'Couldn\'t reach ProOS Core'}; }
   if(panelActive('unifi-connect')) renderUniConnect();
+}
+const UNI_CONN_SAY={display_on:'turns the screen on',display_off:'turns the screen off',brightness:'changes how bright the screen is',volume:'changes how loud it plays',
+  enable_sleep:'lets the display go to sleep',disable_sleep:'keeps the display awake',enable_auto_reload:'reloads its page on its own',disable_auto_reload:'stops it reloading its page on its own',
+  start_locating:'flashes the display so you can find it',stop_locating:'stops the flashing',refresh_website:'reloads the page it is showing',reboot:'restarts the display — its screen goes dark for a minute or two'};
+async function uniConnAct(id,action,value,label){
+  const x=((_uniConn&&_uniConn.displays)||[]).find(d=>d.id===id); if(!x) return;
+  const what=value!=null?(label+' to '+value):label;
+  if(!await proAsk(what+' on "'+x.name+'"?\n\nThis '+(UNI_CONN_SAY[action]||'changes the display')+'.')){ renderUniConnect(); return; }
+  try{
+    const r=await fetch(proCoreUrl()+'/unifi/console/connect/act',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,action,value})});
+    const d=await r.json().catch(()=>({}));
+    toast(!d.ok?('Not done — '+(d.why||'Core answered '+r.status)):d.confirmed?(what+' on '+x.name+' — confirmed by the display'):('Sent, not confirmed — '+(d.said||'')));
+  }catch(e){ toast(_coreFailWords('',e)); }
+  _uniConnLoad();
 }
 function renderUniConnect(){
   const el=document.getElementById('uniconnect-body'); if(!el) return;
@@ -15935,14 +15949,21 @@ function renderUniConnect(){
   if(!L.length){ setHTML(el,'<div class="empty"><div class="et">No displays on this console</div></div>'); return; }
   const kv=(k,v)=>`<div class="unifi-row"><span class="unifi-row-l">${k}</span><span class="unifi-row-d">${v}</span></div>`;
   const yn=v=>v===true?'On':v===false?'Off':'—';
+  // register 1240: a control only for an action the display says it supports; each asks first (uniConnAct)
+  const has=(x,a)=>(x.actions||[]).includes(a), q=s=>`'${esc(s)}'`;
+  const pill=(x,on,aOn,aOff,label)=>(has(x,aOn)&&has(x,aOff))?`<button class="ual-pill${on?' on':''}" onclick="uniConnAct(${q(x.id)},${q(on?aOff:aOn)},null,${q(label)})">${on?'On':'Off'}</button>`:yn(on);
+  const slide=(x,a,v,max,label)=>has(x,a)&&v!=null?`<input class="ucc-rng" type="range" min="0" max="${Number(max)||(a==='volume'?100:255)}" value="${Number(v)}" onchange="uniConnAct(${q(x.id)},${q(a)},Number(this.value),${q(label)})"> <span class="es">${esc(v)}</span>`:(v!=null?esc(v):'—');
+  const btns=x=>[has(x,'refresh_website')?`<button class="unp-act" onclick="uniConnAct(${q(x.id)},'refresh_website',null,'Refresh Page')">Refresh Page</button>`:'',
+    has(x,'start_locating')&&has(x,'stop_locating')?`<button class="unp-act" onclick="uniConnAct(${q(x.id)},${q(x.locating?'stop_locating':'start_locating')},null,'Find It')">${x.locating?'Stop Finding':'Find It'}</button>`:'',
+    has(x,'reboot')?`<button class="unp-act" onclick="uniConnAct(${q(x.id)},'reboot',null,'Reboot')">Reboot</button>`:''].join('');
   const cards=L.map(x=>`<div class="unp-card"><div class="unp-head"><b>${esc(x.name)}</b><span class="es" style="margin-left:auto">${esc(x.model||'')}</span></div><div class="unifi-status">`
     +kv('State',x.online?'<span style="color:#46e3a0">● Online</span>':'<em class="unp-red">Offline</em>')
-    +kv('Screen',yn(x.screen_on))+(x.brightness!=null?kv('Brightness',esc(x.brightness)):'')+(x.volume!=null?kv('Volume',esc(x.volume)):'')
+    +kv('Screen',pill(x,x.screen_on===true,'display_on','display_off','Screen'))+kv('Brightness',slide(x,'brightness',x.brightness,x.max_brightness,'Brightness'))+kv('Volume',slide(x,'volume',x.volume,x.max_volume,'Volume'))
     +(x.mode?kv('Showing',esc(x.mode.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase()))):'')+(x.rotate!=null?kv('Rotation',esc(x.rotate)+'°'):'')
-    +(x.sleep!=null?kv('Sleep Mode',typeof x.sleep==='boolean'?yn(x.sleep):esc(x.sleep)):'')+(x.auto_reload!=null?kv('Auto Reload',yn(x.auto_reload)):'')
+    +(x.sleep!=null?kv('Sleep Mode',typeof x.sleep==='boolean'?pill(x,x.sleep,'enable_sleep','disable_sleep','Sleep Mode'):esc(x.sleep)):'')+(x.auto_reload!=null?kv('Auto Reload',pill(x,x.auto_reload,'enable_auto_reload','disable_auto_reload','Auto Reload')):'')
     +kv('TV Control (CEC)',x.cec?'Supported':'No')+(x.firmware?kv('Firmware',esc(x.firmware)):'')
     +(x.actions.length?kv('It Can Do',esc(x.actions.map(a=>a.replace(/_/g,' ')).join(' · '))):'')
-    +'</div></div>').join('');
+    +'</div>'+(btns(x)?`<div class="unp-acts">${btns(x)}</div>`:'')+'</div>').join('');
   setHTML(el,`<div class="unp-chips"><button class="unp-chip" style="margin-left:auto" onclick="_uniConn=null;renderUniConnect();_uniConnLoad()">Refresh</button></div><div class="ual-devs">${cards}</div>`);
 }
 function uniLater(k){ toast({access:'Access gets its own page in stage 5. It works once Access is on the console.',connect:'Connect gets its own page in stage 6.',talk:'Ubiquiti has no way in for other systems yet. Talk is built the day there is.'}[k]||''); }

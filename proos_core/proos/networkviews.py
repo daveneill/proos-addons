@@ -198,6 +198,64 @@ def connect_view(devices):
                     "sleep": sh.get("sleepMode") if isinstance(sh.get("sleepMode"), (bool, str)) else None,
                     "auto_reload": sh.get("autoReload") if isinstance(sh.get("autoReload"), bool) else None,
                     "cec": bool(sh.get("isSupportCec")), "supports_brightness": bool(ff.get("brightness")),
-                    "supports_volume": bool(ff.get("volume")), "actions": acts[:40]})
+                    "supports_volume": bool(ff.get("volume")), "actions": acts[:40],
+                    # 1240 — the display's own ranges (extraInfo.maxBrightness / maxVolume; measured brightness 191)
+                    "max_brightness": num((d.get("extraInfo") or {}).get("maxBrightness")) if isinstance(d.get("extraInfo"), dict) else None,
+                    "max_volume": num((d.get("extraInfo") or {}).get("maxVolume")) if isinstance(d.get("extraInfo"), dict) else None,
+                    "locating": sh.get("locating") if isinstance(sh.get("locating"), bool) else None})
     out.sort(key=lambda x: str(x["name"]).lower())
     return out
+
+
+# REGISTER 1240 — the Connect actions ProOS offers (names MEASURED on Dave's display, 1239 on the box), what each needs,
+# and what the display's own state shows once it has happened (None = nothing to read back: a press).
+CONNECT_ACTIONS = {
+    "display_on": (None, ("display", True)), "display_off": (None, ("display", False)),
+    "brightness": ("number", ("brightness", "value")), "volume": ("number", ("volume", "value")),
+    "enable_sleep": (None, ("sleepMode", True)), "disable_sleep": (None, ("sleepMode", False)),
+    "enable_auto_reload": (None, ("autoReload", True)), "disable_auto_reload": (None, ("autoReload", False)),
+    "start_locating": (None, ("locating", True)), "stop_locating": (None, ("locating", False)),
+    "refresh_website": (None, None), "reboot": (None, None),
+}
+
+
+def connect_plan(device, action, value=None):
+    """(body, check, why): the change to send for one action on one display, and how its state will show it. The action
+    must be one ProOS offers AND one this display says it supports; a number must be within the display's own range."""
+    if not isinstance(device, dict):
+        return None, None, "that display is not on the console"
+    spec = CONNECT_ACTIONS.get(str(action or ""))
+    if not spec:
+        return None, None, "ProOS does not offer that action"
+    t = device.get("type") if isinstance(device.get("type"), dict) else {}
+    found = None
+    for a in (t.get("supportedActions") or []):
+        nm = a.get("name") if isinstance(a, dict) else a
+        if nm == action:
+            found = a if isinstance(a, dict) else {"name": a}
+    if not found:
+        return None, None, "this display does not support that"
+    body = {"name": action}
+    if found.get("id"):
+        body["id"] = found["id"]
+    check = spec[1]
+    if spec[0] == "number":
+        x = device.get("extraInfo") if isinstance(device.get("extraInfo"), dict) else {}
+        hi = x.get("maxBrightness" if action == "brightness" else "maxVolume")
+        try:
+            v = int(value)
+        except (TypeError, ValueError):
+            return None, None, "a number"
+        if v < 0 or (isinstance(hi, (int, float)) and v > hi) or (not isinstance(hi, (int, float)) and v > 255):
+            return None, None, "outside its range"
+        body["args"] = {"value": v}
+        check = (spec[1][0], v)
+    return body, check, None
+
+
+def connect_landed(device, check):
+    """Whether the display's own state now shows the change (check = (shadow field, value))."""
+    if not check or not isinstance(device, dict):
+        return False
+    sh = device.get("shadow") if isinstance(device.get("shadow"), dict) else {}
+    return sh.get(check[0]) == check[1]

@@ -6789,6 +6789,34 @@ class Handler(BaseHTTPRequestHandler):
                                     "poe_watts": (p.get("poe") or {}).get("watts")})
         if method == "POST" and sub == "ports" and sub2 == "act":
             return self._send(200, _port_act(b.get("mac"), b.get("idx"), str(b.get("action") or "")))
+        if method == "POST" and sub == "connect" and sub2 == "act":
+            # REGISTER 1240 — one action on one Connect display (Pro asks first). The display must be on the console now
+            # and say it supports the action; ProOS offers only CONNECT_ACTIONS. NOT MEASURED before the build: the address
+            # the Connect app sends actions to — the console's answer decides: refused → "not done" with its reason. Then
+            # the display's own state is read back; "confirmed" only when it shows the change (a press has nothing to read).
+            import time as _t
+            from proos import networkviews as _nv
+            did, act, val = str(b.get("id") or ""), str(b.get("action") or ""), b.get("value")
+            lst, why = _uc.get_json(_creds, ph, "/proxy/connect/api/v2/devices?shadow=true")
+            rows = lst.get("data") if isinstance(lst, dict) and "data" in lst else lst
+            dev = next((x for x in (rows if isinstance(rows, list) else []) if isinstance(x, dict) and str(x.get("id")) == did), None)
+            body, check, why2 = _nv.connect_plan(dev, act, val)
+            if body is None:
+                return self._send(200, {"ok": False, "why": why2 or why})
+            _r, why3 = _uc.send_json(_creds, ph, "PATCH", "/proxy/connect/api/v2/devices/%s/status" % did, body)
+            if why3:
+                return self._send(200, {"ok": False, "why": why3})
+            if not check:
+                return self._send(200, {"ok": True, "confirmed": False, "said": "sent — a press has nothing to read back"})
+            for _ in range(8):
+                _t.sleep(1.5)
+                l2, _w = _uc.get_json(_creds, ph, "/proxy/connect/api/v2/devices?shadow=true")
+                r2 = l2.get("data") if isinstance(l2, dict) and "data" in l2 else l2
+                d2 = next((x for x in (r2 if isinstance(r2, list) else []) if isinstance(x, dict) and str(x.get("id")) == did), None)
+                if _nv.connect_landed(d2, check):
+                    return self._send(200, {"ok": True, "confirmed": True})
+            return self._send(200, {"ok": True, "confirmed": False,
+                                    "said": "the console took it but the display did not show it within 12 seconds"})
         if method == "POST" and sub == "alarms" and sub2 == "set":
             # REGISTER 1231 — turn one Alarm Manager alarm on or off (Dave, 6 Nov: "yes all of it please"; Pro asks
             # first). The alarm must be in the console's own list right now; the change is ONLY its "enable"; then the
