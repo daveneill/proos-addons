@@ -6813,6 +6813,39 @@ class Handler(BaseHTTPRequestHandler):
                                     "poe_watts": (p.get("poe") or {}).get("watts")})
         if method == "POST" and sub == "ports" and sub2 == "act":
             return self._send(200, _port_act(b.get("mac"), b.get("idx"), str(b.get("action") or "")))
+        if sub == "wifiqr" and method in ("GET", "POST"):
+            # REGISTER 1242 — share a Wi-Fi network by its QR code: the PLATFORM's own QR image for that network ("qr_code-
+            # <id>", disabled as the platform ships it), found by the same exact-id join as its on/off switch (1228). GET
+            # sends the picture (Pro asks first: anyone who scans it joins); POST sub2 "enable" switches the platform's QR
+            # image on (Pro asks first). The password itself is never sent as text.
+            from proos import unifinet as _un
+            wid = str((parse_qs(urlparse(self.path).query).get("id") or [""])[0] or b.get("id") or "")
+            wl, why = _uc.get_json(_creds, ph, "/proxy/network/api/s/default/rest/wlanconf")
+            rec = next((x for x in ((wl or {}).get("data") or []) if str(x.get("_id")) == wid), None) if wid else None
+            try:
+                ents = [e for e in (_client.entity_registry() or []) if e.get("platform") == "unifi"]
+            except Exception:                                    # noqa: BLE001
+                ents = []
+            qr, _f = _un.wlan_control_for(rec, _un.wlan_controls(ents, "qr_code-"))
+            if rec is None or not qr:
+                return self._send(200, {"ok": False, "why": why or "the platform offers no QR code for that network"})
+            if method == "POST" and sub2 == "enable":
+                if qr["enabled"]:
+                    return self._send(200, {"ok": True, "already": True})
+                try:
+                    _client.enable_entity(qr["entity_id"])
+                except Exception as ex:                          # noqa: BLE001
+                    return self._send(200, {"ok": False, "why": str(ex)[:160]})
+                return self._send(200, {"ok": True, "note": "the platform reloads its UniFi integration to bring it online (about 30 seconds)"})
+            if method == "GET" and not sub2:
+                if not qr["enabled"]:
+                    return self._send(200, {"ok": False, "disabled": True, "why": "the platform has this network's QR code switched off"})
+                try:
+                    img, ct = _client.get_image("/api/image_proxy/" + qr["entity_id"])
+                except Exception as ex:                          # noqa: BLE001
+                    return self._send(200, {"ok": False, "why": "the platform's QR image did not answer: %s" % str(ex)[:120]})
+                return self._send_bytes(200, ct, img, cache="no-store")
+            return self._send(404, {"error": "unknown wifiqr route"})
         if method == "POST" and sub == "connect" and sub2 == "act":
             # REGISTER 1240 — one action on one Connect display (Pro asks first). The display must be on the console now
             # and say it supports the action; ProOS offers only CONNECT_ACTIONS. NOT MEASURED before the build: the address

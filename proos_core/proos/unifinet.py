@@ -689,13 +689,15 @@ def clients_view(clients, devices):
     return out
 
 
-def wlan_controls(entities):
-    """The platform's own Wi-Fi switches, keyed by the id in their unique id "wlan-<id>"."""
+def wlan_controls(entities, prefix="wlan-"):
+    """The platform's own per-Wi-Fi entities, keyed by the id in their unique id "<prefix><id>" — its on/off switches
+    ("wlan-", 1227) or its QR-code images ("qr_code-", 1242)."""
     ctl = {}
+    n = len(prefix)
     for e in (entities or []):
         uid = str(e.get("unique_id") or "")
-        if e.get("platform") == "unifi" and uid.startswith("wlan-") and len(uid) > 5:
-            ctl[uid[5:]] = {"entity_id": e.get("entity_id"), "enabled": not e.get("disabled_by")}
+        if e.get("platform") == "unifi" and uid.startswith(prefix) and len(uid) > n:
+            ctl[uid[n:]] = {"entity_id": e.get("entity_id"), "enabled": not e.get("disabled_by")}
     return ctl
 
 

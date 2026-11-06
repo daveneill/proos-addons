@@ -3220,7 +3220,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102671';
+const PROOS_BUILD='2026102672';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -5273,8 +5273,11 @@ function _uniNetHTML(){
     +(w.control&&w.control.enabled?`<div class="unp-acts"><button class="${w.enabled?'unp-act':'btn-primary'}" onclick="uniWifiSet('${esc(w.id)}',${!w.enabled})">${w.enabled?'Turn '+(w.guest?'Guest Network':'Network')+' Off':'Turn '+(w.guest?'Guest Network':'Network')+' On'}</button></div>`
       :(w.control?'<div class="es" style="margin-top:8px">The platform\'s switch for this network is switched off.</div>':'<div class="es" style="margin-top:8px">The platform offers no switch for this network.</div>'))
     +(d.you_are_on&&d.you_are_on===w.name?'<div class="es" style="margin-top:8px">This screen is on this network.</div>':'')
+    // register 1242: share by the platform's own QR code (asked first)
+    +`<div class="unp-acts"><button class="unp-act" onclick="uniWifiQR('${esc(w.id)}','${esc(String(w.name).replace(/'/g,''))}')">Share Wi-Fi</button></div>`
     +'</div>').join('')||'<div class="es">No Wi-Fi networks.</div>';
-  return `<div class="unp-chips">${inet}${refresh}</div><div class="und-wifis">${cards}</div>`;
+  const qr=_uniQR?`<div class="unp-card"><div class="unp-head"><b>Join ${esc(_uniQR.name)}</b><button class="unp-chip" style="margin-left:auto" onclick="uniWifiQRClose()">Close</button></div><div style="display:flex;justify-content:center;padding:10px"><img src="${_uniQR.url}" alt="Wi-Fi QR code" style="width:220px;height:220px;background:#fff;border-radius:12px;padding:10px"></div><div class="es" style="text-align:center">Point a phone's camera at it to join.</div></div>`:'';
+  return `<div class="unp-chips">${inet}${refresh}</div>${qr}<div class="und-wifis">${cards}</div>`;
 }
 // ── REGISTER 1237 — NETWORK → NETWORKS · INTERNET · GUESTS · FIREWALL & RULES · POWER · EVENTS (Core: /unifi/console/netsec,
 // the controller's own tables as named fields — no VPN keys, pre-shared keys or portal secrets). Read only.
@@ -5325,6 +5328,26 @@ function _uniNSHTML(sec){
   }
   const L=d.events||[];
   return refresh+card('Events — Last 24 Hours',L.length?`<div class="ual-list">${L.map(e=>row([esc(e.kind),esc(e.message||(e.who||[]).join(' · ')||''),when(e.when)])).join('')}</div>`:'<div class="es">No events in the last 24 hours.</div>',L.length+' shown');
+}
+// ── REGISTER 1242 — SHARE WI-FI: the platform's own QR code for a network (Core: /unifi/console/wifiqr). Asked first —
+// anyone who scans it joins. Where the platform has it switched off, Pro offers to switch it on (asked first).
+let _uniQR=null;
+function uniWifiQRClose(){ if(_uniQR&&_uniQR.url) URL.revokeObjectURL(_uniQR.url); _uniQR=null; renderUniNet(); }
+async function uniWifiQR(id,name){
+  if(!await proAsk('Show the QR code for "'+name+'"?\n\nAnyone who scans it joins this network.')) return;
+  try{
+    const r=await fetch(proCoreUrl()+'/unifi/console/wifiqr?id='+encodeURIComponent(id));
+    if(r.ok&&String(r.headers.get('content-type')||'').startsWith('image/')){ if(_uniQR&&_uniQR.url) URL.revokeObjectURL(_uniQR.url); _uniQR={id,name,url:URL.createObjectURL(await r.blob())}; renderUniNet(); return; }
+    const d=await r.json().catch(()=>({}));
+    if(d.disabled){
+      if(!await proAsk('The platform has sharing switched off for "'+name+'".\n\nSwitch on its QR code? The platform reloads its UniFi connection (about 30 seconds).')) return;
+      const e=await fetch(proCoreUrl()+'/unifi/console/wifiqr/enable',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
+      const ed=await e.json().catch(()=>({}));
+      toast(ed.ok?('Sharing switched on — try Share Wi-Fi again in about 30 seconds'):('Not done — '+(ed.why||'Core answered '+e.status)));
+      return;
+    }
+    toast('Couldn\'t show it — '+(d.why||'Core answered '+r.status));
+  }catch(e){ toast(_coreFailWords('',e)); }
 }
 function renderUniNet(){
   const body=document.getElementById('uninet-body'); if(!body) return;

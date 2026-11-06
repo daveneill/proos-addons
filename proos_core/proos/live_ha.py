@@ -89,6 +89,19 @@ class RestHAClient:
                     f"Check the IP/port and that this machine is on the same network."
                 ) from None
 
+    def get_image(self, path: str):
+        """(bytes, content type) for one of the platform's own image addresses (register 1242: a Wi-Fi network's QR code
+        from /api/image_proxy/<entity>). Only an image answer is returned; anything else raises."""
+        if not path.startswith("/api/image_proxy/"):
+            raise RuntimeError("not a platform image address")
+        req = urllib.request.Request(f"{self.base_url}{path}", method="GET")
+        req.add_header("Authorization", f"Bearer {self._token}")
+        with urllib.request.urlopen(req, timeout=self._timeout) as resp:
+            ct = resp.headers.get("Content-Type", "")
+            if not ct.startswith("image/"):
+                raise RuntimeError("the platform did not answer with an image")
+            return resp.read(), ct
+
     def all_states(self) -> list:
         """EVERY state, through the one seam (register 173, finished in plan
         item 2b): the live stream's cache while it is healthy, else one REST
