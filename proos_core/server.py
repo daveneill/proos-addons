@@ -2455,11 +2455,6 @@ def _assist_awareness():
 _PORT_KINDS = ("power_cycle", "poe", "port")       # the platform's unifi port controls, by unique-id prefix
 
 
-# 1231b — the parts of an Alarm Manager record the console keeps for itself (never sent back as if ProOS set them)
-_ALARM_READ_ONLY = ("id", "status", "createdAt", "deleted", "userId", "isCreatedBySystem", "editable",
-                    "isBlockedByArmMode", "usedInArmMode", "isExternal")
-
-
 def _port_control_of(e):
     """(kind, switch mac, port) for one of the platform's unifi port controls, else (None, None, None)."""
     if not e or e.get("platform") != "unifi":
@@ -6937,16 +6932,16 @@ class Handler(BaseHTTPRequestHandler):
             # 1231b — MEASURED on Dave's box (his first press, Barking): PATCH {"enable"} → "the console answered 400". The
             # alarm's OWN record, exactly as the console handed it over, with only "enable" changed, is what a settings page
             # saves; tried as a whole, then without the console's read-only bookkeeping. The read-back below still decides.
-            tries = [("PATCH", {"enable": on}), ("PUT", dict(row, enable=on)),
-                     ("PUT", {k: v for k, v in dict(row, enable=on).items() if k not in _ALARM_READ_ONLY})]
-            whys = []
-            for meth, body in tries:
-                _r, why2 = _uc.send_json(_creds, ph, meth, "/proxy/protect/api/automations/" + aid, body)
-                if not why2:
-                    break
-                whys.append(why2)
-            else:
-                return self._send(200, {"ok": False, "why": "; ".join(dict.fromkeys(whys))})
+            # 1231c — MEASURED on Dave's second press: PATCH answered 400 "This operation is not available when global
+            # alarm manager is enabled"; PUT answered 404 (no such call). So PATCH {"enable"} IS the call, and UniFi refuses
+            # it in Global Alarm Manager mode — UniFi's rule, as for arming. The PUT tries (1231b) are gone; Pro offers no
+            # switch in Global mode, and if one is pressed anyway the console's reason is shown in words.
+            _r, why2 = _uc.send_json(_creds, ph, "PATCH", "/proxy/protect/api/automations/" + aid, {"enable": on})
+            if why2:
+                glob = "global alarm manager" in why2.lower()
+                return self._send(200, {"ok": False, "global_mode": glob,
+                                        "why": ("your console runs UniFi's Global Alarm Manager, and in that mode UniFi only lets "
+                                                "its own Alarm Manager switch alarms on and off") if glob else why2})
             for _ in range(6):
                 _t.sleep(1.5)
                 au2, _w = _uc.get_json(_creds, ph, "/proxy/protect/api/automations")

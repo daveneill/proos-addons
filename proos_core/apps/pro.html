@@ -3220,7 +3220,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102672';
+const PROOS_BUILD='2026102673';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -16254,7 +16254,9 @@ function _uniAlarmsHTML(){
       +(a.used_in_arm_mode?kv('Arm Mode','Used when armed'):'')
       +`</div>`
       // register 1231: on/off — asked first, the console's own read-back decides "confirmed"
-      +(a.editable===false?'<div class="es" style="margin-top:6px">UniFi marks this alarm as not editable.</div>'
+      // 1231c — MEASURED: in Global Alarm Manager mode UniFi refuses any other system's on/off (as it does arming)
+      +((_uniAlarm&&_uniAlarm.mode==='global')?'<div class="es" style="margin-top:6px">Your console runs UniFi\'s Global Alarm Manager. In that mode UniFi only lets its own Alarm Manager switch alarms on and off — do it there.</div>'
+        :a.editable===false?'<div class="es" style="margin-top:6px">UniFi marks this alarm as not editable.</div>'
         :`<div class="unp-acts"><button class="${a.on?'unp-act':'btn-primary'}" onclick="uniAlarmSet('${esc(a.id)}',${!a.on})">${a.on?'Turn Alarm Off':'Turn Alarm On'}</button></div>`)
       +`<div class="es" style="margin-top:6px">Edit what this alarm does in UniFi's Alarm Manager.</div></div>`;
   }).join('');

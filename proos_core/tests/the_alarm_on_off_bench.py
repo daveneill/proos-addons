@@ -70,19 +70,13 @@ ok(len(SENT) == 4 and d3 is None and "answered 200" in why3 and d4 is None and "
 src = open(os.path.join(HERE, "..", "server.py"), encoding="utf-8").read()
 i = src.index('if method == "POST" and sub == "alarms" and sub2 == "set":')
 route = src[i:src.index('return self._send(404, {"error": "unknown console route"})', i)]
-# Pin rewritten, not weakened (register 1231b — MEASURED on Dave's box: PATCH {"enable"} answered 400). The rule stands:
-# ProOS changes ONLY the alarm's on/off. The fallbacks send the alarm's own record exactly as the console gave it, with
-# only "enable" different (and, last, without the console's own bookkeeping); confirmed only from the re-read list.
-ok('("PATCH", {"enable": on})' in route and '("PUT", dict(row, enable=on))' in route
-   and 'k not in _ALARM_READ_ONLY' in route and route.count("send_json(") == 1 and 'not x.get("deleted")' in route
+# Pin rewritten again (register 1231c — MEASURED on Dave's second press: PATCH → 400 "not available when global alarm
+# manager is enabled"; PUT → 404). PATCH {"enable"} is the console's call; the PUT tries are gone; Global mode is named.
+ok('_uc.send_json(_creds, ph, "PATCH", "/proxy/protect/api/automations/" + aid, {"enable": on})' in route
+   and route.count("send_json(") == 1 and '"PUT"' not in route and 'not x.get("deleted")' in route
    and 'row.get("editable", True)' in route and 'bool(r2.get("enable")) == on' in route and '"confirmed": False' in route
-   and "call_service" not in route,
-   "4 · only the alarm's on/off changes (its own record otherwise exactly as the console gave it), only for a listed, "
-   "editable alarm, confirmed only from the re-read list")
-row = {"id": "a1", "name": "Barking", "enable": True, "status": {"total": 0}, "sources": [], "conditions": [{"condition": {"type": "is"}}]}
-full = dict(row, enable=False)
-ok({k for k in full if full[k] != row[k]} == {"enable"} and full["conditions"] == row["conditions"],
-   "4b · the full-record try differs from the console's record in 'enable' only")
+   and '"global alarm manager" in why2.lower()' in route and '"global_mode": glob' in route and "call_service" not in route,
+   "4 · only {enable}, only for a listed, editable alarm; UniFi's Global-mode refusal named in words; confirmed only from the re-read list")
 REPLIES[:] = [(400, {"content-type": "application/json"}, b'{"error":"conditions must not be empty"}')]
 uc._session = lambda creds, h, http=None: ({"cookie": "TOKEN=abc", "x-csrf-token": "CSRF-1"}, None)
 _d, why5 = uc.send_json(Creds(), None, "PUT", "/p", {"enable": False}, http=http)
