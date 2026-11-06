@@ -272,6 +272,16 @@ button.ual-pill{border:0;cursor:pointer}
 .unp-fit>*{min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none}
 .unp-fit .ual-list{max-height:none}
 .unp-fit>.ual-devs>.unp-card:last-child{margin-bottom:0}
+/* 1243c — MEASURED on the box at iPad portrait (834 wide): beside the section list, a list + panel pair left each column
+   188–212 px — rows spilled and readings were cut (Cameras, Doorbell, Lights, Sensors, Devices, Ports, Clients). Below
+   Pro's own portrait breakpoint (1023) the pair stacks — the list above, its panel below, the height 2 : 1, each column
+   full width and scrolling on its own. */
+@media (max-width:1023px){
+  .unp-split{flex-direction:column}
+  .unp-split>.unp-list,.unp-split>.ual-devs{flex:2 1 0;width:100%;max-width:none}
+  .unp-split>.unp-panel,.unp-split>aside{flex:1 1 0;width:100%;min-width:0;max-width:none}
+  .unp-split:not(.unp-fit)>*{flex:0 0 auto}
+}
 .unp-acts.unp-acts-row{flex-direction:row;flex-wrap:wrap}
 .unp-acts.unp-acts-row>button{flex:1 1 140px;width:auto}
 .unp-acts{display:flex;flex-direction:column;gap:8px;margin-top:14px}
@@ -3248,7 +3258,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102675';
+const PROOS_BUILD='2026102676';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
