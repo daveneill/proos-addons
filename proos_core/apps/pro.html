@@ -2446,6 +2446,16 @@ body.v3.railmin .aw-screen{left:108px!important}
       <div id="uninet-body"><div class="empty"><div class="et">Checking connection…</div></div></div>
     </div>
 
+    <!-- UNIFI CONNECT (register 1239) — part of the UniFi suite, same shape as Protect/Network -->
+    <div class="panel" id="panel-unifi-connect">
+      <div class="panel-head">
+        <button class="back" onclick="openUnifiSuite()">‹ UniFi</button>
+        <div class="panel-title">UniFi Connect</div>
+      </div>
+      <div id="unibar-connect"></div>
+      <div id="uniconnect-body"><div class="empty"><div class="et">Reading the displays…</div></div></div>
+    </div>
+
     <!-- USERS -->
     <div class="panel" id="panel-users">
       <div class="panel-head">
@@ -3200,7 +3210,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102668';
+const PROOS_BUILD='2026102669';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -15899,12 +15909,41 @@ function _uniMark(k){
 }
 function uniAppBar(active){
   const apps=(_uniLast&&_uniLast.apps)||[]; const found=k=>{ const a=apps.find(x=>x.app===k); return a?a.found:null; };
-  const tabs=[['overview','Overview','openUnifiSuite()'],['network','Network','openUniNet()'],['protect','Protect','openUnifi()'],['access','Access',''],['connect','Connect',''],['talk','Talk','']];
-  const note={access:found('access')===false?'Set Up Later':'Page Coming',connect:found('connect')===false?'Not on Console':'Page Coming',talk:'Waiting on Ubiquiti'};
+  const tabs=[['overview','Overview','openUnifiSuite()'],['network','Network','openUniNet()'],['protect','Protect','openUnifi()'],['access','Access',''],['connect','Connect','openUniConnect()'],['talk','Talk','']];
+  const note={access:found('access')===false?'Set Up Later':'Page Coming',connect:found('connect')===false?'Not on Console':null,talk:'Waiting on Ubiquiti'};
   return '<div class="uni-bar" role="tablist" aria-label="UniFi apps">'+tabs.map(([k,l,go])=>{
     const on=k===active, n=note[k];
     return `<button class="uni-tab${on?' on':''}${n?' later':''}" role="tab" aria-selected="${on}" onclick="${go||`uniLater('${k}')`}">${_uniMark(k)}${l}${n?`<span class="uni-tab-note">${n}</span>`:''}</button>`;
   }).join('')+'</div>';
+}
+// ── REGISTER 1239 — CONNECT: each display with its live state (Core: /unifi/console/connect — the Connect app's own list,
+// named fields only) and the actions the display says it supports. Read only in this build; the controls come once those
+// action names are measured on the box.
+let _uniConn=null;
+async function openUniConnect(){ show('unifi-connect'); paintUniBar('connect'); _uniConn=null; renderUniConnect(); _uniConnLoad(); }
+async function _uniConnLoad(){
+  try{ const r=await fetch(proCoreUrl()+'/unifi/console/connect'); _uniConn=r.ok?await r.json():{ok:false,why:'Core answered '+r.status}; }
+  catch(e){ _uniConn={ok:false,why:'Couldn\'t reach ProOS Core'}; }
+  if(panelActive('unifi-connect')) renderUniConnect();
+}
+function renderUniConnect(){
+  const el=document.getElementById('uniconnect-body'); if(!el) return;
+  const d=_uniConn;
+  if(!d){ setHTML(el,'<div class="empty"><div class="et">Reading the displays…</div></div>'); return; }
+  if(!d.ok){ setHTML(el,`<div class="empty"><div class="et">Couldn't read Connect</div><div class="es">${esc(d.why||'')}. ProOS reads it with its own console user (Console Settings on the UniFi page).</div></div>`); return; }
+  const L=d.displays||[];
+  if(!L.length){ setHTML(el,'<div class="empty"><div class="et">No displays on this console</div></div>'); return; }
+  const kv=(k,v)=>`<div class="unifi-row"><span class="unifi-row-l">${k}</span><span class="unifi-row-d">${v}</span></div>`;
+  const yn=v=>v===true?'On':v===false?'Off':'—';
+  const cards=L.map(x=>`<div class="unp-card"><div class="unp-head"><b>${esc(x.name)}</b><span class="es" style="margin-left:auto">${esc(x.model||'')}</span></div><div class="unifi-status">`
+    +kv('State',x.online?'<span style="color:#46e3a0">● Online</span>':'<em class="unp-red">Offline</em>')
+    +kv('Screen',yn(x.screen_on))+(x.brightness!=null?kv('Brightness',esc(x.brightness)):'')+(x.volume!=null?kv('Volume',esc(x.volume)):'')
+    +(x.mode?kv('Showing',esc(x.mode.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase()))):'')+(x.rotate!=null?kv('Rotation',esc(x.rotate)+'°'):'')
+    +(x.sleep!=null?kv('Sleep Mode',typeof x.sleep==='boolean'?yn(x.sleep):esc(x.sleep)):'')+(x.auto_reload!=null?kv('Auto Reload',yn(x.auto_reload)):'')
+    +kv('TV Control (CEC)',x.cec?'Supported':'No')+(x.firmware?kv('Firmware',esc(x.firmware)):'')
+    +(x.actions.length?kv('It Can Do',esc(x.actions.map(a=>a.replace(/_/g,' ')).join(' · '))):'')
+    +'</div></div>').join('');
+  setHTML(el,`<div class="unp-chips"><button class="unp-chip" style="margin-left:auto" onclick="_uniConn=null;renderUniConnect();_uniConnLoad()">Refresh</button></div><div class="ual-devs">${cards}</div>`);
 }
 function uniLater(k){ toast({access:'Access gets its own page in stage 5. It works once Access is on the console.',connect:'Connect gets its own page in stage 6.',talk:'Ubiquiti has no way in for other systems yet. Talk is built the day there is.'}[k]||''); }
 function paintUniBar(active){
@@ -15955,7 +15994,7 @@ async function renderUnifiSuite(quick){
     +tile('protect','Protect','rgba(70,227,160,0.13)',{online:true,open:'openUnifi()',stats:[[cnt.cameras,'Cameras']],foot:'Live View · Detections · Alarm'})
     +tile('access','Access','rgba(255,255,255,0.04)',{online:true,notSub:'Set up later',stats:[[cnt.doors,'Doors']],
         p:f=>f===false?'Doors, people, visitors, PINs and cards, schedules and the access log. Built in stage 5; it lights up when Access is on the console.':'Doors, people, visitors and the access log get their own page in stage 5.',foot:'Doors · People · Activity'})
-    +tile('connect','Connect','rgba(245,176,65,0.13)',{online:true,p:f=>f===false?'Displays and casts, when there are some on the console.':'Displays: power, volume, brightness and what each one shows. Its page comes in stage 6.',foot:'Displays'})
+    +tile('connect','Connect','rgba(245,176,65,0.13)',{online:true,open:'openUniConnect()',p:f=>f===false?'Displays and casts, when there are some on the console.':'Displays: screen, brightness, volume and what each one shows.',foot:'Displays'})
     +tile('talk','Talk','rgba(255,255,255,0.04)',{later:true,p:()=>'Phones and call routing. Built the day Ubiquiti opens a way in for other systems.',foot:'Waiting on Ubiquiti'})
     +'</div>';
   // Console Settings: the connection itself. Shown until ProOS is signed in and holds its key; folded after that.
@@ -19577,7 +19616,7 @@ function ahRemove(){
     });
 }
 
-const PANELS=['home','library','manage','backups','channels','maintenance','site','credentials','unifi-suite','unifi','unifi-net','users','room','integration','rooms','activities','automations','scripts','irrigation','savant','helpers','blueprints','labels','tech','music','applehome','dashremote','wallpanel','remotecfg','wpedit','navlayout','hub','assist2','systems','toolbox','device','history'];
+const PANELS=['home','library','manage','backups','channels','maintenance','site','credentials','unifi-suite','unifi','unifi-net','unifi-connect','users','room','integration','rooms','activities','automations','scripts','irrigation','savant','helpers','blueprints','labels','tech','music','applehome','dashremote','wallpanel','remotecfg','wpedit','navlayout','hub','assist2','systems','toolbox','device','history'];
 function show(panel){
   PANELS.forEach(p=>{ const el=document.getElementById('panel-'+p); if(el) el.classList.toggle('active', p===panel); });
   // One-shot entrance arm: content pops in on panel ENTRY, then disarms so

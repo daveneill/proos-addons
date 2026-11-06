@@ -6744,6 +6744,14 @@ class Handler(BaseHTTPRequestHandler):
                 R = rows if isinstance(rows, list) else []
                 return self._send(200, {"ok": ev is not None, "why": why, "events": _nv.events_view(R), "shape": _nv.event_fields(R)})
             return self._send(400, {"error": "section is networks, internet, guests, firewall, power or events"})
+        if method == "GET" and sub == "connect" and not sub2:
+            # REGISTER 1239 — Connect: each display (the Connect app's own list with its live state), as networkviews'
+            # named-field view. Read only.
+            from proos import networkviews as _nv
+            cd, why = _uc.get_json(_creds, ph, "/proxy/connect/api/v2/devices?shadow=true")
+            rows = cd.get("data") if isinstance(cd, dict) and "data" in cd else cd
+            return self._send(200, {"ok": cd is not None, "why": why,
+                                    "displays": _nv.connect_view(rows if isinstance(rows, list) else []) if cd is not None else []})
         if method == "GET" and sub == "probe" and not sub2:
             # REGISTER 1238 — MEASURE before building (Dave, 6 Nov: "connect is already there so finish all the build").
             # A fixed list of an app's own read addresses on the console, through ProOS's local user; the answer is each

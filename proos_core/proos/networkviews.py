@@ -163,3 +163,41 @@ def event_fields(rows):
             if isinstance(e.get("parameters"), dict):
                 inner |= set(e["parameters"].keys())
     return {"fields": sorted(top)[:40], "parameters": sorted(inner)[:40]}
+
+
+# ── REGISTER 1239 — CONNECT: each display as the Connect app keeps it (/proxy/connect/api/v2/devices?shadow=true,
+# MEASURED on Dave's console with the 1238 probe: one device; fields name, online, firmwareVersion, type{fullName,
+# supportedActions …}, shadow{display, brightness, volume, rotate, mode, subMode, sleepMode, autoReload, cecAutoOn …}).
+# Named fields only — extraInfo's addresses and fingerprint, the controller id and the app list stay in Core.
+_ACT = re.compile(r"^[A-Za-z][A-Za-z0-9_ -]{1,40}$")
+
+
+def connect_view(devices):
+    out = []
+    for d in (devices or []):
+        if not isinstance(d, dict):
+            continue
+        t = d.get("type") if isinstance(d.get("type"), dict) else {}
+        sh = d.get("shadow") if isinstance(d.get("shadow"), dict) else {}
+        ff = d.get("featureFlags") if isinstance(d.get("featureFlags"), dict) else {}
+        acts = []
+        for a in (t.get("supportedActions") or []):
+            nm = a.get("name") if isinstance(a, dict) else a
+            if isinstance(nm, str) and _ACT.match(nm) and nm not in acts:
+                acts.append(nm)
+
+        def num(v):
+            return v if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+
+        out.append({"id": d.get("id"), "name": d.get("name") or d.get("displayLabel") or "Display",
+                    "model": t.get("fullName") or t.get("name"), "online": bool(d.get("online")),
+                    "firmware": d.get("firmwareVersion"),
+                    "screen_on": sh.get("display") if isinstance(sh.get("display"), bool) else None,
+                    "brightness": num(sh.get("brightness")), "volume": num(sh.get("volume")),
+                    "rotate": num(sh.get("rotate")), "mode": sh.get("mode") if isinstance(sh.get("mode"), str) else None,
+                    "sleep": sh.get("sleepMode") if isinstance(sh.get("sleepMode"), (bool, str)) else None,
+                    "auto_reload": sh.get("autoReload") if isinstance(sh.get("autoReload"), bool) else None,
+                    "cec": bool(sh.get("isSupportCec")), "supports_brightness": bool(ff.get("brightness")),
+                    "supports_volume": bool(ff.get("volume")), "actions": acts[:40]})
+    out.sort(key=lambda x: str(x["name"]).lower())
+    return out
