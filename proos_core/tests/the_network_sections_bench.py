@@ -78,9 +78,14 @@ ok(g["guest_wifi"] == ["Visitors"] and g["portal"] and g["how"] == "Password" an
 # had no message, so an event never said who.
 DV2 = [{"name": "USW-24-G2", "total_max_power": 0, "port_table": [{"port_idx": 1, "poe_power": "0"}]}]
 I2 = nv.internet_view([{"subsystem": "www", "status": "ok", "xput_down": 0, "xput_up": 0}], [])
-E2 = nv.events_view([{"key": "CLIENT_ROAMED_2", "timestamp": 5, "parameters": {"CLIENT": {"name": "Dave's iPhone", "id": "aa:bb"}, "AP_FROM": {"name": "Hallway"}, "NUM": 3}}])
+E2 = nv.events_view([{"key": "CLIENT_ROAMED_2", "timestamp": 5, "parameters": {"CLIENT": {"name": "Dave's iPhone", "id": "aa:bb"}, "CHANNEL": {"name": "153"}, "NUM": 3}}])
 shape = nv.event_fields([{"key": "K", "timestamp": 1, "parameters": {"CLIENT": {"name": "x", "ip": "1.2.3.4"}}}])
-ok(nv.power_view(DV2) == [] and I2["down_mbps"] is None and I2["up_mbps"] is None and E2[0]["who"] == ["Dave's iPhone", "Hallway"]
+E3 = nv.events_view([{"key": "CLIENT_ROAMED_2", "timestamp": 6, "message_raw": "{CLIENT} roamed from {DEVICE_FROM} to {DEVICE_TO} on channel {CHANNEL}.",
+                       "parameters": {"CLIENT": {"name": "iPhone 4707"}, "DEVICE_FROM": {"name": "Hallway"}, "DEVICE_TO": {"name": "Lounge"},
+                                      "CHANNEL": {"name": "153"}, "CHANNEL_WIDTH": {"name": "80"}}}])
+ok(E3[0]["who"] == ["iPhone 4707", "Hallway", "Lounge"] and E3[0]["message"] == "iPhone 4707 roamed from Hallway to Lounge on channel 153.",
+   "9 · (1237c, measured) only the who/where details name an entry — not channel numbers; the controller's own sentence fills its blanks")
+ok(nv.power_view(DV2) == [] and I2["down_mbps"] is None and I2["up_mbps"] is None and E2[0]["who"] == ["Dave's iPhone"]
    and shape == {"fields": ["key", "parameters", "timestamp"], "parameters": ["CLIENT"]} and "1.2.3.4" not in json.dumps(shape),
    "8 · no-PoE switch left out; no speed test is none; an event names who from its details; the log's shape reports names only")
 src = open(os.path.join(HERE, "..", "server.py"), encoding="utf-8").read()

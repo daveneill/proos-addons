@@ -130,10 +130,21 @@ def events_view(rows):
         # carries in its details (parameters → {name}) is shown; nothing else is copied.
         who = []
         prm = e.get("parameters") if isinstance(e.get("parameters"), dict) else {}
-        for v in prm.values():
+        # 1237c — MEASURED: every detail carries a name, channels included ("153", "80"), so only the WHO and WHERE
+        # details name the entry; the controller's own sentence (message_raw / title_raw, its blanks filled from those
+        # same details) is the message when it has one.
+        for k in ("CLIENT", "DEVICE", "DEVICE_FROM", "DEVICE_TO", "DEVICE_WITH_PORT", "WLAN", "NETWORK", "CONSOLE_NAME"):
+            v = prm.get(k)
             nm = v.get("name") if isinstance(v, dict) else None
             if isinstance(nm, str) and nm.strip() and nm not in who:
                 who.append(_WORDS.sub("", nm)[:60])
+        raw = e.get("message_raw") or e.get("title_raw")
+        if not msg and isinstance(raw, str) and raw.strip():
+            def fill(m):
+                v = prm.get(m.group(1))
+                v = v.get("name") if isinstance(v, dict) else v
+                return str(v)[:60] if isinstance(v, (str, int, float)) and str(v).strip() else m.group(1).replace("_", " ").title()
+            msg = re.sub(r"\{([A-Z0-9_]+)\}", fill, raw)
         out.append({"kind": kind, "when": e.get("timestamp") or e.get("time") or e.get("datetime"), "who": who[:3],
                     "category": str(e.get("category") or "").title() or None,
                     "severity": str(e.get("severity") or "").title() or None,
