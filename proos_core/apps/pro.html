@@ -180,8 +180,9 @@ select option,select optgroup{background:#1a1c20;color:#fff}
 .unp-legend{display:flex;flex-wrap:wrap;gap:14px;font-size:11.5px;color:var(--t2);margin-top:10px}
 .unp-legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
 .unp-split{display:flex;gap:14px;align-items:flex-start}
-.unp-list{flex:1 1 auto;min-width:0;border:0.5px solid var(--line);border-radius:16px;padding:12px;background:var(--card)}
-.unp-panel{flex:0 0 300px;border:0.5px solid var(--line);border-radius:16px;padding:16px;background:var(--card)}
+/* 1243 — Dave, 7 Oct: on a list + side-panel page the list gets two parts and the panel one; the panel never under 240 px */
+.unp-list{flex:2 1 0;min-width:0;border:0.5px solid var(--line);border-radius:16px;padding:12px;background:var(--card)}
+.unp-panel{flex:1 1 0;min-width:240px;max-width:360px;border:0.5px solid var(--line);border-radius:16px;padding:16px;background:var(--card)}
 @media (max-width:700px){.unp-split{flex-direction:column}.unp-panel{flex:1 1 auto;width:100%}}
 .unp-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
 .unp-chip{font-size:12.5px;padding:6px 11px;border-radius:9px;border:0;background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.85);cursor:pointer}
@@ -208,14 +209,17 @@ select option,select optgroup{background:#1a1c20;color:#fff}
 .und-rh>*:nth-child(3),.unp-row .und-conn{flex:0 0 150px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* 1.0.1327 (seen on the box): the shared row gave the 5th column 20px, so "3h 16m" wrapped; Network's lists get room */
 .und-list .unp-rh>*:nth-child(5),.und-list .unp-row>*:nth-child(5){flex:0 0 64px!important;white-space:nowrap;text-align:right}
-.und-list .unp-rh>*:nth-child(4),.und-list .unp-row>*:nth-child(4){flex:0 0 210px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.und-list .unp-rh>*:nth-child(3),.und-list .unp-row>*:nth-child(3){flex:0 0 120px!important;white-space:nowrap}
+.und-list .unp-rh>*:nth-child(4),.und-list .unp-row>*:nth-child(4){flex:0 1 210px!important;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.und-list .unp-rh>*:nth-child(3),.und-list .unp-row>*:nth-child(3){flex:0 1 120px!important;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* 1243 — MEASURED on the box at iPad landscape (1180×820): client rows needed 482 px in a 302 px list and the NAMES
+   squeezed to nothing. The name keeps room; the other columns give way and cut with "…". */
+.und-list .unp-rh>*:nth-child(2),.und-list .unp-row>*:nth-child(2){min-width:110px}
 .und-q{flex:1 1 180px;min-width:120px;max-width:280px;font-size:13px;padding:6px 11px;border-radius:9px;border:0.5px solid var(--line);background:rgba(0,0,0,.25);color:#fff;font-family:inherit}
 .und-wifis{display:flex;flex-wrap:wrap;gap:14px}
 .und-wifi{flex:1 1 300px;max-width:440px}
 /* PROTECT → ALARM — register 1224 */
 .ual .unp-panel{order:-1}
-.ual-devs{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:0}
+.ual-devs{flex:2 1 0;min-width:0;display:flex;flex-direction:column;gap:0}
 .ual-dev{padding:10px 0;border-top:0.5px solid var(--line-soft)}
 .ual-dev:first-of-type{border-top:0}
 .ual-dev>b{font-size:14px;font-weight:600}
@@ -3244,7 +3248,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102674';
+const PROOS_BUILD='2026102675';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -5788,7 +5792,7 @@ function _fitCols(el, tries){
 // a browser bar appearing — anything that changes the page's own size.
 // REGISTER 1243 — the UniFi pages, contained to the screen: the page through _fitCols (Pro's one mechanism), then every
 // two-column layout inside it gets the height left under it, so its columns stand side by side at one height and each
-// scrolls on its own. A layout left with too little room (under 260 px) scrolls with its column instead.
+// scrolls on its own. A layout left with too little room (under 200 px) scrolls with its column instead.
 function _uniFit(){
   try{
     const p=document.querySelector('#panel-unifi-suite.active,#panel-unifi.active,#panel-unifi-net.active,#panel-unifi-access.active,#panel-unifi-connect.active');
@@ -5801,7 +5805,7 @@ function _uniFit(){
       sp.style.height='';
       const top=sp.getBoundingClientRect().top-main.getBoundingClientRect().top+main.scrollTop;
       const h=Math.floor(main.clientHeight-top-2);
-      if(h>=260){ sp.classList.add('unp-fit'); sp.style.height=h+'px'; } else sp.classList.remove('unp-fit');
+      if(h>=200){ sp.classList.add('unp-fit'); sp.style.height=h+'px'; } else sp.classList.remove('unp-fit');
     });
   }catch(e){}
 }
@@ -20411,10 +20415,14 @@ let _v2hist=[];
 // running, arriving at the previous page takes it off the stack instead.
 let _v2backing=false;
 const _v2showOrig=show;
+// 1243 — MEASURED on the box: Connect → Protect on the UniFi app bar left the back reading "‹ UniFi Connect". Moving
+// SIDEWAYS between the UniFi apps is not a step back: it is not kept, so back from any of them says UniFi and returns to
+// the suite's overview, exactly as entering from it does.
+const _UNI_APPS=['unifi','unifi-net','unifi-access','unifi-connect'];
 show=function(p){
   if(_v2panel&&_v2panel!==p){
     if(_v2backing){ if(_v2hist[_v2hist.length-1]===p) _v2hist.pop(); }
-    else { _v2hist.push(_v2panel); if(_v2hist.length>30) _v2hist.shift(); }
+    else if(!(_UNI_APPS.includes(_v2panel)&&_UNI_APPS.includes(p))){ _v2hist.push(_v2panel); if(_v2hist.length>30) _v2hist.shift(); }
   }
   _v2showOrig(p); try{ v2AfterShow(p); }catch(e){}
   try{ v2BackSync(); }catch(e){}
