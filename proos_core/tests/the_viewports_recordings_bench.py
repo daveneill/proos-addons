@@ -37,10 +37,11 @@ STATES = [{"entity_id": "sensor.nvr_storage", "state": "41.2", "attributes": {"u
           {"entity_id": "binary_sensor.nvr_disk_0", "state": "off"},
           {"entity_id": "sensor.nvr_capacity", "state": "1209600", "attributes": {"unit_of_measurement": "s"}}]
 r = {x["label"]: x for x in pc.readings_for(N, ENTS, STATES)}
+ok(r["Recording Capacity"]["value"] == "14 days", "1b · (1238, measured \"3303119 s\") the recorder's capacity reads in days")
 STATES[1]["state"] = "on"
 r2 = {x["label"]: x for x in pc.readings_for(N, ENTS, STATES)}
 ok(r["Storage Used"]["value"] == "41.2 %" and r["Disk 1"]["value"] == "Healthy" and not r["Disk 1"]["alert"]
-   and r["Recording Capacity"]["value"] == "1209600 s" and r2["Disk 1"]["value"] == "Problem" and r2["Disk 1"]["alert"],
+   and r2["Disk 1"]["value"] == "Problem" and r2["Disk 1"]["alert"],
    "1 · the recorder's storage from the platform's own sensors, in words; a disk problem flagged")
 
 

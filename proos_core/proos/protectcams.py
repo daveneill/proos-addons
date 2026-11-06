@@ -65,7 +65,7 @@ READINGS = {"door": ("Door", "open"), "leak": ("Leak", "wet"), "motion": ("Motio
             # REGISTER 1235 — the recorder (NVR), measured on Dave's box: storage and recording-capacity sensors and the disk
             "storage_utilization": ("Storage Used", "unit"), "record_rotating": ("Continuous Recordings", "unit"),
             "record_detections": ("Detection Recordings", "unit"), "record_timelapse": ("Timelapse", "unit"),
-            "record_capacity": ("Recording Capacity", "unit"), "resolution_4K": ("4K Video", "unit"),
+            "record_capacity": ("Recording Capacity", "duration"), "resolution_4K": ("4K Video", "unit"),
             "resolution_HD": ("HD Video", "unit"), "resolution_free": ("Free Space", "unit"), "disk_health_0": ("Disk 1", "problem")}
 
 
@@ -111,6 +111,13 @@ def readings_for(mac, entities, states):
             words = "Problem" if v == "on" else "Healthy"
         elif spec[1] == "yesno":
             words = "Yes" if v == "on" else "No"
+        elif spec[1] == "duration":
+            # 1238 — measured on Dave's box: "3303119 s"; a recorder's capacity reads in days
+            try:
+                n = float(v)
+                words = ("%d days" % round(n / 86400)) if n >= 172800 else ("%d hours" % round(n / 3600))
+            except (TypeError, ValueError):
+                words = str(v)[:40]
         elif spec[1] == "%":
             words = "%s%%" % v
         elif spec[1] == "unit":
