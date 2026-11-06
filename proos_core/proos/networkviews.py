@@ -41,7 +41,9 @@ def internet_view(health, confs):
             for n in (confs or []) if isinstance(n, dict) and n.get("purpose") == "wan"]
     return {"status": w.get("status"), "isp": w.get("isp_name") or w.get("isp_organization"), "address": w.get("wan_ip"),
             "gateway": w.get("gw_name"), "latency_ms": www.get("latency") if www.get("latency") is not None else w.get("latency"),
-            "uptime_s": www.get("uptime") or w.get("uptime"), "down_mbps": www.get("xput_down"), "up_mbps": www.get("xput_up"),
+            "uptime_s": www.get("uptime") or w.get("uptime"),
+            # 1237b — measured: with no speed test stored the controller reports 0 / 0; that is "none", not a 0 Mbps line
+            "down_mbps": www.get("xput_down") or None, "up_mbps": www.get("xput_up") or None,
             "speedtest": www.get("speedtest_status"), "internet": www.get("status"), "wans": wans}
 
 
@@ -101,8 +103,8 @@ def power_view(devices):
             if w > 0:
                 draws.append({"port": p.get("port_idx"), "name": p.get("name"), "watts": round(w, 1)})
         budget = d.get("total_max_power")
-        if not draws and budget is None:
-            continue
+        if not draws and not budget:
+            continue            # 1237b — measured: Dave's USW-24-G2 read "0 W of 0 W"; a switch with no PoE is not shown
         draws.sort(key=lambda x: -x["watts"])
         out.append({"name": d.get("name") or d.get("model") or "Switch", "model": d.get("model"),
                     "budget_w": budget, "used_w": round(sum(x["watts"] for x in draws), 1), "ports_powered": len(draws),
@@ -124,9 +126,29 @@ def events_view(rows):
         key = str(e.get("key") or e.get("event") or e.get("type") or "")
         kind = re.sub(r"_\d+$", "", key).replace("_", " ").title() or "Event"
         msg = e.get("message") or e.get("msg") or e.get("title")
-        out.append({"kind": kind, "when": e.get("timestamp") or e.get("time") or e.get("datetime"),
+        # 1237b — measured: Dave's log entries carried no message, so "Client Roamed" never said WHO. Any name the entry
+        # carries in its details (parameters → {name}) is shown; nothing else is copied.
+        who = []
+        prm = e.get("parameters") if isinstance(e.get("parameters"), dict) else {}
+        for v in prm.values():
+            nm = v.get("name") if isinstance(v, dict) else None
+            if isinstance(nm, str) and nm.strip() and nm not in who:
+                who.append(_WORDS.sub("", nm)[:60])
+        out.append({"kind": kind, "when": e.get("timestamp") or e.get("time") or e.get("datetime"), "who": who[:3],
                     "category": str(e.get("category") or "").title() or None,
                     "severity": str(e.get("severity") or "").title() or None,
                     "message": _WORDS.sub("", str(msg))[:160] if isinstance(msg, str) else None})
     out.sort(key=lambda x: x["when"] if isinstance(x["when"], (int, float)) else 0, reverse=True)
     return out
+
+
+def event_fields(rows):
+    """For the box check only: the FIELD NAMES the controller's log entries use (top level and inside parameters) —
+    never their values."""
+    top, inner = set(), set()
+    for e in (rows or [])[:50]:
+        if isinstance(e, dict):
+            top |= set(e.keys())
+            if isinstance(e.get("parameters"), dict):
+                inner |= set(e["parameters"].keys())
+    return {"fields": sorted(top)[:40], "parameters": sorted(inner)[:40]}

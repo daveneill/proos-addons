@@ -3200,7 +3200,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102667';
+const PROOS_BUILD='2026102668';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -5304,7 +5304,7 @@ function _uniNSHTML(sec){
     return refresh+(L.length?L.map(sw=>card(esc(sw.name),`<div class="unifi-status">${kv('PoE In Use',esc(sw.used_w)+' W'+(sw.budget_w?' of '+esc(sw.budget_w)+' W':''))}${kv('Ports Powered',esc(sw.ports_powered))}${(sw.top||[]).map(p=>kv('Port '+esc(p.port)+(p.name&&!/^Port \d+$/.test(p.name)?' · '+esc(p.name):''),esc(p.watts)+' W')).join('')}${(sw.outlets||[]).map(o=>kv(esc(o.name||'Outlet'),o.on?'On':'Off')).join('')}</div>`,esc(sw.model||''))).join(''):card('Power','<div class="es">No PoE switches or power strips report power.</div>'));
   }
   const L=d.events||[];
-  return refresh+card('Events — Last 24 Hours',L.length?`<div class="ual-list">${L.map(e=>row([esc(e.kind),esc(e.message||''),when(e.when)])).join('')}</div>`:'<div class="es">No events in the last 24 hours.</div>',L.length+' shown');
+  return refresh+card('Events — Last 24 Hours',L.length?`<div class="ual-list">${L.map(e=>row([esc(e.kind),esc(e.message||(e.who||[]).join(' · ')||''),when(e.when)])).join('')}</div>`:'<div class="es">No events in the last 24 hours.</div>',L.length+' shown');
 }
 function renderUniNet(){
   const body=document.getElementById('uninet-body'); if(!body) return;

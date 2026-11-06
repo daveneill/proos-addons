@@ -74,6 +74,15 @@ g, e = views[2], views[5]
 ok(g["guest_wifi"] == ["Visitors"] and g["portal"] and g["how"] == "Password" and g["guests_now"][0]["minutes_left"] == 60
    and [x["kind"] for x in e] == ["Client Connected Wired", "Client Roamed"] and e[1]["message"].startswith("iPhone roamed"),
    "6 · guests and events in words, newest first")
+# 1237b — MEASURED on Dave's box: a switch with no PoE read "0 W of 0 W"; no speed test read "0 Mbps / 0 Mbps"; log entries
+# had no message, so an event never said who.
+DV2 = [{"name": "USW-24-G2", "total_max_power": 0, "port_table": [{"port_idx": 1, "poe_power": "0"}]}]
+I2 = nv.internet_view([{"subsystem": "www", "status": "ok", "xput_down": 0, "xput_up": 0}], [])
+E2 = nv.events_view([{"key": "CLIENT_ROAMED_2", "timestamp": 5, "parameters": {"CLIENT": {"name": "Dave's iPhone", "id": "aa:bb"}, "AP_FROM": {"name": "Hallway"}, "NUM": 3}}])
+shape = nv.event_fields([{"key": "K", "timestamp": 1, "parameters": {"CLIENT": {"name": "x", "ip": "1.2.3.4"}}}])
+ok(nv.power_view(DV2) == [] and I2["down_mbps"] is None and I2["up_mbps"] is None and E2[0]["who"] == ["Dave's iPhone", "Hallway"]
+   and shape == {"fields": ["key", "parameters", "timestamp"], "parameters": ["CLIENT"]} and "1.2.3.4" not in json.dumps(shape),
+   "8 · no-PoE switch left out; no speed test is none; an event names who from its details; the log's shape reports names only")
 src = open(os.path.join(HERE, "..", "server.py"), encoding="utf-8").read()
 a = src.index('if method == "GET" and sub == "netsec" and not sub2:')
 route = src[a:src.index('if method == "GET" and sub == "ports" and sub2 == "where":', a)]

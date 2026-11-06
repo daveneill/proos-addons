@@ -6741,7 +6741,8 @@ class Handler(BaseHTTPRequestHandler):
                 ev, why = _uc.send_json(_creds, ph, "POST", V + "system-log/all",
                                         {"timestampFrom": now - 86400000, "timestampTo": now, "pageSize": 100, "pageNumber": 0})
                 rows = (ev or {}).get("data") if isinstance(ev, dict) else ev
-                return self._send(200, {"ok": ev is not None, "why": why, "events": _nv.events_view(rows if isinstance(rows, list) else [])})
+                R = rows if isinstance(rows, list) else []
+                return self._send(200, {"ok": ev is not None, "why": why, "events": _nv.events_view(R), "shape": _nv.event_fields(R)})
             return self._send(400, {"error": "section is networks, internet, guests, firewall, power or events"})
         if method == "GET" and sub == "ports" and sub2 == "where":
             # REGISTER 1223 — which switch port a device (by MAC) is on: live, the controller's history, or where ProOS
