@@ -167,7 +167,9 @@ select option,select optgroup{background:#1a1c20;color:#fff}
 .unp-faceplate::-webkit-scrollbar{height:6px}.unp-faceplate::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.18);border-radius:3px}.unp-faceplate::-webkit-scrollbar-track{background:transparent}
 /* 1.0.1321: a 48-port face fits the iPad and Mac (sockets shrink to 22px before the faceplate scrolls; on a phone it
    scrolls sideways inside the faceplate, with a dark thin bar — the white bar on the box was the browser's default) */
-.unp-face{display:grid;grid-template-columns:repeat(var(--cols),minmax(22px,46px));gap:4px 4px;flex:1 1 auto}
+/* 1243 — measured on the box: at 1450 px the 48-port face squeezed 47 sockets to 28 px under their 32 px drawing; a socket
+   never goes under its drawing — the faceplate scrolls sideways inside its card instead (it already could) */
+.unp-face{display:grid;grid-template-columns:repeat(var(--cols),minmax(32px,46px));gap:4px 4px;flex:1 1 auto}
 .unp-face.unp-sfp{flex:0 0 auto}
 .unp-port{display:flex;flex-direction:column;align-items:center;gap:2px;padding:0;border:0;background:transparent;cursor:pointer;min-width:0;color:var(--t2)}
 .unp-sock{position:relative;display:block;width:100%}
@@ -244,8 +246,30 @@ select option,select optgroup{background:#1a1c20;color:#fff}
 .udet-t{display:block;font-weight:500;font-size:11px;color:rgba(255,255,255,.75)}
 /* REGISTER 1233 — Protect → Cameras: the platform's own controls per camera (switch pill, choice, slider) */
 button.ual-pill{border:0;cursor:pointer}
-.ucc-sel{max-width:180px;font-size:13px;padding:5px 8px;border-radius:8px;border:0.5px solid var(--line);background:rgba(0,0,0,.35);color:#fff}
-.ucc-rng{width:140px;vertical-align:middle}
+/* REGISTER 1243 — Pro's own look for the UniFi controls (Dave, 6 Nov: "make sure all button, sliders popups all match our
+   pro look and feel"): the dropdown is Pro's form dropdown (.fsel) at row size; the slider is Pro's (accent fill, white
+   knob, the switch's shadow); on/off rows use Pro's own switch (.sw) — not pills. */
+.ucc-sel{max-width:220px;font-size:13px;font-family:inherit;padding:8px 32px 8px 12px;border-radius:10px;border:0.5px solid var(--line);background-color:rgba(255,255,255,0.06);color:#fff;outline:none;appearance:none;-webkit-appearance:none;cursor:pointer;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='white' stroke-opacity='0.5' stroke-width='2'><path d='M6 9l6 6 6-6'/></svg>");background-repeat:no-repeat;background-position:right 12px center}
+.ucc-sel option{background:#1a1c20;color:#fff}
+.ucc-rng{-webkit-appearance:none;appearance:none;width:170px;max-width:100%;height:6px;border-radius:3px;outline:none;cursor:pointer;vertical-align:middle;margin:0 8px 0 0;
+  background:linear-gradient(var(--accent),var(--accent)) 0/var(--v,50%) 100% no-repeat,rgba(255,255,255,0.16)}
+.ucc-rng::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:#fff;border:0;box-shadow:0 1px 3px rgba(0,0,0,.45)}
+.ucc-rng::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:#fff;border:0;box-shadow:0 1px 3px rgba(0,0,0,.45)}
+.ucc-rng::-moz-range-track{background:transparent}
+.ucc-val{display:inline-block;min-width:44px;text-align:right;font-size:12.5px;color:var(--t2)}
+/* REGISTER 1243 — contained to the screen (Dave: "contained to the page size on device not everything running off the
+   page"; his 8 Oct ruling: columns size to the device and only the contents scroll — never the page). _uniFit sizes the
+   page through Pro's own _fitCols; the section list and each column then scroll on their own, side by side at one height. */
+.uni-split.uni-fit{align-items:stretch}
+.uni-fit>.uni-side{position:static;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none}
+.uni-fit>.uni-main,.uni-fit-box.uni-fit{min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none}
+.uni-fit>.uni-side::-webkit-scrollbar,.uni-fit>.uni-main::-webkit-scrollbar,.unp-fit>*::-webkit-scrollbar{display:none}
+.unp-split.unp-fit{align-items:stretch}
+.unp-fit>*{min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none}
+.unp-fit .ual-list{max-height:none}
+.unp-fit>.ual-devs>.unp-card:last-child{margin-bottom:0}
+.unp-acts.unp-acts-row{flex-direction:row;flex-wrap:wrap}
+.unp-acts.unp-acts-row>button{flex:1 1 140px;width:auto}
 .unp-acts{display:flex;flex-direction:column;gap:8px;margin-top:14px}
 .unp-acts .btn-primary{margin:0}
 .unp-act{width:100%;margin-top:8px;font-size:14px;padding:11px;border-radius:12px;border:0;background:var(--card-hi);color:#fff;cursor:pointer}
@@ -2419,7 +2443,7 @@ body.v3.railmin .aw-screen{left:108px!important}
         <div class="panel-title">UniFi</div>
       </div>
       <div id="unibar-overview"></div>
-      <div id="unisuite-body"><div class="empty"><div class="et">Checking the console…</div></div></div>
+      <div id="unisuite-body" class="uni-fit-box"><div class="empty"><div class="et">Checking the console…</div></div></div>
     </div>
 
     <!-- UNIFI PROTECT -->
@@ -3220,7 +3244,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102673';
+const PROOS_BUILD='2026102674';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -5762,8 +5786,37 @@ function _fitCols(el, tries){
 }
 // One watcher for all three pages: the screen turning, the Mac window moving,
 // a browser bar appearing — anything that changes the page's own size.
+// REGISTER 1243 — the UniFi pages, contained to the screen: the page through _fitCols (Pro's one mechanism), then every
+// two-column layout inside it gets the height left under it, so its columns stand side by side at one height and each
+// scrolls on its own. A layout left with too little room (under 260 px) scrolls with its column instead.
+function _uniFit(){
+  try{
+    const p=document.querySelector('#panel-unifi-suite.active,#panel-unifi.active,#panel-unifi-net.active,#panel-unifi-access.active,#panel-unifi-connect.active');
+    if(!p||window.innerWidth<=700) return;
+    const box=p.querySelector('.uni-split')||p.querySelector('.uni-fit-box'); if(!box) return;
+    box.classList.add('uni-fit'); _fitCols(box);
+    const main=box.querySelector(':scope>.uni-main')||box;
+    main.querySelectorAll('.unp-split').forEach(sp=>{
+      if(!sp.offsetParent) return;
+      sp.style.height='';
+      const top=sp.getBoundingClientRect().top-main.getBoundingClientRect().top+main.scrollTop;
+      const h=Math.floor(main.clientHeight-top-2);
+      if(h>=260){ sp.classList.add('unp-fit'); sp.style.height=h+'px'; } else sp.classList.remove('unp-fit');
+    });
+  }catch(e){}
+}
+(function(){
+  let t=0; const go=()=>{ clearTimeout(t); t=setTimeout(_uniFit,80); };
+  const hook=()=>{ const ids=['panel-unifi-suite','panel-unifi','panel-unifi-net','panel-unifi-access','panel-unifi-connect'];
+    const els=ids.map(i=>document.getElementById(i)).filter(Boolean); if(!els.length){ setTimeout(hook,500); return; }
+    // redraws inside a page, and the page itself opening — never the classes _uniFit sets inside it (no loop)
+    try{ const mo=new MutationObserver(go), mp=new MutationObserver(go);
+      els.forEach(el=>{ mo.observe(el,{childList:true,subtree:true}); mp.observe(el,{attributes:true,attributeFilter:['class']}); }); }catch(e){} };
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',hook); else hook();
+})();
 function _fitActive(){
   try{
+    _uniFit();
     if(panelActive('integration')) _fitCols(document.querySelector('#intg-devices .ip-body'));
     if(panelActive('device')) _fitCols(document.getElementById('dp-cols')||document.getElementById('sp-cols'));
   }catch(e){}
@@ -15959,6 +16012,15 @@ async function _uniConnLoad(){
   catch(e){ _uniConn={ok:false,why:'Couldn\'t reach ProOS Core'}; }
   if(panelActive('unifi-connect')) renderUniConnect();
 }
+// REGISTER 1243 — Pro's own controls for every UniFi page: the switch (.sw, as Backups and Areas use) and the slider
+// (accent fill to its value, the number beside it updating as it moves; the change is sent when it is let go).
+function _uniSw(on,onclick,label){ return `<button class="sw${on?' on':''}" role="switch" aria-checked="${on?'true':'false'}" aria-label="${esc(label||'')}" onclick="${onclick}"><span class="sw-knob"></span></button>`; }
+function _uniRng(v,min,max,step,onchange,unit){
+  const lo=Number(min)||0, hi=Number(max)||100, n=Number(v)||0, pct=hi>lo?Math.round((n-lo)/(hi-lo)*100):0;
+  return `<input class="ucc-rng" type="range" min="${lo}" max="${hi}" step="${Number(step)||1}" value="${n}" style="--v:${pct}%"`
+    +` oninput="this.style.setProperty('--v',(this.max>this.min?Math.round((this.value-this.min)/(this.max-this.min)*100):0)+'%');this.nextElementSibling.textContent=this.value+'${unit?' '+esc(unit):''}'"`
+    +` onchange="${onchange}"><span class="ucc-val">${esc(String(v))}${unit?' '+esc(unit):''}</span>`;
+}
 const UNI_CONN_SAY={display_on:'turns the screen on',display_off:'turns the screen off',brightness:'changes how bright the screen is',volume:'changes how loud it plays',
   enable_sleep:'lets the display go to sleep',disable_sleep:'keeps the display awake',enable_auto_reload:'reloads its page on its own',disable_auto_reload:'stops it reloading its page on its own',
   start_locating:'flashes the display so you can find it',stop_locating:'stops the flashing',refresh_website:'reloads the page it is showing',reboot:'restarts the display — its screen goes dark for a minute or two'};
@@ -15984,8 +16046,8 @@ function renderUniConnect(){
   const yn=v=>v===true?'On':v===false?'Off':'—';
   // register 1240: a control only for an action the display says it supports; each asks first (uniConnAct)
   const has=(x,a)=>(x.actions||[]).includes(a), q=s=>`'${esc(s)}'`;
-  const pill=(x,on,aOn,aOff,label)=>(has(x,aOn)&&has(x,aOff))?`<button class="ual-pill${on?' on':''}" onclick="uniConnAct(${q(x.id)},${q(on?aOff:aOn)},null,${q(label)})">${on?'On':'Off'}</button>`:yn(on);
-  const slide=(x,a,v,max,label)=>has(x,a)&&v!=null?`<input class="ucc-rng" type="range" min="0" max="${Number(max)||(a==='volume'?100:255)}" value="${Number(v)}" onchange="uniConnAct(${q(x.id)},${q(a)},Number(this.value),${q(label)})"> <span class="es">${esc(v)}</span>`:(v!=null?esc(v):'—');
+  const pill=(x,on,aOn,aOff,label)=>(has(x,aOn)&&has(x,aOff))?_uniSw(on,`uniConnAct(${q(x.id)},${q(on?aOff:aOn)},null,${q(label)})`,label):yn(on);
+  const slide=(x,a,v,max,label)=>has(x,a)&&v!=null?_uniRng(v,0,Number(max)||(a==='volume'?100:255),1,`uniConnAct(${q(x.id)},${q(a)},Number(this.value),${q(label)})`):(v!=null?esc(v):'—');
   const btns=x=>[has(x,'refresh_website')?`<button class="unp-act" onclick="uniConnAct(${q(x.id)},'refresh_website',null,'Refresh Page')">Refresh Page</button>`:'',
     has(x,'start_locating')&&has(x,'stop_locating')?`<button class="unp-act" onclick="uniConnAct(${q(x.id)},${q(x.locating?'stop_locating':'start_locating')},null,'Find It')">${x.locating?'Stop Finding':'Find It'}</button>`:'',
     has(x,'reboot')?`<button class="unp-act" onclick="uniConnAct(${q(x.id)},'reboot',null,'Reboot')">Reboot</button>`:''].join('');
@@ -15995,8 +16057,8 @@ function renderUniConnect(){
     +(x.mode?kv('Showing',esc(x.mode.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase()))):'')+(x.rotate!=null?kv('Rotation',esc(x.rotate)+'°'):'')
     +(x.sleep!=null?kv('Sleep Mode',typeof x.sleep==='boolean'?pill(x,x.sleep,'enable_sleep','disable_sleep','Sleep Mode'):esc(x.sleep)):'')+(x.auto_reload!=null?kv('Auto Reload',pill(x,x.auto_reload,'enable_auto_reload','disable_auto_reload','Auto Reload')):'')
     +kv('TV Control (CEC)',x.cec?'Supported':'No')+(x.firmware?kv('Firmware',esc(x.firmware)):'')
-    +'</div>'+(btns(x)?`<div class="unp-acts">${btns(x)}</div>`:'')+'</div>').join('');
-  setHTML(el,`<div class="unp-chips"><button class="unp-chip" style="margin-left:auto" onclick="_uniConn=null;renderUniConnect();_uniConnLoad()">Refresh</button></div><div class="ual-devs">${cards}</div>`);
+    +'</div>'+(btns(x)?`<div class="unp-acts unp-acts-row">${btns(x)}</div>`:'')+'</div>').join('');
+  setHTML(el,`<div class="uni-fit-box"><div class="unp-chips"><button class="unp-chip" style="margin-left:auto" onclick="_uniConn=null;renderUniConnect();_uniConnLoad()">Refresh</button></div><div class="ual-devs">${cards}</div></div>`);
 }
 // ── REGISTER 1241 — ACCESS: built on the OFFICIAL Access API before Access is on Dave's console ("I will setup later but
 // still needs to be built"). Doors (lock and door state, Unlock, keep unlocked / keep locked / back to schedule, emergency
@@ -16414,10 +16476,10 @@ function renderUniCC(){
   const ctl=r=>{
     const id=`'${esc(sel.id)}','${esc(r.entity_id)}'`;
     if(!r.available) return '<span class="es">Not answering</span>';
-    if(r.domain==='switch'||r.domain==='light') return `<button class="ual-pill${r.state==='on'?' on':''}" onclick="uniCamSet(${id},${r.state!=='on'})">${r.state==='on'?'On':'Off'}</button>`;
+    if(r.domain==='switch'||r.domain==='light') return _uniSw(r.state==='on',`uniCamSet(${id},${r.state!=='on'})`,r.label);
     if(r.domain==='button') return `<button class="unp-act" onclick="uniCamSet(${id},true)">${esc(r.label)}</button>`;
     if(r.domain==='select') return `<select class="ucc-sel" onchange="uniCamSet(${id},this.value)">${(r.options||[]).map(o=>`<option${o===r.state?' selected':''}>${esc(o)}</option>`).join('')}</select>`;
-    return `<input class="ucc-rng" type="range" min="${Number(r.min)||0}" max="${Number(r.max)||100}" step="${Number(r.step)||1}" value="${Number(r.state)||0}" onchange="uniCamSet(${id},Number(this.value))"> <span class="es">${esc(String(r.state))}${r.unit?' '+esc(r.unit):''}</span>`;
+    return _uniRng(r.state,r.min,r.max,r.step,`uniCamSet(${id},Number(this.value))`,r.unit);
   };
   const groups=['Picture & Recording','On the Camera','On-Screen','Detections','Doorbell'].filter(g=>!bell||g==='Doorbell'||g==='On the Camera')
     .map(g=>{ const rows=sel.controls.filter(r=>r.group===g); return rows.length?`<div class="unp-card"><div class="unp-head"><b>${g}</b></div><div class="unifi-status">${rows.map(r=>kv(esc(r.label),ctl(r))).join('')}</div></div>`:''; }).join('');
@@ -16459,10 +16521,10 @@ function renderUniDV(){
   const id=r=>`'${esc(sel.id)}','${esc(r.entity_id)}'`;
   const ctl=r=>{
     if(!r.available) return '<span class="es">Not answering</span>';
-    if(r.domain==='switch'||r.domain==='light') return `<button class="ual-pill${r.state==='on'?' on':''}" onclick="uniCamSet(${id(r)},${r.state!=='on'})">${r.state==='on'?'On':'Off'}</button>`;
+    if(r.domain==='switch'||r.domain==='light') return _uniSw(r.state==='on',`uniCamSet(${id(r)},${r.state!=='on'})`,r.label);
     if(r.domain==='button') return `<button class="unp-act" onclick="uniCamSet(${id(r)},true)">${esc(r.label)}</button>`;
     if(r.domain==='select') return `<select class="ucc-sel" onchange="uniCamSet(${id(r)},this.value)">${(r.options||[]).map(o=>`<option${o===r.state?' selected':''}>${esc(o)}</option>`).join('')}</select>`;
-    return `<input class="ucc-rng" type="range" min="${Number(r.min)||0}" max="${Number(r.max)||100}" step="${Number(r.step)||1}" value="${Number(r.state)||0}" onchange="uniCamSet(${id(r)},Number(this.value))"> <span class="es">${esc(String(r.state))}${r.unit?' '+esc(r.unit):''}</span>`;
+    return _uniRng(r.state,r.min,r.max,r.step,`uniCamSet(${id(r)},Number(this.value))`,r.unit);
   };
   const now=`<div class="unp-card"><div class="unp-head"><b>${esc(sel.name)}</b><span class="es" style="margin-left:auto">${esc(sel.model||'')}</span></div><div class="unifi-status">`
     +kv('State',sel.online?'<span style="color:#46e3a0">● Online</span>':'<em class="unp-red">Offline</em>')
