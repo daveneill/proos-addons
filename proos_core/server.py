@@ -6749,20 +6749,14 @@ class Handler(BaseHTTPRequestHandler):
             # A fixed list of an app's own read addresses on the console, through ProOS's local user; the answer is each
             # address's status and the SHAPE of what came back (how many records, their FIELD NAMES) — never a value.
             app = (parse_qs(urlparse(self.path).query).get("app") or [""])[0]
-            paths = {"connect": ("/proxy/connect/api/v2/devices", "/proxy/connect/api/v2/devices?shadow=true",
-                                 "/proxy/connect/api/v1/devices", "/proxy/connect/api/v2/settings", "/proxy/connect/api/v2/groups",
-                                 "/proxy/connect/api/v2/contents", "/proxy/connect/api/v2/playlists")}.get(app)
+            paths = _uc.PROBE_PATHS.get(app)
             if not paths:
                 return self._send(400, {"error": "app is connect"})
             out = []
             for pth in paths:
                 j, why = _uc.get_json(_creds, ph, pth)
-                d = j.get("data") if isinstance(j, dict) and "data" in j else j
-                first = d[0] if isinstance(d, list) and d and isinstance(d[0], dict) else (d if isinstance(d, dict) else {})
-                sub_shapes = {k: sorted(v.keys())[:30] for k, v in first.items() if isinstance(v, dict)} if isinstance(first, dict) else {}
-                out.append({"path": pth, "ok": j is not None, "why": why, "count": len(d) if isinstance(d, list) else None,
-                            "fields": sorted(first.keys())[:60] if isinstance(first, dict) else [],
-                            "inner": {k: v for k, v in list(sub_shapes.items())[:12]}})
+                n, fields, inner = _uc.shape_of(j)
+                out.append({"path": pth, "ok": j is not None, "why": why, "count": n, "fields": fields, "inner": inner})
             return self._send(200, {"ok": True, "app": app, "probe": out})
         if method == "GET" and sub == "ports" and sub2 == "where":
             # REGISTER 1223 — which switch port a device (by MAC) is on: live, the controller's history, or where ProOS

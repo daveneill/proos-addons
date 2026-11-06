@@ -261,6 +261,22 @@ def get_json(creds, platform_host, path, http=None):
     return None, "the console refused ProOS's sign-in"
 
 
+# REGISTER 1238 — measure an app before building it: a FIXED list of its own read addresses, and the SHAPE of what each
+# answered (a record count and field names) — never a value.
+PROBE_PATHS = {"connect": ("/proxy/connect/api/v2/devices", "/proxy/connect/api/v2/devices?shadow=true",
+                           "/proxy/connect/api/v1/devices", "/proxy/connect/api/v2/settings", "/proxy/connect/api/v2/groups",
+                           "/proxy/connect/api/v2/contents", "/proxy/connect/api/v2/playlists")}
+
+
+def shape_of(j):
+    """(count, field names, {inner object: its field names}) of one answer — names only, never a value."""
+    d = j.get("data") if isinstance(j, dict) and "data" in j else j
+    first = d[0] if isinstance(d, list) and d and isinstance(d[0], dict) else (d if isinstance(d, dict) else {})
+    inner = {k: sorted(str(x) for x in v.keys())[:30] for k, v in first.items() if isinstance(v, dict)}
+    return (len(d) if isinstance(d, list) else None, sorted(str(k) for k in first.keys())[:60],
+            dict(list(inner.items())[:12]))
+
+
 def get_image(creds, platform_host, path, http=None):
     """(bytes, content type, why-not): one signed-in picture from the console (register 1232 — a detection's
     thumbnail). Only an image answer counts; anything else is a why-not."""
