@@ -3260,7 +3260,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102677';
+const PROOS_BUILD='2026102678';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -16419,7 +16419,10 @@ function _uniQuickHTML(camId){
   return `<div class="unp-pt" style="margin-top:14px">QUICK CONTROLS</div><div class="unifi-status">${rows.map(r=>kv(esc(r.label),ctl(r))).join('')}</div>`;
 }
 function _uniTodayHTML(name){
-  const L=((_uniDet&&_uniDet.detections)||[]).filter(x=>x.device===name&&!/^(Motion|Light Motion)$/.test(x.kinds.join()));
+  // 1243e — MEASURED on the box: Driveway's "Today" listed "Admin Activity" (a console sign-in, not something the camera saw).
+  // Only what a camera sees counts here.
+  const SEEN=['Person','Vehicle','Animal','Package','Face','Number Plate','Doorbell Ring'];
+  const L=((_uniDet&&_uniDet.detections)||[]).filter(x=>x.device===name&&x.kinds.some(k=>SEEN.includes(k)));
   if(!_uniDet) return '';
   const hm=t=>{ const n=Number(t); return n>0?new Date(n).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}):''; };
   return `<div class="unp-pt" style="margin-top:14px">TODAY</div>`+(L.length?`<div class="ual-list">${L.slice(0,6).map(x=>`<div class="ual-row" style="cursor:default"><span class="ual-rn">${esc(x.kinds.join(' · '))}</span><span class="ual-rw">${hm(x.start)}</span><button class="unp-chip" onclick="uniProtectSection('recordings');uniPlayClip('${esc(x.id)}','${esc((x.kinds.join(' · ')+' — '+x.device).replace(/'/g,''))}')">Play</button></div>`).join('')}</div>`:'<div class="es">No people, vehicles or animals seen today.</div>');
