@@ -100,8 +100,10 @@ select option,select optgroup{background:#1a1c20;color:#fff}
 .unifi-row-d{margin-left:auto;color:var(--t1,rgba(255,255,255,0.55));text-align:right}
 /* UNIFI SUITE look — register 1216 (the mockup Dave agreed 5 Nov): an app bar like UniFi OS's, the console on one
    line, a tile per product carrying only what the console answered. */
-.uni-bar{display:flex;flex-wrap:wrap;gap:6px;padding:6px;border-radius:14px;background:rgba(0,0,0,0.35);border:0.5px solid var(--line-soft);margin-bottom:16px}
-.uni-tab{display:flex;align-items:center;gap:7px;padding:8px 13px;border-radius:10px;border:0;background:transparent;color:rgba(255,255,255,0.82);font-size:14px;cursor:pointer}
+/* 1243d — measured in iPad portrait: the app bar wrapped Talk to a second line; it scrolls sideways like Pro's other bars */
+.uni-bar{display:flex;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;gap:6px;padding:6px;border-radius:14px;background:rgba(0,0,0,0.35);border:0.5px solid var(--line-soft);margin-bottom:16px}
+.uni-bar::-webkit-scrollbar{display:none}
+.uni-tab{display:flex;flex:0 0 auto;white-space:nowrap;align-items:center;gap:7px;padding:8px 13px;border-radius:10px;border:0;background:transparent;color:rgba(255,255,255,0.82);font-size:14px;cursor:pointer}
 .uni-tab svg{width:17px;height:17px;flex:0 0 auto}
 .uni-tab img.uni-logo{width:20px;height:20px;border-radius:5px;flex:0 0 auto;object-fit:contain}
 .uni-tab.on{background:var(--accent);color:#fff;font-weight:600}
@@ -3258,7 +3260,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102676';
+const PROOS_BUILD='2026102677';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -16401,7 +16403,27 @@ async function _uniCamSnaps(){
   }
 }
 function _uniCamTick(){ if(_uniCamTimer) return; _uniCamTimer=setInterval(()=>{ if(!panelActive('unifi')||_uniProtectSection!=='live'){ clearInterval(_uniCamTimer); _uniCamTimer=null; return; } _uniCamSnaps(); },20000); }
-function uniCamPick(id){ _uniCamSel=id; renderUniCams(); }
+// 1243d — the mockup's Live View panel: quick controls (the platform's own, the Cameras page's road) and today's detections
+// for the chosen camera — both read from what Cameras and Detections already load.
+function uniCamPick(id){ _uniCamSel=id; renderUniCams(); if(!_uniCC) _uniCCLoad(); if(!_uniDet) _uniDetLoad(); }
+const UNI_QUICK=['privacy_mode','recording_mode','status_light','mic_level'];
+function _uniQuickHTML(camId){
+  const c=((_uniCC&&_uniCC.cameras)||[]).find(x=>x.id===camId); if(!c) return '';
+  const rows=UNI_QUICK.map(k=>c.controls.find(r=>r.key===k)).filter(Boolean); if(!rows.length) return '';
+  const kv=(k,v)=>`<div class="unifi-row"><span class="unifi-row-l">${k}</span><span class="unifi-row-d">${v}</span></div>`;
+  const id=r=>`'${esc(c.id)}','${esc(r.entity_id)}'`;
+  const ctl=r=>!r.available?'<span class="es">Not answering</span>'
+    :r.domain==='switch'?_uniSw(r.state==='on',`uniCamSet(${id(r)},${r.state!=='on'})`,r.label)
+    :r.domain==='select'?`<select class="ucc-sel" onchange="uniCamSet(${id(r)},this.value)">${(r.options||[]).map(o=>`<option${o===r.state?' selected':''}>${esc(o)}</option>`).join('')}</select>`
+    :_uniRng(r.state,r.min,r.max,r.step,`uniCamSet(${id(r)},Number(this.value))`,r.unit);
+  return `<div class="unp-pt" style="margin-top:14px">QUICK CONTROLS</div><div class="unifi-status">${rows.map(r=>kv(esc(r.label),ctl(r))).join('')}</div>`;
+}
+function _uniTodayHTML(name){
+  const L=((_uniDet&&_uniDet.detections)||[]).filter(x=>x.device===name&&!/^(Motion|Light Motion)$/.test(x.kinds.join()));
+  if(!_uniDet) return '';
+  const hm=t=>{ const n=Number(t); return n>0?new Date(n).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}):''; };
+  return `<div class="unp-pt" style="margin-top:14px">TODAY</div>`+(L.length?`<div class="ual-list">${L.slice(0,6).map(x=>`<div class="ual-row" style="cursor:default"><span class="ual-rn">${esc(x.kinds.join(' · '))}</span><span class="ual-rw">${hm(x.start)}</span><button class="unp-chip" onclick="uniProtectSection('recordings');uniPlayClip('${esc(x.id)}','${esc((x.kinds.join(' · ')+' — '+x.device).replace(/'/g,''))}')">Play</button></div>`).join('')}</div>`:'<div class="es">No people, vehicles or animals seen today.</div>');
+}
 function uniCamFilter(f){ _uniCamFilter=f; renderUniCams(); }
 function uniGoPort(mac,idx){ _uniPortSw=mac; _uniPortSel=idx; _uniPortFilter='all'; _uniNetSection='ports'; openUniNet(); }
 function _uniCamPortLine(w){
@@ -16420,6 +16442,7 @@ async function _uniDetLoad(){
   try{ const r=await fetch(proCoreUrl()+'/unifi/console/detections?hours=24'+(_uniDetOnly?'&only='+encodeURIComponent(_uniDetOnly):'')); _uniDet=r.ok?await r.json():{ok:false,why:'Core answered '+r.status}; }
   catch(e){ _uniDet={ok:false,why:'Couldn\'t reach ProOS Core'}; }
   if(panelActive('unifi')&&_uniProtectSection==='detections'){ renderUniDets(); _uniDetSnaps(); }
+  else if(panelActive('unifi')&&_uniProtectSection==='live') renderUniCams();
 }
 function uniDetFilter(k){ _uniDetOnly=_uniDetOnly===k?'':k; _uniDet=null; renderUniDets(); _uniDetLoad(); }
 async function _uniDetSnaps(){
@@ -16461,6 +16484,7 @@ async function _uniCCLoad(){
   try{ const r=await fetch(proCoreUrl()+'/unifi/console/cameras'); _uniCC=r.ok?await r.json():{ok:false,why:'Core answered '+r.status}; }
   catch(e){ _uniCC={ok:false,why:'Couldn\'t reach ProOS Core'}; }
   if(panelActive('unifi')&&['cameras','doorbell'].includes(_uniProtectSection)) renderUniCC();
+  else if(panelActive('unifi')&&_uniProtectSection==='live') renderUniCams();
 }
 function uniCCPick(id){ _uniCCSel=id; renderUniCC(); }
 async function uniCamSet(cid,eid,value){
@@ -16652,7 +16676,7 @@ function renderUniCams(){
       +kv('Switch Port',_uniCamPortLine(w)+(w&&w.found?` <a href="#" onclick="uniGoPort('${esc(w.switch_mac)}',${Number(w.port)});return false">See Port ›</a>`:''))
       +kv('Microphone',ff.hasMic?(sel.isMicEnabled?'On':'Off'):'None')+kv('Speaker',yes(ff.hasSpeaker))+kv('HDR',yes(ff.hasHdr))
       +(smart?kv('Smart Detect',esc(smart)):'')+(img?kv('Snapshot',new Date(img.at).toLocaleTimeString()):'')
-      +'</div><div class="es" style="margin-top:10px">Only what this camera reports is shown.</div>';
+      +'</div>'+_uniQuickHTML(sel.id)+_uniTodayHTML(sel.name||'');
   }
   setHTML(el,`<div class="unp-chips">${chips}<button class="unp-chip" style="margin-left:auto" onclick="_uniCams=null;renderUniCams();_uniCamsLoad()">Refresh</button></div>`
     +`<div class="unp-split"><section class="uni-cams">${list.map(tile).join('')||'<div class="es">No cameras here.</div>'}</section><aside class="unp-panel">${panel}</aside></div>`);
