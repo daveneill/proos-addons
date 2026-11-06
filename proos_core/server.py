@@ -6752,6 +6752,30 @@ class Handler(BaseHTTPRequestHandler):
             rows = cd.get("data") if isinstance(cd, dict) and "data" in cd else cd
             return self._send(200, {"ok": cd is not None, "why": why,
                                     "displays": _nv.connect_view(rows if isinstance(rows, list) else []) if cd is not None else []})
+        if method == "GET" and sub == "access" and not sub2:
+            # REGISTER 1241 — Access: doors, people, visitors, the log and emergency mode through the OFFICIAL Access API,
+            # as accessviews' named-field views (PINs, cards, faces never leave Core). Read only. Built before Access is on
+            # Dave's console — "Access did not answer" is said as such.
+            import time as _t
+            from proos import accessviews as _av
+            sec = (parse_qs(urlparse(self.path).query).get("section") or [""])[0]
+            if sec == "doors":
+                d, why = _uc.access_call(_creds, ph, "GET", "/api/v1/developer/doors")
+                e, _w = _uc.access_call(_creds, ph, "GET", "/api/v1/developer/doors/settings/emergency")
+                return self._send(200, {"ok": d is not None, "why": why, "doors": _av.doors_view(d) if d is not None else [],
+                                        "emergency": _av.emergency_view(e) if e is not None else None})
+            if sec == "people":
+                d, why = _uc.access_call(_creds, ph, "GET", "/api/v1/developer/users")
+                return self._send(200, {"ok": d is not None, "why": why, "people": _av.people_view(d) if d is not None else []})
+            if sec == "visitors":
+                d, why = _uc.access_call(_creds, ph, "GET", "/api/v1/developer/visitors")
+                return self._send(200, {"ok": d is not None, "why": why, "visitors": _av.visitors_view(d) if d is not None else []})
+            if sec == "activity":
+                now = int(_t.time())
+                d, why = _uc.access_call(_creds, ph, "POST", "/api/v1/developer/system/logs",
+                                         {"topic": "all", "since": now - 86400, "until": now, "page_size": 100})
+                return self._send(200, {"ok": d is not None, "why": why, "activity": _av.activity_view(d) if d is not None else []})
+            return self._send(400, {"error": "section is doors, people, visitors or activity"})
         if method == "GET" and sub == "probe" and not sub2:
             # REGISTER 1238 — MEASURE before building (Dave, 6 Nov: "connect is already there so finish all the build").
             # A fixed list of an app's own read addresses on the console, through ProOS's local user; the answer is each
@@ -6817,6 +6841,47 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, {"ok": True, "confirmed": True})
             return self._send(200, {"ok": True, "confirmed": False,
                                     "said": "the console took it but the display did not show it within 12 seconds"})
+        if method == "POST" and sub == "access" and sub2 == "act":
+            # REGISTER 1241 — one Access change (Pro asks first): unlock a door, a door's lock rule (keep unlocked / keep
+            # locked / back to schedule), or emergency lockdown / evacuation. Then the Access API is read back; an unlock
+            # relocks by itself, so it is "sent", never "confirmed open".
+            import re as _re
+            import time as _t
+            from proos import accessviews as _av
+            act, did = str(b.get("action") or ""), str(b.get("id") or "")
+            if act in ("unlock", "lock_rule") and not _re.match(r"^[0-9A-Za-z_-]{6,64}$", did):
+                return self._send(200, {"ok": False, "why": "that is not a door"})
+            if act == "unlock":
+                _d, why = _uc.access_call(_creds, ph, "PUT", "/api/v1/developer/doors/%s/unlock" % did, {})
+                return self._send(200, {"ok": why is None, "why": why, "confirmed": False,
+                                        "said": "unlock sent — the door locks again on its own"} if why is None else {"ok": False, "why": why})
+            if act == "lock_rule":
+                rule = str(b.get("rule") or "")
+                if rule not in _av.LOCK_RULES:
+                    return self._send(200, {"ok": False, "why": "not a lock rule ProOS offers"})
+                _d, why = _uc.access_call(_creds, ph, "PUT", "/api/v1/developer/doors/%s/lock_rule" % did, {"type": rule})
+                if why:
+                    return self._send(200, {"ok": False, "why": why})
+                for _ in range(5):
+                    _t.sleep(1.5)
+                    r2, _w = _uc.access_call(_creds, ph, "GET", "/api/v1/developer/doors/%s/lock_rule" % did)
+                    if isinstance(r2, dict) and (str(r2.get("type") or "") == rule or (rule == "reset" and not r2.get("type"))):
+                        return self._send(200, {"ok": True, "confirmed": True})
+                return self._send(200, {"ok": True, "confirmed": False, "said": "Access took it but did not show the new rule"})
+            if act == "emergency":
+                want = {"lockdown": bool(b.get("lockdown")), "evacuation": bool(b.get("evacuation"))}
+                if want["lockdown"] and want["evacuation"]:
+                    return self._send(200, {"ok": False, "why": "lockdown and evacuation cannot both be on"})
+                _d, why = _uc.access_call(_creds, ph, "PUT", "/api/v1/developer/doors/settings/emergency", want)
+                if why:
+                    return self._send(200, {"ok": False, "why": why})
+                for _ in range(5):
+                    _t.sleep(1.5)
+                    e2, _w = _uc.access_call(_creds, ph, "GET", "/api/v1/developer/doors/settings/emergency")
+                    if e2 is not None and _av.emergency_view(e2) == want:
+                        return self._send(200, {"ok": True, "confirmed": True})
+                return self._send(200, {"ok": True, "confirmed": False, "said": "Access took it but did not show it"})
+            return self._send(200, {"ok": False, "why": "not an Access change ProOS makes"})
         if method == "POST" and sub == "alarms" and sub2 == "set":
             # REGISTER 1231 — turn one Alarm Manager alarm on or off (Dave, 6 Nov: "yes all of it please"; Pro asks
             # first). The alarm must be in the console's own list right now; the change is ONLY its "enable"; then the

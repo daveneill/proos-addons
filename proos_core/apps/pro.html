@@ -2456,6 +2456,16 @@ body.v3.railmin .aw-screen{left:108px!important}
       <div id="uniconnect-body"><div class="empty"><div class="et">Reading the displays…</div></div></div>
     </div>
 
+    <!-- UNIFI ACCESS (register 1241) — part of the UniFi suite -->
+    <div class="panel" id="panel-unifi-access">
+      <div class="panel-head">
+        <button class="back" onclick="openUnifiSuite()">‹ UniFi</button>
+        <div class="panel-title">UniFi Access</div>
+      </div>
+      <div id="unibar-access"></div>
+      <div id="uniaccess-body"><div class="empty"><div class="et">Reading Access…</div></div></div>
+    </div>
+
     <!-- USERS -->
     <div class="panel" id="panel-users">
       <div class="panel-head">
@@ -3210,7 +3220,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102670';
+const PROOS_BUILD='2026102671';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -15909,8 +15919,8 @@ function _uniMark(k){
 }
 function uniAppBar(active){
   const apps=(_uniLast&&_uniLast.apps)||[]; const found=k=>{ const a=apps.find(x=>x.app===k); return a?a.found:null; };
-  const tabs=[['overview','Overview','openUnifiSuite()'],['network','Network','openUniNet()'],['protect','Protect','openUnifi()'],['access','Access',''],['connect','Connect','openUniConnect()'],['talk','Talk','']];
-  const note={access:found('access')===false?'Set Up Later':'Page Coming',connect:found('connect')===false?'Not on Console':null,talk:'Waiting on Ubiquiti'};
+  const tabs=[['overview','Overview','openUnifiSuite()'],['network','Network','openUniNet()'],['protect','Protect','openUnifi()'],['access','Access','openUniAccess()'],['connect','Connect','openUniConnect()'],['talk','Talk','']];
+  const note={access:found('access')===false?'Set Up Later':null,connect:found('connect')===false?'Not on Console':null,talk:'Waiting on Ubiquiti'};
   return '<div class="uni-bar" role="tablist" aria-label="UniFi apps">'+tabs.map(([k,l,go])=>{
     const on=k===active, n=note[k];
     return `<button class="uni-tab${on?' on':''}${n?' later':''}" role="tab" aria-selected="${on}" onclick="${go||`uniLater('${k}')`}">${_uniMark(k)}${l}${n?`<span class="uni-tab-note">${n}</span>`:''}</button>`;
@@ -15962,9 +15972,53 @@ function renderUniConnect(){
     +(x.mode?kv('Showing',esc(x.mode.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase()))):'')+(x.rotate!=null?kv('Rotation',esc(x.rotate)+'°'):'')
     +(x.sleep!=null?kv('Sleep Mode',typeof x.sleep==='boolean'?pill(x,x.sleep,'enable_sleep','disable_sleep','Sleep Mode'):esc(x.sleep)):'')+(x.auto_reload!=null?kv('Auto Reload',pill(x,x.auto_reload,'enable_auto_reload','disable_auto_reload','Auto Reload')):'')
     +kv('TV Control (CEC)',x.cec?'Supported':'No')+(x.firmware?kv('Firmware',esc(x.firmware)):'')
-    +(x.actions.length?kv('It Can Do',esc(x.actions.map(a=>a.replace(/_/g,' ')).join(' · '))):'')
     +'</div>'+(btns(x)?`<div class="unp-acts">${btns(x)}</div>`:'')+'</div>').join('');
   setHTML(el,`<div class="unp-chips"><button class="unp-chip" style="margin-left:auto" onclick="_uniConn=null;renderUniConnect();_uniConnLoad()">Refresh</button></div><div class="ual-devs">${cards}</div>`);
+}
+// ── REGISTER 1241 — ACCESS: built on the OFFICIAL Access API before Access is on Dave's console ("I will setup later but
+// still needs to be built"). Doors (lock and door state, Unlock, keep unlocked / keep locked / back to schedule, emergency
+// lockdown and evacuation), People, Visitors, Activity. Every change asks first; nothing is claimed beyond Access's answer.
+const UNI_ACCESS_SECTIONS=[['doors','Doors',true],['people','People',true],['visitors','Visitors',true],['activity','Activity',true]];
+let _uniAcc={}, _uniAccSection='doors';
+async function openUniAccess(){ show('unifi-access'); paintUniBar('access'); _uniAcc={}; uniAccSection(_uniAccSection); }
+function uniAccSection(k){ _uniAccSection=k; renderUniAccess(); if(!_uniAcc[k]) _uniAccLoad(k); }
+async function _uniAccLoad(k){
+  try{ const r=await fetch(proCoreUrl()+'/unifi/console/access?section='+k); _uniAcc[k]=r.ok?await r.json():{ok:false,why:'Core answered '+r.status}; }
+  catch(e){ _uniAcc[k]={ok:false,why:'Couldn\'t reach ProOS Core'}; }
+  if(panelActive('unifi-access')&&_uniAccSection===k) renderUniAccess();
+}
+async function uniAccAct(body,question,done){
+  if(!await proAsk(question)) return;
+  try{ const r=await fetch(proCoreUrl()+'/unifi/console/access/act',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const d=await r.json().catch(()=>({}));
+    toast(!d.ok?('Not done — '+(d.why||'Core answered '+r.status)):d.confirmed?(done+' — confirmed by Access'):(d.said||'Sent'));
+  }catch(e){ toast(_coreFailWords('',e)); }
+  _uniAcc.doors=null; _uniAccLoad('doors');
+}
+function renderUniAccess(){
+  const el=document.getElementById('uniaccess-body'); if(!el) return;
+  const k=_uniAccSection, d=_uniAcc[k];
+  const kv=(a,b)=>`<div class="unifi-row"><span class="unifi-row-l">${a}</span><span class="unifi-row-d">${b}</span></div>`;
+  const card=(t,inner,note)=>`<div class="unp-card"><div class="unp-head"><b>${t}</b>${note?`<span class="es" style="margin-left:auto">${note}</span>`:''}</div>${inner}</div>`;
+  const row=(cells,tail)=>`<div class="ual-row" style="cursor:default">${cells.map((c,i)=>`<span class="${i?'ual-rw':'ual-rn'}">${c}</span>`).join('')}${tail||''}</div>`;
+  const q=s=>`'${esc(String(s).replace(/'/g,''))}'`;
+  let page;
+  if(!d) page='<div class="empty"><div class="et">Reading Access…</div></div>';
+  else if(!d.ok) page=`<div class="empty"><div class="et">Access isn't answering</div><div class="es">${esc(d.why||'')}. When Access is set up on the console and its API token is saved under Console Settings, this page lights up.</div></div>`;
+  else if(k==='doors'){
+    const E=d.emergency;
+    const em=E?card('Emergency',`<div class="unifi-status">${kv('Lockdown',E.lockdown?'<em class="unp-red">On — every door locked</em>':'Off')}${kv('Evacuation',E.evacuation?'<em class="unp-red">On — every door unlocked</em>':'Off')}</div><div class="unp-acts">`
+      +(E.lockdown||E.evacuation?`<button class="btn-primary" onclick="uniAccAct({action:'emergency',lockdown:false,evacuation:false},'End the emergency and put every door back to normal?','Emergency ended')">End Emergency</button>`
+        :`<button class="unp-act" onclick="uniAccAct({action:'emergency',lockdown:true,evacuation:false},'LOCK DOWN every door?\n\nNo one gets in with a card, PIN or the app until it is ended.','Lockdown on')">Lockdown</button><button class="unp-act" onclick="uniAccAct({action:'emergency',lockdown:false,evacuation:true},'EVACUATE — unlock every door?\n\nEvery door stays unlocked until it is ended.','Evacuation on')">Evacuate</button>`)+'</div>'):'';
+    const L=d.doors||[];
+    const doors=L.length?`<div class="ual-list">${L.map(x=>row([esc(x.name),x.locked===true?'Locked':x.locked===false?'<em class="unp-red">Unlocked</em>':'Lock —',x.open===true?'<em class="unp-red">Open</em>':x.open===false?'Closed':'',x.has_hub?'':'No hub'],
+      `<button class="unp-act" onclick="uniAccAct({action:'unlock',id:${q(x.id)}},'Unlock ${esc(x.name).replace(/'/g,'')} now?\n\nIt locks again on its own.','Unlocked')">Unlock</button><select class="ucc-sel" onchange="if(this.value)uniAccAct({action:'lock_rule',id:${q(x.id)},rule:this.value},'Change ${esc(x.name).replace(/'/g,'')} to: '+this.options[this.selectedIndex].text+'?','Lock rule set');this.value=''"><option value="">Lock Rule…</option><option value="keep_unlock">Keep Unlocked</option><option value="keep_lock">Keep Locked</option><option value="reset">Back to Schedule</option></select>`)).join('')}</div>`:'<div class="es">No doors in Access.</div>';
+    page=em+card('Doors',doors,L.length+' door'+(L.length===1?'':'s'));
+  }
+  else if(k==='people'){ const L=d.people||[]; page=card('People',L.length?`<div class="ual-list">${L.map(x=>row([esc(x.name),esc(x.status||''),esc(x.number||''),(x.has_pin?'PIN':'')+(x.cards?(x.has_pin?' · ':'')+x.cards+' card'+(x.cards===1?'':'s'):'')])).join('')}</div>`:'<div class="es">No people in Access.</div>',L.length+' people'); }
+  else if(k==='visitors'){ const L=d.visitors||[]; const t=n=>n?new Date(n*1000).toLocaleString([], {weekday:'short',hour:'numeric',minute:'2-digit'}):''; page=card('Visitors',L.length?`<div class="ual-list">${L.map(x=>row([esc(x.name),esc(x.status||''),esc(x.reason||''),t(x.from)+(x.until?' – '+t(x.until):'')])).join('')}</div>`:'<div class="es">No visitors booked.</div>'); }
+  else { const L=d.activity||[]; const t=n=>n?new Date(n>1e12?n:n*1000).toLocaleString([], {weekday:'short',hour:'numeric',minute:'2-digit'}):''; page=card('Activity — Last 24 Hours',L.length?`<div class="ual-list">${L.map(x=>row([esc(x.who),esc(x.what||''),esc(x.where||''),esc(x.result||''),t(x.when)])).join('')}</div>`:'<div class="es">Nothing in the last 24 hours.</div>'); }
+  setHTML(el,`<div class="uni-split">${_uniSide(UNI_ACCESS_SECTIONS,k,'uniAccSection')}<div class="uni-main"><div class="unp-chips"><button class="unp-chip" style="margin-left:auto" onclick="_uniAcc['${k}']=null;renderUniAccess();_uniAccLoad('${k}')">Refresh</button></div>${page}</div></div>`);
 }
 function uniLater(k){ toast({access:'Access gets its own page in stage 5. It works once Access is on the console.',connect:'Connect gets its own page in stage 6.',talk:'Ubiquiti has no way in for other systems yet. Talk is built the day there is.'}[k]||''); }
 function paintUniBar(active){
@@ -16013,8 +16067,8 @@ async function renderUnifiSuite(quick){
   h+='<div class="uni-tiles">'
     +tile('network','Network','rgba(33,57,240,0.20)',{online:true,open:'openUniNet()',stats:[[cnt.network_devices,'UniFi Devices']],foot:'Devices · Ports · Clients · Wi-Fi'})
     +tile('protect','Protect','rgba(70,227,160,0.13)',{online:true,open:'openUnifi()',stats:[[cnt.cameras,'Cameras']],foot:'Live View · Detections · Alarm'})
-    +tile('access','Access','rgba(255,255,255,0.04)',{online:true,notSub:'Set up later',stats:[[cnt.doors,'Doors']],
-        p:f=>f===false?'Doors, people, visitors, PINs and cards, schedules and the access log. Built in stage 5; it lights up when Access is on the console.':'Doors, people, visitors and the access log get their own page in stage 5.',foot:'Doors · People · Activity'})
+    +tile('access','Access','rgba(255,255,255,0.04)',{online:true,open:'openUniAccess()',notSub:'Set up later',stats:[[cnt.doors,'Doors']],
+        p:f=>f===false?'Doors, people, visitors and the access log. Its page is ready and lights up once Access is set up on the console.':'Doors, people, visitors and the access log.',foot:'Doors · People · Visitors · Activity'})
     +tile('connect','Connect','rgba(245,176,65,0.13)',{online:true,open:'openUniConnect()',p:f=>f===false?'Displays and casts, when there are some on the console.':'Displays: screen, brightness, volume and what each one shows.',foot:'Displays'})
     +tile('talk','Talk','rgba(255,255,255,0.04)',{later:true,p:()=>'Phones and call routing. Built the day Ubiquiti opens a way in for other systems.',foot:'Waiting on Ubiquiti'})
     +'</div>';
@@ -19637,7 +19691,7 @@ function ahRemove(){
     });
 }
 
-const PANELS=['home','library','manage','backups','channels','maintenance','site','credentials','unifi-suite','unifi','unifi-net','unifi-connect','users','room','integration','rooms','activities','automations','scripts','irrigation','savant','helpers','blueprints','labels','tech','music','applehome','dashremote','wallpanel','remotecfg','wpedit','navlayout','hub','assist2','systems','toolbox','device','history'];
+const PANELS=['home','library','manage','backups','channels','maintenance','site','credentials','unifi-suite','unifi','unifi-net','unifi-connect','unifi-access','users','room','integration','rooms','activities','automations','scripts','irrigation','savant','helpers','blueprints','labels','tech','music','applehome','dashremote','wallpanel','remotecfg','wpedit','navlayout','hub','assist2','systems','toolbox','device','history'];
 function show(panel){
   PANELS.forEach(p=>{ const el=document.getElementById('panel-'+p); if(el) el.classList.toggle('active', p===panel); });
   // One-shot entrance arm: content pops in on panel ENTRY, then disarms so

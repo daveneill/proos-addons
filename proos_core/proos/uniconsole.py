@@ -25,6 +25,7 @@ WHAT IT NEVER DOES (kept rulings)
 from __future__ import annotations
 
 import json
+import re
 import ssl
 import time
 import urllib.error
@@ -261,6 +262,36 @@ def get_json(creds, platform_host, path, http=None):
     return None, "the console refused ProOS's sign-in"
 
 
+# REGISTER 1241 — UniFi Access through its OFFICIAL developer interface (the Access API reference: port 12445, the Access
+# app's own API token as a Bearer). Built before Access is on Dave's console ("I will setup later but still needs to be
+# built"); every answer it gives is the console's, and "not there yet" is said as such.
+ACCESS_OK = ("/api/v1/developer/doors", "/api/v1/developer/users", "/api/v1/developer/visitors",
+             "/api/v1/developer/devices", "/api/v1/developer/doors/settings/emergency", "/api/v1/developer/system/logs")
+
+
+def access_call(creds, platform_host, method, path, body=None, http=None):
+    """(data, why-not) for one Access call. Only the Access API's own developer paths; only with the Access token."""
+    http = http or HTTP
+    h, _ = host(creds, platform_host)
+    if not h:
+        return None, "the console's address is not known yet"
+    tok = creds.get(SVC_ACCESS)
+    if not tok:
+        return None, "no Access API token is set (Console Settings → Access token)"
+    if not (path.startswith("/api/v1/developer/") and (path.split("?")[0] in ACCESS_OK
+            or re.match(r"^/api/v1/developer/doors/[0-9A-Za-z_-]{6,64}/(unlock|lock_rule)$", path))):
+        return None, "not an Access call ProOS makes"
+    st, rh, raw = http(method, "https://%s:%d%s" % (h, ACCESS_PORT, path), body, {"Authorization": "Bearer %s" % tok})
+    j = _json(raw)
+    if st == 0:
+        return None, "Access did not answer — it is not on the console yet, or the console is not reachable"
+    if st != 200 or not isinstance(j, dict):
+        return None, "Access answered %s" % st
+    if str(j.get("code") or "SUCCESS").upper() != "SUCCESS":
+        return None, "Access said: %s" % str(j.get("msg") or j.get("code"))[:120]
+    return j.get("data"), None
+
+
 # REGISTER 1238 — measure an app before building it: a FIXED list of its own read addresses, and the SHAPE of what each
 # answered (a record count and field names) — never a value.
 PROBE_PATHS = {"connect": ("/proxy/connect/api/v2/devices", "/proxy/connect/api/v2/devices?shadow=true",
@@ -418,8 +449,7 @@ _LINK_RE = None
 def _declared_icons(raw):
     """The icon addresses an app's page declares, best first (an SVG icon, then apple-touch, then any icon)."""
     global _LINK_RE
-    import re
-    if _LINK_RE is None:
+    if _LINK_RE is None:                       # (re is imported at module level since 1241)
         _LINK_RE = re.compile(r"<link\b[^>]*>", re.I)
     html = (raw or b"").decode("utf-8", "ignore")
     found = []
