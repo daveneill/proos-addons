@@ -108,6 +108,11 @@ select option,select optgroup{background:#1a1c20;color:#fff}
 .uni-tab img.uni-logo{width:20px;height:20px;border-radius:5px;flex:0 0 auto;object-fit:contain}
 .uni-tab.on{background:var(--accent);color:#fff;font-weight:600}
 .uni-tab.later{color:var(--t3)}
+.uni-con{margin-left:auto;flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:0 10px 0 16px;font-size:13px;white-space:nowrap}
+.uni-con i{width:8px;height:8px;border-radius:50%;background:#46e3a0}.uni-con i.off{background:#f5b041}
+.uni-con b{font-weight:600}.uni-con span{color:var(--t2)}
+.uni-con em{font-style:normal}
+@media (max-width:1439px){.uni-con em{display:none}.uni-con{padding-left:10px}}
 .uni-tab-note{font-size:10px;font-weight:600;color:var(--t2);border:0.5px solid var(--line);border-radius:6px;padding:1px 6px;white-space:nowrap}
 .uni-chip{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:10px 12px 10px 14px;border-radius:14px;background:var(--card);border:0.5px solid var(--line-soft);margin-bottom:16px;font-size:13px}
 .uni-chip b{font-weight:600}
@@ -134,7 +139,7 @@ select option,select optgroup{background:#1a1c20;color:#fff}
 /* REGISTER 1229 — the mockup's left-side section list for Protect and Network (Dave, 6 Nov: "yes all of it please").
    Sections down the left, the page on the right; a scrolling row on a phone. A section not built yet is greyed with
    "Coming" and cannot be opened — nothing is drawn to look finished. */
-.uni-split{display:grid;grid-template-columns:200px minmax(0,1fr);gap:16px;align-items:start}
+.uni-split{display:grid;grid-template-columns:clamp(168px,14vw,200px) minmax(0,1fr);gap:16px;align-items:start}   /* 1244: narrower on the iPad */
 @media (max-width:700px){.uni-split{grid-template-columns:minmax(0,1fr)}}
 .uni-main{min-width:0}
 /* REGISTER 1230 — Alarm Manager's alarm list: one row per alarm (flex, not a grid), tap for When · Where · Then */
@@ -291,6 +296,91 @@ button.ual-pill{border:0;cursor:pointer}
 .unp-act{width:100%;margin-top:8px;font-size:14px;padding:11px;border-radius:12px;border:0;background:var(--card-hi);color:#fff;cursor:pointer}
 .unp-acts .unp-act{margin-top:0}
 .unp-act:disabled{opacity:.4;cursor:not-allowed}
+/* REGISTER 1244 — ONE PAGE TEMPLATE for every UniFi section (Dave, 6 Nov: "it looks scattered nothing is organised or made
+   to just present well"). Taken from the mockup boards: a header row (filters left; state, view switches and Refresh
+   right); the page's main area beside a 308 px detail card at one height, each scrolling on its own; an optional full-width
+   card above (Ports' faceplate) and strip below (Live View's detections). One card style; tables with headings and coloured
+   words, not pills; the detail card is a title, label-value rows and full-width actions with the main one first. */
+.uni-side{background:var(--card);border:0.5px solid var(--line)}
+.upg{display:flex;flex-direction:column;gap:12px}
+.uni-fit>.uni-main:has(.upg){overflow:hidden}
+.uni-fit>.uni-main>.upg,.uni-fit>.uni-main>#unifi-live:has(>.upg),.uni-fit>.uni-main #unifi-live>.upg{height:100%}
+/* measured on the box: Protect's section list sits inside #unifi-seg, so the list stopped short of the page's foot */
+.uni-fit>#unifi-seg{min-height:0;display:flex;flex-direction:column}
+.uni-fit>#unifi-seg>.uni-side{flex:1 1 auto;min-height:0;overflow-y:auto;position:static;scrollbar-width:none}
+/* measured on the box at 1450 px: a 48-port face scrolled sideways by 66 px — sockets may go to 28 px (the drawing scales) */
+.upg-top .unp-face{grid-template-columns:repeat(var(--cols),minmax(28px,46px));gap:4px 3px}
+.upg-top .unp-faceplate{gap:10px}
+.upg-lk{font-size:11px;margin-left:6px;opacity:.85}
+.upg-bar{flex:0 0 auto;display:flex;align-items:center;gap:6px;min-height:36px;overflow-x:auto;scrollbar-width:none}
+.upg-bar::-webkit-scrollbar{display:none}
+.upg-bar>*{flex:0 0 auto}
+.upg-bar .unp-chip{padding:7px 12px}
+.upg-r{margin-left:auto;display:flex;align-items:center;gap:8px;padding-left:10px}
+.upg-state{font-size:12.5px;color:var(--t2);white-space:nowrap}
+.upg-ico{width:34px;height:34px;border-radius:10px;border:0;background:rgba(255,255,255,0.06);color:rgba(255,255,255,.82);display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+.upg-ico svg{width:16px;height:16px}
+.upg-pick{position:relative;display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:12px;border:0.5px solid var(--line);background:var(--card);font-size:14px;cursor:pointer;max-width:100%}
+.upg-pick b{font-weight:600;white-space:nowrap}
+.upg-pick span{color:var(--t2);font-size:13px;white-space:nowrap}
+.upg-pick svg{width:16px;height:16px;flex:0 0 auto;color:var(--t2)}
+.upg-pick select{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:16px}
+.upg-top{flex:0 0 auto}
+.upg-top>.unp-card{margin-bottom:0}
+.upg-body{flex:1 1 0;min-height:0;display:flex;gap:14px}   /* a row like .unp-split (register 1243c), not a grid */
+.upg-body>.upg-main{flex:1 1 0;min-width:0}
+.upg-body>.upg-det{flex:0 0 clamp(264px,21.3vw,308px);min-width:0}
+/* measured on the box at iPad landscape (1180): the Ports list kept 300 px and its Carries column went to nothing — the
+   section list (its own rule, above) and the detail card give up width with the screen — no new breakpoint */
+.upg-main,.upg-det{min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none}
+.upg-main::-webkit-scrollbar,.upg-det::-webkit-scrollbar,.upg-thumbs::-webkit-scrollbar{display:none}
+.upg-card,.upg-det,.upg-strip{border:0.5px solid var(--line);border-radius:16px;background:var(--card)}
+.upg-main.upg-card{padding:10px 12px}
+.upg-det{padding:18px;display:flex;flex-direction:column}
+.upg-over{font-size:12px;color:var(--t2);margin-bottom:3px}
+.upg-title{font-size:19px;font-weight:600;line-height:1.25;margin-bottom:10px;word-break:break-word}
+.upg-kv{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:5px 0;font-size:13.5px;min-height:30px}
+.upg-kv>span:first-child{color:var(--t2);flex:0 0 auto}
+.upg-kv>span:last-child{text-align:right;min-width:0;word-break:break-word}
+.upg-sec{font-size:12.5px;font-weight:600;color:var(--t2);margin:14px 0 2px;padding-top:12px;border-top:0.5px solid var(--line-soft)}
+.upg-acts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px;padding-top:14px;border-top:0.5px solid var(--line-soft)}
+.upg-acts>button{margin:0;width:100%;font-size:13.5px;font-family:inherit;padding:10px 8px;border-radius:11px;border:0;background:var(--card-hi);color:#fff;cursor:pointer}
+.upg-acts>button.btn-primary,.upg-acts>button.wide{grid-column:1/-1}
+.upg-acts>button.btn-primary{background:var(--accent);font-weight:600}
+.upg-acts>button:disabled{opacity:.4;cursor:not-allowed}
+.upg-det .ucc-rng{width:104px}.upg-det .ucc-sel{max-width:150px}.upg-det .ucc-val{min-width:38px}
+.upg-note{font-size:12px;color:var(--t2);margin-top:10px;line-height:1.45}
+.upg-media{aspect-ratio:16/9;border-radius:11px;overflow:hidden;background:linear-gradient(160deg,#2b3544,#131920);margin-bottom:14px;flex:0 0 auto}
+.upg-media img{width:100%;height:100%;object-fit:cover;display:block}
+.upg-media img:not([src]){display:none}
+.upg-tbl{width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed;font-size:13.5px}
+.upg-tbl th{font-size:12px;font-weight:500;color:var(--t2);text-align:left;padding:8px 10px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.upg-tbl td{padding:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.upg-tbl tr.r{cursor:pointer}
+.upg-tbl tr.r:hover>td{background:rgba(255,255,255,0.04)}
+.upg-tbl tr.r.on>td{background:var(--accent-soft)}
+.upg-tbl tr.r>td:first-child{border-radius:10px 0 0 10px}.upg-tbl tr.r>td:last-child{border-radius:0 10px 10px 0}
+.upg-tbl td b{font-weight:600}
+.upg-ok{color:#46e3a0}.upg-warn{color:#f5b041}.upg-bad{color:#ff8a73}.upg-dim{color:var(--t2)}.upg-blue{color:#7fb2ff}.upg-lime{color:#c4dc6a}
+.upg-strip{flex:0 0 auto;padding:12px 16px 14px}
+.upg-strip-h{display:flex;align-items:center;gap:6px;margin-bottom:10px;overflow-x:auto;scrollbar-width:none}
+.upg-strip-h>*{flex:0 0 auto}
+.upg-strip-h>b{font-size:15px;font-weight:600;margin-right:6px}
+.upg-strip-h>a{margin-left:auto;font-size:13px;color:#7fb2ff;text-decoration:none;cursor:pointer;padding-left:10px}
+.upg-thumbs{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(132px,1fr);gap:10px;overflow-x:auto;scrollbar-width:none}
+.upg-thumb{display:flex;flex-direction:column;gap:5px;padding:0;border:0;background:transparent;color:#fff;text-align:left;cursor:pointer;min-width:0;font-family:inherit}
+.upg-thumb i{display:block;aspect-ratio:16/9;max-height:84px;width:100%;border-radius:10px;overflow:hidden;background:linear-gradient(160deg,#2b3544,#131920)}
+.upg-thumb i img{width:100%;height:100%;object-fit:cover;display:block}
+.upg-thumb i img:not([src]){display:none}
+.upg-thumb b{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.upg-thumb span{font-size:11.5px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:-4px}
+/* Pro's portrait breakpoint (Dave, 7 Oct: the list above its panel, 2 : 1, each scrolling on its own) */
+@media (max-width:1023px){
+  .upg-body{flex-direction:column}
+  .upg-body>.upg-main{flex:2 1 0;min-height:0}
+  .upg-body>.upg-det{flex:1 1 0;min-height:0}
+  .upg-bar{flex-wrap:wrap;overflow:visible}
+}
 .unifi-cams{display:flex;flex-direction:column;gap:1px}
 .unifi-cam{display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:0.5px solid rgba(255,255,255,0.06)}
 .unifi-cam:last-child{border-bottom:none}
@@ -3260,7 +3350,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102678';
+const PROOS_BUILD='2026102679';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -5142,6 +5232,33 @@ function _uniSide(items,cur,fn){
     ?`<button class="${cur===k?'on':''}" onclick="${fn}('${k}')">${esc(l)}</button>`
     :`<button disabled title="Not built yet">${esc(l)}<span class="uni-soon">Coming</span></button>`).join('')}</nav>`;
 }
+// ── REGISTER 1244 — ONE PAGE TEMPLATE for every UniFi section (Dave, 6 Nov: "it looks scattered nothing is organised").
+// _uniPage lays a section out as the mockup boards do: the header row (o.bar left; o.right and Refresh right), an optional
+// full-width card (o.top), the main area (o.main) beside the detail card (o.detail; leave it out for a page without one),
+// and an optional strip (o.strip). _uniDetail is the detail card's one pattern; _uniTable the one list with headings.
+const _UPG_REFRESH='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>';
+function _uniPage(o){
+  return `<div class="upg"><div class="upg-bar">${o.bar||''}<div class="upg-r">${o.right||''}`
+    +(o.refresh?`<button class="upg-ico" title="Refresh" aria-label="Refresh" onclick="${o.refresh}">${_UPG_REFRESH}</button>`:'')+`</div></div>`
+    +(o.top?`<div class="upg-top">${o.top}</div>`:'')
+    +`<div class="upg-body${o.detail==null?' solo':''}"><section class="upg-main${o.card?' upg-card':''}">${o.main||''}</section>`
+    +(o.detail!=null?`<aside class="upg-det">${o.detail}</aside>`:'')+`</div>`
+    +(o.strip?`<div class="upg-strip">${o.strip}</div>`:'')+`</div>`;
+}
+function _uniDetail(o){
+  return (o.media||'')+(o.over?`<div class="upg-over">${o.over}</div>`:'')+`<div class="upg-title">${o.title||''}</div>`
+    +(o.rows||[]).filter(Boolean).map(([k,v])=>`<div class="upg-kv"><span>${k}</span><span>${v}</span></div>`).join('')
+    +(o.extra||'')+((o.acts||[]).filter(Boolean).length?`<div class="upg-acts">${o.acts.filter(Boolean).join('')}</div>`:'')
+    +(o.note?`<div class="upg-note">${o.note}</div>`:'');
+}
+// cols: [label, width] · rows: {on, click, cells}
+function _uniTable(cols,rows,empty){
+  return `<table class="upg-tbl"><colgroup>${cols.map(c=>`<col${c[1]?` style="width:${c[1]}"`:''}>`).join('')}</colgroup>`
+    +`<thead><tr>${cols.map(c=>`<th>${c[0]}</th>`).join('')}</tr></thead><tbody>`
+    +(rows.length?rows.map(r=>`<tr class="r${r.on?' on':''}"${r.click?` onclick="${r.click}"`:''}>${r.cells.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')
+      :`<tr><td colspan="${cols.length}" class="upg-dim">${empty||'Nothing here.'}</td></tr>`)
+    +`</tbody></table>`;
+}
 function _upSpeed(p){ const s=Number(p.speed)||0; if(!p.link) return ''; return s>=10000?'10 GbE':s>=2500?'2.5 GbE':s>=1000?'GbE':s>0?'FE':''; }
 function _upColor(p){
   if(p.enabled===false) return null;            // switched off: dark, red dashed edge
@@ -5199,44 +5316,58 @@ function _uniPortsHTML(){
   const sws=d.switches||[]; if(!sws.length) return '<div class="empty"><div class="et">The controller reports no switches</div></div>';
   const sw=sws.find(s=>s.mac===_uniPortSw)||sws[0]; _uniPortSw=sw.mac;
   const W=sw.ports.reduce((a,p)=>a+((p.poe&&p.poe.watts)||0),0);
-  let h='<div class="unp-sws">'+sws.map(s=>`<button class="unp-sw${s.mac===sw.mac?' on':''}" onclick="uniPortSwitch('${esc(s.mac)}')"><b>${esc(s.name)}</b><span>${esc(s.model||'')} · ${s.ports.length} ports</span></button>`).join('')+'</div>';
+  // register 1244: the switch is chosen from one picker in the header row (the mockup's "[Switch name] · 1 of n ▾")
+  const swIco='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="2.5" y="7" width="19" height="10" rx="2"/><path d="M6 12h2M10 12h2M14 12h2"/></svg>';
+  const pick=`<label class="upg-pick">${swIco}<b>${esc(sw.name)}</b><span>${esc(sw.model||'')} · ${sws.indexOf(sw)+1} of ${sws.length} switches ▾</span>`
+    +`<select aria-label="Switch" onchange="uniPortSwitch(this.value)">${sws.map(s=>`<option value="${esc(s.mac)}"${s.mac===sw.mac?' selected':''}>${esc(s.name)} — ${s.ports.length} ports</option>`).join('')}</select></label>`;
   const rj=sw.ports.filter(p=>!_upSfp(p)), sfp=sw.ports.filter(_upSfp);
   const top=rj.filter((p,i)=>i%2===0), bot=rj.filter((p,i)=>i%2===1);
   const cols=Math.max(top.length,1);
-  const row=(arr,t)=>arr.map(p=>_upSocket(p,t,p.idx===_uniPortSel)).join('');
-  h+=`<div class="unp-card"><div class="unp-head"><b>${esc(sw.name)}</b><span>${esc(sw.model||'')} · ${sw.ports.length} ports · ${W.toFixed(1)} W PoE in use</span><span class="unp-on${sw.online===false?' off':''}">${sw.online===false?'Offline':'● Online'}</span></div>`
+  // the faceplate marks the port the detail card shows (the first listed one when none is chosen) — see sel below
+  const F={all:['All',()=>true],use:['In Use',p=>p.link||p.carries.length],lock:['Locked',p=>!!p.lock],off:['Switched Off',p=>p.enabled===false],poe:['PoE',p=>p.poe&&p.poe.watts>0]};
+  const listed=sw.ports.filter(F[_uniPortFilter][1]);
+  const sel=sw.ports.find(p=>p.idx===_uniPortSel)||listed[0]||null;
+  const row=(arr,t)=>arr.map(p=>_upSocket(p,t,!!sel&&p.idx===sel.idx)).join('');
+  const state=`<span class="upg-state">${sw.ports.length} ports · ${W.toFixed(1)} W PoE in use · ${sw.online===false?'<span class="upg-bad">Offline</span>':'<span class="upg-ok">● Online</span>'}</span>`;
+  let h=`<div class="unp-card">`
     +`<div class="unp-faceplate"><div class="unp-face" style="--cols:${cols}">${row(top,true)}${row(bot,false)}</div>`
     +(sfp.length?`<div class="unp-face unp-sfp" style="--cols:${Math.ceil(sfp.length/2)}">${row(sfp.filter((p,i)=>i%2===0),true)}${row(sfp.filter((p,i)=>i%2===1),false)}</div>`:'')+'</div>'
     +'<div class="unp-legend"><span><i style="background:#3fbf6a"></i>GbE</span><span><i style="background:#a8c94a"></i>FE</span><span><i style="background:#4d9be0"></i>2.5 GbE</span><span><i style="background:#2f6fd6"></i>10 GbE</span><span><i style="background:#0d1015;border:1px solid rgba(255,255,255,.25)"></i>Nothing Connected</span><span><i style="border:1.5px dashed #ff8a73"></i>Switched Off</span><span>⚡ PoE</span><span>🔒 Locked: feeds the network or this box</span></div></div>';
-  const F={all:['All',()=>true],use:['In Use',p=>p.link||p.carries.length],lock:['Locked',p=>!!p.lock],off:['Switched Off',p=>p.enabled===false],poe:['PoE',p=>p.poe&&p.poe.watts>0]};
   const chips=Object.entries(F).map(([k,[l,fn]])=>`<button class="unp-chip${_uniPortFilter===k?' on':''}" onclick="uniPortFilter('${k}')">${l} ${sw.ports.filter(fn).length}</button>`).join('');
-  const rows=sw.ports.filter(F[_uniPortFilter][1]).map(p=>`<button class="unp-row${p.idx===_uniPortSel?' on':''}" onclick="uniPortPick(${p.idx})"><b>${p.idx}</b><span class="unp-c">${esc(p.carries.map(c=>c.name).join(', ')||'—')}</span><span>${p.enabled===false?'<em class="unp-red">Switched off</em>':(_upSpeed(p)||'Down')}</span><span>${p.poe&&p.poe.watts>0?p.poe.watts.toFixed(1)+' W':'—'}</span><span>${p.lock?'🔒':''}</span></button>`).join('')||'<div class="es" style="padding:10px">No ports here.</div>';
-  const sel=sw.ports.find(p=>p.idx===_uniPortSel);
-  let panel='<div class="es">Tap a port to see what it carries.</div>';
+  // register 1244: one table with headings; the speed in its legend colour, words not pills
+  const spd=p=>{ if(p.enabled===false) return '<span class="upg-bad">Switched Off</span>'; const s=_upSpeed(p); if(!s) return '<span class="upg-dim">Down</span>';
+    return `<span class="${s==='FE'?'upg-lime':(s==='GbE'?'upg-ok':'upg-blue')}">${s}</span>`; };
+  // the detail card is never empty: with nothing chosen it shows the first port in the list (sel, above)
+  const table=_uniTable([['Port','70px'],['Carries',''],['Speed','100px'],['PoE','76px']],
+    listed.map(p=>({on:sel&&p.idx===sel.idx,click:`uniPortPick(${p.idx})`,cells:[`<b>${p.idx}</b>${p.lock?'<span class="upg-lk" title="Locked">🔒</span>':''}`,esc(p.carries.map(c=>c.name).join(', ')||'—'),spd(p),
+      p.poe&&p.poe.watts>0?p.poe.watts.toFixed(1)+' W':'<span class="upg-dim">—</span>']})),'No ports here.');
+  let panel='<div class="upg-note">No port to show.</div>';
   if(sel){
-    const kv=(k,v)=>`<div class="unifi-row"><span class="unifi-row-l">${k}</span><span class="unifi-row-d">${v}</span></div>`;
-    const ctl=(c,name)=>c?(c.enabled?'On in the platform':'Off in the platform (as it ships)'):'Not offered for this port';
-    panel=`<div class="unp-pt">${esc(sw.name)} · Port ${sel.idx}</div><div class="unp-pn">${esc(sel.carries.map(c=>c.name).join(', ')||sel.name)}</div><div class="unifi-status">`
-      +kv('Link',sel.link?esc(_upSpeed(sel)||'Up'):'Down')+kv('Port',sel.enabled===false?'<em class="unp-red">Switched off</em>':(sel.enabled?'On':'—'))
-      +kv('PoE',sel.poe?(sel.poe.watts!=null?sel.poe.watts.toFixed(1)+' W':'—')+(sel.poe.mode?' · '+esc(sel.poe.mode):''):'No PoE on this port')
-      +kv('Carries',esc(sel.carries.map(c=>c.name+(c.ip?' ('+c.ip+')':'')).join(', ')||(sel.known?'Nothing':'Not known')))
-      +kv('Lock',sel.lock?'🔒 '+esc(sel.lock):(sel.known?'Free':'Not known — treated as locked'))
-      +`</div><div class="bld-sec-h" style="margin-top:14px">The Platform's Controls</div><div class="unifi-status">`
-      +kv('Port On / Off',ctl(sel.controls.port))+kv('PoE On / Off',ctl(sel.controls.poe))+kv('Power-Cycle PoE',ctl(sel.controls.power_cycle))
-      +'</div>';
+    const ctl=c=>c?(c.enabled?'On in the platform':'<span class="upg-dim">Off, as it ships</span>'):'<span class="upg-dim">Not offered</span>';
     // REGISTER 1221 — act through the platform's own controls. Off and Power-Cycle are offered only on a FREE port
     // (Core refuses them on a locked or unreadable one anyway); On is always offered. Each asks first.
     const free=!sel.lock&&sel.known, c=sel.controls||{};
-    const act=(a,label,enabled,primary)=>`<button class="${primary?'btn-primary':'unp-act'}" ${enabled?'':'disabled'} onclick="uniPortAct('${esc(sw.mac)}',${sel.idx},'${a}')">${label}</button>`;
-    let acts='';
-    if(c.port&&c.port.enabled) acts+=sel.enabled===false?act('port_on','Turn Port On',true,true):act('port_off','Turn Port Off',free);
-    if(c.poe&&c.poe.enabled&&sel.poe) acts+=(sel.poe.mode==='off')?act('poe_on','PoE On',true):act('poe_off','PoE Off',free);
-    if(c.power_cycle&&c.power_cycle.enabled&&sel.poe&&sel.poe.mode!=='off') acts+=act('power_cycle','Power-Cycle PoE',free);
-    if(acts) panel+=`<div class="unp-acts">${acts}</div>`+(free?'':`<div class="es" style="margin-top:8px">Locked: ${esc(sel.lock||'what this port carries is not known')}. It can be turned on, never off, from here.</div>`);
-    if((c.port&&!c.port.enabled)||(c.poe&&!c.poe.enabled)) panel+=`<div class="es" style="margin-top:10px">The platform's Port and PoE controls are switched off, as they ship.</div><button class="unp-act" onclick="uniPortControlsOn()">Switch On the Platform's Port Controls</button>`;
+    const act=(a,label,enabled,primary)=>`<button class="${primary?'btn-primary':'wide'}" ${enabled?'':'disabled'} onclick="uniPortAct('${esc(sw.mac)}',${sel.idx},'${a}')">${label}</button>`;
+    const acts=[];
+    if(c.port&&c.port.enabled) acts.push(sel.enabled===false?act('port_on','Turn Port On',true,true):act('port_off','Turn Port Off',free));
+    if(c.poe&&c.poe.enabled&&sel.poe) acts.push((sel.poe.mode==='off')?act('poe_on','PoE On',true):act('poe_off','PoE Off',free));
+    if(c.power_cycle&&c.power_cycle.enabled&&sel.poe&&sel.poe.mode!=='off') acts.push(act('power_cycle','Power-Cycle PoE',free));
+    const off=(c.port&&!c.port.enabled)||(c.poe&&!c.poe.enabled);
+    if(off) acts.push(`<button class="wide" onclick="uniPortControlsOn()">Switch On the Platform's Port Controls</button>`);
+    panel=_uniDetail({over:`${esc(sw.name)} · Port ${sel.idx}`,title:esc(sel.carries.map(c=>c.name).join(', ')||sel.name),
+      rows:[['Link',sel.link?esc(_upSpeed(sel)||'Up'):'<span class="upg-dim">Down</span>'],
+        ['Port',sel.enabled===false?'<span class="upg-bad">Switched off</span>':(sel.enabled?'On':'—')],
+        ['PoE',sel.poe?(sel.poe.watts!=null?sel.poe.watts.toFixed(1)+' W':'—')+(sel.poe.mode?' · '+esc(sel.poe.mode):''):'<span class="upg-dim">No PoE on this port</span>'],
+        ['Carries',esc(sel.carries.map(c=>c.name+(c.ip?' ('+c.ip+')':'')).join(', ')||(sel.known?'Nothing':'Not known'))],
+        ['Lock',sel.lock?'🔒 '+esc(sel.lock):(sel.known?'Free':'<span class="upg-warn">Not known — treated as locked</span>')]],
+      extra:`<div class="upg-sec">The Platform's Controls</div>`
+        +[['Port On / Off',ctl(c.port)],['PoE On / Off',ctl(c.poe)],['Power-Cycle PoE',ctl(c.power_cycle)]].map(([k,v])=>`<div class="upg-kv"><span>${k}</span><span>${v}</span></div>`).join(''),
+      acts,
+      note:[acts.length&&!free?`Locked: ${esc(sel.lock||'what this port carries is not known')}. It can be turned on, never off, from here.`:'',
+        off?'The platform\'s Port and PoE controls are switched off, as they ship.':''].filter(Boolean).join(' ')});
   }
-  h+=`<div class="unp-split"><section class="unp-list"><div class="unp-chips">${chips}<button class="unp-chip" style="margin-left:auto" onclick="_uniPorts=null;renderUniNet();_uniPortsLoad()">Refresh</button></div><div class="unp-rh"><b>Port</b><span>Carries</span><span>Speed</span><span>PoE</span><span></span></div>${rows}</section><aside class="unp-panel">${panel}</aside></div>`;
-  return h;
+  return _uniPage({bar:pick,right:state,refresh:'_uniPorts=null;renderUniNet();_uniPortsLoad()',top:h,
+    main:`<div class="upg-bar" style="margin-bottom:4px">${chips}</div>${table}`,card:true,detail:panel});
 }
 // ── REGISTER 1225 — NETWORK → DEVICES, CLIENTS, WI-FI (the mockup's other Network sections; Dave 6 Nov: "sure go").
 // One read from Core (/unifi/console/network: the controller's own tables through ProOS's local user, named fields only —
@@ -16009,6 +16140,16 @@ function _uniMark(k){
   const src=UNI_LOGOS[k==='overview'?'console':k]||_uniIcons[k==='overview'?'console':k];
   return (typeof src==='string'&&/^data:image\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/=]+$/i.test(src))?`<img class="uni-logo" src="${src}" alt="">`:_uniIco(k);
 }
+// register 1244 — the mockup's console line, top right of every UniFi page: the console, signed in or not, from Core's
+// own console answer (the same one the Overview page shows); nothing shown until Core has answered
+function _uniConPill(){
+  const st=_uniLast; if(!st) return '';
+  // measured: Core's quick answer (a page opened straight onto Protect or Network) carries no sign-in check — then the line
+  // says only what it does carry (the key), never "Not Signing In"
+  const key=!!(st.key&&st.key.set), signed=st.signed_in;
+  const words=signed===true?'Signed In'+(key?' · Key Ready':' · No Key Yet'):signed===false?(st.user_set?'Not Signing In':'Not Set Up'):(key?'Key Ready':(st.user_set?'No Key Yet':'Not Set Up'));
+  return `<span class="uni-con" role="status" title="Console ${esc(st.host||'')} — ${words}"><i class="${key&&signed!==false?'on':'off'}"></i><b>Console<em>${st.host?' '+esc(st.host):''}</em></b><span>${words}</span></span>`;
+}
 function uniAppBar(active){
   const apps=(_uniLast&&_uniLast.apps)||[]; const found=k=>{ const a=apps.find(x=>x.app===k); return a?a.found:null; };
   const tabs=[['overview','Overview','openUnifiSuite()'],['network','Network','openUniNet()'],['protect','Protect','openUnifi()'],['access','Access','openUniAccess()'],['connect','Connect','openUniConnect()'],['talk','Talk','']];
@@ -16016,7 +16157,7 @@ function uniAppBar(active){
   return '<div class="uni-bar" role="tablist" aria-label="UniFi apps">'+tabs.map(([k,l,go])=>{
     const on=k===active, n=note[k];
     return `<button class="uni-tab${on?' on':''}${n?' later':''}" role="tab" aria-selected="${on}" onclick="${go||`uniLater('${k}')`}">${_uniMark(k)}${l}${n?`<span class="uni-tab-note">${n}</span>`:''}</button>`;
-  }).join('')+'</div>';
+  }).join('')+_uniConPill()+'</div>';
 }
 // ── REGISTER 1239 — CONNECT: each display with its live state (Core: /unifi/console/connect — the Connect app's own list,
 // named fields only) and the actions the display says it supports. 1240: the controls — only for actions the display
@@ -16125,8 +16266,9 @@ function uniLater(k){ toast({access:'Access gets its own page in stage 5. It wor
 function paintUniBar(active){
   const el=document.getElementById('unibar-'+active); if(el) setHTML(el,uniAppBar(active));
   // Opened straight onto Protect or Network: the logos the console already served come with Core's quick answer
-  if(el && !Object.keys(_uniIcons).length && active!=='overview'){
+  if(el && (!Object.keys(_uniIcons).length || !_uniLast) && active!=='overview'){
     fetch(proCoreUrl()+'/unifi/console?quick=1').then(r=>r.ok?r.json():null).then(d=>{
+      if(d&&!_uniLast){ _uniLast=d; setHTML(el,uniAppBar(active)); }   // 1244: the console line needs Core's answer too
       if(d&&d.icons&&Object.keys(d.icons).length){ _uniIcons=d.icons; setHTML(el,uniAppBar(active)); }
     }).catch(()=>{});
   }
@@ -16246,7 +16388,7 @@ function uniProtectSection(s){
   if(live) live.style.display=s==='setup'?'none':'';
   if(body) body.style.display=s==='setup'?'':'none';
   if(s!=='live'&&_uniCamTimer){ clearInterval(_uniCamTimer); _uniCamTimer=null; }
-  if(s==='live'){ renderUniCams(); if(!_uniCams) _uniCamsLoad(); _uniCamTick(); }
+  if(s==='live'){ renderUniCams(); if(!_uniCams) _uniCamsLoad(); _uniCamTick(); if(!_uniCC) _uniCCLoad(); if(!_uniDet) _uniDetLoad(); else _uniDetSnaps(10); }   // 1244: the detail card's quick controls and the strip
   if(s==='alarm'){ renderUniAlarm(); _uniAlarmLoad(); _uniAlarmsLoad(); }
   if(s==='detections'){ renderUniDets(); _uniDetLoad(); }
   if(s==='cameras'||s==='doorbell'){ renderUniCC(); _uniCCLoad(); }
@@ -16410,22 +16552,12 @@ const UNI_QUICK=['privacy_mode','recording_mode','status_light','mic_level'];
 function _uniQuickHTML(camId){
   const c=((_uniCC&&_uniCC.cameras)||[]).find(x=>x.id===camId); if(!c) return '';
   const rows=UNI_QUICK.map(k=>c.controls.find(r=>r.key===k)).filter(Boolean); if(!rows.length) return '';
-  const kv=(k,v)=>`<div class="unifi-row"><span class="unifi-row-l">${k}</span><span class="unifi-row-d">${v}</span></div>`;
   const id=r=>`'${esc(c.id)}','${esc(r.entity_id)}'`;
   const ctl=r=>!r.available?'<span class="es">Not answering</span>'
     :r.domain==='switch'?_uniSw(r.state==='on',`uniCamSet(${id(r)},${r.state!=='on'})`,r.label)
     :r.domain==='select'?`<select class="ucc-sel" onchange="uniCamSet(${id(r)},this.value)">${(r.options||[]).map(o=>`<option${o===r.state?' selected':''}>${esc(o)}</option>`).join('')}</select>`
     :_uniRng(r.state,r.min,r.max,r.step,`uniCamSet(${id(r)},Number(this.value))`,r.unit);
-  return `<div class="unp-pt" style="margin-top:14px">QUICK CONTROLS</div><div class="unifi-status">${rows.map(r=>kv(esc(r.label),ctl(r))).join('')}</div>`;
-}
-function _uniTodayHTML(name){
-  // 1243e — MEASURED on the box: Driveway's "Today" listed "Admin Activity" (a console sign-in, not something the camera saw).
-  // Only what a camera sees counts here.
-  const SEEN=['Person','Vehicle','Animal','Package','Face','Number Plate','Doorbell Ring'];
-  const L=((_uniDet&&_uniDet.detections)||[]).filter(x=>x.device===name&&x.kinds.some(k=>SEEN.includes(k)));
-  if(!_uniDet) return '';
-  const hm=t=>{ const n=Number(t); return n>0?new Date(n).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}):''; };
-  return `<div class="unp-pt" style="margin-top:14px">TODAY</div>`+(L.length?`<div class="ual-list">${L.slice(0,6).map(x=>`<div class="ual-row" style="cursor:default"><span class="ual-rn">${esc(x.kinds.join(' · '))}</span><span class="ual-rw">${hm(x.start)}</span><button class="unp-chip" onclick="uniProtectSection('recordings');uniPlayClip('${esc(x.id)}','${esc((x.kinds.join(' · ')+' — '+x.device).replace(/'/g,''))}')">Play</button></div>`).join('')}</div>`:'<div class="es">No people, vehicles or animals seen today.</div>');
+  return `<div class="upg-sec">Quick Controls</div>${rows.map(r=>`<div class="upg-kv"><span>${esc(r.label)}</span><span>${ctl(r)}</span></div>`).join('')}`;   // 1244: the detail card's rows
 }
 function uniCamFilter(f){ _uniCamFilter=f; renderUniCams(); }
 function uniGoPort(mac,idx){ _uniPortSw=mac; _uniPortSel=idx; _uniPortFilter='all'; _uniNetSection='ports'; openUniNet(); }
@@ -16445,19 +16577,24 @@ async function _uniDetLoad(){
   try{ const r=await fetch(proCoreUrl()+'/unifi/console/detections?hours=24'+(_uniDetOnly?'&only='+encodeURIComponent(_uniDetOnly):'')); _uniDet=r.ok?await r.json():{ok:false,why:'Core answered '+r.status}; }
   catch(e){ _uniDet={ok:false,why:'Couldn\'t reach ProOS Core'}; }
   if(panelActive('unifi')&&_uniProtectSection==='detections'){ renderUniDets(); _uniDetSnaps(); }
-  else if(panelActive('unifi')&&_uniProtectSection==='live') renderUniCams();
+  else if(panelActive('unifi')&&_uniProtectSection==='live'){ renderUniCams(); _uniDetSnaps(10); }
 }
 function uniDetFilter(k){ _uniDetOnly=_uniDetOnly===k?'':k; _uniDet=null; renderUniDets(); _uniDetLoad(); }
-async function _uniDetSnaps(){
-  const L=((_uniDet&&_uniDet.detections)||[]).filter(x=>x.picture).slice(0,40);
+async function _uniDetSnaps(n){
+  // 1244: Live View's strip asks for the pictures of what it shows (measured: the newest ten of every kind were mostly
+  // motion, so the strip's own stayed blank); Detections for the newest 40. One fetch per picture, never two at once.
+  const live=_uniProtectSection==='live';
+  const L=((_uniDet&&_uniDet.detections)||[]).filter(x=>x.picture)
+    .filter(x=>!live||(x.kinds.some(k=>UNI_SEEN.includes(k))&&(!_uniStripKind||x.kinds.includes(_uniStripKind)))).slice(0,n||40);
   for(const x of L){
-    if(!panelActive('unifi')||_uniProtectSection!=='detections') return;
-    if(_uniDetImg[x.id]) continue;
+    if(!panelActive('unifi')||!['detections','live'].includes(_uniProtectSection)) return;
+    if(_uniDetImg[x.id]||_uniDetImg[x.id]===null) continue;
+    _uniDetImg[x.id]=null;
     try{ const r=await fetch(proCoreUrl()+'/unifi/console/detections/thumb?id='+encodeURIComponent(x.id));
       if(r.ok&&String(r.headers.get('content-type')||'').startsWith('image/')){ const u=URL.createObjectURL(await r.blob()); _uniDetImg[x.id]=u;
         document.querySelectorAll('img[data-det="'+x.id+'"]').forEach(im=>{ im.src=u; }); }
       else _uniDetImg[x.id]='';
-    }catch(e){}
+    }catch(e){ delete _uniDetImg[x.id]; }   // not reached: asked again next time
   }
 }
 function renderUniDets(){
@@ -16656,8 +16793,8 @@ function renderUniCams(){
   const on=d.filter(_uniCamOnline), off=d.filter(c=>!_uniCamOnline(c));
   const F={all:['All',d],online:['Online',on],offline:['Offline',off]};
   const chips=Object.entries(F).map(([k,[l,a]])=>`<button class="unp-chip${_uniCamFilter===k?' on':''}" onclick="uniCamFilter('${k}')">${l} ${a.length}</button>`).join('');
-  const tile=c=>{
-    const sel=c.id===_uniCamSel, img=_uniCamImg[c.id];
+  const tile=(c,sel)=>{
+    const img=_uniCamImg[c.id];
     if(!_uniCamOnline(c)){
       const w=_uniCamWhere[c.id];
       return `<button class="ucam off${sel?' on':''}" onclick="uniCamPick('${esc(c.id)}')"><span class="ucam-off"><b>Offline</b><span>${_uniCamPortLine(w)}</span></span><span class="ucam-n">${esc(c.name||'Camera')}</span></button>`;
@@ -16665,24 +16802,44 @@ function renderUniCams(){
     return `<button class="ucam${sel?' on':''}" onclick="uniCamPick('${esc(c.id)}')"><img data-cam="${esc(c.id)}" alt="" ${img?`src="${img.url}"`:''}><span class="ucam-n">${esc(c.name||'Camera')}</span></button>`;
   };
   const list=F[_uniCamFilter][1];
-  const sel=d.find(c=>c.id===_uniCamSel);
-  let panel='<div class="es">Tap a camera to see its details.</div>';
+  // register 1244: the detail card is never empty — with nothing chosen it shows the first camera in the list
+  const sel=d.find(c=>c.id===_uniCamSel)||list[0]||null;
+  let panel='<div class="upg-note">No camera to show.</div>';
   if(sel){
     const ff=sel.featureFlags||{}, img=_uniCamImg[sel.id], w=_uniCamWhere[sel.id];
     if(sel.mac&&!w) _uniCamWhereLoad(sel);
-    const kv=(k,v)=>`<div class="unifi-row"><span class="unifi-row-l">${k}</span><span class="unifi-row-d">${v}</span></div>`;
-    const yes=b=>b?'Yes':'No';
+    const yes=b=>b?'Yes':'<span class="upg-dim">No</span>';
     const smart=(ff.smartDetectTypes||[]).map(t=>String(t).replace(/^./,x=>x.toUpperCase())).join(' · ');
-    panel=(_uniCamOnline(sel)?`<div class="ucam-big"><img data-cam="${esc(sel.id)}" alt="" ${img?`src="${img.url}"`:''}></div>`:'')
-      +`<div class="unp-pn">${esc(sel.name||'Camera')}</div><div class="unifi-status">`
-      +kv('State',_uniCamOnline(sel)?'<span style="color:#46e3a0">● Online</span>':'<em class="unp-red">Offline</em>')
-      +kv('Switch Port',_uniCamPortLine(w)+(w&&w.found?` <a href="#" onclick="uniGoPort('${esc(w.switch_mac)}',${Number(w.port)});return false">See Port ›</a>`:''))
-      +kv('Microphone',ff.hasMic?(sel.isMicEnabled?'On':'Off'):'None')+kv('Speaker',yes(ff.hasSpeaker))+kv('HDR',yes(ff.hasHdr))
-      +(smart?kv('Smart Detect',esc(smart)):'')+(img?kv('Snapshot',new Date(img.at).toLocaleTimeString()):'')
-      +'</div>'+_uniQuickHTML(sel.id)+_uniTodayHTML(sel.name||'');
+    panel=_uniDetail({media:_uniCamOnline(sel)?`<div class="upg-media"><img data-cam="${esc(sel.id)}" alt="" ${img?`src="${img.url}"`:''}></div>`:'',
+      title:esc(sel.name||'Camera'),
+      rows:[['State',_uniCamOnline(sel)?'<span class="upg-ok">● Online</span>':'<span class="upg-bad">Offline</span>'],
+        ['Switch Port',_uniCamPortLine(w)],
+        ['Microphone',ff.hasMic?(sel.isMicEnabled?'On':'Off'):'<span class="upg-dim">None</span>'],['Speaker',yes(ff.hasSpeaker)],['HDR',yes(ff.hasHdr)],
+        smart?['Smart Detect',esc(smart)]:null,img?['Snapshot',new Date(img.at).toLocaleTimeString()]:null],
+      extra:_uniQuickHTML(sel.id),
+      acts:[w&&w.found?`<button onclick="uniGoPort('${esc(w.switch_mac)}',${Number(w.port)})">See Its Port</button>`:'',
+        `<button onclick="_uniCCSel='${esc(sel.id)}';uniProtectSection('cameras')"${w&&w.found?'':' class="wide"'}>All Settings</button>`]});
   }
-  setHTML(el,`<div class="unp-chips">${chips}<button class="unp-chip" style="margin-left:auto" onclick="_uniCams=null;renderUniCams();_uniCamsLoad()">Refresh</button></div>`
-    +`<div class="unp-split"><section class="uni-cams">${list.map(tile).join('')||'<div class="es">No cameras here.</div>'}</section><aside class="unp-panel">${panel}</aside></div>`);
+  setHTML(el,_uniPage({bar:chips,refresh:'_uniCams=null;renderUniCams();_uniCamsLoad()',
+    main:`<div class="uni-cams">${list.map(c=>tile(c,sel&&c.id===sel.id)).join('')||'<div class="upg-note">No cameras here.</div>'}</div>`,
+    detail:panel,strip:_uniStripHTML()}));
+}
+// register 1244 — the mockup's strip under Live View: what the cameras saw in the last 24 hours, a picture each (Detections'
+// own answer — the same read, nothing new asked of the console). Tap one to play it.
+let _uniStripKind='';
+const UNI_SEEN=['Person','Vehicle','Animal','Package','Face','Number Plate','Doorbell Ring'];
+function uniStripKind(k){ _uniStripKind=_uniStripKind===k?'':k; renderUniCams(); _uniDetSnaps(10); }
+function _uniStripHTML(){
+  if(!_uniDet) return '';
+  const all=((_uniDet.ok&&_uniDet.detections)||[]).filter(x=>x.kinds.some(k=>UNI_SEEN.includes(k)));
+  const kinds=UNI_SEEN.filter(k=>all.some(x=>x.kinds.includes(k)));
+  const L=all.filter(x=>!_uniStripKind||x.kinds.includes(_uniStripKind)).slice(0,10);
+  const hm=t=>{ const n=Number(t); return n>0?new Date(n).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}):''; };
+  const head=`<div class="upg-strip-h"><b>Detections — Last 24 Hours</b>${kinds.map(k=>`<button class="unp-chip${_uniStripKind===k?' on':''}" onclick="uniStripKind('${esc(k)}')">${esc(k)} ${all.filter(x=>x.kinds.includes(k)).length}</button>`).join('')}<a onclick="uniProtectSection('detections')">All Detections ›</a></div>`;
+  if(!_uniDet.ok) return head+`<div class="upg-note">Couldn't read the detections — ${esc(_uniDet.why||'')}.</div>`;
+  if(!L.length) return head+'<div class="upg-note">No people, vehicles or animals seen in the last 24 hours.</div>';
+  return head+`<div class="upg-thumbs">${L.map(x=>{ const img=_uniDetImg[x.id], what=x.kinds.filter(k=>UNI_SEEN.includes(k)).join(' · ');
+    return `<button class="upg-thumb" onclick="uniProtectSection('recordings');uniPlayClip('${esc(x.id)}','${esc((what+' — '+x.device).replace(/'/g,''))}')"><i><img data-det="${esc(x.id)}" alt="" ${img?`src="${img}"`:''}></i><b>${esc(what)}</b><span>${esc(x.device||'')} · ${hm(x.start)}</span></button>`; }).join('')}</div>`;
 }
 async function renderUnifi(){
   const body=document.getElementById('unifi-body'); if(!body) return;
