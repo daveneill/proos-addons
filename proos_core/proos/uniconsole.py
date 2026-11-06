@@ -355,9 +355,29 @@ def send_json(creds, platform_host, method, path, body, http=None):
             _SESSION.update({"cookie": None, "at": 0.0})
             continue
         if st not in (200, 201, 204) or _is_web_page(rh, raw):
-            return None, "the console answered %s" % (st if st else "nothing")
+            # 1231b — MEASURED on Dave's box: the alarm switch got "the console answered 400" and nothing more, so the
+            # next try was a guess. The console's own reason now comes with it (its message text only, cut short).
+            return None, "the console answered %s%s" % (st if st else "nothing", _reason(raw) if not _is_web_page(rh, raw) else "")
         return (_json(raw) or {}), None
     return None, "the console refused ProOS's change"
+
+
+def _reason(raw):
+    """The console's own short reason from a refusal (its error / message text), or nothing."""
+    j = _json(raw)
+    msg = None
+    if isinstance(j, dict):
+        for k in ("error", "message", "msg", "errorMessage", "reason", "name"):
+            v = j.get(k)
+            if isinstance(v, dict):
+                v = v.get("message") or v.get("msg")
+            if isinstance(v, str) and v.strip():
+                msg = v
+                break
+    if msg is None and isinstance(raw, (bytes, bytearray)) and raw and len(raw) < 400 and not raw.lstrip().startswith(b"<"):
+        msg = raw.decode("utf-8", "ignore")
+    msg = re.sub(r"[^A-Za-z0-9 .,:;'()/_-]", "", str(msg or ""))[:160].strip()
+    return (" — " + msg) if msg else ""
 
 
 def apps(creds, h, http=None):

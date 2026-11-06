@@ -70,10 +70,26 @@ ok(len(SENT) == 4 and d3 is None and "answered 200" in why3 and d4 is None and "
 src = open(os.path.join(HERE, "..", "server.py"), encoding="utf-8").read()
 i = src.index('if method == "POST" and sub == "alarms" and sub2 == "set":')
 route = src[i:src.index('return self._send(404, {"error": "unknown console route"})', i)]
-ok('_uc.send_json(_creds, ph, "PATCH", "/proxy/protect/api/automations/" + aid, {"enable": on})' in route
-   and route.count("send_json(") == 1 and 'not x.get("deleted")' in route and 'row.get("editable", True)' in route
-   and 'bool(r2.get("enable")) == on' in route and '"confirmed": True' in route and '"confirmed": False' in route
+# Pin rewritten, not weakened (register 1231b — MEASURED on Dave's box: PATCH {"enable"} answered 400). The rule stands:
+# ProOS changes ONLY the alarm's on/off. The fallbacks send the alarm's own record exactly as the console gave it, with
+# only "enable" different (and, last, without the console's own bookkeeping); confirmed only from the re-read list.
+ok('("PATCH", {"enable": on})' in route and '("PUT", dict(row, enable=on))' in route
+   and 'k not in _ALARM_READ_ONLY' in route and route.count("send_json(") == 1 and 'not x.get("deleted")' in route
+   and 'row.get("editable", True)' in route and 'bool(r2.get("enable")) == on' in route and '"confirmed": False' in route
    and "call_service" not in route,
-   "4 · the route sends only {enable}, only for a listed, editable alarm, and confirms only from the re-read list")
+   "4 · only the alarm's on/off changes (its own record otherwise exactly as the console gave it), only for a listed, "
+   "editable alarm, confirmed only from the re-read list")
+row = {"id": "a1", "name": "Barking", "enable": True, "status": {"total": 0}, "sources": [], "conditions": [{"condition": {"type": "is"}}]}
+full = dict(row, enable=False)
+ok({k for k in full if full[k] != row[k]} == {"enable"} and full["conditions"] == row["conditions"],
+   "4b · the full-record try differs from the console's record in 'enable' only")
+REPLIES[:] = [(400, {"content-type": "application/json"}, b'{"error":"conditions must not be empty"}')]
+uc._session = lambda creds, h, http=None: ({"cookie": "TOKEN=abc", "x-csrf-token": "CSRF-1"}, None)
+_d, why5 = uc.send_json(Creds(), None, "PUT", "/p", {"enable": False}, http=http)
+REPLIES[:] = [(400, {"content-type": "text/html"}, b"<html>secret page</html>")]
+_d, why6 = uc.send_json(Creds(), None, "PUT", "/p", {"enable": False}, http=http)
+uc._session = orig
+ok(why5 == "the console answered 400 — conditions must not be empty" and why6 == "the console answered 400" and "secret" not in why6,
+   "5 · a refusal carries the console's own short reason (never a web page's text)")
 print("\n%d checks passed, %d failed" % (PASS, len(FAIL)))
 sys.exit(1 if FAIL else 0)
