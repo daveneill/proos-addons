@@ -149,7 +149,6 @@ select option,select optgroup{background:#1a1c20;color:#fff}
 .ual-rw{flex:1 1 20%;min-width:0;color:var(--t2);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ual-pill{flex:0 0 auto;font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:20px;background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.55)}
 .ual-pill.on{background:rgba(70,227,160,0.16);color:#46e3a0}
-.ual-wwt{margin:2px 0 8px 10px}
 @media (max-width:700px){.ual-rw{display:none}}
 /* NETWORK → PORTS — register 1220: the switch's face as RJ45 sockets (Dave: "ports not rectangular") */
 .unp-seg{display:inline-flex;gap:2px;padding:3px;border-radius:11px;background:rgba(0,0,0,0.35);margin-bottom:14px}
@@ -361,6 +360,24 @@ button.ual-pill{border:0;cursor:pointer}
 .upg-kvs>.upg-kv:nth-child(even){background:rgba(255,255,255,0.04)}
 .v3rows>.v3row:nth-child(even){background:rgba(255,255,255,0.03)}
 .v3rows>.v3row:not(.static):active{background:rgba(255,255,255,0.10)}
+.upg-body.dl>.upg-det{order:-1}
+/* 1247 — Alarm Manager as the mockup board */
+.ual-main{display:flex;flex-direction:column;gap:12px;overflow:hidden}
+.ual-tcard{flex:1 1 0;min-height:0;display:flex;flex-direction:column;overflow:hidden;padding:12px 14px}
+.ual-tcard>*{flex:0 0 auto}.ual-tcard>.upg-scroll{flex:1 1 0;min-height:0;overflow-y:auto;scrollbar-width:none;scroll-snap-type:y mandatory}
+.ual-h{display:flex;align-items:baseline;gap:10px;padding:2px 4px 6px}.ual-h b{font-size:16px;font-weight:600}.ual-h .upg-state{margin-left:auto}
+.ual-wwt{flex:0 0 46%;min-height:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.ual-wcard{min-height:0;display:flex;flex-direction:column;border:0.5px solid var(--line);border-radius:16px;background:var(--card);padding:14px 14px 10px}
+.ual-wt{font-size:15px;font-weight:600;margin-bottom:10px;flex:0 0 auto}
+.ual-chips{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:10px}
+.ual-chip{display:flex;align-items:center;justify-content:center;text-align:center;min-height:40px;padding:6px 8px;border-radius:11px;border:1px solid var(--accent);background:var(--accent-soft);font-size:13px;font-weight:600;line-height:1.2;word-break:break-word}
+.ual-tick{color:#fff}
+.ual-state{font-size:30px;margin-bottom:8px}
+.ual-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:12px 0 4px}
+.ual-big{width:100%;min-height:56px;padding:8px;border-radius:13px;border:0.5px solid var(--line);background:var(--card-hi);color:#fff;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;line-height:1.25}
+.ual-big.on{border:1.5px solid var(--accent);background:var(--accent-soft)}
+.ual-big:active{background:rgba(255,255,255,0.14)}
+@media (max-width:1023px){.ual-wwt{flex:0 0 auto;grid-auto-rows:minmax(180px,auto)}.ual-main{overflow-y:auto}}
 .upg-note{font-size:12px;color:var(--t2);margin-top:10px;line-height:1.45}
 .upg-media{aspect-ratio:16/9;border-radius:11px;overflow:hidden;background:linear-gradient(160deg,#2b3544,#131920);margin-bottom:14px;flex:0 0 auto}
 .upg-media img{width:100%;height:100%;object-fit:cover;display:block}
@@ -3364,7 +3381,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102682';
+const PROOS_BUILD='2026102683';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -5263,7 +5280,7 @@ function _uniPage(o){
   return `<div class="upg"><div class="upg-bar">${o.bar||''}<div class="upg-r">${o.right||''}`
     +(o.refresh?`<button class="upg-ico" title="Refresh" aria-label="Refresh" onclick="${o.refresh}">${_UPG_REFRESH}</button>`:'')+`</div></div>`
     +(o.top?`<div class="upg-top">${o.top}</div>`:'')
-    +`<div class="upg-body${o.detail==null?' solo':''}"><section class="upg-main${o.card?' upg-card':''}"${o.fit?` data-fit="${o.fit}"${o.tiles?' data-fit-tiles':''}`:''}>${o.main||''}</section>`
+    +`<div class="upg-body${o.detail==null?' solo':''}${o.left?' dl':''}"><section class="upg-main${o.card?' upg-card':''}${o.mainCls?' '+o.mainCls:''}"${o.fit?` data-fit="${o.fit}"${o.tiles?' data-fit-tiles':''}`:''}>${o.main||''}</section>`
     +(o.detail!=null?`<aside class="upg-det">${o.detail}</aside>`:'')+`</div>`
     +(o.strip?`<div class="upg-strip">${o.strip}</div>`:'')+`</div>`;
 }
@@ -5992,6 +6009,15 @@ function _uniFit(){
 // [data-fit-x="sel"]: a sideways row of pictures — as many whole pictures as fit, each widened to fill.
 function _fitWhole(root){
   try{
+    // measured on the box (1080×810): the strip's pictures widen first, which makes the strip taller — so the strip is fitted
+    // FIRST, then the areas whose height it decides (the camera tiles had come out 3 px over)
+    root.querySelectorAll('[data-fit-x]').forEach(S=>{
+      S.style.removeProperty('--fit-w');
+      const it=S.querySelector(S.getAttribute('data-fit-x')); if(!it||!S.clientWidth) return;
+      const gap=parseFloat(getComputedStyle(S).columnGap)||0, min=parseFloat(S.getAttribute('data-fit-min'))||132;
+      const n=Math.max(1,Math.floor((S.clientWidth+gap)/(min+gap)));
+      S.style.setProperty('--fit-w',((S.clientWidth-(n-1)*gap)/n).toFixed(2)+'px');
+    });
     root.querySelectorAll('[data-fit]').forEach(S=>{
       S.style.removeProperty('--fit-h');
       if(!S.offsetParent||S.scrollHeight<=S.clientHeight+1) return;
@@ -6015,13 +6041,6 @@ function _fitWhole(root){
       let foot=0; S.querySelectorAll('.upg-media,.upg-over,.upg-title,.upg-kv,.upg-sec,.upg-note').forEach(e=>{
         const r=e.getBoundingClientRect(), b=r.bottom-top; if(r.height&&b<=lim+0.5&&b>foot) foot=b; });
       if(foot>40) S.style.flex='0 0 '+Math.ceil(foot)+'px';
-    });
-    root.querySelectorAll('[data-fit-x]').forEach(S=>{
-      S.style.removeProperty('--fit-w');
-      const it=S.querySelector(S.getAttribute('data-fit-x')); if(!it||!S.clientWidth) return;
-      const gap=parseFloat(getComputedStyle(S).columnGap)||0, min=parseFloat(S.getAttribute('data-fit-min'))||132;
-      const n=Math.max(1,Math.floor((S.clientWidth+gap)/(min+gap)));
-      S.style.setProperty('--fit-w',((S.clientWidth-(n-1)*gap)/n).toFixed(2)+'px');
     });
   }catch(e){}
 }
@@ -16508,7 +16527,7 @@ async function _uniAlarmsLoad(){
   catch(e){ _uniAlarms={ok:false,why:'Couldn\'t reach ProOS Core'}; }
   if(panelActive('unifi')&&_uniProtectSection==='alarm') renderUniAlarm();
 }
-function uniAlarmSel(id){ _uniAlarmSel=_uniAlarmSel===id?null:id; renderUniAlarm(); }
+function uniAlarmSel(id){ _uniAlarmSel=id; renderUniAlarm(); }   // 1247: the When · Where · Then cards always show one alarm
 // REGISTER 1231 — one alarm on or off through Core's own route; asked first; "confirmed" only from the console's read-back
 async function uniAlarmSet(id,on){
   const a=((_uniAlarms&&_uniAlarms.alarms)||[]).find(x=>x.id===id); if(!a) return;
@@ -16523,76 +16542,73 @@ async function uniAlarmSet(id,on){
   }catch(e){ toast(_coreFailWords('',e)); }
   _uniAlarmsLoad();
 }
+// REGISTER 1247 — ALARM MANAGER on the page template, laid out as the mockup board (Dave, 8 Nov: "alarm manager still looks
+// very different to the mocks"): the Arming card on the left; the alarms as one table (Alarm · When · Where · Then · On) on
+// the right; under it the chosen alarm's 1 · When · 2 · Where · 3 · Then as three cards. Sensors, sirens, relays and alarm
+// hubs have their own sections (Sensors; Relays & Sirens) and left this page. Nothing here does more than before: on/off
+// only where the console allows it (not in Global Alarm Manager mode — measured, 1231c); what an alarm does is edited in UniFi.
 function _uniAlarmsHTML(){
-  const d=_uniAlarms, head=t=>`<div class="unp-card"><div class="unp-head"><b>Alarms</b>${t||''}</div>`;
-  if(!d) return head()+'<div class="es">Reading Alarm Manager…</div></div>';
-  if(!d.ok) return head()+`<div class="es">Couldn't read Alarm Manager — ${esc(d.why||'no answer')}. ProOS reads it with its own console user (Console Settings on the UniFi page).</div></div>`;
+  const d=_uniAlarms;
+  if(!d) return {table:'<div class="upg-note">Reading Alarm Manager…</div>',wwt:''};
+  if(!d.ok) return {table:`<div class="upg-note">Couldn't read Alarm Manager — ${esc(d.why||'no answer')}. ProOS reads it with its own console user (Console Settings on the UniFi page).</div>`,wwt:''};
   const A=d.alarms||[];
-  if(!A.length) return head()+'<div class="es">No alarms in Alarm Manager.</div></div>';
+  if(!A.length) return {table:'<div class="upg-note">No alarms in Alarm Manager.</div>',wwt:''};
+  const glob=_uniAlarm&&_uniAlarm.mode==='global';
+  const sel=A.find(a=>a.id===_uniAlarmSel)||A[0];
+  const devs=a=>a.devices.length+(a.devices_unknown||0);
+  const onCell=a=>(!glob&&a.editable!==false)?_uniSw(a.on,`event.stopPropagation();uniAlarmSet('${esc(a.id)}',${!a.on})`,a.name)
+    :`<span class="${a.on?'upg-ok':'upg-dim'}">${a.on?'On':'Off'}</span>`;
+  const table=`<div class="ual-h"><b>Alarms</b><span class="upg-state">${d.on} of ${d.total} on</span></div>`
+    +_uniTable([['Alarm',''],['When','24%'],['Where','16%'],['Then','20%'],['On','64px']],
+      A.map(a=>({on:a.id===sel.id,click:`uniAlarmSel('${esc(a.id)}')`,cells:[`<b>${esc(a.name)}</b>`,esc(a.watches.join(' · ')||'—'),
+        `${devs(a)} device${devs(a)===1?'':'s'}`,esc(a.actions.join(' · ')||'—'),onCell(a)]})));
   const ago=t=>{ const n=Number(t); if(!(n>0)) return 'Never'; const m=Math.round((Date.now()-n)/60000); return m<1?'Just now':m<60?m+' min ago':m<1440?Math.round(m/60)+' h ago':new Date(n).toLocaleDateString(); };
-  const kv=(k,v)=>`<div class="unifi-row"><span class="unifi-row-l">${k}</span><span class="unifi-row-d">${v}</span></div>`;
-  const rows=A.map(a=>{
-    const devs=a.devices.length+(a.devices_unknown||0);
-    const row=`<button class="ual-row${_uniAlarmSel===a.id?' on':''}" onclick="uniAlarmSel('${esc(a.id)}')"><span class="ual-rn">${esc(a.name)}</span>`
-      +`<span class="ual-rw">${esc(a.watches.join(', ')||'—')}</span><span class="ual-rw">${devs} device${devs===1?'':'s'}</span>`
-      +`<span class="ual-rw">${esc(a.actions.join(', ')||'—')}</span><span class="ual-pill${a.on?' on':''}">${a.on?'On':'Off'}</span></button>`;
-    if(_uniAlarmSel!==a.id) return row;
-    const list=(xs,empty)=>xs.length?xs.map(esc).join('<br>'):`<span class="es">${empty}</span>`;
-    return row+`<div class="ual-dev ual-wwt"><div class="unifi-status">`
-      +kv('1 · When',list(a.watches,'Any activity'))
-      +kv('2 · Where',list(a.devices,'—')+(a.devices_unknown?`<br><span class="es">${a.devices_unknown} device${a.devices_unknown===1?'':'s'} ProOS couldn't name</span>`:''))
-      +kv('3 · Then',list(a.actions,'—'))
-      +kv('Schedule',esc(a.schedule))+kv('Cooldown',a.cooldown_s?a.cooldown_s+' s':'None')
-      +kv('Last Fired',ago(a.last_fired)+(a.fired_total!=null?' · '+a.fired_total+' time'+(a.fired_total===1?'':'s'):''))
-      +(a.used_in_arm_mode?kv('Arm Mode','Used when armed'):'')
-      +`</div>`
-      // register 1231: on/off — asked first, the console's own read-back decides "confirmed"
-      // 1231c — MEASURED: in Global Alarm Manager mode UniFi refuses any other system's on/off (as it does arming)
-      +((_uniAlarm&&_uniAlarm.mode==='global')?'<div class="es" style="margin-top:6px">Your console runs UniFi\'s Global Alarm Manager. In that mode UniFi only lets its own Alarm Manager switch alarms on and off — do it there.</div>'
-        :a.editable===false?'<div class="es" style="margin-top:6px">UniFi marks this alarm as not editable.</div>'
-        :`<div class="unp-acts"><button class="${a.on?'unp-act':'btn-primary'}" onclick="uniAlarmSet('${esc(a.id)}',${!a.on})">${a.on?'Turn Alarm Off':'Turn Alarm On'}</button></div>`)
-      +`<div class="es" style="margin-top:6px">Edit what this alarm does in UniFi's Alarm Manager.</div></div>`;
-  }).join('');
-  return head(`<span class="es" style="margin-left:auto">${d.on} of ${d.total} on</span>`)+`<div class="ual-list">${rows}</div></div>`;
+  const chips=(xs,empty)=>xs.length?`<div class="ual-chips">${xs.map(x=>`<span class="ual-chip">${esc(x)}</span>`).join('')}</div>`:`<div class="upg-note">${empty}</div>`;
+  const card=(t,body)=>`<div class="ual-wcard"><div class="ual-wt">${t}</div><div class="upg-dbody" data-fit-trim>${body}</div></div>`;
+  const wwt=`<div class="ual-wwt">`
+    +card('1 · When',chips(sel.watches,'Any activity')+_uniKvs([['Schedule',esc(sel.schedule||'—')]]))
+    +card('2 · Where',(sel.devices.length?`<div class="upg-kvs">${sel.devices.map(x=>`<div class="upg-kv"><span class="ual-tick">✓ ${esc(x)}</span><span></span></div>`).join('')}</div>`:'<div class="upg-note">No devices named.</div>')
+      +(sel.devices_unknown?`<div class="upg-note">${sel.devices_unknown} device${sel.devices_unknown===1?'':'s'} ProOS couldn't name</div>`:''))
+    +card('3 · Then',chips(sel.actions,'Nothing set')+_uniKvs([['Cooldown',sel.cooldown_s?sel.cooldown_s+' s':'None'],
+      ['Last Fired',ago(sel.last_fired)+(sel.fired_total!=null?' · '+sel.fired_total+' time'+(sel.fired_total===1?'':'s'):'')],
+      sel.used_in_arm_mode?['Arm Mode','Used when armed']:null])
+      +`<div class="upg-note">${glob?'Your console runs UniFi\'s Global Alarm Manager. In that mode UniFi only lets its own Alarm Manager switch alarms on and off — do it there. ':sel.editable===false?'UniFi marks this alarm as not editable. ':''}Edit what this alarm does in UniFi's Alarm Manager.</div>`)
+    +`</div>`;
+  return {table,wwt};
 }
 function renderUniAlarm(){
   const el=document.getElementById('unifi-live'); if(!el||_uniProtectSection!=='alarm') return;
   const d=_uniAlarm;
   if(!d){ setHTML(el,'<div class="empty"><div class="et">Reading the alarm…</div></div>'); return; }
   if(d.error){ setHTML(el,`<div class="empty"><div class="et">Couldn't read the alarm</div><div class="es">${esc(d.error)}</div></div>`); return; }
-  const kv=(k,v)=>`<div class="unifi-row"><span class="unifi-row-l">${k}</span><span class="unifi-row-d">${v}</span></div>`;
-  const when=t=>{ const n=Number(t); return n>0?new Date(n).toLocaleString():'—'; };
-  // arming
-  let arm='';
+  // the Arming card — the console's MODE decides what it can do (1224)
+  let over='Alarm', title='', words='', body='', acts=[];
   if(d.mode==='global'){
-    arm=`<div class="unp-pt">Arming</div><div class="unp-pn">Done in UniFi</div><div class="es">Your console runs UniFi's Global Alarm Manager. In that mode Ubiquiti lets no other system arm or disarm, so arm and disarm in UniFi. ProOS fires your Alarm Manager triggers below.</div>`;
+    title='Done in UniFi';
+    words='Your console runs UniFi\'s Global Alarm Manager. In that mode Ubiquiti lets no other system arm or disarm, so arm and disarm in UniFi. ProOS fires your Alarm Manager triggers below.';
   } else if(d.mode==='profiles'){
     const P=d.profiles||{}, list=Array.isArray(P)?P:(P.armProfiles||P.data||[]);
     const cur=P.currentArmProfileId||P.armProfileId||null, armed=(P.isArmed===true||/arm/i.test(String(P.armMode||P.state||''))&&!/disarm/i.test(String(P.armMode||P.state||'')));
-    arm=`<div class="unp-pt">Arming</div><div class="unp-pn">${armed?'Armed':'Disarmed'}</div>`
-      +`<div class="unp-acts">${list.map(x=>`<button class="unp-act${x.id===cur?' on':''}" onclick="uniAlarmProfile('${esc(x.id)}','${esc(x.name||x.id)}')">${esc(x.name||x.id)}${x.id===cur?' ✓':''}</button>`).join('')}`
-      +`<button class="btn-primary" onclick="uniAlarmArm(true)">Arm</button><button class="unp-act" onclick="uniAlarmArm(false)">Disarm</button></div>`;
+    title=armed?'Armed':'Disarmed';
+    words='Arming uses the arm profiles on your console, so ProOS, the Protect app and a keypad all agree.';
+    body+=list.length?`<div class="ual-grid">${list.map(x=>`<button class="ual-big${x.id===cur?' on':''}" onclick="uniAlarmProfile('${esc(x.id)}','${esc(x.name||x.id)}')">${esc(x.name||x.id)}</button>`).join('')}</div>`:'';
+    acts=[`<button class="btn-primary" onclick="uniAlarmArm(true)">Arm</button>`,`<button class="wide" onclick="uniAlarmArm(false)">Disarm</button>`];
   } else {
-    arm=`<div class="unp-pt">Arming</div><div class="unp-pn">Not known</div><div class="es">${esc(d.why||'The console did not say how its alarm is managed.')}</div>`;
+    title='Not Known'; words=esc(d.why||'The console did not say how its alarm is managed.');
   }
-  // triggers
+  // Alarm Manager triggers — fired from here, in every mode
   const T=d.triggers||[];
-  let trig=`<div class="bld-sec-h" style="margin-top:16px">Alarm Manager Triggers</div>`
-    +(T.length?`<div class="unp-acts">${T.map(t=>`<div class="ual-trig"><button class="unp-act" onclick="uniAlarmFire('${esc(t.id)}','${esc(t.name)}')">${esc(t.name)}</button>${_uniTrigEdit?`<button class="ual-x" title="Remove" onclick="uniTrigSave('${esc(t.id)}')">✕</button>`:''}</div>`).join('')}</div>`:'<div class="es">No triggers yet.</div>');
-  trig+=_uniTrigEdit
-    ?`<div class="es" style="margin-top:10px">In UniFi: Alarm Manager → Create Alarm → Trigger: Webhook (custom). Give it its actions, then copy its ID here.</div><div class="field"><div class="field-label">Name</div><input id="ut-name" placeholder="e.g. Panic — Sirens On"/></div><div class="field"><div class="field-label">Trigger ID</div><input id="ut-id" autocomplete="off"/></div><button class="btn-primary" onclick="uniTrigSave()">Save Trigger</button><button class="unp-act" onclick="uniTrigEdit(false)">Done</button>`
-    :`<button class="unp-act" onclick="uniTrigEdit(true)">Add or Remove Triggers</button>`;
-  // devices
-  const card=(title,rows,empty)=>`<div class="unp-card"><div class="unp-head"><b>${title}</b></div>${rows||`<div class="es">${empty}</div>`}</div>`;
-  const hubs=(d.hubs||[]).map(h=>{ const a=h.alarmHub||{}; return `<div class="ual-dev"><b>${esc(h.name||'Alarm Hub')}</b><div class="unifi-status">${kv('State',String(h.state).toUpperCase()==='CONNECTED'?'<span style="color:#46e3a0">● Connected</span>':'<em class="unp-red">'+esc(String(h.state||'—').toLowerCase())+'</em>')}${kv('Armed',esc(a.armed||'—'))}${kv('Tamper',a.deviceTamperStatus==='tampered'?'<em class="unp-red">Tampered</em>':esc(a.deviceTamperStatus||'—'))}${kv('Last Event',when(h.lastEvent))}</div></div>`; }).join('');
-  const sensors=(d.sensors||[]).map(s=>{ const b=s.batteryStatus||{}; const door=s.mountType&&s.mountType!=='none'; return `<div class="ual-dev"><b>${esc(s.name||'Sensor')}</b><div class="unifi-status">${door?kv(esc(String(s.mountType).replace(/^./,x=>x.toUpperCase())),s.isOpened?'<em class="unp-red">Open</em>':'Closed'):''}${kv('Motion',s.isMotionDetected?'Detected':'None')}${kv('Battery',b.percentage!=null?b.percentage+'%'+(b.isLow?' — <em class="unp-red">low</em>':''):'—')}${String(s.state||'').toUpperCase()!=='CONNECTED'?kv('State','<em class="unp-red">'+esc(String(s.state||'').toLowerCase())+'</em>'):''}</div></div>`; }).join('');
-  const sirens=(d.sirens||[]).map(s=>`<div class="ual-dev"><b>${esc(s.name||'Siren')}</b><div class="unp-acts"><button class="unp-act" onclick="uniSiren('${esc(s.id)}',true)">Sound</button><button class="unp-act" onclick="uniSiren('${esc(s.id)}',false)">Stop</button></div></div>`).join('');
-  const relays=(d.relays||[]).map(s=>`<div class="ual-dev"><b>${esc(s.name||'Relay')}</b><div class="unifi-status">${kv('State',esc(String(s.state||'—').toLowerCase()))}</div></div>`).join('');
-  setHTML(el,`<div class="unp-chips"><button class="unp-chip" style="margin-left:auto" onclick="_uniAlarm=null;_uniAlarms=null;renderUniAlarm();_uniAlarmLoad();_uniAlarmsLoad()">Refresh</button></div>`
-    +`<div class="unp-split ual"><aside class="unp-panel">${arm}${trig}</aside><section class="ual-devs">`
-    +_uniAlarmsHTML()
-    +card('Alarm Hubs',hubs,'No alarm hubs on this console.')+card('Sensors',sensors,'No Protect sensors.')
-    +card('Sirens',sirens,'No sirens on this console.')+card('Relays',relays,'No relays on this console.')+'</section></div>');
+  body+=`<div class="upg-sec">Alarm Manager Triggers</div>`
+    +(T.length?`<div class="ual-grid">${T.map(t=>`<div class="ual-trig"><button class="ual-big" onclick="uniAlarmFire('${esc(t.id)}','${esc(t.name)}')">${esc(t.name)}</button>${_uniTrigEdit?`<button class="ual-x" title="Remove" onclick="uniTrigSave('${esc(t.id)}')">✕</button>`:''}</div>`).join('')}</div>`:'<div class="upg-note">No triggers yet.</div>');
+  if(_uniTrigEdit){
+    body+=`<div class="upg-note">In UniFi: Alarm Manager → Create Alarm → Trigger: Webhook (custom). Give it its actions, then copy its ID here.</div><div class="field"><div class="field-label">Name</div><input id="ut-name" placeholder="e.g. Panic — Sirens On"/></div><div class="field"><div class="field-label">Trigger ID</div><input id="ut-id" autocomplete="off"/></div>`;
+    acts=[`<button class="btn-primary" onclick="uniTrigSave()">Save Trigger</button>`,`<button class="wide" onclick="uniTrigEdit(false)">Done</button>`];
+  } else acts.push(`<button class="wide" onclick="uniTrigEdit(true)">Add or Remove Triggers</button>`);
+  const arming=`<div class="upg-dbody" data-fit-trim><div class="upg-over">${over}</div><div class="upg-title ual-state">${title}</div><div class="upg-note" style="margin-top:0">${words}</div>${body}</div>`
+    +`<div class="upg-acts">${acts.join('')}</div>`;
+  const L=_uniAlarmsHTML();
+  setHTML(el,_uniPage({refresh:'_uniAlarm=null;_uniAlarms=null;renderUniAlarm();_uniAlarmLoad();_uniAlarmsLoad()',
+    detail:arming,left:true,mainCls:'ual-main',main:`<div class="upg-card ual-tcard">${L.table}</div>${L.wwt}`}));
 }
 function _uniCamOnline(c){ return String(c.state||'').toUpperCase()==='CONNECTED'; }
 async function _uniCamsLoad(){
