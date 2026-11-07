@@ -3386,7 +3386,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102686';
+const PROOS_BUILD='2026102687';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -6069,7 +6069,13 @@ function _fitWhole(root){
   }catch(e){}
 }
 (function(){
-  let t=0; const go=()=>{ clearTimeout(t); t=setTimeout(_uniFit,80); };
+  // REGISTER 1250 — fitted BEFORE the first frame (Dave, 8 Nov, Mac app: "the device page is just reflashing the page its like
+  // everything moves and ports just not switching the ports picture"). MEASURED in Chrome on his box: a press on a device redrew
+  // the page and its first frame was drawn unfitted (list 608 → 307 px, card 265) until the fit 80 ms later; a switch change
+  // drew a first frame with the lower half 22 px tall and no rows. A MutationObserver answers before the page is drawn, so the
+  // fit now runs there, once per redraw (it changes sizes only, never the page's contents — no loop: measured 1 run per
+  // redraw); the 80 ms pass stays for what settles later (pictures, fonts).
+  let t=0, fitting=false; const go=()=>{ if(!fitting){ fitting=true; try{ _uniFit(); }finally{ fitting=false; } } clearTimeout(t); t=setTimeout(_uniFit,80); };
   const hook=()=>{ const ids=['panel-unifi-suite','panel-unifi','panel-unifi-net','panel-unifi-access','panel-unifi-connect'];
     const els=ids.map(i=>document.getElementById(i)).filter(Boolean); if(!els.length){ setTimeout(hook,500); return; }
     // redraws inside a page, and the page itself opening — never the classes _uniFit sets inside it (no loop)
