@@ -3386,7 +3386,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102685';
+const PROOS_BUILD='2026102686';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -3413,6 +3413,25 @@ const PROOS_BUILD='2026102685';
       buf.push({at:new Date().toISOString(), ms:Math.round(g-100), page:String(pg||'').slice(0,60), last:last,
                 since_click: lastAt ? Math.round((n-g)-lastAt) : null,
                 work: slow.filter(function(x){ return x[0]>=n-g-100; }).map(function(x){ return x[1]+' '+x[2]; }).join(', ').slice(0,300)}); if(buf.length>50) buf.shift(); } },100);
+  // 1249 — WHERE A TAP DIES ON THE UNIFI PAGES (Dave, 8 Nov, Mac app: "this list popup does not change the device you select",
+  // "press on device does nothing" — both work in Chrome, measured with real clicks). Each press on a UniFi page is followed:
+  // did the CLICK arrive, did a picker CHANGE arrive, did Pro's own step RUN, and how long until the page next drew (two
+  // frames). Noted as "TAP …" 1.5 s after the press. Changes nothing on screen; removed with 1116's half.
+  var tap=null, RAN=['uniNetPick','uniPortSwitch','uniPortPick','uniPortFilter','uniNetSection','uniProtectSection','uniAlarmSel','uniCamPick','uniCamFilter'];
+  setTimeout(function(){ RAN.forEach(function(nm){ try{ var f=window[nm]; if(typeof f!=='function'||f.__tap) return;
+    var w=function(){ if(tap&&!tap.ran){ tap.ran=nm; var t0=performance.now(); requestAnimationFrame(function(){ requestAnimationFrame(function(){ if(tap) tap.paint=Math.round(performance.now()-t0); }); }); }
+      return f.apply(this,arguments); }; w.__tap=1; w.__t=f.__t; window[nm]=w; }catch(_){ } }); },50);
+  var onUni=function(){ try{ return !!document.querySelector('#panel-unifi.active,#panel-unifi-net.active,#panel-unifi-suite.active,#panel-unifi-access.active,#panel-unifi-connect.active'); }catch(_){ return false; } };
+  document.addEventListener('pointerdown',function(e){ try{ if(!onUni()) return; if(tap) return;
+    // a picker stays open while the choice is made — its press is followed for 10 s, a button's for 1.5 s
+    var sel=!!(e.target&&e.target.tagName==='SELECT');
+    tap={at:new Date().toISOString(), t0:performance.now(), what:(sel?'PICKER ':'')+last, click:0, change:0, ran:'', paint:null};
+    setTimeout(function(){ var x=tap; tap=null; if(!x) return;
+      buf.push({at:x.at, ms:1, page:'UniFi', last:x.what, since_click:null,
+        work:'TAP click='+x.click+' change='+x.change+' ran='+(x.ran||'none')+' paint='+(x.paint==null?'none':x.paint+'ms')+' '+(navigator.userAgent.indexOf('Mobile')>=0?'mobile-ua':'desktop-ua')}); },sel?10000:1500);
+  }catch(_){ } },true);
+  document.addEventListener('click',function(){ if(tap) tap.click++; },true);
+  document.addEventListener('change',function(){ if(tap) tap.change++; },true);
   setInterval(function(){ if(!buf.length) return; var b=buf.splice(0);
     try{ fetch(proCoreUrl()+'/ui/stall',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({app:'pro',build:PROOS_BUILD,stalls:b})}).catch(function(){}); }catch(_){ } },15000);
