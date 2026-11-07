@@ -3340,7 +3340,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102680';
+const PROOS_BUILD='2026102681';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -22834,9 +22834,13 @@ function v3Side(sec){
   setHTML(host,'');
   document.body.classList.remove('v3-side');
   v3Accordion(sec,h);
-  // 1245 (measured: the menu is 1134 px tall in a 684 px rail, UniFi's row at 874): a UniFi page brings its sections into view
-  if(sec==='setup'&&/^unifi-(net|access)$|^unifi$/.test(p)){ const rail=document.getElementById('v2rail'), row=rail&&rail.querySelector('.v3si[data-k="unifi-suite"]');
-    if(rail&&row){ const d=row.getBoundingClientRect().top-rail.getBoundingClientRect().top; if(d>rail.clientHeight*0.4||d<0) rail.scrollTop+=d-80; } }
+  _v3UniInView();
+}
+// 1245 (measured: the menu is 1134 px tall in a 684 px rail, UniFi's row at 874): a UniFi page brings its sections into view
+function _v3UniInView(){
+  if(_v2sec!=='setup'||!/^unifi-(net|access)$|^unifi$/.test(_v2panel||'')) return;
+  const rail=document.getElementById('v2rail'), row=rail&&rail.querySelector('.v3si[data-k="unifi-suite"]'); if(!rail||!row) return;
+  const d=row.getBoundingClientRect().top-rail.getBoundingClientRect().top; if(d>rail.clientHeight*0.4||d<0) rail.scrollTop+=d-80;
 }
 // REGISTER 1010 — ONE MENU (Dave, 26 Oct: "redesign this to all be in the one menu bar and each section opens underneath";
 // approved mockups "Pro One Menu Mockups" → "Love it .. Build"). The section's own list, which stood as a second menu
@@ -22865,6 +22869,9 @@ function v3MenuOpen(){
 }
 function v3MenuClose(){ document.body.classList.remove('v3menu-open'); }
 function v3Tap(sec){
+  // 1245 (measured in iPad portrait): on a UniFi page, tapping System Setup's icon went to Building Settings and the UniFi
+  // sections left the menu. Tapping the icon of the section you are already in now just opens its menu over the page.
+  if(sec===_v2sec&&V3HASLIST[sec]&&v3IconMode()&&_v2panel){ v3MenuOpen(); setTimeout(_v3UniInView,0); return; }
   v3MenuClose();
   v2go(sec);
   if(V3HASLIST[sec] && v3IconMode()) v3MenuOpen();
