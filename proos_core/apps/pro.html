@@ -337,6 +337,30 @@ button.ual-pill{border:0;cursor:pointer}
 .upg-acts>button.btn-primary{background:var(--accent);font-weight:600}
 .upg-acts>button:disabled{opacity:.4;cursor:not-allowed}
 .upg-det .ucc-rng{width:104px}.upg-det .ucc-sel{max-width:150px}.upg-det .ucc-val{min-width:38px}
+.upg-dbody{flex:1 1 0;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;scroll-snap-type:y proximity}
+.upg-dbody::-webkit-scrollbar,.upg-scroll::-webkit-scrollbar{display:none}
+.upg-dbody>*,.upg-kvs>.upg-kv{scroll-snap-align:start}
+.upg-det>.upg-acts{margin-top:auto;flex:0 0 auto}
+.upg-main.upg-card{display:flex;flex-direction:column;overflow:hidden}
+.upg-main.upg-card>*{flex:0 0 auto}
+.upg-main.upg-card>.upg-scroll{flex:1 1 0;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;scroll-snap-type:y mandatory}
+.upg-scroll tr.r>td:first-child{scroll-snap-align:start}
+[data-fit][style*="--fit-h"] tr.r{height:var(--fit-h)}
+[data-fit][style*="--fit-h"] .ucam{height:var(--fit-h);aspect-ratio:auto}
+.upg-main[data-fit]{scroll-snap-type:y mandatory}.upg-main[data-fit] .ucam{scroll-snap-align:start}
+.upg-thumbs[style*="--fit-w"]{grid-auto-columns:var(--fit-w);scroll-snap-type:x mandatory}.upg-thumbs .upg-thumb{scroll-snap-align:start}
+/* REGISTER 1246 — rows striped and lit when pressed (Dave, 8 Nov: "ALL scrolling lists or info like these need there lines
+   separated like maybe different shading so its easier to track along a line of info and when pressed is highlighted") */
+.upg-tbl.upg-th{flex:0 0 auto}
+.upg-tbl tbody tr.r:nth-child(even)>td{background:rgba(255,255,255,0.04)}
+.upg-tbl tbody tr.r:hover>td{background:rgba(255,255,255,0.07)}
+.upg-tbl tbody tr.r:active>td{background:rgba(255,255,255,0.12)}
+.upg-tbl tbody tr.r.on>td{background:var(--accent-soft)}
+.upg-kvs{display:flex;flex-direction:column;margin:0 -8px}
+.upg-kvs>.upg-kv{padding:5px 8px;border-radius:8px}
+.upg-kvs>.upg-kv:nth-child(even){background:rgba(255,255,255,0.04)}
+.v3rows>.v3row:nth-child(even){background:rgba(255,255,255,0.03)}
+.v3rows>.v3row:not(.static):active{background:rgba(255,255,255,0.10)}
 .upg-note{font-size:12px;color:var(--t2);margin-top:10px;line-height:1.45}
 .upg-media{aspect-ratio:16/9;border-radius:11px;overflow:hidden;background:linear-gradient(160deg,#2b3544,#131920);margin-bottom:14px;flex:0 0 auto}
 .upg-media img{width:100%;height:100%;object-fit:cover;display:block}
@@ -3340,7 +3364,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102681';
+const PROOS_BUILD='2026102682';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -5239,23 +5263,32 @@ function _uniPage(o){
   return `<div class="upg"><div class="upg-bar">${o.bar||''}<div class="upg-r">${o.right||''}`
     +(o.refresh?`<button class="upg-ico" title="Refresh" aria-label="Refresh" onclick="${o.refresh}">${_UPG_REFRESH}</button>`:'')+`</div></div>`
     +(o.top?`<div class="upg-top">${o.top}</div>`:'')
-    +`<div class="upg-body${o.detail==null?' solo':''}"><section class="upg-main${o.card?' upg-card':''}">${o.main||''}</section>`
+    +`<div class="upg-body${o.detail==null?' solo':''}"><section class="upg-main${o.card?' upg-card':''}"${o.fit?` data-fit="${o.fit}"${o.tiles?' data-fit-tiles':''}`:''}>${o.main||''}</section>`
     +(o.detail!=null?`<aside class="upg-det">${o.detail}</aside>`:'')+`</div>`
     +(o.strip?`<div class="upg-strip">${o.strip}</div>`:'')+`</div>`;
 }
+// register 1246 (Dave, 8 Nov, on the iPad: the card's buttons were half cut off at its foot): the card's words scroll in
+// their own body, which ends on a whole line; the actions stay pinned at the card's foot
 function _uniDetail(o){
-  return (o.media||'')+(o.over?`<div class="upg-over">${o.over}</div>`:'')+`<div class="upg-title">${o.title||''}</div>`
-    +(o.rows||[]).filter(Boolean).map(([k,v])=>`<div class="upg-kv"><span>${k}</span><span>${v}</span></div>`).join('')
-    +(o.extra||'')+((o.acts||[]).filter(Boolean).length?`<div class="upg-acts">${o.acts.filter(Boolean).join('')}</div>`:'')
-    +(o.note?`<div class="upg-note">${o.note}</div>`:'');
+  const acts=(o.acts||[]).filter(Boolean);
+  return `<div class="upg-dbody" data-fit-trim>`+(o.media||'')+(o.over?`<div class="upg-over">${o.over}</div>`:'')+`<div class="upg-title">${o.title||''}</div>`
+    +_uniKvs(o.rows)+(o.extra||'')+(o.note?`<div class="upg-note">${o.note}</div>`:'')+`</div>`
+    +(acts.length?`<div class="upg-acts">${acts.join('')}</div>`:'');
+}
+// label-value lines, striped (register 1246: "lines separated … so its easier to track along a line of info")
+function _uniKvs(rows){
+  const L=(rows||[]).filter(Boolean); if(!L.length) return '';
+  return `<div class="upg-kvs">${L.map(([k,v])=>`<div class="upg-kv"><span>${k}</span><span>${v}</span></div>`).join('')}</div>`;
 }
 // cols: [label, width] · rows: {on, click, cells}
+// register 1246: the headings stand still; only the rows scroll, in a body that ends on a whole row
 function _uniTable(cols,rows,empty){
-  return `<table class="upg-tbl"><colgroup>${cols.map(c=>`<col${c[1]?` style="width:${c[1]}"`:''}>`).join('')}</colgroup>`
-    +`<thead><tr>${cols.map(c=>`<th>${c[0]}</th>`).join('')}</tr></thead><tbody>`
+  const cg=`<colgroup>${cols.map(c=>`<col${c[1]?` style="width:${c[1]}"`:''}>`).join('')}</colgroup>`;
+  return `<table class="upg-tbl upg-th">${cg}<thead><tr>${cols.map(c=>`<th>${c[0]}</th>`).join('')}</tr></thead></table>`
+    +`<div class="upg-scroll" data-fit="tr.r"><table class="upg-tbl">${cg}<tbody>`
     +(rows.length?rows.map(r=>`<tr class="r${r.on?' on':''}"${r.click?` onclick="${r.click}"`:''}>${r.cells.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')
       :`<tr><td colspan="${cols.length}" class="upg-dim">${empty||'Nothing here.'}</td></tr>`)
-    +`</tbody></table>`;
+    +`</tbody></table></div>`;
 }
 function _upSpeed(p){ const s=Number(p.speed)||0; if(!p.link) return ''; return s>=10000?'10 GbE':s>=2500?'2.5 GbE':s>=1000?'GbE':s>0?'FE':''; }
 function _upColor(p){
@@ -5358,8 +5391,7 @@ function _uniPortsHTML(){
         ['PoE',sel.poe?(sel.poe.watts!=null?sel.poe.watts.toFixed(1)+' W':'—')+(sel.poe.mode?' · '+esc(sel.poe.mode):''):'<span class="upg-dim">No PoE on this port</span>'],
         ['Carries',esc(sel.carries.map(c=>c.name+(c.ip?' ('+c.ip+')':'')).join(', ')||(sel.known?'Nothing':'Not known'))],
         ['Lock',sel.lock?'🔒 '+esc(sel.lock):(sel.known?'Free':'<span class="upg-warn">Not known — treated as locked</span>')]],
-      extra:`<div class="upg-sec">The Platform's Controls</div>`
-        +[['Port On / Off',ctl(c.port)],['PoE On / Off',ctl(c.poe)],['Power-Cycle PoE',ctl(c.power_cycle)]].map(([k,v])=>`<div class="upg-kv"><span>${k}</span><span>${v}</span></div>`).join(''),
+      extra:`<div class="upg-sec">The Platform's Controls</div>`+_uniKvs([['Port On / Off',ctl(c.port)],['PoE On / Off',ctl(c.poe)],['Power-Cycle PoE',ctl(c.power_cycle)]]),
       acts,
       note:[acts.length&&!free?`Locked: ${esc(sel.lock||'what this port carries is not known')}. It can be turned on, never off, from here.`:'',
         off?'The platform\'s Port and PoE controls are switched off, as they ship.':''].filter(Boolean).join(' ')});
@@ -5947,6 +5979,49 @@ function _uniFit(){
       const top=sp.getBoundingClientRect().top-main.getBoundingClientRect().top+main.scrollTop;
       const h=Math.floor(main.clientHeight-top-2);
       if(h>=200){ sp.classList.add('unp-fit'); sp.style.height=h+'px'; } else sp.classList.remove('unp-fit');
+    });
+    _fitWhole(p);
+  }catch(e){}
+}
+// REGISTER 1246 — a scrolling area ends on a WHOLE row or tile (Dave, 8 Nov, on the iPad: "scrolling lists half cut off …
+// whatever position the list starts in it evenly fits … when its half cut off like that it looks not finished").
+// [data-fit="sel"]: rows (or, with data-fit-tiles, tiles) are sized so a whole number fill the area exactly — rows only
+//   ever grow (never squeezed under their words), tiles may shrink or grow to the nearest whole row; and the area snaps to
+//   them as it scrolls. Only an area that actually scrolls is touched.
+// [data-fit-trim]: mixed content (a detail card's words) — the area stops at the foot of its last whole line.
+// [data-fit-x="sel"]: a sideways row of pictures — as many whole pictures as fit, each widened to fill.
+function _fitWhole(root){
+  try{
+    root.querySelectorAll('[data-fit]').forEach(S=>{
+      S.style.removeProperty('--fit-h');
+      if(!S.offsetParent||S.scrollHeight<=S.clientHeight+1) return;
+      const items=[...S.querySelectorAll(S.getAttribute('data-fit'))]; if(items.length<2) return;
+      const sr=S.getBoundingClientRect(), cs=getComputedStyle(S);
+      const r0=items[0].getBoundingClientRect(), h0=r0.height; if(h0<8) return;
+      const next=items.find(e=>e.getBoundingClientRect().top>r0.top+1);
+      const gap=next?Math.max(0,next.getBoundingClientRect().top-r0.top-h0):0;
+      const lead=r0.top-sr.top+S.scrollTop-(parseFloat(cs.paddingTop)||0);
+      const avail=S.clientHeight-(parseFloat(cs.paddingTop)||0)-(parseFloat(cs.paddingBottom)||0)-lead;
+      const pitch=h0+gap, tiles=S.hasAttribute('data-fit-tiles');
+      let n=Math.floor((avail+gap)/pitch); if(tiles&&(avail+gap)-n*pitch>pitch*0.5) n++; n=Math.max(1,n);
+      const h=(avail+gap)/n-gap;
+      if(!tiles&&h>h0*1.6) return;               // a near-empty list: leave its rows as drawn
+      S.style.setProperty('--fit-h',Math.max(8,h).toFixed(2)+'px');
+    });
+    root.querySelectorAll('[data-fit-trim]').forEach(S=>{
+      S.style.flex='';
+      if(!S.offsetParent||S.scrollHeight<=S.clientHeight+1) return;
+      const top=S.getBoundingClientRect().top-S.scrollTop, lim=S.clientHeight;
+      let foot=0; S.querySelectorAll('.upg-media,.upg-over,.upg-title,.upg-kv,.upg-sec,.upg-note').forEach(e=>{
+        const r=e.getBoundingClientRect(), b=r.bottom-top; if(r.height&&b<=lim+0.5&&b>foot) foot=b; });
+      if(foot>40) S.style.flex='0 0 '+Math.ceil(foot)+'px';
+    });
+    root.querySelectorAll('[data-fit-x]').forEach(S=>{
+      S.style.removeProperty('--fit-w');
+      const it=S.querySelector(S.getAttribute('data-fit-x')); if(!it||!S.clientWidth) return;
+      const gap=parseFloat(getComputedStyle(S).columnGap)||0, min=parseFloat(S.getAttribute('data-fit-min'))||132;
+      const n=Math.max(1,Math.floor((S.clientWidth+gap)/(min+gap)));
+      S.style.setProperty('--fit-w',((S.clientWidth-(n-1)*gap)/n).toFixed(2)+'px');
     });
   }catch(e){}
 }
@@ -16555,7 +16630,7 @@ function _uniQuickHTML(camId){
     :r.domain==='switch'?_uniSw(r.state==='on',`uniCamSet(${id(r)},${r.state!=='on'})`,r.label)
     :r.domain==='select'?`<select class="ucc-sel" onchange="uniCamSet(${id(r)},this.value)">${(r.options||[]).map(o=>`<option${o===r.state?' selected':''}>${esc(o)}</option>`).join('')}</select>`
     :_uniRng(r.state,r.min,r.max,r.step,`uniCamSet(${id(r)},Number(this.value))`,r.unit);
-  return `<div class="upg-sec">Quick Controls</div>${rows.map(r=>`<div class="upg-kv"><span>${esc(r.label)}</span><span>${ctl(r)}</span></div>`).join('')}`;   // 1244: the detail card's rows
+  return `<div class="upg-sec">Quick Controls</div>`+_uniKvs(rows.map(r=>[esc(r.label),ctl(r)]));   // 1244/1246: the detail card's striped lines
 }
 function uniCamFilter(f){ _uniCamFilter=f; renderUniCams(); }
 function uniGoPort(mac,idx){ _uniPortSw=mac; _uniPortSel=idx; _uniPortFilter='all'; _uniNetSection='ports'; openUniNet(); }
@@ -16818,7 +16893,7 @@ function renderUniCams(){
       acts:[w&&w.found?`<button onclick="uniGoPort('${esc(w.switch_mac)}',${Number(w.port)})">See Its Port</button>`:'',
         `<button onclick="_uniCCSel='${esc(sel.id)}';uniProtectSection('cameras')"${w&&w.found?'':' class="wide"'}>All Settings</button>`]});
   }
-  setHTML(el,_uniPage({bar:chips,refresh:'_uniCams=null;renderUniCams();_uniCamsLoad()',
+  setHTML(el,_uniPage({bar:chips,refresh:'_uniCams=null;renderUniCams();_uniCamsLoad()',fit:'.ucam',tiles:true,
     main:`<div class="uni-cams">${list.map(c=>tile(c,sel&&c.id===sel.id)).join('')||'<div class="upg-note">No cameras here.</div>'}</div>`,
     detail:panel,strip:_uniStripHTML()}));
 }
@@ -16836,7 +16911,7 @@ function _uniStripHTML(){
   const head=`<div class="upg-strip-h"><b>Detections — Last 24 Hours</b>${kinds.map(k=>`<button class="unp-chip${_uniStripKind===k?' on':''}" onclick="uniStripKind('${esc(k)}')">${esc(k)} ${all.filter(x=>x.kinds.includes(k)).length}</button>`).join('')}<a onclick="uniProtectSection('detections')">All Detections ›</a></div>`;
   if(!_uniDet.ok) return head+`<div class="upg-note">Couldn't read the detections — ${esc(_uniDet.why||'')}.</div>`;
   if(!L.length) return head+'<div class="upg-note">No people, vehicles or animals seen in the last 24 hours.</div>';
-  return head+`<div class="upg-thumbs">${L.map(x=>{ const img=_uniDetImg[x.id], what=x.kinds.filter(k=>UNI_SEEN.includes(k)).join(' · ');
+  return head+`<div class="upg-thumbs" data-fit-x=".upg-thumb">${L.map(x=>{ const img=_uniDetImg[x.id], what=x.kinds.filter(k=>UNI_SEEN.includes(k)).join(' · ');
     return `<button class="upg-thumb" onclick="uniProtectSection('recordings');uniPlayClip('${esc(x.id)}','${esc((what+' — '+x.device).replace(/'/g,''))}')"><i><img data-det="${esc(x.id)}" alt="" ${img?`src="${img}"`:''}></i><b>${esc(what)}</b><span>${esc(x.device||'')} · ${hm(x.start)}</span></button>`; }).join('')}</div>`;
 }
 async function renderUnifi(){
