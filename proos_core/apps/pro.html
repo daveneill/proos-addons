@@ -139,8 +139,7 @@ select option,select optgroup{background:#1a1c20;color:#fff}
 /* REGISTER 1229 — the mockup's left-side section list for Protect and Network (Dave, 6 Nov: "yes all of it please").
    Sections down the left, the page on the right; a scrolling row on a phone. A section not built yet is greyed with
    "Coming" and cannot be opened — nothing is drawn to look finished. */
-.uni-split{display:grid;grid-template-columns:clamp(168px,14vw,200px) minmax(0,1fr);gap:16px;align-items:start}   /* 1244: narrower on the iPad */
-@media (max-width:700px){.uni-split{grid-template-columns:minmax(0,1fr)}}
+.uni-split{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start}   /* 1245: the sections live in Pro's one menu — the page has no list column */
 .uni-main{min-width:0}
 /* REGISTER 1230 — Alarm Manager's alarm list: one row per alarm (flex, not a grid), tap for When · Where · Then */
 .ual-list{display:flex;flex-direction:column;gap:2px;max-height:520px;overflow-y:auto}
@@ -152,12 +151,6 @@ select option,select optgroup{background:#1a1c20;color:#fff}
 .ual-pill.on{background:rgba(70,227,160,0.16);color:#46e3a0}
 .ual-wwt{margin:2px 0 8px 10px}
 @media (max-width:700px){.ual-rw{display:none}}
-.uni-side{display:flex;flex-direction:column;gap:2px;padding:6px;border-radius:14px;background:rgba(0,0,0,0.35);position:sticky;top:12px}
-.uni-side button{display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left;font-size:13.5px;padding:9px 12px;border-radius:9px;border:0;background:transparent;color:rgba(255,255,255,0.82);cursor:pointer}
-.uni-side button.on{background:var(--card-hi);color:#fff;font-weight:600}
-.uni-side button:disabled{color:rgba(255,255,255,0.38);cursor:default}
-.uni-soon{font-size:10.5px;font-weight:500;padding:2px 6px;border-radius:6px;background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.45)}
-@media (max-width:700px){.uni-side{flex-direction:row;overflow-x:auto;position:static}.uni-side button{white-space:nowrap}}
 /* NETWORK → PORTS — register 1220: the switch's face as RJ45 sockets (Dave: "ports not rectangular") */
 .unp-seg{display:inline-flex;gap:2px;padding:3px;border-radius:11px;background:rgba(0,0,0,0.35);margin-bottom:14px}
 .unp-seg button{font-size:13.5px;padding:7px 16px;border-radius:9px;border:0;background:transparent;color:rgba(255,255,255,0.8);cursor:pointer}
@@ -272,9 +265,8 @@ button.ual-pill{border:0;cursor:pointer}
    page"; his 8 Oct ruling: columns size to the device and only the contents scroll — never the page). _uniFit sizes the
    page through Pro's own _fitCols; the section list and each column then scroll on their own, side by side at one height. */
 .uni-split.uni-fit{align-items:stretch}
-.uni-fit>.uni-side{position:static;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none}
 .uni-fit>.uni-main,.uni-fit-box.uni-fit{min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none}
-.uni-fit>.uni-side::-webkit-scrollbar,.uni-fit>.uni-main::-webkit-scrollbar,.unp-fit>*::-webkit-scrollbar{display:none}
+.uni-fit>.uni-main::-webkit-scrollbar,.unp-fit>*::-webkit-scrollbar{display:none}
 .unp-split.unp-fit{align-items:stretch}
 .unp-fit>*{min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none}
 .unp-fit .ual-list{max-height:none}
@@ -301,13 +293,9 @@ button.ual-pill{border:0;cursor:pointer}
    right); the page's main area beside a 308 px detail card at one height, each scrolling on its own; an optional full-width
    card above (Ports' faceplate) and strip below (Live View's detections). One card style; tables with headings and coloured
    words, not pills; the detail card is a title, label-value rows and full-width actions with the main one first. */
-.uni-side{background:var(--card);border:0.5px solid var(--line)}
 .upg{display:flex;flex-direction:column;gap:12px}
 .uni-fit>.uni-main:has(.upg){overflow:hidden}
 .uni-fit>.uni-main>.upg,.uni-fit>.uni-main>#unifi-live:has(>.upg),.uni-fit>.uni-main #unifi-live>.upg{height:100%}
-/* measured on the box: Protect's section list sits inside #unifi-seg, so the list stopped short of the page's foot */
-.uni-fit>#unifi-seg{min-height:0;display:flex;flex-direction:column}
-.uni-fit>#unifi-seg>.uni-side{flex:1 1 auto;min-height:0;overflow-y:auto;position:static;scrollbar-width:none}
 /* measured on the box at 1450 px: a 48-port face scrolled sideways by 66 px — sockets may go to 28 px (the drawing scales) */
 .upg-top .unp-face{grid-template-columns:repeat(var(--cols),minmax(28px,46px));gap:4px 3px}
 .upg-top .unp-faceplate{gap:10px}
@@ -2186,6 +2174,8 @@ body.v3-side #app.v3 .scroll{padding-left:0}
 .v3acc .v3si .v3ic{display:none}
 .v3acc .v3si .v3th{width:22px;height:22px;border-radius:6px}
 .v3acc .v3si.l1{padding-left:10px}
+.v3acc .v3sub{margin:0 0 6px 16px;padding-left:10px;border-left:1px solid rgba(255,255,255,.1);display:flex;flex-direction:column}
+.v3acc .v3si.l2{min-height:34px;padding:5px 10px;font-size:13.5px}
 .v3acc .v3si .v3ct{font-size:12px}
 .v3acc .v3grp{padding:10px 10px 4px;font-size:11px;letter-spacing:.6px}
 .v3acc .v3add2{background:none;border:0;font:inherit;font-size:14px;color:#8ea0ff;text-align:left;cursor:pointer;width:100%}
@@ -2559,7 +2549,7 @@ body.v3.railmin .aw-screen{left:108px!important}
         <div class="panel-title">UniFi Protect</div>
       </div>
       <div id="unibar-protect"></div>
-      <div class="uni-split"><div id="unifi-seg"></div><div class="uni-main">
+      <div class="uni-split"><div class="uni-main">
         <div id="unifi-live" style="display:none"></div>
         <div id="unifi-body"><div class="empty"><div class="et">Checking connection…</div></div></div>
       </div></div>
@@ -3350,7 +3340,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102679';
+const PROOS_BUILD='2026102680';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -5218,7 +5208,7 @@ async function _uniNetRefresh(again){
 // local user). What each port carries, PoE watts, and the LOCKS (the switch's uplink, ports feeding other UniFi gear,
 // the ProOS box's port). Read only in this build: switching uses the platform's own port controls, next.
 let _uniNetSection='devices', _uniPorts=null, _uniPortSw=null, _uniPortSel=null, _uniPortFilter='use';   // 1225: Devices first, as the mockup
-function uniNetSection(s){ _uniNetSection=s; _uniNetSel=null; renderUniNet(); }
+function uniNetSection(s){ _uniNetSection=s; _uniNetSel=null; renderUniNet(); _uniMenuMark(s); }
 // REGISTER 1229 — the mockup's section lists. [key, label, built]. A section not built is listed (so the installer sees
 // the whole app) but greyed with "Coming" and cannot be opened; each build flips its own entry to true.
 const UNI_PROTECT_SECTIONS=[['live','Live View',true],['detections','Detections',true],['alarm','Alarm Manager',true],
@@ -5227,11 +5217,19 @@ const UNI_PROTECT_SECTIONS=[['live','Live View',true],['detections','Detections'
 const UNI_NET_SECTIONS=[['devices','Devices',true],['ports','Ports',true],['clients','Clients',true],['wifi','Wi-Fi',true],
   ['networks','Networks',true],['internet','Internet',true],['guests','Guests',true],['firewall','Firewall & Rules',true],
   ['power','Power',true],['events','Events',true],['integration','Integration',true]];
-function _uniSide(items,cur,fn){
-  return `<nav class="uni-side" aria-label="Sections">${items.map(([k,l,ok])=>ok
-    ?`<button class="${cur===k?'on':''}" onclick="${fn}('${k}')">${esc(l)}</button>`
-    :`<button disabled title="Not built yet">${esc(l)}<span class="uni-soon">Coming</span></button>`).join('')}</nav>`;
+// REGISTER 1245 — the sections live in Pro's ONE menu (Dave, 7 Nov: "not sure how the side menu is working as we got rid of
+// the other one and merged it with main side bar as it was taking up half the page — this is sort of doing the same thing";
+// chose "into the main menu"; his 26 Oct ruling: no second menu beside the rail, a section's pages open underneath it).
+// Under UniFi in System Setup, the open app's sections (Protect's, Network's or Access's); the apps stay as the tabs across
+// the top of the page. A section not built yet is not listed (every one is built today).
+function _uniMenuSections(p){
+  const L=p==='unifi'?[UNI_PROTECT_SECTIONS,_uniProtectSection,'uniProtectSection']:p==='unifi-net'?[UNI_NET_SECTIONS,_uniNetSection,'uniNetSection']
+    :p==='unifi-access'?[UNI_ACCESS_SECTIONS,_uniAccSection,'uniAccSection']:null;
+  if(!L) return '';
+  return '<div class="v3sub">'+L[0].filter(x=>x[2]).map(([k,l])=>_v3item('uni-'+k,L[1]===k,'',l,'',L[2]+"('"+k+"')",'l2')).join('')+'</div>';
 }
+// a section chosen from inside the page (a link, "All Detections ›") marks itself in the menu too
+function _uniMenuMark(k){ document.querySelectorAll('.v3sub .v3si.l2').forEach(e=>e.classList.toggle('on',e.getAttribute('data-k')==='uni-'+k)); }
 // ── REGISTER 1244 — ONE PAGE TEMPLATE for every UniFi section (Dave, 6 Nov: "it looks scattered nothing is organised").
 // _uniPage lays a section out as the mockup boards do: the header row (o.bar left; o.right and Refresh right), an optional
 // full-width card (o.top), the main area (o.main) beside the detail card (o.detail; leave it out for a page without one),
@@ -5523,7 +5521,7 @@ async function uniWifiQR(id,name){
 function renderUniNet(){
   const body=document.getElementById('uninet-body'); if(!body) return;
   // register 1229: the left-side section list (the mockup) — wrap(page) puts the page beside it
-  const wrap=h=>`<div class="uni-split">${_uniSide(UNI_NET_SECTIONS,_uniNetSection,'uniNetSection')}<div class="uni-main">${h}</div></div>`;
+  const wrap=h=>`<div class="uni-split"><div class="uni-main">${h}</div></div>`;   // 1245: the sections are in Pro's menu
   if(_uniNetSection==='ports'){ setHTML(body, wrap(_uniPortsHTML())); if(!_uniPorts) _uniPortsLoad(); return; }
   if(['devices','clients','wifi'].includes(_uniNetSection)){ setHTML(body, wrap(_uniNetHTML())); if(!_uniNet) _uniNetLoad(); return; }
   // register 1237: Networks · Internet · Guests · Firewall & Rules · Power · Events (read only, named fields from Core)
@@ -16223,7 +16221,7 @@ function renderUniConnect(){
 const UNI_ACCESS_SECTIONS=[['doors','Doors',true],['people','People',true],['visitors','Visitors',true],['activity','Activity',true]];
 let _uniAcc={}, _uniAccSection='doors';
 async function openUniAccess(){ show('unifi-access'); paintUniBar('access'); _uniAcc={}; uniAccSection(_uniAccSection); }
-function uniAccSection(k){ _uniAccSection=k; renderUniAccess(); if(!_uniAcc[k]) _uniAccLoad(k); }
+function uniAccSection(k){ _uniAccSection=k; renderUniAccess(); if(!_uniAcc[k]) _uniAccLoad(k); _uniMenuMark(k); }
 async function _uniAccLoad(k){
   try{ const r=await fetch(proCoreUrl()+'/unifi/console/access?section='+k); _uniAcc[k]=r.ok?await r.json():{ok:false,why:'Core answered '+r.status}; }
   catch(e){ _uniAcc[k]={ok:false,why:'Couldn\'t reach ProOS Core'}; }
@@ -16260,7 +16258,7 @@ function renderUniAccess(){
   else if(k==='people'){ const L=d.people||[]; page=card('People',L.length?`<div class="ual-list">${L.map(x=>row([esc(x.name),esc(x.status||''),esc(x.number||''),(x.has_pin?'PIN':'')+(x.cards?(x.has_pin?' · ':'')+x.cards+' card'+(x.cards===1?'':'s'):'')])).join('')}</div>`:'<div class="es">No people in Access.</div>',L.length+' people'); }
   else if(k==='visitors'){ const L=d.visitors||[]; const t=n=>n?new Date(n*1000).toLocaleString([], {weekday:'short',hour:'numeric',minute:'2-digit'}):''; page=card('Visitors',L.length?`<div class="ual-list">${L.map(x=>row([esc(x.name),esc(x.status||''),esc(x.reason||''),t(x.from)+(x.until?' – '+t(x.until):'')])).join('')}</div>`:'<div class="es">No visitors booked.</div>'); }
   else { const L=d.activity||[]; const t=n=>n?new Date(n>1e12?n:n*1000).toLocaleString([], {weekday:'short',hour:'numeric',minute:'2-digit'}):''; page=card('Activity — Last 24 Hours',L.length?`<div class="ual-list">${L.map(x=>row([esc(x.who),esc(x.what||''),esc(x.where||''),esc(x.result||''),t(x.when)])).join('')}</div>`:'<div class="es">Nothing in the last 24 hours.</div>'); }
-  setHTML(el,`<div class="uni-split">${_uniSide(UNI_ACCESS_SECTIONS,k,'uniAccSection')}<div class="uni-main"><div class="unp-chips"><button class="unp-chip" style="margin-left:auto" onclick="_uniAcc['${k}']=null;renderUniAccess();_uniAccLoad('${k}')">Refresh</button></div>${page}</div></div>`);
+  setHTML(el,`<div class="uni-split"><div class="uni-main"><div class="unp-chips"><button class="unp-chip" style="margin-left:auto" onclick="_uniAcc['${k}']=null;renderUniAccess();_uniAccLoad('${k}')">Refresh</button></div>${page}</div></div>`);
 }
 function uniLater(k){ toast({access:'Access gets its own page in stage 5. It works once Access is on the console.',connect:'Connect gets its own page in stage 6.',talk:'Ubiquiti has no way in for other systems yet. Talk is built the day there is.'}[k]||''); }
 function paintUniBar(active){
@@ -16383,8 +16381,8 @@ async function openUnifi(){ show('unifi'); paintUniBar('protect'); _uniCams=null
 let _uniProtectSection='live', _uniCams=null, _uniCamSel=null, _uniCamFilter='all', _uniCamImg={}, _uniCamWhere={}, _uniCamTimer=null;
 function uniProtectSection(s){
   _uniProtectSection=s;
-  const seg=document.getElementById('unifi-seg'), live=document.getElementById('unifi-live'), body=document.getElementById('unifi-body');
-  if(seg) setHTML(seg,_uniSide(UNI_PROTECT_SECTIONS,s,'uniProtectSection'));
+  const live=document.getElementById('unifi-live'), body=document.getElementById('unifi-body');
+  _uniMenuMark(s);   // 1245: the sections are in Pro's menu
   if(live) live.style.display=s==='setup'?'none':'';
   if(body) body.style.display=s==='setup'?'':'none';
   if(s!=='live'&&_uniCamTimer){ clearInterval(_uniCamTimer); _uniCamTimer=null; }
@@ -22790,7 +22788,7 @@ if(typeof renderToolbox==='function'){
 }
 function v3SetupKey(p){
   if(p==='history') return 'users'; if(p==='v3software') return 'software'; if(p==='integration') return 'library'; if(p==='navlayout') return 'dashremote';
-  if(p==='unifi'||p==='unifi-net') return 'unifi-suite';   // register 1215: the product pages live inside the UniFi suite
+  if(p==='unifi'||p==='unifi-net'||p==='unifi-access'||p==='unifi-connect') return 'unifi-suite';   // register 1215 (1245: Access and Connect too)
   if(p==='tech') return _techView; return p;
 }
 function v3Side(sec){
@@ -22827,7 +22825,7 @@ function v3Side(sec){
     h='<div class="v3sh"><span>System Setup</span></div><div class="v3sl">'
       +V3SETUP.map(([k,l,i],n)=>_v3item(k,cur===k,_v3ic(i),l,'',"v3SetupOpen("+n+")")).join('')
       +'<div class="v3grp">Systems</div>'
-      +V3SYSTEMS.map(([k,l,i],n)=>_v3item(k,cur===k,_v3ic(i),l,'',"v3SystemsOpen("+n+")")).join('')+'</div>';
+      +V3SYSTEMS.map(([k,l,i],n)=>_v3item(k,cur===k,_v3ic(i),l,'',"v3SystemsOpen("+n+")")+(k==='unifi-suite'?_uniMenuSections(p):'')).join('')+'</div>';
   } else if(sec==='toolbox'){
     const cur=(p==='tech')?_techView:p;
     h='<div class="v3sh"><span>Toolbox</span></div><div class="v3sl">'
@@ -22836,6 +22834,9 @@ function v3Side(sec){
   setHTML(host,'');
   document.body.classList.remove('v3-side');
   v3Accordion(sec,h);
+  // 1245 (measured: the menu is 1134 px tall in a 684 px rail, UniFi's row at 874): a UniFi page brings its sections into view
+  if(sec==='setup'&&/^unifi-(net|access)$|^unifi$/.test(p)){ const rail=document.getElementById('v2rail'), row=rail&&rail.querySelector('.v3si[data-k="unifi-suite"]');
+    if(rail&&row){ const d=row.getBoundingClientRect().top-rail.getBoundingClientRect().top; if(d>rail.clientHeight*0.4||d<0) rail.scrollTop+=d-80; } }
 }
 // REGISTER 1010 — ONE MENU (Dave, 26 Oct: "redesign this to all be in the one menu bar and each section opens underneath";
 // approved mockups "Pro One Menu Mockups" → "Love it .. Build"). The section's own list, which stood as a second menu
