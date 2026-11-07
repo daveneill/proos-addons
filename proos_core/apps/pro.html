@@ -120,12 +120,16 @@ select option,select optgroup{background:#1a1c20;color:#fff}
 .uni-chip button{margin-left:auto;font-size:13px;color:#fff;background:var(--card-hi);border:0;border-radius:9px;padding:7px 12px;cursor:pointer}
 .uni-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:18px}
 @media (max-width:700px){.uni-tiles{grid-template-columns:minmax(0,1fr)}}
-.uni-tile{border-radius:18px;padding:18px;background:linear-gradient(160deg,var(--uni-tint,rgba(255,255,255,0.04)),rgba(255,255,255,0.03));border:0.5px solid var(--line);display:flex;flex-direction:column;gap:12px;min-height:200px}
+.uni-tile{border-radius:18px;padding:16px 18px;background:linear-gradient(160deg,var(--uni-tint,rgba(255,255,255,0.04)),rgba(255,255,255,0.03));border:0.5px solid var(--line);display:flex;flex-direction:column;gap:10px;min-height:0}   /* 1248: shorter — was 200 px tall at least */
+.uni-tile.go{cursor:pointer;transition:background .15s}
+.uni-tile.go:hover{border-color:rgba(255,255,255,0.22)}
+.uni-tile.go:active{background:rgba(255,255,255,0.10)}
+.uni-tile-cv{margin-left:auto;width:18px;height:18px;fill:none;stroke:rgba(255,255,255,.45);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
 .uni-tile.later{border-style:dashed;background:rgba(255,255,255,0.025)}
 .uni-tile-top{display:flex;align-items:center;gap:11px}
-.uni-tile-ico{width:42px;height:42px;border-radius:12px;background:rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;flex:0 0 auto}
-.uni-tile-ico svg{width:22px;height:22px}
-.uni-tile-ico img.uni-logo{width:34px;height:34px;border-radius:9px;object-fit:contain}
+.uni-tile-ico{width:54px;height:54px;border-radius:13px;background:rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.uni-tile-ico svg{width:28px;height:28px}   /* 1248: the brand mark at the size the Integrations pages use (.ip-logo, 54 px) */
+.uni-tile-ico img.uni-logo{width:44px;height:44px;border-radius:11px;object-fit:contain}
 .uni-tile-name{font-size:17px;font-weight:600}
 .uni-tile-sub{font-size:12px;color:var(--t2)}
 .uni-tile-st{margin-left:auto;font-size:12px;color:var(--t2);text-align:right}
@@ -366,11 +370,11 @@ button.ual-pill{border:0;cursor:pointer}
 .ual-tcard{flex:1 1 0;min-height:0;display:flex;flex-direction:column;overflow:hidden;padding:12px 14px}
 .ual-tcard>*{flex:0 0 auto}.ual-tcard>.upg-scroll{flex:1 1 0;min-height:0;overflow-y:auto;scrollbar-width:none;scroll-snap-type:y mandatory}
 .ual-h{display:flex;align-items:baseline;gap:10px;padding:2px 4px 6px}.ual-h b{font-size:16px;font-weight:600}.ual-h .upg-state{margin-left:auto}
-.ual-wwt{flex:0 0 46%;min-height:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.ual-wwt{flex:0 0 42%;min-height:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 .ual-wcard{min-height:0;display:flex;flex-direction:column;border:0.5px solid var(--line);border-radius:16px;background:var(--card);padding:14px 14px 10px}
 .ual-wt{font-size:15px;font-weight:600;margin-bottom:10px;flex:0 0 auto}
-.ual-chips{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:10px}
-.ual-chip{display:flex;align-items:center;justify-content:center;text-align:center;min-height:40px;padding:6px 8px;border-radius:11px;border:1px solid var(--accent);background:var(--accent-soft);font-size:13px;font-weight:600;line-height:1.2;word-break:break-word}
+.ual-chips{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px;margin-bottom:10px}   /* measured at 1080: two across broke words mid-letter */
+.ual-chip{display:flex;align-items:center;justify-content:center;text-align:center;min-height:40px;padding:6px 8px;border-radius:11px;border:1px solid var(--accent);background:var(--accent-soft);font-size:13px;font-weight:600;line-height:1.2;word-break:normal;overflow-wrap:break-word;hyphens:auto}
 .ual-tick{color:#fff}
 .ual-state{font-size:30px;margin-bottom:8px}
 .ual-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:12px 0 4px}
@@ -3381,7 +3385,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102683';
+const PROOS_BUILD='2026102684';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -16394,10 +16398,11 @@ async function renderUnifiSuite(quick){
     const stTxt=f&&a.version?'● Online':'';
     const foot=f===false&&a.answer?'console '+a.answer:(o.foot||'');
     const stats=(o.stats||[]).filter(s=>s[0]!=null).map(s=>`<div><div class="uni-stat-v">${esc(String(s[0]))}</div><div class="uni-stat-l">${esc(s[1])}</div></div>`).join('');
-    const btn=(o.open&&f!==false)?`<button onclick="${o.open}">Open</button>`:'';
-    return `<article class="uni-tile${later?' later':''}" style="--uni-tint:${tint}"><div class="uni-tile-top"><div class="uni-tile-ico">${_uniMark(k)}</div><div><div class="uni-tile-name">${name}</div><div class="uni-tile-sub">${esc(sub)}</div></div><span class="uni-tile-st ${stc}">${esc(stTxt)}</span></div>`
+    // register 1248 (Dave, 8 Nov): no Open button — the whole tile opens the app's page (a tile that can't open has no tap)
+    const go=(o.open&&f!==false)?o.open:'';
+    return `<article class="uni-tile${later?' later':''}${go?' go':''}" style="--uni-tint:${tint}"${go?` role="button" tabindex="0" onclick="${go}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}"`:''}><div class="uni-tile-top"><div class="uni-tile-ico">${_uniMark(k)}</div><div><div class="uni-tile-name">${name}</div><div class="uni-tile-sub">${esc(sub)}</div></div><span class="uni-tile-st ${stc}">${esc(stTxt)}</span></div>`
       +(stats?`<div class="uni-stats">${stats}</div>`:'')+(o.p?`<div class="uni-tile-p">${o.p(f)}</div>`:'')
-      +`<div class="uni-tile-foot"><span>${esc(foot)}</span>${btn}</div></article>`;
+      +`<div class="uni-tile-foot"><span>${esc(foot)}</span>${go?'<svg class="uni-tile-cv" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>':''}</div></article>`;
   };
   h+='<div class="uni-tiles">'
     +tile('network','Network','rgba(33,57,240,0.20)',{online:true,open:'openUniNet()',stats:[[cnt.network_devices,'UniFi Devices']],foot:'Devices · Ports · Clients · Wi-Fi'})
@@ -16559,9 +16564,9 @@ function _uniAlarmsHTML(){
   const onCell=a=>(!glob&&a.editable!==false)?_uniSw(a.on,`event.stopPropagation();uniAlarmSet('${esc(a.id)}',${!a.on})`,a.name)
     :`<span class="${a.on?'upg-ok':'upg-dim'}">${a.on?'On':'Off'}</span>`;
   const table=`<div class="ual-h"><b>Alarms</b><span class="upg-state">${d.on} of ${d.total} on</span></div>`
-    +_uniTable([['Alarm',''],['When','24%'],['Where','16%'],['Then','20%'],['On','64px']],
+    +_uniTable([['Alarm',''],['When','23%'],['Where','92px'],['Then','19%'],['On','56px']],
       A.map(a=>({on:a.id===sel.id,click:`uniAlarmSel('${esc(a.id)}')`,cells:[`<b>${esc(a.name)}</b>`,esc(a.watches.join(' · ')||'—'),
-        `${devs(a)} device${devs(a)===1?'':'s'}`,esc(a.actions.join(' · ')||'—'),onCell(a)]})));
+        devs(a)?`${devs(a)} device${devs(a)===1?'':'s'}`:'<span class="upg-dim">—</span>',esc(a.actions.join(' · ')||'—'),onCell(a)]})));
   const ago=t=>{ const n=Number(t); if(!(n>0)) return 'Never'; const m=Math.round((Date.now()-n)/60000); return m<1?'Just now':m<60?m+' min ago':m<1440?Math.round(m/60)+' h ago':new Date(n).toLocaleDateString(); };
   const chips=(xs,empty)=>xs.length?`<div class="ual-chips">${xs.map(x=>`<span class="ual-chip">${esc(x)}</span>`).join('')}</div>`:`<div class="upg-note">${empty}</div>`;
   const card=(t,body)=>`<div class="ual-wcard"><div class="ual-wt">${t}</div><div class="upg-dbody" data-fit-trim>${body}</div></div>`;
@@ -16875,7 +16880,8 @@ function renderUniRec(){
     +`<div class="unp-card"><div class="unp-head"><b>Today's Clips</b></div>${rows?`<div class="ual-list">${rows}</div>`:'<div class="es">No camera detections in the last 24 hours.</div>'}</div></div>`);
 }
 function renderUniCams(){
-  const el=document.getElementById('unifi-live'); if(!el) return;
+  // 1247 — measured: the camera list answering after the installer had moved to Alarm Manager painted Live View over it
+  const el=document.getElementById('unifi-live'); if(!el||_uniProtectSection!=='live') return;
   const d=_uniCams;
   if(!d){ setHTML(el,'<div class="empty"><div class="et">Reading the cameras…</div></div>'); return; }
   if(!Array.isArray(d)){ setHTML(el,`<div class="empty"><div class="et">Couldn't read the cameras</div><div class="es">${esc(d.error||'')}. Protect's key is set on the UniFi Overview page, under Console Settings.</div></div>`); return; }
