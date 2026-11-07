@@ -3386,7 +3386,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102687';
+const PROOS_BUILD='2026102688';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -5353,7 +5353,11 @@ function _upSocket(p,top,sel){
   const lbl=(p.carries[0]||{}).name||'';
   return `<button class="unp-port${sel?' on':''}" aria-label="Port ${p.idx}${lbl?', '+esc(lbl):''}" onclick="uniPortPick(${p.idx})">${top?`<span class="unp-lbl">${esc(lbl)}</span>`:''}<span class="unp-sock">${svg}${bolt}${lock}</span>${top?'':`<span class="unp-lbl">${esc(lbl)}</span>`}</button>`;
 }
-function uniPortSwitch(mac){ _uniPortSw=mac; _uniPortSel=null; renderUniNet(); }
+// REGISTER 1251 — measured cause (Dave, 8 Nov, Mac app: "not updating when you change the switch" — Refresh showed it): the
+// picker keeps the focus after a choice in Safari's engine, and setHTML holds a page whose picker has the focus (it exists
+// so a background redraw never closes an open picker) — the new switch waited until something else was pressed. Each
+// UniFi picker and slider now lets go of the focus once chosen (this.blur()), and this lets go too, in case it did not.
+function uniPortSwitch(mac){ try{ const a=document.activeElement; if(a&&a.tagName==='SELECT') a.blur(); }catch(e){} _uniPortSw=mac; _uniPortSel=null; renderUniNet(); }
 function uniPortPick(idx){ _uniPortSel=idx; renderUniNet(); }
 function uniPortFilter(f){ _uniPortFilter=f; renderUniNet(); }
 // REGISTER 1221 — switching, through the PLATFORM's own controls. Core guards (locked / unreadable ports are refused for
@@ -5391,7 +5395,7 @@ function _uniPortsHTML(){
   // register 1244: the switch is chosen from one picker in the header row (the mockup's "[Switch name] · 1 of n ▾")
   const swIco='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="2.5" y="7" width="19" height="10" rx="2"/><path d="M6 12h2M10 12h2M14 12h2"/></svg>';
   const pick=`<label class="upg-pick">${swIco}<b>${esc(sw.name)}</b><span>${esc(sw.model||'')} · ${sws.indexOf(sw)+1} of ${sws.length} switches ▾</span>`
-    +`<select aria-label="Switch" onchange="uniPortSwitch(this.value)">${sws.map(s=>`<option value="${esc(s.mac)}"${s.mac===sw.mac?' selected':''}>${esc(s.name)} — ${s.ports.length} ports</option>`).join('')}</select></label>`;
+    +`<select aria-label="Switch" onchange="this.blur();uniPortSwitch(this.value)">${sws.map(s=>`<option value="${esc(s.mac)}"${s.mac===sw.mac?' selected':''}>${esc(s.name)} — ${s.ports.length} ports</option>`).join('')}</select></label>`;
   const rj=sw.ports.filter(p=>!_upSfp(p)), sfp=sw.ports.filter(_upSfp);
   const top=rj.filter((p,i)=>i%2===0), bot=rj.filter((p,i)=>i%2===1);
   const cols=Math.max(top.length,1);
@@ -16298,7 +16302,7 @@ function _uniRng(v,min,max,step,onchange,unit){
   const lo=Number(min)||0, hi=Number(max)||100, n=Number(v)||0, pct=hi>lo?Math.round((n-lo)/(hi-lo)*100):0;
   return `<input class="ucc-rng" type="range" min="${lo}" max="${hi}" step="${Number(step)||1}" value="${n}" style="--v:${pct}%"`
     +` oninput="this.style.setProperty('--v',(this.max>this.min?Math.round((this.value-this.min)/(this.max-this.min)*100):0)+'%');this.nextElementSibling.textContent=this.value+'${unit?' '+esc(unit):''}'"`
-    +` onchange="${onchange}"><span class="ucc-val">${esc(String(v))}${unit?' '+esc(unit):''}</span>`;
+    +` onchange="this.blur();${onchange}"><span class="ucc-val">${esc(String(v))}${unit?' '+esc(unit):''}</span>`;
 }
 const UNI_CONN_SAY={display_on:'turns the screen on',display_off:'turns the screen off',brightness:'changes how bright the screen is',volume:'changes how loud it plays',
   enable_sleep:'lets the display go to sleep',disable_sleep:'keeps the display awake',enable_auto_reload:'reloads its page on its own',disable_auto_reload:'stops it reloading its page on its own',
@@ -16376,7 +16380,7 @@ function renderUniAccess(){
         :`<button class="unp-act" onclick="uniAccAct({action:'emergency',lockdown:true,evacuation:false},'LOCK DOWN every door?\n\nNo one gets in with a card, PIN or the app until it is ended.','Lockdown on')">Lockdown</button><button class="unp-act" onclick="uniAccAct({action:'emergency',lockdown:false,evacuation:true},'EVACUATE — unlock every door?\n\nEvery door stays unlocked until it is ended.','Evacuation on')">Evacuate</button>`)+'</div>'):'';
     const L=d.doors||[];
     const doors=L.length?`<div class="ual-list">${L.map(x=>row([esc(x.name),x.locked===true?'Locked':x.locked===false?'<em class="unp-red">Unlocked</em>':'Lock —',x.open===true?'<em class="unp-red">Open</em>':x.open===false?'Closed':'',x.has_hub?'':'No hub'],
-      `<button class="unp-act" onclick="uniAccAct({action:'unlock',id:${q(x.id)}},'Unlock ${esc(x.name).replace(/'/g,'')} now?\n\nIt locks again on its own.','Unlocked')">Unlock</button><select class="ucc-sel" onchange="if(this.value)uniAccAct({action:'lock_rule',id:${q(x.id)},rule:this.value},'Change ${esc(x.name).replace(/'/g,'')} to: '+this.options[this.selectedIndex].text+'?','Lock rule set');this.value=''"><option value="">Lock Rule…</option><option value="keep_unlock">Keep Unlocked</option><option value="keep_lock">Keep Locked</option><option value="reset">Back to Schedule</option></select>`)).join('')}</div>`:'<div class="es">No doors in Access.</div>';
+      `<button class="unp-act" onclick="uniAccAct({action:'unlock',id:${q(x.id)}},'Unlock ${esc(x.name).replace(/'/g,'')} now?\n\nIt locks again on its own.','Unlocked')">Unlock</button><select class="ucc-sel" onchange="this.blur();if(this.value)uniAccAct({action:'lock_rule',id:${q(x.id)},rule:this.value},'Change ${esc(x.name).replace(/'/g,'')} to: '+this.options[this.selectedIndex].text+'?','Lock rule set');this.value=''"><option value="">Lock Rule…</option><option value="keep_unlock">Keep Unlocked</option><option value="keep_lock">Keep Locked</option><option value="reset">Back to Schedule</option></select>`)).join('')}</div>`:'<div class="es">No doors in Access.</div>';
     page=em+card('Doors',doors,L.length+' door'+(L.length===1?'':'s'));
   }
   else if(k==='people'){ const L=d.people||[]; page=card('People',L.length?`<div class="ual-list">${L.map(x=>row([esc(x.name),esc(x.status||''),esc(x.number||''),(x.has_pin?'PIN':'')+(x.cards?(x.has_pin?' · ':'')+x.cards+' card'+(x.cards===1?'':'s'):'')])).join('')}</div>`:'<div class="es">No people in Access.</div>',L.length+' people'); }
@@ -16675,7 +16679,7 @@ function _uniQuickHTML(camId){
   const id=r=>`'${esc(c.id)}','${esc(r.entity_id)}'`;
   const ctl=r=>!r.available?'<span class="es">Not answering</span>'
     :r.domain==='switch'?_uniSw(r.state==='on',`uniCamSet(${id(r)},${r.state!=='on'})`,r.label)
-    :r.domain==='select'?`<select class="ucc-sel" onchange="uniCamSet(${id(r)},this.value)">${(r.options||[]).map(o=>`<option${o===r.state?' selected':''}>${esc(o)}</option>`).join('')}</select>`
+    :r.domain==='select'?`<select class="ucc-sel" onchange="this.blur();uniCamSet(${id(r)},this.value)">${(r.options||[]).map(o=>`<option${o===r.state?' selected':''}>${esc(o)}</option>`).join('')}</select>`
     :_uniRng(r.state,r.min,r.max,r.step,`uniCamSet(${id(r)},Number(this.value))`,r.unit);
   return `<div class="upg-sec">Quick Controls</div>`+_uniKvs(rows.map(r=>[esc(r.label),ctl(r)]));   // 1244/1246: the detail card's striped lines
 }
@@ -16776,7 +16780,7 @@ function renderUniCC(){
     if(!r.available) return '<span class="es">Not answering</span>';
     if(r.domain==='switch'||r.domain==='light') return _uniSw(r.state==='on',`uniCamSet(${id},${r.state!=='on'})`,r.label);
     if(r.domain==='button') return `<button class="unp-act" onclick="uniCamSet(${id},true)">${esc(r.label)}</button>`;
-    if(r.domain==='select') return `<select class="ucc-sel" onchange="uniCamSet(${id},this.value)">${(r.options||[]).map(o=>`<option${o===r.state?' selected':''}>${esc(o)}</option>`).join('')}</select>`;
+    if(r.domain==='select') return `<select class="ucc-sel" onchange="this.blur();uniCamSet(${id},this.value)">${(r.options||[]).map(o=>`<option${o===r.state?' selected':''}>${esc(o)}</option>`).join('')}</select>`;
     return _uniRng(r.state,r.min,r.max,r.step,`uniCamSet(${id},Number(this.value))`,r.unit);
   };
   const groups=['Picture & Recording','On the Camera','On-Screen','Detections','Doorbell'].filter(g=>!bell||g==='Doorbell'||g==='On the Camera')
@@ -16821,7 +16825,7 @@ function renderUniDV(){
     if(!r.available) return '<span class="es">Not answering</span>';
     if(r.domain==='switch'||r.domain==='light') return _uniSw(r.state==='on',`uniCamSet(${id(r)},${r.state!=='on'})`,r.label);
     if(r.domain==='button') return `<button class="unp-act" onclick="uniCamSet(${id(r)},true)">${esc(r.label)}</button>`;
-    if(r.domain==='select') return `<select class="ucc-sel" onchange="uniCamSet(${id(r)},this.value)">${(r.options||[]).map(o=>`<option${o===r.state?' selected':''}>${esc(o)}</option>`).join('')}</select>`;
+    if(r.domain==='select') return `<select class="ucc-sel" onchange="this.blur();uniCamSet(${id(r)},this.value)">${(r.options||[]).map(o=>`<option${o===r.state?' selected':''}>${esc(o)}</option>`).join('')}</select>`;
     return _uniRng(r.state,r.min,r.max,r.step,`uniCamSet(${id(r)},Number(this.value))`,r.unit);
   };
   const now=`<div class="unp-card"><div class="unp-head"><b>${esc(sel.name)}</b><span class="es" style="margin-left:auto">${esc(sel.model||'')}</span></div><div class="unifi-status">`
