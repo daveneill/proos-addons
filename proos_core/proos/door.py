@@ -44,12 +44,15 @@ import time
 
 # Bumped ONLY when the integration's own code below changes — a Core
 # update that leaves the door alone must not ask for a restart.
-DOOR_BUILD = "5"
+DOOR_BUILD = "6"
 DOMAIN = "proos"
 # REGISTER 928 (door build 3): conversation.py — "ProOS Assist", the platform's
 # own way of plugging an assistant into its voice pipeline, so a room's own
 # microphone (the G-Flip panel) reaches Core's Assist with its room.
-DOOR_FILES = ("manifest.json", "__init__.py", "config_flow.py", "conversation.py")
+# REGISTER 1259 (door build 6): presence.py — the box announces itself on the network as ProOS, through the
+# platform's own announcer, and (only when Core says so) stops the platform announcing itself.
+DOOR_FILES = ("manifest.json", "__init__.py", "config_flow.py", "conversation.py", "presence.py")
+QUIET_FILE = "proos_quiet"            # in the platform's config folder: present = the platform stays unannounced
 
 # How long a non-live answer is trusted before the door is asked again
 # (PATIENCE, ledger): after Dave's one restart, /health flips to "open"
@@ -80,7 +83,8 @@ _MANIFEST = {
     "version": "1.0." + DOOR_BUILD,
     "codeowners": ["@protechsystems"],
     "config_flow": True,
-    "dependencies": ["http", "conversation"],
+    "dependencies": ["http", "conversation", "zeroconf"],
+    "after_dependencies": ["ssdp"],
     "documentation": "https://protechsystems.com.au",
     "integration_type": "service",
     "iot_class": "local_push",
@@ -133,12 +137,23 @@ async def async_setup_entry(hass, entry):
     # Door build 3 (register 928): "ProOS Assist" — a room's own microphone
     # reaches Core's Assist through the platform's voice pipeline.
     await hass.config_entries.async_forward_entry_setups(entry, ["conversation"])
+    # Door build 6 (register 1259): this box is found on the network as ProOS.
+    try:
+        from . import presence
+        await presence.async_start(hass, entry)
+    except Exception:  # noqa: BLE001 — never stop the door over the announcement
+        pass
     return True
 
 
 async def async_unload_entry(hass, entry):
     # A registered route cannot be taken back until the next start; the
     # door simply stays. The assistant is unloaded with the entry.
+    try:
+        from . import presence
+        await presence.async_stop(hass)
+    except Exception:  # noqa: BLE001
+        pass
     return await hass.config_entries.async_unload_platforms(entry, ["conversation"])
 
 
@@ -339,6 +354,111 @@ class ProOSAssist(conversation.ConversationEntity):
 '''
 
 
+# ── REGISTER 1259: ProOS on the network ───────────────────────────────────
+# Dave, 8 Nov 2026: "my app is discovered by my app no other app will see it at all". Every app built for the platform
+# finds a box by the platform's own network announcement (_home-assistant._tcp, and its SSDP self-announcement), and
+# ProOS's own apps found it the same way. This announces the box under ProOS's own service type, with the same facts
+# the platform announces (its addresses, its address for the apps, its name) — through the platform's own announcer,
+# so nothing of ProOS listens on the network itself. While the config folder holds QUIET_FILE (written by Core only
+# once ProOS's own apps look for ProOS — step 3), the platform's own announcements are withdrawn; the platform still
+# LISTENS for devices (Sonos, Apple TV …) exactly as before — only its announcing of itself stops.
+_PRESENCE = '''"""ProOS on the network — written by ProOS Core (proos/door.py, register 1259)."""
+from __future__ import annotations
+
+import logging
+import os
+from datetime import timedelta
+
+from zeroconf.asyncio import AsyncServiceInfo
+
+from homeassistant.components import zeroconf as zc
+from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
+from homeassistant.core import CoreState
+from homeassistant.helpers.event import async_track_time_interval
+
+PROOS_TYPE = "_proos._tcp.local."
+PLATFORM_TYPE = "_home-assistant._tcp.local."
+QUIET_FILE = "%(quiet)s"
+CHECK = timedelta(seconds=60)
+KEY = "proos_presence"
+_LOG = logging.getLogger(__name__)
+
+
+async def _platform_info(hass):
+    """The platform's own announcement, built by the platform's own code."""
+    from homeassistant.components.zeroconf import _async_get_local_service_info
+    return await _async_get_local_service_info(hass)
+
+
+async def _apply(hass, *_):
+    st = hass.data.setdefault(KEY, {"proos": None, "quiet": False})
+    try:
+        aio = await zc.async_get_async_instance(hass)
+        base = await _platform_info(hass)
+    except Exception as e:  # noqa: BLE001
+        _LOG.warning("ProOS: the network announcer is not available: %%s", e)
+        return
+    if st["proos"] is None:
+        props = dict(base.properties or {})
+        props[b"proos"] = b"1"
+        info = AsyncServiceInfo(PROOS_TYPE, name=base.name.replace(PLATFORM_TYPE, PROOS_TYPE), server=base.server,
+                                addresses=list(base.addresses), port=base.port, properties=props)
+        await aio.async_register_service(info, allow_name_change=True)
+        st["proos"] = info
+    quiet = os.path.exists(hass.config.path(QUIET_FILE))
+    ssdp = (hass.data.get("ssdp") or {}).get("server") if isinstance(hass.data.get("ssdp"), dict) else None
+    if quiet and not st["quiet"]:
+        # withdraw what the platform ACTUALLY announced (looked up by its type — the platform may have been renamed on
+        # the network when it announced), not a copy rebuilt by name
+        try:
+            for info in list(aio.zeroconf.registry.async_get_infos_type(PLATFORM_TYPE)):
+                await aio.async_unregister_service(info)
+        except Exception as e:  # noqa: BLE001
+            _LOG.warning("ProOS: the platform's announcement could not be withdrawn: %%s", e)
+        if ssdp is not None:
+            try:
+                await ssdp.async_stop()
+            except Exception as e:  # noqa: BLE001
+                _LOG.warning("ProOS: the platform's SSDP announcement could not be stopped: %%s", e)
+        st["quiet"] = True
+    elif st["quiet"] and not quiet:
+        try:
+            if not aio.zeroconf.registry.async_get_infos_type(PLATFORM_TYPE):
+                await aio.async_register_service(base, allow_name_change=True)
+        except Exception as e:  # noqa: BLE001
+            _LOG.warning("ProOS: the platform's announcement could not be put back: %%s", e)
+        if ssdp is not None:
+            try:
+                await ssdp._async_start_upnp_servers(None)
+            except Exception:  # noqa: BLE001
+                pass
+        st["quiet"] = False
+
+
+async def async_start(hass, entry):
+    async def _go(*_):
+        await _apply(hass)
+        hass.data.setdefault(KEY, {})["unsub"] = async_track_time_interval(hass, lambda now: hass.async_create_task(_apply(hass)), CHECK)
+    if hass.state is CoreState.running:
+        await _go()
+    else:
+        hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, lambda ev: hass.async_create_task(_go()))
+
+
+async def async_stop(hass):
+    st = hass.data.get(KEY) or {}
+    if st.get("unsub"):
+        st["unsub"]()
+    if st.get("proos") is not None:
+        try:
+            aio = await zc.async_get_async_instance(hass)
+            await aio.async_unregister_service(st["proos"])
+        except Exception:  # noqa: BLE001
+            pass
+    hass.data.pop(KEY, None)
+'''
+
+
 def files(core_url: str | None = None) -> dict:
     """The door's files, as bytes, for THIS box (Core's own address inside)."""
     core = core_url or core_address()
@@ -347,6 +467,7 @@ def files(core_url: str | None = None) -> dict:
         "__init__.py": (_INIT % {"build": DOOR_BUILD, "core": core}).encode("utf-8"),
         "config_flow.py": _FLOW.encode("utf-8"),
         "conversation.py": (_CONV % {"core": core}).encode("utf-8"),
+        "presence.py": (_PRESENCE % {"quiet": QUIET_FILE}).encode("utf-8"),
     }
 
 
