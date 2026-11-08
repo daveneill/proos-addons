@@ -5052,7 +5052,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026110901';
+const PROOS_BUILD='2026110902';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -15808,13 +15808,22 @@ function initMusicPage(){
   const here=room ? speakers.filter(e=>entityAreaMap[e]===room.id) : [];
   _musicAskRoom = !here.length;   // 1264: no room of its own to play in → the first tap asks which room
   if(here.length){
-    musicSelectSpeaker(here.find(e=>st(e)==='playing')||here.find(e=>st(e)==='paused')
-      ||here.find(e=>typeof _spmCan==='function' && _spmCan(e))||here[0]);
+    musicSelectSpeaker(_musicPick(here));
     return;
   }
-  const keep=_musicSpeaker&&speakers.indexOf(_musicSpeaker)!==-1;
-  const def=keep?_musicSpeaker:(speakers.find(e=>st(e)==='playing')||speakers.find(e=>st(e)==='paused')||speakers[0]);
-  musicSelectSpeaker(def);
+  const keep=_musicSpeaker&&speakers.indexOf(_musicSpeaker)!==-1&&_musicBrowsable(_musicSpeaker);
+  musicSelectSpeaker(keep?_musicSpeaker:_musicPick(speakers));
+}
+// REGISTER 1264 — THE PAGE OPENS ON A PLAYER IT CAN SHOW MUSIC FOR. With no room pills (Dave 9 Nov 08:46) nobody can switch
+// players on this page, and the Office proved why that matters (read on the box 9 Nov 09:48): its HomePod was PLAYING (sent
+// from a phone, no library of its own) and 839's "the one playing first" opened the page on it — "No saved favourites on
+// this speaker", nothing to choose — while the room's Sonos, with every service, sat beside it. So a player that has music
+// to browse (the ProOS Music engine, or a speaker with its own services) comes first; among those the playing, then the
+// paused one; a room with none of those keeps 839's order.
+function _musicBrowsable(e){ return musicEngine(e)==='ma' || (typeof _spmCan==='function' && _spmCan(e)); }
+function _musicPick(list){
+  const b=list.filter(_musicBrowsable), from=b.length?b:list;
+  return from.find(e=>st(e)==='playing')||from.find(e=>st(e)==='paused')||from[0];
 }
 
 function renderMusicSpeakers(speakers){
@@ -17339,9 +17348,7 @@ function _musicRoomChoices(){
   const sp=(typeof musicRoomSpeakers==='function')?musicRoomSpeakers():[], out=[];
   (CONFIG.rooms||[]).forEach(r=>{
     const here=sp.filter(e=>entityAreaMap[e]===r.id); if(!here.length) return;
-    const pick=here.find(e=>st(e)==='playing')||here.find(e=>st(e)==='paused')
-      ||here.find(e=>typeof _spmCan==='function' && _spmCan(e))||here[0];
-    out.push({room:r, eid:pick, playing:here.some(e=>st(e)==='playing')});
+    out.push({room:r, eid:_musicPick(here), playing:here.some(e=>st(e)==='playing')});
   });
   return out;
 }
