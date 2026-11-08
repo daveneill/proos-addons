@@ -3386,7 +3386,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102689';
+const PROOS_BUILD='2026102690';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -4870,7 +4870,12 @@ function filterAddIntegration(){
   if(asInstaller){ cat=cat.filter(c=>_catPublished&&_catPublished.has(c.domain)); }   // installers see published only
   const list=(q? cat.filter(c=>c.name.toLowerCase().includes(q)||c.domain.includes(q)) : cat);
   // Certified integrations are always available (both views)
-  const cert=Object.keys(PROOS_CERTIFIED).filter(isCertified).map(dom=>({domain:dom,name:PROOS_CERTIFIED[dom].name}))
+  // REGISTER 1256 — the one flow (Dave 8 Nov 17:33): a certified integration is offered here until it is added; once
+  // added it is a tile in Configured instead. UniFi is ONE entry; Apple Home, Savant and ProOS Music are here too.
+  const _cfgNow=supportedConfigured();
+  const _special=[[!uniAdded(),'unifi','UniFi'],[!ahPublished(),'applehome','Apple Home'],[!savAdded(),'savant_ha','Savant'],[!maActive(),'proos_music','ProOS Music']]
+    .filter(x=>x[0]).map(x=>({domain:x[1],name:x[2]}));
+  const cert=_special.concat(Object.keys(PROOS_CERTIFIED).filter(dom=>isCertified(dom)&&!_ONE_TILE.has(dom)&&!_cfgNow[dom]).map(dom=>({domain:dom,name:PROOS_CERTIFIED[dom].name})))
     .filter(c=>!q || c.name.toLowerCase().includes(q) || c.domain.includes(q));
   const certHtml=cert.map(c=>`<div class="row tappable" onclick="addIntegration('${esc(c.domain)}')"><div class="rl rl-logo">${intgLogo(c.domain)}<span>${esc(c.name)}</span><span class="cert-pill">CERTIFIED</span></div><div class="rr">Add &rsaquo;</div></div>`).join('');
   const CAP=1200;  // full HA library is ~900; lazy-loaded logos keep this light
@@ -4910,7 +4915,12 @@ async function closeAddIntegration(){
 const PREFLIGHTS = {};
 // UniFi Protect is ProCore-owned (native Protect via a discovery flow), so "Add" opens
 // the ProOS UniFi setup screen rather than starting the raw HA config flow.
-PREFLIGHTS.unifiprotect = async()=>{ try{ await closeAddIntegration(); }catch(e){} if(typeof openUnifi==='function'){ openUnifi(); } return true; };
+// REGISTER 1256: UniFi is set up on its one card (1255) — Network or Protect, Add opens the card; so do the other
+// certified integrations that have their own page.
+PREFLIGHTS.unifiprotect = PREFLIGHTS.unifi = async()=>{ try{ await closeAddIntegration(); }catch(e){} openUnifiSuite(); return true; };
+PREFLIGHTS.savant_ha = async()=>{ try{ await closeAddIntegration(); }catch(e){} openSavant(); return true; };
+PREFLIGHTS.applehome = async()=>{ try{ await closeAddIntegration(); }catch(e){} openAppleHome(); return true; };
+PREFLIGHTS.proos_music = async()=>{ try{ await closeAddIntegration(); }catch(e){} openMusic(); return true; };
 // Samsung needs NO cloud account. Discrete input, Art Mode, power-off and verification
 // all run locally over IP Control (port 1516 Frame / 1515 older); power-on is Wake-on-LAN.
 // So there is no "connect SmartThings first" detour — the flow is just the TV's IP plus
@@ -5034,8 +5044,13 @@ function renderCertified(){
     : `<div class="itile cert" onclick="openMusic()"><div class="itile-ico">${proosLogoIcon()}</div><div class="itile-foot"><div class="itile-body"><div class="itile-nm">ProOS Music<span class="cert-pill">CERTIFIED</span></div><div class="itile-sub">${esc(maCertSub(_maIntg))}</div></div><div class="itile-act"><span class="itile-chev">&rsaquo;</span></div></div></div>`;
   const ahTile = ahPublished() ? ''
     : `<div class="itile cert" onclick="openAppleHome()"><div class="itile-ico">${AH_HOME_ICO}</div><div class="itile-foot"><div class="itile-body"><div class="itile-nm">Apple Home<span class="cert-pill">CERTIFIED</span></div><div class="itile-sub">${ahCertSub()}</div></div><div class="itile-act"><span class="itile-chev">&rsaquo;</span></div></div></div>`;
-  const unifiTile = unifiActive() ? ''
-    : `<div class="itile cert" onclick="openUnifi()"><div class="itile-ico">${intgLogo('unifiprotect')}</div><div class="itile-foot"><div class="itile-body"><div class="itile-nm">UniFi Protect<span class="cert-pill">CERTIFIED</span></div><div class="itile-sub">${_foundFlow('unifiprotect')?'Found on your network: '+esc(_foundWords(_foundFlow('unifiprotect')))+' — Set Up':'Cameras, live, events &amp; clips'}</div></div><div class="itile-act"><span class="itile-chev">&rsaquo;</span></div></div></div>`;
+  // REGISTER 1256 — ONE UNIFI (Dave 17:33: "certified integrations … show under add integration if added then its setup
+  // and the rest appears from a tile in the configured area like every other integration"). One UniFi, not Network and
+  // Protect apart; it opens the UniFi card. Savant the same way.
+  const unifiTile = uniAdded() ? ''
+    : `<div class="itile cert" onclick="openUnifiSuite()"><div class="itile-ico">${intgLogo('unifi')}</div><div class="itile-foot"><div class="itile-body"><div class="itile-nm">UniFi<span class="cert-pill">CERTIFIED</span></div><div class="itile-sub">${(_foundFlow('unifiprotect')||_foundFlow('unifi'))?'Found on your network: '+esc(_foundWords(_foundFlow('unifiprotect')||_foundFlow('unifi')))+' — Set Up':'Network, Protect, Access &amp; Connect'}</div></div><div class="itile-act"><span class="itile-chev">&rsaquo;</span></div></div></div>`;
+  const savTile = savAdded() ? ''
+    : `<div class="itile cert" onclick="openSavant()"><div class="itile-ico">${intgLogo('savant_ha')}</div><div class="itile-foot"><div class="itile-body"><div class="itile-nm">Savant<span class="cert-pill">CERTIFIED</span></div><div class="itile-sub">Room state to a Savant system</div></div><div class="itile-act"><span class="itile-chev">&rsaquo;</span></div></div></div>`;
   // Once a certified integration is actually installed it moves to the Configured
   // grid (with its pill), so drop it from the available-to-add list here — same as
   // Music / UniFi / Apple Home do above.
@@ -5045,11 +5060,11 @@ function renderCertified(){
   // name / CERTIFIED pill / catalog-exclusion — it must NOT also render from this generic
   // registry loop, or the certified grid shows UniFi Protect twice (the duplicate you saw).
   // Both tiles opened the same openUnifi() setup, so this is purely removing the double.
-  const _dedicatedCertTile=new Set(['unifiprotect']);
+  const _dedicatedCertTile=new Set(['unifiprotect','unifi','savant_ha']);
   const doms=Object.keys(PROOS_CERTIFIED).filter(dom=>isCertified(dom) && !_cfgNow[dom] && !_dedicatedCertTile.has(dom));
   const cfgTiles=doms.map(dom=>{ const c=PROOS_CERTIFIED[dom];
     return `<div class="itile cert"><div class="itile-ico">${intgLogo(dom)}</div><div class="itile-foot"><div class="itile-body"><div class="itile-nm">${esc(c.name)}<span class="cert-pill">CERTIFIED</span></div>${c.note?`<div class="itile-sub">${esc(c.note)}</div>`:''}</div><div class="itile-act"><button class="itile-add" onclick="addIntegration('${esc(dom)}')">Add</button></div></div></div>`; }).join('');
-  host.innerHTML=`<div class="itile-grid">`+maTile+ahTile+unifiTile+cfgTiles+`</div>`;
+  host.innerHTML=`<div class="itile-grid">`+maTile+ahTile+unifiTile+savTile+cfgTiles+`</div>`;
 }
 function renderConfigured(){
   const lc=document.getElementById('lib-configured'); if(!lc) return;
@@ -5060,7 +5075,8 @@ function renderConfigured(){
   // (prepended below when active, or in the Certified section otherwise), so keep
   // the raw music_assistant integration out of the generic configured grid —
   // otherwise it shows twice (once branded, once as "Music Assistant").
-  const doms=Object.keys(cfg).filter(dom=>!CERTIFIED_REPLACES.has(dom) && !_catHidden(dom)).sort((a,b)=>integrationName(a).localeCompare(integrationName(b)));
+  // 1256: UniFi (Network + Protect) and Savant are ONE tile each, drawn below — not their platform pieces apart.
+  const doms=Object.keys(cfg).filter(dom=>!CERTIFIED_REPLACES.has(dom) && !_ONE_TILE.has(dom) && !_catHidden(dom)).sort((a,b)=>integrationName(a).localeCompare(integrationName(b)));
   let tiles=doms.map(dom=>{ const n=cfg[dom].length; const u=unassigned[dom]||0;
     // Roll a device-level attention up to the integration tile, so a lost pairing / needs-auth
     // is visible from the landing page for ANY integration (not just when you drill in).
@@ -5115,11 +5131,16 @@ function renderConfigured(){
   if(ahPublished()){
     tiles = `<div class="itile" onclick="openAppleHome()"><div class="itile-ico">${AH_HOME_ICO}</div><div class="itile-foot"><div class="itile-body"><div class="itile-nm">Apple Home<span class="cert-pill">CERTIFIED</span></div><div class="itile-sub">${ahCertSub()}</div></div><div class="itile-act"><span class="itile-chev">&rsaquo;</span></div></div></div>` + tiles;
   }
-  if(unifiActive()){
-    const nc=(_unifiStatus&&_unifiStatus.native&&_unifiStatus.native.cameras)||0;
-    tiles = `<div class="itile" onclick="openIntegration('unifiprotect')"><div class="itile-ico">${intgLogo('unifiprotect')}</div><div class="itile-foot"><div class="itile-body"><div class="itile-nm">UniFi Protect<span class="cert-pill">CERTIFIED</span></div><div class="itile-sub">${nc} camera${nc===1?'':'s'} · certified</div></div><div class="itile-act"><span class="itile-chev">&rsaquo;</span></div></div></div>` + tiles;
+  if(uniAdded()){
+    // 1256: ONE UniFi tile — the apps the platform has connected, and whether each is running
+    const parts=[['unifi','Network'],['unifiprotect','Protect']].filter(([d])=>_liveEntries().some(e=>e.domain===d&&!e.disabled_by));
+    const bad=_liveEntries().filter(e=>(e.domain==='unifi'||e.domain==='unifiprotect')&&!e.disabled_by&&e.state&&e.state!=='loaded').length;
+    tiles = `<div class="itile${bad?' att':''}" data-att="${bad?1:0}" onclick="openUnifiSuite()"><div class="itile-ico">${intgLogo('unifi')}</div><div class="itile-foot"><div class="itile-body"><div class="itile-nm">UniFi<span class="cert-pill">CERTIFIED</span></div><div class="itile-sub">${parts.length?esc(parts.map(p=>p[1]).join(' · ')):'Console signed in'}${bad?' · <span style="color:#f0aa28">needs setup</span>':''}</div></div><div class="itile-act"><span class="itile-chev">&rsaquo;</span></div></div></div>` + tiles;
   }
-  lc.innerHTML = (doms.length||maActive()||ahPublished()||unifiActive())
+  if(savAdded()){
+    tiles = `<div class="itile" onclick="openSavant()"><div class="itile-ico">${intgLogo('savant_ha')}</div><div class="itile-foot"><div class="itile-body"><div class="itile-nm">Savant<span class="cert-pill">CERTIFIED</span></div><div class="itile-sub">${(_savSt()||{}).connected?'Connected':'Set up'}</div></div><div class="itile-act"><span class="itile-chev">&rsaquo;</span></div></div></div>` + tiles;
+  }
+  lc.innerHTML = (doms.length||maActive()||ahPublished()||uniAdded()||savAdded())
     ? `<div class="itile-grid">`+tiles+`</div>`
     : '<div class="empty"><div class="et">No supported integrations yet</div><div class="es">Set-up integrations appear here.</div></div>';
   _ilArrange(lc);
@@ -5198,7 +5219,15 @@ function ilChip(k){ _ilChip=k; ilApply(); }
 function ilToggleServices(){ _ilOpenServices=!_ilOpenServices; const h=document.querySelector('#lib-configured .il-grp[data-g="services"] .il-gh'); if(h) h.classList.toggle('open',_ilOpenServices); ilApply(); }
 let _unifiStatus=null;
 function unifiActive(){ return !!(_unifiStatus && (_unifiStatus.status==='ok' || (_unifiStatus.native&&_unifiStatus.native.configured) || (_unifiStatus.private&&_unifiStatus.private.configured))); }
-async function loadCertifiedStatus(){ await fetchMaIntegration(); try{ _ahBridge=await ahFindBridge(); }catch(e){ _ahBridge=null; } try{ const r=await fetch(proCoreUrl()+'/unifi/status'); _unifiStatus=r.ok?await r.json():null; }catch(e){ _unifiStatus=null; } renderConfigured(); renderCertified(); }
+// REGISTER 1256 — the one flow for every certified integration (Dave 8 Nov 17:33): not added → under Add Integration
+// (and the Certified list); added → ONE tile in Configured that opens everything for it.
+const _ONE_TILE=new Set(['unifi','unifiprotect','savant_ha']);
+// Irrigation is whichever controller the home has (Dave: "irrigation is Rachio or any other irrigation integration")
+const IRR_DOMAINS=new Set(['rachio','rainmachine','hydrawise','rainbird','opensprinkler','bhyve','melnor','gardena_bluetooth','hunter_hydrawise']);
+function uniAdded(){ return unifiActive() || _liveEntries().some(e=>(e.domain==='unifi'||e.domain==='unifiprotect')); }
+function _savSt(){ try{ return _savStatus; }catch(e){ return null; } }   // declared with the Savant page, further down
+function savAdded(){ const s=_savSt(); return !!(s&&s.enabled) || _liveEntries().some(e=>e.domain==='savant_ha'); }
+async function loadCertifiedStatus(){ await fetchMaIntegration(); try{ _ahBridge=await ahFindBridge(); }catch(e){ _ahBridge=null; } try{ const r=await fetch(proCoreUrl()+'/unifi/status'); _unifiStatus=r.ok?await r.json():null; }catch(e){ _unifiStatus=null; } try{ const r=await _coreFetch(proCoreUrl()+'/savant/status',{},8000); _savStatus=r.ok?await r.json():_savStatus; }catch(e){} renderConfigured(); renderCertified(); }
 
 
 
@@ -5245,9 +5274,9 @@ async function openIntegration(dom){
   // to its setup panel although Protect is set up. Absence of an answer is not
   // a No — load the entries first when there are none yet.
   if(!_liveEntries().length){ try{ await loadConfigEntries(); }catch(e){} }
-  const _has=_liveEntries().some(e=>e.domain===dom);
-  if(dom==='unifi' && !_has) return openUniNet();
-  if(dom==='unifiprotect' && !_has) return openUnifi();
+  // REGISTER 1256: ONE UniFi, ONE Savant — their pieces open their one page (its devices are listed inside it)
+  if(dom==='unifi'||dom==='unifiprotect') return openUnifiSuite();
+  if(dom==='savant_ha') return openSavant();
   renderIntegration(dom); show('integration'); try{ await loadConfigEntries(); }catch(e){} if(_curIntegration===dom) renderIntegration(dom); }
 // ── UniFi Network — dedicated panel (config card + device list), part of the UniFi suite ──
 async function openUniNet(){
@@ -5610,70 +5639,21 @@ function renderUniNet(){
   // would have shown every UniFi device twice. The near-copy is gone and the
   // shared mirror takes its place under the SAME "Devices" heading this panel
   // has always used, so the page reads as it did and says more.
-  setHTML(body, wrap(_unifiNetCard()
-    + certMirrorHTML('unifi',{name:'Devices'})
-    + _uniNetRemoveRow()));
-}
-function _uniNetRemoveRow(){
-  // Installer-facing remove & re-add — Core deletes the native entry with its
-  // Supervisor rights, so no Home Assistant access is needed.
-  return '<div style="margin-top:22px"><button onclick="netRemove()" style="width:100%;padding:12px;border-radius:12px;background:transparent;border:1px solid rgba(225,112,85,.5);color:#e17055;font-size:14px;font-weight:500;cursor:pointer">Remove UniFi Network</button></div>';
+  // REGISTER 1256 — ONE SPOT (Dave 8 Nov: "it needs to be all done from one spot"). The old controller card (its own
+  // Add UniFi Network, Reconfigure and Remove) is gone: the platform's connection is set up, set up again and signed in
+  // from the UniFi card only (1255). This page is the Network app's devices, for putting them in rooms.
+  setHTML(body, wrap('<div class="wiz-hint">Signed in from the UniFi card — <a href="#" onclick="event.preventDefault();openUnifiSuite()">UniFi › Overview</a>.</div>'
+    + certMirrorHTML('unifi',{name:'Devices'})));
 }
 // Header "Add device": start the current integration's own add flow, so an
 // installer can add another device of the same kind without leaving the page
 // (mirrors HA's per-integration "Add device"). Reuses addIntegration, so a
 // certified driver like Samsung still gets its guided wizard + preflight.
 function addDeviceToIntegration(){ if(_curIntegration) addIntegration(_curIntegration); }
-// ── UniFi Network — the controller is the integration's (register 439) ──
-// The controller's address and login are configured in the UniFi Network
-// integration and read from its entry by Core on every call. This card is a
-// MIRROR of that — where Core reads from, whether the controller answers — and
-// its one door is the integration's own reconfigure. There is nothing to type
-// here; the form that used to live here kept a second copy of the login that
-// went stale the morning the network changed.
+// REGISTER 1256: the old controller card (_unifiNetCard: Add UniFi Network / Reconfigure the integration) and its Remove
+// button (netRemove) are gone — UniFi's sign-in is the UniFi card's alone (1255). _unifiNetStatus stays: the Configured
+// tile and the Health pages still read whether the controller answers.
 let _unifiNetStatus=null;
-function _unifiNetCard(){
-  const s=_unifiNetStatus||{}, conn=!!s.configured, reach=conn&&s.reachable!==false, inh=!!s.inherited;
-  const dot=!conn?'off':(reach?'on':'warn');
-  const from=s.source==='unifiprotect'?'the UniFi Protect integration':(s.source==='unifi'?'the UniFi Network integration':'');
-  const statusTxt=!conn?'no controller login in either UniFi integration':(reach?('Connected'+(s.clients!=null?(' · '+s.clients+' clients'):'')+(inh?' · via the UniFi Protect login':'')):('Can’t reach the controller'+(s.error?(' · '+esc(s.error)):'')));
-  let head='<div class="wiz-hint">One certified integration. ProOS uses the controller’s client list, through this integration, as each device’s network witness — matched by the device’s own network address (MAC). ProOS does not read switch ports. The controller’s address and login are the integration’s own — ProOS reads them from it and keeps no copy.</div>';
-  head+='<div class="cred-card"><div class="cred-top"><span class="cred-dot '+dot+'"></span><span class="cred-name">UniFi Network</span><span class="cert-pill" style="margin-left:auto">CERTIFIED</span></div>'
-    +'<div class="unifi-status"><div class="unifi-row"><span class="cred-dot '+dot+'"></span><span class="unifi-row-l">Controller access</span><span class="unifi-row-d">'+statusTxt+'</span></div></div></div>';
-  let s1='';
-  if(conn){
-    // THE HOUSE'S OWN FACT ROW (register 465). These three were written with
-    // set-row / set-label / set-value — three class names that exist nowhere in
-    // this file's stylesheet, so each div fell back to a block and the card read
-    // as six stacked lines: Controller / 192.168.8.1 / Local user / ProCore /
-    // Read from / the UniFi Network integration. `.row` with `.rl` and `.rr` is
-    // the read-only fact row Pro already uses everywhere else — label left,
-    // value right — so no new CSS is invented for one card.
-    s1+='<div class="row"><div class="rl">Controller</div><div class="rr">'+esc(s.host||'—')+'</div></div>';
-    s1+='<div class="row"><div class="rl">Read from</div><div class="rr">'+esc(from||'—')+'</div></div>';
-    s1+='<div class="field-hint" style="margin:8px 0 12px">To change the controller’s address or login, reconfigure the integration — ProOS follows it.</div>';
-    if(s.entry_id) s1+='<button class="btn-primary" onclick="fixEntrySetup(\''+esc(s.entry_id)+'\',\''+(s.source==='unifiprotect'?'unifiprotect':'unifi')+'\',\'Reconfigure\')">Reconfigure the integration</button>';
-  } else {
-    s1+='<div class="wiz-hint" style="margin-bottom:10px">Add the UniFi Network integration (or UniFi Protect — one local user serves both) and give it the controller’s address and a <b>local</b> login, not Ubiquiti SSO. ProOS reads it from there.</div>';
-    s1+='<button class="btn-primary" onclick="addIntegration(\'unifi\')">Add UniFi Network</button>';
-  }
-  const cls=conn?(reach?'ok':'warn'):'';
-  const pill=conn?(reach?'Connected':'Unreachable'):'Not set up';
-  const stepHtml='<div class="mstep'+(cls==='ok'?' done':'')+'"><div class="mstep-head"><span class="mstep-num">1</span><span class="mstep-name">The controller</span><span class="mstep-pill '+cls+'">'+pill+'</span></div><div class="mstep-body">'+s1+'</div></div>';
-  return head+stepHtml;
-}
-async function netRemove(){
-  if(!await proAsk('Remove UniFi Network?\n\nThis uninstalls the certified integration — its device presence signals and PoE port map. It can be re-added any time.')) return;
-  toast('Removing…');
-  try{
-    const r=await fetch(proCoreUrl()+'/integrations/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain:'unifi'})});
-    if(r.status===403){ toast('Tech or owner access required'); return; }
-    if(!r.ok){ let d={}; try{ d=await r.json(); }catch(_){} toast(d.error||'Remove failed'); return; }
-  }catch(e){ toast('Could not reach Core'); return; }
-  _unifiNetStatus=null; toast('UniFi Network removed');
-  try{ await loadSite(); await loadConfigEntries(); }catch(e){}
-  if(_curIntegration==='unifi') openIntegration('unifi'); else renderUniNet();
-}
 // ── THE MIRROR, IN ONE PLACE (register 415) ────────────────────────────────
 // Everything the integration page mirrors off the box — the fault banner, the
 // device rows with their model and entity count, the entries that have no
@@ -5951,9 +5931,11 @@ function _ipHeadHTML(dom, rows){
   const maker=Object.keys(makers).sort((a,b)=>makers[b]-makers[a])[0]||'';
   const nE=(_ents||[]).filter(e=>e.platform===dom).length;
   const sub=[maker, rows.length+' device'+(rows.length===1?'':'s'), nE+' entit'+(nE===1?'y':'ies'), intgBuild(dom)].filter(Boolean).join(' · ');
-  const setup=dom==='unifiprotect'?'openUnifi()':(dom==='unifi'?'openUniNet()':'');
+  // 1256: an irrigation controller's page carries its zones (the Irrigation page — Rachio or any other controller).
+  // UniFi's pieces no longer open here (openIntegration sends them to the one UniFi card).
+  const setup=(typeof IRR_DOMAINS!=='undefined'&&IRR_DOMAINS.has(dom))?'openIrrigation()':'';
   const canAdd=intgCanAdd(dom);
-  const acts=(setup?`<button type="button" class="ip-btn" onclick="${setup}">ProOS Setup</button>`:'')
+  const acts=(setup?`<button type="button" class="ip-btn" onclick="${setup}">Irrigation Zones</button>`:'')
     + (entries.length===1?`<button type="button" class="ip-btn" onclick="openEntryManage('${esc(entries[0].entry_id)}')">Options</button>`:'')
     + (faulted.length?`<button type="button" class="ip-btn" onclick="fixEntrySetup('${esc(faulted[0].entry_id)}','${esc(dom)}','Reconnect')">Reconnect</button>`:'')
     + (canAdd===false?'':`<button type="button" class="ip-btn p" onclick="addIntegration('${esc(dom)}')">${esc(intgAddLabel(dom).replace(/^\+ /,''))}</button>`);
@@ -16416,8 +16398,10 @@ async function renderUnifiSuite(quick){
   let h=`<div class="uni-chip">${dot(quick&&!body.dataset.rendered?null:ready)}<b>Console${st.host?' '+esc(st.host):''}</b><span class="uni-chip-d">${esc(cs)}${signed?' · '+(keySet?'Key Ready':'No Key Yet'):''}</span>`
     +(ready?`<button onclick="uniToggleSettings()">Console Settings</button>`:'')+`</div>`;
   // REGISTER 1255 — the platform's UniFi Network connection comes from this card. Broken: said here, with the one fix.
-  const _uniNetLink=(st.platform&&st.platform.network)||null;
-  if(_uniNetLink&&_uniNetLink.ok===false&&signed) h+=`<div class="uni-chip">${dot(false)}<b>Platform's Network Connection</b><span class="uni-chip-d">${esc(_uniNetLink.words||'')}</span><button onclick="uniRelink(${_uniNetLink.entry?'true':'false'})">Set Up Again</button></div>`;
+  // 1256: Protect too — each UniFi app the console runs, its platform connection from this card.
+  const _uniLinks=[['network','Network'],['protect','Protect']].map(([k,n])=>[k,n,(st.platform&&st.platform[k])||null]);
+  const _uniNetLink=_uniLinks[0][2];
+  _uniLinks.forEach(([k,n,l])=>{ if(l&&l.ok===false&&signed) h+=`<div class="uni-chip">${dot(false)}<b>Platform's ${n} Connection</b><span class="uni-chip-d">${esc(l.words||'')}</span><button onclick="uniRelink(${l.entry?'true':'false'},'${k}')">${l.entry?'Set Up Again':'Set Up'}</button></div>`; });
   // A tile per product — only what the console answered
   const A={}; (st.apps||[]).forEach(a=>{ A[a.app]=a; });
   const cnt=st.counts||{};
@@ -16453,7 +16437,7 @@ async function renderUnifiSuite(quick){
     +`<div class="unifi-row"><span class="unifi-row-l">Local User</span><span class="unifi-row-d">${esc(cs)}${st.why&&!signed?' — '+esc(st.why):''}</span></div>`
     +`<div class="unifi-row"><span class="unifi-row-l">ProOS API Key</span><span class="unifi-row-d">${keySet?'Created · ends '+esc(st.key.last4||''):'not created yet'}</span></div>`
     +`<div class="unifi-row"><span class="unifi-row-l">Access Token</span><span class="unifi-row-d">${accSet?'Saved · ends '+esc(st.access_token.last4||''):'not saved'}</span></div>`
-    +(_uniNetLink?`<div class="unifi-row"><span class="unifi-row-l">Platform's Network Connection</span><span class="unifi-row-d">${esc(_uniNetLink.words||'')}</span></div>`:'')
+    +_uniLinks.filter(x=>x[2]).map(([k,n,l])=>`<div class="unifi-row"><span class="unifi-row-l">Platform's ${n} Connection</span><span class="unifi-row-d">${esc(l.words||'')}</span></div>`).join('')
     +`</div></div>`;
   // Step 1 — the local user
   const fromInt=st.host_from==='your UniFi integration';
@@ -16508,11 +16492,12 @@ async function unifiSuiteForget(){
 }
 // REGISTER 1255 — Set Up Again: the platform's UniFi Network connection from this card's sign-in. Replacing a broken one
 // removes its devices and brings them back with the new connection, so the press is asked once, in those words.
-async function uniRelink(replace){
-  if(replace&&!await proAsk('Set up the platform’s UniFi Network connection again from this card?\n\nThe broken connection is removed and set up again with ProOS’s local user. Its devices are removed and come back with it; the port controls are switched on again.')) return;
-  toast('Setting up UniFi Network… (up to two minutes)');
-  try{ const r=await fetch(proCoreUrl()+'/unifi/console/platform',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({replace:!!replace})});
-    const j=await r.json(); toast(j.ok?'UniFi Network set up from this card':(j.words||j.skipped||j.error||'Not set up'));
+async function uniRelink(replace, app){
+  app=app==='protect'?'protect':'network'; const nm=app==='protect'?'UniFi Protect':'UniFi Network';
+  if(replace&&!await proAsk('Set up the platform’s '+nm+' connection again from this card?\n\nThe broken connection is removed and set up again with ProOS’s local user. Its devices are removed and come back with it'+(app==='network'?'; the port controls are switched on again.':'.'))) return;
+  toast('Setting up '+nm+'… (up to two minutes)');
+  try{ const r=await fetch(proCoreUrl()+'/unifi/console/platform',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({replace:!!replace,app})});
+    const j=await r.json(); toast(j.ok?nm+' set up from this card':(j.words||j.skipped||j.error||'Not set up'));
   }catch(e){ toast(_coreFailWords('',e)); }
   renderUnifiSuite(false);
 }
@@ -17007,30 +16992,11 @@ async function renderUnifi(){
   // even that when the integration's entry carries one). With no entry yet,
   // this step is the front door: what is typed goes straight into the
   // platform's own setup flow and becomes the integration's entry.
-  let s1='';
-  if(priv.entry){
-    // The house's own fact row (register 465) — the same three invented class
-    // names the UniFi Network card carried, found by the bench that pinned it.
-    s1+=`<div class="row"><div class="rl">Console</div><div class="rr">${esc(String(priv.host||'—'))}</div></div>`;
-    s1+=`<div class="row"><div class="rl">Read from</div><div class="rr">the UniFi Protect integration</div></div>`;
-    s1+=`<div class="field-hint" style="margin:8px 0 12px">To change the console’s address or login, reconfigure the integration — ProOS follows it.</div>`;
-    if(priv.entry_id) s1+=`<button class="btn-primary" onclick="fixEntrySetup('${esc(String(priv.entry_id))}','unifiprotect','Reconfigure')">Reconfigure the integration</button>`;
-    if(!priv.key_from_entry){
-      s1+=`<div class="field" style="margin-top:14px"><div class="field-label">Integration API Key</div><input id="unifi-key" type="password" placeholder="${priv.has_key?'Saved — leave blank to keep':'Protect → Control Plane → Integrations'}"/><div class="field-hint">ProOS’s own key for the Protect integration API (cameras, live, PTZ, talk, arm). The integration’s entry doesn’t carry one, so it is kept here.</div></div>`;
-      s1+=`<button class="btn-primary" onclick="unifiConnect()">${priv.has_key?'Update key':'Save key'}</button>`;
-    }
-  } else {
-    // REGISTER 687 (Dave, 6 Oct 2026: "why something that is already in the platform
-    // fails on Pro"). ProOS's own four-field form fed the platform's flow blind and
-    // threw its answer away ("Saved — not reachable yet"); the platform had moved on
-    // to an API-key step ProOS never showed. Setup is now THE PLATFORM'S OWN FLOW,
-    // drawn in Pro's flow sheet — its fields, its steps, its errors, as it asks them.
-    // 695: ProOS keeps no copy of the login — events and clips are the platform's own media.
-    const _ff=_foundFlow('unifiprotect');
-    s1+=_ff?`<div class="wiz-hint" style="margin-bottom:12px">Found on your network: <b>${esc(_foundWords(_ff))}</b>. Setup carries on from there — choose Full (a local UniFi user) or API key.</div>`
-      :`<div class="wiz-hint" style="margin-bottom:12px">Nothing is set up yet. Setup asks for the console’s address, its API key and a local UniFi user, and says exactly what it needs if anything is wrong.</div>`;
-    s1+=`<button class="btn-primary" onclick="unifiProtectSetup()">Set Up UniFi Protect</button>`;
-  }
+  // REGISTER 1256 — ONE SPOT (Dave 8 Nov). The console's address, ProOS's local user and its API key are the UniFi
+  // card's alone; the platform's Protect connection is set up (and set up again) from there. Nothing to type here.
+  let s1=`<div class="row"><div class="rl">Console</div><div class="rr">${esc(String(priv.host||'—'))}</div></div>`
+    +`<div class="field-hint" style="margin:8px 0 12px">Signed in from the UniFi card — the address, local user and API key are set there.</div>`
+    +`<button class="btn-primary" onclick="openUnifiSuite()">Open the UniFi Card</button>`;
   html+=step(1,'The console', connected?'ok':'', connected?'Connected':(priv.entry?'Set up — not answering':'Not set up'), s1);
 
   // ── Step 2 — Cameras (rooms + exposure in one place) ─────────────
@@ -17148,37 +17114,8 @@ async function unifiRemove(){
   openBay('library');
 }
 
-// REGISTER 690: exactly what the platform's own integrations page does — when the platform
-// has DISCOVERED the console, setup finishes that discovered flow (it already knows the
-// address); otherwise it starts the platform's own setup.
-async function unifiProtectSetup(){
-  try{ await loadDiscoveredFlows(); }catch(e){}
-  const f=(_flowsAll||[]).find(x=>x&&x.handler==='unifiprotect'&&!(x.context&&(x.context.source==='reauth'||x.context.source==='reconfigure')));
-  if(f){ try{ await closeAddIntegration(); }catch(e){} return addFlow(f.flow_id); }
-  return _beginFlow('unifiprotect');
-}
-async function unifiConnect(){
-  // Register 439: with no entry, host/user/password go straight into the
-  // platform's own setup flow through Core; with an entry, only ProOS's own
-  // API key can be given here.
-  const hostEl=document.getElementById('unifi-host');
-  const host=hostEl?(hostEl.value||'').trim():'';
-  const key=((document.getElementById('unifi-key')||{}).value||'').trim();
-  const user=(document.getElementById('unifi-user')?document.getElementById('unifi-user').value:'').trim();
-  const pass=(document.getElementById('unifi-pass')?document.getElementById('unifi-pass').value:'');
-  if(hostEl && !host){ toast('Enter the console IP'); return; }
-  if(!hostEl && !key){ toast('Paste the Integration API key'); return; }
-  const payload={}; if(host) payload.host=host; if(key) payload.api_key=key; if(user) payload.username=user; if(pass) payload.password=pass;
-  try{
-    const r=await fetch(proCoreUrl()+'/unifi/protect/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-    let d={}; try{ d=await r.json(); }catch(e){}
-    if(!r.ok){ toast(d.errorMessage||d.error||'Connect failed'); return; }
-    const na=d.setup&&d.setup.action;
-    toast(na==='created'?'Integration set up — cameras coming up':(na==='waiting'?'Waiting for console discovery':(na==='form'?('The integration needs more: '+(d.setup.detail||'check the key and login')):(d&&d.reachable?'Connected to Protect':(host?'Saved — not reachable yet':'Key saved')))));
-    try{ await loadSite(); await loadConfigEntries(); }catch(e){}   // full refresh so cameras/state update, not just status
-    renderUnifi();
-  }catch(e){ toast(_coreFailWords('',e)); }
-}
+// REGISTER 1256: unifiProtectSetup (the platform's own Protect flow, 690) and unifiConnect (Protect's own key field,
+// 439) are gone — UniFi Protect is set up and keyed from the one UniFi card (1255/1256).
 
 // ── Users: people & sign-in access (ProOS Core owns the auth ops) ──
 let _usrPersons={}; // user_id -> HA person (storage) so we can show/set profile pictures
@@ -22767,6 +22704,9 @@ function v3SecOf(p){
   // Integrations live in Devices (Dave 16 Oct: "devices and integrations is under system setup I think that should be the one
   // section combined as devices") — register 904
   if(p==='v3devices'||p==='device'||p==='library'||p==='integration') return 'devices';
+  // REGISTER 1256 (Dave 8 Nov 17:29: "They are all an integration"; 17:33 the one flow): UniFi, Apple Home, Savant and
+  // Irrigation are integrations — their pages live in Devices › Integrations, not a Systems group in System Setup.
+  if(['unifi-suite','unifi','unifi-net','unifi-access','unifi-connect','applehome','savant','irrigation'].includes(p)) return 'devices';
   if(p==='activities'||p==='scripts'||p==='automations') return 'scenes';
   if(p==='v3diag'||p==='manage') return 'diagnostics';
   if(p==='tech') return (_techView==='net'||_techView==='notify')?'setup':'toolbox';
@@ -22903,8 +22843,9 @@ const V3SETUP=[['site','Building Settings','home',()=>openSite()],['users','Mana
   ['dashremote','Dashboards','grid',()=>openDashRemote()],['channels','Channel Lists','list',()=>openChannels()],['notify','Notifications','bolt',()=>openTech('notify')],['net','Network','map',()=>openTech('net')],
   ['credentials','Credentials','shield',()=>openCredentials()],['maintenance','Maintenance','setup',()=>openMaintenance()]];
 // REGISTER 1215: UniFi is ONE suite (Dave 5 Nov) — Protect and Network open from inside it.
-const V3SYSTEMS=[['applehome','Apple Home','home',()=>openAppleHome()],['unifi-suite','UniFi','map',()=>openUnifiSuite()],
-  ['savant','Savant','remote',()=>openSavant()],['irrigation','Irrigation','drop',()=>openIrrigation()]];
+// REGISTER 1256 — NO SYSTEMS GROUP. Apple Home, UniFi, Savant and Irrigation are integrations (Dave 8 Nov 17:29), added
+// from Add Integration and opened from their tile in Devices › Integrations › Configured (17:33) — as Plan K had it (3 Oct).
+const V3SYSTEMS=[];
 const V3TOOLS=[['log','Logs','log'],['health','Box Diagnostics','diagnostics'],['prepare','Prepare','check'],['integrations','Recovery Log','plug'],['inspect','Inspect','spark'],
   ['dev','Developer','tag'],['terminal','Terminal','box'],['actions','Actions','bolt'],['assist','Assist AI','assist'],['tiles','App Tiles','grid'],
   ['helpers','Helpers','list'],['blueprints','Blueprints','map'],['labels','Labels','tag']];
@@ -22950,7 +22891,9 @@ function v3Side(sec){
     h='<div class="v3sh"><span>Devices</span></div><div class="v3sl">'
       +_v3item('all',p==='v3devices'&&_v3dev==='all',_v3ic('list'),'All Devices','<span class="v3ct">'+(_devices||[]).length+'</span>',"v3Devices('all')")
       +_v3item('__none__',p==='v3devices'&&_v3dev==='__none__',_v3ic('grid'),'Unassigned','<span class="v3ct">'+un+'</span>',"v3Devices('__none__')")
-      +_v3item('library',p==='library'||p==='integration',_v3ic('plug'),'Integrations','',"openBay('library')")
+      +_v3item('library',p==='library'||p==='integration'||v3SecOf(p)==='devices'&&!/^(v3devices|device)$/.test(p||''),_v3ic('plug'),'Integrations','',"openBay('library')")
+      // 1256: on a UniFi page its sections sit under Integrations, as they sat under System Setup › UniFi (1245)
+      +(/^unifi/.test(p||'')?_v3item('unifi-suite',p==='unifi-suite',_v3ic('map'),'UniFi','',"openUnifiSuite()",'l1')+_uniMenuSections(p):'')
       +'</div><div class="v3sf"><button onclick="openAddIntegration()">+ Add Device</button></div>';
   } else if(sec==='scenes'){
     h='<div class="v3sh"><span>Scenes</span></div><div class="v3sl">'
@@ -22964,9 +22907,7 @@ function v3Side(sec){
   } else if(sec==='setup'){
     const cur=v3SetupKey(p);
     h='<div class="v3sh"><span>System Setup</span></div><div class="v3sl">'
-      +V3SETUP.map(([k,l,i],n)=>_v3item(k,cur===k,_v3ic(i),l,'',"v3SetupOpen("+n+")")).join('')
-      +'<div class="v3grp">Systems</div>'
-      +V3SYSTEMS.map(([k,l,i],n)=>_v3item(k,cur===k,_v3ic(i),l,'',"v3SystemsOpen("+n+")")+(k==='unifi-suite'?_uniMenuSections(p):'')).join('')+'</div>';
+      +V3SETUP.map(([k,l,i],n)=>_v3item(k,cur===k,_v3ic(i),l,'',"v3SetupOpen("+n+")")).join('')+'</div>';
   } else if(sec==='toolbox'){
     const cur=(p==='tech')?_techView:p;
     h='<div class="v3sh"><span>Toolbox</span></div><div class="v3sl">'
@@ -22979,7 +22920,7 @@ function v3Side(sec){
 }
 // 1245 (measured: the menu is 1134 px tall in a 684 px rail, UniFi's row at 874): a UniFi page brings its sections into view
 function _v3UniInView(){
-  if(_v2sec!=='setup'||!/^unifi-(net|access)$|^unifi$/.test(_v2panel||'')) return;
+  if(_v2sec!=='devices'||!/^unifi-(net|access)$|^unifi$/.test(_v2panel||'')) return;
   const rail=document.getElementById('v2rail'), row=rail&&rail.querySelector('.v3si[data-k="unifi-suite"]'); if(!rail||!row) return;
   const d=row.getBoundingClientRect().top-rail.getBoundingClientRect().top; if(d>rail.clientHeight*0.4||d<0) rail.scrollTop+=d-80;
 }
@@ -23018,7 +22959,6 @@ function v3Tap(sec){
   if(V3HASLIST[sec] && v3IconMode()) v3MenuOpen();
 }
 function v3SetupOpen(n){ const c=V3SETUP[n]; if(c) c[3](); }
-function v3SystemsOpen(n){ const c=V3SYSTEMS[n]; if(c) c[3](); }
 function v3ToolOpen(k){
   if(k==='helpers') return openHelpers(); if(k==='blueprints') return openBlueprints(); if(k==='labels') return openLabels();
   openTech(); techTab(k);

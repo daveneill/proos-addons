@@ -188,7 +188,7 @@ def cards(now=None) -> list:
         words = "is retrying now" if retrying else _STATE_WORDS.get(st, st)
         reason = e.get("reason")
         acts = [{"kind": "pf_reload", "label": "Reload", "entry": eid}]
-        if e.get("domain") == "unifi":
+        if e.get("domain") in ("unifi", "unifiprotect"):
             # REGISTER 1255: UniFi Network comes from the one UniFi card — set up again from the card's sign-in
             acts.append({"kind": "uni_relink", "label": "Set Up Again from the UniFi Card", "entry": eid})
         c = _card("platform_integration", eid, "%s — %s" % (name, "Not Connecting" if st in ("setup_retry",) or retrying else "Not Running"),

@@ -2509,10 +2509,20 @@ def _enable_port_controls():
 _unilink_state = {"at": None, "last": None, "state": None}       # register 1255: the card's link, last read
 
 
-def _unifi_link(replace=False):
-    """REGISTER 1255 — THE PLATFORM'S UNIFI NETWORK CONNECTION COMES FROM THE ONE UNIFI CARD (proos/unilink.py). Reads
-    the console's apps through the card, then converges; `replace` only from the installer's press. After a replace the
-    port controls Dave switched on (1221) are switched on again. Nothing on a home without the card's sign-in."""
+def _unifi_link(replace=False, app=None):
+    """REGISTER 1255/1256 — THE PLATFORM'S UNIFI CONNECTIONS COME FROM THE ONE UNIFI CARD (proos/unilink.py). `app`
+    None = every app the console runs (Network, Protect), never replacing; `app` + `replace` = the installer's press for
+    that one. After a Network replace the port controls Dave switched on (1221) are switched on again."""
+    from proos import unilink as _ul
+    if app is None:
+        outs = {a: _unifi_link_one(False, a) for a in _ul.APPS}
+        done = all(o.get("done") or str(o.get("skipped", "")).startswith("this console does not run") for o in outs.values())
+        return {"done": done, "apps": outs,
+                "skipped": next((o["skipped"] for o in outs.values() if str(o.get("skipped", "")).startswith("the UniFi card has no sign-in")), None)}
+    return _unifi_link_one(replace, app)
+
+
+def _unifi_link_one(replace, app):
     from proos import uniconsole as _uc, unilink as _ul
     try:
         from proos import platform_entries as _pe
@@ -2528,10 +2538,10 @@ def _unifi_link(replace=False):
     apps = _uc.apps(_creds, h) if h else []
     req = lambda m, p, b=None: _client._req(m, p, b)             # noqa: E731
     try:
-        out = _ul.ensure(_creds, req, _ws_call, apps, ph, replace=replace)
+        out = _ul.ensure(_creds, req, _ws_call, apps, ph, replace=replace, app=app)
     except Exception as e:                                       # noqa: BLE001
         out = {"done": False, "error": str(e)[:200]}
-    if replace and out.get("ok"):
+    if replace and out.get("ok") and app == "network":
         for _i in range(9):                                      # the platform builds the new connection's controls
             time.sleep(10)
             try:
@@ -2545,7 +2555,7 @@ def _unifi_link(replace=False):
         except Exception as e:                                   # noqa: BLE001
             out["port_controls_error"] = str(e)[:160]
     try:
-        _unilink_state.update(at=time.time(), last=out, state=_ul.state(_creds, _ws_call, apps))
+        _unilink_state.update(at=time.time(), last=out, state=_ul.state(_creds, _ws_call, apps, app))
     except Exception:                                            # noqa: BLE001
         _unilink_state.update(at=time.time(), last=out)
     return out
@@ -4895,7 +4905,8 @@ def _platform_fault_fix(iid, kind):
         return _backup_include_addons_now(iid)
     if act["kind"] == "uni_relink":
         # REGISTER 1255 — Set Up Again from the UniFi card: the installer's press is the consent to replace it
-        res = _unifi_link(replace=True)
+        _dom = next((e.get("domain") for e in (_pf.snapshot().get("entries") or []) if e.get("entry_id") == act.get("entry")), "unifi")
+        res = _unifi_link(replace=True, app="protect" if _dom == "unifiprotect" else "network")
         if _journal_mod is not None:
             try:
                 _journal_mod.emit("site", "repair", {"incident": iid, "action": "uni_relink", "ok": bool(res.get("ok")),
@@ -6527,14 +6538,15 @@ class Handler(BaseHTTPRequestHandler):
             _st = _uc.status(_creds, ph, deep=_deep)
             try:                                                 # register 1255: the platform's connection, from the card
                 from proos import unilink as _ul
-                _st["platform"] = {"network": _ul.state(_creds, _ws_call, _st.get("apps") if _deep else None)}
+                _st["platform"] = {a: _ul.state(_creds, _ws_call, _st.get("apps") if _deep else None, a) for a in _ul.APPS}
             except Exception as _ule:                            # noqa: BLE001
                 _st["platform"] = {"network": {"ok": None, "words": "not read: %s" % str(_ule)[:120]}}
             return self._send(200, _st)
         if method == "POST" and sub == "platform":
-            # REGISTER 1255 — Set Up Again: the platform's UniFi Network connection from the card's sign-in. The press
-            # IS the consent to replace a broken one (its devices are removed and come back with it).
-            return self._send(200, _unifi_link(replace=bool(b.get("replace"))))
+            # REGISTER 1255/1256 — Set Up / Set Up Again: the platform's connection for one UniFi app from the card's
+            # sign-in. The press IS the consent to replace a broken one (its devices are removed and come back with it).
+            _app = b.get("app") if b.get("app") in ("network", "protect") else "network"
+            return self._send(200, _unifi_link(replace=bool(b.get("replace")), app=_app))
         if method == "POST" and sub == "signin":
             return self._send(200, _uc.signin(_creds, b.get("host"), b.get("username"), b.get("password"), ph))
         if method == "POST" and sub == "key":
@@ -13245,8 +13257,9 @@ def main():
                     while True:
                         try:
                             _uk = _unifi_link(replace=False)
-                            if not _uk.get("skipped", "").startswith("the UniFi card has no sign-in"):
-                                print(f"  unifi · the card's platform link: {_uk.get('did') or _uk.get('skipped') or _uk.get('words') or _uk.get('error')}", flush=True)
+                            if not str(_uk.get("skipped") or "").startswith("the UniFi card has no sign-in"):
+                                for _ua, _uo in (_uk.get("apps") or {}).items():
+                                    print(f"  unifi · the card's platform link ({_ua}): {_uo.get('did') or _uo.get('skipped') or _uo.get('words') or _uo.get('error')}", flush=True)
                             time.sleep(1800 if _uk.get("done") else 300)
                         except Exception as _uke:  # noqa: BLE001
                             print(f"  unifi · the card's platform link pass failed: {str(_uke)[:160]}", flush=True)
