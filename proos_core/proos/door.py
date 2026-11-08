@@ -44,7 +44,7 @@ import time
 
 # Bumped ONLY when the integration's own code below changes — a Core
 # update that leaves the door alone must not ask for a restart.
-DOOR_BUILD = "6"
+DOOR_BUILD = "7"
 DOMAIN = "proos"
 # REGISTER 928 (door build 3): conversation.py — "ProOS Assist", the platform's
 # own way of plugging an assistant into its voice pipeline, so a room's own
@@ -436,13 +436,19 @@ async def _apply(hass, *_):
 
 
 async def async_start(hass, entry):
+    # Register 1262: the platform runs a PLAIN function given to its timer or its bus in a worker thread, and a worker
+    # thread may not start a task (measured on the box 9 Nov: "calls hass.async_create_task from a thread other than
+    # the event loop" — the minute check never ran again). Coroutine functions run on the platform's own loop.
+    async def _tick(now):
+        await _apply(hass)
+
     async def _go(*_):
         await _apply(hass)
-        hass.data.setdefault(KEY, {})["unsub"] = async_track_time_interval(hass, lambda now: hass.async_create_task(_apply(hass)), CHECK)
+        hass.data.setdefault(KEY, {})["unsub"] = async_track_time_interval(hass, _tick, CHECK)
     if hass.state is CoreState.running:
         await _go()
     else:
-        hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, lambda ev: hass.async_create_task(_go()))
+        hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, _go)
 
 
 async def async_stop(hass):
