@@ -161,6 +161,42 @@ def only_proos_on(config_dir, quiet_file):
     return os.path.exists(os.path.join(config_dir, quiet_file))
 
 
+# REGISTER 1263 — ON BY DEFAULT (Dave 9 Nov 07:52: "make sure this is all part of the installed shipped image … and is on
+# by default"). Every box is ProOS-only from its first start. A tech who turns it off is remembered in Core's own data
+# (OFF_MARK), so Core never turns it back on over their choice; turning it on again clears the mark.
+OFF_MARK = "only_proos_off"
+
+
+def ensure_default(config_dir, quiet_file, data_dir):
+    """Converge a box to ProOS-only unless a tech chose off. Returns 'written', 'on', or 'off by choice'."""
+    import os
+    if os.path.exists(os.path.join(data_dir, OFF_MARK)):
+        return "off by choice"
+    qp = os.path.join(config_dir, quiet_file)
+    if os.path.exists(qp):
+        return "on"
+    with open(qp, "w") as fp:
+        fp.write("ProOS only - written by ProOS Core (register 1263: on by default)\n")
+    return "written"
+
+
+def set_choice(on, config_dir, quiet_file, data_dir):
+    """The switch: on writes the quiet file and clears the off mark; off removes the file and records the choice."""
+    import os
+    qp, mark = os.path.join(config_dir, quiet_file), os.path.join(data_dir, OFF_MARK)
+    if on:
+        if os.path.exists(mark):
+            os.remove(mark)
+        with open(qp, "w") as fp:
+            fp.write("ProOS only - written by ProOS Core (register 1261)\n")
+    else:
+        with open(mark, "w") as fp:
+            fp.write("turned off by a tech (register 1263)\n")
+        if os.path.exists(qp):
+            os.remove(qp)
+    return only_proos_on(config_dir, quiet_file)
+
+
 def wants_upgrade(headers):
     return "websocket" in str(headers.get("Upgrade") or "").lower()
 

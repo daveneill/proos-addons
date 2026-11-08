@@ -10825,13 +10825,9 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(403, {"error": "tech access required"})
                 from proos import door as _dr, frontdoor as _fd
                 on = bool((self._body() or {}).get("on"))
-                qp = os.path.join(_dr.HA_CONFIG, _dr.QUIET_FILE)
                 try:
-                    if on:
-                        with open(qp, "w") as fp:
-                            fp.write("ProOS only - written by ProOS Core (register 1261)\n")
-                    elif os.path.exists(qp):
-                        os.remove(qp)
+                    # register 1263: on by default — off is remembered as a tech's choice, so Core never undoes it
+                    _fd.set_choice(on, _dr.HA_CONFIG, _dr.QUIET_FILE, os.environ.get("PROOS_DATA_DIR", "/data"))
                 except Exception as e:                              # noqa: BLE001
                     return self._send(502, {"error": "could not change it: %s" % str(e)[:120]})
                 if _journal_mod is not None:
@@ -13414,6 +13410,16 @@ def main():
                 print(f"  door · address keeper not started: {_pdse}")
         except Exception as _e:
             print(f"  provision skipped: {_e}")
+    # REGISTER 1263 — EVERY BOX IS ProOS-ONLY FROM ITS FIRST START (Dave 9 Nov 07:52: "on by default"): the platform's own
+    # announcement is withdrawn by the door within a minute, and the front door lets only ProOS sign in — unless a tech
+    # turned it off (remembered in Core's data).
+    try:
+        from proos import door as _dr_q, frontdoor as _fd_q
+        if os.environ.get("SUPERVISOR_TOKEN"):
+            print("  only ProOS · %s" % _fd_q.ensure_default(_dr_q.HA_CONFIG, _dr_q.QUIET_FILE,
+                                                             os.environ.get("PROOS_DATA_DIR", "/data")), flush=True)
+    except Exception as _oqe:                                                # noqa: BLE001
+        print(f"  only ProOS · not set: {_oqe}", flush=True)
     if catalog:
         try:
             _cat = catalog.sync()
