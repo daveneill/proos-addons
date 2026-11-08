@@ -569,6 +569,11 @@ _ma: "MaCommissioner | None" = None
 _ma_tap = None       # proos.ma_tap.MaTap — the Developer's event recorder
 _ha_mcp = None       # proos.ha_mcp.HaMcp — the mirror's toolset for Assist
 _ha_mcp_at = 0.0     # last failed discovery (cooldown, no hammering)
+# REGISTER 1252 — THE MIRROR SAYS WHETHER IT IS THERE (Dave, 8 Nov: Assist "far from being able to fix an issue … it
+# wanted to send to installer"). Measured on his box: both fix jobs asked for the platform's tools 3–4 times and got none
+# — Assist itself, asked to load them, listed no ha_ tool at all. Why lived only in a print to Core's log. Now it is kept,
+# served (/assist/mirror) and handed to Assist, so it says the true blocker instead of "loaded".
+_ha_mcp_state = {"connected": False, "why": "not tried yet", "at": 0.0, "tools": 0, "read_only": 0}
 _client = None
 _door_installed: dict = {}                          # what the boot install reported (reg 351)
 
@@ -610,9 +615,18 @@ def _mcp_client():
             print("  assist · the MCP server states NO destructive hints — "
                   "installer/tech keep READS ONLY; no allow-list is "
                   "invented here", flush=True)
+        _ha_mcp_state.update(connected=bool(_c.get("tools")), at=now, tools=int(_c.get("tools") or 0),
+                             read_only=int(_c.get("read_only") or 0),
+                             why="" if _c.get("tools") else "the platform's MCP server answered but listed no tools")
     except Exception as e:                                       # noqa: BLE001
         print("  assist · HA MCP mirror not available: %s" % e, flush=True)
         _ha_mcp = None
+        _ha_mcp_state.update(connected=False, at=now, tools=0, read_only=0, why=str(e)[:400])
+    try:
+        if _assist is not None:
+            _assist.MIRROR_STATE = dict(_ha_mcp_state)
+    except Exception:                                            # noqa: BLE001
+        pass
     return _ha_mcp
 
 
@@ -7150,6 +7164,24 @@ class Handler(BaseHTTPRequestHandler):
                                         "icon_choices": _roomart.ICON_CHOICES,
                                         "can_generate": bool(
                                             _assist and _assist._image_key(None))})
+            if parts == ["assist", "mirror"]:
+                # REGISTER 1252 — is Assist holding the platform's own tools, and if not, why (installer only).
+                # ?retry=1 skips the five-minute wait between tries.
+                if _project_caller(getattr(self, "_user", None)) is None:
+                    return self._send(403, {"error": "installer access required"})
+                global _ha_mcp_at
+                if (parse_qs(urlparse(self.path).query).get("retry") or [""])[0] and _ha_mcp is None:
+                    _ha_mcp_at = 0.0
+                _m = _mcp_client()
+                live = 0
+                if _m is not None:
+                    try:
+                        live = len(_m.tools(force=True) or [])
+                    except Exception as e:                       # noqa: BLE001
+                        _ha_mcp_state.update(connected=False, why="the connection stopped answering: %s" % str(e)[:300])
+                out = dict(_ha_mcp_state)
+                out["tools_now"] = live
+                return self._send(200, out)
             if parts == ["assist", "registry"]:
                 # Assist capability registry — what the copilot can SEE and DO,
                 # visible to the installer. Trust through visible capability.

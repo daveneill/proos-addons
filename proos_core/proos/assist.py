@@ -1710,6 +1710,8 @@ _TOOL_GROUPS = {
 
 # The one tool that opens a set. Its description is the whole mechanism, so it
 # is written to be impossible to miss.
+# REGISTER 1252: set by Core each time it tries the platform's MCP server — {connected, why, tools, read_only, at}
+MIRROR_STATE = {}
 _MORE_TOOLS = {
     "name": "more_tools",
     "description":
@@ -2690,6 +2692,16 @@ class ToolRunner:
             return {"ok": True, "set": want, "note": "already loaded"}
         self.opened_tools.add(want)
         names = sorted(t["name"] for t in _active_tools(self))
+        # REGISTER 1252 — measured: "platform" answered "loaded" with not one platform tool in the list (the mirror was
+        # not connected), so Assist reported the tools "not exposed, despite the tool loader reporting them loaded".
+        # It is told the truth instead: none arrived, and why — so it says that, not a guess.
+        if want == "platform" and not self._mcp_list():
+            why = str((MIRROR_STATE or {}).get("why") or "the platform's MCP server is not connected to ProOS")
+            return {"ok": False, "set": want,
+                    "error": "the platform's own tools are NOT available on this box — " + why
+                             + ". Say so plainly in your answer: you could not read the integration, its log or press "
+                               "its controls because ProOS is not connected to the platform's tool server.",
+                    "tools_now": names}
         return {"ok": True, "set": want,
                 "note": "loaded — these tools are available for the rest of "
                         "this conversation; call the one you need now",
