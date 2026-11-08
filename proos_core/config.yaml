@@ -1,5 +1,5 @@
 name: ProOS Core
-version: "1.0.1377"
+version: "1.0.1378"
 slug: proos_core
 description: >-
   The operational layer above Home Assistant — state-based room control,
@@ -168,7 +168,9 @@ options:
   # ASSIST OPEN (register 851, 14 Oct 2026): every signed-in person gets the developer's Assist surface — the same
   # tools, the same platform mirror, the same consent road — on the dashboard and in Pro alike. For a TEST box, while
   # the rules between homeowner, installer, tech and developer are being written against what works. Off = the tiers.
-  assist_open: false
+  # REGISTER 1263: ON for a new box (Dave 8 Nov 18:37 "Everybody same at the moment as I need to just test"; 9 Nov 07:52
+  # a fresh image must come up as he tests). Set false here when the tiers are ruled on; a box keeps its own setting.
+  assist_open: true
   # MUSIC SERVICE ORDER (register 863, 14 Oct 2026): the home's preferred services for a spoken name, first wins —
   # e.g. "Apple Music, Spotify". Empty = streaming services before radio, radio first when the words say radio or station.
   music_service_order: ""
