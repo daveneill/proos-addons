@@ -2507,6 +2507,7 @@ def _enable_port_controls():
 
 
 _unilink_state = {"at": None, "last": None, "state": None}       # register 1255: the card's link, last read
+_rt_last_heard = {}                                               # register 1256: the last Talk Live words kept, per person
 
 
 def _unifi_link(replace=False, app=None):
@@ -12101,6 +12102,24 @@ class Handler(BaseHTTPRequestHandler):
                 _outcome_watch(uinfo, list(rnr.actions or []), json.dumps(b.get("arguments") or {}, default=str))
                 print("  [assist] REALTIME tool %s(%s) → %s in %s ms" % (b.get("name"), str(b.get("arguments"))[:80],
                       "error" if out.get("error") else "ok", out.get("_ms")), flush=True)
+                # REGISTER 1256 — TALK LIVE IS ON THE RECORD. Measured 8 Nov: Dave's four Talk Live sessions left nothing on
+                # the box — no history, nothing in the service record. Each tool call is now written to the service
+                # record like every other road, and the words it answered (heard) go into the person's history once per
+                # turn. The spoken answer itself never reaches Core, and the history line says so rather than inventing it.
+                try:
+                    _assist_journal_turn(uinfo, {"trace": list(getattr(rnr, "trace", None) or [])})
+                except Exception:                                # noqa: BLE001
+                    pass
+                try:
+                    _heard = str(b.get("heard") or "").strip()
+                    _k = str(uinfo.get("id"))
+                    if _heard and _rt_last_heard.get(_k) != _heard:
+                        _rt_last_heard[_k] = _heard
+                        _assist._hist_append(uinfo, "talk-live", _heard,
+                                             "(Talk Live — the spoken answer is not kept on the box)",
+                                             where=where, how={"road": "live", "tools": [b.get("name")]})
+                except Exception:                                # noqa: BLE001
+                    pass
                 return self._send(200, out)
             if parts == ["assist", "chat"]:
                 if not _assist:

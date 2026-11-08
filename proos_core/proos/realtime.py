@@ -121,8 +121,20 @@ def web_lookup(assist_mod, cfg: dict, runner, query: str, post=None) -> dict:
             "note": "found on the web — someone else's claim, not a reading of the house"}
 
 
+LIVE_SETS = ("diagnostics", "platform")                          # register 1256: opened for every Talk Live session
+
+
 def tools(assist_mod, runner) -> list:
-    """Assist's own tools for this person, in the provider's realtime shape; the deferred-group door left out."""
+    """Assist's own tools for this person, in the provider's realtime shape; the deferred-group door left out.
+
+    REGISTER 1256 — TALK LIVE HOLDS WHAT THE TYPED ROAD HOLDS. Measured 8 Nov: a Talk Live session was handed 44 tools
+    and never the fault-finding set or the platform's tools, because a realtime session's tools are fixed when it opens
+    and the "load more" door was left out — yet it was told it held the platform's tools. Dave typed "fix the bedroom"
+    into Talk Live and it handed the job to the installer. The session now opens with those sets already loaded."""
+    try:
+        runner.opened_tools = set(getattr(runner, "opened_tools", None) or ()) | set(LIVE_SETS)
+    except Exception:                                            # noqa: BLE001
+        pass
     out = []
     for t in assist_mod._active_tools(runner):
         if t.get("name") == assist_mod._MORE_TOOLS.get("name"):

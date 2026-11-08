@@ -1794,13 +1794,16 @@ def _active_tools(runner) -> list:
     # WHAT THE CALLER HOLDS OF THE PLATFORM decides whether our re-asks
     # of it are offered at all — see _MIRROR_DUPLICATES. Computed first
     # because it filters the ProOS list below.
-    whole = runner._mcp_list() if (runner.user.get("is_owner") or pro) else []
+    # REGISTER 1256 (Dave 8 Nov 15:22): "Homeowners get everything … everything is by concent" — a homeowner is offered
+    # every tool (the platform's and ProOS's); anything beyond everyday control needs their proven yes (ToolRunner.run).
+    home = _is_home(runner.user)
+    whole = runner._mcp_list() if (runner.user.get("is_owner") or pro or home) else []
     # A tool that is never allowed is never offered (register 323): the
     # platform's restart and reload-core are refused at dispatch for
     # everyone, so the model does not see them either — the same law as
     # the domain gates: no door, no doorknob.
     whole = [t for t in whole if t.get("name") not in _PLATFORM_RESTARTS]
-    if runner.user.get("is_owner") or runner.user.get("tech"):
+    if runner.user.get("is_owner") or runner.user.get("tech") or home:
         # DAVE'S 1a RULING (23 Aug 2026, reg 266): the TECH tier is granted
         # the platform's acts — the factory test (D3) needs a tech
         # commissioning through the mirror, and the guarded classes are
@@ -1852,7 +1855,7 @@ def _active_tools(runner) -> list:
                 continue
         g = _TOOL_GATES.get(t["name"])
         if g:
-            if g.get("pro") and not pro:
+            if g.get("pro") and not (pro or home):
                 continue
             if g.get("engine") and not getattr(runner, "ma", None):
                 continue
@@ -2300,6 +2303,19 @@ def _is_pro(user: dict) -> bool:
     return _tier(user) in _users.PRO_TIERS
 
 
+def _is_home(user: dict) -> bool:
+    """REGISTER 1256: a homeowner (not a professional tier, not the unattended engine) — offered every tool, and
+    anything beyond everyday control only with their own proven yes."""
+    u = user or {}
+    return not u.get("engine") and not u.get("is_owner") and not _is_pro(u)
+
+
+# REGISTER 1256: the ProOS tools that were the professional's alone. A homeowner holds them now (Dave 8 Nov 15:22); one
+# that changes something needs their proven yes. Reading needs none.
+_HOME_NEEDS_YES = {"platform_control_enable", "switch_port", "room_member", "incident_fix", "automation_create",
+                   "automation_trigger", "automation_delete", "knowledge_write"}
+
+
 _SOURCE_LIST_CAP = 40    # a Sonos can hold dozens of favourites; the cut is SAID
 
 
@@ -2582,6 +2598,93 @@ class ToolRunner:
                 self._mcp_cache = []
         return self._mcp_cache
 
+    _GEN_ACTS = {"on": "turn_on", "off": "turn_off", "toggle": "toggle"}
+
+    def _resolve_target(self, area_ids=(), device_ids=()):
+        """The entities in these rooms / on these devices, from the platform's own registries."""
+        out = []
+        if not (area_ids or device_ids):
+            return out
+        try:
+            ents = self.client.entity_registry() or []
+            devs = {d.get("id"): d for d in (self.client.device_registry() or [])}
+        except Exception:                                        # noqa: BLE001
+            return None
+        for e in ents:
+            if e.get("disabled_by"):
+                continue
+            dev = devs.get(e.get("device_id")) or {}
+            area = e.get("area_id") or dev.get("area_id")
+            if (area and area in area_ids) or (e.get("device_id") and e.get("device_id") in device_ids):
+                out.append(e.get("entity_id"))
+        return out
+
+    @staticmethod
+    def _as_list(v):
+        if v is None:
+            return []
+        if isinstance(v, str):
+            return [x.strip() for x in v.split(",") if x.strip()]
+        if isinstance(v, (list, tuple)):
+            return [str(x).strip() for x in v if str(x).strip()]
+        return []
+
+    def _platform_targets(self, name, args):
+        """[(entity_id, action)] a platform command would act on, as ProOS's device rules see them. A service of the
+        entity's own domain (light.turn_on on a light) or homeassistant.turn_on/off/toggle is device control; any other
+        service (reload an integration, update an entity) is not. None when the targets could not be read."""
+        a = args or {}
+        out = []
+        if name == "ha_call_service":
+            dom, svc = str(a.get("domain") or ""), str(a.get("service") or "")
+            data = a.get("data") if isinstance(a.get("data"), dict) else {}
+            if a.get("ws_command") and str(a.get("ws_command")) == "call_service":
+                dom, svc = str(data.get("domain") or dom), str(data.get("service") or svc)
+                tgt = data.get("target") if isinstance(data.get("target"), dict) else {}
+                data = dict(data.get("service_data") or {}, **tgt)
+            if not dom and "." in svc:
+                dom, svc = svc.split(".", 1)
+            eids = self._as_list(a.get("entity_id")) or self._as_list(data.get("entity_id"))
+            more = self._resolve_target(self._as_list(data.get("area_id")), self._as_list(data.get("device_id")))
+            if more is None:
+                return None
+            for e in eids + more:
+                ed = e.split(".", 1)[0]
+                if ed == dom or (dom == "homeassistant" and svc in ("turn_on", "turn_off", "toggle")):
+                    out.append((e, svc))
+        elif name == "ha_bulk_control":
+            for op in (a.get("operations") or []) if isinstance(a.get("operations"), list) else []:
+                if isinstance(op, dict):
+                    act = self._GEN_ACTS.get(str(op.get("action") or ""), str(op.get("action") or ""))
+                    for e in self._as_list(op.get("entity_id")):
+                        out.append((e, act))
+            sel = a.get("selector") if isinstance(a.get("selector"), dict) else None
+            if sel:
+                act = self._GEN_ACTS.get(str(a.get("action") or ""), str(a.get("action") or ""))
+                dom = str(sel.get("domain") or "")
+                skip = set(self._as_list(sel.get("exclude_entity_ids")))
+                if sel.get("floor_ids"):
+                    return None                                  # a whole floor: not resolved here — refused below
+                more = self._resolve_target(self._as_list(sel.get("area_ids")))
+                if more is None:
+                    return None
+                out += [(e, act) for e in more if e not in skip and (not dom or e.split(".", 1)[0] == dom)]
+        return out
+
+    def _platform_refusal(self, name, args):
+        """None, or why ProOS's rules refuse this platform command (register 1256)."""
+        if name not in ("ha_call_service", "ha_bulk_control"):
+            return None
+        t = self._platform_targets(name, args)
+        if t is None:
+            return {"error": "ProOS could not read which devices that would act on, so it is not sent — name the "
+                             "devices (entity ids) instead"}
+        for eid, act in t:
+            g = self._device_guard(eid, act)
+            if g is not None:
+                return dict(g, refused_by="ProOS's rules on the platform's command", entity_id=eid)
+        return None
+
     def _run_mcp(self, tool, args):
         """One mirror call, under the SAME tier law the offer used —
         enforced AGAIN at dispatch, so a tool name arriving out of thin
@@ -2589,27 +2692,54 @@ class ToolRunner:
         Developer alone, and an unannotated tool is an act (fail-closed).
         Acts are audited like ProOS acts; everything is traced."""
         _guard = _guarded_act(tool.get("name"), args)
-        if not _is_pro(self.user):
-            out = {"error": "that tool is not available at this access level"}
-        elif _guard is not None:
+        # REGISTER 1256 (Dave 8 Nov 15:22): "Homeowners get everything … everything is by concent" — the homeowner holds
+        # every platform tool; an act needs their own proven yes (below). Installer unchanged (reads + safe acts).
+        _home = _is_home(self.user)
+        if _guard is not None:
             # The risky direction has ONE door, whoever is asking —
             # Dave's consent ruling (23 Aug 2026, reg 266).
             out = _guard
         elif (not tool.get("read_only") and tool.get("destructive")
                 and not (self.user.get("is_owner")
-                         or self.user.get("tech"))):
+                         or self.user.get("tech") or _home)):
             # Tech joined the act-holders at Dave's 1a ruling (reg 266);
             # the installer still gets only what the server vouches for.
             out = {"error": "that tool can DESTROY or disrupt (the platform "
                             "does not vouch for it as safe) — not at this "
                             "access level"}
+        elif (not tool.get("read_only")) and self._platform_refusal(tool.get("name"), args) is not None:
+            out = self._platform_refusal(tool.get("name"), args)    # register 1256: ProOS's rules on top
+        elif (not tool.get("read_only")) and _home and not getattr(self, "consent_ok", False):
+            # REGISTER 1256 — homeowners hold every tool (Dave 8 Nov 15:22), and a platform act is theirs only with
+            # their own yes, which Core proves (the same check as a recovery). Reading needs no yes.
+            out = {"error": _CONSENT_UNPROVEN}
         else:
             if not tool.get("read_only"):
                 self._audit(tool["name"], mcp=True)
+            _rb_targets = self._platform_targets(tool.get("name"), args) if not tool.get("read_only") else []
+            _before = {}
+            if _rb_targets and len(_rb_targets) <= 10:
+                try:
+                    _before = self.client.snapshot([e for e, _a in _rb_targets]) or {}
+                except Exception:                                # noqa: BLE001
+                    _before = {}
             try:
                 out = self.mcp.call(tool["name"], args or {})
             except Exception as e:                               # noqa: BLE001
                 out = {"error": str(e)[:300]}
+            # REGISTER 1256: the read-back ProOS's own control always did (446/1082) — the platform's word that the
+            # call ran is not the device's word that it changed
+            if _before and isinstance(out, dict) and not out.get("error"):
+                try:
+                    from . import readback as _rb
+                    rbs = {}
+                    for _e, _a in _rb_targets:
+                        rbs[_e] = _rb.confirm(self.client, _e, _device_want(_a, {"entity_id": _e}, _before.get(_e) or {}))
+                        self.actions.append({"tool": tool["name"], "target": _e, "action": _a, "read_back": rbs[_e]})
+                    out = dict(out, proos_read_back=rbs,
+                               confirmed=all(r.get("confirmed") for r in rbs.values()) if rbs else None)
+                except Exception:                                # noqa: BLE001
+                    pass
         t = {"tool": tool["name"],
              "kind": "read" if tool.get("read_only") else "act"}
         tgt = ((args or {}).get("entity_id") or (args or {}).get("area_id"))
@@ -2630,6 +2760,9 @@ class ToolRunner:
                 _ref = _engine_refusal(name, args)
                 if _ref is not None:
                     return _ref
+        if (name in _HOME_NEEDS_YES and _is_home(getattr(self, "user", None) or {})
+                and not getattr(self, "consent_ok", False)):
+            return {"error": _CONSENT_UNPROVEN}                  # register 1256: a homeowner's act, their yes first
         fn = getattr(self, "t_" + name, None)
         if not fn:
             m = next((t for t in self._mcp_list()
@@ -3129,6 +3262,27 @@ class ToolRunner:
         domain = eid.split(".", 1)[0]
         if action not in _DEVICE_ACTIONS:
             return {"error": "action '%s' not allowed" % action}
+        _g = self._device_guard(eid, action)
+        if _g is not None:
+            return _g
+        payload = {"entity_id": eid}
+        payload.update({k: v for k, v in data.items() if k != "entity_id"})
+        from . import readback as _rb
+        before = ((self.client.snapshot([eid]) or {}).get(eid) or {})
+        self.client._req("POST", "/api/services/%s/%s" % (domain, action), payload)
+        # REGISTER 446: read the device back for the questions this pipe can
+        # ask; anything else is answered "unverified", never "done".
+        rb = _rb.confirm(self.client, eid, _device_want(action, payload, before))
+        self.actions.append({"tool": "device_control", "target": eid, "action": action,
+                             "read_back": rb})
+        return {"ok": True, "called": "%s.%s" % (domain, action), "entity_id": eid,
+                "confirmed": rb.get("confirmed"), "read_back": rb}
+
+    def _device_guard(self, eid, action):
+        """REGISTER 1256 — ProOS's rules for acting on one device, in ONE place: ProOS's own device control and the
+        platform's own service calls (Dave 8 Nov 15:22: "yes but platform tools first" — the platform's tools are the
+        first road, ProOS's rules are checked on top of them). None = allowed, else the refusal."""
+        domain = eid.split(".", 1)[0]
         if domain == "media_player" and action in _MEDIA_POWER:
             return {"error": "media power is choreographed per room — use room_activity "
                              "(rooms_overview lists each room's activities)"}
@@ -3173,18 +3327,7 @@ class ToolRunner:
                     why = None
                 if why:
                     return {"error": "refused: %s — switching it off would take more than this device down" % why}
-        payload = {"entity_id": eid}
-        payload.update({k: v for k, v in data.items() if k != "entity_id"})
-        from . import readback as _rb
-        before = ((self.client.snapshot([eid]) or {}).get(eid) or {})
-        self.client._req("POST", "/api/services/%s/%s" % (domain, action), payload)
-        # REGISTER 446: read the device back for the questions this pipe can
-        # ask; anything else is answered "unverified", never "done".
-        rb = _rb.confirm(self.client, eid, _device_want(action, payload, before))
-        self.actions.append({"tool": "device_control", "target": eid, "action": action,
-                             "read_back": rb})
-        return {"ok": True, "called": "%s.%s" % (domain, action), "entity_id": eid,
-                "confirmed": rb.get("confirmed"), "read_back": rb}
+        return None
 
     def t_area_control(self, args):
         aid = (args.get("area_id") or "").strip()
@@ -5390,8 +5533,8 @@ class ToolRunner:
         return {"ok": True, "deleted": eid}
 
     def t_automation_create(self, args):
-        if not _is_pro(self.user):
-            return {"error": "creating automations needs installer/tech access — I can't do that for a homeowner account"}
+        if not _is_pro(self.user) and not getattr(self, "consent_ok", False):      # 1256: a homeowner, with their yes
+            return {"error": _CONSENT_UNPROVEN}
         alias = (args.get("alias") or "").strip()
         trig = args.get("trigger") or []
         act = args.get("action") or []
@@ -5413,8 +5556,8 @@ class ToolRunner:
                 "next": "test it now with automation_trigger, then verify the result"}
 
     def t_automation_trigger(self, args):
-        if not _is_pro(self.user):
-            return {"error": "installer/tech access required"}
+        if not _is_pro(self.user) and not getattr(self, "consent_ok", False):      # 1256: a homeowner, with their yes
+            return {"error": _CONSENT_UNPROVEN}
         eid = (args.get("automation_entity_id") or "").strip()
         if not eid.startswith("automation."):
             return {"error": "automation_entity_id required"}
@@ -5423,8 +5566,8 @@ class ToolRunner:
         return {"ok": True, "triggered": eid, "next": "verify the actions took effect"}
 
     def t_automation_delete(self, args):
-        if not _is_pro(self.user):
-            return {"error": "installer/tech access required"}
+        if not _is_pro(self.user) and not getattr(self, "consent_ok", False):      # 1256: a homeowner, with their yes
+            return {"error": _CONSENT_UNPROVEN}
         eid = (args.get("automation_entity_id") or "").strip()
         oid = eid.split(".", 1)[1] if "." in eid else eid
         if not oid.startswith("proos_assist_"):
@@ -6379,8 +6522,9 @@ def _system_doctrine(user: dict, home_name: str, engine: bool = False) -> str:
         "'access denied' or discuss a power they do not have. Everyone may look at "
         "anything, control the committed home — lights, volume, activities, scenes, "
         "music — lock a door, and, with their explicit yes in this conversation, unlock "
-        "a door or disarm the alarm. Installer, tech and Developer may also change "
-        "automations, commission rooms and endpoints, and write this house's notes.\n"
+        "a door or disarm the alarm. Changing automations, commissioning rooms and endpoints, "
+        "fixing an integration and writing this house's notes: a professional may; a homeowner "
+        "may with their explicit yes in this conversation.\n"   # register 1256
         "LOOK BEFORE YOU SPEAK — NOTHING IS CLAIMED THAT WAS NOT READ. This is the whole "
         "product. Never assume a device's state; you have tools to know it. Before you "
         "say what is playing or how loud a room is, and before any volume or mute "
@@ -6452,10 +6596,13 @@ def _system_doctrine(user: dict, home_name: str, engine: bool = False) -> str:
         "file: when a ProOS act exists, use it; when it truly does not, say in one "
         "sentence what is missing and flag_for_pro."
         + ("" if _is_pro(user) else "\nYou are talking with a HOMEOWNER: plain, everyday "
-           "language for everything about the home. You may control the home, manage music, "
-           "run checks and — with their ok — recoveries; you cannot commission devices or "
-           "rooms. When something is beyond a remote fix, say you'll pass it to their "
-           "installer and flag_for_pro.\n"
+           "language for everything about the home. You hold the same tools as their installer: "
+           # REGISTER 1256 (Dave 8 Nov 15:22): homeowners get everything, by consent — only the words change by tier
+           "control the home, manage music and run any check freely; anything beyond that — a "
+           "recovery, a fix to an integration, a change to a room or an automation — only after "
+           "you have told them plainly what you will do and they have said yes. When something "
+           "is genuinely beyond a remote fix, say you'll pass it to their installer and "
+           "flag_for_pro.\n"
            # REGISTER 463 (Dave, 15 Sep 2026, reading a dashboard conversation:
            # "it was giving far too much information"). Nothing had ever shaped an
            # ANSWER by tier — only the language and the toolbox — so the coverage
