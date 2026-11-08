@@ -5052,7 +5052,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026110902';
+const PROOS_BUILD='2026110903';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -15806,13 +15806,17 @@ function initMusicPage(){
   // services (a Sonos or HEOS), else the room's first. A room with no music player of its own keeps the house rule below.
   const room=(typeof curRoom==='number' && curRoom>=0 && CONFIG.rooms) ? CONFIG.rooms[curRoom] : null;
   const here=room ? speakers.filter(e=>entityAreaMap[e]===room.id) : [];
-  _musicAskRoom = !here.length;   // 1264: no room of its own to play in → the first tap asks which room
   if(here.length){
+    _musicRoomLabel(room);
     musicSelectSpeaker(_musicPick(here));
     return;
   }
-  const keep=_musicSpeaker&&speakers.indexOf(_musicSpeaker)!==-1&&_musicBrowsable(_musicSpeaker);
-  musicSelectSpeaker(keep?_musicSpeaker:_musicPick(speakers));
+  // 1264c (Dave 10:20): no room of its own — ask which room FIRST, then open that room's music (the house default that
+  // stood here loaded a player nobody chose, whose music may not be the chosen room's)
+  if(grid) grid.innerHTML='';
+  try{ const mc=document.getElementById('music-cats'); if(mc) mc.innerHTML=''; }catch(e){}   // no last room's services behind the card
+  _musicRoomLabel(null);
+  _musicChooseRoom();
 }
 // REGISTER 1264 — THE PAGE OPENS ON A PLAYER IT CAN SHOW MUSIC FOR. With no room pills (Dave 9 Nov 08:46) nobody can switch
 // players on this page, and the Office proved why that matters (read on the box 9 Nov 09:48): its HomePod was PLAYING (sent
@@ -17338,12 +17342,14 @@ function musicPlayUri(uriEnc, type){
   setTimeout(renderMusicNowPlaying,1400);
 }
 
-// ── REGISTER 1264 — MUSIC OPENED FROM HOME ASKS WHICH ROOM, ON THE FIRST TAP (Dave 9 Nov 08:58) ────────────────────────
-// The page has no player and no room pills now (08:46: "remove all players from the page … the zone selection is gone").
-// Opened from a room it plays in that room, as it always did (839). Opened from Home there is no room, so the first thing
-// played asks which room — one centred card, the rooms that have a music player — and the page keeps that room until it is
-// opened again. Every way of playing on the page goes through these four doors, so each is asked through the one card.
-var _musicAskRoom=false;   // var, not let: initMusicPage (earlier in the file) sets it
+// ── REGISTER 1264c — MUSIC OPENED FROM HOME ASKS WHICH ROOM FIRST (Dave 9 Nov 10:20) ───────────────────────────────────
+// The page has no player and no room pills (08:46). 08:58 had the first TAP ask; 10:20, on seeing it: "That won't work as
+// music content may differ per room so just make it pop up from the home page and have room selection first then based on
+// what you select it will then open the music for that room". So: opened with no room of its own, the page asks at once —
+// one centred card, the rooms that have a music player — and opens THAT room's music (its engine, its services). Nothing is
+// loaded behind the card for a room nobody chose. Cancel goes back where it came from: a music page with no room has
+// nothing true to show. The page's eyebrow names the room the music is for.
+function _musicRoomLabel(r){ try{ const t=document.querySelector('#page-music .page-title'); if(t) t.textContent=r?r.name:'Library'; }catch(e){} }
 function _musicRoomChoices(){
   const sp=(typeof musicRoomSpeakers==='function')?musicRoomSpeakers():[], out=[];
   (CONFIG.rooms||[]).forEach(r=>{
@@ -17352,46 +17358,25 @@ function _musicRoomChoices(){
   });
   return out;
 }
-function _musicAsk(go, what){
+function _musicChooseRoom(){
   const ch=_musicRoomChoices();
-  if(ch.length===1){ _musicAskRoom=false; _musicSpeaker=ch[0].eid; go(); return; }
-  if(!ch.length){ go(); return; }
+  const open=c=>{ _musicRoomLabel(c.room); musicSelectSpeaker(c.eid); };
+  if(ch.length===1){ open(ch[0]); return; }
   let el=document.getElementById('mus-ask');
-  if(!el){ el=document.createElement('div'); el.id='mus-ask'; document.body.appendChild(el);
-    el.addEventListener('click', e=>{ if(e.target===el) el.classList.remove('open'); }); }
-  el.innerHTML='<div class="ma-card" role="dialog" aria-label="Play in which room"><div class="ma-h">Play in Which Room?</div>'
-    +'<div class="ma-s">'+_mEsc(what||'')+'</div><div class="ma-list">'
+  if(!el){ el=document.createElement('div'); el.id='mus-ask'; document.body.appendChild(el); }
+  const back=()=>{ el.classList.remove('open'); try{ closeToContext(); }catch(e){ try{ showPage('home'); }catch(_){} } };
+  el.onclick=e=>{ if(e.target===el) back(); };
+  el.innerHTML='<div class="ma-card" role="dialog" aria-label="Music for which room"><div class="ma-h">Music for Which Room?</div>'
+    +'<div class="ma-s">Each room plays from its own music</div><div class="ma-list">'
     +ch.map((c,i)=>'<button type="button" class="ma-row" data-i="'+i+'">'+_mEsc(c.room.name)
       +(c.playing?'<span class="ma-on">Playing</span>':'')+'</button>').join('')
     +'</div><button type="button" class="ma-x">Cancel</button></div>';
-  el.querySelector('.ma-x').onclick=()=>el.classList.remove('open');
+  el.querySelector('.ma-x').onclick=back;
   el.querySelectorAll('.ma-row').forEach(b=>{ b.onclick=()=>{
-    const c=ch[+b.getAttribute('data-i')]; el.classList.remove('open');
-    _musicAskRoom=false;
-    // a room whose player is driven by the other engine has a different library — show that room's music instead of
-    // sending it something it cannot play
-    if(_musicSpeaker && musicEngine(c.eid)!==musicEngine(_musicSpeaker)){
-      musicSelectSpeaker(c.eid);
-      try{ showToast(c.room.name+' plays from its own music — pick again'); }catch(e){}
-      return;
-    }
-    _musicSpeaker=c.eid; go();
+    const c=ch[+b.getAttribute('data-i')]; el.classList.remove('open'); open(c);
   }; });
   el.classList.add('open');
 }
-['musicPlay','musicPlayUri','musicPlayItem','musicPlayCore'].forEach(n=>{
-  const o=window[n]; if(typeof o!=='function') return;
-  window[n]=function(){
-    const a=[].slice.call(arguments);
-    if(_musicAskRoom && typeof curPage!=='undefined' && curPage==='music'){
-      const was=_musicSpeaker;
-      const what=(n==='musicPlay' && a[0] && a[0].title) ? a[0].title : '';
-      _musicAsk(()=>{ if(n==='musicPlayCore' && a[0]===was) a[0]=_musicSpeaker; o.apply(null,a); }, what);
-      return;
-    }
-    return o.apply(null,a);
-  };
-});
 
 // ── Queue: long-press an item → Play now / Play next / Add to queue ──
 // MA-engine only (enqueue runs through Core /music/play with an option). A short tap
