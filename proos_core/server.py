@@ -7181,6 +7181,16 @@ class Handler(BaseHTTPRequestHandler):
                         _ha_mcp_state.update(connected=False, why="the connection stopped answering: %s" % str(e)[:300])
                 out = dict(_ha_mcp_state)
                 out["tools_now"] = live
+                # what the Supervisor holds that could be the server — installed or not started, by its own name
+                try:
+                    _all = (_sv("GET", "/addons") or {}).get("addons", []) or []
+                    out["addons_seen"] = len(_all)
+                    out["mcp_addons"] = [{"slug": a.get("slug"), "name": a.get("name"), "state": a.get("state"),
+                                          "version": a.get("version")}
+                                         for a in _all if "mcp" in (str(a.get("slug", "")) + " " + str(a.get("name", ""))).lower()]
+                except Exception as e:                           # noqa: BLE001
+                    out["mcp_addons"] = None
+                    out["addons_error"] = str(e)[:200]
                 return self._send(200, out)
             if parts == ["assist", "registry"]:
                 # Assist capability registry — what the copilot can SEE and DO,

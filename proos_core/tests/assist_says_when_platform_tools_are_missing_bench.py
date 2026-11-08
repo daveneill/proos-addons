@@ -15,7 +15,7 @@ PINNED (driven — the real ToolRunner.t_more_tools):
  2. with the platform's tools there, it loads exactly as before ("loaded", ha_ tools in tools_now)
  3. another set ("diagnostic") is untouched by the mirror's absence
  4. (SOURCE) Core keeps the reason (_ha_mcp_state), hands it to Assist (MIRROR_STATE), and serves it to the installer at
-    /assist/mirror (installer only; ?retry=1 skips the five-minute wait)
+    /assist/mirror (installer only; ?retry=1 skips the five-minute wait), with every add-on whose name says MCP and its state
 """
 import os
 import sys
@@ -80,7 +80,8 @@ check("4 · Core keeps the reason, hands it to Assist and serves it to the insta
       all(x in src for x in ['_ha_mcp_state.update(connected=False, at=now, tools=0, read_only=0, why=str(e)[:400])',
                              '_assist.MIRROR_STATE = dict(_ha_mcp_state)',
                              'if parts == ["assist", "mirror"]:',
-                             'return self._send(403, {"error": "installer access required"})']), True)
+                             'return self._send(403, {"error": "installer access required"})',
+                             'out["mcp_addons"] = [{"slug": a.get("slug"), "name": a.get("name"), "state": a.get("state"),']), True)
 
 print("\n%d checks passed, %d failed" % (PASS, len(FAIL)))
 sys.exit(1 if FAIL else 0)
