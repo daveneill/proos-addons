@@ -618,10 +618,14 @@ def _mcp_client():
         _ha_mcp_state.update(connected=bool(_c.get("tools")), at=now, tools=int(_c.get("tools") or 0),
                              read_only=int(_c.get("read_only") or 0),
                              why="" if _c.get("tools") else "the platform's MCP server answered but listed no tools")
+        if _c.get("tools"):
+            _ha_mcp_state["down_since"] = None
     except Exception as e:                                       # noqa: BLE001
         print("  assist · HA MCP mirror not available: %s" % e, flush=True)
         _ha_mcp = None
         _ha_mcp_state.update(connected=False, at=now, tools=0, read_only=0, why=str(e)[:400])
+        if not _ha_mcp_state.get("down_since"):
+            _ha_mcp_state["down_since"] = now
     try:
         if _assist is not None:
             _assist.MIRROR_STATE = dict(_ha_mcp_state)
@@ -13130,6 +13134,31 @@ def main():
                     print("  panel · this box is a wall panel: setting itself up (register 940)")
                 except Exception as _pse:  # noqa: BLE001
                     print(f"  panel · set-up not started: {_pse}")
+            # REGISTER 1253 — ASSIST'S PLATFORM TOOLS ARE KEPT BY CORE, ON EVERY BOX (Dave, 8 Nov: "yes please"). The
+            # platform's tool server (the Home Assistant MCP Server add-on) was never in the image or Core's set-up, so the
+            # move to the G-Flip left Assist without the platform's integration details, log and service calls. A pass at
+            # start, then every half hour once in place (a minute while not); a right box gets no writes.
+            try:
+                from proos import assisttools as _assisttools
+
+                def _mirror_keeper():
+                    global _ha_mcp_at
+                    while True:
+                        try:
+                            _mk = _assisttools.ensure(_sv)
+                            _ha_mcp_state["keeper"] = dict(_mk, at=time.time())
+                            print(f"  assist · platform tools add-on: {_mk}", flush=True)
+                            if _mk.get("done") and _ha_mcp is None:
+                                _ha_mcp_at = 0.0                 # found now, not after the five-minute wait
+                                _mcp_client()
+                            time.sleep(1800 if _mk.get("done") else 60)
+                        except Exception as _mke:  # noqa: BLE001
+                            _ha_mcp_state["keeper"] = {"done": False, "error": str(_mke)[:200], "at": time.time()}
+                            print(f"  assist · platform tools add-on pass failed: {_mke}", flush=True)
+                            time.sleep(60)
+                threading.Thread(target=_mirror_keeper, name="assist-tools", daemon=True).start()
+            except Exception as _mke0:  # noqa: BLE001
+                print(f"  assist · platform tools keeper not started: {_mke0}")
             # THE BOX KNOWS WHERE IN THE WORLD IT IS (register 1002). A box never told its time zone and country (UTC,
             # none — every box ProOS onboarded) asks the platform's own location service once and writes the answer;
             # a box a person has told is never touched. A pass every ten minutes until done (it needs the internet).
@@ -13576,6 +13605,7 @@ def main():
                     (_netev_mod.load_witnesses() if _netev_mod else {}))
                 _ctlbridge.gearcheck = _healthmon_mod.gear_pass        # plan A1: the gear card on the sweep's clock
                 _healthmon_mod.PUSH_STATUS_FN = push_status              # plan B1: alerts that fail are said
+                _healthmon_mod.MIRROR_STATE_FN = lambda: (_mcp_client(), dict(_ha_mcp_state))[1]   # 1253: Assist's platform tools
                 def _addr_sources():                            # 1201: the integrations' own records + devices
                     with open(_HA_STORAGE_ENTRIES) as f:
                         ents = (json.load(f).get("data") or {}).get("entries", []) or []

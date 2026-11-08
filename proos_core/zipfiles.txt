@@ -5476,6 +5476,7 @@ proos/applemusic.py
 proos/atvcatalog.py
 proos/approved_versions.json
 proos/assist.py
+proos/assisttools.py
 proos/autofix.py
 proos/addrdrift.py
 proos/outcome.py
@@ -5586,6 +5587,10 @@ proos/unifi.py
 proos/uniconsole.py
 proos/unifinet.py
 proos/protectalarms.py
+proos/protectevents.py
+proos/protectcams.py
+proos/networkviews.py
+proos/accessviews.py
 proos/usage.py
 proos/users.py
 proos/visibility.py

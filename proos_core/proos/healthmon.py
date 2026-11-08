@@ -1572,6 +1572,8 @@ def _when(ts):
 
 
 PUSH_STATUS_FN = None      # -> {phone: {ok, words, at}} — set by server (plan B1)
+MIRROR_STATE_FN = None     # -> {connected, why, down_since, keeper} — set by server (register 1253)
+MIRROR_GRACE_S = 900       # PLUMBING (register 1253): a fresh box installs the add-on in its first minutes
 ADDR_SOURCES_FN = None     # -> (config entries, device registry) — set by server (register 1201)
 
 
@@ -1624,6 +1626,37 @@ def push_check(seen):
             _open[cid]["cause"] = ("The last alert to %d phone%s did not arrive: %s. Until this is fixed, "
                                    "nothing ProOS notices reaches %s." % (len(bad), "" if len(bad) == 1 else "s",
                                                                           lines, "that phone" if len(bad) == 1 else "those phones"))
+    except Exception:                                            # noqa: BLE001
+        pass
+
+
+def mirror_check(seen, now=None):
+    """REGISTER 1253 — ASSIST WITHOUT THE PLATFORM'S TOOLS IS SAID, NOT LOGGED. Dave, 8 Nov: the tool server left the
+    house with the move to the G-Flip and nothing said so; Assist could not read an integration, its log or press its
+    controls, so every fix went to the installer. Raised when Core has had no platform tools for MIRROR_GRACE_S, with the
+    reason Core recorded and what Core is doing about it; clears the moment the tools answer again."""
+    if MIRROR_STATE_FN is None:
+        return
+    try:
+        st = MIRROR_STATE_FN() or {}
+    except Exception:                                            # noqa: BLE001
+        return
+    now = now or time.time()
+    since = st.get("down_since")
+    if st.get("connected") or not since or now - float(since) < MIRROR_GRACE_S:
+        return
+    cid = _iid("assist_no_platform_tools", "site", "assist")
+    seen.add(cid)
+    kp = st.get("keeper") or {}
+    doing = ("ProOS is installing it and keeps it running (the platform's tool server)." if not kp.get("error")
+             else "ProOS could not put it back: %s." % kp.get("error"))
+    cause = ("Assist cannot read an integration, the platform's log or press an integration's own controls, so it "
+             "cannot fix faults — it hands them to the installer. Why: %s. %s" % (st.get("why") or "not known", doing))
+    _ensure(cid, {"kind": "assist_no_platform_tools", "room": "ProOS", "slug": "site", "severity": "critical",
+                  "title": "Assist Has Lost the Platform's Tools", "cause": cause, "subject": "assist", "actions": []})
+    try:
+        if cid in _open:
+            _open[cid]["cause"] = cause
     except Exception:                                            # noqa: BLE001
         pass
 
@@ -1760,6 +1793,12 @@ def _scan(snapall, project_mod, get_controller, witnesses):
         push_check(seen)
     except Exception as e:                                       # noqa: BLE001
         print("  [healthmon] push check failed: %s" % e, flush=True)
+
+    # 1253 · Assist without the platform's tools is said, not logged
+    try:
+        mirror_check(seen, now)
+    except Exception as e:                                       # noqa: BLE001
+        print("  [healthmon] platform tools check failed: %s" % e, flush=True)
 
     # 1201 · an integration talking to an address its device no longer has (the network sees it elsewhere)
     try:
