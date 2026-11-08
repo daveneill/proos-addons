@@ -2489,6 +2489,68 @@ def _port_control_of(e):
     return None, None, None
 
 
+def _enable_port_controls():
+    """REGISTER 1221 — switch ON the platform's own Port N and PoE controls (they ship disabled by the integration;
+    Dave, 5 Nov: "1.yes"). One writer for the route and for 1255's set-up again (a new connection brings them back
+    disabled, so his yes is applied again). (enabled ids, failed)."""
+    done, failed = [], []
+    ents = _client.entity_registry() or []
+    for e in ents:
+        kind, _m, _i = _port_control_of(e)
+        if kind in ("port", "poe") and str(e.get("entity_id") or "").startswith("switch.") and e.get("disabled_by"):
+            try:
+                _client.enable_entity(e["entity_id"])
+                done.append(e["entity_id"])
+            except Exception as ex:                              # noqa: BLE001
+                failed.append({"entity_id": e["entity_id"], "why": str(ex)[:120]})
+    return done, failed
+
+
+_unilink_state = {"at": None, "last": None, "state": None}       # register 1255: the card's link, last read
+
+
+def _unifi_link(replace=False):
+    """REGISTER 1255 — THE PLATFORM'S UNIFI NETWORK CONNECTION COMES FROM THE ONE UNIFI CARD (proos/unilink.py). Reads
+    the console's apps through the card, then converges; `replace` only from the installer's press. After a replace the
+    port controls Dave switched on (1221) are switched on again. Nothing on a home without the card's sign-in."""
+    from proos import uniconsole as _uc, unilink as _ul
+    try:
+        from proos import platform_entries as _pe
+        ph = _pe.host_of("unifi") or _pe.host_of("unifiprotect") or None
+    except Exception:                                            # noqa: BLE001
+        ph = None
+    if not _creds.get(_uc.SVC_LOGIN):
+        out = {"done": False, "skipped": "the UniFi card has no sign-in — nothing to do"}
+        _unilink_state.update(at=time.time(), last=out)
+        return out
+    _uc.adopt_host(_creds, ph)
+    h, _f = _uc.host(_creds, ph)
+    apps = _uc.apps(_creds, h) if h else []
+    req = lambda m, p, b=None: _client._req(m, p, b)             # noqa: E731
+    try:
+        out = _ul.ensure(_creds, req, _ws_call, apps, ph, replace=replace)
+    except Exception as e:                                       # noqa: BLE001
+        out = {"done": False, "error": str(e)[:200]}
+    if replace and out.get("ok"):
+        for _i in range(9):                                      # the platform builds the new connection's controls
+            time.sleep(10)
+            try:
+                if any(_port_control_of(e)[0] in ("port", "poe") for e in (_client.entity_registry() or [])):
+                    break
+            except Exception:                                    # noqa: BLE001
+                pass
+        try:
+            done, failed = _enable_port_controls()
+            out["port_controls_enabled"], out["port_controls_failed"] = len(done), len(failed)
+        except Exception as e:                                   # noqa: BLE001
+            out["port_controls_error"] = str(e)[:160]
+    try:
+        _unilink_state.update(at=time.time(), last=out, state=_ul.state(_creds, _ws_call, apps))
+    except Exception:                                            # noqa: BLE001
+        _unilink_state.update(at=time.time(), last=out)
+    return out
+
+
 def _port_map_now():
     """REGISTER 1219/1221: the live port map — (switches, why-not). Read fresh from the controller through ProOS's
     own console sign-in and joined to the platform's port controls. One reader for the Ports page, the switching
@@ -4363,6 +4425,8 @@ def factory_reset(clear_proos_data=False, keep_auth=False):
                    "music_order.json",
                    # which of the platform's own fault cards the installer acknowledged (register 1014) — the old home's
                    "platform_faults_ack.json",
+                   # when ProOS first saw each platform fault (register 1255) — the old home's faults
+                   "platform_faults_seen.json",
                    # each device's notifications switch (register 1022) — the old home's devices
                    "notify_devices.json",
                    # when ProOS last ran the box's own full backup automatically (register 1024)
@@ -4829,6 +4893,17 @@ def _platform_fault_fix(iid, kind):
         return {"error": "no such action"}
     if act["kind"] == "pf_full_backup":
         return _backup_include_addons_now(iid)
+    if act["kind"] == "uni_relink":
+        # REGISTER 1255 — Set Up Again from the UniFi card: the installer's press is the consent to replace it
+        res = _unifi_link(replace=True)
+        if _journal_mod is not None:
+            try:
+                _journal_mod.emit("site", "repair", {"incident": iid, "action": "uni_relink", "ok": bool(res.get("ok")),
+                                                     "words": res.get("words") or res.get("did") or res.get("error")})
+            except Exception:                                    # noqa: BLE001
+                pass
+        if not res.get("ok"):
+            return {"error": res.get("words") or res.get("skipped") or res.get("error") or "not set up"}
     if act["kind"] == "pf_reload":
         ok = _reload_entry(act.get("entry"))
         if _journal_mod is not None:
@@ -6448,7 +6523,18 @@ class Handler(BaseHTTPRequestHandler):
         sub = parts[2] if len(parts) > 2 else ""
         if method == "GET" and sub == "":
             qs = parse_qs(urlparse(self.path).query)
-            return self._send(200, _uc.status(_creds, ph, deep=(qs.get("quick") or ["0"])[0] != "1"))
+            _deep = (qs.get("quick") or ["0"])[0] != "1"
+            _st = _uc.status(_creds, ph, deep=_deep)
+            try:                                                 # register 1255: the platform's connection, from the card
+                from proos import unilink as _ul
+                _st["platform"] = {"network": _ul.state(_creds, _ws_call, _st.get("apps") if _deep else None)}
+            except Exception as _ule:                            # noqa: BLE001
+                _st["platform"] = {"network": {"ok": None, "words": "not read: %s" % str(_ule)[:120]}}
+            return self._send(200, _st)
+        if method == "POST" and sub == "platform":
+            # REGISTER 1255 — Set Up Again: the platform's UniFi Network connection from the card's sign-in. The press
+            # IS the consent to replace a broken one (its devices are removed and come back with it).
+            return self._send(200, _unifi_link(replace=bool(b.get("replace"))))
         if method == "POST" and sub == "signin":
             return self._send(200, _uc.signin(_creds, b.get("host"), b.get("username"), b.get("password"), ph))
         if method == "POST" and sub == "key":
@@ -6469,19 +6555,10 @@ class Handler(BaseHTTPRequestHandler):
             # REGISTER 1221 — switch ON the platform's own Port N and PoE controls (they ship disabled by the
             # integration). Dave, 5 Nov: "1.yes". The platform's own registry write (live_ha.enable_entity); only the
             # unifi integration's port- and poe- switches; Power-Cycle buttons ship enabled and are left alone.
-            done, failed = [], []
             try:
-                ents = _client.entity_registry() or []
+                done, failed = _enable_port_controls()           # register 1255: one writer
             except Exception as e:                               # noqa: BLE001
                 return self._send(200, {"ok": False, "why": "the platform's entity list could not be read: %s" % str(e)[:120]})
-            for e in ents:
-                kind, _m, _i = _port_control_of(e)
-                if kind in ("port", "poe") and str(e.get("entity_id") or "").startswith("switch.") and e.get("disabled_by"):
-                    try:
-                        _client.enable_entity(e["entity_id"])
-                        done.append(e["entity_id"])
-                    except Exception as ex:                      # noqa: BLE001
-                        failed.append({"entity_id": e["entity_id"], "why": str(ex)[:120]})
             return self._send(200, {"ok": not failed, "enabled": len(done), "failed": failed,
                                     "note": "the platform reloads its UniFi integration to bring them online (about 30 seconds)"})
         if method == "GET" and sub == "alarms":
@@ -13159,6 +13236,24 @@ def main():
                 threading.Thread(target=_mirror_keeper, name="assist-tools", daemon=True).start()
             except Exception as _mke0:  # noqa: BLE001
                 print(f"  assist · platform tools keeper not started: {_mke0}")
+            # REGISTER 1255 — THE ONE UNIFI CARD KEEPS THE PLATFORM'S UNIFI NETWORK CONNECTION. Every box; a home with no
+            # card sign-in, or a console without UniFi Network, gets nothing. Sets it up when missing, answers the
+            # platform's own sign-in request; never removes one (that is the installer's Set Up Again).
+            try:
+                def _unifi_keeper():
+                    time.sleep(90)                               # after the platform and the console card are up
+                    while True:
+                        try:
+                            _uk = _unifi_link(replace=False)
+                            if not _uk.get("skipped", "").startswith("the UniFi card has no sign-in"):
+                                print(f"  unifi · the card's platform link: {_uk.get('did') or _uk.get('skipped') or _uk.get('words') or _uk.get('error')}", flush=True)
+                            time.sleep(1800 if _uk.get("done") else 300)
+                        except Exception as _uke:  # noqa: BLE001
+                            print(f"  unifi · the card's platform link pass failed: {str(_uke)[:160]}", flush=True)
+                            time.sleep(300)
+                threading.Thread(target=_unifi_keeper, name="unifi-link", daemon=True).start()
+            except Exception as _uke0:  # noqa: BLE001
+                print(f"  unifi · link keeper not started: {_uke0}")
             # THE BOX KNOWS WHERE IN THE WORLD IT IS (register 1002). A box never told its time zone and country (UTC,
             # none — every box ProOS onboarded) asks the platform's own location service once and writes the answer;
             # a box a person has told is never touched. A pass every ten minutes until done (it needs the internet).

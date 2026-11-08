@@ -86,6 +86,32 @@ def _save_acks():
         pass
 
 
+# REGISTER 1255 — A CARD'S "SINCE" IS WHEN THE FAULT WAS FIRST SEEN. Until 8 Nov every platform card carried the time of
+# the LAST read as its "since", so the UniFi Network connection, down from 6 Nov 17:42, read "since 4:29 pm" two days
+# later and I told Dave Health had said nothing until that afternoon. Now: the first read that found it failing, kept
+# on disk across restarts, dropped the read it is running again. (ProOS can only say when IT first saw it.)
+SEEN_PATH = os.path.join(DATA, "platform_faults_seen.json")
+
+
+def _load_seen() -> dict:
+    try:
+        with open(SEEN_PATH, encoding="utf-8") as f:
+            d = json.load(f)
+        return {str(k): float(v) for k, v in (d or {}).items()}
+    except Exception:                                            # noqa: BLE001
+        return {}
+
+
+def _save_seen(d) -> None:
+    try:
+        tmp = SEEN_PATH + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(d, f)
+        os.replace(tmp, SEEN_PATH)
+    except Exception:                                            # noqa: BLE001
+        pass
+
+
 def refresh(read, now=None) -> dict:
     """One read of the platform. `read` has entries(), repairs() and resolution(); a reader that raises leaves that
     list as last read and says why in `error` — it never empties a list (an unanswered question is not an all-clear)."""
@@ -94,15 +120,23 @@ def refresh(read, now=None) -> dict:
     with _lock:
         try:
             ents = list(read.entries() or [])
+            seen = _load_seen()
+            was = dict(seen)
             for e in ents:
                 st = e.get("state")
                 if st in FAILED and not e.get("disabled_by"):
                     _failing_ids.add(e.get("entry_id"))
+                    seen.setdefault(str(e.get("entry_id")), now)
                 elif st == "loaded" or e.get("disabled_by"):
                     _failing_ids.discard(e.get("entry_id"))
+                    seen.pop(str(e.get("entry_id")), None)
             present = {e.get("entry_id") for e in ents}
             for gone in list(_failing_ids - present):
                 _failing_ids.discard(gone)
+            for k in [k for k in seen if k not in {str(i) for i in present}]:
+                seen.pop(k, None)
+            if seen != was:
+                _save_seen(seen)
             _snap["entries"] = ents
         except Exception as e:                                   # noqa: BLE001
             errs.append("integrations: %s" % e)
@@ -141,6 +175,7 @@ def cards(now=None) -> list:
         snap = dict(_snap)
         failing = set(_failing_ids)
     at = snap.get("at")
+    seen = _load_seen()
     out = []
     for e in snap.get("entries") or []:
         st, eid = e.get("state"), e.get("entry_id")
@@ -152,9 +187,17 @@ def cards(now=None) -> list:
         name = e.get("title") or e.get("domain") or "An integration"
         words = "is retrying now" if retrying else _STATE_WORDS.get(st, st)
         reason = e.get("reason")
-        out.append(_card("platform_integration", eid, "%s — %s" % (name, "Not Connecting" if st in ("setup_retry",) or retrying else "Not Running"),
-                         "The platform says %s (%s) %s%s." % (name, e.get("domain"), words, (" — " + str(reason)) if reason else ""),
-                         at, [{"kind": "pf_reload", "label": "Reload", "entry": eid}], "entry:%s" % eid))
+        acts = [{"kind": "pf_reload", "label": "Reload", "entry": eid}]
+        if e.get("domain") == "unifi":
+            # REGISTER 1255: UniFi Network comes from the one UniFi card — set up again from the card's sign-in
+            acts.append({"kind": "uni_relink", "label": "Set Up Again from the UniFi Card", "entry": eid})
+        c = _card("platform_integration", eid, "%s — %s" % (name, "Not Connecting" if st in ("setup_retry",) or retrying else "Not Running"),
+                  "The platform says %s (%s) %s%s." % (name, e.get("domain"), words, (" — " + str(reason)) if reason else ""),
+                  at, acts, "entry:%s" % eid)
+        first = seen.get(str(eid))
+        if first:
+            c["since"] = first                                   # 1255: first seen, not last read
+        out.append(c)
     for i in snap.get("repairs") or []:
         if i.get("ignored") or i.get("dismissed_version"):
             continue

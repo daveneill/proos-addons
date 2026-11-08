@@ -3386,7 +3386,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026102688';
+const PROOS_BUILD='2026102689';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -16415,6 +16415,9 @@ async function renderUnifiSuite(quick){
   // The console, on one line
   let h=`<div class="uni-chip">${dot(quick&&!body.dataset.rendered?null:ready)}<b>Console${st.host?' '+esc(st.host):''}</b><span class="uni-chip-d">${esc(cs)}${signed?' · '+(keySet?'Key Ready':'No Key Yet'):''}</span>`
     +(ready?`<button onclick="uniToggleSettings()">Console Settings</button>`:'')+`</div>`;
+  // REGISTER 1255 — the platform's UniFi Network connection comes from this card. Broken: said here, with the one fix.
+  const _uniNetLink=(st.platform&&st.platform.network)||null;
+  if(_uniNetLink&&_uniNetLink.ok===false&&signed) h+=`<div class="uni-chip">${dot(false)}<b>Platform's Network Connection</b><span class="uni-chip-d">${esc(_uniNetLink.words||'')}</span><button onclick="uniRelink(${_uniNetLink.entry?'true':'false'})">Set Up Again</button></div>`;
   // A tile per product — only what the console answered
   const A={}; (st.apps||[]).forEach(a=>{ A[a.app]=a; });
   const cnt=st.counts||{};
@@ -16450,6 +16453,7 @@ async function renderUnifiSuite(quick){
     +`<div class="unifi-row"><span class="unifi-row-l">Local User</span><span class="unifi-row-d">${esc(cs)}${st.why&&!signed?' — '+esc(st.why):''}</span></div>`
     +`<div class="unifi-row"><span class="unifi-row-l">ProOS API Key</span><span class="unifi-row-d">${keySet?'Created · ends '+esc(st.key.last4||''):'not created yet'}</span></div>`
     +`<div class="unifi-row"><span class="unifi-row-l">Access Token</span><span class="unifi-row-d">${accSet?'Saved · ends '+esc(st.access_token.last4||''):'not saved'}</span></div>`
+    +(_uniNetLink?`<div class="unifi-row"><span class="unifi-row-l">Platform's Network Connection</span><span class="unifi-row-d">${esc(_uniNetLink.words||'')}</span></div>`:'')
     +`</div></div>`;
   // Step 1 — the local user
   const fromInt=st.host_from==='your UniFi integration';
@@ -16501,6 +16505,16 @@ async function unifiSuiteAccess(){
 async function unifiSuiteForget(){
   if(!await proAsk('Remove ProOS\'s console sign-in and API key?\n\nThe UniFi integrations themselves are not touched. Features that need the local user stop until it is entered again.')) return;
   try{ await _unifiSuitePost('forget'); toast('Removed'); renderUnifiSuite(false); }catch(e){ toast(_coreFailWords('',e)); }
+}
+// REGISTER 1255 — Set Up Again: the platform's UniFi Network connection from this card's sign-in. Replacing a broken one
+// removes its devices and brings them back with the new connection, so the press is asked once, in those words.
+async function uniRelink(replace){
+  if(replace&&!await proAsk('Set up the platform’s UniFi Network connection again from this card?\n\nThe broken connection is removed and set up again with ProOS’s local user. Its devices are removed and come back with it; the port controls are switched on again.')) return;
+  toast('Setting up UniFi Network… (up to two minutes)');
+  try{ const r=await fetch(proCoreUrl()+'/unifi/console/platform',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({replace:!!replace})});
+    const j=await r.json(); toast(j.ok?'UniFi Network set up from this card':(j.words||j.skipped||j.error||'Not set up'));
+  }catch(e){ toast(_coreFailWords('',e)); }
+  renderUnifiSuite(false);
 }
 async function openUnifi(){ show('unifi'); paintUniBar('protect'); _uniCams=null; uniProtectSection(_uniProtectSection); renderUnifi(); try{ await loadSite(); await loadConfigEntries(); }catch(e){} renderUnifi(); }
 // ── REGISTER 1223 — PROTECT → LIVE VIEW (the mockup Dave agreed; 6 Nov: "protect looks the same as before"). Every camera
@@ -21346,7 +21360,7 @@ async function setDevNotify(deviceId,on){
     toast(on?'Alerts on for this device':'Alerts off for this device'); }catch(e){ toast(_coreFailWords('',e)); }
   await _devNotifyFill(deviceId);
 }
-const _HLT_KIND_BTNS=['backup_location','backup_on','backup_now','backup_full','sweep_recheck','pf_reload','pf_recheck','pf_full_backup'];
+const _HLT_KIND_BTNS=['backup_location','backup_on','backup_now','backup_full','sweep_recheck','pf_reload','pf_recheck','pf_full_backup','uni_relink'];
 async function hltFix(id, kind){
   toast('Working…');
   try{

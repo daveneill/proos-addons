@@ -19,8 +19,8 @@ WHAT IT NEVER DOES (kept rulings)
   * Register 695: the platform's saved logins are never read. The local user here is ProOS's own, typed into Pro.
   * Nothing secret is printed, logged or returned. The console's certificate is self-signed, so TLS is unverified
     (as unifi.py has always done for the same console).
-  * The console's ADDRESS: when the platform's UniFi integration knows it, that is used and said (register 439);
-    the installer's typed address is used only when no integration has one.
+  * The console's ADDRESS belongs to this card (register 1255, reversing 439 for UniFi): the platform's UniFi
+    integration's address is only a starting point for a card that has none, and is kept on the card from then on.
 """
 from __future__ import annotations
 
@@ -91,11 +91,29 @@ def _json(raw):
 
 
 def host(creds, platform_host=None):
-    """(address, where it came from). The platform's UniFi integration first (439), else the installer's."""
+    """(address, where it came from). REGISTER 1255 — ONE SPOT (Dave, 8 Nov 15:58: "it needs to be all done from one
+    spot this cant be messed up by having multiple location"): the card's OWN address first. On 6 Nov the platform's
+    UniFi Network connection broke and the card was borrowing its address from it (439). The platform's address is now
+    only a starting point for a card that has none, and the card keeps it from then on (adopt_host)."""
+    h = ((creds.meta(SVC_LOGIN) or {}).get("host") or "").strip()
+    if h:
+        return h, "the UniFi card in Pro"
     if platform_host:
         return platform_host, "your UniFi integration"
-    h = ((creds.meta(SVC_LOGIN) or {}).get("host") or "").strip()
-    return (h, "typed in Pro") if h else ("", "")
+    return "", ""
+
+
+def adopt_host(creds, platform_host):
+    """A card signed in before 1255 kept no address of its own (it used the platform's). Keep that address on the card
+    now, so the card no longer depends on the platform's connection. True when it was written."""
+    if not platform_host or not creds.get(SVC_LOGIN):
+        return False
+    if ((creds.meta(SVC_LOGIN) or {}).get("host") or "").strip():
+        return False
+    m = creds.meta(SVC_LOGIN) or {}
+    creds.put(SVC_LOGIN, creds.get(SVC_LOGIN), name=m.get("name"), host=platform_host, port=m.get("port") or 443,
+              kind=m.get("kind") or "login", extra={"user": m.get("user")})
+    return True
 
 
 def _base(h):
@@ -130,14 +148,14 @@ def signin(creds, address, username, password, platform_host=None, http=None):
     username = (username or "").strip()
     if not username or not password:
         return {"ok": False, "why": "enter the local user's username and password"}
-    h = platform_host or (address or "").strip()
+    h = (address or "").strip() or host(creds, platform_host)[0]
     if not h:
         return {"ok": False, "why": "enter the console's address"}
     ok, why, sess = _login(h, username, password, http)
     if not ok:
         return {"ok": False, "why": why}
     creds.put(SVC_LOGIN, password, name="UniFi console local user",
-              host=None if platform_host else h, port=443, kind="login", extra={"user": username})
+              host=h, port=443, kind="login", extra={"user": username})     # 1255: the card keeps its own address
     _SESSION.update({"host": h, "cookie": sess["cookie"], "csrf": sess["csrf"], "at": time.time()})
     return {"ok": True}
 
