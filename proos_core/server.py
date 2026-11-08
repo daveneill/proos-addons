@@ -9004,7 +9004,10 @@ class Handler(BaseHTTPRequestHandler):
                 # (register 425) — the same door as /assist/config.
                 _u = getattr(self, "_user", None) or {}
                 _full = bool(_u.get("is_owner") or (users and users.is_tech(_u.get("id"))))
-                return self._send(200, _assist.status(full=_full) if _assist else {"enabled": False})
+                _st = _assist.status(full=_full) if _assist else {"enabled": False}
+                if _assist is not None and _full:
+                    _st = dict(_st, assist_open=bool(_assist.open_mode()))   # register 1258: everybody the same?
+                return self._send(200, _st)
             if parts == ["assist", "proof"]:
                 # THE PROOF RUN (register 111). Dave: "I believe what I can
                 # test." Every READ tool runs live, read-only BY CONSTRUCTION
@@ -10789,6 +10792,35 @@ class Handler(BaseHTTPRequestHandler):
                     "ok": True, "entity_id": eid,
                     "area_id": placed.get("area_id"), "road": placed.get("road"),
                 })
+            if parts == ["assist", "open"]:
+                # REGISTER 1258 — EVERYBODY THE SAME, FOR TESTING (Dave 8 Nov 18:37: "Everybody same at the moment as I
+                # need to just test and believe the system is fuctioning the way I would use it then we can put
+                # restrictions in if needed"). Flips Core's own assist_open option (register 851 — every signed-in person
+                # holds the Developer's Assist surface), merged into the add-on's options SERVER-SIDE so nothing else in
+                # them leaves the box. Developer or tech only. {"on": true|false}; answers only the new value.
+                u = getattr(self, "_user", None)
+                if not (u and (u.get("is_owner") or (users and users.is_tech(u.get("id"))))):
+                    return self._send(403, {"error": "tech access required"})
+                if not os.environ.get("SUPERVISOR_TOKEN"):
+                    return self._send(503, {"error": "only on the ProOS box"})
+                on = bool((self._body() or {}).get("on"))
+                try:
+                    opts = {}
+                    if os.path.exists("/data/options.json"):
+                        with open("/data/options.json") as fp:
+                            opts = json.load(fp)
+                    opts["assist_open"] = on
+                    _sv("POST", "/addons/self/options", {"options": opts})
+                    if _assist is not None:
+                        _assist._OPEN.update(at=0.0)                # read again on the next turn
+                except Exception as e:                              # noqa: BLE001
+                    return self._send(502, {"error": "could not save it: %s" % str(e)[:120]})
+                if _journal_mod is not None:
+                    try:
+                        _journal_mod.emit("site", "assist_open", {"on": on, "by": u.get("name") or u.get("id")})
+                    except Exception:                               # noqa: BLE001
+                        pass
+                return self._send(200, {"ok": True, "assist_open": on})
             if parts == ["music", "enabled"]:
                 # Flip Core's own music_assistant option so the MA connection is
                 # auto-restored on every boot (persisted to the add-on options) —
