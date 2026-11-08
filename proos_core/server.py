@@ -10811,6 +10811,12 @@ class Handler(BaseHTTPRequestHandler):
                             opts = json.load(fp)
                     opts["assist_open"] = on
                     _sv("POST", "/addons/self/options", {"options": opts})
+                    # the platform writes /data/options.json only when Core starts — Assist reads that file, so the
+                    # same merged options are written there now (measured 8 Nov: saved, but read "off" until a restart)
+                    _tmp = "/data/options.json.tmp"
+                    with open(_tmp, "w") as fp:
+                        json.dump(opts, fp)
+                    os.replace(_tmp, "/data/options.json")
                     if _assist is not None:
                         _assist._OPEN.update(at=0.0)                # read again on the next turn
                 except Exception as e:                              # noqa: BLE001
