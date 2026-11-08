@@ -3283,7 +3283,7 @@ html[data-link="remote"]{--m-tap:90ms;--m-move:200ms;--m-page:300ms}
 #proos-inst-overlay,#awareness-overlay,#proos-req-overlay,.pe-ov,.pa-fs,
 #widget-picker,#music-act-sheet,#music-queue-overlay,#scene-edit,.appc-ov,#setup,#pin-overlay,
 #assist-overlay,#all-lights-overlay,#loading,#proos-reboot,#proos-dashupd,#light-overlay,
-#climate-all-overlay,#climate-overlay,#rotate-overlay,#svc-sheet,#proos-sheet,#proos-tv-wait,#pp,#jv,.sg-pop,#proos-acard,
+#climate-all-overlay,#climate-overlay,#rotate-overlay,#svc-sheet,#proos-sheet,#proos-tv-wait,#pp,#jv,.sg-pop,#proos-acard,#mus-ask,
 #device-chooser{padding-top:var(--proos-sat)}
 /* THE CLEARANCE IS A FLOOR, NOT AN ADDITION (7 Sep 2026, register 362).
    Dave: "Mobile needs to be looked at every page on the dashboard for layout
@@ -3681,6 +3681,9 @@ try{var _sb=localStorage.getItem('proos_std_bg');if(_sb){document.documentElemen
       </div>
       <!-- Identity sits low when the page is empty; lifts & pins to top once widgets exist -->
       <div class="room-controls">
+        <!-- 1264: Home's room cards stay at the top (under the Settings · Rooms · Scenes icons) and scroll away with the
+             page; the header below them rests low and lifts to the top as the widgets scroll under it. -->
+        <div class="room-tabs" id="room-tabs"></div>
         <div class="home-rest" aria-hidden="true"></div>
         <div class="home-identity" id="home-identity">
           <!-- THE HEADER IS TWO COLUMNS (register 536). Dave: "the time and
@@ -3742,7 +3745,8 @@ try{var _sb=localStorage.getItem('proos_std_bg');if(_sb){document.documentElemen
                divider line where the second dot is now." Everything above still
                holds — they are still inside the identity, still floating with
                it, still pinning with it. Only their neighbours changed. -->
-          <div class="room-tabs" id="room-tabs"></div>
+          <!-- 1264 (Dave 9 Nov 08:46): the header goes low "excluding the scrolling areas section" — the room cards
+               are no longer here; they head the column, under the top icons (see .home-rest). -->
           <!-- 968s: in a room, under its name, what the mockup (A2/B2/C2) draws there — the room's state
                ("2 lights on · 22°") and its two buttons, All Lights and Scenes. Drawn by _roomHead(). -->
           <div class="room-acts" id="room-acts"></div>
@@ -5048,7 +5052,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026102699';
+const PROOS_BUILD='2026110901';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -6712,7 +6716,8 @@ function makeMediaWidgetCard(ctrl, volEnt, art, title, artist, roomLabel, vol, h
     +(()=>{ if(!(dur>0)||!isFinite(pos)) return '';
         return `<div class="wv-pg"><div class="mwc-prog" data-pos="${pos}" data-dur="${dur}" data-at="${_hEsc(att(ctrl,'media_position_updated_at')||'')}" data-run="${playing?1:0}"><i style="width:${Math.min(100,Math.max(0,pos/dur*100)).toFixed(1)}%"></i></div>`
           +`<div class="wv-tm"><span>${_wvClock(pos)}</span><span>${_wvClock(dur)}</span></div></div>`; })()
-    +((hasVol&&volEnt&&vol!=null&&isFinite(+vol))?`<div class="wv-vol">${_wvRange('wv-vl',Math.round((+vol)*100),'Volume','vol',`_wvVol('${volEnt}',this.value)`,'')}</div>`:'')
+    // REGISTER 1264 (Dave 9 Nov 08:46): no volume slider on a Now Playing widget either — the player's control page has it
+    +''
     +`</div>`
   +`</div>`;
 }
@@ -7850,6 +7855,7 @@ function onStateChange(eid){
     }
     // Re-render media strips on any media player state change
     renderAllMediaStrips();
+    try{ _navAuto(); }catch(e){}   // 1264: Media in the bar only while something in the home is playing
   }
   // BUILD 2: a room's state comes from its verdict, so a verdict change must
   // repaint at once — it is the media state, not a side signal.
@@ -9588,9 +9594,35 @@ function renderBottomNav(){
   let _show = _cands.filter(p => home ? ((list.includes(p) || _navNeverOffered(p)) && _hasCap(p, null))
     : _saved ? ((list.includes(p) && _hasCap(p, null)) || (_navNeverOffered(p) && _hasCap(p, r)))
     : _hasCap(p, r));   // 1096
+  // 1264: Media only while something in the home is actually playing — decided HERE, in the one chain, not beside it
+  window._navMediaWas = _homeMediaPlaying();
+  if(!window._navMediaWas) _show = _show.filter(p => p !== 'media');
   NAV_ALL.forEach(p=> _setNav(p, _show.includes(p)));
+  try{ _navActs(); }catch(e){}
   try{ updateNavLive(); }catch(e){}
   try{ _compactNav(); }catch(e){}            // placement, after the chain has decided (register 559)
+}
+// ── REGISTER 1264 — THE BAR HOLDS HOME AND ASSIST, AND WHAT IS LIVE (Dave 9 Nov 08:46) ─────────────────────────────────
+// "Bring back the Settings, Rooms and Scenes in the header like pic 1 … just the icons used in the navbar and these will now
+// be removed from the navbar by default and Home and Assist will be the only ones that are left by default"; "Media in the
+// navbar is only to show if something is actually playing in the home". Rooms and Settings now live in the top icon row
+// (buildHeader); here: Activities shows only where there are activities (this room's, or any room's on Home), and Media
+// only while a player in the home is actually playing (Art Mode is not playing).
+function _homeMediaPlaying(){
+  try{ return (CONFIG.rooms||[]).some(x=>(getRoomMediaCandidates(x)||[]).some(e=>st(e)==='playing'
+           && !(typeof _inArtMode==='function' && _inArtMode(e)))); }catch(e){ return false; }
+}
+// Activities is one of the bar's own fixed tabs (EXTRA), not a gated page: it shows where there are activities to open.
+function _navActs(){
+  const r = (typeof curRoom==='number' && curRoom>=0) ? (CONFIG.rooms[curRoom]||null) : null;
+  const acts=document.querySelector('#bottom-nav .proos-acts-tab'); if(!acts) return;
+  const has = r ? (typeof _roomHasActivities==='function' && _roomHasActivities(r))
+                : (typeof _pacRooms==='function' && _pacRooms().length>0);
+  acts.style.display = has ? '' : 'none';
+}
+// a player starting or stopping somewhere in the home re-runs the bar's one chain — only when "anything playing" flips
+function _navAuto(){
+  if(_homeMediaPlaying() !== !!window._navMediaWas){ try{ renderBottomNav(); }catch(e){} }
 }
 // Close a sub-page back to where it was opened from: the area page if the user is
 // in an area, else Home. (A page opened in a room returns to that room.)
@@ -12337,13 +12369,7 @@ function _openSceneChooser(max, done){
   requestAnimationFrame(()=>ov.classList.add('open'));
 }
 function _wvClock(s){ s=Math.max(0,Math.floor(+s||0)); const h=Math.floor(s/3600), m=Math.floor(s%3600/60), x=String(s%60).padStart(2,'0'); return h?h+':'+String(m).padStart(2,'0')+':'+x:m+':'+x; }
-// the volume a tile's slider sends — the media_player domain's own volume_set
-const _wvVolT={};
-function _wvVol(eid,val){
-  if(_widgetEditMode||!eid) return;
-  clearTimeout(_wvVolT[eid]);
-  _wvVolT[eid]=setTimeout(()=>svc('media_player','volume_set',{entity_id:eid,volume_level:Math.max(0,Math.min(1,(parseInt(val,10)||0)/100))}),150);
-}
+// (1264: the Now Playing tile's volume slider and its _wvVol are gone — the player's control page holds the volume)
 function _wLightsScope(ri){
   const r=(ri>=0&&CONFIG.rooms[ri])?CONFIG.rooms[ri]:null;
   return r?(r.lights||[]):CONFIG.rooms.flatMap(x=>x.lights||[]);
@@ -13000,13 +13026,18 @@ function updateIdentityPin(){
   const ph=document.getElementById('page-home');
   const rc=ph&&ph.querySelector('.room-controls');
   if(!ph||!rc) return;
+  // REGISTER 1264: the header rests LOW now and lifts as the widgets scroll (Dave 9 Nov 08:46). The frost behind it is for
+  // widgets passing UNDER it, so it shows only once the header has reached the top and stuck there — never as a band
+  // half way up the photograph while it is still rising.
+  const pinned=()=>{ const id=ph.querySelector('.home-identity'); if(!id||rc.scrollTop<=8) return false;
+    return (id.getBoundingClientRect().top - rc.getBoundingClientRect().top) <= 1; };
   if(!rc._scrollFrostBound){
     rc._scrollFrostBound = true;
     rc.addEventListener('scroll', ()=>{
-      ph.classList.toggle('content-scrolled', rc.scrollTop > 8);
+      ph.classList.toggle('content-scrolled', pinned());
     }, {passive:true});
   }
-  ph.classList.toggle('content-scrolled', rc.scrollTop > 8);
+  ph.classList.toggle('content-scrolled', pinned());
 }
 
 // ── END WIDGET SYSTEM ─────────────────────────────────────────────────────────
@@ -13334,11 +13365,8 @@ function makeMediaPageCard(ctrl, volEnt, art, title, artist, roomLabel, vol, has
       <div class="mpc-ct mp-ctrls" onclick="event.stopPropagation()">${ctrlsHtml}</div>
     </div>
     ${tvCard?'':`<div class="mpc-prog mpc-p" data-e="${ctrl}" style="display:none"><div class="tr"><i></i></div><div class="tm"><span></span><span></span></div></div>`}
-    ${hasVol?`<div class="wv-sl wv-vl mpc-vol" style="--v:${_vp}%" onclick="event.stopPropagation()"><div class="wv-slf"></div><span class="wv-sll">${_wvSvg('vol')}Volume</span><span class="wv-slv mp-vol-pct">${_vp}</span>
-      <input class="mp-vol-sl" type="range" min="0" max="1" step="0.02" value="${(vol||0).toFixed(2)}" aria-label="Volume"
-        onpointerdown="volInput(this,'${volEnt}',this.parentNode.querySelector('.wv-slv'))"
-        oninput="this.parentNode.style.setProperty('--v',Math.round(this.value*100)+'%');volInput(this,'${volEnt}',this.parentNode.querySelector('.wv-slv'))"
-        onpointerup="volEnd()" ontouchend="volEnd()" onchange="volEnd()"/></div>`:''}
+    ${''/* REGISTER 1264 (Dave 9 Nov 08:46): no volume slider on a player card — the card is a widget's height; the
+          volume lives on the player's own control page (openPlayer), which a tap on the card opens */}
   </div>`;
 }
 
@@ -15778,6 +15806,7 @@ function initMusicPage(){
   // services (a Sonos or HEOS), else the room's first. A room with no music player of its own keeps the house rule below.
   const room=(typeof curRoom==='number' && curRoom>=0 && CONFIG.rooms) ? CONFIG.rooms[curRoom] : null;
   const here=room ? speakers.filter(e=>entityAreaMap[e]===room.id) : [];
+  _musicAskRoom = !here.length;   // 1264: no room of its own to play in → the first tap asks which room
   if(here.length){
     musicSelectSpeaker(here.find(e=>st(e)==='playing')||here.find(e=>st(e)==='paused')
       ||here.find(e=>typeof _spmCan==='function' && _spmCan(e))||here[0]);
@@ -17299,6 +17328,63 @@ function musicPlayUri(uriEnc, type){
   musicPlayCore(_musicSpeaker,{media:uri},'Starting');
   setTimeout(renderMusicNowPlaying,1400);
 }
+
+// ── REGISTER 1264 — MUSIC OPENED FROM HOME ASKS WHICH ROOM, ON THE FIRST TAP (Dave 9 Nov 08:58) ────────────────────────
+// The page has no player and no room pills now (08:46: "remove all players from the page … the zone selection is gone").
+// Opened from a room it plays in that room, as it always did (839). Opened from Home there is no room, so the first thing
+// played asks which room — one centred card, the rooms that have a music player — and the page keeps that room until it is
+// opened again. Every way of playing on the page goes through these four doors, so each is asked through the one card.
+var _musicAskRoom=false;   // var, not let: initMusicPage (earlier in the file) sets it
+function _musicRoomChoices(){
+  const sp=(typeof musicRoomSpeakers==='function')?musicRoomSpeakers():[], out=[];
+  (CONFIG.rooms||[]).forEach(r=>{
+    const here=sp.filter(e=>entityAreaMap[e]===r.id); if(!here.length) return;
+    const pick=here.find(e=>st(e)==='playing')||here.find(e=>st(e)==='paused')
+      ||here.find(e=>typeof _spmCan==='function' && _spmCan(e))||here[0];
+    out.push({room:r, eid:pick, playing:here.some(e=>st(e)==='playing')});
+  });
+  return out;
+}
+function _musicAsk(go, what){
+  const ch=_musicRoomChoices();
+  if(ch.length===1){ _musicAskRoom=false; _musicSpeaker=ch[0].eid; go(); return; }
+  if(!ch.length){ go(); return; }
+  let el=document.getElementById('mus-ask');
+  if(!el){ el=document.createElement('div'); el.id='mus-ask'; document.body.appendChild(el);
+    el.addEventListener('click', e=>{ if(e.target===el) el.classList.remove('open'); }); }
+  el.innerHTML='<div class="ma-card" role="dialog" aria-label="Play in which room"><div class="ma-h">Play in Which Room?</div>'
+    +'<div class="ma-s">'+_mEsc(what||'')+'</div><div class="ma-list">'
+    +ch.map((c,i)=>'<button type="button" class="ma-row" data-i="'+i+'">'+_mEsc(c.room.name)
+      +(c.playing?'<span class="ma-on">Playing</span>':'')+'</button>').join('')
+    +'</div><button type="button" class="ma-x">Cancel</button></div>';
+  el.querySelector('.ma-x').onclick=()=>el.classList.remove('open');
+  el.querySelectorAll('.ma-row').forEach(b=>{ b.onclick=()=>{
+    const c=ch[+b.getAttribute('data-i')]; el.classList.remove('open');
+    _musicAskRoom=false;
+    // a room whose player is driven by the other engine has a different library — show that room's music instead of
+    // sending it something it cannot play
+    if(_musicSpeaker && musicEngine(c.eid)!==musicEngine(_musicSpeaker)){
+      musicSelectSpeaker(c.eid);
+      try{ showToast(c.room.name+' plays from its own music — pick again'); }catch(e){}
+      return;
+    }
+    _musicSpeaker=c.eid; go();
+  }; });
+  el.classList.add('open');
+}
+['musicPlay','musicPlayUri','musicPlayItem','musicPlayCore'].forEach(n=>{
+  const o=window[n]; if(typeof o!=='function') return;
+  window[n]=function(){
+    const a=[].slice.call(arguments);
+    if(_musicAskRoom && typeof curPage!=='undefined' && curPage==='music'){
+      const was=_musicSpeaker;
+      const what=(n==='musicPlay' && a[0] && a[0].title) ? a[0].title : '';
+      _musicAsk(()=>{ if(n==='musicPlayCore' && a[0]===was) a[0]=_musicSpeaker; o.apply(null,a); }, what);
+      return;
+    }
+    return o.apply(null,a);
+  };
+});
 
 // ── Queue: long-press an item → Play now / Play next / Add to queue ──
 // MA-engine only (enqueue runs through Core /music/play with an option). A short tap
@@ -26007,6 +26093,45 @@ html.pp-on #app{visibility:hidden}
 .pp-mc .pp-sl{grid-column:1/-1;height:44px}
 #pp-bar button{color:rgba(255,255,255,.55)}
 #pp-bar button.on{color:rgba(255,255,255,.92)}
+
+/* ── REGISTER 1264 — THE SAVANT ARRANGEMENT COMES BACK (Dave 9 Nov 08:46 / 08:58, pic 1 the Savant home page) ──────────
+   1. Home and room pages: the header (name, time·date·weather on the right, what is running, the pills) rests LOW, straight
+      on top of the widgets — which stay above the fixed media card — and lifts to the top as the widgets scroll under it.
+      THIS REVERSES 537 (the header fixed at the top, which Dave asked for on 15 Sep) — at his request, knowingly; the
+      spacer that does it is 387's own element, turned back on. Home's room cards are NOT part of it ("excluding the
+      scrolling areas section"): they head the column, under the top icons, and scroll away with the page.
+   2. Settings · Rooms · Scenes are icons along the top (buildHeader); Rooms and Settings leave the bar (Home and Assist
+      stay; Activities and Media show only when live — _navAuto).
+   5. Music: no player and no room pills — the page is what to play. */
+:root{--proos-icons-h:calc(max(var(--proos-bar-pad),var(--proos-sat)) + 44px)}
+html:not(.proos-panel) #page-home .home-rest{display:block!important;flex:1 1 0;min-height:0;margin-top:calc(0px - var(--proos-col-gap))}
+html:not(.proos-panel) #page-home .home-identity{padding-top:calc(var(--proos-icons-h) + 8px)!important}
+html:not(.proos-panel) #page-home > .room-controls > #room-tabs{margin-top:calc(var(--proos-icons-h) + 8px);
+  padding-left:var(--proos-edge,16px)!important;padding-right:var(--proos-edge,16px)!important;margin-right:0}
+html:not(.proos-panel) #page-home .top-bar .top-bar-inner{justify-content:space-between!important;
+  padding-top:max(var(--proos-bar-pad),var(--proos-sat))!important;padding-bottom:0!important}
+#page-home .top-bar .pi-btn{pointer-events:auto!important;width:44px;height:44px;display:flex;align-items:center;justify-content:center;
+  background:none;border:0;padding:0;margin:0;color:rgba(255,255,255,.85);cursor:pointer;-webkit-tap-highlight-color:transparent;
+  filter:drop-shadow(0 1px 2px rgba(0,0,0,.6))}
+#page-home .top-bar .pi-btn:active{color:#fff;transform:scale(.94)}
+#page-home .top-bar .pi-btn svg{width:24px;height:24px}
+#bottom-nav .proos-extra[title="Rooms"],#bottom-nav .proos-settings-tab{display:none!important}
+#page-music #music-head{display:none!important}
+/* the room asked for on Music opened from Home (first tap) — a centred card, the widgets' frosting (12 Oct, 1 Nov) */
+#mus-ask{position:fixed;inset:0;z-index:10050;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.45)}
+#mus-ask.open{display:flex}
+#mus-ask .ma-card{width:min(420px,calc(100vw - 32px));max-height:min(560px,calc(100vh - 64px));display:flex;flex-direction:column;
+  border-radius:22px;padding:20px 16px 16px;background:rgba(28,28,34,.72);-webkit-backdrop-filter:blur(30px);backdrop-filter:blur(30px);
+  border:.5px solid rgba(255,255,255,.12)}
+#mus-ask .ma-h{font-size:17px;font-weight:500;color:#fff;text-align:center}
+#mus-ask .ma-s{font-size:12px;color:rgba(255,255,255,.55);text-align:center;margin:4px 0 14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#mus-ask .ma-list{overflow-y:auto;scrollbar-width:none;border-radius:14px}
+#mus-ask .ma-row{display:flex;align-items:center;width:100%;min-height:var(--tap,44px);padding:10px 14px;border:0;background:rgba(255,255,255,.04);
+  color:#fff;font-size:15px;text-align:left;cursor:pointer;font-family:inherit}
+#mus-ask .ma-row:nth-child(even){background:rgba(255,255,255,.08)}
+#mus-ask .ma-row:active{background:rgba(255,255,255,.18)}
+#mus-ask .ma-row .ma-on{margin-left:auto;font-size:11px;color:rgba(255,255,255,.55)}
+#mus-ask .ma-x{margin-top:12px;align-self:center;background:none;border:0;color:rgba(255,255,255,.6);font-size:14px;padding:8px 16px;cursor:pointer;font-family:inherit}
 </style>
 
 <script>
@@ -26226,15 +26351,22 @@ html.pp-on #app{visibility:hidden}
     var tbi=document.querySelector('.top-bar .top-bar-inner'); if(!tbi) return;
     if(tbi.dataset && tbi.dataset.proosHeader) return;
     tbi.innerHTML='';
-    try{ tbi.dataset.proosHeader='empty'; }catch(e){}
-    // THE HEADER BUILDS NOTHING NOW (register 535). It used to put a single
-    // 44px sliders circle in the top-right corner. That door is a tab in the
-    // bar; the corner is free, which is the whole point of this build.
-    // What this function still does is CLEAR the three text buttons the markup
-    // ships with — SETTINGS / ROOMS / SCENES — which it has always done, and
-    // which is why they are not on your screen today.
-    // Register 333's law is not lost with the pill: it is openSettingsDoor(),
-    // defined above, and the bar's tab is its only caller.
+    // REGISTER 1264 — SETTINGS · ROOMS · SCENES COME BACK TO THE TOP, AS ICONS (Dave 9 Nov 08:46, the Savant home page beside
+    // ours: "Bring back the Settings, Rooms and Scenes in the header like pic 1 but not the words just the icons used in the
+    // navbar and these will now be removed from the navbar"). Settings left, Rooms centre, Scenes right — the bar's own
+    // glyphs; Settings still goes through openSettingsDoor() (register 333's one door), Rooms through the Rooms page.
+    // (535 had emptied this row when Settings became a tab; the tab is now hidden and this is its door again.)
+    var I={settings:'M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6',
+           rooms:'M4 4h7v7H4zM13 4h7v7h-7zM13 13h7v7h-7zM4 13h7v7H4z',
+           scenes:'M12 3l1.8 4.7 4.7 1.8-4.7 1.8L12 16l-1.8-4.7-4.7-1.8 4.7-1.8zM19 14.5l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z'};
+    [['settings','Settings',function(){ openSettingsDoor(); }],
+     ['rooms','Rooms',function(){ showPage('rooms'); }],
+     ['scenes','Scenes',function(){ showPage('scenes'); }]].forEach(function(it){
+      var b=document.createElement('button'); b.type='button'; b.className='pi-btn pi-'+it[0];
+      b.title=it[1]; b.setAttribute('aria-label',it[1]); b.innerHTML=svg(I[it[0]]);
+      b.addEventListener('click', it[2]); tbi.appendChild(b);
+    });
+    try{ tbi.dataset.proosHeader='icons'; }catch(e){}
     applyProfilePic();
   }
   // The signed-in user's own picture (set from the Pro app's Users & Access),
