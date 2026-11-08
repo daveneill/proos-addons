@@ -7081,9 +7081,26 @@ class Handler(BaseHTTPRequestHandler):
         from proos import frontdoor as _fd
         if _fd.came_through_another_door(getattr(self, "headers", None) or {}):
             return False
+        _kind = _fd.sign_in_path(self.path) if (_fd.is_platform_path(self.path)
+                                                or self.path.split("?")[0].strip("/") == "auth/authorize") else ""
+        _body = None
+        if _kind:
+            # REGISTER 1261 — ProOS ONLY: while the quiet file is there, only ProOS's apps and pages may sign in.
+            from proos import door as _dr
+            if _fd.only_proos_on(_dr.HA_CONFIG, _dr.QUIET_FILE):
+                if _kind == "closed":
+                    _fd.refuse(self)
+                    return True
+                n = int(self.headers.get("Content-Length") or 0)
+                _body = self.rfile.read(n) if n > 0 else b""
+                cid = _fd.client_of(method, self.path, _body, self.headers.get("Content-Type"))
+                if not (_fd.client_allowed(cid, self.headers) or (cid is None and _fd.is_revoke(_body))
+                        or (cid is None and method == "DELETE")):
+                    _fd.refuse(self)
+                    return True
         if _fd.is_platform_path(self.path):
             from proos import sysadmin as _sa
-            _fd.passthrough(self, _fd.platform_address(_sa._info))
+            _fd.passthrough(self, _fd.platform_address(_sa._info), body=_body)
             return True
         if method == "GET" and self.path.split("?")[0].strip("/") == "auth/authorize":
             # REGISTER 949: the apps' sign-in machinery first opens the platform's sign-in address only to check the
@@ -8998,6 +9015,12 @@ class Handler(BaseHTTPRequestHandler):
                 except Exception:                                # noqa: BLE001
                     _pr = {}
                 return self._send(200, _aiu.summary(_pr if isinstance(_pr, dict) else {}))
+            if parts == ["frontdoor", "only_proos"]:
+                # REGISTER 1261: is the box hidden from every app but ProOS's? (the one quiet file — door build 6 reads it
+                # for the announcements, the front door for sign-ins). Plus whether the door that reads it is running.
+                from proos import door as _dr, frontdoor as _fd
+                return self._send(200, {"only_proos": _fd.only_proos_on(_dr.HA_CONFIG, _dr.QUIET_FILE),
+                                        "door_build": _dr.DOOR_BUILD})
             if parts == ["assist", "status"]:
                 # any signed-in user may ask whether the AI assistant is on;
                 # WHICH provider and model is the tech's business only
@@ -10792,6 +10815,31 @@ class Handler(BaseHTTPRequestHandler):
                     "ok": True, "entity_id": eid,
                     "area_id": placed.get("area_id"), "road": placed.get("road"),
                 })
+            if parts == ["frontdoor", "only_proos"]:
+                # REGISTER 1261 — ProOS ONLY, step 3 of 3 (Dave 8 Nov: "my app is discovered by my app no other app will
+                # see it at all"). ONE switch: Core writes (or removes) the quiet file in the platform's config folder.
+                # Present: the platform stops announcing itself (door build 6, within a minute) and the front door lets
+                # only ProOS's apps and pages sign in. Removed: both come back. Developer or tech only. {"on": bool}
+                u = getattr(self, "_user", None)
+                if not (u and (u.get("is_owner") or (users and users.is_tech(u.get("id"))))):
+                    return self._send(403, {"error": "tech access required"})
+                from proos import door as _dr, frontdoor as _fd
+                on = bool((self._body() or {}).get("on"))
+                qp = os.path.join(_dr.HA_CONFIG, _dr.QUIET_FILE)
+                try:
+                    if on:
+                        with open(qp, "w") as fp:
+                            fp.write("ProOS only - written by ProOS Core (register 1261)\n")
+                    elif os.path.exists(qp):
+                        os.remove(qp)
+                except Exception as e:                              # noqa: BLE001
+                    return self._send(502, {"error": "could not change it: %s" % str(e)[:120]})
+                if _journal_mod is not None:
+                    try:
+                        _journal_mod.emit("site", "only_proos", {"on": on, "by": u.get("name") or u.get("id")})
+                    except Exception:                               # noqa: BLE001
+                        pass
+                return self._send(200, {"ok": True, "only_proos": _fd.only_proos_on(_dr.HA_CONFIG, _dr.QUIET_FILE)})
             if parts == ["assist", "open"]:
                 # REGISTER 1258 — EVERYBODY THE SAME, FOR TESTING (Dave 8 Nov 18:37: "Everybody same at the moment as I
                 # need to just test and believe the system is fuctioning the way I would use it then we can put

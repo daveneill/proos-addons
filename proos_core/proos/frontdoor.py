@@ -68,6 +68,99 @@ def platform_address(info_fn, now=None):
     return _ADDR["addr"]
 
 
+# ── ProOS ONLY (register 1261, step 3 of 3 — Dave 8 Nov 21:08: "my app is discovered by my app no other app will see it
+# at all"; "no stupid pages that have prompts"). While the platform's config folder holds the quiet file (the same one
+# switch that stops the platform announcing itself, door build 6), a sign-in reaches the platform ONLY for ProOS's own:
+# the iPhone apps (home and Pro), the Android app (1260), and ProOS's pages — which sign in as their own address, the
+# box's or ProOS Connect's. Anyone else is answered "not found", with nothing in it — no page, no reason.
+# READ: every ProOS sign-in sends a client id (pro.html / dashboard.html: their origin; the apps: their identity; Core's
+# own sign-ins go to the platform directly, never through this door). Nothing of ProOS calls /auth/providers.
+APP_CLIENTS = ("https://protechsystems.com.au/proos", "https://protechsystems.com.au/proos-android")
+OWN_DOMAIN = "proos.com.au"
+SIGN_IN_PATHS = ("auth/login_flow", "auth/token", "auth/authorize")
+CLOSED_PATHS = ("auth/providers",)      # only other apps ask it (to draw their own sign-in); ProOS never does
+
+
+def _host_of(url):
+    s = str(url or "").strip()
+    if "://" not in s:
+        return ""
+    return s.split("://", 1)[1].split("/", 1)[0].split("?", 1)[0].lower()
+
+
+def client_allowed(cid, headers=None):
+    """True for a ProOS sign-in: one of ProOS's apps, a page on ProOS's own domain, or a page served from the very
+    address this request came to (the box's pages sign in as their own origin)."""
+    c = str(cid or "").strip()
+    if c.rstrip("/") in APP_CLIENTS:
+        return True
+    host = _host_of(c)
+    if not host:
+        return False
+    name = host.rsplit(":", 1)[0] if host.count(":") == 1 else host
+    if name == OWN_DOMAIN or name.endswith("." + OWN_DOMAIN):
+        return True
+    headers = headers or {}
+    seen = {str(headers.get(h) or "").strip().lower() for h in ("Host", "X-Forwarded-Host")} - {""}
+    return host in seen
+
+
+def sign_in_path(path):
+    """'closed' (nobody), 'sign_in' (ProOS only), or '' (not a sign-in) — for a path the door passes."""
+    p = str(path or "").split("?")[0].strip("/")
+    if p in CLOSED_PATHS:
+        return "closed"
+    if p in SIGN_IN_PATHS or p.startswith("auth/login_flow/"):
+        return "sign_in"
+    return ""
+
+
+def client_of(method, path, body, ctype):
+    """The client id a sign-in request names — from its address (authorize), its JSON (login flow) or its form
+    (token). None when it names none."""
+    from urllib.parse import parse_qs, urlsplit
+    import json as _json
+    q = parse_qs(urlsplit(str(path or "")).query)
+    if q.get("client_id"):
+        return q["client_id"][0]
+    raw = body or b""
+    if "json" in str(ctype or "").lower():
+        try:
+            d = _json.loads(raw.decode("utf-8") or "{}")
+            return d.get("client_id") if isinstance(d, dict) else None
+        except Exception:                                        # noqa: BLE001
+            return None
+    try:
+        f = parse_qs(raw.decode("utf-8"))
+    except Exception:                                            # noqa: BLE001
+        return None
+    return (f.get("client_id") or [None])[0]
+
+
+def is_revoke(body):
+    """A sign-in being ENDED (the token address with action=revoke) names no client — it only ever takes access away."""
+    from urllib.parse import parse_qs
+    try:
+        return (parse_qs((body or b"").decode("utf-8")).get("action") or [""])[0] == "revoke"
+    except Exception:                                            # noqa: BLE001
+        return False
+
+
+def refuse(handler):
+    """Plain not-found, nothing in it."""
+    handler.close_connection = True
+    handler.send_response(404)
+    handler.send_header("Content-Length", "0")
+    handler.send_header("Cache-Control", "no-store")
+    handler.end_headers()
+    return "refused"
+
+
+def only_proos_on(config_dir, quiet_file):
+    import os
+    return os.path.exists(os.path.join(config_dir, quiet_file))
+
+
 def wants_upgrade(headers):
     return "websocket" in str(headers.get("Upgrade") or "").lower()
 
@@ -112,8 +205,9 @@ def _copy(src_read, dst_send, idle):
             return
 
 
-def passthrough(handler, addr, connect=None):
-    """Pass handler's request to the platform at addr and its answer back. Returns a word for the log."""
+def passthrough(handler, addr, connect=None, body=None):
+    """Pass handler's request to the platform at addr and its answer back. Returns a word for the log. body: the
+    request's body when the door already read it (to see who is signing in); otherwise it is streamed."""
     connect = connect or socket.create_connection
     if not addr:
         body = b'{"error": "the platform inside the box can\'t be found right now"}'
@@ -138,7 +232,9 @@ def passthrough(handler, addr, connect=None):
     try:
         up.settimeout(IDLE_S)
         up.sendall(request_head(handler.command, handler.path, handler.headers))
-        n = int(handler.headers.get("Content-Length") or 0)
+        n = 0 if body is not None else int(handler.headers.get("Content-Length") or 0)
+        if body:
+            up.sendall(body)
         while n > 0:
             chunk = handler.rfile.read(min(n, 65536))
             if not chunk:
