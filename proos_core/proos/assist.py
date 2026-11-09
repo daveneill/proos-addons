@@ -6490,6 +6490,16 @@ def _system_context(user: dict, where: dict | None = None) -> str:
         # things they've waved off — a no sticks; never re-offer these (H5).
         ctx += (" Suggestions %s has DECLINED — do NOT re-offer these: %s."
                 % (who, "; ".join(declines)))
+    if _platform_first(_as_assist_sees(user)):
+        # REGISTER 1275: on the platform road the room is said plainly — where they are, nothing more. The block below
+        # carried ProOS rules (confirm before acting on a guessed room; look things up with two ProOS tools this road no
+        # longer has). Dave 9 Nov 18:43 "no restrictions for anyone".
+        w = where or {}
+        if w.get("area_id"):
+            nm = w.get("area_name") or w.get("area_id")
+            ctx += ("\nThey are in the %s." % nm if w.get("confidence") == "certain"
+                    else "\nThey are probably in the %s." % nm)
+        return ctx
     ctx += _where_prompt(where or {})
     return ctx
 
@@ -7549,6 +7559,10 @@ def _responses_input(history):
     return items
 
 
+_OPENAI_REASONING_EFFORT = "medium"   # register 1275: the ChatGPT app's own default level of thinking
+_OPENAI_NO_REASONING = set()          # models that refused the reasoning field this run (1275) — asked without it after
+
+
 def _chat_openai(cfg, system, history, runner):
     # REGISTER 444 (13 Sep 2026, Dave: "Assist still not okay"). The
     # provider's two refusals, read off the box: /v1/chat/completions with
@@ -7608,12 +7622,28 @@ def _chat_openai(cfg, system, history, runner):
         _t0 = time.time()
         _lead["text"] = None          # a new round may start a new voice
         # register 979: streamed — the first sentence starts the voice, and a web search starting is heard at once
-        resp = _http_stream_openai(_OPENAI_RESPONSES,
-                                   dict({"model": model, "instructions": system, "input": items,
-                                         "tools": tools, "tool_choice": "auto"},
-                                        # register 979: the provider's own cap on its built-in tool calls (the web)
-                                        **({"max_tool_calls": _WEB_MAX_USES} if _web_on(cfg) else {})), hdrs,
-                                   on_text=_on_text, on_web=lambda: _on_web_search(runner))
+        _body = dict({"model": model, "instructions": system, "input": items,
+                      "tools": tools, "tool_choice": "auto"},
+                     # register 979: the provider's own cap on its built-in tool calls (the web)
+                     **({"max_tool_calls": _WEB_MAX_USES} if _web_on(cfg) else {}))
+        # REGISTER 1275 (Dave 9 Nov 19:48 "Why would the thinking be off ??? What is AI if it's not thinking"; 19:49 "Go").
+        # 444 moved this road to /v1/responses and sent NO reasoning field, to stop the provider's refusals. On the newer
+        # models no field means NO thinking: every round on his box read 0 reasoning tokens (_openai_step). The ChatGPT he
+        # tested the platform with thinks before it acts. Thinking is asked for, at medium — and a model that refuses the
+        # field is remembered and asked without it, so the 444 refusal can never come back as a failed turn.
+        if model not in _OPENAI_NO_REASONING:
+            _body["reasoning"] = {"effort": _OPENAI_REASONING_EFFORT}
+        try:
+            resp = _http_stream_openai(_OPENAI_RESPONSES, _body, hdrs,
+                                       on_text=_on_text, on_web=lambda: _on_web_search(runner))
+        except RuntimeError as _e:
+            if "reasoning" not in _body or "reasoning" not in str(_e).lower():
+                raise
+            _OPENAI_NO_REASONING.add(model)
+            print("  [assist] %s will not take a reasoning setting — asked without it" % model, flush=True)
+            _body.pop("reasoning", None)
+            resp = _http_stream_openai(_OPENAI_RESPONSES, _body, hdrs,
+                                       on_text=_on_text, on_web=lambda: _on_web_search(runner))
         _step = _openai_step(resp, int((time.time() - _t0) * 1000))
         _tm["rounds"] += 1
         _tm["model_ms"] += _step["model_ms"]
