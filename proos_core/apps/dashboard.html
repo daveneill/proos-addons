@@ -3681,9 +3681,8 @@ try{var _sb=localStorage.getItem('proos_std_bg');if(_sb){document.documentElemen
       </div>
       <!-- Identity sits low when the page is empty; lifts & pins to top once widgets exist -->
       <div class="room-controls">
-        <!-- 1264: Home's room cards stay at the top (under the Settings · Rooms · Scenes icons) and scroll away with the
-             page; the header below them rests low and lifts to the top as the widgets scroll under it. -->
-        <div class="room-tabs" id="room-tabs"></div>
+        <!-- 1265 (Dave 9 Nov 11:36): the room cards are gone — "remove the area card scroll completely all home and area
+             pages will be the same". Rooms is the top centre icon. -->
         <div class="home-rest" aria-hidden="true"></div>
         <div class="home-identity" id="home-identity">
           <!-- THE HEADER IS TWO COLUMNS (register 536). Dave: "the time and
@@ -5052,7 +5051,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026110903';
+const PROOS_BUILD='2026110904';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -26098,8 +26097,25 @@ html.pp-on #app{visibility:hidden}
 :root{--proos-icons-h:calc(max(var(--proos-bar-pad),var(--proos-sat)) + 44px)}
 html:not(.proos-panel) #page-home .home-rest{display:block!important;flex:1 1 0;min-height:0;margin-top:calc(0px - var(--proos-col-gap))}
 html:not(.proos-panel) #page-home .home-identity{padding-top:calc(var(--proos-icons-h) + 8px)!important}
-html:not(.proos-panel) #page-home > .room-controls > #room-tabs{margin-top:calc(var(--proos-icons-h) + 8px);
-  padding-left:var(--proos-edge,16px)!important;padding-right:var(--proos-edge,16px)!important;margin-right:0}
+/* ── REGISTER 1265 — ONE HEADER, EVENLY SPACED (Dave 9 Nov 11:36) ─────────────────────────────────────────────────────
+   "remove the area card scroll completely all home and area pages will be the same .. and also remove the time, date and
+   weather from home and area pages also as we have weather widget … standardize the Home, awareness dot status on all
+   pages for spacing as it needs to all be evenly spaced out and adjust to additional info if required rather than leaving
+   a space when its not there". MEASURED on the box before (Home / Office): name, then the divider 22 above and 20 below,
+   what is running, the pills 12 above, the dot 13 above inside a 22-high block — each line carrying its own margin, so an
+   empty line (Home has nothing running and no pills) still left its space and the dot hung low under the divider.
+   NOW: every line of the header is one flex row apart by ONE gap, no line carries a margin of its own, and a line with
+   nothing in it is not there at all — so Home and every room read name · divider · what is running · pills · dot with the
+   same spacing, closing up when a line is absent. The clock, date and weather leave the header (the Weather widget and a
+   time widget carry them). */
+:root{--proos-head-gap:14px}
+html:not(.proos-panel) #page-home .home-identity{row-gap:var(--proos-head-gap)!important;padding-bottom:var(--proos-head-gap)!important}
+html:not(.proos-panel) #page-home .home-identity > *{margin-top:0!important;margin-bottom:0!important}
+html:not(.proos-panel) #page-home .home-identity .home-clockrow{display:none!important}
+html:not(.proos-panel) #page-home .home-identity > #room-acts:empty,
+html:not(.proos-panel) #page-home .home-identity > #status-bar:empty{display:none!important}
+html:not(.proos-panel) #page-home .home-identity .home-aware{padding:0!important;margin:0!important;min-height:0!important}
+html:not(.proos-panel) #page-home .home-identity #home-state-line{margin:0!important}
 html:not(.proos-panel) #page-home .top-bar .top-bar-inner{justify-content:space-between!important;
   padding-top:max(var(--proos-bar-pad),var(--proos-sat))!important;padding-bottom:0!important}
 #page-home .top-bar .pi-btn{pointer-events:auto!important;width:44px;height:44px;display:flex;align-items:center;justify-content:center;
