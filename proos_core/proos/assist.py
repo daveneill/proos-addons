@@ -1834,7 +1834,11 @@ def _active_tools(runner) -> list:
     # meaning "entitled to". Read it the old way and an owner would lose OUR
     # weather to a platform weather tool that is not in the list — neither
     # tool, for the commonest question there is.
-    _mirror_open = "platform" in set(getattr(runner, "opened_tools", None) or ())
+    # REGISTER 1267 — PLATFORM FIRST, FOR REAL (Dave 9 Nov 13:04/13:45, after the test: the platform's tools alone did the
+    # three jobs in seconds; Assist took 149 s and 24 rounds for one). A caller who holds the platform's acts gets them
+    # from the FIRST word — not after asking to "load more" — and of ProOS's own tools only what the platform cannot do.
+    pf = _platform_first(runner.user, mirror)
+    _mirror_open = pf or "platform" in set(getattr(runner, "opened_tools", None) or ())
     holds_reads = _mirror_open and any(t.get("read_only") for t in mirror)
     # …and the same question for the WRITE side (register 245): does this
     # caller hold acts of the platform's? On this box only the Developer
@@ -1844,15 +1848,21 @@ def _active_tools(runner) -> list:
     # tools for one job and letting the model pick the worse one.
     holds_acts = _mirror_open and any(not t.get("read_only") for t in mirror)
     opened = set(getattr(runner, "opened_tools", None) or ())
+    if pf:
+        opened.add("platform")
     out = []
     for t in TOOLS:
-        if holds_reads and t["name"] in _MIRROR_DUPLICATES:
+        if pf:
+            # 1267: platform first — ProOS's own only where the platform has nothing
+            if t["name"] not in _PLATFORM_FIRST_KEEP:
+                continue
+        elif holds_reads and t["name"] in _MIRROR_DUPLICATES:
             continue
-        if holds_acts and t["name"] in _MIRROR_WRITE_DUPLICATES:
+        elif holds_acts and t["name"] in _MIRROR_WRITE_DUPLICATES:
             continue
         # REGISTER 489: a specialist tool is named in more_tools and loaded
         # when it is asked for, not carried on every round of every turn.
-        if t["name"] in _DEFERRED:
+        if t["name"] in _DEFERRED and not pf:
             grp = next((k for k, g in _TOOL_GROUPS.items()
                         if t["name"] in g["tools"]), None)
             if grp not in opened:
@@ -1894,11 +1904,11 @@ def _active_tools(runner) -> list:
     # not. Register 245's finding stands untouched: when the model DOES hold
     # them, ours step aside for them. It holds them the moment it asks.
     if mirror and "platform" in opened:
-        out.extend({"name": t["name"], "description": t["description"],
-                    "input_schema": t["input_schema"]}
+        out.extend({"name": t["name"], "description": t.get("description") or "",
+                    "input_schema": t.get("input_schema") or {"type": "object", "properties": {}}}
                    for t in mirror if t.get("name") and t["name"] not in have)
-    if mirror or _DEFERRED - set(t["name"] for t in out):
-        out.append(dict(_MORE_TOOLS))
+    if not pf and (mirror or _DEFERRED - set(t["name"] for t in out)):
+        out.append(dict(_MORE_TOOLS))       # 1267: platform first holds everything already — no "load more" door
     if runner.user.get("engine"):
         # the unattended turn is offered only what it may use (ruling, 5 Oct 2026)
         ro = {t.get("name") for t in mirror if t.get("read_only")}
@@ -2312,6 +2322,56 @@ def _is_home(user: dict) -> bool:
     anything beyond everyday control only with their own proven yes."""
     u = user or {}
     return not u.get("engine") and not u.get("is_owner") and not _is_pro(u)
+
+
+# ── REGISTER 1267 — PLATFORM FIRST, FOR REAL ─────────────────────────────────────────────────────────────────────────
+# Dave 9 Nov 12:56: "when I first started … I installed native Home Assistant and connected the platform MCP to Claude …
+# asked for 4 or 5 different scenes or automations to be built and it did all of them … now we spend 6 months building
+# all of this ProOS and our own assist and I cant get it to do anything without an issue"; 13:04 "Assist was only ever
+# meant to add whatever the platform didnt already support"; 13:45 "go". THE TEST (register 1267, his box): the platform's
+# tools alone built and proved the Work scene in 8 s; Assist took 149 s and 24 rounds, built a scene AND a companion
+# script, and "tested" automations by switching his lights in daylight.
+# So: a person who holds the platform's acts (the Developer, a tech, a homeowner — every login while Everybody-the-same
+# is on) gets the platform's tools from the first word, and of ProOS's own ONLY these — each something the platform does
+# not do. Everything else of ours steps aside — room_on, device_control, area_control, get_states, area_entities, the
+# weather/lock/camera/alarm read-outs, scene_create/scene_delete/scene_companions, automation_create/trigger/delete and
+# platform_control_enable: each one the platform's own tools already do (and its guards still check them, in _run_mcp).
+# The installer tier (platform reads only) is unchanged.
+_PLATFORM_FIRST_KEEP = {
+    "music_search_play",                       # search a room speaker's OWN services and play — the platform can't search them
+    "room_activity", "room_off", "room_status",  # this house's AV activities and which device is the room's endpoint
+    "scenes_list", "scene_apply",              # older ProOS scenes carry music/activity companions only these fire
+    "app_launch",                              # the ProOS app catalogue per room
+    "lock_control", "security_arm",            # the guarded doors: unlock and disarm only with the person's yes
+    "home_status", "room_health", "device_liveness", "device_recover", "incident_fix", "health_incidents",
+    "recovery_history", "device_port",         # find-and-fix: ProOS's witnesses and recovery paths
+    "flag_for_pro",
+    "music_search", "music_play", "music_playlist_create",  # the linked music engine's own (offered only when one is linked)
+    "rooms_overview", "room_member", "room_record",  # the rooms AS COMMISSIONED, a device's role or input, the saved room — ProOS's record
+    "verify", "device_powerlog",               # read-back after acting; who turned a TV on or off (ProOS's own power record)
+    "scene_dashboard",                         # put a scene on the homeowner's Scenes page — a ProOS page
+    "scene_photo", "scene_phrases",            # the Scenes page's photo; the words that start it on the instant voice road
+    "room_volume", "room_media", "room_group",  # the endpoint model: which speaker "turn it down" moves (CLAUDE.md, ProOS-only)
+    "usage_history", "room_read",              # ProOS's learned use of a room; the evidence stack when a room came on alone
+    "watch_options", "watch_play", "watch_result", "app_shortcut_create",  # what a room can play, and the app catalogue
+    "knowledge_write",                         # the house notes, written for the next person
+    "device_confirm", "switch_port",           # find-and-fix: the unconfirmed-device check; the port device_port found
+    "memory_get", "memory_set", "history_search", "knowledge_search", "knowledge_read",
+}
+
+
+def _platform_first(user: dict, mirror=None) -> bool:
+    """True when this person holds the platform's ACTS and the platform's tools are actually there (mirror passed, or
+    Core's last connect said so). The unattended engine and the installer tier (reads only) keep the old road."""
+    u = user or {}
+    if u.get("engine"):
+        return False
+    if not (u.get("is_owner") or u.get("tech") or _is_home(u)):
+        return False
+    if mirror is not None:
+        # fail closed (register 229): ProOS's re-asks stand down only when the server SAYS which of its tools only read
+        return any(not t.get("read_only") for t in mirror) and any(t.get("read_only") for t in mirror)
+    return bool((MIRROR_STATE or {}).get("connected"))
 
 
 # REGISTER 1256: the ProOS tools that were the professional's alone. A homeowner holds them now (Dave 8 Nov 15:22); one
@@ -6481,7 +6541,51 @@ def _music_doctrine(engine: bool) -> str:
             "method is still the truth. " + hand + "\n" + many)
 
 
+def _platform_first_doctrine(user: dict, home_name: str) -> str:
+    """REGISTER 1267 — the whole instruction sheet when the person holds the platform's tools. Short on purpose: the
+    platform's tools carry their own guidance, and every line here is something the test on Dave's box (9 Nov) showed
+    the model getting wrong without it, or a ProOS law the code also enforces."""
+    home = home_name or "this home"
+    tier = ("" if _is_pro(user) else
+            "You are talking with a HOMEOWNER: plain everyday words. Everyday control is theirs; anything beyond it — a "
+            "fix, a recovery, a change to an automation, a room or a device — only after you have told them plainly what "
+            "you will do and they have said yes.\n")
+    return (
+        "You are Pro Assist for '%s'. You run this house with the platform's own tools (names beginning ha_): they see "
+        "every room, device, scene, script and automation — use them as you would by hand, and search before you guess "
+        "an id. ProOS adds only what the platform cannot do: music_search_play (search a room speaker's own music "
+        "services and play the right thing), room_activity / room_off (this house's AV activities), room_status (which "
+        "device is a room's speaker or TV, and what is really playing), rooms_overview (the rooms as commissioned), "
+        "room_member (a device's role or input in a room), verify (read back after acting), device_powerlog (who turned "
+        "a TV on or off), room_volume / room_media / room_group (a ROOM's sound — ProOS knows which speaker that is), "
+        "watch_options / watch_play and app_launch (what a room can play), scenes_list / scene_apply (older ProOS scenes that also start music), scene_dashboard (put a "
+        "scene on the homeowner's Scenes page — ask first), app_launch, the find-and-fix tools (home_status, room_health, device_liveness, "
+        "device_recover, incident_fix), lock_control / security_arm (unlock and disarm ONLY with the person's explicit "
+        "yes in this conversation), and memory, history and the house notes.\n"
+        "BUILDING: a scene only saves device settings — it can never start a station, a playlist or an app. Anything "
+        "that must PLAY something is a script (the speaker's favourites are in the platform's media browser). Use the "
+        "names the person used. When you create a scene or script they asked for, run it once and read the devices back; "
+        "say exactly what worked, and name any part that did not. Never fire an automation or switch something they did "
+        "not ask for just to test it — check its settings instead, and offer to run it.\n"
+        "Ask ONE short question when a room, a device or a name is genuinely unclear; that answer is also the consent. "
+        "Answers are usually heard, not read: lead with the answer in a sentence or two. Never say an entity id, the "
+        "name of the platform underneath, or of the AI supplier — this is ProOS. Never restart or reload the platform.\n"
+        + tier
+    ) % (home,)
+
+
 def _system_doctrine(user: dict, home_name: str, engine: bool = False) -> str:
+    """The STATIC half of the prompt (A5): identical for every turn at a
+    given tier + home, so it prompt-caches.
+
+    REGISTER 1267: when the person holds the platform's tools, the whole sheet is _platform_first_doctrine instead —
+    the long sheet below stays for the installer tier and for a box whose platform tools are not connected."""
+    if _platform_first(user):
+        return _platform_first_doctrine(user, home_name)
+    return _system_doctrine_full(user, home_name, engine)
+
+
+def _system_doctrine_full(user: dict, home_name: str, engine: bool = False) -> str:
     """The STATIC half of the prompt (A5): identical for every turn at a
     given tier + home, so it prompt-caches.
 
