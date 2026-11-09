@@ -234,7 +234,11 @@ def history_view(user_id, limit: int = 60, before=None, query: str = "") -> dict
                     "session": row.get("session") or "default",
                     "you": row.get("user") or "",
                     "assistant": row.get("assistant") or "",
-                    **({"where": row["where"]} if row.get("where") else {})})
+                    **({"where": row["where"]} if row.get("where") else {}),
+                    # 1266: a turn the AI service failed says what the service said, when it is read back
+                    **({"failed": (row.get("how") or {}).get("failed"),
+                        "failed_after_s": (row.get("how") or {}).get("after_s")}
+                       if (row.get("how") or {}).get("failed") else {})})
     return {"turns": out, "total": total,
             "more": bool(out) and total > len(out),
             "next_before": (out[-1]["ts"] if out else None)}
@@ -8439,6 +8443,7 @@ def chat(client, ws_call, project_mod, user: dict, text: str,
     _eng = bool(getattr(runner, "ma", None))
     user = runner.user                                      # register 851: the prompt is told the same person the tools see
     system = _system_prompt(user, home_name, where, _eng)  # OpenAI + benches
+    _t_ai = time.time()
     try:
         if cfg["provider"] == "claude":
             # Claude gets the doctrine + context SPLIT so the doctrine (and the
@@ -8451,12 +8456,25 @@ def chat(client, ws_call, project_mod, user: dict, text: str,
     except Exception as e:  # noqa: BLE001
         # The homeowner NEVER sees a raw provider error (Dave, 4 Aug) —
         # the detail goes to the log; the chat gets plain words.
-        print("  [assist] provider error: %s" % e, flush=True)
-        if "429" in str(e) or "rate_limit" in str(e):
-            return {"error": "I'm answering a lot of requests right now — "
-                             "give me a few seconds and ask again."}
-        return {"error": "I couldn't reach my assistant service just then — "
-                         "please try again in a moment."}
+        # REGISTER 1266 (Dave 9 Nov 12:18, a screenshot of this sentence after "Create me a work scene …"): the turn that
+        # FAILED left no record — history kept only answers, and the one log line was pushed out of the log's window within
+        # the hour, so nobody could say why. The failed turn is now recorded like any other, with what the service actually
+        # said (its type and words, keys and bearer tokens blanked — in the log line too, which printed them raw), how long it
+        # had run and how far the turn got.
+        why = "%s: %s" % (type(e).__name__, str(e))
+        why = re.sub(r"(sk-[A-Za-z0-9_\-]{6})[A-Za-z0-9_\-]+", r"\1…", why)
+        why = re.sub(r"(?i)(bearer\s+)\S+", r"\1…", why)[:400]
+        print("  [assist] provider error: %s" % why, flush=True)
+        busy = "429" in str(e) or "rate_limit" in str(e)
+        said = ("I'm answering a lot of requests right now — give me a few seconds and ask again." if busy else
+                "I couldn't reach my assistant service just then — please try again in a moment.")
+        try:
+            _hist_append(user, session, text, said, where,
+                         dict(_how_of(runner, "ai"), failed=why, after_s=round(time.time() - _t_ai, 1),
+                              provider=cfg.get("provider"), model=cfg.get("model")))
+        except Exception:  # noqa: BLE001
+            pass
+        return {"error": said}
     # Persist a TRIMMED window. Tool blocks stay inside the stored turns so the
     # model keeps short-term context of what it just did.
     with _LOCK:

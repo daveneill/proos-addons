@@ -5051,7 +5051,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026110904';
+const PROOS_BUILD='2026110905';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -26202,7 +26202,11 @@ html:not(.proos-panel) #page-home .top-bar .top-bar-inner{justify-content:space-
   function _navFixedCheck(why){
     var nav=document.getElementById('bottom-nav'); if(!nav) return false;
     var ex=[].slice.call(nav.querySelectorAll(':scope > .proos-extra')), all=document.querySelectorAll('.proos-extra').length;
-    var got=ex.map(function(b){ return b.title; }), want=_NAV_FIXED.filter(function(t){ return got.indexOf(t)>=0; });
+    // REGISTER 1266: a wall panel takes every title= off (no tooltips on a wall) and keeps it as data-proos-title — read
+    // there too, or the panel's three tabs read as three blanks, never in order, and this posted a "froze" note every 10 s
+    // (87 of them in Core's log on 9 Nov, which pushed Assist's own failure out of the log before it could be read)
+    var _nm=function(b){ return b.title||b.getAttribute('data-proos-title')||''; };
+    var got=ex.map(_nm), want=_NAV_FIXED.filter(function(t){ return got.indexOf(t)>=0; });
     var lead=[].slice.call(nav.children).slice(0, ex.length).every(function(c){ return c.classList.contains('proos-extra'); });
     if(got.join()===want.join() && lead && ex.length===all) return false;
     var pg=''; try{ pg=(typeof curPage!=='undefined'?curPage:'')+((typeof curRoom==='number'&&curRoom>=0&&CONFIG.rooms[curRoom])?' · '+CONFIG.rooms[curRoom].name:''); }catch(e){}
@@ -26214,7 +26218,7 @@ html:not(.proos-panel) #page-home .top-bar .top-bar-inner{justify-content:space-
       body:JSON.stringify({app:'dashboard',build:PROOS_BUILD,stalls:notes})}).catch(function(){}); }catch(e){}
     // put them back: Home, Rooms, Activities at the start of the bar, in that order
     _navHealing=true;
-    try{ var byT={}; [].slice.call(document.querySelectorAll('.proos-extra')).forEach(function(b){ byT[b.title]=b; });
+    try{ var byT={}; [].slice.call(document.querySelectorAll('.proos-extra')).forEach(function(b){ byT[_nm(b)]=b; });
          for(var i=_NAV_FIXED.length-1;i>=0;i--){ var b=byT[_NAV_FIXED[i]]; if(b) nav.insertBefore(b, nav.firstChild); } }catch(e){}
     _navHealing=false;
     return true;
