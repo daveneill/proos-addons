@@ -347,6 +347,11 @@ img,video,.widget-cell,.pa-cam,.pw,.pw-door,.pa-eg-cell,.pa-strip-cell,.pa-tl-it
    screen edge, so the gap under the card and the gap under the dock are the
    same declared quantity on every page and every device. */
 #home-media-strip.media-pinned{position:fixed;left:var(--proos-edge,16px);right:var(--proos-edge,16px);bottom:calc(var(--proos-floor) + var(--proos-dock-h) + var(--proos-band-gap));z-index:55;padding-bottom:0!important;margin:0!important}
+/* REGISTER 1270: Home's card swipes between rooms, each card the full width, the widget's dots under it */
+#home-media-strip .hm-shell{height:auto}
+#home-media-strip .hm-shell .mw-swipe{height:auto;align-items:stretch;gap:0}
+#home-media-strip .hm-shell .mw-swipe>.mp-card{flex:0 0 100%;width:100%;scroll-snap-align:start;scroll-snap-stop:always}
+#home-media-strip .hm-shell .mw-dots{top:auto;bottom:-12px;left:0;right:0;justify-content:center}
 #home-media-strip.media-pinned::before{content:'';position:absolute;left:calc(50% - 50vw);width:100vw;top:-22px;bottom:0;z-index:-1;pointer-events:none;-webkit-backdrop-filter:blur(30px);backdrop-filter:blur(30px);background:linear-gradient(0deg,rgba(0,0,0,0.5) 0%,rgba(0,0,0,0.42) 55%,rgba(0,0,0,0) 100%);-webkit-mask-image:linear-gradient(0deg,#000 0,#000 calc(100% - 22px),rgba(0,0,0,0) 100%);mask-image:linear-gradient(0deg,#000 0,#000 calc(100% - 22px),rgba(0,0,0,0) 100%)}
 /* The bar floats OVER the column now, so the column has to end above it or the
    last widget hides underneath. The space is measured too — same reason. */
@@ -5051,7 +5056,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026110908';
+const PROOS_BUILD='2026110909';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -5785,7 +5790,7 @@ function renderAllMediaStrips(){
 }
 function _renderAllMediaStripsNow(){
   _msTimer=null;
-  if(curPage==='home'&&curRoom!==-1) renderMediaStripForRoom(CONFIG.rooms[curRoom]);
+  if(curPage==='home') renderMediaStripForRoom(curRoom===-1 ? null : CONFIG.rooms[curRoom]);   // 1270: Home has its card too
   if(curPage==='media') renderGlobalMediaStrip();
 }
 
@@ -13072,6 +13077,7 @@ function renderGlobalControls(){
   const sb=document.getElementById('status-bar');if(sb)sb.innerHTML='';
   const ms=document.getElementById('home-media-strip');if(ms){ms.innerHTML='';ms.style.display='none';ms.classList.remove('media-pinned');}
   const phf=document.getElementById('page-home');if(phf)phf.classList.remove('has-media-footer');
+  try{ renderMediaStripForRoom(null); }catch(e){}   // 1270: Home's own fixed card, every room that is playing
   const g=document.getElementById('ctrl-grid');if(!g)return;
 
   const allLights=CONFIG.rooms.flatMap(r=>r.lights);
@@ -13482,14 +13488,33 @@ function renderMediaStripForRoom(r){
   const ph=document.getElementById('page-home');
   const unpin=()=>{ ms.classList.remove('media-pinned'); if(ph) ph.classList.remove('has-media-footer'); requestAnimationFrame(updateIdentityPin); };
   const clear=()=>{ ms.innerHTML='';ms.style.display='none';unpin(); try{ _dockMediaBar(); }catch(e){} };   // 1269: the space stays a card high
-  // HOME KEEPS THE WIDGET. The Now Playing widget is house-wide and the bar is
-  // this room — on Home they would be the same players said twice.
-  if(curRoom===-1) return clear();
-  // 968o: nor in a room whose page already shows its Now Playing widget — the same player said twice (seen on the
-  // rig after rooms began drawing what they have: the widget at the top, the old bar under it)
+  // 968o: not on a page that already shows its Now Playing widget — the same player said twice (seen on the rig after
+  // rooms began drawing what they have: the widget at the top, the old bar under it)
   try{ if(loadWidgetLayout().some(w=>w&&w.id==='media')) return clear(); }catch(e){}
   // a finger is on a volume slider: repainting under it loses the drag
   if(_draggingVol) return;
+  // REGISTER 1270 (Dave 9 Nov 17:44): "where the gap is for the media card on the area pages for the home page because it
+  // doesn't have one can you make it a full width media card same as the area pages but have it the same as the now
+  // playing widget that if more than one room playing something you can swipe between them all so that means home and area
+  // pages will all have same spacing and widgets layouts". Home: every room's playing card — the Media page's own pipeline
+  // (buildRoomMediaPageCards, room names on), side by side to swipe, with the widget's dots; the swipe position survives a
+  // repaint. (This replaces "HOME KEEPS THE WIDGET" — the widget still steps the card aside where it is on the page.)
+  if(curRoom===-1){
+    const all=[]; (CONFIG.rooms||[]).forEach(function(rm){ try{ buildRoomMediaPageCards(rm).forEach(function(c){ all.push(c); }); }catch(e){} });
+    if(!all.length) return clear();
+    const old=ms.querySelector('.mw-swipe'), keepX=old?old.scrollLeft:0;
+    const dots = all.length>1 ? '<div class="mw-dots">'+all.map(function(_,i){ return '<i class="'+(i===0?'on':'')+'"></i>'; }).join('')+'</div>' : '';
+    ms.innerHTML='<div class="mw-shell hm-shell"><div class="mw-swipe" onscroll="_mediaScroll(this)">'+all.join('')+'</div>'+dots+'</div>';
+    ms.style.display='';
+    ms.classList.add('media-pinned');
+    if(ph) ph.classList.add('has-media-footer');
+    applyMobileCardStyles(ms); applyMarquee(ms);
+    const sw=ms.querySelector('.mw-swipe');
+    if(sw && keepX){ try{ sw.scrollTo({left:keepX, behavior:'instant'}); }catch(e){ sw.scrollLeft=keepX; } _mediaScroll(sw); }
+    _dockMediaBar();
+    requestAnimationFrame(updateIdentityPin);
+    return;
+  }
   if(!r||!r.id) return clear();
   const _v='sensor.proos_activity_'+r.id, _s=st(_v);
   const _known=!!_s && !['unknown','unavailable',''].includes(_s);
@@ -13546,15 +13571,16 @@ function _dockMediaBar(){
       // or it's not I want the space where it occupies to stay clear so the room name and info etc will always stay in
       // the same position … the widgets … cannot occupy the media card area". On a ROOM page the card's space is kept
       // whether anything plays or not: one card's height, as this device last measured it, else the card's own 96.
-      // Home has no fixed card (its Now Playing is a widget), so Home keeps none.
-      const keep = (typeof curRoom!=='undefined' && curRoom>=0) ? _mediaReserve(gap) : 0;
+      // 1270: Home too, now that Home has its card — Home and every room keep the same space (not other pages)
+      const keep = (typeof curPage==='undefined' || curPage==='home') ? _mediaReserve(gap) : 0;
       document.documentElement.style.setProperty('--proos-media-block', keep+'px');
       return;
     }
     const h=ms.getBoundingClientRect().height;
     if(!h) return;                                    // again: no reading, not zero
     // 1269: remember ONE card's height on this device and orientation, so the empty space matches the card exactly
-    if(ms.querySelectorAll('.mp-card').length===1) _mediaReserveSave(Math.round(h + gap));
+    // (Home's swipe is one card high however many rooms play — its height is one card too)
+    if(ms.querySelectorAll('.mp-card').length===1 || ms.querySelector('.mw-swipe')) _mediaReserveSave(Math.round(h + gap));
     document.documentElement.style.setProperty('--proos-media-block',
                                                Math.round(h + gap)+'px');
   }catch(e){}
