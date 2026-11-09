@@ -7559,7 +7559,9 @@ def _responses_input(history):
     return items
 
 
-_OPENAI_REASONING_EFFORT = "medium"   # register 1275: the ChatGPT app's own default level of thinking
+# register 1275: medium; 1276 (Dave 9 Nov 20:50 "Ok" to "Try high?"): at medium the model thought 54, 8 and 20 tokens and
+# still did not run what it built — high is the level closest to the ChatGPT app's Thinking mode he tested with.
+_OPENAI_REASONING_EFFORT = "high"
 _OPENAI_NO_REASONING = set()          # models that refused the reasoning field this run (1275) — asked without it after
 
 
