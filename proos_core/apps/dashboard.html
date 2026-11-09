@@ -5056,7 +5056,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026110910';
+const PROOS_BUILD='2026111001';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -25441,6 +25441,22 @@ html.pv-room #page-home .room-acts{display:block;margin-top:0}   /* 1119: the li
   #page-rooms .rooms-grid{padding-left:16px!important;padding-right:16px!important}
   #page-rooms .rooms-top-bar{padding-left:16px!important;padding-right:16px!important}
 }
+/* REGISTER 1280 (Dave 10 Nov 08:33: Scenes "showing as the small tiles where needs to be the same as the all areas page 2 x
+   tiles wide"; 08:47 "2. yes"). A scene card is exactly an All Areas card (1123): 520 floor, 200 high, 20 radius, 14 gap —
+   3 across on his Mac, 2 on an iPad on its side, 1 upright and on a phone (170 high there), 3 on the wall panel. These
+   override the older 240-wide tiles and the phone's 110-high strips. */
+#page-scenes #scenes-grid{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(min(520px,100%),1fr))!important;grid-auto-rows:200px!important;gap:14px!important;padding:4px 32px 24px!important;align-content:start}
+#page-scenes #scenes-grid .scene-card{height:200px!important;border-radius:20px!important}
+#page-scenes #scenes-grid .scene-name{font-size:19px}
+@media(max-width:768px){
+  #page-scenes #scenes-grid{padding-left:16px!important;padding-right:16px!important}
+}
+@media(max-width:600px){
+  #page-scenes #scenes-grid{grid-template-columns:1fr!important;grid-auto-rows:170px!important}
+  #page-scenes #scenes-grid .scene-card{height:170px!important}
+}
+html.proos-panel #page-scenes #scenes-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important;grid-auto-rows:172px!important}
+html.proos-panel #page-scenes #scenes-grid .scene-card{height:172px!important}   /* the panel's room card (172) */
 /* ═══ DARK EVERYWHERE (968k) ═══ Dave, 19 Oct 16:24: "I want the dark everywhere same as the Gflip". Every card
    surface in the app — the Lights page's lights, the Media page's players, the Security, Irrigation and Weather cards,
    the room controls and the Settings rows — wears the wall panel's own glass (.pp-glass's numbers), as the widgets do.
