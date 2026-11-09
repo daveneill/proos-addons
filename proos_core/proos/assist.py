@@ -1630,10 +1630,8 @@ def _guarded_act(tool_name, args):
     a = args or {}
     if tool_name in _PLATFORM_RESTARTS:
         return {"error": "ProOS does not restart or reload the platform underneath it — "
-                         "that takes the whole home down and repairs nothing. A device "
-                         "that is not answering goes through device_recover; a Health card "
-                         "through incident_fix; a saved room through room_member. If none "
-                         "of those fits, say plainly what is missing and flag_for_pro."}
+                         "that takes the whole home down and repairs nothing. Say plainly "
+                         "what is not working instead."}
     if tool_name == "ha_call_service":
         dom = str(a.get("domain") or "")
         svc = str(a.get("service") or "")
@@ -2338,25 +2336,10 @@ def _is_home(user: dict) -> bool:
 # platform_control_enable: each one the platform's own tools already do (and its guards still check them, in _run_mcp).
 # The installer tier (platform reads only) is unchanged.
 _PLATFORM_FIRST_KEEP = {
-    "music_search_play",                       # search a room speaker's OWN services and play — the platform can't search them
-    "room_activity", "room_off", "room_status",  # this house's AV activities and which device is the room's endpoint
-    "scenes_list", "scene_apply",              # older ProOS scenes carry music/activity companions only these fire
-    "app_launch",                              # the ProOS app catalogue per room
-    "lock_control", "security_arm",            # the guarded doors: unlock and disarm only with the person's yes
-    "home_status", "room_health", "device_liveness", "device_recover", "incident_fix", "health_incidents",
-    "recovery_history", "device_port",         # find-and-fix: ProOS's witnesses and recovery paths
-    "flag_for_pro",
-    "music_search", "music_play", "music_playlist_create",  # the linked music engine's own (offered only when one is linked)
-    "rooms_overview", "room_member", "room_record",  # the rooms AS COMMISSIONED, a device's role or input, the saved room — ProOS's record
-    "verify", "device_powerlog",               # read-back after acting; who turned a TV on or off (ProOS's own power record)
-    "scene_dashboard",                         # put a scene on the homeowner's Scenes page — a ProOS page
-    "scene_photo", "scene_phrases",            # the Scenes page's photo; the words that start it on the instant voice road
-    "room_volume", "room_media", "room_group",  # the endpoint model: which speaker "turn it down" moves (CLAUDE.md, ProOS-only)
-    "usage_history", "room_read",              # ProOS's learned use of a room; the evidence stack when a room came on alone
-    "watch_options", "watch_play", "watch_result", "app_shortcut_create",  # what a room can play, and the app catalogue
-    "knowledge_write",                         # the house notes, written for the next person
-    "device_confirm", "switch_port",           # find-and-fix: the unconfirmed-device check; the port device_port found
-    "memory_get", "memory_set", "history_search", "knowledge_search", "knowledge_read",
+    # REGISTER 1267d (Dave 9 Nov 14:29: "I need it 100% back to platform then we can really find out what still needs to
+    # be added by assist as it's impossible when it's still in control"). ONLY the two guarded doors stay: the platform's
+    # own unlock and disarm are sent to these (_guarded_act), because they are what asks for the person's yes.
+    "lock_control", "security_arm",
 }
 
 
@@ -3347,10 +3330,15 @@ class ToolRunner:
         platform's own service calls (Dave 8 Nov 15:22: "yes but platform tools first" — the platform's tools are the
         first road, ProOS's rules are checked on top of them). None = allowed, else the refusal."""
         domain = eid.split(".", 1)[0]
-        if domain == "media_player" and action in _MEDIA_POWER:
+        # REGISTER 1267d: for a person holding the platform, ProOS's ROOM rules (media power through activities, a device
+        # must be in a room, a speaker must be committed) are not laid over the platform's commands — Dave 9 Nov 14:29
+        # "100% back to platform". The SAFETY checks below stay for everyone: hidden from Assist (the platform's own
+        # Expose setting), a TV's power outlet, a switch port that feeds other gear.
+        _pf = _platform_first(getattr(self, "user", None) or {})
+        if domain == "media_player" and action in _MEDIA_POWER and not _pf:
             return {"error": "media power is choreographed per room — use room_activity "
                              "(rooms_overview lists each room's activities)"}
-        bad = self._unassigned([eid])
+        bad = [] if _pf else self._unassigned([eid])
         if bad:
             return {"error": self._unassigned_words(bad)}          # register 874
         # REGISTER 1146: hidden from Assist (the platform's own Expose to Assist, set in Pro) means Assist does not
@@ -3371,9 +3359,11 @@ class ToolRunner:
             except Exception:                                    # noqa: BLE001
                 _av = None
             if _av:
-                return {"error": "that switch is part of the %s — its activities turn it on and off" % _av,
-                        "note": "use room_activity (Watch … / TV Off) for the room, never this switch"}
-        if domain == "media_player":
+                return ({"error": "that switch is the power for the %s — ProOS does not switch it raw" % _av,
+                         "note": "turn the TV itself on or off instead"} if _pf else
+                        {"error": "that switch is part of the %s — its activities turn it on and off" % _av,
+                         "note": "use room_activity (Watch … / TV Off) for the room, never this switch"})
+        if domain == "media_player" and not _pf:
             proj = self.project.load()
             if eid not in self._members(proj):
                 return {"error": "%s is not a committed member of any room — not controllable" % eid}
@@ -6542,34 +6532,17 @@ def _music_doctrine(engine: bool) -> str:
 
 
 def _platform_first_doctrine(user: dict, home_name: str) -> str:
-    """REGISTER 1267 — the whole instruction sheet when the person holds the platform's tools. Short on purpose: the
-    platform's tools carry their own guidance, and every line here is something the test on Dave's box (9 Nov) showed
-    the model getting wrong without it, or a ProOS law the code also enforces."""
+    """REGISTER 1267 / 1267d — the whole instruction sheet when the person holds the platform's tools. Bare on purpose
+    (Dave 9 Nov 14:29 "100% back to platform"): the platform's tools carry their own guidance. What is left is only what
+    the code also enforces — the guarded doors, the homeowner's yes — and the white label."""
     home = home_name or "this home"
     tier = ("" if _is_pro(user) else
-            "You are talking with a HOMEOWNER: plain everyday words. Everyday control is theirs; anything beyond it — a "
-            "fix, a recovery, a change to an automation, a room or a device — only after you have told them plainly what "
-            "you will do and they have said yes.\n")
+            "You are talking with a HOMEOWNER: before you change anything in the house, tell them plainly what you will "
+            "do and wait for their yes.\n")
     return (
-        "You are Pro Assist for '%s'. You run this house with the platform's own tools (names beginning ha_): they see "
-        "every room, device, scene, script and automation — use them as you would by hand, and search before you guess "
-        "an id. ProOS adds only what the platform cannot do: music_search_play (search a room speaker's own music "
-        "services and play the right thing), room_activity / room_off (this house's AV activities), room_status (which "
-        "device is a room's speaker or TV, and what is really playing), rooms_overview (the rooms as commissioned), "
-        "room_member (a device's role or input in a room), verify (read back after acting), device_powerlog (who turned "
-        "a TV on or off), room_volume / room_media / room_group (a ROOM's sound — ProOS knows which speaker that is), "
-        "watch_options / watch_play and app_launch (what a room can play), scenes_list / scene_apply (older ProOS scenes that also start music), scene_dashboard (put a "
-        "scene on the homeowner's Scenes page — ask first), app_launch, the find-and-fix tools (home_status, room_health, device_liveness, "
-        "device_recover, incident_fix), lock_control / security_arm (unlock and disarm ONLY with the person's explicit "
-        "yes in this conversation), and memory, history and the house notes.\n"
-        "BUILDING: a scene only saves device settings — it can never start a station, a playlist or an app. Anything "
-        "that must PLAY something is a script (the speaker's favourites are in the platform's media browser). Use the "
-        "names the person used. When you create a scene or script they asked for, run it once and read the devices back; "
-        "say exactly what worked, and name any part that did not. Never fire an automation or switch something they did "
-        "not ask for just to test it — check its settings instead, and offer to run it.\n"
-        "Ask ONE short question when a room, a device or a name is genuinely unclear; that answer is also the consent. "
-        "Answers are usually heard, not read: lead with the answer in a sentence or two. Never say an entity id, the "
-        "name of the platform underneath, or of the AI supplier — this is ProOS. Never restart or reload the platform.\n"
+        "You are Pro Assist for '%s'. You run this house with the platform's own tools. Unlocking a door or disarming "
+        "the alarm goes through lock_control or security_arm, only with the person's explicit yes in this conversation. "
+        "Never say an entity id, the name of the platform underneath, or of the AI supplier — this is ProOS.\n"
         + tier
     ) % (home,)
 

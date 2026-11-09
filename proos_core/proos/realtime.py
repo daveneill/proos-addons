@@ -52,11 +52,17 @@ VOICE_PREFACE = (
     # tells the person itself, in the conversation or on their phone.
     "When you start an activity, a TV or an app, say it is starting — never that it is on; ProOS tells the person "
     "when the room confirms it.\n\n")
+_ACTIVITY_LINE = ("When you start an activity, a TV or an app, say it is starting — never that it is on; ProOS tells the person "
+                  "when the room confirms it.")
 
 
 def instructions(assist_mod, user: dict, home_name: str, where: dict | None) -> str:
     """Assist's own instructions for this person and this room, with the voice preface."""
-    return VOICE_PREFACE + assist_mod._system_prompt(user, home_name, where or {}, False)
+    pre = VOICE_PREFACE
+    if getattr(assist_mod, "_platform_first", None) and assist_mod._platform_first(user):
+        # REGISTER 1267d: no ProOS activities on the platform road, so not the activity sentence either
+        pre = pre.replace(_ACTIVITY_LINE, "")
+    return pre + assist_mod._system_prompt(user, home_name, where or {}, False)
 
 
 # REGISTER 1159 — THE WEB, IN TALK LIVE TOO. Dave 21:30, screenshot: asked "current president" and "Is Donald Trump the
