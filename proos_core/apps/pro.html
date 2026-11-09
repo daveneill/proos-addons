@@ -3390,7 +3390,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111001';
+const PROOS_BUILD='2026111002';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -8476,10 +8476,10 @@ let _reBgFile=null, _reBgRemove=false, _reBgUrl=null;   // _reBgUrl: chosen styl
 // its own (the sign-in backdrop) — the only thing that catches a changed
 // photograph is somebody looking at it, at the size it is drawn, before
 // editing.
-// REGISTER 1281 — REAL PHOTO SEARCH in every picture editor (Dave 10 Nov 08:33: "a search for anything not just a home …
-// high quality images"; 08:47 "all option added as long as the UnSplash or Pexels there is no watermarks"). Pexels, by the
-// box's own key (GET /photos/search). The results take the styles strip's place; each shows its photographer, and the strip
-// says "Photos provided by Pexels" with the link, as Pexels asks. A picked photo goes through the editor's own pick, so
+// REGISTER 1281/1282 — REAL PHOTO SEARCH in every picture editor (Dave 10 Nov 08:33: "a search for anything not just a
+// home … high quality images"; 08:47 "UnSplash or Pexels"; 10:24 an Unsplash demo key). Unsplash, by the box's own key
+// (GET /photos/search — the source's name and links come from Core, so no page names it). The results take the styles
+// strip's place, each with its photographer. A picked photo goes through the editor's own pick, so
 // Save is what keeps it, exactly as a style.
 async function proosPhotoSearch(inputId, hostId, noteId, pickFn, btnId){
   const q=((document.getElementById(inputId)||{}).value||'').trim();
@@ -8492,10 +8492,20 @@ async function proosPhotoSearch(inputId, hostId, noteId, pickFn, btnId){
     if(d.error){ if(note) note.textContent=d.error; return; }
     const ph=d.photos||[];
     if(!ph.length){ if(note) note.textContent='No photos found for "'+q+'" — try other words.'; return; }
-    if(host) setHTML(host, ph.map(p=>'<button type="button" class="ra-style ps-photo" title="'+esc(p.alt||'')+'" style="background-image:url(\''+esc(p.thumb)+'\')" onclick="'+pickFn+'(\''+esc(p.url)+'\')"><span class="ps-credit">'+esc(p.credit||'')+'</span></button>').join(''));
-    if(note) setHTML(note, '<a href="'+esc((d.attribution||{}).url||'https://www.pexels.com')+'" target="_blank" rel="noopener" style="color:inherit">'+esc((d.attribution||{}).text||'Photos provided by Pexels')+'</a> — tap one, then Save.');
+    window._psLast={photos:ph, source:d.source||{}, pick:pickFn, note:noteId};
+    if(host) setHTML(host, ph.map((p,i)=>'<button type="button" class="ra-style ps-photo" title="'+esc(p.alt||'')+'" style="background-image:url(\''+esc(p.thumb)+'\')" onclick="_psPick('+i+')"><span class="ps-credit">'+esc(p.credit||'')+'</span></button>').join(''));
+    if(note) setHTML(note, 'Photos from <a href="'+esc((d.source||{}).url||'#')+'" target="_blank" rel="noopener" style="color:inherit">'+esc((d.source||{}).name||'')+'</a> — tap one, then Save.');
   }catch(e){ if(note) note.textContent=_coreFailWords('',e); }
   finally{ if(btn){ btn.disabled=false; btn.textContent='Search Photos'; } }
+}
+// 1282 — a photo is PICKED: the editor's own pick (Save keeps it, as a style), Unsplash told of the use (its rule), and the
+// credit it asks for: "Photo by <photographer> on <source>", both linked.
+function _psPick(i){
+  const L=window._psLast||{}, p=(L.photos||[])[i]; if(!p) return;
+  try{ window[L.pick](p.url); }catch(e){}
+  try{ fetch(proCoreUrl()+'/photos/used',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({track:p.track||''})}); }catch(e){}
+  const note=document.getElementById(L.note);
+  if(note) setHTML(note, 'Photo by <a href="'+esc(p.credit_url||'#')+'" target="_blank" rel="noopener" style="color:inherit">'+esc(p.credit||'')+'</a> on <a href="'+esc((L.source||{}).url||'#')+'" target="_blank" rel="noopener" style="color:inherit">'+esc((L.source||{}).name||'')+'</a> — press Save to keep it.');
 }
 async function loadRoomBgStyles(){
   const host=document.getElementById('re-bg-styles'); if(!host) return;
@@ -14527,7 +14537,7 @@ async function techViewAssist(view){
     +'<div class="field"><div class="field-label" id="as-key-label">API key</div><input id="as-key" class="set-input" type="password" autocomplete="new-password" placeholder="sk-…"/><div class="field-hint" id="as-key-hint"></div></div>'
     +'<div class="field"><div class="field-label">Scene image key — OpenAI, optional '+(st.has_image_key?'(saved — blank to keep)':'')+'</div><input id="as-imgkey" class="set-input" type="password" autocomplete="new-password" placeholder="'+(st.has_image_key?'••••••••':'sk-… (for AI-generated scene photos)')+'"/><div class="field-hint">Lets the assistant generate a bespoke photo per scene. Only needed if the assistant isn\'t already on OpenAI.</div></div>'
     // REGISTER 1281: the Pexels key for Search Photos in every picture editor (areas, Home, scenes). Kept on the box.
-    +'<div class="field"><div class="field-label">Photo Search Key — Pexels, free '+(st.has_photo_key?'(saved — blank to keep)':'')+'</div><input id="as-photokey" class="set-input" type="password" autocomplete="new-password" placeholder="'+(st.has_photo_key?'••••••••':'Your key from pexels.com/api')+'"/><div class="field-hint">Lets Search Photos find real, watermark-free photos of anything. Get a free key at pexels.com/api.</div></div>'
+    +'<div class="field"><div class="field-label">Photo Search Key — Unsplash Access Key '+(st.has_photo_key?'(saved — blank to keep)':'')+'</div><input id="as-photokey" class="set-input" type="password" autocomplete="new-password" placeholder="'+(st.has_photo_key?'••••••••':'The Access Key (not the Secret Key)')+'"/><div class="field-hint">Lets Search Photos find real, watermark-free photos of anything. From your application\'s page on the Unsplash developer site.</div></div>'
     +'<div style="display:flex;gap:8px;margin-top:10px"><button class="btn-primary" onclick="assistSaveCfg()">Save</button>'
     +'<button class="btn-ghost" onclick="assistTestCfg()">Test</button></div>'
     +'<div id="as-out" class="wiz-hint" style="margin-top:10px"></div>'

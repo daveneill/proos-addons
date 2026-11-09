@@ -7217,8 +7217,8 @@ class Handler(BaseHTTPRequestHandler):
                 from proos import uistall as _uis
                 return self._send(200, {"stalls": _uis.recent(200)})
             if parts == ["photos", "search"]:
-                # REGISTER 1281 — real photo search for any picture editor (areas, Home, scenes): Pexels, by the box's
-                # own key. Dave 10 Nov 08:33 "a search for anything not just a home".
+                # REGISTER 1281/1282 — real photo search for any picture editor (areas, Home, scenes): Unsplash, by the
+                # box's own key. Dave 10 Nov 08:33 "a search for anything not just a home".
                 from proos import photosearch as _ps
                 q = parse_qs(urlparse(self.path).query)
                 res = _ps.search((q.get("q") or [""])[0], _assist._photo_key(None) if _assist else "")
@@ -11812,6 +11812,11 @@ class Handler(BaseHTTPRequestHandler):
                 import base64 as _b64s
                 return self._send(200, {"b64": _b64s.b64encode(png).decode(),
                                         "origin": "generated"})
+            if parts == ["photos", "used"]:
+                # REGISTER 1282 — Unsplash's rule: when a person picks a photo, tell Unsplash (it counts the use).
+                from proos import photosearch as _ps
+                b = self._body() or {}
+                return self._send(200, _ps.track_use((b.get("track") or ""), _assist._photo_key(None) if _assist else ""))
             if parts == ["rooms", "art"]:
                 # Generate a room background from the room's NAME and hand the
                 # PNG back as base64. Pro uploads it to HA and writes it to the

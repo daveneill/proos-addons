@@ -5059,7 +5059,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111002';
+const PROOS_BUILD='2026111003';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -13710,10 +13710,10 @@ function _saPreview(url){
   if(up) up.firstChild.nodeValue=(url?'Replace Image':'Upload Image');
 }
 function _psEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-// REGISTER 1281 — REAL PHOTO SEARCH in every picture editor (Dave 10 Nov 08:33: "a search for anything not just a home …
-// high quality images"; 08:47 "all option added as long as the UnSplash or Pexels there is no watermarks"). Pexels, by the
-// box's own key (GET /photos/search). The results take the styles strip's place; each shows its photographer, and the strip
-// says "Photos provided by Pexels" with the link, as Pexels asks. A picked photo goes through the editor's own pick, so
+// REGISTER 1281/1282 — REAL PHOTO SEARCH in every picture editor (Dave 10 Nov 08:33: "a search for anything not just a
+// home … high quality images"; 08:47 "UnSplash or Pexels"; 10:24 an Unsplash demo key). Unsplash, by the box's own key
+// (GET /photos/search — the source's name and links come from Core, so no page names it). The results take the styles
+// strip's place, each with its photographer. A picked photo goes through the editor's own pick, so
 // Save is what keeps it, exactly as a style.
 async function proosPhotoSearch(inputId, hostId, noteId, pickFn, btnId){
   const q=((document.getElementById(inputId)||{}).value||'').trim();
@@ -13726,10 +13726,20 @@ async function proosPhotoSearch(inputId, hostId, noteId, pickFn, btnId){
     if(d.error){ if(note) note.textContent=d.error; return; }
     const ph=d.photos||[];
     if(!ph.length){ if(note) note.textContent='No photos found for "'+q+'" — try other words.'; return; }
-    if(host) host.innerHTML=ph.map(p=>'<button type="button" class="scene-edit-thumb ps-photo" title="'+_psEsc(p.alt||'')+'" style="background-image:url(\''+_psEsc(p.thumb)+'\')" onclick="'+pickFn+'(\''+_psEsc(p.url)+'\')"><span class="ps-credit">'+_psEsc(p.credit||'')+'</span></button>').join('');
-    if(note) note.innerHTML='<a href="'+_psEsc((d.attribution||{}).url||'https://www.pexels.com')+'" target="_blank" rel="noopener" style="color:inherit">'+_psEsc((d.attribution||{}).text||'Photos provided by Pexels')+'</a> — tap one, then Save.';
+    window._psLast={photos:ph, source:d.source||{}, pick:pickFn, note:noteId};
+    if(host) (host.innerHTML=ph.map((p,i)=>'<button type="button" class="scene-edit-thumb ps-photo" title="'+_psEsc(p.alt||'')+'" style="background-image:url(\''+_psEsc(p.thumb)+'\')" onclick="_psPick('+i+')"><span class="ps-credit">'+_psEsc(p.credit||'')+'</span></button>').join(''));
+    if(note) (note.innerHTML='Photos from <a href="'+_psEsc((d.source||{}).url||'#')+'" target="_blank" rel="noopener" style="color:inherit">'+_psEsc((d.source||{}).name||'')+'</a> — tap one, then Save.');
   }catch(e){ if(note) note.textContent=_coreFailWords('/photos/search',e); }
   finally{ if(btn){ btn.disabled=false; btn.textContent='Search Photos'; } }
+}
+// 1282 — a photo is PICKED: the editor's own pick (Save keeps it, as a style), Unsplash told of the use (its rule), and the
+// credit it asks for: "Photo by <photographer> on <source>", both linked.
+function _psPick(i){
+  const L=window._psLast||{}, p=(L.photos||[])[i]; if(!p) return;
+  try{ window[L.pick](p.url); }catch(e){}
+  try{ fetch(proosCoreBase()+'/photos/used',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({track:p.track||''})}); }catch(e){}
+  const note=document.getElementById(L.note);
+  if(note) (note.innerHTML='Photo by <a href="'+_psEsc(p.credit_url||'#')+'" target="_blank" rel="noopener" style="color:inherit">'+_psEsc(p.credit||'')+'</a> on <a href="'+_psEsc((L.source||{}).url||'#')+'" target="_blank" rel="noopener" style="color:inherit">'+_psEsc((L.source||{}).name||'')+'</a> — press Save to keep it.');
 }
 function openSceneEdit(eid){
   _sceneEditEid=eid; _saUrl=null; _saData=null; _saRemove=false;
