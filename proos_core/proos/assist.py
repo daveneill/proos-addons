@@ -1623,7 +1623,7 @@ _GUARDED_SERVICES = {("lock", "unlock"), ("lock", "open"),
 _PLATFORM_RESTARTS = {"ha_restart", "ha_reload_core"}
 
 
-def _guarded_act(tool_name, args):
+def _guarded_act(tool_name, args, doors=True):
     """The refusal for a guarded platform act, or None to let it pass.
     Checks both argument shapes (domain+service, and dotted service), and
     the bulk tool's whole payload — fail-closed on the words that matter."""
@@ -1644,7 +1644,7 @@ def _guarded_act(tool_name, args):
         svc = str(a.get("service") or "")
         if not dom and "." in svc:
             dom, svc = svc.split(".", 1)
-        if (dom, svc) in _GUARDED_SERVICES:
+        if doors and (dom, svc) in _GUARDED_SERVICES:      # 1273: doors=False on the platform road
             door = ("security_arm" if dom == "alarm_control_panel"
                     else "lock_control")
             return {"error": "that goes through ProOS's own guarded tool — "
@@ -1653,7 +1653,7 @@ def _guarded_act(tool_name, args):
                              "confirmation and the consent" % door}
     if tool_name == "ha_bulk_control":
         blob = str(a)
-        if ("unlock" in blob or "alarm_disarm" in blob
+        if doors and ("unlock" in blob or "alarm_disarm" in blob
                 or "lock.open" in blob):
             return {"error": "unlocking or disarming never rides in a bulk "
                              "call — use lock_control or security_arm with "
@@ -2335,12 +2335,9 @@ def _is_home(user: dict) -> bool:
 # weather/lock/camera/alarm read-outs, scene_create/scene_delete/scene_companions, automation_create/trigger/delete and
 # platform_control_enable: each one the platform's own tools already do (and its guards still check them, in _run_mcp).
 # The installer tier (platform reads only) is unchanged.
-_PLATFORM_FIRST_KEEP = {
-    # REGISTER 1267d (Dave 9 Nov 14:29: "I need it 100% back to platform then we can really find out what still needs to
-    # be added by assist as it's impossible when it's still in control"). ONLY the two guarded doors stay: the platform's
-    # own unlock and disarm are sent to these (_guarded_act), because they are what asks for the person's yes.
-    "lock_control", "security_arm",
-}
+_PLATFORM_FIRST_KEEP = set()
+# REGISTER 1273 (Dave 9 Nov 18:43 "no restrictions for anyone until we know system is fully functional"): not even the two
+# guarded doors — the platform's own unlock and disarm are sent as they are (_guarded_act doors=False on this road).
 
 
 def _platform_first(user: dict, mirror=None) -> bool:
@@ -2738,7 +2735,12 @@ class ToolRunner:
         air obeys Dave's ruling too: reads for the trade, acts for the
         Developer alone, and an unannotated tool is an act (fail-closed).
         Acts are audited like ProOS acts; everything is traced."""
-        _guard = _guarded_act(tool.get("name"), args)
+        # REGISTER 1273 (Dave 9 Nov 18:43: "I stated a few days ago that no restrictions for anyone until we know system is
+        # fully functional"; 18:41 "platform by itself would have never asked for concent"). On the platform road nothing
+        # waits for a yes: unlock and disarm go through the platform's own call, and a homeowner's command is sent as the
+        # platform would send it. Kept for everyone: no restart, the port guard, a TV's power outlet, hidden from Assist.
+        _pf = _platform_first(self.user)
+        _guard = _guarded_act(tool.get("name"), args, doors=not _pf)
         # REGISTER 1256 (Dave 8 Nov 15:22): "Homeowners get everything … everything is by concent" — the homeowner holds
         # every platform tool; an act needs their own proven yes (below). Installer unchanged (reads + safe acts).
         _home = _is_home(self.user)
@@ -2756,7 +2758,7 @@ class ToolRunner:
                             "access level"}
         elif (not tool.get("read_only")) and self._platform_refusal(tool.get("name"), args) is not None:
             out = self._platform_refusal(tool.get("name"), args)    # register 1256: ProOS's rules on top
-        elif (not tool.get("read_only")) and _home and not getattr(self, "consent_ok", False):
+        elif (not tool.get("read_only")) and _home and not _pf and not getattr(self, "consent_ok", False):
             # REGISTER 1256 — homeowners hold every tool (Dave 8 Nov 15:22), and a platform act is theirs only with
             # their own yes, which Core proves (the same check as a recovery). Reading needs no yes.
             out = {"error": _CONSENT_UNPROVEN}
@@ -6460,7 +6462,7 @@ def _system_context(user: dict, where: dict | None = None) -> str:
     and SEPARATE from the doctrine so the big doctrine can be prompt-cached across
     every turn — this little block is the only part that changes per user/turn."""
     who = (user or {}).get("name") or "the user"
-    tier = _tier(user)
+    tier = _tier(_as_assist_sees(user))              # 1272: the role it is told is the role its tools hold
     rec = _mem_load().get((user or {}).get("id") or "anon") or {}
     facts = rec.get("facts") or []
     learned = [l.get("text") for l in (rec.get("learned") or []) if l.get("text")]
@@ -6533,17 +6535,13 @@ def _music_doctrine(engine: bool) -> str:
 
 def _platform_first_doctrine(user: dict, home_name: str) -> str:
     """REGISTER 1267 / 1267d — the whole instruction sheet when the person holds the platform's tools. Bare on purpose
-    (Dave 9 Nov 14:29 "100% back to platform"): the platform's tools carry their own guidance. What is left is only what
-    the code also enforces — the guarded doors, the homeowner's yes — and the white label."""
+    (Dave 9 Nov 14:29 "100% back to platform"; 18:43 "no restrictions for anyone"): the platform's tools carry their own
+    guidance. What is left is the house's name and the white label."""
     home = home_name or "this home"
-    tier = ("" if _is_pro(user) else
-            "You are talking with a HOMEOWNER: before you change anything in the house, tell them plainly what you will "
-            "do and wait for their yes.\n")
+    # 1273: no homeowner yes line — no restrictions for anyone while the system is proved (Dave 9 Nov 18:43)
     return (
-        "You are Pro Assist for '%s'. You run this house with the platform's own tools. Unlocking a door or disarming "
-        "the alarm goes through lock_control or security_arm, only with the person's explicit yes in this conversation. "
+        "You are Pro Assist for '%s'. You run this house with the platform's own tools. "
         "Never say an entity id, the name of the platform underneath, or of the AI supplier — this is ProOS.\n"
-        + tier
     ) % (home,)
 
 
@@ -6553,9 +6551,20 @@ def _system_doctrine(user: dict, home_name: str, engine: bool = False) -> str:
 
     REGISTER 1267: when the person holds the platform's tools, the whole sheet is _platform_first_doctrine instead —
     the long sheet below stays for the installer tier and for a box whose platform tools are not connected."""
+    # REGISTER 1272 (Dave 9 Nov 18:36, Talk Live on his phone: "Turn lights on." → "I'll turn on the Family Room lights here
+    # if you say yes." / "Why do I have to say yes?"). Everybody-the-same was ON: the tools held this person as the
+    # developer (ToolRunner applies open_user), but the instructions read the login RAW — a homeowner — and told the model
+    # to wait for a yes before any change. The instructions now see the person exactly as the tools do.
+    user = _as_assist_sees(user)
     if _platform_first(user):
         return _platform_first_doctrine(user, home_name)
     return _system_doctrine_full(user, home_name, engine)
+
+
+def _as_assist_sees(user: dict) -> dict:
+    """1272: the person as the tools see them (open_user), for the words too. The unattended engine is never opened."""
+    u = user or {}
+    return u if u.get("engine") else open_user(u)
 
 
 def _system_doctrine_full(user: dict, home_name: str, engine: bool = False) -> str:
