@@ -5051,7 +5051,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026110907';
+const PROOS_BUILD='2026110908';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -13481,7 +13481,7 @@ function renderMediaStripForRoom(r){
   const ms=document.getElementById('home-media-strip');if(!ms)return;
   const ph=document.getElementById('page-home');
   const unpin=()=>{ ms.classList.remove('media-pinned'); if(ph) ph.classList.remove('has-media-footer'); requestAnimationFrame(updateIdentityPin); };
-  const clear=()=>{ ms.innerHTML='';ms.style.display='none';unpin(); };
+  const clear=()=>{ ms.innerHTML='';ms.style.display='none';unpin(); try{ _dockMediaBar(); }catch(e){} };   // 1269: the space stays a card high
   // HOME KEEPS THE WIDGET. The Now Playing widget is house-wide and the bar is
   // this room — on Home they would be the same players said twice.
   if(curRoom===-1) return clear();
@@ -13539,17 +13539,39 @@ function _dockMediaBar(){
     const ms=document.getElementById('home-media-strip');
     const showing = !!(ms && ms.classList.contains('media-pinned')
                        && ms.style.display!=='none' && ms.children.length);
+    const gap=parseFloat(getComputedStyle(document.documentElement)
+                         .getPropertyValue('--proos-band-gap'))||12;
     if(!showing){
-      document.documentElement.style.setProperty('--proos-media-block','0px');
+      // REGISTER 1269 (Dave 9 Nov 17:31): "the media card is fixed and not a widget so whether the media card is showing
+      // or it's not I want the space where it occupies to stay clear so the room name and info etc will always stay in
+      // the same position … the widgets … cannot occupy the media card area". On a ROOM page the card's space is kept
+      // whether anything plays or not: one card's height, as this device last measured it, else the card's own 96.
+      // Home has no fixed card (its Now Playing is a widget), so Home keeps none.
+      const keep = (typeof curRoom!=='undefined' && curRoom>=0) ? _mediaReserve(gap) : 0;
+      document.documentElement.style.setProperty('--proos-media-block', keep+'px');
       return;
     }
     const h=ms.getBoundingClientRect().height;
     if(!h) return;                                    // again: no reading, not zero
-    const gap=parseFloat(getComputedStyle(document.documentElement)
-                         .getPropertyValue('--proos-band-gap'))||12;
+    // 1269: remember ONE card's height on this device and orientation, so the empty space matches the card exactly
+    if(ms.querySelectorAll('.mp-card').length===1) _mediaReserveSave(Math.round(h + gap));
     document.documentElement.style.setProperty('--proos-media-block',
                                                Math.round(h + gap)+'px');
   }catch(e){}
+}
+// REGISTER 1269 — the media card's space, remembered per device shape (portrait / landscape, phone / tablet width).
+// Browser storage is a convenience here: unreadable, the card's own height (96) plus the gap stands in.
+let _mediaReserveMem={};
+function _mediaReserveKey(){ return 'proos_media_reserve_'+(innerWidth>innerHeight?'l':'p')+Math.round(innerWidth/100); }
+function _mediaReserve(gap){
+  const k=_mediaReserveKey();
+  let v=_mediaReserveMem[k];
+  if(!v){ try{ v=parseInt(localStorage.getItem(k),10)||0; }catch(e){ v=0; } }
+  return v>0 ? v : Math.round(96 + gap);
+}
+function _mediaReserveSave(v){
+  const k=_mediaReserveKey(); _mediaReserveMem[k]=v;
+  try{ localStorage.setItem(k, String(v)); }catch(e){}
 }
 window.addEventListener('resize', _dockMediaBar, {passive:true});
 window.addEventListener('orientationchange', _dockMediaBar, {passive:true});
