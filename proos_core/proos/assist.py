@@ -1238,10 +1238,9 @@ TOOLS = [
      "input_schema": {"type": "object", "properties": {
          "scene_entity_id": {"type": "string"}}, "required": ["scene_entity_id"]}},
     {"name": "scene_dashboard",
-     "description": "Show (or hide) a scene on the homeowner's dashboard Scenes page. ALWAYS ask "
-                    "the user if they'd like it added before calling. The dashboard auto-picks a "
-                    "photo from the scene NAME (e.g. Movie, Dinner, Relax, Night, Party, Away, "
-                    "Morning, Work) — so name scenes with one of those words for a fitting picture.",
+     "description": "Show (or hide) a scene on the homeowner's dashboard Scenes page — ProOS's own page; the "
+                    "platform has no way to put a scene there. Any scene on the box. The dashboard picks a photo "
+                    "from the scene NAME (e.g. Movie, Dinner, Relax, Night, Party, Away, Morning, Work).",
      "input_schema": {"type": "object", "properties": {
          "scene_entity_id": {"type": "string"},
          "show": {"type": "boolean", "description": "true to add to the dashboard, false to remove"}},
@@ -2335,7 +2334,10 @@ def _is_home(user: dict) -> bool:
 # weather/lock/camera/alarm read-outs, scene_create/scene_delete/scene_companions, automation_create/trigger/delete and
 # platform_control_enable: each one the platform's own tools already do (and its guards still check them, in _run_mcp).
 # The installer tier (platform reads only) is unchanged.
-_PLATFORM_FIRST_KEEP = set()
+_PLATFORM_FIRST_KEEP = {"scene_dashboard"}
+# REGISTER 1279 (Dave 10 Nov 08:47 "1. yes"): the first thing Assist adds back — putting a scene on the dashboard's Scenes
+# page. The page is ProOS's; the platform has no tool for it, so without this Assist made a scene and said "added to your
+# dashboard" with no way to do it.
 # REGISTER 1273 (Dave 9 Nov 18:43 "no restrictions for anyone until we know system is fully functional"): not even the two
 # guarded doors — the platform's own unlock and disarm are sent as they are (_guarded_act doors=False on this road).
 
@@ -5539,8 +5541,12 @@ class ToolRunner:
 
     def t_scene_dashboard(self, args):
         eid = (args.get("scene_entity_id") or "").strip()
-        if not self._owns_scene(eid):
-            return {"error": "can only pin scenes ProOS Assist created"}
+        # REGISTER 1279 (Dave 10 Nov 08:33: Assist "said it added it to my dashboard but didnt show"): it may now put ANY
+        # scene on the Scenes page — Pro's own Dashboard switch always could. The "only scenes ProOS Assist created" check
+        # refused every scene the platform's tools make (their ids are not proos_assist_…), and those are the only scenes
+        # Assist makes since 1267. No restrictions for anyone (Dave 9 Nov 18:43).
+        if not eid.startswith("scene."):
+            return {"error": "that is not a scene: %s" % eid}
         show = args.get("show", True)
         lbl = "dashboard_scene"   # the dashboard's own scenes-page label
         if not self.ws_call:
