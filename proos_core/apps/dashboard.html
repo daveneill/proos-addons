@@ -389,7 +389,7 @@ img,video,.widget-cell,.pa-cam,.pw,.pw-door,.pa-eg-cell,.pa-strip-cell,.pa-tl-it
 /* THE LINE, AND NOTHING ELSE (register 550). 640 is the reading width of a
    line of text, which is what it used to underline. It stays that, while the
    block below it goes full width so the room chips can scroll to the glass. */
-.home-rule{margin-top:22px;margin-bottom:20px;height:0;max-width:640px;border-top:0.5px solid rgba(255,255,255,0.1)}
+.home-rule{margin-top:22px;margin-bottom:20px;height:0;max-width:640px;border-top:1px solid rgba(255,255,255,0.35);box-shadow:0 1px 0 rgba(0,0,0,0.22)}
 /* NO max-width HERE ANY MORE. It belonged to the words, and the words are
    gone (register 549); the chips that took their place must reach the edge.
    The state line and the notice cards carry their own 640, because it is
@@ -5051,7 +5051,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026110905';
+const PROOS_BUILD='2026110906';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
