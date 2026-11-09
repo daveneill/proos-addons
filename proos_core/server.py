@@ -7216,6 +7216,13 @@ class Handler(BaseHTTPRequestHandler):
                 # 1116 — read back the pages' freeze notes (diagnostic; proos/uistall.py)
                 from proos import uistall as _uis
                 return self._send(200, {"stalls": _uis.recent(200)})
+            if parts == ["photos", "search"]:
+                # REGISTER 1281 — real photo search for any picture editor (areas, Home, scenes): Pexels, by the box's
+                # own key. Dave 10 Nov 08:33 "a search for anything not just a home".
+                from proos import photosearch as _ps
+                q = parse_qs(urlparse(self.path).query)
+                res = _ps.search((q.get("q") or [""])[0], _assist._photo_key(None) if _assist else "")
+                return self._send(200, res)
             if parts == ["rooms", "art", "styles"]:
                 # curated backgrounds offered in Edit Room, matched to the
                 # room's kind first, then the general pool

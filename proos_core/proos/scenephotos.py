@@ -144,8 +144,20 @@ def _www_dir() -> str:
     return d
 
 
+# REGISTER 1281 (Dave 10 Nov 08:33: "if someone described a background they want it will generate a background to use …
+# if you typed Aston Martin then it will give you … an aston martin"). Words the person typed are the picture — said as they
+# are, with only "high quality, wide" added. With no words, the scene's name still gets the interior photograph below.
+OWN_WORDS_SUFFIX = " High-quality, sharp, well-lit image, wide landscape composition."
+
+
+def own_words_prompt(words: str) -> str:
+    return (words or "").strip().rstrip(".") + "." + OWN_WORDS_SUFFIX
+
+
 def build_prompt(name: str, mood: str | None) -> str:
-    m = (mood or name or "").strip()
+    if (mood or "").strip():
+        return own_words_prompt(mood)
+    m = (name or "").strip()
     return ("A premium, atmospheric interior photograph for a smart-home scene called '%s': %s. "
             "Cinematic natural lighting, elegant modern interior design, warm and inviting, "
             "photorealistic, no people, no text or logos, wide landscape composition." % (name, m))

@@ -234,9 +234,14 @@ def build_prompt(name: str, mood: str | None = None) -> str:
     over the top, so the PHOTO must be well lit — an already-dark image goes
     black once the scrim lands on it. People and text are excluded because the
     picture sits behind live status chips."""
+    if (mood or "").strip():
+        # REGISTER 1281: words the person typed are the picture, as they said them (the dashboard's scrim still needs a
+        # well-lit image — the suffix says so). No words: the room's own interior photograph, below.
+        from proos.scenephotos import own_words_prompt
+        return own_words_prompt(mood)
     icon, _ = kind(name)
     scene = _KIND_SCENE.get(icon, "an elegant interior space")
-    extra = (" " + mood.strip()) if (mood or "").strip() else ""
+    extra = ""
     return ("A premium architectural interior photograph of %s in a modern "
             "luxury home.%s Bright natural daylight from large windows, soft "
             "even exposure, airy and clearly visible, warm neutral palette, "

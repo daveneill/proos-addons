@@ -1830,6 +1830,8 @@ html.proos-panel #widget-add-btn{display:none!important}
 .scene-edit-btn{background:#2139F0;color:#fff;border:none;border-radius:11px;padding:11px 18px;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;white-space:nowrap}
 .scene-edit-remove{background:none;border:none;color:#e0564b;font-size:13px;font-family:inherit;cursor:pointer;padding:6px 0}
 .scene-edit-results{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.ps-photo{position:relative;overflow:hidden}
+.ps-credit{position:absolute;left:0;right:0;bottom:0;padding:3px 6px;font-size:10px;line-height:1.2;color:#fff;background:linear-gradient(transparent,rgba(0,0,0,.7));text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .scene-edit-thumb{height:74px;border-radius:10px;background-size:cover;background-position:center;cursor:pointer;border:0.5px solid rgba(255,255,255,0.1)}
 .scene-edit-thumb:active{transform:scale(0.96)}
 /* Mirrors Pro's .bg-prev / .ra-note in the room background editor. */
@@ -3856,9 +3858,10 @@ try{var _sb=localStorage.getItem('proos_std_bg');if(_sb){document.documentElemen
         <input id="scene-edit-name" type="text" class="scene-edit-in" style="width:100%;box-sizing:border-box" autocapitalize="words"/>
         <div class="scene-edit-lbl" style="margin-top:16px">Background</div>
         <div class="scene-edit-prev" id="scene-edit-prev"><span class="scene-edit-prev-e">No image</span></div>
-        <div style="display:flex;gap:8px;margin-top:10px">
-          <input id="scene-edit-photoq" type="text" class="scene-edit-in" placeholder="Describe it — e.g. cosy reading nook, warm light" onkeydown="if(event.key==='Enter')sceneEditGenerate()"/>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">
+          <input id="scene-edit-photoq" type="text" class="scene-edit-in" style="flex:1 1 200px;min-width:0" placeholder="Describe or search anything — e.g. Aston Martin at night, misty forest" onkeydown="if(event.key==='Enter')sceneEditGenerate()"/>
           <button class="scene-edit-btn" id="scene-edit-genbtn" onclick="sceneEditGenerate()">Generate</button>
+          <button class="scene-edit-btn" id="scene-edit-searchbtn" style="background:rgba(255,255,255,0.09)" onclick="proosPhotoSearch('scene-edit-photoq','scene-edit-results','scene-edit-note','sceneEditPick','scene-edit-searchbtn')">Search Photos</button>
         </div>
         <div class="scene-edit-note" id="scene-edit-note"></div>
         <div style="display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap">
@@ -5056,7 +5059,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111001';
+const PROOS_BUILD='2026111002';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -13705,6 +13708,28 @@ function _saPreview(url){
   const rm=document.getElementById('scene-edit-clear'); if(rm) rm.style.display=url?'':'none';
   const up=document.getElementById('scene-edit-uplbl');
   if(up) up.firstChild.nodeValue=(url?'Replace Image':'Upload Image');
+}
+function _psEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+// REGISTER 1281 — REAL PHOTO SEARCH in every picture editor (Dave 10 Nov 08:33: "a search for anything not just a home …
+// high quality images"; 08:47 "all option added as long as the UnSplash or Pexels there is no watermarks"). Pexels, by the
+// box's own key (GET /photos/search). The results take the styles strip's place; each shows its photographer, and the strip
+// says "Photos provided by Pexels" with the link, as Pexels asks. A picked photo goes through the editor's own pick, so
+// Save is what keeps it, exactly as a style.
+async function proosPhotoSearch(inputId, hostId, noteId, pickFn, btnId){
+  const q=((document.getElementById(inputId)||{}).value||'').trim();
+  const host=document.getElementById(hostId), note=document.getElementById(noteId), btn=document.getElementById(btnId);
+  if(!q){ if(note) note.textContent='Type what you are looking for first — anything: a room, a view, a car.'; return; }
+  if(btn){ btn.disabled=true; btn.textContent='Searching…'; }
+  try{
+    const r=await fetch(proosCoreBase()+'/photos/search?q='+encodeURIComponent(q));
+    const d=await r.json().catch(()=>({}));
+    if(d.error){ if(note) note.textContent=d.error; return; }
+    const ph=d.photos||[];
+    if(!ph.length){ if(note) note.textContent='No photos found for "'+q+'" — try other words.'; return; }
+    if(host) host.innerHTML=ph.map(p=>'<button type="button" class="scene-edit-thumb ps-photo" title="'+_psEsc(p.alt||'')+'" style="background-image:url(\''+_psEsc(p.thumb)+'\')" onclick="'+pickFn+'(\''+_psEsc(p.url)+'\')"><span class="ps-credit">'+_psEsc(p.credit||'')+'</span></button>').join('');
+    if(note) note.innerHTML='<a href="'+_psEsc((d.attribution||{}).url||'https://www.pexels.com')+'" target="_blank" rel="noopener" style="color:inherit">'+_psEsc((d.attribution||{}).text||'Photos provided by Pexels')+'</a> — tap one, then Save.';
+  }catch(e){ if(note) note.textContent=_coreFailWords('/photos/search',e); }
+  finally{ if(btn){ btn.disabled=false; btn.textContent='Search Photos'; } }
 }
 function openSceneEdit(eid){
   _sceneEditEid=eid; _saUrl=null; _saData=null; _saRemove=false;
