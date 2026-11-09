@@ -5056,7 +5056,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026110909';
+const PROOS_BUILD='2026110910';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -23911,11 +23911,15 @@ async function saveService(){
 .widget-picker-scrim,.scene-edit-scrim,.proos-scrim,#music-act-sheet .scrim,#player-apps-sheet>div:first-child,#player-group-sheet>div:first-child{
   position:absolute!important;inset:0!important;flex:none!important;background:rgba(0,0,0,0.55)!important}
 .widget-picker-sheet,#music-act-sheet .sheet,.scene-edit-sheet,.proos-card,.appc-box,#assist-panel,.all-lights-panel,.light-panel,
-.climate-all-panel,.climate-panel,#device-chooser .dc-card,.pa-dbmsg-card,#player-apps-sheet>div:last-child,#player-group-sheet>div:last-child{
+.climate-all-panel,.climate-panel,#device-chooser .dc-card,.pa-dbmsg-card,#player-apps-sheet>div:nth-child(2),#player-group-sheet>div:nth-child(2){
   position:relative!important;z-index:1;width:min(520px,calc(100vw - 32px))!important;max-width:none!important;
   max-height:min(82dvh,calc(100dvh - 2*(var(--proos-sat,0px) + 24px)))!important;min-height:0!important;overflow-y:auto;
   border-radius:20px!important;border:0.5px solid rgba(255,255,255,0.12)!important;
   padding-bottom:20px!important;margin:0!important;box-shadow:0 24px 60px rgba(0,0,0,0.55)}
+/* REGISTER 1271 (Dave 9 Nov 17:40, iPad screenshot of Group Speakers): the card was a narrow dark column over the art and the
+   controls. The iPhone/iPad app's drag handle (_proosSheetInstall, .proos-grab) is APPENDED to each sheet, so it became the
+   sheet's last child and the ">div:last-child" card rule styled the handle; the card fell to the width of its words. The
+   card is the sheet's SECOND child (the scrim is first) whatever is appended after it. */
 /* a card isn't dragged from an edge: the grab handles go */
 #music-act-sheet .grip,.widget-picker-handle,.scene-edit-handle,.proos-handle{display:none!important}
 /* the card arrives where it stays (no slide up from the bottom edge it no longer touches) */
