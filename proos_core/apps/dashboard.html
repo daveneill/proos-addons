@@ -1831,7 +1831,10 @@ html.proos-panel #widget-add-btn{display:none!important}
 .scene-edit-remove{background:none;border:none;color:#e0564b;font-size:13px;font-family:inherit;cursor:pointer;padding:6px 0}
 .scene-edit-results{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
 .ps-photo{position:relative;overflow:hidden}
-.ps-ai{display:grid;place-items:center;background:linear-gradient(135deg,rgba(33,57,240,.55),rgba(140,90,255,.45))!important;color:#fff;font-size:12px;font-weight:600;text-align:center;padding:6px;cursor:pointer;border:0.5px solid rgba(255,255,255,.18)}
+.bg-prev,.scene-edit-prev{position:relative}
+.ps-making{position:absolute;inset:0;display:grid;place-items:center;background:rgba(0,0,0,.55);color:#fff;font-size:13px;font-weight:600;border-radius:inherit;animation:psPulse var(--m-listen) var(--e-standard) infinite}
+@keyframes psPulse{50%{background:rgba(0,0,0,.35)}}
+.ps-made-wait{display:grid;place-items:center;background:linear-gradient(135deg,rgba(33,57,240,.45),rgba(140,90,255,.35));color:#fff;font-size:12px;font-weight:600;animation:psPulse var(--m-listen) var(--e-standard) infinite}
 .ps-credit{position:absolute;left:0;right:0;bottom:0;padding:3px 6px;font-size:10px;line-height:1.2;color:#fff;background:linear-gradient(transparent,rgba(0,0,0,.7));text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .scene-edit-thumb{height:74px;border-radius:10px;background-size:cover;background-position:center;cursor:pointer;border:0.5px solid rgba(255,255,255,0.1)}
 .scene-edit-thumb:active{transform:scale(0.96)}
@@ -5059,7 +5062,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111004';
+const PROOS_BUILD='2026111005';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -13695,7 +13698,7 @@ function _wireSceneEdit(){
 // so its the same in Pro as in dashboard."
 //
 // Same order and same words as Pro's Edit Room and Pro's Scene Art:
-//   preview · describe → Find (photos, then Create one with AI) · Use My Own (1283) · Remove · pick a style
+//   preview · describe → Find (photos + one created for you, 1284) · Use My Own (1283) · Remove · pick a style
 // and NOTHING IS WRITTEN UNTIL SAVE. Every tap used to apply immediately here
 // while Pro staged and saved — one product, two habits. Generation goes
 // through POST /scenes/art, which stores nothing, exactly as /rooms/art does
@@ -13718,33 +13721,73 @@ function _psEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&am
 async function proosPhotoSearch(inputId, hostId, noteId, pickFn, btnId, genFn){
   const q=((document.getElementById(inputId)||{}).value||'').trim();
   const host=document.getElementById(hostId), note=document.getElementById(noteId), btn=document.getElementById(btnId);
-  // REGISTER 1283 (Dave 10 Nov 11:06 "one button find"): ONE button. Real photos first, and always a last tile that makes a
-  // new picture from the same words with AI — so Find gives something even with no photo key or the hour's searches used.
-  const ai='<button type="button" data-gen="'+genFn+'" class="scene-edit-thumb ps-ai" onclick="_psMake(this.dataset.gen)"><span>✦ Create one with AI</span></button>';
+  // REGISTER 1284 (Dave 10 Nov 11:51 "just have find and separate the results … generate takes longer"; 11:54 "have the
+  // background preview have generating while its generating … so a client can tell there is something still coming").
+  // ONE Find starts both: real photos (about a second) and one picture made for these words (10–15 s). The first tile is
+  // the made one — "Creating…" until it lands; the big preview says "Creating your picture…" meanwhile, and takes the made
+  // picture when it arrives unless a photo was picked first.
   if(!q){ if(note) note.textContent='Type what you are looking for first — anything: a room, a view, a car.'; return; }
+  const tok=(window._psTok=(window._psTok||0)+1); window._psPicked=false;
+  const wait='<div class="scene-edit-thumb ps-made-wait" id="ps-created"><span>Creating…</span></div>';
+  if(host) host.innerHTML=(wait);
+  _psMake(genFn);                                   // not awaited — the photos do not wait for it
   if(btn){ btn.disabled=true; btn.textContent='Finding…'; }
   try{
     const r=await fetch(proosCoreBase()+'/photos/search?q='+encodeURIComponent(q));
     const d=await r.json().catch(()=>({}));
+    if(tok!==window._psTok) return;                 // a newer Find has started
+    const made=(document.getElementById('ps-created')||{}).outerHTML||wait;
     const ph=d.photos||[];
     if(d.error || !ph.length){
-      if(host) host.innerHTML=(ai);
-      if(note) note.textContent=(d.error||('No photos found for "'+q+'".'))+' Create one with AI instead — the last tile.';
+      if(host) host.innerHTML=(made);
+      if(note) note.textContent=(d.error||('No photos found for "'+q+'".'))+' Your own picture is being created — first tile.';
       return;
     }
     window._psLast={photos:ph, source:d.source||{}, pick:pickFn, note:noteId};
-    if(host) host.innerHTML=(ph.map((p,i)=>'<button type="button" class="scene-edit-thumb ps-photo" title="'+_psEsc(p.alt||'')+'" style="background-image:url(\''+_psEsc(p.thumb)+'\')" onclick="_psPick('+i+')"><span class="ps-credit">'+_psEsc(p.credit||'')+'</span></button>').join('')+ai);
-    if(note) note.innerHTML=('Photos from <a href="'+_psEsc((d.source||{}).url||'#')+'" target="_blank" rel="noopener" style="color:inherit">'+_psEsc((d.source||{}).name||'')+'</a> — tap one, then Save. Nothing right? The last tile creates one with AI.');
-  }catch(e){ if(host) host.innerHTML=(ai); if(note) note.textContent=_coreFailWords('/photos/search',e); }
+    if(host) host.innerHTML=(made+ph.map((p,i)=>'<button type="button" class="scene-edit-thumb ps-photo" title="'+_psEsc(p.alt||'')+'" style="background-image:url(\''+_psEsc(p.thumb)+'\')" onclick="_psPick('+i+')"><span class="ps-credit">'+_psEsc(p.credit||'')+'</span></button>').join(''));
+    if(note) note.innerHTML=('Photos from <a href="'+_psEsc((d.source||{}).url||'#')+'" target="_blank" rel="noopener" style="color:inherit">'+_psEsc((d.source||{}).name||'')+'</a> — tap one, then Save. The first tile is being created just for you.');
+  }catch(e){ if(note) note.textContent=_coreFailWords('/photos/search',e); }
   finally{ if(btn){ btn.disabled=false; btn.textContent='Find'; } }
 }
-// 1283 — the "Create one with AI" tile runs the editor's own Generate, by a direct list (no name looked up at random)
+// 1284 — the picture made for the words: placeholder → tile, the preview says it is coming, and it is put in the preview only
+// if nothing was picked meanwhile and no newer Find has started.
+function _psMaking(prevId, on){
+  const p=document.getElementById(prevId); if(!p) return;
+  let m=p.querySelector('.ps-making');
+  if(on && !m){ m=document.createElement('div'); m.className='ps-making'; m.textContent='Creating your picture…'; p.appendChild(m); }
+  if(!on && m) m.remove();
+}
+async function _psCreate(o){
+  const tok=window._psTok||0;
+  _psMaking(o.prev,true);
+  try{
+    const r=await fetch(proosCoreBase()+o.url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(o.body)});
+    const d=await r.json().catch(()=>({}));
+    if(tok!==window._psTok) return;
+    const slot=document.getElementById('ps-created'), note=document.getElementById(o.note);
+    let use=null, thumb=null;
+    if(d.b64){
+      const bin=atob(d.b64), buf=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) buf[i]=bin.charCodeAt(i);
+      const blob=new Blob([buf],{type:'image/png'}); thumb=URL.createObjectURL(blob);
+      use=()=>{ o.apply(d.b64, blob, thumb); if(note) note.textContent='Created for you — press Save to apply it.'; };
+    } else if(d.url){
+      thumb=d.url; use=()=>{ o.applyUrl(d.url); if(note) note.textContent='No image key — applied a matched style. Press Save to keep it.'; };
+    }
+    if(!use){ if(slot) slot.textContent='Couldn’t create one'; return; }
+    window._psUseCreated=use;
+    if(slot) slot.outerHTML='<button type="button" class="scene-edit-thumb ps-photo ps-made" id="ps-created" style="background-image:url(\''+thumb+'\')" onclick="window._psUseCreated&&window._psUseCreated()"><span class="ps-credit">Created for You</span></button>';
+    if(!window._psPicked) use();
+  }catch(e){ const slot=document.getElementById('ps-created'); if(slot && tok===window._psTok) slot.textContent='Couldn’t create one'; }
+  finally{ if(tok===window._psTok) _psMaking(o.prev,false); }
+}
+// 1283/1284 — Find runs the editor's own maker alongside the photos, by a direct list (no name looked up at random)
 const _PS_MAKERS={sceneEditGenerate:()=>sceneEditGenerate()};
 function _psMake(k){ const f=_PS_MAKERS[k]; if(f) f(); }
 // 1282 — a photo is PICKED: the editor's own pick (Save keeps it, as a style), Unsplash told of the use (its rule), and the
 // credit it asks for: "Photo by <photographer> on <source>", both linked.
 function _psPick(i){
   const L=window._psLast||{}, p=(L.photos||[])[i]; if(!p) return;
+  window._psPicked=true;   // 1284: the made picture, when it lands, will not take the preview from this
   try{ window[L.pick](p.url); }catch(e){}
   try{ fetch(proosCoreBase()+'/photos/used',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({track:p.track||''})}); }catch(e){}
   const note=document.getElementById(L.note);
@@ -13758,7 +13801,7 @@ function openSceneEdit(eid){
   document.getElementById('scene-edit-name').value=nm;
   const gp=document.getElementById('scene-edit-photoq'); if(gp) gp.value='';
   const nt=document.getElementById('scene-edit-note');
-  if(nt) nt.textContent=_sceneCanGen?'':'No image key set — Create one with AI will apply a matched style.';
+  if(nt) nt.textContent=_sceneCanGen?'':'No image key set — Find will show photos and a matched style.';
   // The picture showing right now: the override, else the curated standard.
   _saPreview(ov.photo || getScenePhoto(nm));
   // Styles come from Core, this scene's match first. No list is kept here.
@@ -13779,27 +13822,12 @@ function closeSceneEdit(){ const sh=document.getElementById('scene-edit'); if(sh
 function sceneEditPick(url){ _saUrl=url; _saData=null; _saRemove=false; _saPreview(url); }
 function clearSceneArt(){ _saUrl=null; _saData=null; _saRemove=true; _saPreview(''); const fi=document.getElementById('scene-edit-file'); if(fi) fi.value=''; }
 async function sceneEditGenerate(){
+  // 1284 — run by Find, alongside the photos
   const q=document.getElementById('scene-edit-photoq').value.trim();
   const nm=document.getElementById('scene-edit-name').value.trim();
-  if(!q && !nm){ showToast('Describe it first'); return; }
-  const btn=document.getElementById('scene-edit-genbtn'), note=document.getElementById('scene-edit-note');
-  if(btn){ btn.disabled=true; btn.textContent='Generating…'; }
-  if(note) note.textContent='Generating — this can take up to a minute…';
-  try{
-    const r=await fetch(proosCoreBase()+'/scenes/art',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({name:nm, describe:q})});
-    const d=await r.json().catch(()=>({}));
-    if(d.b64){
-      _saData='data:image/png;base64,'+d.b64; _saUrl=null; _saRemove=false; _saPreview(_saData);
-      if(note) note.textContent='New art ready — press Save to apply it.';
-    } else if(d.url){
-      sceneEditPick(d.url);
-      if(note) note.textContent=(d.error?'No image key — applied a matched style. ':'Applied. ')+'Press Save to keep it.';
-    } else {
-      if(note) note.textContent=d.error||"Couldn't generate — try again.";
-    }
-  }catch(e){ if(note) note.textContent=_coreFailWords('/scenes/art',e); }
-  finally{ if(btn){ btn.disabled=false; btn.textContent='Generate'; } }
+  return _psCreate({url:'/scenes/art', body:{name:nm||q, describe:q}, prev:'scene-edit-prev', note:'scene-edit-note',
+    apply:(b64)=>{ _saData='data:image/png;base64,'+b64; _saUrl=null; _saRemove=false; _saPreview(_saData); },
+    applyUrl:sceneEditPick});
 }
 // Downscale the chosen file, then STAGE it. Save is what writes it.
 function sceneEditUpload(ev){
