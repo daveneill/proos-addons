@@ -910,9 +910,9 @@ def _assist_room_rec(aid):
     return None
 
 
-def _assist_speak(where, reply, whole=False):
-    """Speak the reply in the caller's room, or say exactly why not. whole=True (a room mic's answer, register 1289):
-    said in full — a room mic has no screen for "the rest"."""
+def _assist_speak(where, reply, whole=True):
+    """Speak the reply in the caller's room, or say exactly why not. Said WHOLE (register 1290, Dave 10 Nov 21:09:
+    "Everything in full everywhere"); whole=False keeps the old safety-stop trim for any caller that asks for it."""
     out = {"sent": False}
     aid = (where or {}).get("area_id")
     if not aid:
@@ -1168,7 +1168,7 @@ if _assist is not None and hasattr(_assist, "set_prerender"):
     _assist.set_prerender(_speak_prerender)
 
 
-def _glass_voice_audio(text, whole=False):
+def _glass_voice_audio(text, whole=True):   # 1290: whole by default
     """THE HOME'S VOICE FOR A SCREEN (register 346). The same engine, voice
     and language the room speaker uses (_voice_choice) make the audio for a
     phone or panel: the platform's own tts_get_url makes the file, Core
@@ -12315,7 +12315,7 @@ class Handler(BaseHTTPRequestHandler):
                         _res["spoke"] = {"sent": False, "why": "replies through the room mic itself",
                                          "device": _mic}
                     else:
-                        _res["spoke"] = _assist_speak(where, _res.get("reply"), whole=bool(_mic))   # 1289: whole
+                        _res["spoke"] = _assist_speak(where, _res.get("reply"))   # 1289/1290: said whole, for every caller
                         _t_said = time.monotonic()
                         _sp = _res["spoke"] or {}
                         if _mic and _sp.get("sent") and _rmic.listens_again(_res.get("reply"), _cv_room):

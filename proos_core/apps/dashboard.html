@@ -5062,7 +5062,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111007';
+const PROOS_BUILD='2026111008';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -21448,19 +21448,13 @@ function _voiceHush(){
   try{ a.pause(); }catch(e){}
   try{ if(a.src&&a.src.indexOf('blob:')===0) URL.revokeObjectURL(a.src); }catch(e){}
 }
-// REGISTER 1287 (Dave 10 Nov 15:00, Assist now on Claude: "at the moment it has very long responses"). A written answer
-// can run to a thousand characters with headings and tables — fine on screen, a minute of reading aloud. What is SAID is
-// its opening: up to the first table or paragraph break, at most two sentences (and 260 characters); when that leaves
-// anything out, "The rest is on screen." The answer on screen is untouched, and nothing here changes what the AI writes.
-const SPEAK_MAX_SENTENCES=2, SPEAK_MAX_CHARS=260;
-function _speakShort(s){
+// REGISTER 1290 (Dave 10 Nov 21:09: "Everything in full everywhere") — replaces 1287's opening-only read. He listens
+// through the room speakers, not the screen, so cutting to two sentences and "The rest is on screen" lost the answer.
+// What is SAID is now the whole answer, made plain; only a table is left out (rows of cells cannot be read aloud).
+// The conversation screen still waits for the voice to finish before it closes (1287, _jvLater) — unchanged.
+function _speakWhole(s){
   const raw=String(s==null?'':s).replace(/\r/g,'');
-  const first=_speakPlain(raw.split(/\n\s*\n|\n\s*\|/)[0]);    // the first paragraph, before any table
-  if(!first) return '';
-  const sents=first.match(/[^.!?…]+(?:[.!?…]+|$)/g)||[first];
-  let out=sents.slice(0, SPEAK_MAX_SENTENCES).map(x=>x.trim()).join(' ').trim();
-  if(out.length>SPEAK_MAX_CHARS) out=out.slice(0, SPEAK_MAX_CHARS).replace(/\s+\S*$/,'')+'…';
-  return _speakPlain(raw).length>out.length+3 ? out+' The rest is on screen.' : out;
+  return _speakPlain(raw.split('\n').filter(l=>!/^\s*\|/.test(l)).join('\n'));   // every line but a table's
 }
 function _speakPlain(s){
   return String(s==null?'':s)
@@ -21534,7 +21528,7 @@ async function _assistReplied(text, spoken, lead, suppress){
   // turn was still working, and this closing line is the same news again. It is
   // on screen; it does not need saying twice.
   if(suppress) return _no('Core said it was already said aloud (speak_suppress)');
-  const t=_speakShort(text); if(!t) return _no('nothing left to say once the text was plainened');   // 1287: the opening only
+  const t=_speakWhole(text); if(!t) return _no('nothing left to say once the text was plainened');   // 1290: the whole answer
   _voiceHush();
   const head=_speakPlain(lead||'');
   // Only a REAL head: it has to be the beginning of what is on screen, and

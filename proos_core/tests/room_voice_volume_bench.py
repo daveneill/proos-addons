@@ -142,7 +142,8 @@ def _wav(secs):
 SLEPT = []
 _rv_defaults = rm.restore_volume.__defaults__
 rm.restore_volume.__defaults__ = (SLEPT.append,)   # restore_volume's own wait, recorded not slept
-ns = {"_speak_trim": lambda m: (m, False), "_tts_engine": lambda: "tts.proos_voice",
+ns = {"_speak_trim": lambda m: (m, False), "_speak_plain": lambda m: m,   # 1290: whole by default (re-pinned with cause)
+       "_tts_engine": lambda: "tts.proos_voice",
       "_voice_choice": lambda: ("tts.proos_voice", "en_GB-ryan", "en_GB"), "__name__": "bench",
       "threading": type("T", (), {"Thread": _T}), "_journal_mod": _J,
       "_glass_voice_audio": lambda t: ("audio/wav", _wav(2.6), {})}

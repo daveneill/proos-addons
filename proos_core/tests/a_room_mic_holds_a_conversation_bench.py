@@ -85,7 +85,8 @@ i = src.find("REGISTER 1289 — A ROOM MIC HOLDS A CONVERSATION")
 seg = src[i:i + 1800]
 ok(i > 0 and "conversation_for(_assist.load_config(), uinfo)" in seg and "is_goodbye(_text)" in seg
    and '"reply": "Okay."' in seg and '"sent": False' in seg, "6 · a room-mic turn asks the switch; a goodbye is \"Okay.\" by the mic")
-ok('_assist_speak(where, _res.get("reply"), whole=bool(_mic))' in src, "  …a room mic's answer is said whole")
+ok('def _assist_speak(where, reply, whole=True):' in src and '_assist_speak(where, _res.get("reply"))' in src,
+   "  …a room mic's answer is said whole (1290: every answer is, by default)")
 ok('_glass_voice_audio(_res.get("reply"), whole=True)' in src and '_sp["until"] = _rmic.wait_until(_secs, _t_said)' in src,
    "  …measured whole, and the reopen waits for it")
 ok("_rmic.listens_again(_res.get(\"reply\"), _cv_room)" in src and 'until=(spoke or {}).get("until")' in src,
