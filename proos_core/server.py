@@ -910,8 +910,9 @@ def _assist_room_rec(aid):
     return None
 
 
-def _assist_speak(where, reply):
-    """Speak the reply in the caller's room, or say exactly why not."""
+def _assist_speak(where, reply, whole=False):
+    """Speak the reply in the caller's room, or say exactly why not. whole=True (a room mic's answer, register 1289):
+    said in full — a room mic has no screen for "the rest"."""
     out = {"sent": False}
     aid = (where or {}).get("area_id")
     if not aid:
@@ -935,7 +936,7 @@ def _assist_speak(where, reply):
     if not eng:
         out["why"] = "no speech engine on the box"
         return out
-    msg, _was_cut = _speak_trim(reply)
+    msg, _was_cut = (_speak_plain(reply), False) if whole else _speak_trim(reply)
     if _was_cut:
         out["cut"] = True
     data = {"media_player_entity_id": spk, "message": msg}
@@ -1064,7 +1065,7 @@ def _mic_reopen(speaker, mic, where, spoke=None):
         _client.call_service("assist_satellite", "start_conversation", m,
                              {"start_media_id": _rmic.SILENCE_URL, "preannounce": False})
 
-    res = _rmic.reopen(_state, _start, mic)
+    res = _rmic.reopen(_state, _start, mic, until=(spoke or {}).get("until"))
     res["speaker"] = speaker
     for _k in ("say_s", "audio_s"):
         if (spoke or {}).get(_k) is not None:
@@ -1167,7 +1168,7 @@ if _assist is not None and hasattr(_assist, "set_prerender"):
     _assist.set_prerender(_speak_prerender)
 
 
-def _glass_voice_audio(text):
+def _glass_voice_audio(text, whole=False):
     """THE HOME'S VOICE FOR A SCREEN (register 346). The same engine, voice
     and language the room speaker uses (_voice_choice) make the audio for a
     phone or panel: the platform's own tts_get_url makes the file, Core
@@ -1180,7 +1181,7 @@ def _glass_voice_audio(text):
     msg = str(text or "").strip()
     if not msg:
         raise ConnectionError("nothing to say")
-    msg, cut = _speak_trim(msg)
+    msg, cut = (_speak_plain(msg), False) if whole else _speak_trim(msg)
     body = {"engine_id": eng, "message": msg}
     if voice and lang:
         body["language"] = lang
@@ -12268,6 +12269,21 @@ class Handler(BaseHTTPRequestHandler):
                     where.setdefault("area_name", aid)
                 _sess = b.get("session") or "default"
                 _text = b.get("text") or ""
+                # REGISTER 1289 — A ROOM MIC HOLDS A CONVERSATION when Assist is on Claude (the same switch as the apps'
+                # hands-free mode, realtime.conversation_for): its mic opens again after every answer, and a goodbye
+                # ends it — answered "Okay." by the mic itself, nothing said through the room, nothing reopened.
+                _cv_room = False
+                if str(_sess).startswith("panel-"):
+                    try:
+                        from proos import realtime as _rts_cv
+                        _cv_room = bool(_rts_cv.conversation_for(_assist.load_config(), uinfo)[0])
+                    except Exception:                            # noqa: BLE001 — no conversation, the old road
+                        _cv_room = False
+                    if _cv_room:
+                        from proos import roommic as _rmic_cv
+                        if _rmic_cv.is_goodbye(_text):
+                            return self._send(200, {"reply": "Okay.", "goodbye": True,
+                                                    "spoke": {"sent": False, "why": "the conversation ended"}})
 
                 # EVERYTHING A FINISHED TURN OWES, whether it was waited on or
                 # watched (register 466). This used to sit inline under the one
@@ -12299,18 +12315,20 @@ class Handler(BaseHTTPRequestHandler):
                         _res["spoke"] = {"sent": False, "why": "replies through the room mic itself",
                                          "device": _mic}
                     else:
-                        _res["spoke"] = _assist_speak(where, _res.get("reply"))
+                        _res["spoke"] = _assist_speak(where, _res.get("reply"), whole=bool(_mic))   # 1289: whole
+                        _t_said = time.monotonic()
                         _sp = _res["spoke"] or {}
-                        if _mic and _sp.get("sent") and _rmic.asks(_res.get("reply")):
+                        if _mic and _sp.get("sent") and _rmic.listens_again(_res.get("reply"), _cv_room):
                             # 970ww: the question's real length, measured from the audio the speaker was given
                             # (the platform's cache — same engine, voice, language, words); the door holds the
                             # mic's turn that long instead of its words-per-second estimate.
                             try:
-                                _ct, _au, _ = _glass_voice_audio(_res.get("reply"))
+                                _ct, _au, _ = _glass_voice_audio(_res.get("reply"), whole=True)
                                 _secs = _rmic.audio_seconds(_ct, _au)
                                 if _rmic.hold_seconds(_secs):
                                     _sp["say_s"] = _rmic.hold_seconds(_secs)
                                     _sp["audio_s"] = round(_secs, 2)
+                                    _sp["until"] = _rmic.wait_until(_secs, _t_said)   # 1289: the whole answer
                             except Exception:                    # noqa: BLE001 — the door's estimate stands
                                 pass
                             threading.Thread(target=_mic_reopen, args=(_sp.get("via"), _mic, where,

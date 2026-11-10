@@ -27,12 +27,21 @@ The door's fallback, 1.5 s + 0.4 s a word, held "Do you mean music, or something
 made the question's audio, so it MEASURES it — the same file the speaker was given (the platform's own cache, same
 engine, voice, language and words) — and the hold is the speaker starting up plus that length.
 
+A CONVERSATION WITHOUT THE WAKE WORD (register 1289, Dave 10 Nov 20:15 "Okay"). With Assist on Claude (realtime.
+conversation_for — the same switch as the apps' hands-free mode), the mic opens again after EVERY answer said through
+the room speakers, not only after a question; a room mic's answer is said whole (it has no screen to carry "the rest");
+and the reopen waits for the answer's real, measured length however long it is — the door's 15 s hold is only for a
+question and is not stretched (a door change would need a platform restart). It ends when nobody speaks (the board's
+own listening gives up), or on a goodbye ("thanks", "stop", "that's all" …), which is answered "Okay." by the mic itself
+and not reopened.
+
 TIMINGS below are plumbing.
 """
 from __future__ import annotations
 
 import io
 import os
+import re
 import struct
 import time
 import wave
@@ -47,7 +56,31 @@ SAT_BUSY_MAX_S = 25.0   # the mic finishing its own turn (the door holds the tur
 POLL_S = 0.2
 SETTLE_S = 0.2          # after the mic goes idle, a moment for one that reopens by itself to do so
 
+CONVERSE_CAP_S = 120.0  # never wait longer than this for an answer to finish before reopening (plumbing)
+
 _BUSY = ("processing", "responding")
+
+# The same goodbyes as the apps' hands-free mode (dashboard CV_BYE, register 1288). "stop the music" is a request.
+_BYE = re.compile(r"^\s*(?:ok(?:ay)?[\s,]+)?(?:stop(?: listening)?|thanks?(?: you)?(?: very much)?|cheers|that'?s (?:all|it)"
+                  r"|that is (?:all|it)|no(?:,)? thanks?(?: you)?|nothing else|goodbye|bye|cancel|never ?mind)"
+                  r"[\s.!,]*(?:proos|jarvis|mate)?[\s.!]*$", re.I)
+
+
+def is_goodbye(text) -> bool:
+    """A room-mic turn that only ends the conversation."""
+    return bool(_BYE.match(str(text or "")))
+
+
+def listens_again(reply, conversation: bool) -> bool:
+    """Whether the mic opens again after this answer: always in a conversation, otherwise only after a question."""
+    return bool(str(reply or "").strip()) and (bool(conversation) or asks(reply))
+
+
+def wait_until(audio_s, started: float):
+    """The moment the room speaker has finished an answer of audio_s seconds that began playing at `started`."""
+    if not isinstance(audio_s, (int, float)) or isinstance(audio_s, bool) or audio_s <= 0:
+        return None
+    return started + min(CONVERSE_CAP_S, SPEAKER_START_S + float(audio_s))
 
 
 def replies_for(rec, entity) -> str:
@@ -182,7 +215,7 @@ def hold_seconds(audio_s) -> float | None:
     return round(min(SAY_CAP_S, SPEAKER_START_S + float(audio_s)), 2)
 
 
-def reopen(state_of, start_conversation, mic: str, sleep=time.sleep, now=time.monotonic) -> dict:
+def reopen(state_of, start_conversation, mic: str, sleep=time.sleep, now=time.monotonic, until=None) -> dict:
     """When the mic's turn ends (the door held it while the question played), open it again if it is idle.
     state_of(entity) -> state string; start_conversation(mic) asks the platform to listen again."""
     out = {"mic": mic}
@@ -193,6 +226,10 @@ def reopen(state_of, start_conversation, mic: str, sleep=time.sleep, now=time.mo
             return out
         sleep(POLL_S)
     out["turn_s"] = round(now() - t0, 2)
+    # 1289: an answer through the room speaker may still be playing after the mic's own turn ended — wait it out
+    if isinstance(until, (int, float)) and now() < until:
+        out["held_s"] = round(until - now(), 2)
+        sleep(until - now())
     sleep(SETTLE_S)
     st = state_of(mic)
     out["mic_state"] = st
