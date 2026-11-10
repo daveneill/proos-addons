@@ -2749,7 +2749,8 @@ class ToolRunner:
         # REGISTER 1273 (Dave 9 Nov 18:43: "I stated a few days ago that no restrictions for anyone until we know system is
         # fully functional"; 18:41 "platform by itself would have never asked for concent"). On the platform road nothing
         # waits for a yes: unlock and disarm go through the platform's own call, and a homeowner's command is sent as the
-        # platform would send it. Kept for everyone: no restart, the port guard, a TV's power outlet, hidden from Assist.
+        # platform would send it. Kept for everyone: no restart, the port guard. (1285: the TV-controls and hidden-from-
+        # Assist checks are off on this road too — both were ProOS's.)
         _pf = _platform_first(self.user)
         _guard = _guarded_act(tool.get("name"), args, doors=not _pf)
         # REGISTER 1256 (Dave 8 Nov 15:22): "Homeowners get everything … everything is by concent" — the homeowner holds
@@ -3356,16 +3357,22 @@ class ToolRunner:
             return {"error": self._unassigned_words(bad)}          # register 874
         # REGISTER 1146: hidden from Assist (the platform's own Expose to Assist, set in Pro) means Assist does not
         # control it — the same list every other road reads. Unhiding it in Pro is the way back.
+        # REGISTER 1285 (Dave 10 Nov 12:24, Talk Live in the Family Room: "The TV's not on" → "I couldn't control that device
+        # because it's hidden from Assist in Pro"; "you said assist was disabled it was only the platform"). NOT on the
+        # platform road: the platform's own tools never check that switch, and ProOS's start-up rules had set it off on
+        # 2,580 of the box's 2,721 controls (the Family Room TV's Power, Art Mode and remote among them). 1267d kept it
+        # calling it "the platform's own" — wrong; it was ProOS deciding.
         try:
             from . import roomdevices as _rd0
-            if eid in _rd0.assist_hidden(self.client):
+            if not _pf and eid in _rd0.assist_hidden(self.client):
                 return {"error": "that device is hidden from Assist — it can be made available again in Pro",
                         "note": "say so; do not try another tool to reach it"}
         except Exception:                                        # noqa: BLE001
             pass
         # REGISTER 1143: a control ON a committed TV/receiver/projector (its Power or Art Mode switch, its remote) is
         # never switched raw — that is the room's activities' job (732 for the TV itself; Dave 1 Nov "activities only").
-        if domain not in ("media_player",) and action in ("turn_on", "turn_off", "toggle"):
+        # 1285: nor on the platform road — a TV's own switches and remote work as the platform would work them.
+        if domain not in ("media_player",) and action in ("turn_on", "turn_off", "toggle") and not _pf:
             try:
                 from . import roomdevices as _rd
                 _av = _rd.av_part_of(self.client, eid, self.project.load())
