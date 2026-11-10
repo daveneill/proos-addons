@@ -5062,7 +5062,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111005';
+const PROOS_BUILD='2026111006';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -21423,6 +21423,20 @@ function _voiceHush(){
   try{ a.pause(); }catch(e){}
   try{ if(a.src&&a.src.indexOf('blob:')===0) URL.revokeObjectURL(a.src); }catch(e){}
 }
+// REGISTER 1287 (Dave 10 Nov 15:00, Assist now on Claude: "at the moment it has very long responses"). A written answer
+// can run to a thousand characters with headings and tables — fine on screen, a minute of reading aloud. What is SAID is
+// its opening: up to the first table or paragraph break, at most two sentences (and 260 characters); when that leaves
+// anything out, "The rest is on screen." The answer on screen is untouched, and nothing here changes what the AI writes.
+const SPEAK_MAX_SENTENCES=2, SPEAK_MAX_CHARS=260;
+function _speakShort(s){
+  const raw=String(s==null?'':s).replace(/\r/g,'');
+  const first=_speakPlain(raw.split(/\n\s*\n|\n\s*\|/)[0]);    // the first paragraph, before any table
+  if(!first) return '';
+  const sents=first.match(/[^.!?…]+(?:[.!?…]+|$)/g)||[first];
+  let out=sents.slice(0, SPEAK_MAX_SENTENCES).map(x=>x.trim()).join(' ').trim();
+  if(out.length>SPEAK_MAX_CHARS) out=out.slice(0, SPEAK_MAX_CHARS).replace(/\s+\S*$/,'')+'…';
+  return _speakPlain(raw).length>out.length+3 ? out+' The rest is on screen.' : out;
+}
 function _speakPlain(s){
   return String(s==null?'':s)
     .replace(/```[\s\S]*?```/g,' ').replace(/`([^`]*)`/g,'$1')
@@ -21495,7 +21509,7 @@ async function _assistReplied(text, spoken, lead, suppress){
   // turn was still working, and this closing line is the same news again. It is
   // on screen; it does not need saying twice.
   if(suppress) return _no('Core said it was already said aloud (speak_suppress)');
-  const t=_speakPlain(text); if(!t) return _no('nothing left to say once the text was plainened');
+  const t=_speakShort(text); if(!t) return _no('nothing left to say once the text was plainened');   // 1287: the opening only
   _voiceHush();
   const head=_speakPlain(lead||'');
   // Only a REAL head: it has to be the beginning of what is on screen, and
@@ -27768,7 +27782,12 @@ function jvClose(){ var d=_jvEl('jv'); if(d){ d.classList.remove('on'); d.classL
   try{ if(_vcap && typeof _voiceCancel==='function') _voiceCancel(); }catch(e){} }
 function jvType(){ jvClose(); window._jvTyping=true; try{ openAssist(); }finally{ window._jvTyping=false; } }
 function _jvHold(){ clearTimeout(_jv.t); _jv.t=null; }
-function _jvLater(){ _jvHold(); _jv.t=setTimeout(function(){ if(_jv.open && !document.body.classList.contains('proos-listening')) jvClose(); }, 30000); }
+// 1287 (Dave 15:00: "the assist page times out and closes before its finished responding"): the 30 s began when the
+// answer's TEXT arrived, while Ryan was still saying it — a long answer was cut off mid-sentence. It now waits for him.
+function _jvLater(){ _jvHold(); _jv.t=setTimeout(function(){
+  if(!_jv.open) return;
+  if(_voiceAudio || document.body.classList.contains('proos-listening')) return _jvLater();   // still talking or listening
+  jvClose(); }, 30000); }
 function _jvIdle(){ _jvActs([]); var d=_jvEl('jv'); if(d) d.classList.add('idle'); var A=_jvEl('jv-aa'), B=_jvEl('jv-ab'); if(!A) return;
   var wake=false; try{ wake=!!_proosAndroid(); }catch(e){}   // only the Android app has "Hey Jarvis"
   A.textContent=wake?'Say \u201CHey Jarvis\u201D':'Tap to talk'; B.textContent='or tap a suggestion'; }
