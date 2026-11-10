@@ -5062,7 +5062,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111006';
+const PROOS_BUILD='2026111007';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -21356,6 +21356,28 @@ function _voiceNames(){
 let _voiceTurn=0;          // one per press of the microphone
 let _voiceHandedOver=-1;   // the turn whose words have already gone to Assist
 let _voiceBase='', _voiceWas='';
+// ── A CONVERSATION WITHOUT PRESSING THE MIC AGAIN (register 1288, Dave 10 Nov 15:30) ─────────────────────────────
+// "it needs to be a conversation that you don't have to press mic every time to talk and if Assist asks a question then
+// you need to respond without having to press mic again". With Assist on Claude (Core says so: /assist/realtime/status
+// "conversation"), after each SPOKEN answer has been said the microphone listens again by itself. Who decides the person
+// has finished is unchanged — the device's own recogniser in the ProOS apps (it stops itself on quiet). It ends when:
+// nothing is said for 8 seconds, nothing is heard, they say "stop", "thanks", "that's all" and the like, or the card is
+// closed. Tapping the mic while Ryan speaks stops him and listens (the existing press). Only in the ProOS apps — a plain
+// browser's microphone does not hear the end of speech, so it stays press-to-talk there.
+var _cv={on:false, from:'mic', got:false, t:null};
+const CV_QUIET_MS=8000;
+const CV_BYE=/^\s*(?:ok(?:ay)?[\s,]+)?(?:stop(?: listening)?|thanks?(?: you)?(?: very much)?|cheers|that'?s (?:all|it)|that is (?:all|it)|no(?:,)? thanks?(?: you)?|nothing else|goodbye|bye|cancel|never ?mind)[\s.!,]*(?:proos|jarvis|mate)?[\s.!]*$/i;
+function _cvBye(t){ return CV_BYE.test(String(t||'')); }
+function _cvMode(){ try{ if(!_lvStat) lvProbe(); return !!(_lvStat && _lvStat.cv) && (_proosApp() || _proosAndroid()) && !(typeof _isPanel==='function' && _isPanel()); }catch(e){ return false; } }
+function _cvEnd(){ _cv.on=false; _cv.got=false; clearTimeout(_cv.t); _cv.t=null; }
+function _cvNext(spoken){
+  if(!spoken || !_cv.on || !_cvMode()) return;
+  setTimeout(function(){
+    if(!_cv.on || _vcap || _voiceAudio) return;               // they already pressed, or something is still being said
+    _cv.got=false; toggleDictation(_cv.from);
+    clearTimeout(_cv.t); _cv.t=setTimeout(function(){ if(_cv.on && _vcap && !_cv.got){ _cvEnd(); _voiceCancel(); } }, CV_QUIET_MS);
+  }, 300);
+}
 window._proosHeard=function(text, done, err){
   // REGISTER 481: this turn is over - its words are already with Assist.
   // Anything still arriving is the recogniser finishing its own sentence.
@@ -21374,9 +21396,12 @@ window._proosHeard=function(text, done, err){
   if(err){ endAndClear(); _voiceCancelled=false; showToast(err); return; }
   if(_voiceCancelled){ if(done){ endAndClear(); _voiceCancelled=false; } return; }
   const t=(text||'').trim();
+  if(t) _cv.got=true;                                       // 1288: they are speaking — the quiet timer stands down
   if(input) input.value=(_voiceBase?_voiceBase+' ':'')+t;   // live, as it is spoken
   if(!done) return;
   end();
+  if(!t || (_cv.on && _cvBye(t))){ _cvEnd(); if(t){ if(fromBar){ try{ abClose(); }catch(e){} } return; } }   // 1288
+  else if(_cvMode()){ _cv.on=true; _cv.from=_voiceFrom; }
   // NOTHING HEARD IS NOTHING HEARD — never dressed up as a sentence, AND NOT
   // ANNOUNCED EITHER (register 506. Dave: "we don't need a prompt saying it
   // didn't get anything"). On press-to-talk, pressing the microphone and
@@ -21613,8 +21638,8 @@ async function toggleDictation(from, opts){
 var _lv=null, _lvStat=null;
 async function lvAvailable(){
   if(_lvStat && (Date.now()-_lvStat.at)<60000) return _lvStat.ok;
-  var ok=false; try{ var r=await fetch(proosCoreBase()+'/assist/realtime/status'); var d=r.ok?await r.json():null; ok=!!(d&&d.available); }catch(e){ ok=false; }
-  _lvStat={ok:ok, at:Date.now()}; return ok;
+  var ok=false, cv=false; try{ var r=await fetch(proosCoreBase()+'/assist/realtime/status'); var d=r.ok?await r.json():null; ok=!!(d&&d.available); cv=!!(d&&d.conversation); }catch(e){ ok=false; }
+  _lvStat={ok:ok, cv:cv, at:Date.now()}; return ok;
 }
 function lvProbe(){ try{ lvAvailable(); }catch(e){} }      // warmed when Assist opens, so the first press is instant
 function lvRoute(){
@@ -22416,7 +22441,7 @@ async function submitAssist() {
       if(resp.ok && d && d.reply){
         clearInterval(_slowNudge); thinking.remove();
         assistAddSources(addMsg('assistant', d.reply), d.sources); window._assistLast=d.reply;
-        _assistReplied(d.reply, _spoken, d.speak_lead, d.speak_suppress);
+        _assistReplied(d.reply, _spoken, d.speak_lead, d.speak_suppress).then(function(){ _cvNext(_spoken); });   // 1288
         // AND THE HOME MAY HAVE MOVED (19 Aug 2026, register 243). This
         // branch refreshed NOTHING: a scene created through the gateway
         // never appeared on this app until the client reloaded it. The
@@ -22486,7 +22511,7 @@ async function submitAssist() {
     const _ans = data.response || 'No answer came back \u2014 nothing was confirmed.';
     addMsg('assistant', _ans);
     window._assistLast = _ans;
-    _assistReplied(_ans, _spoken);
+    _assistReplied(_ans, _spoken).then(function(){ _cvNext(_spoken); });   // 1288
     if(typeof renderWidgetGrid==='function') renderWidgetGrid();
     if (data.conversation_history) assistHistory = data.conversation_history;
     // THE OLD AGENT KEEPS NO RECORD, SO WE DO NOT PRETEND TO READ ONE
@@ -27779,6 +27804,7 @@ function jvOpen(){
 }
 function jvClose(){ var d=_jvEl('jv'); if(d){ d.classList.remove('on'); d.classList.remove('shown'); } _jv.open=false; _jvHold();
   try{ if(window._lv && typeof lvStop==='function') lvStop(); }catch(e){}   // 1169: closing the card ends Live
+  try{ if(typeof _cvEnd==='function') _cvEnd(); }catch(e){}   // 1288: closing the card ends the conversation
   try{ if(_vcap && typeof _voiceCancel==='function') _voiceCancel(); }catch(e){} }
 function jvType(){ jvClose(); window._jvTyping=true; try{ openAssist(); }finally{ window._jvTyping=false; } }
 function _jvHold(){ clearTimeout(_jv.t); _jv.t=null; }

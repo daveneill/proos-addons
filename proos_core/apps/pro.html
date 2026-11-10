@@ -3394,7 +3394,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111004';
+const PROOS_BUILD='2026111005';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -14743,7 +14743,9 @@ async function tlLoad(){
     h+=people.map(function(u){ var on=_tl.off.indexOf(u.id)<0;
       return '<label style="display:flex;align-items:center;gap:10px;margin:4px 0 4px 6px;cursor:pointer"><input type="checkbox" data-tl="'+esc(u.id)+'"'+(on?' checked':'')+(st.realtime_enabled?'':' disabled')+' onchange="tlSave()"/> '+esc(u.name||u.username||u.id)+'</label>'; }).join('');
   }
-  if(st.provider && st.provider!=='openai') h+='<div style="margin-top:6px;color:var(--warn)">Talk Live needs Assist on OpenAI — it is off until then.</div>';
+  // 1288: the Assist AI decides the road — ChatGPT talks Live; Claude holds the conversation on the ordinary microphone
+  if(st.provider==='claude') h+='<div style="margin-top:6px">Assist AI is Claude, so the microphone holds the conversation instead: after each spoken answer it listens again by itself — no need to press the mic. It stops after 8 seconds of quiet, or when someone says “stop”, “thanks” or “that’s all”. Tap the mic while Assist is speaking to cut in. Talk Live (talking over Assist) is used when ChatGPT is chosen.</div>';
+  else if(st.provider && st.provider!=='openai') h+='<div style="margin-top:6px;color:var(--warn)">Talk Live needs Assist on OpenAI — it is off until then.</div>';
   setHTML(el, h);
 }
 async function tlSave(){

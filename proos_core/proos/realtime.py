@@ -255,6 +255,24 @@ def available_for(cfg: dict, user: dict) -> tuple:
     return True, ""
 
 
+# REGISTER 1288 — THE ASSIST AI DECIDES HOW A CONVERSATION IS HELD. Dave, 10 Nov 15:50: "can we have both options in Pro
+# like we have now but by changing the AI it would take over the assist". ChatGPT chosen → Talk Live (above). Claude chosen
+# → Claude has no live voice of its own, so the ordinary microphone holds the conversation: after each spoken answer it
+# listens again by itself. The SAME home and person switches in Pro decide both — one setting, two roads.
+def conversation_for(cfg: dict, user: dict) -> tuple:
+    """(True, "") when this person's microphone should listen again after each answer (Assist AI is Claude)."""
+    cfg = cfg or {}
+    if not (user or {}).get("id"):
+        return False, "sign in first"
+    if cfg.get("provider") != "claude":
+        return False, "Conversation mode is for Assist on Claude — ChatGPT uses Talk Live"
+    if cfg.get("realtime_enabled", True) is False:
+        return False, "Hands-free talking is turned off for this home"
+    if str(user.get("id")) in {str(x) for x in (cfg.get("realtime_off_for") or [])}:
+        return False, "Hands-free talking is turned off for you"
+    return True, ""
+
+
 def allowed_names(assist_mod, runner) -> set:
     """The tools this person may call — exactly the list the model is given."""
     return {t["name"] for t in tools(assist_mod, runner)}

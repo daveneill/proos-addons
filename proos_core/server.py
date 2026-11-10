@@ -9003,7 +9003,9 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(401, {"error": "sign in required"})
                 from proos import realtime as _rts
                 _ok, _why = (_rts.available_for(_assist.load_config(), u) if _assist else (False, "assist not loaded"))
-                return self._send(200, {"available": bool(_ok), "reason": _why})
+                # 1288: and whether the microphone holds a conversation instead (Assist AI is Claude)
+                _cv, _cvwhy = (_rts.conversation_for(_assist.load_config(), u) if _assist else (False, ""))
+                return self._send(200, {"available": bool(_ok), "reason": _why, "conversation": bool(_cv)})
             if parts == ["assist", "realtime", "usage"]:
                 # REGISTER 1151: the realtime voice's last seven days — sessions, minutes, tokens, estimated cost.
                 u = getattr(self, "_user", None)
