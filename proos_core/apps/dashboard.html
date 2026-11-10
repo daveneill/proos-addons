@@ -1831,6 +1831,7 @@ html.proos-panel #widget-add-btn{display:none!important}
 .scene-edit-remove{background:none;border:none;color:#e0564b;font-size:13px;font-family:inherit;cursor:pointer;padding:6px 0}
 .scene-edit-results{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
 .ps-photo{position:relative;overflow:hidden}
+.ps-ai{display:grid;place-items:center;background:linear-gradient(135deg,rgba(33,57,240,.55),rgba(140,90,255,.45))!important;color:#fff;font-size:12px;font-weight:600;text-align:center;padding:6px;cursor:pointer;border:0.5px solid rgba(255,255,255,.18)}
 .ps-credit{position:absolute;left:0;right:0;bottom:0;padding:3px 6px;font-size:10px;line-height:1.2;color:#fff;background:linear-gradient(transparent,rgba(0,0,0,.7));text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .scene-edit-thumb{height:74px;border-radius:10px;background-size:cover;background-position:center;cursor:pointer;border:0.5px solid rgba(255,255,255,0.1)}
 .scene-edit-thumb:active{transform:scale(0.96)}
@@ -3846,7 +3847,7 @@ try{var _sb=localStorage.getItem('proos_std_bg');if(_sb){document.documentElemen
          THE ROOM BACKGROUND EDITOR, FOR A SCENE — Dave, 19 Aug: "mirror the
          room background editor … copy same process and popup". Same order,
          same words, same staging as Pro's Edit Room and Pro's Scene Art:
-           preview · describe → Generate · Replace Image · Remove · a style
+           preview · describe → Find · Use My Own · Remove · a style
          and NOTHING is written until Save. It used to apply every tap
          immediately, which is why the two apps behaved differently. -->
     <div id="scene-edit">
@@ -3859,13 +3860,12 @@ try{var _sb=localStorage.getItem('proos_std_bg');if(_sb){document.documentElemen
         <div class="scene-edit-lbl" style="margin-top:16px">Background</div>
         <div class="scene-edit-prev" id="scene-edit-prev"><span class="scene-edit-prev-e">No image</span></div>
         <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">
-          <input id="scene-edit-photoq" type="text" class="scene-edit-in" style="flex:1 1 200px;min-width:0" placeholder="Describe or search anything — e.g. Aston Martin at night, misty forest" onkeydown="if(event.key==='Enter')sceneEditGenerate()"/>
-          <button class="scene-edit-btn" id="scene-edit-genbtn" onclick="sceneEditGenerate()">Generate</button>
-          <button class="scene-edit-btn" id="scene-edit-searchbtn" style="background:rgba(255,255,255,0.09)" onclick="proosPhotoSearch('scene-edit-photoq','scene-edit-results','scene-edit-note','sceneEditPick','scene-edit-searchbtn')">Search Photos</button>
+          <input id="scene-edit-photoq" type="text" class="scene-edit-in" style="flex:1 1 200px;min-width:0" placeholder="Describe or search anything — e.g. Aston Martin at night, misty forest" onkeydown="if(event.key==='Enter')document.getElementById('scene-edit-findbtn').click()"/>
+          <button class="scene-edit-btn" id="scene-edit-findbtn" onclick="proosPhotoSearch('scene-edit-photoq','scene-edit-results','scene-edit-note','sceneEditPick','scene-edit-findbtn','sceneEditGenerate')">Find</button>
         </div>
         <div class="scene-edit-note" id="scene-edit-note"></div>
         <div style="display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap">
-          <label class="scene-edit-btn" id="scene-edit-uplbl" style="background:rgba(255,255,255,0.09);cursor:pointer">Upload Image
+          <label class="scene-edit-btn" id="scene-edit-uplbl" style="background:rgba(255,255,255,0.09);cursor:pointer">Use My Own
             <input id="scene-edit-file" type="file" accept="image/*" style="display:none" onchange="sceneEditUpload(event)"/>
           </label>
           <button class="scene-edit-remove" id="scene-edit-clear" onclick="clearSceneArt()" style="display:none">Remove</button>
@@ -5059,7 +5059,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111003';
+const PROOS_BUILD='2026111004';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -13695,7 +13695,7 @@ function _wireSceneEdit(){
 // so its the same in Pro as in dashboard."
 //
 // Same order and same words as Pro's Edit Room and Pro's Scene Art:
-//   preview · describe → Generate · Replace Image · Remove · pick a style
+//   preview · describe → Find (photos, then Create one with AI) · Use My Own (1283) · Remove · pick a style
 // and NOTHING IS WRITTEN UNTIL SAVE. Every tap used to apply immediately here
 // while Pro staged and saved — one product, two habits. Generation goes
 // through POST /scenes/art, which stores nothing, exactly as /rooms/art does
@@ -13707,7 +13707,7 @@ function _saPreview(url){
          else { p.style.backgroundImage=''; p.classList.remove('has'); } }
   const rm=document.getElementById('scene-edit-clear'); if(rm) rm.style.display=url?'':'none';
   const up=document.getElementById('scene-edit-uplbl');
-  if(up) up.firstChild.nodeValue=(url?'Replace Image':'Upload Image');
+  if(up) up.firstChild.nodeValue='Use My Own';   // 1283 (Dave 11:08/11:09): one label, picture or not — "Just Use My Own"
 }
 function _psEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 // REGISTER 1281/1282 — REAL PHOTO SEARCH in every picture editor (Dave 10 Nov 08:33: "a search for anything not just a
@@ -13715,23 +13715,32 @@ function _psEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&am
 // (GET /photos/search — the source's name and links come from Core, so no page names it). The results take the styles
 // strip's place, each with its photographer. A picked photo goes through the editor's own pick, so
 // Save is what keeps it, exactly as a style.
-async function proosPhotoSearch(inputId, hostId, noteId, pickFn, btnId){
+async function proosPhotoSearch(inputId, hostId, noteId, pickFn, btnId, genFn){
   const q=((document.getElementById(inputId)||{}).value||'').trim();
   const host=document.getElementById(hostId), note=document.getElementById(noteId), btn=document.getElementById(btnId);
+  // REGISTER 1283 (Dave 10 Nov 11:06 "one button find"): ONE button. Real photos first, and always a last tile that makes a
+  // new picture from the same words with AI — so Find gives something even with no photo key or the hour's searches used.
+  const ai='<button type="button" data-gen="'+genFn+'" class="scene-edit-thumb ps-ai" onclick="_psMake(this.dataset.gen)"><span>✦ Create one with AI</span></button>';
   if(!q){ if(note) note.textContent='Type what you are looking for first — anything: a room, a view, a car.'; return; }
-  if(btn){ btn.disabled=true; btn.textContent='Searching…'; }
+  if(btn){ btn.disabled=true; btn.textContent='Finding…'; }
   try{
     const r=await fetch(proosCoreBase()+'/photos/search?q='+encodeURIComponent(q));
     const d=await r.json().catch(()=>({}));
-    if(d.error){ if(note) note.textContent=d.error; return; }
     const ph=d.photos||[];
-    if(!ph.length){ if(note) note.textContent='No photos found for "'+q+'" — try other words.'; return; }
+    if(d.error || !ph.length){
+      if(host) host.innerHTML=(ai);
+      if(note) note.textContent=(d.error||('No photos found for "'+q+'".'))+' Create one with AI instead — the last tile.';
+      return;
+    }
     window._psLast={photos:ph, source:d.source||{}, pick:pickFn, note:noteId};
-    if(host) (host.innerHTML=ph.map((p,i)=>'<button type="button" class="scene-edit-thumb ps-photo" title="'+_psEsc(p.alt||'')+'" style="background-image:url(\''+_psEsc(p.thumb)+'\')" onclick="_psPick('+i+')"><span class="ps-credit">'+_psEsc(p.credit||'')+'</span></button>').join(''));
-    if(note) (note.innerHTML='Photos from <a href="'+_psEsc((d.source||{}).url||'#')+'" target="_blank" rel="noopener" style="color:inherit">'+_psEsc((d.source||{}).name||'')+'</a> — tap one, then Save.');
-  }catch(e){ if(note) note.textContent=_coreFailWords('/photos/search',e); }
-  finally{ if(btn){ btn.disabled=false; btn.textContent='Search Photos'; } }
+    if(host) host.innerHTML=(ph.map((p,i)=>'<button type="button" class="scene-edit-thumb ps-photo" title="'+_psEsc(p.alt||'')+'" style="background-image:url(\''+_psEsc(p.thumb)+'\')" onclick="_psPick('+i+')"><span class="ps-credit">'+_psEsc(p.credit||'')+'</span></button>').join('')+ai);
+    if(note) note.innerHTML=('Photos from <a href="'+_psEsc((d.source||{}).url||'#')+'" target="_blank" rel="noopener" style="color:inherit">'+_psEsc((d.source||{}).name||'')+'</a> — tap one, then Save. Nothing right? The last tile creates one with AI.');
+  }catch(e){ if(host) host.innerHTML=(ai); if(note) note.textContent=_coreFailWords('/photos/search',e); }
+  finally{ if(btn){ btn.disabled=false; btn.textContent='Find'; } }
 }
+// 1283 — the "Create one with AI" tile runs the editor's own Generate, by a direct list (no name looked up at random)
+const _PS_MAKERS={sceneEditGenerate:()=>sceneEditGenerate()};
+function _psMake(k){ const f=_PS_MAKERS[k]; if(f) f(); }
 // 1282 — a photo is PICKED: the editor's own pick (Save keeps it, as a style), Unsplash told of the use (its rule), and the
 // credit it asks for: "Photo by <photographer> on <source>", both linked.
 function _psPick(i){
@@ -13749,7 +13758,7 @@ function openSceneEdit(eid){
   document.getElementById('scene-edit-name').value=nm;
   const gp=document.getElementById('scene-edit-photoq'); if(gp) gp.value='';
   const nt=document.getElementById('scene-edit-note');
-  if(nt) nt.textContent=_sceneCanGen?'':'No image key set — Generate will apply a matched style.';
+  if(nt) nt.textContent=_sceneCanGen?'':'No image key set — Create one with AI will apply a matched style.';
   // The picture showing right now: the override, else the curated standard.
   _saPreview(ov.photo || getScenePhoto(nm));
   // Styles come from Core, this scene's match first. No list is kept here.

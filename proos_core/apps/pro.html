@@ -1913,6 +1913,7 @@ body.aws-open .v2tabs{display:none!important}
   border-radius:11px;color:#fff;font-family:inherit;font-size:13px;padding:11px 13px}
 .ra-gen .btn-ghost{width:auto;padding:11px 16px;font-size:13px;flex:0 0 auto}
 .ps-photo{position:relative;overflow:hidden}
+.ps-ai{display:grid;place-items:center;background:linear-gradient(135deg,rgba(33,57,240,.55),rgba(140,90,255,.45))!important;color:#fff;font-size:12px;font-weight:600;text-align:center;padding:6px;cursor:pointer;border:0.5px solid rgba(255,255,255,.18)}
 .ps-credit{position:absolute;left:0;right:0;bottom:0;padding:3px 6px;font-size:10px;line-height:1.2;color:#fff;background:linear-gradient(transparent,rgba(0,0,0,.7));text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ra-gen .btn-primary{width:auto;padding:11px 20px;font-size:13px;flex:0 0 auto}
 .ra-or{font-size:11.5px;color:var(--t3);align-self:center;margin-left:2px}
@@ -3390,7 +3391,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111002';
+const PROOS_BUILD='2026111003';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -8481,23 +8482,32 @@ let _reBgFile=null, _reBgRemove=false, _reBgUrl=null;   // _reBgUrl: chosen styl
 // (GET /photos/search — the source's name and links come from Core, so no page names it). The results take the styles
 // strip's place, each with its photographer. A picked photo goes through the editor's own pick, so
 // Save is what keeps it, exactly as a style.
-async function proosPhotoSearch(inputId, hostId, noteId, pickFn, btnId){
+async function proosPhotoSearch(inputId, hostId, noteId, pickFn, btnId, genFn){
   const q=((document.getElementById(inputId)||{}).value||'').trim();
   const host=document.getElementById(hostId), note=document.getElementById(noteId), btn=document.getElementById(btnId);
+  // REGISTER 1283 (Dave 10 Nov 11:06 "one button find"): ONE button. Real photos first, and always a last tile that makes a
+  // new picture from the same words with AI — so Find gives something even with no photo key or the hour's searches used.
+  const ai='<button type="button" data-gen="'+genFn+'" class="ra-style ps-ai" onclick="_psMake(this.dataset.gen)"><span>✦ Create one with AI</span></button>';
   if(!q){ if(note) note.textContent='Type what you are looking for first — anything: a room, a view, a car.'; return; }
-  if(btn){ btn.disabled=true; btn.textContent='Searching…'; }
+  if(btn){ btn.disabled=true; btn.textContent='Finding…'; }
   try{
     const r=await fetch(proCoreUrl()+'/photos/search?q='+encodeURIComponent(q));
     const d=await r.json().catch(()=>({}));
-    if(d.error){ if(note) note.textContent=d.error; return; }
     const ph=d.photos||[];
-    if(!ph.length){ if(note) note.textContent='No photos found for "'+q+'" — try other words.'; return; }
+    if(d.error || !ph.length){
+      if(host) setHTML(host, ai);
+      if(note) note.textContent=(d.error||('No photos found for "'+q+'".'))+' Create one with AI instead — the last tile.';
+      return;
+    }
     window._psLast={photos:ph, source:d.source||{}, pick:pickFn, note:noteId};
-    if(host) setHTML(host, ph.map((p,i)=>'<button type="button" class="ra-style ps-photo" title="'+esc(p.alt||'')+'" style="background-image:url(\''+esc(p.thumb)+'\')" onclick="_psPick('+i+')"><span class="ps-credit">'+esc(p.credit||'')+'</span></button>').join(''));
-    if(note) setHTML(note, 'Photos from <a href="'+esc((d.source||{}).url||'#')+'" target="_blank" rel="noopener" style="color:inherit">'+esc((d.source||{}).name||'')+'</a> — tap one, then Save.');
-  }catch(e){ if(note) note.textContent=_coreFailWords('',e); }
-  finally{ if(btn){ btn.disabled=false; btn.textContent='Search Photos'; } }
+    if(host) setHTML(host, ph.map((p,i)=>'<button type="button" class="ra-style ps-photo" title="'+esc(p.alt||'')+'" style="background-image:url(\''+esc(p.thumb)+'\')" onclick="_psPick('+i+')"><span class="ps-credit">'+esc(p.credit||'')+'</span></button>').join('')+ai);
+    if(note) setHTML(note, 'Photos from <a href="'+esc((d.source||{}).url||'#')+'" target="_blank" rel="noopener" style="color:inherit">'+esc((d.source||{}).name||'')+'</a> — tap one, then Save. Nothing right? The last tile creates one with AI.');
+  }catch(e){ if(host) setHTML(host, ai); if(note) note.textContent=_coreFailWords('',e); }
+  finally{ if(btn){ btn.disabled=false; btn.textContent='Find'; } }
 }
+// 1283 — the "Create one with AI" tile runs the editor's own Generate, by a direct list (no name looked up at random)
+const _PS_MAKERS={roomBgGenerate:()=>roomBgGenerate(), sceneArtGenerate:()=>sceneArtGenerate()};
+function _psMake(k){ const f=_PS_MAKERS[k]; if(f) f(); }
 // 1282 — a photo is PICKED: the editor's own pick (Save keeps it, as a style), Unsplash told of the use (its rule), and the
 // credit it asks for: "Photo by <photographer> on <source>", both linked.
 function _psPick(i){
@@ -8527,7 +8537,7 @@ async function loadRoomBgStyles(){
   // curated image instead, which is a useful outcome, not an error.
   const note=document.getElementById('re-bg-note');
   if(note) note.innerHTML = (canGen===false)
-    ? 'No image key set — Generate will apply a matched style. <a href="#" onclick="closeRoomEdit();openTech();techTab(\'assist\');return false" style="color:#8fa0ff">Add a key</a>'
+    ? 'No image key set — Create one with AI will apply a matched style. <a href="#" onclick="closeRoomEdit();openTech();techTab(\'assist\');return false" style="color:#8fa0ff">Add a key</a>'
     : '';
   host.innerHTML=styles.slice(0,9).map(u=>
     '<button type="button" class="ra-style" style="background-image:url(\''+esc(u)+'\')" onclick="pickRoomBgStyle(\''+esc(u)+'\')"></button>').join('');
@@ -8608,9 +8618,9 @@ function openRoomEdit(areaId, keepAssign){
   document.getElementById('re-body').innerHTML = `<div class="field"><div class="field-label">Room Name</div><input id="re-name" type="text" value="${a?esc(a.name||''):''}" placeholder="e.g. Living Room" autocapitalize="words" autocomplete="off"/></div>`
     + `<div class="field"><div class="field-label">Background</div><div class="bg-prev${pic?' has':''}" id="re-bg-prev" style="${pic?`background-image:url('${esc(imgSize(pic,'512x512'))}')`:''}"><span class="bg-empty">No image</span></div><input type="file" id="re-bg-file" accept="image/*" style="display:none" onchange="onRoomBgPick(event)">`
       // describe → generate, exactly like Edit Scene
-      + `<div class="ra-gen"><input type="text" id="re-bg-desc" placeholder="Describe or search anything — e.g. Aston Martin at night, misty forest" autocomplete="off"/><button class="btn-primary" type="button" id="re-bg-genbtn" onclick="roomBgGenerate()">Generate</button><button class="btn-ghost" type="button" id="re-bg-searchbtn" onclick="proosPhotoSearch('re-bg-desc','re-bg-styles','re-bg-note','pickRoomBgStyle','re-bg-searchbtn')">Search Photos</button></div>`
+      + `<div class="ra-gen"><input type="text" id="re-bg-desc" placeholder="Describe or search anything — e.g. Aston Martin at night, misty forest" autocomplete="off" onkeydown="if(event.key==='Enter')document.getElementById('re-bg-findbtn').click()"/><button class="btn-primary" type="button" id="re-bg-findbtn" onclick="proosPhotoSearch('re-bg-desc','re-bg-styles','re-bg-note','pickRoomBgStyle','re-bg-findbtn','roomBgGenerate')">Find</button></div>`
       + `<div class="ra-note" id="re-bg-note"></div>`
-      + `<div class="bg-acts"><button class="bld-add" type="button" onclick="document.getElementById('re-bg-file').click()">${pic?'Replace Image':'Upload Image'}</button><button class="rp-cancel" type="button" id="re-bg-remove" onclick="clearRoomBg()" style="${pic?'':'display:none'}"><span class="rp-clear">Remove</span></button><span class="ra-or">or pick a style below</span></div>`
+      + `<div class="bg-acts"><button class="bld-add" type="button" onclick="document.getElementById('re-bg-file').click()">Use My Own</button><button class="rp-cancel" type="button" id="re-bg-remove" onclick="clearRoomBg()" style="${pic?'':'display:none'}"><span class="rp-clear">Remove</span></button><span class="ra-or">or pick a style below</span></div>`
       + `<div class="ra-styles" id="re-bg-styles"></div></div>`
     + tvAudioField;
   let acts = `<button class="btn-primary" onclick="saveRoomEdit()">${a?'Save':'Add Room'}</button>`;
@@ -8948,7 +8958,7 @@ async function hydrateSceneBackgrounds(){
 // Dave, 19 Aug: "copy same process and popup … mirror the room background
 // editor". Deliberately the same shape as openRoomEdit's Background field and
 // the same shape as the dashboard's, so there is ONE thing to learn:
-//   preview · describe → Generate · Replace Image · Remove · pick a style
+//   preview · describe → Find (photos, then Create one with AI) · Use My Own (1283) · Remove · pick a style
 // and NOTHING is written until Save. Generation goes through POST /scenes/art,
 // which stores nothing, exactly as /rooms/art does for a room.
 let _saEid=null, _saUrl=null, _saData=null, _saRemove=false;
@@ -8960,9 +8970,9 @@ function openSceneArt(eid){
   document.getElementById('sa-body').innerHTML =
       `<div class="field"><div class="field-label">Scene Name</div><input id="sa-name" type="text" value="${esc(nm)}" placeholder="e.g. Movie Night" autocapitalize="words" autocomplete="off"/></div>`
     + `<div class="field"><div class="field-label">Background</div><div class="bg-prev${cur?' has':''}" id="sa-prev" style="${cur?`background-image:url('${esc(imgSize(cur,'512x512'))}')`:''}"><span class="bg-empty">No image</span></div><input type="file" id="sa-file" accept="image/*" style="display:none" onchange="onSceneArtPick(event)">`
-      + `<div class="ra-gen"><input type="text" id="sa-desc" placeholder="Describe or search anything — e.g. Aston Martin at night, misty forest" autocomplete="off"/><button class="btn-primary" type="button" id="sa-genbtn" onclick="sceneArtGenerate()">Generate</button><button class="btn-ghost" type="button" id="sa-searchbtn" onclick="proosPhotoSearch('sa-desc','sa-styles','sa-note','pickSceneArtStyle','sa-searchbtn')">Search Photos</button></div>`
+      + `<div class="ra-gen"><input type="text" id="sa-desc" placeholder="Describe or search anything — e.g. Aston Martin at night, misty forest" autocomplete="off" onkeydown="if(event.key==='Enter')document.getElementById('sa-findbtn').click()"/><button class="btn-primary" type="button" id="sa-findbtn" onclick="proosPhotoSearch('sa-desc','sa-styles','sa-note','pickSceneArtStyle','sa-findbtn','sceneArtGenerate')">Find</button></div>`
       + `<div class="ra-note" id="sa-note"></div>`
-      + `<div class="bg-acts"><button class="bld-add" type="button" onclick="document.getElementById('sa-file').click()">${cur?'Replace Image':'Upload Image'}</button><button class="rp-cancel" type="button" id="sa-remove" onclick="clearSceneArt()" style="${cur?'':'display:none'}"><span class="rp-clear">Remove</span></button><span class="ra-or">or pick a style below</span></div>`
+      + `<div class="bg-acts"><button class="bld-add" type="button" onclick="document.getElementById('sa-file').click()">Use My Own</button><button class="rp-cancel" type="button" id="sa-remove" onclick="clearSceneArt()" style="${cur?'':'display:none'}"><span class="rp-clear">Remove</span></button><span class="ra-or">or pick a style below</span></div>`
       + `<div class="ra-styles" id="sa-styles"></div></div>`;
   document.getElementById('sa-actions').innerHTML =
       `<button class="btn-primary" onclick="saveSceneArt()">Save</button>`
@@ -8982,7 +8992,7 @@ async function loadSceneArtStyles(nm){
   }catch(e){}
   const note=document.getElementById('sa-note');
   if(note) note.innerHTML=(canGen===false)
-    ? 'No image key set — Generate will apply a matched style. <a href="#" onclick="closeSceneArt();openTech();techTab(\'assist\');return false" style="color:#8fa0ff">Add a key</a>'
+    ? 'No image key set — Create one with AI will apply a matched style. <a href="#" onclick="closeSceneArt();openTech();techTab(\'assist\');return false" style="color:#8fa0ff">Add a key</a>'
     : '';
   // No styles means Core did not answer. Say so; do not draw a grid of
   // pictures from a list kept in this file — there is no such list any more.
@@ -14536,8 +14546,8 @@ async function techViewAssist(view){
     +'<div class="field"><div class="field-label">Model (blank = recommended default)</div><input id="as-model" class="set-input" type="text" value="'+esc(st.model||'')+'" autocapitalize="off" autocorrect="off" spellcheck="false"/></div>'
     +'<div class="field"><div class="field-label" id="as-key-label">API key</div><input id="as-key" class="set-input" type="password" autocomplete="new-password" placeholder="sk-…"/><div class="field-hint" id="as-key-hint"></div></div>'
     +'<div class="field"><div class="field-label">Scene image key — OpenAI, optional '+(st.has_image_key?'(saved — blank to keep)':'')+'</div><input id="as-imgkey" class="set-input" type="password" autocomplete="new-password" placeholder="'+(st.has_image_key?'••••••••':'sk-… (for AI-generated scene photos)')+'"/><div class="field-hint">Lets the assistant generate a bespoke photo per scene. Only needed if the assistant isn\'t already on OpenAI.</div></div>'
-    // REGISTER 1281: the Pexels key for Search Photos in every picture editor (areas, Home, scenes). Kept on the box.
-    +'<div class="field"><div class="field-label">Photo Search Key — Unsplash Access Key '+(st.has_photo_key?'(saved — blank to keep)':'')+'</div><input id="as-photokey" class="set-input" type="password" autocomplete="new-password" placeholder="'+(st.has_photo_key?'••••••••':'The Access Key (not the Secret Key)')+'"/><div class="field-hint">Lets Search Photos find real, watermark-free photos of anything. From your application\'s page on the Unsplash developer site.</div></div>'
+    // REGISTER 1281/1282/1283: the Unsplash key for Find in every picture editor (areas, Home, scenes). Kept on the box.
+    +'<div class="field"><div class="field-label">Photo Search Key — Unsplash Access Key '+(st.has_photo_key?'(saved — blank to keep)':'')+'</div><input id="as-photokey" class="set-input" type="password" autocomplete="new-password" placeholder="'+(st.has_photo_key?'••••••••':'The Access Key (not the Secret Key)')+'"/><div class="field-hint">Lets Find show real, watermark-free photos of anything. From your application\'s page on the Unsplash developer site.</div></div>'
     +'<div style="display:flex;gap:8px;margin-top:10px"><button class="btn-primary" onclick="assistSaveCfg()">Save</button>'
     +'<button class="btn-ghost" onclick="assistTestCfg()">Test</button></div>'
     +'<div id="as-out" class="wiz-hint" style="margin-top:10px"></div>'
