@@ -5941,6 +5941,22 @@ def _journal_emit_safe(area, kind, data):
         pass
 
 
+_PAGE_GZ: dict = {}          # register 1296: {path: (sha of the page, compressed bytes)}
+
+
+def _page_gzip(fp, data):
+    """The app page compressed, once per version of the page (a new Core or a page update changes its bytes)."""
+    import gzip as _gzip
+    import hashlib as _hl
+    key = _hl.sha256(data).hexdigest()
+    got = _PAGE_GZ.get(fp)
+    if got and got[0] == key:
+        return got[1]
+    z = _gzip.compress(data, compresslevel=6)
+    _PAGE_GZ[fp] = (key, z)
+    return z
+
+
 class Handler(BaseHTTPRequestHandler):
     def _send_res(self, res: dict):
         """A store's answer: 400 with its own words when it refused, 200 otherwise (register 1049)."""
@@ -7141,10 +7157,18 @@ class Handler(BaseHTTPRequestHandler):
                     self.send_header("Content-Length", "0")
                     self.end_headers()
                     return True
+                # REGISTER 1296: read on Dave's box 11 Nov, /pro went out as 2,017,361 bytes uncompressed whenever the
+                # page had changed; compressed, about 650 KB. Same fingerprint, so "unchanged" still answers as before.
+                _gz = "gzip" in (self.headers.get("Accept-Encoding") or "").lower()
+                if _gz:
+                    data = _page_gzip(fp + "#door", data)
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.send_header("Cache-Control", "no-cache")
                 self.send_header("ETag", etag)
+                if _gz:
+                    self.send_header("Content-Encoding", "gzip")
+                    self.send_header("Vary", "Accept-Encoding")
                 self.send_header("Content-Length", str(len(data)))
                 self.end_headers()
                 self.wfile.write(data)
@@ -7204,10 +7228,18 @@ class Handler(BaseHTTPRequestHandler):
                             data = fh.read()
                     except Exception:
                         return self._send(404, {"error": "app not shipped"})
+                    # REGISTER 1296: read on Dave's box, /app/pro went out as 2,017,361 bytes with no compression on every
+                    # open; compressed it is about 650 KB. Compressed once per page version, kept in memory.
+                    _gz = "gzip" in (self.headers.get("Accept-Encoding") or "").lower()
+                    if _gz:
+                        data = _page_gzip(fp, data)
                     self.send_response(200)
                     self.send_header("Content-Type",
                                      "text/html; charset=utf-8")
                     self.send_header("Cache-Control", "no-store")
+                    if _gz:
+                        self.send_header("Content-Encoding", "gzip")
+                        self.send_header("Vary", "Accept-Encoding")
                     self.send_header("Content-Length", str(len(data)))
                     self.end_headers()
                     self.wfile.write(data)
