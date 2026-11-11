@@ -296,10 +296,12 @@ class Watcher:
         A ProOS driver copy's "<device> Connection" sensor is the SAME integration reporting on itself; the UniFi
         controller seeing the device as a client on the network is a second, independent instrument. Read on Dave's
         box: 29 watched devices leaned on a Connection sensor, 28 of them also have a UniFi client tracker. With the
-        tracker preferred, those copies can be retired without a single device losing its second signal."""
+        tracker preferred, those copies can be retired without a single device losing its second signal.
+        Matched by MAC ("unifi_tracker_mac") or by address ("unifi_tracker") — 1.0.1409 knew only the second, and on
+        Dave's box every one of the 28 is matched by MAC, so none moved (read 20:45)."""
         inline = w.get("reach")
         mapped = self.reach_map.get(w["entity"])
-        if inline and inline.get("sensor") and mapped and mapped.get("via") == "unifi_tracker" and mapped.get("sensor"):
+        if inline and inline.get("sensor") and mapped and str(mapped.get("via") or "").startswith("unifi_tracker") and mapped.get("sensor"):
             return mapped, "config"
         if inline:
             return inline, "device"
