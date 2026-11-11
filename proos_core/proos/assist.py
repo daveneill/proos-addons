@@ -520,6 +520,51 @@ def _safe_trim(msgs, limit):
         keep.append(m)
         i += 1
     return keep
+
+
+# A CONVERSATION BEGUN UNDER THE OTHER AI (register 1294, 11 Nov 2026). Read on Dave's box: all 12 overnight
+# Health hand-offs at 3:16 am failed under Claude with "provider HTTP 400: messages: Unexpected role 'tool'" — the
+# sessions held tool exchanges saved while Assist ran on ChatGPT, and _chat_claude passed them straight through.
+# Claude's own exchanges (content blocks) pass untouched; the OTHER provider's tool exchanges become plain words —
+# what was asked of which tool and what came back — so the conversation keeps its sense and Claude accepts it.
+_FOREIGN_RESULT_MAX = 1500
+
+
+def _as_claude_history(history):
+    out = []
+
+    def _add(role, text):
+        if out and out[-1]["role"] == role and isinstance(out[-1]["content"], str):
+            out[-1] = {"role": role, "content": out[-1]["content"] + "\n" + text}
+        else:
+            out.append({"role": role, "content": text})
+
+    for m in history or []:
+        if not isinstance(m, dict):
+            continue
+        role, content = m.get("role"), m.get("content")
+        if role == "tool":
+            text = content if isinstance(content, str) else json.dumps(content)
+            _add("user", "[Earlier tool result: " + (text or "")[:_FOREIGN_RESULT_MAX] + "]")
+        elif role == "assistant" and m.get("tool_calls"):
+            said = content if isinstance(content, str) else ""
+            used = ", ".join(((c.get("function") or {}).get("name") or "a tool") + "("
+                             + ((c.get("function") or {}).get("arguments") or "") + ")"
+                             for c in m.get("tool_calls") or [])
+            _add("assistant", ((said + "\n") if said else "") + "[Earlier I used: " + used + "]")
+        elif role in ("user", "assistant"):
+            if isinstance(content, list):
+                if out and out[-1]["role"] == role:          # two in a row: join, Claude wants turns to alternate
+                    prev = out[-1]["content"]
+                    prev = [{"type": "text", "text": prev}] if isinstance(prev, str) else list(prev)
+                    out[-1] = {"role": role, "content": prev + content}
+                else:
+                    out.append({"role": role, "content": content})
+            elif content:
+                _add(role, str(content))
+    return out
+
+
 # ROOM TO FINISH A REAL JOB (19 Aug 2026, register 228). Eight was
 # measured against the job Dave watched a Developer session do by hand:
 # read the speaker · write the script · run it · read the devices back ·
@@ -7425,7 +7470,7 @@ def _chat_claude(cfg, doctrine, context, history, runner):
     # re-read as normal on every round but the one after an ask.
     tools = _claude_tools(runner)
     system = _claude_system(doctrine, context)
-    messages = list(history)
+    messages = _as_claude_history(history)            # register 1294: the other AI's exchanges as words
     # WHERE THE TIME GOES (register 484). Dave: "everything is taking so long
     # ... it sometimes gets up to 7-8 steps then does something then voice
     # comes like 10 seconds later." Nothing in Core recorded how long a turn
