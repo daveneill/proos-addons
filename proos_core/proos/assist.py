@@ -529,6 +529,12 @@ def _safe_trim(msgs, limit):
 # what was asked of which tool and what came back — so the conversation keeps its sense and Claude accepts it.
 _FOREIGN_RESULT_MAX = 1500
 
+# ROOM FOR A WHOLE ROUND (register 1300, 12 Nov 2026). Read on Dave's box (/assist/heard): two of the nine overnight
+# Health hand-offs (3:55, 3:57 am) ended "I ran out of room part-way through that one" — a round writing a long fault
+# report and then a tool call ran past 2,048 tokens, so the half-written call was rightly dropped (467) and the job
+# stopped. The reply streams (487), so a higher cap costs no waiting; only the words actually written are paid for.
+_CLAUDE_ROUND_TOKENS = 8192
+
 
 def _as_claude_history(history):
     out = []
@@ -7525,7 +7531,7 @@ def _chat_claude(cfg, doctrine, context, history, runner):
         tools = _claude_tools(runner)          # register 489: may have widened
         _t0 = time.time()
         resp = _http_stream_claude("https://api.anthropic.com/v1/messages",
-                          {"model": model, "max_tokens": 2048, "system": system,
+                          {"model": model, "max_tokens": _CLAUDE_ROUND_TOKENS, "system": system,   # 1300
                            "messages": _with_cache_tail(messages),
                            "tools": _with_web(tools, runner, cfg)},      # 970mm: + the provider's web search
                           {"x-api-key": cfg.get("api_key") or "",
