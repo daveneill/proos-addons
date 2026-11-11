@@ -2341,7 +2341,8 @@ class ActivityPublisher:
             _hs = "".join(x["t"] for x in _hsegs) if _hsegs else None
             self._publish("sensor.proos_home_summary",
                           "ok" if (_hel or _hs) else "empty",
-                          {"area": (_home or {}).get("name") or "",
+                          {"friendly_name": "ProOS Home Summary",   # 1307: its name (was read as "Proos Home Summary")
+                           "area": (_home or {}).get("name") or "",
                            "area_id": (_home or {}).get("area_id"),
                            "env_line": _hel,
                            "home_sentence": _hs,
