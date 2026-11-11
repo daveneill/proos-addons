@@ -1,7 +1,6 @@
 {
   "domain": "apple_tv",
   "name": "Apple TV",
-  "version": "0.18.0+proos.9",
   "codeowners": [
     "@postlund",
     "@protech-proos"
@@ -64,5 +63,6 @@
       },
       "type": "_raop._tcp.local."
     }
-  ]
+  ],
+  "version": "0.18.0+proos.11"
 }

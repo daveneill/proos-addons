@@ -65,11 +65,33 @@ def shipped(src: str | None = None) -> dict:
     return out
 
 
-def install(config_dir: str | None = None, src: str | None = None) -> dict:
-    """Converge each shipped driver into <config>/custom_components/<domain>/."""
+def _release(v) -> str:
+    """'2026.10.3' -> '2026.10' — the platform's monthly release (an integration changes on the monthly, not the patch)."""
+    parts = str(v or "").strip().split(".")
+    return ".".join(parts[:2]) if len(parts) >= 2 else ""
+
+
+def base_of(drv) -> str:
+    """A PATCH build's platform release (its PROOS_BASE file, register 1301); '' for a driver that is not a patch build."""
+    return (drv.get("files", {}).get("PROOS_BASE") or b"").decode("utf-8", "replace").strip()
+
+
+def install(config_dir: str | None = None, src: str | None = None, platform_version: str | None = None) -> dict:
+    """Converge each shipped driver into <config>/custom_components/<domain>/.
+
+    REGISTER 1301 (the design §3 "Patch"): a PATCH build carries the platform release it was built on (PROOS_BASE). It is
+    installed only when the box's platform is on that release. On any other release it is HELD BACK — and a ProOS copy
+    already in place is moved aside like a retired one — so the platform's own integration runs, never a build made
+    for a different platform. An unknown platform version installs as before and says it could not tell."""
     cc = os.path.join(config_dir or HA_CONFIG, "custom_components")
-    result = {"dest": cc, "installed": [], "current": [], "errors": [], "versions": {}, "at": time.time()}
+    result = {"dest": cc, "installed": [], "current": [], "errors": [], "versions": {}, "at": time.time(),
+              "held_back": [], "platform": platform_version or None}
     for dom, drv in shipped(src).items():
+        base = base_of(drv)
+        if base and platform_version and _release(base) != _release(platform_version):
+            result["held_back"].append({"domain": dom, "built_on": base, "platform": platform_version,
+                                        "moved": retire(config_dir, domains=(dom,))})
+            continue                      # not in "versions": the platform's own is what should be running
         result["versions"][dom] = drv["version"]
         changed = False
         for rel, want in drv["files"].items():
@@ -184,6 +206,7 @@ def state(ws_call=None, force: bool = False) -> dict:
           "errors": (dict(_last).get("errors") if _last else []) or [],
           "restart_needed": bool(waiting), "words": words,
           "handed_back": handed_back, "retired_waiting": still_copy,
-          "retired_this_boot": (dict(_last).get("retired") if _last else []) or []}
+          "retired_this_boot": (dict(_last).get("retired") if _last else []) or [],
+          "held_back": (dict(_last).get("held_back") if _last else []) or []}
     _cache.update(at=now, state=st)
     return st

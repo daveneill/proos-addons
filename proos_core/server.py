@@ -13339,7 +13339,15 @@ def main():
                 # platform's drivers converge into custom_components on every boot — install when different, leave
                 # alone when identical; the platform loads them on its next start, and /health says until it has.
                 if _drivers is not None:
-                    _dv = _drivers.install()
+                    # 1301: a patch build installs only on the platform release it was built on — asked of the platform
+                    try:
+                        _pv = (_ws_call("get_config") or {}).get("version")
+                    except Exception:                            # noqa: BLE001
+                        _pv = None
+                    _dv = _drivers.install(platform_version=_pv)
+                    for _hb in _dv.get("held_back") or []:
+                        print(f"  drivers · {_hb['domain']} held back: built on {_hb['built_on']}, platform is "
+                              f"{_hb['platform']} — the platform's own runs until it is rebuilt")
                     if _dv.get("installed"):
                         print(f"  drivers \u00b7 installed {', '.join(_dv['installed'])} -> {_dv['dest']}")
                     else:

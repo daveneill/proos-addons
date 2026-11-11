@@ -1,9 +1,9 @@
 """Define services for the Apple TV integration."""
 
+import probatio
 from pyatv.const import KeyboardFocusState
 from pyatv.exceptions import NotSupportedError, ProtocolError
 from pyatv.interface import AppleTV as AppleTVInterface
-import voluptuous as vol
 
 from homeassistant.const import ATTR_CONFIG_ENTRY_ID
 from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse, callback
@@ -13,25 +13,25 @@ from homeassistant.helpers import config_validation as cv, service
 from .const import ATTR_TEXT, DOMAIN
 
 SERVICE_SET_KEYBOARD_TEXT = "set_keyboard_text"
-SERVICE_SET_KEYBOARD_TEXT_SCHEMA = vol.Schema(
+SERVICE_SET_KEYBOARD_TEXT_SCHEMA = probatio.Schema(
     {
-        vol.Required(ATTR_CONFIG_ENTRY_ID): cv.string,
-        vol.Required(ATTR_TEXT): cv.string,
+        probatio.Required(ATTR_CONFIG_ENTRY_ID): cv.string,
+        probatio.Required(ATTR_TEXT): cv.string,
     }
 )
 
 SERVICE_APPEND_KEYBOARD_TEXT = "append_keyboard_text"
-SERVICE_APPEND_KEYBOARD_TEXT_SCHEMA = vol.Schema(
+SERVICE_APPEND_KEYBOARD_TEXT_SCHEMA = probatio.Schema(
     {
-        vol.Required(ATTR_CONFIG_ENTRY_ID): cv.string,
-        vol.Required(ATTR_TEXT): cv.string,
+        probatio.Required(ATTR_CONFIG_ENTRY_ID): cv.string,
+        probatio.Required(ATTR_TEXT): cv.string,
     }
 )
 
 SERVICE_CLEAR_KEYBOARD_TEXT = "clear_keyboard_text"
-SERVICE_CLEAR_KEYBOARD_TEXT_SCHEMA = vol.Schema(
+SERVICE_CLEAR_KEYBOARD_TEXT_SCHEMA = probatio.Schema(
     {
-        vol.Required(ATTR_CONFIG_ENTRY_ID): cv.string,
+        probatio.Required(ATTR_CONFIG_ENTRY_ID): cv.string,
     }
 )
 
@@ -188,23 +188,23 @@ async def _proos_language_option(call: ServiceCall) -> None:
     await _run(_proos(call).proos.language_option(dict(call.data["option"]), bool(call.data.get("enable", True))))
 
 
-_ENTRY = {vol.Required(ATTR_CONFIG_ENTRY_ID): cv.string}
+_ENTRY = {probatio.Required(ATTR_CONFIG_ENTRY_ID): cv.string}
 PROOS_SERVICES = {
-    "proos_state": (_proos_state, vol.Schema({**_ENTRY, vol.Optional("include"): [cv.string]}), SupportsResponse.ONLY),
-    "proos_key": (_proos_key, vol.Schema({**_ENTRY, vol.Required("key"): cv.string,
-                                          vol.Optional("action", default="tap"): vol.In(["tap", "double", "hold", "down", "up"])}), SupportsResponse.NONE),
-    "proos_touch": (_proos_touch, vol.Schema({**_ENTRY, vol.Required("kind"): vol.In(["swipe", "press", "hold", "release", "click"]),
-                                              vol.Optional("x"): vol.Coerce(int), vol.Optional("y"): vol.Coerce(int),
-                                              vol.Optional("x2"): vol.Coerce(int), vol.Optional("y2"): vol.Coerce(int),
-                                              vol.Optional("duration_ms"): vol.Coerce(int),
-                                              vol.Optional("action"): vol.In(["tap", "double", "hold"])}), SupportsResponse.NONE),
-    "proos_media": (_proos_media, vol.Schema({**_ENTRY, vol.Required("command"): cv.string,
-                                              vol.Optional("seconds"): vol.Coerce(float)}), SupportsResponse.NONE),
-    "proos_switch_account": (_proos_switch_account, vol.Schema({**_ENTRY, vol.Required("account_id"): cv.string}), SupportsResponse.NONE),
-    "proos_captions": (_proos_captions, vol.Schema({**_ENTRY, vol.Optional("settings"): dict}), SupportsResponse.ONLY),
-    "proos_play_queue_item": (_proos_play_queue_item, vol.Schema({**_ENTRY, vol.Required("item_id"): cv.string}), SupportsResponse.NONE),
-    "proos_language_option": (_proos_language_option, vol.Schema({**_ENTRY, vol.Required("option"): dict,
-                                                                   vol.Optional("enable", default=True): cv.boolean}), SupportsResponse.NONE),
+    "proos_state": (_proos_state, probatio.Schema({**_ENTRY, probatio.Optional("include"): [cv.string]}), SupportsResponse.ONLY),
+    "proos_key": (_proos_key, probatio.Schema({**_ENTRY, probatio.Required("key"): cv.string,
+                                          probatio.Optional("action", default="tap"): probatio.In(["tap", "double", "hold", "down", "up"])}), SupportsResponse.NONE),
+    "proos_touch": (_proos_touch, probatio.Schema({**_ENTRY, probatio.Required("kind"): probatio.In(["swipe", "press", "hold", "release", "click"]),
+                                              probatio.Optional("x"): probatio.Coerce(int), probatio.Optional("y"): probatio.Coerce(int),
+                                              probatio.Optional("x2"): probatio.Coerce(int), probatio.Optional("y2"): probatio.Coerce(int),
+                                              probatio.Optional("duration_ms"): probatio.Coerce(int),
+                                              probatio.Optional("action"): probatio.In(["tap", "double", "hold"])}), SupportsResponse.NONE),
+    "proos_media": (_proos_media, probatio.Schema({**_ENTRY, probatio.Required("command"): cv.string,
+                                              probatio.Optional("seconds"): probatio.Coerce(float)}), SupportsResponse.NONE),
+    "proos_switch_account": (_proos_switch_account, probatio.Schema({**_ENTRY, probatio.Required("account_id"): cv.string}), SupportsResponse.NONE),
+    "proos_captions": (_proos_captions, probatio.Schema({**_ENTRY, probatio.Optional("settings"): dict}), SupportsResponse.ONLY),
+    "proos_play_queue_item": (_proos_play_queue_item, probatio.Schema({**_ENTRY, probatio.Required("item_id"): cv.string}), SupportsResponse.NONE),
+    "proos_language_option": (_proos_language_option, probatio.Schema({**_ENTRY, probatio.Required("option"): dict,
+                                                                   probatio.Optional("enable", default=True): cv.boolean}), SupportsResponse.NONE),
 }
 
 
