@@ -289,9 +289,24 @@ class Watcher:
                         for w in watches}
 
     # -- signals ------------------------------------------------------------
+    def _reach_pick(self, w):
+        """(spec, source). Inline reach wins; else the config map keyed by entity; else None.
+
+        REGISTER 1297 (11 Nov 2026, the design's item 3): EXCEPT that the network's own view beats the integration's.
+        A ProOS driver copy's "<device> Connection" sensor is the SAME integration reporting on itself; the UniFi
+        controller seeing the device as a client on the network is a second, independent instrument. Read on Dave's
+        box: 29 watched devices leaned on a Connection sensor, 28 of them also have a UniFi client tracker. With the
+        tracker preferred, those copies can be retired without a single device losing its second signal."""
+        inline = w.get("reach")
+        mapped = self.reach_map.get(w["entity"])
+        if inline and inline.get("sensor") and mapped and mapped.get("via") == "unifi_tracker" and mapped.get("sensor"):
+            return mapped, "config"
+        if inline:
+            return inline, "device"
+        return mapped, ("config" if mapped else None)
+
     def _reach_spec(self, w):
-        """Inline reach wins; else the config map keyed by entity; else None."""
-        return w.get("reach") or self.reach_map.get(w["entity"])
+        return self._reach_pick(w)[0]
 
     def reach_specs(self):
         """Per watched device: the second-signal spec ACTUALLY in use, where it
@@ -312,12 +327,10 @@ class Watcher:
         """
         out = []
         for w in self.watches:
-            inline = w.get("reach")
-            spec = inline or self.reach_map.get(w["entity"])
+            spec, source = self._reach_pick(w)                 # 1297: one rule, here and in _reach_spec
             out.append({"entity": w["entity"], "name": w.get("name"),
                         "area": w.get("area"), "spec": spec,
-                        "source": ("device" if inline else
-                                   "config" if spec else None),
+                        "source": source,
                         "sensor": (spec or {}).get("sensor"),
                         "ip": (spec or {}).get("ip"),
                         "witness": _is_witness(spec)})
