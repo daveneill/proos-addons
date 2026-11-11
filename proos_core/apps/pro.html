@@ -3394,7 +3394,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111005';
+const PROOS_BUILD='2026111101';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -20862,7 +20862,7 @@ function v2Stream(){
       try{ _proosBusHandle(d); }catch(e){}   // the awareness screens' handler — the same bus, the one stream (register 895)
       if(d.kind==='presence') v2Presence(d.devices||[]);
       if(d.kind==='hello'&&typeof d.incidents==='number') v2Badge(d.incidents);
-      if(d.kind==='incidents'){ v2Badge(d.count||0); if(_v2panel==='home') renderHealth(); }
+      if(d.kind==='incidents'){ v2Badge(d.count||0); if(_v2panel==='home') renderHealthSoon(); }   // 1295: not a full re-download per message
       if(d.kind==='journal'&&d.event){
         // live: refresh whatever view is watching this room
         if(_v2panel==='home') renderHealthSoon();
@@ -20964,8 +20964,19 @@ async function saveSweepTime(){
 }
 // ── HEALTH — the new home ─────────────────────────────────────────────────
 let _hltT=null, _hltInc=[];
-function renderHealthSoon(){ clearTimeout(_hltT); _hltT=setTimeout(renderHealth,400); }
-async function renderHealth(){
+// REGISTER 1295 (11 Nov 2026). Read on Dave's box with Health open: /api/states — every entity, ~100 KB — fetched 33 times in
+// 40 s (5.6 MB), because every 'incidents' message on the stream called renderHealth() straight away. Repaints the stream
+// or the 15 s heartbeat asks for now share one read of the states for 14 s; a repaint the installer asks for (a fix,
+// an acknowledge, opening Health) still reads fresh.
+let _hltSt=null, _hltStAt=0, _hltStP=null;
+function _hltStates(cached){
+  if(cached&&_hltSt&&Date.now()-_hltStAt<14000) return Promise.resolve(_hltSt);
+  if(_hltStP) return _hltStP;
+  _hltStP=Promise.resolve(haRest('GET','/api/states')).then(x=>{ _hltSt=x||[]; _hltStAt=Date.now(); return _hltSt; }).finally(()=>{ _hltStP=null; });
+  return _hltStP;
+}
+function renderHealthSoon(){ clearTimeout(_hltT); _hltT=setTimeout(()=>renderHealth({cached:true}),400); }
+async function renderHealth(opt){
   const stats=document.getElementById('hlt-stats'); if(!stats) return;
   // Master Log: fetch when empty; event-driven repaints don't refetch (the
   // SSE hook + the visibility/watchdog resyncs of register 116 own currency).
@@ -20976,7 +20987,7 @@ async function renderHealth(){
   try{ const r=await fetch(proCoreUrl()+'/health/incidents'); if(r.ok){ inc=(await r.json()).incidents||[]; incOk=true; } }catch(e){}
   _hltInc=inc;
   try{
-    allst=await haRest('GET','/api/states')||[];
+    allst=await _hltStates(!!(opt&&opt.cached))||[];   // 1295
     // ONE DEFINITION OF "THE ROOMS" (Room Status Spec §3: "Pro shows what
     // Assist sees… one definition of what is in a room, shared by Assist,
     // Pro, the dashboard and the control tools. Divergence here is the
@@ -23529,7 +23540,7 @@ async function v3Software(){
   }catch(e){}
   v2Render();
   setTimeout(()=>{ v2Beat(); v2Stream(); renderHealth(); },1200);
-  setInterval(()=>{ if(_v2panel==='home'&&!document.hidden) renderHealth(); },15000);
+  setInterval(()=>{ if(_v2panel==='home'&&!document.hidden) renderHealth({cached:true}); },15000);   // 1295
 })();
 
 // ── boot ──
