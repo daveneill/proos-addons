@@ -86,10 +86,21 @@ def install(config_dir: str | None = None, src: str | None = None, platform_vers
     cc = os.path.join(config_dir or HA_CONFIG, "custom_components")
     result = {"dest": cc, "installed": [], "current": [], "errors": [], "versions": {}, "at": time.time(),
               "held_back": [], "platform": platform_version or None}
-    for dom, drv in shipped(src).items():
+    # 1303: a patch driver may ship one build per platform release — folder "<domain>@<release>" beside "<domain>".
+    # The build made for the box's release is the one installed; the rest are never written.
+    groups: dict = {}
+    for key, drv in shipped(src).items():
+        groups.setdefault(key.split("@", 1)[0], []).append(drv)
+    for dom, cands in groups.items():
+        drv = cands[0]
+        if platform_version:
+            match = [c for c in cands if base_of(c) and _release(base_of(c)) == _release(platform_version)]
+            plain = [c for c in cands if not base_of(c)]
+            drv = (match or plain or cands)[0]
         base = base_of(drv)
         if base and platform_version and _release(base) != _release(platform_version):
-            result["held_back"].append({"domain": dom, "built_on": base, "platform": platform_version,
+            result["held_back"].append({"domain": dom, "built_on": ", ".join(sorted(base_of(c) for c in cands)),
+                                        "platform": platform_version,
                                         "moved": retire(config_dir, domains=(dom,))})
             continue                      # not in "versions": the platform's own is what should be running
         result["versions"][dom] = drv["version"]
@@ -172,7 +183,7 @@ def state(ws_call=None, force: bool = False) -> dict:
     now = time.time()
     if not force and _cache["state"] and now - _cache["at"] < 60:
         return _cache["state"]
-    vers = (dict(_last).get("versions") if _last else None) or {d: v["version"] for d, v in shipped().items()}
+    vers = (dict(_last).get("versions") if _last else None) or {d: v["version"] for d, v in shipped().items() if "@" not in d}
     loaded, waiting, unknown = [], [], []
     for dom, want in sorted(vers.items()):
         if ws_call is None:
