@@ -1070,13 +1070,40 @@ class ActivityPublisher:
             except Exception:                                    # noqa: BLE001
                 pass
         try:
-            self.client._req("POST", "/api/states/%s" % eid,
-                             {"state": state, "attributes": attrs})
+            if eid.startswith("sensor.proos_") and self._door_owns_states():
+                # 1306: ProOS's own integration owns these as real entities — Core announces the reading
+                self.client._req("POST", "/api/events/proos_state",
+                                 {"entity_id": eid, "state": state, "attributes": attrs})
+            else:
+                self.client._req("POST", "/api/states/%s" % eid,
+                                 {"state": state, "attributes": attrs})
             self._last[eid] = state
             self._lastattrs[eid] = sig
             print("  [ctlbridge] %s -> %s" % (eid, state), flush=True)
         except Exception as e:                                   # noqa: BLE001
             print("  [ctlbridge] publish %s failed: %s" % (eid, e), flush=True)
+
+    _DOOR_STATES_BUILD = 8          # 1306: the first door build that owns sensor.proos_* as real entities
+    _door_seen = (0.0, False)
+
+    def _door_owns_states(self) -> bool:
+        """Is the door build that owns ProOS's sensors the one RUNNING in the platform? Asked of the door itself, at
+        most once a minute. Until it is (files installed, restart not yet done), Core writes the bare state as before."""
+        at, yes = self._door_seen
+        if time.time() - at < 60:
+            return yes
+        try:
+            got = self.client._req("GET", "/api/proos/") or {}
+            yes = int(str((got if isinstance(got, dict) else {}).get("proos_door") or 0)) >= self._DOOR_STATES_BUILD
+        except Exception:                                        # noqa: BLE001
+            yes = False
+        if yes and not self._door_seen[1]:
+            # the door has just started owning them: send every room's reading once (Core sends only on change), so
+            # each bare state becomes a real entity now, not whenever that room next changes
+            self._last.clear()
+            self._lastattrs.clear()
+        self._door_seen = (time.time(), yes)
+        return yes
 
     def attach_feed(self, feed) -> int:
         """Hand the Savant feed to the publisher AND PRIME IT (register 633,
@@ -1922,7 +1949,16 @@ class ActivityPublisher:
                         _valid.add(_aid)
                 for _eid in self._ghost_sensors(snapall, _valid):
                     try:
-                        self.client._req("DELETE", "/api/states/%s" % _eid)
+                        if self._door_owns_states():
+                            # 1306: a real entity ProOS's own integration owns — it leaves the register (ProOS's own
+                            # sensor for a room that no longer exists; nothing of the house is removed)
+                            from .ha_ws import ws_command
+                            from .live_ha import registry_written
+                            registry_written()
+                            ws_command(self.client.base_url, self.client._token,
+                                       "config/entity_registry/remove", entity_id=_eid)
+                        else:
+                            self.client._req("DELETE", "/api/states/%s" % _eid)
                         self._last.pop(_eid, None)
                         self._lastattrs.pop(_eid, None)
                         if self.feed is not None:

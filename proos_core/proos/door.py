@@ -44,14 +44,16 @@ import time
 
 # Bumped ONLY when the integration's own code below changes — a Core
 # update that leaves the door alone must not ask for a restart.
-DOOR_BUILD = "7"
+DOOR_BUILD = "8"
 DOMAIN = "proos"
 # REGISTER 928 (door build 3): conversation.py — "ProOS Assist", the platform's
 # own way of plugging an assistant into its voice pipeline, so a room's own
 # microphone (the G-Flip panel) reaches Core's Assist with its room.
 # REGISTER 1259 (door build 6): presence.py — the box announces itself on the network as ProOS, through the
 # platform's own announcer, and (only when Core says so) stops the platform announcing itself.
-DOOR_FILES = ("manifest.json", "__init__.py", "config_flow.py", "conversation.py", "presence.py")
+# REGISTER 1306 (door build 8): sensor.py — ProOS's room states (sensor.proos_*) become REAL entities owned by this
+# integration instead of bare states Core writes into the platform's state list (the design's Stage D, item 16).
+DOOR_FILES = ("manifest.json", "__init__.py", "config_flow.py", "conversation.py", "presence.py", "sensor.py")
 QUIET_FILE = "proos_quiet"            # in the platform's config folder: present = the platform stays unannounced
 
 # How long a non-live answer is trusted before the door is asked again
@@ -136,7 +138,7 @@ async def async_setup_entry(hass, entry):
         hass.data[DOMAIN] = True
     # Door build 3 (register 928): "ProOS Assist" — a room's own microphone
     # reaches Core's Assist through the platform's voice pipeline.
-    await hass.config_entries.async_forward_entry_setups(entry, ["conversation"])
+    await hass.config_entries.async_forward_entry_setups(entry, ["conversation", "sensor"])
     # Door build 6 (register 1259): this box is found on the network as ProOS.
     try:
         from . import presence
@@ -154,7 +156,7 @@ async def async_unload_entry(hass, entry):
         await presence.async_stop(hass)
     except Exception:  # noqa: BLE001
         pass
-    return await hass.config_entries.async_unload_platforms(entry, ["conversation"])
+    return await hass.config_entries.async_unload_platforms(entry, ["conversation", "sensor"])
 
 
 class ProOSDoor(HomeAssistantView):
@@ -465,6 +467,129 @@ async def async_stop(hass):
 '''
 
 
+# ── REGISTER 1306: ProOS's room states as the platform's own entities ─────
+# Read on Dave's box 12 Nov: 9 sensor.proos_* states, 0 registered — written by Core as bare states (POST /api/states),
+# so the platform could not place them in a room, expose them to voice, keep them across its restart, or share them
+# over MQTT, and they were missing after every platform restart until Core wrote them again. Core now announces each
+# reading on the platform's event bus ("proos_state"); this platform keeps one real sensor per id — the SAME entity ids,
+# so every reader (Pro, the dashboard, the Savant feed, Assist) is unchanged. RULE ZERO: a reading Core can no longer
+# vouch for is not shown as current — when Core stops answering, every one of them reads unavailable.
+_SENSOR = '''"""ProOS room states as real sensors — written by ProOS Core (proos/door.py, register 1306)."""
+from __future__ import annotations
+
+from datetime import timedelta
+
+import aiohttp
+from homeassistant.components.sensor import SensorEntity
+from homeassistant.core import callback
+from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.event import async_track_time_interval
+from homeassistant.helpers.restore_state import RestoreEntity
+
+CORE = "%(core)s"
+EVENT = "proos_state"
+CHECK = timedelta(seconds=60)          # how often Core is asked whether it is still there (plumbing)
+MISSES = 2                             # two silent checks in a row = Core is not answering
+_NOT_ATTRS = {"friendly_name", "icon", "unit_of_measurement", "device_class"}
+
+
+async def async_setup_entry(hass, entry, async_add_entities):
+    ents = {}
+    state = {"alive": True, "miss": 0}
+
+    def _make(entity_id, name=None):
+        e = ProOSState(entity_id, name, state)
+        ents[entity_id] = e
+        return e
+
+    # the ones this integration already owns come back at once, with their last reading (until Core speaks again)
+    reg = er.async_get(hass)
+    async_add_entities([_make(r.entity_id, r.original_name) for r in er.async_entries_for_config_entry(reg, entry.entry_id)
+                        if r.domain == "sensor"])
+
+    @callback
+    def _heard(event):
+        d = event.data or {}
+        eid = str(d.get("entity_id") or "")
+        if not eid.startswith("sensor.proos_"):
+            return
+        attrs = dict(d.get("attributes") or {})
+        e = ents.get(eid)
+        if e is None:
+            if hass.states.get(eid) is not None and reg.async_get(eid) is None:
+                hass.states.async_remove(eid)          # the bare state Core used to write steps aside for the real one
+            e = _make(eid, attrs.get("friendly_name"))
+            e.take(d.get("state"), attrs, write=False)
+            async_add_entities([e])
+            return
+        e.take(d.get("state"), attrs)
+
+    entry.async_on_unload(hass.bus.async_listen(EVENT, _heard))
+
+    async def _check(_now=None):
+        ok = False
+        try:
+            s = async_get_clientsession(hass)
+            async with s.get(CORE + "/health", timeout=aiohttp.ClientTimeout(total=8)) as r:
+                ok = r.status == 200
+        except Exception:  # noqa: BLE001
+            ok = False
+        state["miss"] = 0 if ok else state["miss"] + 1
+        alive = state["miss"] < MISSES
+        if alive != state["alive"]:
+            state["alive"] = alive
+            for e in ents.values():
+                if e.hass is not None:
+                    e.async_write_ha_state()
+
+    entry.async_on_unload(async_track_time_interval(hass, _check, CHECK))
+
+
+class ProOSState(RestoreEntity, SensorEntity):
+    _attr_should_poll = False
+    _attr_has_entity_name = False
+
+    def __init__(self, entity_id, name, shared):
+        self.entity_id = entity_id
+        self._attr_unique_id = entity_id.split(".", 1)[1]
+        self._attr_name = name or entity_id.split(".", 1)[1].replace("_", " ").title()
+        self._shared = shared
+        self._value = None
+        self._attrs = {}
+
+    def take(self, value, attrs, write=True):
+        self._value = None if value is None else str(value)[:255]
+        if attrs.get("friendly_name"):
+            self._attr_name = attrs["friendly_name"]
+        if attrs.get("icon"):
+            self._attr_icon = attrs["icon"]
+        self._attrs = {k: v for k, v in attrs.items() if k not in _NOT_ATTRS}
+        if write and self.hass is not None:
+            self.async_write_ha_state()
+
+    async def async_added_to_hass(self):
+        await super().async_added_to_hass()
+        if self._value is None:
+            last = await self.async_get_last_state()
+            if last is not None and last.state not in ("unavailable", "unknown"):
+                self._value = last.state
+                self._attrs = {k: v for k, v in last.attributes.items() if k not in _NOT_ATTRS}
+
+    @property
+    def available(self):
+        return self._shared["alive"]
+
+    @property
+    def native_value(self):
+        return self._value
+
+    @property
+    def extra_state_attributes(self):
+        return self._attrs
+'''
+
+
 def files(core_url: str | None = None) -> dict:
     """The door's files, as bytes, for THIS box (Core's own address inside)."""
     core = core_url or core_address()
@@ -474,6 +599,7 @@ def files(core_url: str | None = None) -> dict:
         "config_flow.py": _FLOW.encode("utf-8"),
         "conversation.py": (_CONV % {"core": core}).encode("utf-8"),
         "presence.py": (_PRESENCE % {"quiet": QUIET_FILE}).encode("utf-8"),
+        "sensor.py": (_SENSOR % {"core": core}).encode("utf-8"),
     }
 
 
