@@ -32,7 +32,7 @@ _last: dict = {}
 # network witness). On every boot Core MOVES a retired copy out of custom_components — to <config>/proos_retired_drivers,
 # never deleted — so the platform's own integration loads at its next restart. Only a ProOS copy is moved: a folder
 # whose manifest version carries "+proos".
-RETIRED = ("wiz",)
+RETIRED = ("wiz", "lifx", "shelly", "heos", "denonavr", "sonos", "unifi", "elkm1")   # 1298 WiZ; 1299 the other seven
 RETIRED_DIR = "proos_retired_drivers"
 
 
