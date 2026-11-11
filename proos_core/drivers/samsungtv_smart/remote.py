@@ -59,8 +59,15 @@ async def async_setup_entry(
         config = hass.data[DOMAIN][entry.entry_id][DATA_CFG]
         async_add_entities([SamsungTVRemote(config, entry.entry_id, mp_entity_id)])
 
-    # we wait for TV media player entity to be created
-    async_call_later(hass, 5, _add_remote_entity)
+    # We wait for the TV media player entity to be created. Cancel this pending
+    # callback on unload — otherwise a rapid reload fires the stale callback
+    # from the previous setup on top of the new one, registering a duplicate
+    # unique id ("does not generate unique IDs ... ignoring"). The entity
+    # registry is NOT a substitute check for this: it persists across full HA
+    # restarts, so probing it here used to make the remote entity silently
+    # never get (re)created after the very first restart.
+    cancel_add_remote_entity = async_call_later(hass, 5, _add_remote_entity)
+    entry.async_on_unload(cancel_add_remote_entity)
 
 
 class SamsungTVRemote(SamsungTVEntity, RemoteEntity):

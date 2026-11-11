@@ -34,7 +34,7 @@ import subprocess
 import sys
 from threading import Lock, Thread
 import time
-from typing import Any
+from typing import Any, Callable
 from urllib.parse import urlencode, urljoin
 import uuid
 
@@ -43,6 +43,7 @@ import requests
 import websocket
 from websocket._exceptions import WebSocketProtocolException
 
+from .shared_read import shared_session_read
 from .shortcuts import SamsungTVShortcuts
 
 DEFAULT_POWER_ON_DELAY = 120
@@ -211,11 +212,35 @@ class SamsungTVAsyncRest:
         self._port = port
         self._session = session
         self._timeout = None if timeout == 0 else timeout
+        self._port_callback: Callable[[int], None] | None = None
+        # The port is "proven" the first time it answers a request. A proven
+        # port is never swapped/persisted on a transient failure — on a sleeping
+        # panel both REST ports flap and the old always-switch rule ping-ponged
+        # (57 <-> 58 flips in ~50 h). Only an unproven port is adopted.
+        self._proven_port: int | None = None
 
-    async def _rest_request(self, target: str, method: str = "GET") -> dict[str, Any]:
-        """Perform async rest request."""
-        url = _format_rest_url(self._host, target, self._port)
-        try:
+    def register_port_callback(self, func: Callable[[int], None]) -> None:
+        """Register a callback invoked when the working REST port changes.
+
+        Mirrors api.art's port self-heal: lets the caller persist the
+        learned port (entry.data) so a misconfigured/changed port doesn't
+        keep failing on every restart.
+        """
+        self._port_callback = func
+
+    def _learn_port(self, port: int) -> None:
+        """Switch to the alternate port and report it via the callback."""
+        self._port = port
+        if self._port_callback is not None:
+            self._port_callback(port)
+
+    async def _rest_request_once(
+        self, target: str, method: str, port: int
+    ) -> dict[str, Any]:
+        """Perform a single async rest request against a specific port."""
+        url = _format_rest_url(self._host, target, port)
+
+        async def read():
             if method == "POST":
                 req = self._session.post(url, timeout=self._timeout, verify_ssl=False)
             elif method == "PUT":
@@ -226,10 +251,66 @@ class SamsungTVAsyncRest:
                 req = self._session.get(url, timeout=self._timeout, verify_ssl=False)
             async with req as resp:
                 return _process_api_response(await resp.text())
-        except aiohttp.ClientConnectionError as ex:
-            raise HttpApiError(
-                "TV unreachable or feature not supported on this model."
-            ) from ex
+
+        if method == "GET":
+            return await shared_session_read(
+                self._session, ("TV_REST", url, self._timeout), read
+            )
+        return await read()
+
+    async def _rest_request(self, target: str, method: str = "GET") -> dict[str, Any]:
+        """Perform async rest request.
+
+        Tries the configured port first, then falls back to the other REST
+        port (8001/8002) on a connection failure — some firmwares (e.g.
+        2024+ Frame) only serve the REST API on 8002, while older sets may
+        only answer on 8001.
+
+        The port is only *adopted* (switched and persisted) while it is
+        unproven — genuine discovery of the port this TV actually serves. Once
+        a port has answered a request it is proven and kept: a proven port that
+        merely fails transiently (a sleeping panel, where both ports flap) is
+        NOT swapped, so the request is still served from the alternate for this
+        call but the stored port does not ping-pong (57 <-> 58 flips in ~50 h
+        before this).
+        """
+        try:
+            result = await self._rest_request_once(target, method, self._port)
+        except aiohttp.ClientConnectionError:
+            alternate_port = 8001 if self._port == 8002 else 8002
+            try:
+                result = await self._rest_request_once(target, method, alternate_port)
+            except aiohttp.ClientConnectionError as ex:
+                raise HttpApiError(
+                    "TV unreachable or feature not supported on this model."
+                ) from ex
+            if self._proven_port != self._port:
+                # The configured port has never answered — adopt the one that
+                # does. It is persisted below once it answers as the primary.
+                self._log.info(
+                    "REST API: port %s did not answer for %s, now trying %s "
+                    "(not stored until it answers as the primary)",
+                    self._port,
+                    target or "device info",
+                    alternate_port,
+                )
+                self._port = alternate_port
+            else:
+                # A proven port is only momentarily down (e.g. TV asleep);
+                # serve this call from the alternate but keep the proven port.
+                self._log.debug(
+                    "REST API: proven port %s momentarily down, served %s from "
+                    "%s; keeping the proven port",
+                    self._port,
+                    target or "device info",
+                    alternate_port,
+                )
+            return result
+        # The primary answered: prove and persist it the first time.
+        if self._proven_port != self._port:
+            self._proven_port = self._port
+            self._learn_port(self._port)
+        return result
 
     async def async_rest_device_info(self) -> dict[str, Any]:
         """Get device info using rest api call."""
@@ -293,6 +374,11 @@ class SamsungTVWS:
         self._power_on_artmode = False
 
         self._installed_app = {}
+        # App ids the TV answered "404 Not found" for: not installed, so we stop
+        # re-querying them every scan (otherwise a single missing app in the
+        # configured app_list is polled forever — observed 1900+ times in one
+        # session). Cleared whenever the TV reports a fresh installed-app list.
+        self._app_not_found: set[str] = set()
         self._running_apps: dict[str, datetime] = {}
         self._running_app: str | None = None
         self._running_app_changed: bool | None = None
@@ -335,6 +421,13 @@ class SamsungTVWS:
         self._auth_recovered_callback = None
         self._consecutive_new_tokens = 0
         self._auth_blocked = False
+        # Port self-heal for the remote channel. A TokenAuthSupport TV that ends
+        # up configured on the unencrypted 8001 channel rejects every connect
+        # with ms.channel.unauthorized and never shows an on-screen prompt — the
+        # prompt + token flow only exists on the secure 8002 channel. Before
+        # pausing reconnection for good we flip 8001 -> 8002 once and retry.
+        self._port_changed_callback = None
+        self._tried_alt_port = False
 
     @property
     def auth_blocked(self) -> bool:
@@ -405,9 +498,103 @@ class SamsungTVWS:
         """Register a callback fired when a connection authorizes cleanly again."""
         self._auth_recovered_callback = func
 
+    def register_port_changed_callback(self, func):
+        """Register a callback fired when the WS port self-heals (8001<->8002).
+
+        Receives the new port so the caller can persist it to the config entry,
+        so the next restart connects on the working port directly.
+        """
+        self._port_changed_callback = func
+
+    def _try_alternate_port(self) -> bool:
+        """Flip the remote channel from the 8001 to the 8002 port once.
+
+        Returns True if the port was switched (caller should retry instead of
+        tripping the auth guard). A TokenAuth TV stuck on the unencrypted 8001
+        channel rejects every connect with no on-screen prompt; the secure 8002
+        channel is where the prompt + token actually happen. We only flip from
+        8001 -> 8002 and only once per session: on a genuine 2024 model (whose
+        8002 is filtered) the 8002 attempt simply fails and the guard trips as
+        before, just one port-flip later — no ping-pong.
+        """
+        if self.port != 8001 or self._tried_alt_port:
+            return False
+        # Expected, self-correcting transition on Frames whose token flow only
+        # lives on the secure channel: INFO, not WARNING. Only the case where
+        # BOTH ports reject (below) is an actionable problem.
+        self._log.info(
+            "TV %s rejected the unencrypted 8001 remote channel repeatedly "
+            "(no on-screen prompt) — switching to the secure 8002 channel",
+            self.host,
+        )
+        self.port = 8002
+        self._tried_alt_port = True
+        self._consecutive_new_tokens = 0
+        if self._port_changed_callback is not None:
+            self._port_changed_callback(8002)
+        return True
+
     def register_status_callback(self, func):
         """Register callback function used on status change."""
         self._status_callback = func
+
+    def _bump_auth_failure(self, reason: str) -> None:
+        """Count one more rejected-connection event and trip the auth guard.
+
+        Shared by every code path that signals a rejected token (new-token
+        issuance on ``ms.channel.connect``, ``ms.error`` "No Authorized", and
+        the bare ``ms.channel.unauthorized`` event) so they all feed the same
+        ``MAX_CONSECUTIVE_NEW_TOKENS`` threshold instead of each needing its
+        own counter.
+        """
+        # A rejected channel is not a usable connection, whatever a previous
+        # connect left behind. Saying so here is what lets a caller tell a key
+        # that was merely written to the socket from one the TV accepted:
+        # send_key() returns True as soon as the frame goes out, while this
+        # event arrives asynchronously on the socket thread and never reaches
+        # that result (a power-on to a rejecting Frame therefore looked like a
+        # success and skipped the configured wake method entirely). The
+        # ms.channel.connect path sets _is_connected back to True right after
+        # calling this, so a new-token issuance is unaffected.
+        self._is_connected = False
+        self._consecutive_new_tokens += 1
+        if (
+            not self._auth_blocked
+            and self._consecutive_new_tokens >= MAX_CONSECUTIVE_NEW_TOKENS
+        ):
+            # Before giving up, a TV stuck on the unencrypted 8001 channel may
+            # just need the secure 8002 channel (where the prompt + token live).
+            # Flip once and let the reconnect retry there instead of pausing.
+            if self._try_alternate_port():
+                return
+            self._auth_blocked = True
+            if self.port == 8002 and self._tried_alt_port:
+                # We already flipped 8001 -> 8002 and the secure channel is
+                # ALSO rejecting. Per the decompiled msf-server
+                # (notes/QN55LS03FAFXZA/PORTS.md), some firmwares fail to bring
+                # up the 8002 TLS vhost at all ("can't create vhost for '8002'
+                # port") — observed on ~2020 Frames — so neither the plain 8001
+                # nor the secure 8002 channel can complete the token handshake.
+                # Surface that explicitly instead of a generic "re-pair", which
+                # won't help when the TV simply has no working secure channel.
+                self._log.warning(
+                    "TV %s rejected both the 8001 and the secure 8002 remote "
+                    "channels (%s) — this TV may not expose a working TLS "
+                    "(8002) channel (firmware failed to create the vhost, seen "
+                    "on some 2020 Frames); remote control over this channel "
+                    "cannot authorize. Pausing remote reconnection.",
+                    self.host,
+                    reason,
+                )
+            else:
+                self._log.warning(
+                    "TV %s repeatedly rejected the connection (%s) — pausing "
+                    "remote reconnection; re-pair required",
+                    self.host,
+                    reason,
+                )
+            if self._auth_error_callback is not None:
+                self._auth_error_callback()
 
     def unregister_status_callback(self):
         """Unregister callback function used on status change."""
@@ -634,20 +821,7 @@ class SamsungTVWS:
             if token:
                 self._set_token(token)
             if token_changed:
-                self._consecutive_new_tokens += 1
-                if (
-                    not self._auth_blocked
-                    and self._consecutive_new_tokens >= MAX_CONSECUTIVE_NEW_TOKENS
-                ):
-                    self._auth_blocked = True
-                    self._log.warning(
-                        "TV %s issued %d new tokens in a row — pausing remote "
-                        "reconnection to stop re-prompting; re-pair required",
-                        self.host,
-                        self._consecutive_new_tokens,
-                    )
-                    if self._auth_error_callback is not None:
-                        self._auth_error_callback()
+                self._bump_auth_failure("new token issued")
             else:
                 # Connected with no token, or the same token we already had =>
                 # the stored token was accepted. Always signal recovery
@@ -667,19 +841,14 @@ class SamsungTVWS:
             self._log.debug("Message remote: error %s", data)
             if "authoriz" in str(data.get("message", "")).lower():
                 # "No Authorized": the TV refused this connection's token.
-                self._consecutive_new_tokens += 1
-                if (
-                    not self._auth_blocked
-                    and self._consecutive_new_tokens >= MAX_CONSECUTIVE_NEW_TOKENS
-                ):
-                    self._auth_blocked = True
-                    self._log.warning(
-                        "TV %s repeatedly returned 'No Authorized' — pausing "
-                        "remote reconnection; re-pair required",
-                        self.host,
-                    )
-                    if self._auth_error_callback is not None:
-                        self._auth_error_callback()
+                self._bump_auth_failure("'No Authorized' (ms.error)")
+        elif event == "ms.channel.unauthorized":
+            # Some firmwares reject the connection with this bare event
+            # instead of ms.channel.connect (new token) or ms.error
+            # ("No Authorized") — neither of which fires on this path, so
+            # without this branch the reconnect loop hammered the TV every
+            # ~1s forever instead of ever tripping the auth-blocked guard.
+            self._bump_auth_failure("ms.channel.unauthorized")
         elif event == "ed.installedApp.get":
             self._log.debug("Message remote: received installedApp")
             self._handle_installed_app(response)
@@ -708,6 +877,9 @@ class SamsungTVWS:
             app = App(app_id, app_info["name"], app_info["app_type"])
             installed_app[app_id] = app
         self._installed_app = installed_app
+        # Fresh authoritative list from the TV — re-evaluate previously
+        # not-found apps (one may have been installed since).
+        self._app_not_found.clear()
 
     def _client_control_thread(self):
         """Start the client control WS thread used to manage running apps."""
@@ -811,20 +983,24 @@ class SamsungTVWS:
             return
         error_code = response.get("error", {}).get("code", 0)
         if error_code == 404:  # Not found error
-            if self._installed_app:
-                if app_id not in self._installed_app:
-                    self._log.error("App ID %s not found", app_id)
-                return
-            # app_type = self._app_type.get(app_id)
-            # if app_type is None:
-            #     self._log.info(
-            #         "App ID %s with type DEEP_LINK not found, set as NATIVE_LAUNCH",
-            #         app_id,
-            #     )
-            #     self._app_type[app_id] = 4
+            # Remember this app is not installed so we stop polling it every
+            # scan. Without this a single missing app in the configured
+            # app_list is queried on every cycle forever (TVs that never report
+            # an installed-app list, e.g. some 2020 Frames, hit this hard).
+            if app_id not in self._app_not_found:
+                self._app_not_found.add(app_id)
+                self._log.debug(
+                    "App ID %s not found on TV — skipping it until next "
+                    "installed-app refresh",
+                    app_id,
+                )
 
     def _get_app_status(self, app_id, app_type):
         """Send a message to control WS channel to get the app status."""
+        if app_id in self._app_not_found:
+            # Already known not installed — don't re-query (and don't log).
+            return
+
         self._log.debug("Get app status: AppID: %s, AppType: %s", app_id, app_type)
 
         if not (self._ws_control and self._is_control_connected):
@@ -990,8 +1166,16 @@ class SamsungTVWS:
         """Return current running app."""
         return self._running_app
 
-    def is_app_running(self, app_id: str) -> bool | None:
-        """Return if app_id is running app."""
+    def is_app_running(
+        self, app_id: str, *, max_age: float | None = None
+    ) -> bool | None:
+        """Return whether app_id is running, or None without a usable reading."""
+        if max_age is not None:
+            seen = self._running_apps.get(app_id)
+            if seen is None or not (
+                0 <= (datetime.now(timezone.utc) - seen).total_seconds() <= max_age
+            ):
+                return None
         if app_id == self._running_app:
             return True
         if (last_seen := self._running_apps.get(app_id)) is None:
@@ -1396,6 +1580,46 @@ class SamsungTVWS:
             },
             key_press_delay=0,
         )
+
+    def _send_app_lifecycle(self, method, app_id):
+        """Send an ms.application.* lifecycle command on the control channel.
+
+        Unlike run_app there is no ed.apps.launch fallback: that event only
+        knows how to launch, so without the control channel these cannot be
+        sent at all. Say so rather than returning a silent False.
+        """
+        if not (self._ws_control and self._is_control_connected):
+            self._log.warning(
+                "Cannot send %s for %s: the control channel is not connected",
+                method,
+                app_id,
+            )
+            return False
+
+        self._log.debug("Sending %s for app_id: %s", method, app_id)
+        return self._ws_send(
+            {
+                "id": app_id,
+                "method": method,
+                "params": {"id": app_id},
+            },
+            key_press_delay=0,
+            use_control=True,
+            ws_socket=self._ws_control,
+        )
+
+    def stop_app(self, app_id):
+        """Stop a running app on the TV."""
+        return self._send_app_lifecycle("ms.application.stop", app_id)
+
+    def start_app(self, app_id):
+        """Launch an app by id, skipping the app-type lookup run_app does.
+
+        run_app picks its channel from the installed-app list, which a
+        built-in app is usually missing from; this always sends the
+        documented ms.application.start.
+        """
+        return self._send_app_lifecycle("ms.application.start", app_id)
 
     def open_browser(self, url):
         """Launch the browser app on the TV."""

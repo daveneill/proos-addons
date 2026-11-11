@@ -18,7 +18,7 @@ Protocol notes (confirmed on Frame 2024 / 2025):
     (Settings -> Connections -> Network -> Expert Settings).
   * Older Samsung TVs (Tizen <= 5.5, ~2020 Frames) negotiate a weak DH group
     that OpenSSL's default security level rejects ("dh key too small"). The
-    client detects this and transparently retries with @SECLEVEL=1.
+    client detects this and transparently retries with @SECLEVEL=0.
 
 The blocking HTTP work runs in the executor so the event loop is never blocked.
 The SSL context is also built lazily inside the executor — `create_default_context`
@@ -28,6 +28,11 @@ loads CA certs from disk, which would block the event loop if done at __init__.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
+from contextlib import asynccontextmanager, contextmanager
+from contextvars import ContextVar
+from copy import deepcopy
+from hashlib import sha256
 import http.client
 import json
 import logging
@@ -38,17 +43,215 @@ from homeassistant.core import HomeAssistant
 
 _LOGGER = logging.getLogger(__name__)
 
+# The TV's JSON-RPC server on port 1516 handles one connection at a time and
+# resets ("Connection reset by peer" / TLS handshake failure) any that overlap.
+# Every entity builds its own SamsungIPControl instance, so serialize all calls
+# to a given host through a shared per-host lock — otherwise the media_player
+# art poll, the state coordinators, the backlight/picture number sliders and
+# the color-tone select trample each other. Keyed by host so multiple TVs stay
+# independent. Created lazily on the running loop.
+_HOST_LOCKS: dict[str, _HostGate] = {}
+
+# Set for the duration of a user-initiated operation (see priority_requests).
+# Every IP Control call made inside it jumps ahead of the background polls
+# queued on the host gate. A ContextVar rather than an argument because the
+# operation spans several calls across two modules — a write is typically a
+# panel check, the write itself and a panel read-back — and all of them have
+# to overtake the queue for the sequence to fit in its caller's budget.
+_PRIORITY_REQUEST: ContextVar[bool] = ContextVar(
+    "samsungtv_ip_priority_request", default=False
+)
+
+# Share only authenticated getters without parameters or side effects.
+_SHAREABLE_READ_METHODS = frozenset(
+    {
+        "powerControl",
+        "getTVStates",
+        "getVideoStates",
+        "pictureModeControl",
+        "speakerSelectControl",
+        "muteControl",
+        "directVolumeControl",
+        "externalSpeakerControl",
+        "directChannelControl",
+        "colorToneControl",
+    }
+)
+
+
+@contextmanager
+def priority_requests() -> Iterator[None]:
+    """Mark everything done in this block as user-initiated.
+
+    Background polls stand aside for it on the host gate. Use it for an action
+    the user is waiting on — never for a periodic refresh, which would defeat
+    the point.
+    """
+    token = _PRIORITY_REQUEST.set(True)
+    try:
+        yield
+    finally:
+        _PRIORITY_REQUEST.reset(token)
+
+
+class _SharedRead:
+    def __init__(self) -> None:
+        self.task: asyncio.Task[dict[str, Any]] | None = None
+        self.started = False
+        self.waiters = 0
+        self.shared = False
+
+
+class _ReadContextChanged(Exception):
+    """Retry after the token or endpoint changes while a read is queued."""
+
+
+class _HostGate:
+    """Serializes calls to one TV, letting user-initiated ones go first.
+
+    A plain lock is FIFO, so a write landed behind every poll already queued
+    and waited for all of them. Measured on a 2022 Frame woken by an external
+    IR blaster (#319): the coordinators' own refreshes took 14.5 s, 28 s and
+    36 s while the Art Mode switch allows each attempt 10 s, so all three
+    attempts expired inside the pre-write panel read and the write was never
+    issued.
+
+    So waiters are not a queue but a two-class priority queue, FIFO within a
+    class. A priority caller waits only for the request already on the wire —
+    bounded by CMD_TIMEOUT — however deep the backlog behind it. Writes are
+    user-initiated and rare, so the polls they overtake lose a tick, not their
+    turn; nothing here waits on a background caller, so a write cannot be
+    deadlocked by one.
+    """
+
+    def __init__(self) -> None:
+        self._busy = False
+        # (class, arrival, waiter): class 0 is user-initiated, 1 background.
+        self._waiters: list[tuple[int, int, asyncio.Future]] = []
+        self._arrivals = 0
+        self._read_generation = 0
+        self._shared_reads: dict[tuple, _SharedRead] = {}
+
+    async def share_queued_read(
+        self,
+        key: tuple,
+        request: Callable[[_SharedRead], Awaitable[dict[str, Any]]],
+    ) -> dict[str, Any]:
+        """Share queued reads; a read that has started cannot be reused."""
+        flight = self._shared_reads.get(key)
+        task = flight.task if flight is not None else None
+        if flight is None or task is None or flight.started or task.done():
+            flight = _SharedRead()
+            task = asyncio.create_task(request(flight))
+            flight.task = task
+            self._shared_reads[key] = flight
+
+            def finished(task: asyncio.Task) -> None:
+                if self._shared_reads.get(key) is flight:
+                    self._shared_reads.pop(key)
+                # Consume errors when every waiter has cancelled.
+                if not task.cancelled():
+                    task.exception()
+
+            task.add_done_callback(finished)
+        else:
+            flight.shared = True
+
+        flight.waiters += 1
+        try:
+            # One cancelled waiter must not cancel the shared read.
+            result = await asyncio.shield(task)
+            return deepcopy(result) if flight.shared else result
+        finally:
+            flight.waiters -= 1
+            if not flight.waiters and not flight.started and not task.done():
+                if self._shared_reads.get(key) is flight:
+                    self._shared_reads.pop(key)
+                task.cancel()
+
+    @asynccontextmanager
+    async def acquire(self, *, priority: bool = False) -> AsyncIterator[None]:
+        """Hold the host's single request slot."""
+        if self._busy:
+            self._arrivals += 1
+            waiter = asyncio.get_running_loop().create_future()
+            entry = (0 if priority else 1, self._arrivals, waiter)
+            self._waiters.append(entry)
+            try:
+                await waiter
+            except asyncio.CancelledError:
+                if entry in self._waiters:
+                    self._waiters.remove(entry)
+                elif waiter.done() and not waiter.cancelled():
+                    # The slot was handed over and then we were cancelled:
+                    # pass it on rather than stranding it.
+                    self._wake_next()
+                raise
+        else:
+            self._busy = True
+        try:
+            yield
+        finally:
+            self._wake_next()
+
+    def _wake_next(self) -> None:
+        """Hand the slot to the best waiter, or mark it free."""
+        while self._waiters:
+            self._waiters.sort(key=lambda entry: entry[:2])
+            waiter = self._waiters.pop(0)[2]
+            if not waiter.done():
+                waiter.set_result(None)
+                return
+        self._busy = False
+
+
+def _host_lock(host: str) -> _HostGate:
+    """Return the shared serialization gate for one TV host."""
+    lock = _HOST_LOCKS.get(host)
+    if lock is None:
+        lock = _HostGate()
+        _HOST_LOCKS[host] = lock
+    return lock
+
+
 DEFAULT_IP_CONTROL_PORT = 1516
-# Candidate ports probed, in order, when pairing a TV whose port is unknown.
-# 2020+ Frames answer on 1516; 2019 QLEDs answer on 1515. A closed port returns
-# an immediate "connection refused" (fast), so probing the wrong one first is
-# cheap — the first port that actually answers is the TV's real control port.
-IP_CONTROL_PORT_CANDIDATES = (1516, 1515)
 JSONRPC_VERSION = "2.0"
 COLOR_TONE_OPTIONS = ("Cool", "Standard", "Warm1", "Warm2")
+# pictureModeControl values offered by default: the TV's OCF names, the same
+# in every menu language (the French menu shows "Cinéma" for "Movie"). Both a
+# Frame 2024 (QE55LS03D) and a 2026 QD-OLED (TQ65S95H) accepted exactly these
+# and refused Natural, Entertainment, Relax, Intelligent and CAL-DAY/NIGHT with
+# -32002. A mode the TV reports that is not listed here is learned by the
+# select; the full predefined set is picture_mode_keys.IP_PICTURE_MODES.
+PICTURE_MODE_OPTIONS = ("Dynamic", "Standard", "Movie", "FilmmakerMode", "Eco")
+# speakerSelectControl public values (verified on Frame 2024/2025). "External"
+# is REPORTED by the getter when an external device (e.g. HDMI-eARC receiver)
+# is active, but SELECTING a specific external device goes through
+# externalSpeakerControl with the device's name/id from its getter.
+SPEAKER_SELECT_OPTIONS = ("Internal", "External", "AudioOut/Optical")
+# Key under which _sync_request wraps JSON-array results (e.g. the external
+# speaker list) to keep its dict return contract.
+LIST_RESULT_KEY = "_list_result"
 
 CMD_TIMEOUT = 5  # seconds for normal commands
 PAIR_TIMEOUT = 30  # seconds: pairing waits for the on-screen acceptance
+
+
+def resolve_speaker_select_option(value: str, external_devices: dict[str, str]) -> str:
+    """Return the public option name for a speaker output value.
+
+    Some Q-Symphony firmware reports the external speaker's device ID in
+    ``getTVStates.speakerSelect`` instead of a public target name. Resolve that
+    ID to the device name published by ``externalSpeakerControl`` and normalize
+    the standard target names reported with inconsistent capitalization.
+    """
+    for name, device_id in external_devices.items():
+        if value == device_id:
+            return name
+
+    public_options = {option.casefold(): option for option in SPEAKER_SELECT_OPTIONS}
+    return public_options.get(value.casefold(), value)
+
 
 # JSON-RPC error code returned when the access token is missing/expired.
 ERROR_UNAUTHORIZED = -32010
@@ -64,23 +267,53 @@ ERROR_PARSE_STALE_TOKEN = -32700
 # accept them. Not a transport or pairing problem: retrying after switching
 # picture mode succeeds.
 ERROR_SERVER = -32002
-
-# JSON-RPC "Method not found". CONFIRMED ON THIS PANEL (Frame LS03T, Tizen 2020):
-# `inputSourceControl` DOES exist -- probed bare it returns the live input. But for
-# a short window after power-on the TV answers -32601 for it, because the HTTPS
-# endpoint comes up before the input module registers. The two production failures
-# we chased both fired within ONE SECOND of the panel powering on.
-#
-# So -32601 on this API is ambiguous: genuinely-absent method, OR a method that
-# exists on a TV that is not ready yet. We treat it as NOT-READY and retry, and
-# only surface it as an error once the retries are exhausted. Never assume the
-# method is missing -- confirm by probing it bare when the TV is settled.
+# The TV's server-error family, decoded from the live mde IP Control library
+# (T-PTMDDEUC / Tizen 9 — see notes/T-PTMDDEUC/IPCONTROL_LIVE.md). They all
+# carry message "Server error"; the data string is the real reason:
+#   -32000 "Unknown"            -32001 "Not supported model"
+#   -32002 "Failed"             -32003 "Invalid operation"
+#   -32004 "No support for batch request"
+# -32001 is a permanent model-capability verdict (latch it). -32000/-32002/
+# -32003 are state-dependent — an expert-picture write in a mode that drives
+# it automatically, or a volume read while audio is on an external speaker
+# output (directVolumeControl answers -32003 there) — so they are retryable
+# once the state changes, not a missing capability.
+ERROR_UNKNOWN = -32000
+ERROR_NOT_SUPPORTED_MODEL = -32001
+ERROR_INVALID_OPERATION = -32003
+ERROR_NO_BATCH = -32004
+# The server-error codes that mean "refused in the current state"; handled
+# like a mode lock (retry once the state changes), unlike -32001.
+SERVER_STATE_CODES = frozenset({ERROR_UNKNOWN, ERROR_SERVER, ERROR_INVALID_OPERATION})
+# Methods whose server-state error genuinely means "the current picture mode
+# forbids this write". Reads (notably getTVStates) return the same family for
+# unrelated reasons, so the picture-mode advice must not be attached to them.
+PICTURE_WRITE_METHODS = frozenset(
+    {
+        "applyPictureSettingsControl",
+        "autoHDRRemasteringControl",
+        "autoMotionPlusControl",
+        "brightnessOptimizationControl",
+        "contrastEnhancerControl",
+        "gamma.BT1886Control",
+        "motionLightingControl",
+        "peakBrightnessControl",
+        "backlightControl",
+        "brightnessControl",
+        "colorControl",
+        "colorToneControl",
+        "contrastControl",
+        "sharpnessControl",
+        "tintControl",
+    }
+)
+# JSON-RPC "Method not found". AMBIGUOUS on Frames: the SAME code is returned
+# both when a method genuinely doesn't exist on the model AND when it exists but
+# isn't available in the current TV state — notably the picture controls while
+# the panel is in Art Mode (calibration applies to normal viewing only). So it
+# must be treated as "not available right now", NOT latched as permanently
+# unsupported.
 ERROR_METHOD_NOT_FOUND = -32601
-
-# Retry budget for the not-ready window above. Measured: the panel answers input
-# calls reliably within ~2-4s of reporting power-on.
-NOT_READY_RETRIES = 6
-NOT_READY_DELAY = 1.0  # seconds between retries
 
 # Art-mode desync guard: number of consecutive reads where the artModeControl
 # flag claims "on" while getTVStates.pictureMode shows a real (non-art) picture
@@ -94,27 +327,8 @@ class SamsungIPControlError(Exception):
     """Base error for IP Control communication failures."""
 
 
-class SamsungIPControlPortClosedError(SamsungIPControlError):
-    """The TV refused the TCP connection — nothing is listening on this port.
-
-    Raised on ``ConnectionRefusedError`` (and equivalent unreachable-host
-    OSErrors). Distinct from a generic transport failure because it is the
-    signal the auto-probe uses to move on to the next candidate port: a closed
-    port means "wrong port for this model", not "the TV rejected the request".
-    """
-
-
 class SamsungIPControlAuthError(SamsungIPControlError):
     """The access token is missing, invalid or expired — re-pairing is required."""
-
-
-class SamsungIPControlNotReadyError(SamsungIPControlError):
-    """The TV answered -32601 for a method that is known to exist.
-
-    Not "unsupported" -- the JSON-RPC endpoint is up but the module backing this
-    method has not registered yet, which happens for a few seconds after power-on.
-    Callers should retry rather than reporting a capability failure.
-    """
 
 
 class SamsungIPControlModeLockedError(SamsungIPControlError):
@@ -123,6 +337,27 @@ class SamsungIPControlModeLockedError(SamsungIPControlError):
     Not a transport, pairing, or capability problem — the same request
     succeeds once the TV is switched to a picture mode that allows manual
     writes (e.g. Standard/Movie/Filmmaker rather than Dynamic/HDR-dynamic).
+    """
+
+
+class SamsungIPControlUnsupportedError(SamsungIPControlError):
+    """The method is not available (code -32601) — "Method not found".
+
+    AMBIGUOUS: the TV returns the same code whether the method genuinely does
+    not exist on this model OR it exists but is unavailable in the current state
+    (e.g. the picture controls while the panel is in Art Mode). Treat it as
+    "not available right now" — surface a clear message but do NOT latch it as
+    permanently unsupported, since it may succeed once the TV leaves Art Mode.
+    """
+
+
+class SamsungIPControlTransportError(SamsungIPControlError):
+    """Network-layer failure reaching the TV (timeout, host unreachable, etc).
+
+    Distinct from an application-level error: on many Frames (notably the
+    2020/2021 sets) the TV drops off the network entirely when powered off,
+    so a transport failure on the IP Control port is indistinguishable from
+    "the TV is simply off" and should not be treated as a hard error.
     """
 
 
@@ -148,11 +383,16 @@ class SamsungIPControl:
         self._ctx: ssl.SSLContext | None = None
         # Older TVs (Tizen <= 5.5, ~2020 Frames) negotiate a weak DH group and
         # are rejected by OpenSSL's default security level. When that happens
-        # we retry once with @SECLEVEL=1 and remember it for subsequent calls.
+        # we retry once with @SECLEVEL=0 and remember it for subsequent calls.
         self._tls_legacy = False
         # Consecutive (artModeControl says on / pictureMode says not-art)
         # disagreements, for the desync guard in async_get_art_mode.
         self._art_desync_count = 0
+
+    @property
+    def port(self) -> int:
+        """Return the port this client talks to (1516, or 1515 on pre-2020 TVs)."""
+        return self._port
 
     @property
     def token(self) -> str | None:
@@ -204,7 +444,9 @@ class SamsungIPControl:
         result = await self._async_request("powerControl", {"power": "reboot"})
         return result.get("power", "unknown")
 
-    async def async_get_art_mode(self) -> bool | None:
+    async def async_get_art_mode(
+        self, *, power_state: str | None = None
+    ) -> bool | None:
         """Return whether the TV is currently displaying Art Mode.
 
         Returns ``True`` if art is on the panel, ``False`` for normal viewing
@@ -224,8 +466,12 @@ class SamsungIPControl:
         PowerState is checked first and wins: a powered-off TV is never showing
         art (and pictureMode would be a stale ``"Ambient"``), so ``powerOff``
         short-circuits to ``False``. Art Mode itself reports ``powerOn``.
+        ``power_state`` is a powerControl answer the caller has just read, to
+        save asking again.
         """
-        if await self.async_get_power_state() == "powerOff":
+        if power_state is None:
+            power_state = await self.async_get_power_state()
+        if power_state == "powerOff":
             self._art_desync_count = 0
             return False
 
@@ -306,6 +552,18 @@ class SamsungIPControl:
                 f"invalid backlight response: {result!r}"
             ) from ex
 
+    async def async_get_setting(self, method: str, param: str) -> Any:
+        """Read one ``<x>Control`` value (getter: the method with no params)."""
+        result = await self._async_request(method)
+        if param not in result:
+            raise SamsungIPControlError(f"no {param} in {method} response: {result!r}")
+        return result[param]
+
+    async def async_set_setting(self, method: str, param: str, value: Any) -> Any:
+        """Write one ``<x>Control`` value and return what the TV echoes."""
+        result = await self._async_request(method, {param: value})
+        return result.get(param, value)
+
     async def async_get_color_tone(self) -> str:
         """Return the current picture color tone."""
         result = await self._async_request("colorToneControl")
@@ -330,135 +588,329 @@ class SamsungIPControl:
             raise SamsungIPControlError(f"unexpected colorTone response: {result!r}")
         return response_value
 
-    # -- input source (ProOS) ------------------------------------------------
+    async def async_set_video_setting(self, method: str, field: str, value: int) -> int:
+        """Set one expert picture setting and return the echoed value.
 
-    async def async_get_input_source(self) -> str | None:
-        """Return the current input source string (e.g. 'HDMI1'), or None.
-
-        Read from ``getTVStates`` (which reports ``inputSource`` alongside the
-        picture/sound state) — already exercised by this client and confirmed
-        to carry the live input on Frame and QLED panels, including via the
-        certified Control4 control path.
+        Current values are read in bulk via :meth:`async_get_video_states`; this
+        per-field ``<field>Control`` write is used only on user action. The write
+        is picture-mode-gated: Standard/Movie/Filmmaker accept it,
+        Dynamic/HDR-dynamic reject it with ``-32002`` (raised as
+        :class:`SamsungIPControlModeLockedError`), and models that lack the
+        method reject it with ``-32601`` (raised as
+        :class:`SamsungIPControlUnsupportedError`).
         """
-        states = await self._async_request("getTVStates")
-        value = states.get("inputSource")
-        return None if value is None else str(value)
+        result = await self._async_request(method, {field: int(value)})
+        response_value = result.get(field, value)
+        try:
+            return int(response_value)
+        except (TypeError, ValueError) as ex:
+            raise SamsungIPControlError(
+                f"invalid {field} response from {method}: {result!r}"
+            ) from ex
 
-    async def async_set_input_source(self, source: str, *, confirm: bool = True) -> str:
-        """Switch the TV to ``source`` (e.g. 'HDMI1').
+    async def async_get_speaker_select(self) -> str:
+        """Return the current speaker output ("Internal", "External", ...).
 
-        ``confirm=True`` (default): block until ``getTVStates`` reports the panel
-        actually landed on ``source``, and return that confirmed value; raise if
-        it can't be confirmed. Use this when the caller needs a guaranteed result.
+        ``speakerSelectControl`` called with no params echoes the current
+        output, capitalized ("Internal"/"External") — unlike the mirror field
+        in ``getTVStates`` which reports it lowercase.
 
-        ``confirm=False`` (ProOS optimistic path): return as soon as the TV
-        *accepts* the command (through the not-ready window), WITHOUT the extra
-        ``getTVStates`` round-trip. This halves the latency the user sees on an
-        input change — the picture appears on the press. The caller is expected
-        to confirm in the background (see media_player._async_ip_select_source),
-        so verification is not lost, merely moved off the hot path. Returns the
-        requested ``source`` string (not a panel-confirmed one).
-
-        Uses the ``inputSourceControl`` JSON-RPC method — the same local call
-        certified Control4 drivers use — so discrete input selection works
-        WITHOUT SmartThings on panels whose Tizen firmware ignores the discrete
-        KEY_HDMIn remote codes.
-
-        TWO THINGS CONFIRMED ON THE PANEL, both of which this method exists to
-        handle. Neither was obvious and both caused real failures:
-
-        1. THE ECHO LIES. The reply echoes back whatever string you sent —
-           send "HDMI 1" and it replies {"inputSource": "HDMI 1"}; send
-           "hdmi1" and it replies {"inputSource": "hdmi1"} — while the panel
-           normalises to "HDMI1" internally. So the echo confirms only that the
-           request was received, NEVER that the input took, and never what the
-           TV actually landed on. We therefore ignore it and read the truth back
-           from ``getTVStates``, which reports the real, normalised input.
-
-        2. -32601 HERE MEANS "NOT READY", NOT "NOT SUPPORTED". The method exists
-           on this firmware (probing it bare returns the live input), but for a
-           few seconds after power-on the TV answers -32601 because the input
-           module has not registered yet. Both production failures we chased
-           fired within one second of the panel powering on. We retry through
-           that window instead of reporting a capability failure.
-
-        Returns the input the TV confirms it is on. Raises if it cannot be
-        confirmed — a control that cannot be verified must not report success.
+        Some Q-Symphony firmware returns ``null`` from this dedicated getter
+        while ``getTVStates.speakerSelect`` still contains the active external
+        device ID. Fall back to that snapshot so callers can resolve the ID
+        against ``externalSpeakerControl``.
         """
-        if not source or not isinstance(source, str):
-            raise SamsungIPControlError(f"invalid input source: {source!r}")
-
-        last_error: Exception | None = None
-        for attempt in range(NOT_READY_RETRIES):
-            try:
-                await self._async_request("inputSourceControl", {"inputSource": source})
-            except SamsungIPControlNotReadyError as ex:
-                # Panel still booting — wait and try again.
-                last_error = ex
-                _LOGGER.debug(
-                    "IP Control: TV not ready for input '%s' (attempt %d/%d): %s",
-                    source, attempt + 1, NOT_READY_RETRIES, ex,
-                )
-                await asyncio.sleep(NOT_READY_DELAY)
-                continue
-
-            # Request accepted.
-            if not confirm:
-                # Optimistic: caller confirms in the background. Return now so the
-                # switch feels instant.
-                return source
-            # Confirm against the panel rather than the (lying) echo.
-            confirmed = await self._async_confirm_input(source)
-            if confirmed is not None:
-                return confirmed
-
-            last_error = SamsungIPControlError(
-                f"input '{source}' was accepted but the TV did not report it"
+        result = await self._async_request("speakerSelectControl")
+        value = result.get("speakerSelect")
+        if not isinstance(value, str) or not value:
+            states = await self.async_get_tv_states()
+            value = states.get("speakerSelect")
+        if not isinstance(value, str) or not value:
+            raise SamsungIPControlError(
+                "no speakerSelect in speakerSelectControl or getTVStates response"
             )
-            await asyncio.sleep(NOT_READY_DELAY)
+        return value
 
-        raise SamsungIPControlError(
-            f"could not switch to input '{source}' after {NOT_READY_RETRIES} "
-            f"attempts: {last_error}"
+    async def async_set_speaker_select(self, value: str) -> None:
+        """Switch the speaker output to a public target.
+
+        Verified on Frame 2024/2025: "Internal" and "AudioOut/Optical" are
+        accepted; "External" alone is rejected — switching to a specific
+        external device (HDMI-eARC receiver, ...) must go through
+        :meth:`async_set_external_speaker` with the device's name/id.
+        """
+        if value not in SPEAKER_SELECT_OPTIONS:
+            raise SamsungIPControlError(
+                f"speakerSelect must be one of {', '.join(SPEAKER_SELECT_OPTIONS)}"
+            )
+        await self._async_request("speakerSelectControl", {"speakerSelect": value})
+
+    async def async_get_external_speakers(self) -> list[dict[str, str]]:
+        """Return the available external speakers as [{deviceName, deviceId}].
+
+        ``externalSpeakerControl`` called with no params returns a JSON array
+        of the currently available external audio devices (e.g.
+        ``[{"deviceName": "CINEMA 60(HDMI-eARC)", "deviceId": "RCV-1"}]``) —
+        or ``{}`` when none is reachable (receiver powered off).
+        """
+        result = await self._async_request("externalSpeakerControl")
+        devices = result.get(LIST_RESULT_KEY, [])
+        return [
+            dev
+            for dev in devices
+            if isinstance(dev, dict) and dev.get("deviceName") and dev.get("deviceId")
+        ]
+
+    async def async_set_external_speaker(self, name: str, device_id: str) -> None:
+        """Switch the speaker output to a specific external device.
+
+        Requires a device currently listed by
+        :meth:`async_get_external_speakers`; the TV answers ``-32002`` for an
+        unknown/unreachable device (raised as
+        :class:`SamsungIPControlModeLockedError`).
+        """
+        await self._async_request(
+            "externalSpeakerControl",
+            {"deviceName": name, "deviceId": device_id},
         )
 
-    async def async_confirm_input(
-        self, source: str, *, retries: int = 5, delay: float = 1.0
-    ) -> str | None:
-        """Poll ``getTVStates`` a few times until the panel reports ``source``.
+    async def async_get_mute(self) -> bool:
+        """Return whether the TV is currently muted."""
+        result = await self._async_request("muteControl")
+        value = result.get("mute")
+        if value not in ("muteOn", "muteOff"):
+            raise SamsungIPControlError(f"unexpected mute response: {result!r}")
+        return value == "muteOn"
 
-        For the optimistic path: run in the background after an unconfirmed set.
-        Returns the confirmed panel string, or None if it never matched (caller
-        then advises). Never raises for a plain mismatch.
+    async def async_set_mute(self, mute: bool) -> bool:
+        """Set and return whether the TV is muted.
+
+        ``muteControl`` is the only mute setter that works via IP Control on
+        a Frame 2024/2025 — the matching field in ``getTVStates`` is
+        read-only.
         """
-        for _ in range(max(1, retries)):
-            try:
-                confirmed = await self._async_confirm_input(source)
-            except SamsungIPControlError:
-                confirmed = None
-            if confirmed is not None:
-                return confirmed
-            await asyncio.sleep(delay)
-        return None
+        target = "muteOn" if mute else "muteOff"
+        result = await self._async_request("muteControl", {"mute": target})
+        value = result.get("mute", target)
+        if value not in ("muteOn", "muteOff"):
+            raise SamsungIPControlError(f"unexpected mute response: {result!r}")
+        return value == "muteOn"
 
-    async def _async_confirm_input(self, source: str) -> str | None:
-        """Read the live input back from ``getTVStates`` and check it matches.
+    async def async_get_volume(self) -> int:
+        """Return the absolute volume (0-100) when supported.
 
-        Comparison is normalised (case-insensitive, spaces stripped) because the
-        TV accepts "HDMI 1"/"hdmi1" but reports "HDMI1". Returns the TV's own
-        string on a match, or None if it does not match yet.
+        0-100 is the protocol range, measured: the QN55LS03FAFXZA firmware
+        declares ``volume`` int ``0..100`` and accepts the full range, and a
+        2013 UE27F6000 accepted 50/60/80/100. The 0-50 in the Savant 2017
+        profile is that driver's own slider bound, not a TV constraint.
+
+        Raises ``SamsungIPControlUnsupportedError`` (-32601) on a TV that
+        does not implement the method — but note that the same error is
+        raised in art/ambient mode by a TV that does, so callers must not
+        treat one -32601 as a permanent verdict.
         """
-        def _norm(value: str) -> str:
-            return "".join(str(value).split()).upper()
+        result = await self._async_request("directVolumeControl")
+        value = result.get("volume")
 
         try:
-            states = await self._async_request("getTVStates")
-        except SamsungIPControlNotReadyError:
+            volume = int(value)
+        except (TypeError, ValueError) as ex:
+            raise SamsungIPControlError(
+                f"invalid directVolumeControl response: {result!r}"
+            ) from ex
+
+        if not 0 <= volume <= 100:
+            raise SamsungIPControlError(
+                f"volume out of range in directVolumeControl response: {result!r}"
+            )
+
+        return volume
+
+    async def async_set_volume(self, value: int) -> int:
+        """Set and return the absolute volume (0-100) when supported."""
+        volume = int(value)
+
+        if not 0 <= volume <= 100:
+            raise SamsungIPControlError("volume must be between 0 and 100")
+
+        result = await self._async_request(
+            "directVolumeControl",
+            {"volume": volume},
+        )
+        response_value = result.get("volume", volume)
+
+        try:
+            response_volume = int(response_value)
+        except (TypeError, ValueError) as ex:
+            raise SamsungIPControlError(
+                f"invalid directVolumeControl response: {result!r}"
+            ) from ex
+
+        if not 0 <= response_volume <= 100:
+            raise SamsungIPControlError(
+                f"volume out of range in directVolumeControl response: {result!r}"
+            )
+
+        return response_volume
+
+    async def async_volume_up(self) -> None:
+        """Step the volume up by one using relative IP Control.
+
+        There is no getter: the call is fire-and-forget, matching the
+        WebSocket ``KEY_VOLUP`` semantics it replaces.
+
+        This is the volume setter that works everywhere. For an absolute
+        level use :meth:`async_set_volume` when the TV implements it —
+        which is probed per device, not inferred from the model: the
+        earlier claim here that ``directVolumeControl`` is absent on Frames
+        came from a ``-32601`` whose display mode was never recorded, and
+        that method is dispatched from a table that is inactive in
+        art/ambient mode. See ``IP_Control_Protocol_Reference.md``.
+        """
+        await self._async_request("volumeUpDnControl", {"control": "volumeUp"})
+
+    async def async_volume_down(self) -> None:
+        """Step the volume down by one. See :meth:`async_volume_up`."""
+        await self._async_request("volumeUpDnControl", {"control": "volumeDn"})
+
+    async def async_get_device_information(self) -> dict[str, str]:
+        """Return the TV's model, firmware version and serial number."""
+        result = await self._async_request("getDeviceInformation")
+        model_id = result.get("modelID")
+        if not isinstance(model_id, str):
+            raise SamsungIPControlError(
+                f"no modelID in getDeviceInformation response: {result!r}"
+            )
+        return {
+            "modelID": model_id,
+            "FWVersion": str(result.get("FWVersion", "")),
+            "serialNumber": str(result.get("serialNumber", "")),
+        }
+
+    async def async_get_picture_mode(self) -> str:
+        """Return the current picture mode via ``pictureModeControl``.
+
+        The value is the TV's OCF name (``Standard``, ``Movie``,
+        ``FilmmakerMode``, ``StandardHDR`` while HDR content plays), not the
+        translated menu label. The method sits in the firmware's none-ambient
+        dispatch map: it answers ``-32601`` (raised as
+        :class:`SamsungIPControlUnsupportedError`) while art or ambient is on
+        screen, and on models without it.
+        """
+        result = await self._async_request("pictureModeControl")
+        value = result.get("pictureMode")
+        if not isinstance(value, str) or not value:
+            raise SamsungIPControlError(f"no pictureMode in response: {result!r}")
+        return value
+
+    async def async_set_picture_mode(
+        self, value: str, fallback: str | None = None
+    ) -> str:
+        """Set the picture mode via ``pictureModeControl`` and return the echo.
+
+        ``value`` is an OCF name (see :data:`PICTURE_MODE_OPTIONS`). A name the
+        TV does not offer on the current input answers ``-32002`` (raised as
+        :class:`SamsungIPControlModeLockedError`); ``fallback``, when given, is
+        tried once in that case (the HDR variant of the same mode).
+        """
+        if not isinstance(value, str) or not value:
+            raise SamsungIPControlError("picture mode must not be empty")
+        try:
+            result = await self._async_request(
+                "pictureModeControl", {"pictureMode": value}
+            )
+        except SamsungIPControlModeLockedError:
+            if not fallback or fallback == value:
+                raise
+            value = fallback
+            result = await self._async_request(
+                "pictureModeControl", {"pictureMode": value}
+            )
+        response_value = result.get("pictureMode", value)
+        if not isinstance(response_value, str) or not response_value:
+            raise SamsungIPControlError(f"invalid pictureMode response: {result!r}")
+        return response_value
+
+    async def async_set_input_source(self, value: str) -> str:
+        """Select an input source via local IP Control."""
+        result = await self._async_request(
+            "inputSourceControl",
+            {"inputSource": value},
+        )
+        response_value = result.get("inputSource", value)
+        if not isinstance(response_value, str) or not response_value:
+            raise SamsungIPControlError(f"invalid inputSource response: {result!r}")
+        return response_value
+
+    async def async_panel_shows_art(self) -> bool | None:
+        """Whether the PANEL is displaying art right now, or None if unknown.
+
+        Read from ``getTVStates.pictureMode``, which is ``"Ambient"`` exactly
+        while art is on screen. This is the signal to consult before WRITING
+        art mode: it is independent of the ``artModeControl`` flag, which can
+        wedge "on" on some firmware (the wedge this integration documents on a
+        QE55LS03D), and of the WebSocket art channel, which can go stale.
+
+        PowerState is checked first and wins, exactly as in
+        :meth:`async_get_art_mode`: a Frame in standby still answers
+        getTVStates with a STALE ``pictureMode`` (typically ``"Ambient"``), so
+        without this a write guard reads art-on for a dark panel and refuses to
+        wake it — the panel never comes back into art. Art Mode itself reports
+        ``powerOn``, so this only filters a genuinely powered-off TV.
+        """
+        if await self.async_get_power_state() == "powerOff":
             return None
-        actual = states.get("inputSource")
-        if actual is None:
+        states = await self._async_request("getTVStates")
+        mode = states.get("pictureMode")
+        if not isinstance(mode, str) or not mode:
             return None
-        return str(actual) if _norm(actual) == _norm(source) else None
+        return mode == "Ambient"
+
+    async def async_get_tv_states(self) -> dict[str, Any]:
+        """Return the TV's general state snapshot (read-only).
+
+        ``getTVStates`` reports, on recent Samsung TVs:
+        ``speakerSelect, volume, mute, pictureSize, pictureMode, soundMode,
+        inputSource``. Availability of matching setters is model-dependent.
+        Some TVs may reject setters such as ``inputSourceControl`` with
+        ``-32601``, while others support direct local control. Setting values
+        without a supported local setter must go through SmartThings /
+        the WebSocket.
+        """
+        return await self._async_request("getTVStates")
+
+    async def async_get_channel(self) -> dict[str, Any]:
+        """Return the current tuner channel state, when supported.
+
+        Some tuner-equipped Samsung TVs expose ``atvDtv``, ``airCable`` and
+        ``channelNum`` through ``directChannelControl``. Models without this
+        capability may return ``-32601``.
+        """
+        return await self._async_request("directChannelControl")
+
+    async def async_get_video_states(self) -> dict[str, Any]:
+        """Return the TV's picture-level snapshot (read-only).
+
+        ``getVideoStates`` reports ``contrast, sharpness, brightness, color,
+        tint`` on a Frame 2024/2025. These ARE writable via their dedicated
+        ``<field>Control`` methods (see :meth:`async_set_video_setting`) when
+        the picture mode allows it — Dynamic/HDR-dynamic reject the write with
+        ``-32002``. This bulk getter stays available for diagnostics.
+        """
+        return await self._async_request("getVideoStates")
+
+    async def async_open_browser(self, url: str) -> None:
+        """Open a URL in the Samsung web browser using IP Control."""
+        if not url:
+            raise SamsungIPControlError("browser URL must not be empty")
+
+        await self._async_request(
+            "directAccessControl",
+            {
+                "applicationName": "webBrowser",
+                "url": url,
+            },
+        )
 
     # -- transport -----------------------------------------------------------
 
@@ -470,10 +922,58 @@ class SamsungIPControl:
         include_token: bool = True,
         timeout: int = CMD_TIMEOUT,
     ) -> dict[str, Any]:
-        """Run a JSON-RPC request in the executor and return the `result` dict."""
-        return await self._hass.async_add_executor_job(
-            self._sync_request, method, params, include_token, timeout
+        """Run a JSON-RPC request in the executor and return the `result` dict.
+
+        Serialized per host: the TV resets overlapping connections on port 1516,
+        so only one call to a given host runs at a time (across every
+        SamsungIPControl instance). A call made inside ``priority_requests``
+        overtakes the background polls already queued on that gate.
+        """
+        gate = _host_lock(self._host)
+        priority = _PRIORITY_REQUEST.get()
+        read_only = (
+            method in _SHAREABLE_READ_METHODS and params is None and include_token
         )
+
+        async def request(
+            flight: _SharedRead | None = None,
+            expected_context: tuple | None = None,
+        ) -> dict[str, Any]:
+            async with gate.acquire(priority=priority):
+                if flight is not None:
+                    if (self._port, self._token) != expected_context:
+                        raise _ReadContextChanged
+                    flight.started = True
+                return await self._hass.async_add_executor_job(
+                    self._sync_request, method, params, include_token, timeout
+                )
+
+        if read_only and not priority:
+            # A write separates queued reads so replies cannot predate the command.
+            while True:
+                context = (self._port, self._token)
+                key = (
+                    id(self._hass),
+                    context[0],
+                    sha256((context[1] or "").encode()).digest(),
+                    method,
+                    timeout,
+                    gate._read_generation,
+                )
+
+                async def queued_read(
+                    flight: _SharedRead, expected: tuple = context
+                ) -> dict[str, Any]:
+                    return await request(flight, expected)
+
+                try:
+                    return await gate.share_queued_read(key, queued_read)
+                except _ReadContextChanged:
+                    # Pairing may change the token while this read waits for the gate.
+                    continue
+        if not read_only:
+            gate._read_generation += 1
+        return await request()
 
     def _build_ssl_context(self, legacy: bool) -> ssl.SSLContext:
         """Build the SSL context for talking to the TV.
@@ -491,7 +991,12 @@ class SamsungIPControl:
         ctx.verify_mode = ssl.CERT_NONE
         if legacy:
             try:
-                ctx.set_ciphers("DEFAULT:@SECLEVEL=1")
+                # SECLEVEL=0 (not 1): some ~2020 Frames negotiate a DH group
+                # smaller than 1024 bits, which SECLEVEL=1 still rejects with
+                # "dh key too small". These are local, self-signed panels we
+                # already talk to with CERT_NONE, so dropping to SECLEVEL=0 (the
+                # most permissive) is safe and strictly looser than SECLEVEL=1.
+                ctx.set_ciphers("DEFAULT@SECLEVEL=0")
             except ssl.SSLError as ex:
                 _LOGGER.warning(
                     "Could not lower TLS security level for %s: %s", self._host, ex
@@ -507,7 +1012,7 @@ class SamsungIPControl:
     ) -> dict[str, Any]:
         """Blocking JSON-RPC request — runs in the executor.
 
-        Retries once with @SECLEVEL=1 on a "dh key too small" SSL error so the
+        Retries once with @SECLEVEL=0 on a "dh key too small" SSL error so the
         client transparently handles older Samsung TVs.
         """
         body: dict[str, Any] = {
@@ -555,22 +1060,45 @@ class SamsungIPControl:
                 raise SamsungIPControlAuthError(
                     f"token rejected (code {code}): {message} — re-pair required"
                 )
-            if code == ERROR_METHOD_NOT_FOUND:
-                raise SamsungIPControlNotReadyError(
-                    f"TV returned error {code}: {message} — the method exists on "
-                    "this firmware but the TV is not ready yet (this is normal "
-                    "for a few seconds after power-on); retry"
+            if code == ERROR_NOT_SUPPORTED_MODEL:
+                # -32001 "Not supported model": a definitive capability verdict,
+                # unlike the ambiguous -32601 below, so it is safe to latch.
+                raise SamsungIPControlUnsupportedError(
+                    f"TV returned error {code}: {message} — this control is not "
+                    "supported on this model"
                 )
-            if code == ERROR_SERVER:
+            if code in SERVER_STATE_CODES:
+                # -32000/-32002/-32003: refused in the current state. The
+                # picture-mode explanation only applies to the expert picture
+                # WRITES it was written for; reads (notably getTVStates) and a
+                # volume read on an external speaker output return the same
+                # family for unrelated reasons, so the picture-mode advice must
+                # not be attached to them.
+                if method in PICTURE_WRITE_METHODS:
+                    raise SamsungIPControlModeLockedError(
+                        f"{method} returned error {code}: {message} — the "
+                        "current picture mode likely blocks this control (e.g. "
+                        "Dynamic/HDR-dynamic); switch to Standard/Movie/"
+                        "Filmmaker and retry"
+                    )
                 raise SamsungIPControlModeLockedError(
-                    f"TV returned error {code}: {message} — the current "
-                    "picture mode likely blocks this control (e.g. "
-                    "Dynamic/HDR-dynamic); switch to Standard/Movie/"
-                    "Filmmaker and retry"
+                    f"{method} returned error {code}: {message} — the TV "
+                    "refused it in its current state; usually transient"
+                )
+            if code == ERROR_METHOD_NOT_FOUND:
+                raise SamsungIPControlUnsupportedError(
+                    f"TV returned error {code}: {message} — this method is not "
+                    "available right now (it may not exist on this model, or the "
+                    "TV may be in Art Mode)"
                 )
             raise SamsungIPControlError(f"TV returned error {code}: {message}")
 
         result = data.get("result")
+        if isinstance(result, list):
+            # A few getters (e.g. externalSpeakerControl) return a JSON array.
+            # Wrap it so the dict return contract holds for every caller;
+            # list-aware callers unwrap via LIST_RESULT_KEY.
+            return {LIST_RESULT_KEY: result}
         if not isinstance(result, dict):
             return {}
         return result
@@ -618,14 +1146,7 @@ class SamsungIPControl:
                     f"TLS error talking to {self._host}:{self._port}: {ex}"
                 ) from ex
             except (TimeoutError, OSError) as ex:
-                if isinstance(ex, (ConnectionRefusedError, ConnectionResetError)):
-                    # Nothing listening on this port (wrong port for this model,
-                    # or the TV is off). The auto-probe catches this to try the
-                    # next candidate port.
-                    raise SamsungIPControlPortClosedError(
-                        f"connection refused talking to {self._host}:{self._port}: {ex}"
-                    ) from ex
-                raise SamsungIPControlError(
+                raise SamsungIPControlTransportError(
                     f"transport failure talking to {self._host}:{self._port}: {ex}"
                 ) from ex
             finally:
@@ -634,45 +1155,3 @@ class SamsungIPControl:
         # returns or raises, so reaching here means both attempts somehow fell
         # through without raising — treat as a generic error rather than crash.
         raise SamsungIPControlError("IP Control request failed after retry")
-
-
-async def async_pair_autoprobe(
-    hass: HomeAssistant,
-    host: str,
-    *,
-    ports: tuple[int, ...] = IP_CONTROL_PORT_CANDIDATES,
-) -> tuple[int, str]:
-    """Pair IP Control, auto-detecting the TV's control port.
-
-    Tries each candidate port in order. A closed port (connection refused)
-    means "wrong port for this model" and we move on; the first port that
-    answers is the TV's real control port, and we pair on it. The TV must be
-    ON in normal viewing (not Art Mode) to accept the on-screen prompt.
-
-    Returns ``(port, token)`` for the port that paired. Raises
-    ``SamsungIPControlPortClosedError`` if every candidate port was refused
-    (TV off, wrong network, or IP Control unavailable), or another
-    ``SamsungIPControlError`` if a port answered but pairing was not completed
-    (e.g. the on-screen prompt was not accepted in time).
-    """
-    last_closed: SamsungIPControlPortClosedError | None = None
-    for port in ports:
-        client = SamsungIPControl(hass, host, port=port)
-        try:
-            token = await client.async_pair()
-        except SamsungIPControlPortClosedError as ex:
-            # Wrong port for this model — try the next candidate.
-            _LOGGER.debug(
-                "IP Control port %s closed on %s — trying next candidate", port, host
-            )
-            last_closed = ex
-            continue
-        # Any other SamsungIPControlError propagates: the port answered, so it
-        # is the right one; the failure is a real pairing problem to surface.
-        _LOGGER.debug("IP Control paired on %s:%s", host, port)
-        return port, token
-    # Every candidate port refused the connection.
-    raise last_closed or SamsungIPControlPortClosedError(
-        f"no IP Control port answered on {host} "
-        f"(tried {', '.join(str(p) for p in ports)})"
-    )

@@ -1,6 +1,6 @@
 {
   "domain": "samsungtv_smart",
-  "name": "SamsungTV Smart (ProOS build)",
+  "name": "SamsungTV Smart and Art Mode",
   "after_dependencies": [
     "smartthings",
     "folder",
@@ -8,7 +8,7 @@
   ],
   "codeowners": [
     "@TheFab21",
-    "@protech-systems"
+    "@protech-proos"
   ],
   "config_flow": true,
   "dependencies": [
@@ -23,7 +23,8 @@
     "websocket-client!=1.4.0,>=0.58.0",
     "wakeonlan>=2.0.0",
     "aiofiles>=0.8.0",
-    "casttube>=0.2.1"
+    "casttube>=0.2.1",
+    "pillow-heif>=0.13.0"
   ],
-  "version": "8.0.0+proos.9"
+  "version": "9.3.0+proos.10"
 }

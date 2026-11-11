@@ -61,7 +61,8 @@
         "menu_options": {
           "reconfigure_connection": "Connection (IP address & port)",
           "reconfigure_auth": "Authentication (OAuth2 / PAT / SmartThings)",
-          "reconfigure_ip_control": "IP Control (reliable power & pairing)"
+          "reconfigure_ip_control": "IP Control (reliable power & pairing)",
+          "reconfigure_st_device": "SmartThings device (re-link after a repair)"
         }
       },
       "reauth_confirm": {
@@ -91,13 +92,21 @@
         "data": {
           "pair_now": "Pair now",
           "enable_ip_control": "Enable IP Control",
-          "ip_control_art_mode": "Use IP Control for Art Mode",
+          "ip_control_art_mode": "Switch Art Mode over IP Control",
           "ip_tuner_token": "Tuner input token (blank = TV; read ip_input_source while on the tuner)"
         }
       },
       "reconfigure_ip_pair": {
         "title": "Pair IP Control",
         "description": "Pairs the TV's IP Control interface.\n\nBefore continuing:\n1. The TV must be ON and in NORMAL viewing — not Art Mode.\n2. Enable IP Remote: Settings → All Settings → Connections → Network → Expert Settings → Enable IP Remote.\n\nAccept the authorization prompt on the TV when it appears. Current status: {status}."
+      },
+      "reconfigure_st_device": {
+        "title": "SmartThings device",
+        "description": "Select which SmartThings device this TV corresponds to.\n\nCurrently: **{current}**\n\nA TV that was repaired, reset, or removed and re-added in the SmartThings app gets a **new device id**, and the old one is refused with *Forbidden*. Re-selecting it here keeps your entities and history.",
+        "data": {
+          "st_devices": "SmartThings device",
+          "device_id": "SmartThings device ID"
+        }
       }
     },
     "error": {
@@ -109,6 +118,7 @@
       "st_device_used": "This SmartThings device is already configured.",
       "not_successful": "Could not connect to the TV. Ensure it's on and allow the connection when prompted.",
       "ip_control_pair_failed": "IP Control pairing failed. Make sure the TV is ON in normal viewing (not Art Mode) and IP Remote is enabled in Settings, then try again.",
+      "ip_control_unreachable": "Could not reach the TV on port 1516. Nothing is listening there: the TV's power state and the IP Remote setting are not the cause. Most likely this model has no IP Control server -- it is a Samsung feature absent from many TVs, and older ones in particular. Everything else in the integration works without it; only the backlight, colour tone, picture calibration and reboot entities need it.",
       "ip_control_no_host": "No TV host is configured for this entry."
     },
     "abort": {
@@ -123,7 +133,10 @@
       "reauth_successful": "Re-authentication successful.",
       "reauth_failed": "Re-authentication failed.",
       "reconfigure_successful": "Configuration updated.",
-      "ip_control_pair_successful": "IP Control paired successfully. The access token has been stored."
+      "ip_control_pair_successful": "IP Control paired successfully. The access token has been stored.",
+      "st_device_updated": "SmartThings device updated. The integration is reloading.",
+      "st_not_configured": "SmartThings is not configured for this TV.",
+      "st_device_missing": "No SmartThings device was selected."
     },
     "create_entry": {
       "default": "Successfully configured {name}"
@@ -153,6 +166,7 @@
           "sync_ent": "Synchronized Entities",
           "init": "Basic Options",
           "adv_opt": "Advanced Options",
+          "art_identify": "Art Identification",
           "save_exit": "Save and Exit"
         }
       },
@@ -194,17 +208,48 @@
           "ext_power_entity": "External Power Entity",
           "use_mute_check": "Use Mute State for Power Detection",
           "dump_apps": "Debug: Dump Applications",
-          "toggle_art_mode": "Toggle Art Mode on Power"
+          "toggle_art_mode": "Toggle Art Mode on Power",
+          "st_poll_on_interval": "SmartThings interval when on (s)",
+          "ip_control_poll_interval": "IP Control interval (s)",
+          "content_list_interval": "Art content list refresh interval (s)",
+          "art_exit_source": "Source after leaving Art Mode",
+          "external_audio_entity": "External soundbar or receiver status entity",
+          "rest_app_list": "Additional apps to detect",
+          "rest_app_poll_interval": "Additional app refresh interval (s)",
+          "report_art_mode_as_off": "Report media player off in Art Mode",
+          "art_on_non_frame": "Frame Art on a non-Frame TV"
+        },
+        "data_description": {
+          "art_exit_source": "Input or app to switch to when Art Mode is turned off from Home Assistant (Art Mode switch or art_set_artmode). Leave empty to keep the TV's own behaviour: it goes back to its last source, often TV (Samsung TV Plus) on a Frame. Not applied when Art Mode is left with the remote.",
+          "external_audio_entity": "Optional: use an existing media player for actual volume and mute feedback while the TV uses external speakers. TV controls stay unchanged. Leave empty to use the TV readings. No additional polling is added. Select the actual soundbar or receiver, not a group or another entity that mirrors this TV.",
+          "rest_app_list": "Map display names to native Tizen app IDs for apps missing from automatic discovery. Leave empty to disable additional REST status checks.",
+          "rest_app_poll_interval": "Apps with a recent reading from the normal tracker need no extra checks. Other apps refresh every 30 seconds by default, with up to 120 scheduled checks per app per hour. Results are cached between refreshes; source changes and Art Mode events can refresh sooner. An empty app list adds no requests.",
+          "report_art_mode_as_off": "Optional: report artwork as off while keeping art_mode_status on. Normal viewing remains on; physical power tracking and Art Mode controls continue. Disabled by default.",
+          "art_on_non_frame": "Optional: enable Art Mode for a TV that reports itself as not a Frame but runs the art app, such as the 2026 Micro RGB R95H. The art-app channel is asked for its version and the Art Mode entities are created only when it answers. Have the TV on the first time. Disabled by default."
         }
       },
       "save_exit": {
         "title": "Save Configuration"
+      },
+      "art_identify": {
+        "title": "Art identification",
+        "description": "Identify the artwork shown on the Frame TV via reverse image search (Google Vision) confirmed by an LLM. All fields are optional except the toggle; leave a key blank to keep the previously saved one.",
+        "data": {
+          "art_identify_enable": "Enable artwork identification",
+          "art_vision_api_key": "Google Cloud Vision API key",
+          "art_llm_provider": "LLM provider",
+          "art_llm_api_key": "LLM API key (Anthropic, OpenAI or Gemini)",
+          "art_llm_model": "LLM model (blank = provider default)",
+          "art_identify_personal": "Also identify personal photos (usually off)"
+        }
       }
     },
     "error": {
       "invalid_tv_list": "Invalid list format. Please use valid JSON format.",
       "ip_control_pair_failed": "Pairing failed. Make sure the TV is on and in normal viewing (not Art Mode), and that IP Remote is enabled, then try again.",
-      "ip_control_no_host": "No host address is configured for this TV."
+      "ip_control_unreachable": "Could not reach the TV on port 1516 -- nothing is listening there. This model most likely does not support IP Control; the TV's state and the IP Remote setting are not the cause. Only the backlight, colour tone, picture calibration and reboot entities depend on it.",
+      "ip_control_no_host": "No host address is configured for this TV.",
+      "invalid_rest_app_list": "Enter unique display names and native app IDs using letters, digits, dots, underscores or hyphens."
     }
   },
   "application_credentials": {
@@ -225,6 +270,268 @@
     "button": {
       "reboot": {
         "name": "Reboot TV"
+      },
+      "art_brightness_reset": {
+        "name": "Art Mode Brightness Reset"
+      }
+    },
+    "sensor": {
+      "illuminance": {
+        "name": "Illuminance"
+      },
+      "brightness_intensity": {
+        "name": "Brightness intensity"
+      },
+      "art_orientation": {
+        "name": "Art orientation",
+        "state": {
+          "landscape": "Landscape",
+          "portrait": "Portrait"
+        }
+      },
+      "ip_input_source": {
+        "name": "Input source"
+      },
+      "ip_picture_mode": {
+        "name": "Picture mode"
+      },
+      "ip_sound_mode": {
+        "name": "Sound mode"
+      },
+      "ip_picture_size": {
+        "name": "Picture size"
+      },
+      "ip_mute": {
+        "name": "Mute"
+      },
+      "ip_volume": {
+        "name": "Volume"
+      },
+      "art_metadata": {
+        "name": "Art metadata"
+      },
+      "art_folder_personal": {
+        "name": "Personal photos"
+      },
+      "art_folder_store": {
+        "name": "Art Store"
+      },
+      "art_folder_other": {
+        "name": "Other art"
+      },
+      "frame_art": {
+        "name": "Frame Art"
+      },
+      "st_power": {
+        "name": "Power"
+      },
+      "st_energy": {
+        "name": "Energy"
+      },
+      "st_energy_difference": {
+        "name": "Energy difference"
+      },
+      "st_power_energy": {
+        "name": "Power energy"
+      },
+      "st_energy_saved": {
+        "name": "Energy saved"
+      }
+    },
+    "switch": {
+      "power": {
+        "name": "Power"
+      },
+      "art_mode": {
+        "name": "Art Mode"
+      },
+      "ip_auto_hdr_remastering": {
+        "name": "Auto HDR Remastering"
+      },
+      "ip_brightness_optimization": {
+        "name": "Brightness optimization"
+      },
+      "ip_motion_lighting": {
+        "name": "Motion lighting"
+      },
+      "ip_auto_power_saving": {
+        "name": "Auto power saving"
+      },
+      "ip_energy_saving_solution": {
+        "name": "Energy saving solution (IP Control)"
+      }
+    },
+    "select": {
+      "matte_type": {
+        "name": "Matte Type",
+        "state": {
+          "none": "No Mat",
+          "modernthin": "Modern Mat - Thin",
+          "modern": "Modern Mat",
+          "modernwide": "Modern Mat - Wide",
+          "flexible": "Modern Mat - Auto",
+          "shadowbox": "Shadowbox Mat",
+          "panoramic": "Panoramic Mat",
+          "triptych": "Triptych Mat",
+          "mix": "Mixed Mat",
+          "squares": "Squares Mat"
+        }
+      },
+      "matte_color": {
+        "name": "Matte Color",
+        "state": {
+          "black": "Black",
+          "neutral": "Neutral",
+          "antique": "Antique",
+          "warm": "Warm",
+          "polar": "Polar",
+          "sand": "Sand",
+          "seafoam": "Slate",
+          "sage": "Sage",
+          "burgandy": "Burgundy",
+          "navy": "Navy",
+          "apricot": "Apricot",
+          "byzantine": "Byzantine",
+          "lavender": "Lavender",
+          "redorange": "Orange",
+          "skyblue": "Sky Blue",
+          "turquoise": "Turquoise"
+        }
+      },
+      "art_motion_timer": {
+        "name": "Motion Timer",
+        "state": {
+          "5": "5 minutes",
+          "15": "15 minutes",
+          "30": "30 minutes",
+          "60": "1 hour",
+          "120": "2 hours",
+          "180": "3 hours",
+          "240": "4 hours",
+          "off": "Off",
+          "always": "Always"
+        }
+      },
+      "picture_mode": {
+        "name": "Picture mode",
+        "state": {
+          "dynamic": "Dynamic",
+          "standard": "Standard",
+          "natural": "Natural",
+          "movie": "Movie",
+          "filmmaker_mode": "FILMMAKER MODE",
+          "eco": "Eco",
+          "intelligent": "AI Optimized",
+          "ai_customization": "AI Customization"
+        }
+      },
+      "qs_sound_mode": {
+        "name": "Sound mode"
+      },
+      "qs_ai_mode": {
+        "name": "AI mode"
+      },
+      "qs_energy_saving_solution": {
+        "name": "Energy saving solution"
+      },
+      "qs_sleep_timer": {
+        "name": "Sleep timer"
+      },
+      "qs_game_mode": {
+        "name": "Game mode"
+      },
+      "qs_picture_clarity": {
+        "name": "Picture clarity"
+      },
+      "qs_contrast_enhancer": {
+        "name": "Contrast enhancer"
+      },
+      "qs_color_tone": {
+        "name": "Color tone"
+      },
+      "qs_color_space": {
+        "name": "Color space"
+      },
+      "qs_digital_audio_format": {
+        "name": "Digital audio output format"
+      },
+      "source": {
+        "name": "Source"
+      },
+      "ip_auto_motion_plus": {
+        "name": "Auto Motion Plus",
+        "state": {
+          "off": "Off",
+          "auto": "Auto",
+          "custom": "Custom"
+        }
+      },
+      "ip_apply_picture_settings": {
+        "name": "Apply picture settings",
+        "state": {
+          "current_source": "Current source",
+          "all_sources": "All sources"
+        }
+      },
+      "ip_peak_brightness": {
+        "name": "Peak brightness",
+        "state": {
+          "off": "Off",
+          "medium": "Medium",
+          "high": "High"
+        }
+      },
+      "ip_contrast_enhancer": {
+        "name": "Contrast enhancer (IP Control)",
+        "state": {
+          "off": "Off",
+          "low": "Low",
+          "high": "High"
+        }
+      },
+      "ip_color_tone": {
+        "name": "Color tone (IP Control)"
+      },
+      "speaker_select": {
+        "name": "Speaker select"
+      },
+      "art_motion_sensitivity": {
+        "name": "Motion sensitivity"
+      },
+      "art_brightness_sensor": {
+        "name": "Brightness sensor"
+      },
+      "st_picture_mode": {
+        "name": "Picture mode"
+      }
+    },
+    "number": {
+      "ip_gamma_bt1886": {
+        "name": "Gamma (BT.1886)"
+      },
+      "ip_backlight": {
+        "name": "Backlight"
+      },
+      "ip_contrast": {
+        "name": "Contrast"
+      },
+      "ip_brightness": {
+        "name": "Brightness"
+      },
+      "ip_sharpness": {
+        "name": "Sharpness"
+      },
+      "ip_color": {
+        "name": "Color"
+      },
+      "ip_tint": {
+        "name": "Tint"
+      },
+      "art_brightness": {
+        "name": "Art Mode brightness"
+      },
+      "art_color_temperature": {
+        "name": "Art Mode color temperature"
       }
     }
   }

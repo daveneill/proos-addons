@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import asyncio
+from functools import partial
+import hashlib
 import json
 import logging
 import os
 from pathlib import Path
 import socket
 import time
+from weakref import WeakValueDictionary
 
 from aiohttp import ClientConnectionError, ClientResponseError, ClientSession
 import async_timeout
@@ -38,6 +41,7 @@ from homeassistant.const import (
 )
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers import config_entry_oauth2_flow
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.dispatcher import async_dispatcher_send
@@ -45,7 +49,7 @@ from homeassistant.helpers.storage import STORAGE_DIR
 from homeassistant.helpers.typing import ConfigType
 
 from .api.art import SamsungTVAsyncArt
-from .api.samsungws import ConnectionFailure, SamsungTVWS
+from .api.samsungws import ConnectionFailure, Ping, SamsungTVWS
 from .api.smartthings import SmartThingsTV
 from .const import (
     ATTR_DEVICE_MAC,
@@ -55,17 +59,33 @@ from .const import (
     AUTH_METHOD_OAUTH,
     AUTH_METHOD_ST_ENTRY,
     CONF_APP_LIST,
+    CONF_ART_IDENTIFY_PERSONAL,
+    CONF_ART_LLM_API_KEY,
+    CONF_ART_LLM_MODEL,
+    CONF_ART_LLM_PROVIDER,
+    CONF_ART_ON_NON_FRAME,
+    CONF_ART_PORT,
+    CONF_ART_VISION_API_KEY,
     CONF_AUTH_METHOD,
     CONF_CHANNEL_LIST,
     CONF_DEVICE_NAME,
+    CONF_ENABLE_IP_CONTROL,
     CONF_IP_CONTROL_ART_MODE,
+    CONF_IP_CONTROL_FW_VERSION,
+    CONF_IP_CONTROL_MODEL_ID,
+    CONF_IP_CONTROL_POLL_INTERVAL,
+    CONF_IP_CONTROL_TOKEN,
     CONF_IS_FRAME_TV,
     CONF_LOAD_ALL_APPS,
     CONF_OAUTH_TOKEN,
+    CONF_REST_PORT,
     CONF_SCAN_APP_HTTP,
     CONF_SHOW_CHANNEL_NR,
+    CONF_SLIDESHOW_API,
     CONF_SOURCE_LIST,
     CONF_ST_ENTRY_UNIQUE_ID,
+    CONF_ST_PICTURE_MODE_CAPABILITY,
+    CONF_ST_POLL_ON_INTERVAL,
     CONF_SUPPORTS_GET_BRIGHTNESS,
     CONF_SUPPORTS_GET_COLOR_TEMPERATURE,
     CONF_SYNC_TURN_OFF,
@@ -77,11 +97,13 @@ from .const import (
     DATA_ART_API,
     DATA_CFG,
     DATA_CFG_YAML,
+    DATA_ENTRY_DATA,
     DATA_OPTIONS,
     DEFAULT_PORT,
     DEFAULT_SOURCE_LIST,
     DEFAULT_TIMEOUT,
     DOMAIN,
+    IS_FRAME_TV_ART_APP,
     LOCAL_LOGO_PATH,
     MIN_HA_MAJ_VER,
     MIN_HA_MIN_VER,
@@ -94,6 +116,7 @@ from .const import (
     __min_ha_version__,
 )
 from .logo import CUSTOM_IMAGE_BASE_URL, STATIC_IMAGE_BASE_URL
+from .token_notify import METHOD_IP_CONTROL, METHOD_LOCAL, clear_token_problem
 
 # workaroud for failing import native domain when custom integration is present
 try:
@@ -172,17 +195,122 @@ CONFIG_SCHEMA = vol.Schema(
 
 _LOGGER = logging.getLogger(__name__)
 
-# Global lock dictionary to prevent concurrent OAuth refresh per entry
-# This is shared across all entities (media_player, switch, sensor)
-_OAUTH_REFRESH_LOCKS: dict[str, asyncio.Lock] = {}
+# Global lock dictionary to prevent concurrent OAuth refreshes for entries that
+# share a SmartThings refresh token. SmartThings rotates that token, so allowing
+# each TV entry to refresh it independently makes the first refresh invalidate
+# every sibling entry. Weak references avoid retaining one lock per daily token
+# rotation indefinitely.
+_OAUTH_REFRESH_LOCKS: WeakValueDictionary[str, asyncio.Lock] = WeakValueDictionary()
 _OAUTH_REFRESH_IN_PROGRESS: dict[str, bool] = {}
+# Set once the SmartThings refresh token is rejected with invalid_grant: the
+# refresh token is dead and retrying only hammers the auth endpoint (observed
+# thousands of times/hour). We stop attempting refresh and trigger a reauth
+# flow; the flag is cleared automatically once a valid token is stored again.
+_OAUTH_TOKEN_INVALID: dict[str, bool] = {}
 
 
-def get_oauth_refresh_lock(entry_id: str) -> asyncio.Lock:
-    """Get or create a lock for OAuth refresh for a specific entry."""
-    if entry_id not in _OAUTH_REFRESH_LOCKS:
-        _OAUTH_REFRESH_LOCKS[entry_id] = asyncio.Lock()
-    return _OAUTH_REFRESH_LOCKS[entry_id]
+def is_oauth_token_invalid(entry_id: str) -> bool:
+    """True when the entry's refresh token was rejected and reauth is needed."""
+    return _OAUTH_TOKEN_INVALID.get(entry_id, False)
+
+
+def set_oauth_token_invalid(entry_id: str, invalid: bool) -> None:
+    """Mark/clear the entry's refresh token as invalid (reauth required)."""
+    _OAUTH_TOKEN_INVALID[entry_id] = invalid
+
+
+def is_invalid_grant_error(ex: Exception) -> bool:
+    """True when an OAuth refresh failure is the terminal invalid_grant case."""
+    text = str(ex).lower()
+    return "invalid_grant" in text or "invalid refresh token" in text
+
+
+def start_oauth_reauth(hass: HomeAssistant, entry_id: str) -> None:
+    """Latch the invalid-token flag and kick off HA's reauth flow once."""
+    if _OAUTH_TOKEN_INVALID.get(entry_id):
+        return  # already handled — don't spawn duplicate reauth flows
+    _OAUTH_TOKEN_INVALID[entry_id] = True
+    entry = hass.config_entries.async_get_entry(entry_id)
+    if entry is not None:
+        _LOGGER.warning(
+            "[%s] SmartThings refresh token rejected (invalid_grant) — reauth "
+            "required; stopping refresh attempts until re-authenticated",
+            entry.title,
+        )
+        try:
+            entry.async_start_reauth(hass)
+        except Exception as exc:  # pylint: disable=broad-except
+            _LOGGER.debug("Could not start reauth flow: %s", exc)
+
+
+def _oauth_refresh_group_key(entry: ConfigEntry) -> str:
+    """Return a non-secret key for entries sharing an OAuth refresh token."""
+    oauth_token = entry.data.get(CONF_OAUTH_TOKEN)
+    refresh_token = (
+        oauth_token.get("refresh_token") if isinstance(oauth_token, dict) else None
+    )
+    if not isinstance(refresh_token, str) or not refresh_token:
+        return f"entry:{entry.entry_id}"
+
+    implementation = entry.data.get("auth_implementation", DOMAIN)
+    token_digest = hashlib.sha256(refresh_token.encode()).hexdigest()
+    return f"{implementation}:{token_digest}"
+
+
+def get_oauth_refresh_lock(entry: ConfigEntry) -> asyncio.Lock:
+    """Get or create a lock for entries sharing an OAuth refresh token."""
+    group_key = _oauth_refresh_group_key(entry)
+    lock = _OAUTH_REFRESH_LOCKS.get(group_key)
+    if lock is None:
+        lock = asyncio.Lock()
+        _OAUTH_REFRESH_LOCKS[group_key] = lock
+    return lock
+
+
+@callback
+def update_shared_oauth_token(
+    hass: HomeAssistant,
+    source_entry: ConfigEntry,
+    previous_token: dict,
+    new_token: dict,
+    source_data_updates: dict | None = None,
+) -> int:
+    """Store a rotated OAuth token in all entries that shared its predecessor."""
+    previous_refresh_token = previous_token.get("refresh_token")
+    implementation = source_entry.data.get("auth_implementation", DOMAIN)
+    updated_count = 0
+
+    for entry in hass.config_entries.async_entries(DOMAIN):
+        entry_token = entry.data.get(CONF_OAUTH_TOKEN)
+        is_source = entry.entry_id == source_entry.entry_id
+        if not is_source:
+            if not previous_refresh_token or not isinstance(entry_token, dict):
+                continue
+            if entry_token.get("refresh_token") != previous_refresh_token:
+                continue
+            if entry.data.get("auth_implementation", DOMAIN) != implementation:
+                continue
+
+        hass.config_entries.async_update_entry(
+            entry,
+            data={
+                **entry.data,
+                CONF_OAUTH_TOKEN: new_token,
+                CONF_API_KEY: new_token["access_token"],
+                "auth_implementation": implementation,
+                **(source_data_updates if is_source and source_data_updates else {}),
+            },
+        )
+        set_oauth_token_invalid(entry.entry_id, False)
+        ir.async_delete_issue(hass, DOMAIN, f"oauth_auth_failed_{entry.entry_id}")
+        updated_count += 1
+
+    _LOGGER.info(
+        "OAuth token updated for %d TV entr%s sharing the previous token",
+        updated_count,
+        "y" if updated_count == 1 else "ies",
+    )
+    return updated_count
 
 
 def is_oauth_refresh_in_progress(entry_id: str) -> bool:
@@ -496,13 +624,24 @@ async def async_get_samsungtv_api_key(  # noqa: C901
                         )
                         return access_token  # Try with expired token anyway
 
+                    # If the refresh token was already rejected (invalid_grant),
+                    # a reauth flow is pending — don't keep hammering the auth
+                    # endpoint on every cycle. Use the (expired) token and wait
+                    # for the user to re-authenticate.
+                    if is_oauth_token_invalid(entry.entry_id):
+                        _LOGGER.debug(
+                            "[%s] Skipping OAuth refresh — reauth pending",
+                            entry.title,
+                        )
+                        return access_token
+
                     # Acquire lock to prevent concurrent refresh. If another
                     # task is already refreshing, WAIT for it instead of
                     # returning the current (expired) token: platform setups
                     # (ST sensors, power switch) race the media_player refresh
                     # at startup, and a stale token here makes their setup
                     # fail with an auth error until the next reload.
-                    lock = get_oauth_refresh_lock(entry.entry_id)
+                    lock = get_oauth_refresh_lock(entry)
                     async with lock:
                         # Double-check after acquiring lock - token might have been refreshed
                         updated_entry = hass.config_entries.async_get_entry(
@@ -516,6 +655,8 @@ async def async_get_samsungtv_api_key(  # noqa: C901
                                     "Token was refreshed by another entity, using new token"
                                 )
                                 return updated_token.get("access_token")
+                            entry = updated_entry
+                            oauth_token = updated_token
 
                         set_oauth_refresh_in_progress(entry.entry_id, True)
                         try:
@@ -576,17 +717,14 @@ async def async_get_samsungtv_api_key(  # noqa: C901
                                 new_token = await implementation.async_refresh_token(
                                     oauth_token
                                 )
-                                # Update entry with new token
-                                hass.config_entries.async_update_entry(
+                                update_shared_oauth_token(
+                                    hass,
                                     entry,
-                                    data={
-                                        **entry.data,
-                                        CONF_OAUTH_TOKEN: new_token,
-                                        CONF_API_KEY: new_token["access_token"],
-                                        "auth_implementation": DOMAIN,
-                                    },
+                                    oauth_token,
+                                    new_token,
                                 )
                                 _LOGGER.info("OAuth token refreshed successfully")
+                                set_oauth_token_invalid(entry.entry_id, False)
                                 return new_token["access_token"]
                             else:
                                 _LOGGER.error(
@@ -595,15 +733,22 @@ async def async_get_samsungtv_api_key(  # noqa: C901
                                     "and add credentials for Samsung TV Smart."
                                 )
                         except Exception as ex:
-                            _LOGGER.error("Failed to refresh OAuth token: %s", ex)
+                            if is_invalid_grant_error(ex):
+                                # Terminal: refresh token is dead → reauth, stop
+                                # retrying (start_oauth_reauth logs + latches).
+                                start_oauth_reauth(hass, entry.entry_id)
+                            else:
+                                _LOGGER.error("Failed to refresh OAuth token: %s", ex)
                             # Try to use existing token anyway
                         finally:
                             set_oauth_refresh_in_progress(entry.entry_id, False)
 
-                _LOGGER.debug("Using OAuth access token")
+                _LOGGER.debug("[%s] Using OAuth access token", entry.title)
                 return access_token
 
-        _LOGGER.warning("OAuth method configured but no valid token found")
+        _LOGGER.warning(
+            "[%s] OAuth method configured but no valid token found", entry.title
+        )
         return entry.data.get(CONF_API_KEY)
 
     # Method 2: SmartThings Integration token
@@ -612,7 +757,7 @@ async def async_get_samsungtv_api_key(  # noqa: C901
         if st_unique_id:
             api_key = get_smartthings_api_key(hass, st_unique_id)
             if api_key:
-                _LOGGER.debug("Using SmartThings integration token")
+                _LOGGER.debug("[%s] Using SmartThings integration token", entry.title)
                 return api_key
             _LOGGER.warning(
                 "Failed to retrieve SmartThings integration access token, using last available"
@@ -652,14 +797,16 @@ async def _register_logo_paths(hass: HomeAssistant) -> str | None:
 
     local_logo_path = Path(hass.config.path("www", f"{DOMAIN}_logos"))
     url_logo_path = str(local_logo_path)
-    if not local_logo_path.exists():
-        try:
-            local_logo_path.mkdir(parents=True)
-        except Exception as exc:  # pylint: disable=broad-except
-            _LOGGER.warning(
-                "Error registering custom logo folder %s: %s", str(local_logo_path), exc
-            )
-            url_logo_path = None
+    try:
+        # Disk access: off the event loop.
+        await hass.async_add_executor_job(
+            partial(local_logo_path.mkdir, parents=True, exist_ok=True)
+        )
+    except Exception as exc:  # pylint: disable=broad-except
+        _LOGGER.warning(
+            "Error registering custom logo folder %s: %s", str(local_logo_path), exc
+        )
+        url_logo_path = None
 
     if url_logo_path is not None:
         static_paths.append(
@@ -725,6 +872,52 @@ async def _register_gallery_card(hass: HomeAssistant) -> None:
             )
 
     hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, _register_lovelace_resource)
+
+
+async def _register_bundled_card(hass: HomeAssistant, filename: str) -> None:
+    """Serve a bundled Lovelace card JS and auto-add it as a resource.
+
+    Generic version of the gallery-card registration: registers the static
+    path immediately, then adds the Lovelace resource once HA has started.
+    """
+    js_file = Path(__file__).parent / "www" / filename
+    if not js_file.exists():
+        _LOGGER.warning(
+            "SamsungTV Smart: %s not found at %s, skipping", filename, js_file
+        )
+        return
+
+    url = f"/api/{DOMAIN}/{filename}"
+    await hass.http.async_register_static_paths(
+        [StaticPathConfig(url, str(js_file), cache_headers=False)]
+    )
+    _LOGGER.debug("SamsungTV Smart: %s registered at %s", filename, url)
+
+    async def _register_resource(event: Event | None = None) -> None:
+        try:
+            lovelace_data = hass.data.get("lovelace")
+            resources = getattr(lovelace_data, "resources", None)
+            if resources is None:
+                return
+            await resources.async_get_info()
+            if url not in [r["url"] for r in resources.async_items()]:
+                await resources.async_create_item({"res_type": "module", "url": url})
+                _LOGGER.info(
+                    "SamsungTV Smart: %s registered as Lovelace resource", filename
+                )
+        except Exception as err:  # pylint: disable=broad-except
+            _LOGGER.warning(
+                "SamsungTV Smart: could not register %s as Lovelace resource: %s",
+                filename,
+                err,
+            )
+
+    # Register right away if HA is already running (e.g. the integration was
+    # reloaded or set up after startup); otherwise wait for the started event.
+    if hass.is_running:
+        await _register_resource()
+    else:
+        hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, _register_resource)
 
 
 async def get_device_info(hostname: str, session: ClientSession) -> dict:
@@ -819,7 +1012,20 @@ class SamsungTVInfo:
                     (alternate, False),
                 ]
         else:
-            attempts = [(8001, False), (8002, False)]
+            # No preferred port yet (initial pairing). Prefer the secure 8002
+            # channel when the TV actually exposes it. On many Frames the plain
+            # 8001 channel completes the WS handshake — and even hands back a
+            # token — so open() "succeeds" on 8001 and 8001 gets stored; but
+            # that token is refused at runtime (ms.channel.unauthorized) because
+            # the real token flow only lives on 8002. Storing 8001 then forces
+            # the remote channel to re-heal to 8002 on every start. A quick TCP
+            # probe keeps this safe for the sets that genuinely need 8001: on
+            # 2024 Frames 8002 is filtered and on ~2020 sets it is absent, so
+            # the probe fails fast and we fall back to trying 8001 first.
+            if Ping(self._hostname).ping(8002):
+                attempts = [(8002, False), (8001, False)]
+            else:
+                attempts = [(8001, False), (8002, False)]
 
         for port, use_token in attempts:
             timeout = DEFAULT_TIMEOUT if use_token else 45
@@ -931,18 +1137,24 @@ class SamsungTVInfo:
         return result
 
 
+def _remove_legacy_translation(path: str) -> None:
+    """Delete the obsolete translations_en.json (runs in the executor)."""
+    if not os.path.isfile(path):
+        return
+    try:
+        os.remove(path)
+        _LOGGER.info("Removed obsolete translations_en.json")
+    except OSError as ex:
+        _LOGGER.debug("Could not remove translations_en.json: %s", ex)
+
+
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up the Samsung TV integration."""
     # Clean up legacy translations_en.json (removed in b7, not deleted by HACS)
     _legacy = hass.config.path(
         "custom_components", "samsungtv_smart", "translations_en.json"
     )
-    if os.path.isfile(_legacy):
-        try:
-            os.remove(_legacy)
-            _LOGGER.info("Removed obsolete translations_en.json")
-        except OSError as ex:
-            _LOGGER.debug("Could not remove translations_en.json: %s", ex)
+    await hass.async_add_executor_job(_remove_legacy_translation, _legacy)
 
     if not is_valid_ha_version():
         msg = (
@@ -991,6 +1203,27 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     # Register folder-gallery-card as Lovelace resource
     await _register_gallery_card(hass)
 
+    # On-demand resized-thumbnail endpoint used by the gallery card so big
+    # folders of full-size originals don't get downloaded at full resolution.
+    try:
+        from .http_thumbnail import SamsungTVThumbnailView
+
+        hass.http.register_view(SamsungTVThumbnailView(hass))
+    except Exception as exc:  # pylint: disable=broad-except
+        _LOGGER.warning("Could not register thumbnail view: %s", exc)
+
+    # One-click upload endpoint used by the art-upload card (pick a file on any
+    # device → straight to the Frame, no folder sensor needed).
+    try:
+        from .http_upload import SamsungArtUploadView
+
+        hass.http.register_view(SamsungArtUploadView(hass))
+    except Exception as exc:  # pylint: disable=broad-except
+        _LOGGER.warning("Could not register art upload view: %s", exc)
+
+    # Register the art-upload Lovelace card (served + auto-added as a resource).
+    await _register_bundled_card(hass, "samsung-art-upload-card.js")
+
     return True
 
 
@@ -1014,19 +1247,34 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # migrate options to new format if required
     _migrate_options_format(hass, entry)
 
-    # PROOS: a detected Frame defaults its own Art Mode readback ON.
-    # The entry already knows it is a Frame (CONF_IS_FRAME_TV, probed and
-    # persisted by the art platforms); leaving the readback option to a
-    # blanket False default meant every flow re-run silently regressed a
-    # working Frame and re-raised the same prepare alarm. Model-specific
-    # behaviour lives HERE, in the integration — detection, not selection.
-    # Only fills the option when ABSENT; an installer's explicit False wins.
+    # Dismiss any stale "local connection not authorized" / "IP Control
+    # token problem" notifications left over from a previous session. Both
+    # are only re-raised on a fresh auth rejection, so clearing them here
+    # is safe even on a clean reload — they will be re-created if the
+    # problem genuinely still exists, instead of staying stuck forever when
+    # the TV was simply offline and never produced the one clean reconnect
+    # that would otherwise dismiss them.
+    clear_token_problem(hass, entry.entry_id, METHOD_LOCAL)
+    clear_token_problem(hass, entry.entry_id, METHOD_IP_CONTROL)
+
+    # Frame Art on a non-Frame TV, turned off again. The sensor platform keeps
+    # CONF_IS_FRAME_TV so later setups skip the live check; when the art-app
+    # probe wrote it, the value is IS_FRAME_TV_ART_APP rather than True. Drop
+    # that one here, before the platforms read it, so the live check decides
+    # again without the option. A Frame's own True is never touched. The key
+    # is in _NO_RELOAD_DATA_KEYS, so this write schedules no second reload.
     if (
-        entry.data.get(CONF_IS_FRAME_TV)
-        and CONF_IP_CONTROL_ART_MODE not in entry.options
+        not entry.options.get(CONF_ART_ON_NON_FRAME, False)
+        and entry.data.get(CONF_IS_FRAME_TV) == IS_FRAME_TV_ART_APP
     ):
         hass.config_entries.async_update_entry(
-            entry, options={**entry.options, CONF_IP_CONTROL_ART_MODE: True}
+            entry,
+            data={k: v for k, v in entry.data.items() if k != CONF_IS_FRAME_TV},
+        )
+        _LOGGER.info(
+            "Frame Art on a non-Frame TV turned off for %s: dropping the art-app "
+            "confirmation, the live Frame check decides again at this setup",
+            entry.data.get(CONF_HOST),
         )
 
     # setup entry
@@ -1045,6 +1293,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data[DOMAIN][entry.entry_id] = {
         DATA_CFG: config,
         DATA_OPTIONS: entry.options.copy(),
+        # Snapshot used by the update listener to tell an options-only change
+        # (applied live) from one that needs a reload (connection/auth data, or
+        # a structural option that adds/removes platforms). Cheap to compare.
+        DATA_ENTRY_DATA: _reload_fingerprint(entry),
     }
     if add_conf:
         hass.data[DOMAIN][entry.entry_id][DATA_CFG_YAML] = add_conf
@@ -1059,7 +1311,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # mode detection silently dies. One instance here, everyone reuses it.
     hass.data[DOMAIN][entry.entry_id][DATA_ART_API] = SamsungTVAsyncArt(
         host=config[CONF_HOST],
-        port=config.get(CONF_PORT, DEFAULT_PORT),
+        # The Art channel keeps its own learned port (CONF_ART_PORT), decoupled
+        # from the remote WS port. Reading CONF_PORT here made the stored art
+        # port write-only: every boot restarted art on the remote port (#273).
+        port=config.get(CONF_ART_PORT) or config.get(CONF_PORT, DEFAULT_PORT),
         token=config.get(CONF_TOKEN),
         session=async_get_clientsession(hass),
         timeout=DEFAULT_TIMEOUT,
@@ -1068,7 +1323,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         supports_get_color_temperature=entry.data.get(
             CONF_SUPPORTS_GET_COLOR_TEMPERATURE
         ),
+        art_on_non_frame=entry.options.get(CONF_ART_ON_NON_FRAME, False),
     )
+    if entry.data.get(CONF_IS_FRAME_TV) == IS_FRAME_TV_ART_APP:
+        # The probe answered on an earlier setup and the platforms trust that
+        # flag without a live check; give the shared client the same memory so
+        # the media player (whose check does not read the entry) does not
+        # re-ask a sleeping TV and call the art unsupported.
+        hass.data[DOMAIN][entry.entry_id][DATA_ART_API].mark_art_channel_confirmed()
 
     await hass.config_entries.async_forward_entry_setups(entry, SAMSMART_PLATFORM)
 
@@ -1097,9 +1359,100 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
         hass.data[DOMAIN].pop(entry.entry_id, None)
         if not hass.data[DOMAIN]:
             hass.data.pop(DOMAIN)
+    # The entry is gone for good (unlike unload/reload), so any Repairs issue
+    # keyed to its entry_id (e.g. oauth_auth_failed_<entry_id>) can never be
+    # cleared by a future successful refresh on this entry — nothing will ever
+    # call _clear_oauth_issue() for it again. Without this, dismissing the
+    # issue in the UI only hides it; the registry entry itself outlives the
+    # entry it refers to and clutters diagnostics indefinitely.
+    ir.async_delete_issue(hass, DOMAIN, f"oauth_auth_failed_{entry.entry_id}")
+
+
+# Options whose change adds/removes platforms or clients and therefore needs a
+# full reload (everything else is applied live via SIGNAL_CONFIG_ENTITY).
+# CONF_ST_POLL_ON_INTERVAL and CONF_IP_CONTROL_POLL_INTERVAL are included
+# because their coordinators fix update_interval at creation time; a reload
+# re-creates them with the new cadence (the media_player / selects read the
+# SmartThings one live).
+_RELOAD_OPTIONS = (
+    # Turning Frame Art on for a non-Frame set creates the art entities.
+    CONF_ART_ON_NON_FRAME,
+    CONF_ENABLE_IP_CONTROL,
+    CONF_IP_CONTROL_ART_MODE,
+    CONF_IP_CONTROL_POLL_INTERVAL,
+    CONF_ST_POLL_ON_INTERVAL,
+)
+
+# entry.data keys persisted at RUNTIME as learned device facts, not connection
+# settings: writing them must NOT reload the integration (a reload would tear
+# down the very clients that just learned the fact — and reloads are exactly
+# what the verify-and-fallback logic runs right after a user action).
+_NO_RELOAD_DATA_KEYS = (
+    CONF_ST_PICTURE_MODE_CAPABILITY,
+    # Art-identification config read live by the service/sensor: persisting it
+    # shouldn't tear the integration down. NOTE: CONF_ART_IDENTIFY_ENABLE is
+    # deliberately NOT here — toggling it creates/removes the Art Metadata
+    # sensor, which requires a reload.
+    CONF_ART_IDENTIFY_PERSONAL,
+    CONF_ART_VISION_API_KEY,
+    CONF_ART_LLM_PROVIDER,
+    CONF_ART_LLM_API_KEY,
+    CONF_ART_LLM_MODEL,
+    # Connection facts LEARNED and refreshed at runtime by the live clients,
+    # which have already adapted by the time these are persisted — the write
+    # only exists to survive a restart, so it must not reload (#12). The WS and
+    # OAuth tokens rotate, and on ~2020 Frames the Art/REST ports re-learn on
+    # reconnect; before this list, each such write reloaded the whole entry,
+    # which on an unstable connection looped every few minutes (entity flapping
+    # unavailable -> unknown -> restored). A reconfigure still reloads: it bumps
+    # CONF_RECONFIGURE_GENERATION, which is NOT excluded here.
+    CONF_TOKEN,
+    CONF_OAUTH_TOKEN,
+    # OAuth (and ST-integration) entries rewrite CONF_API_KEY with the fresh
+    # access token on every ~24h refresh — the token doubles as the api_key.
+    # That is a runtime rotation, not a credential change, so it must not reload
+    # (before this it reloaded both shared entries on every refresh, tearing
+    # down the WS control connection — the likely trigger for the Frame's
+    # on-screen re-auth prompt). A genuine key change goes through the config/
+    # reconfigure flow, which reloads via CONF_RECONFIGURE_GENERATION.
+    CONF_API_KEY,
+    CONF_PORT,
+    CONF_ART_PORT,
+    CONF_REST_PORT,
+    CONF_SUPPORTS_GET_BRIGHTNESS,
+    CONF_SUPPORTS_GET_COLOR_TEMPERATURE,
+    CONF_IS_FRAME_TV,
+    CONF_SLIDESHOW_API,
+    CONF_IP_CONTROL_TOKEN,
+    CONF_IP_CONTROL_MODEL_ID,
+    CONF_IP_CONTROL_FW_VERSION,
+)
+
+
+def _reload_fingerprint(entry: ConfigEntry) -> tuple:
+    """Snapshot the parts of an entry whose change requires a reload."""
+    return (
+        {k: v for k, v in entry.data.items() if k not in _NO_RELOAD_DATA_KEYS},
+        tuple(entry.options.get(key) for key in _RELOAD_OPTIONS),
+    )
 
 
 async def _update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Update when config_entry options update."""
-    hass.data[DOMAIN][entry.entry_id][DATA_OPTIONS] = entry.options.copy()
+    """React to a config entry change.
+
+    Most options (scan interval, app/source lists, ...) are applied live via the
+    dispatcher signal — no costly full reload. Connection/auth *data* changes
+    (host, port, token, API key) and structural options (IP Control enable /
+    Art Mode) need the platforms or clients re-created, so those, and only
+    those, schedule a reload. The reload is always scheduled from this listener
+    (never from the config/options flow) per Home Assistant's deprecation of
+    combining an update listener with in-flow reload methods.
+    """
+    store = hass.data[DOMAIN][entry.entry_id]
+    store[DATA_OPTIONS] = entry.options.copy()
     async_dispatcher_send(hass, SIGNAL_CONFIG_ENTITY)
+
+    fingerprint = _reload_fingerprint(entry)
+    if store.get(DATA_ENTRY_DATA) != fingerprint:
+        store[DATA_ENTRY_DATA] = fingerprint
+        hass.config_entries.async_schedule_reload(entry.entry_id)

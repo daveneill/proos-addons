@@ -61,7 +61,8 @@
         "menu_options": {
           "reconfigure_connection": "Connexion (adresse IP et port)",
           "reconfigure_auth": "Authentification (OAuth2 / PAT / SmartThings)",
-          "reconfigure_ip_control": "IP Control (alimentation fiable et appairage)"
+          "reconfigure_ip_control": "IP Control (alimentation fiable et appairage)",
+          "reconfigure_st_device": "Appareil SmartThings (réassocier après une réparation)"
         }
       },
       "reauth_confirm": {
@@ -91,12 +92,20 @@
         "data": {
           "pair_now": "Appairer maintenant",
           "enable_ip_control": "Activer IP Control",
-          "ip_control_art_mode": "Utiliser IP Control pour le mode Art"
+          "ip_control_art_mode": "Basculer le mode Art via IP Control"
         }
       },
       "reconfigure_ip_pair": {
         "title": "Appairer IP Control",
         "description": "Appaire l'interface IP Control de la TV.\n\nAvant de continuer :\n1. La TV doit être allumée en mode normal — pas en mode Art.\n2. Activez IP Remote : Paramètres → Tous les paramètres → Connexions → Réseau → Paramètres experts → Activer IP Remote.\n\nAcceptez la demande d'autorisation sur la TV quand elle apparaît. Statut actuel : {status}."
+      },
+      "reconfigure_st_device": {
+        "title": "Appareil SmartThings",
+        "description": "Sélectionnez l'appareil SmartThings correspondant à ce téléviseur.\n\nActuellement : **{current}**\n\nUn téléviseur réparé, réinitialisé, ou supprimé puis rajouté dans l'application SmartThings reçoit un **nouvel identifiant**, et l'ancien est refusé avec *Forbidden*. Le resélectionner ici conserve vos entités et votre historique.",
+        "data": {
+          "st_devices": "Appareil SmartThings",
+          "device_id": "Identifiant de l'appareil SmartThings"
+        }
       }
     },
     "error": {
@@ -108,6 +117,7 @@
       "st_device_used": "Cet appareil SmartThings est déjà configuré.",
       "not_successful": "Impossible de créer une connexion WebSocket avec cette télévision Samsung.",
       "ip_control_pair_failed": "Échec de l'appairage IP Control. Assurez-vous que la TV est allumée en mode normal (pas en mode Art) et que IP Remote est activé dans les Paramètres, puis réessayez.",
+      "ip_control_unreachable": "Impossible de joindre le téléviseur sur le port 1516 : rien n'écoute à cette adresse. L'état du téléviseur et le réglage IP Remote ne sont donc pas en cause. Ce modèle ne prend probablement pas en charge IP Control. Seules les entités rétroéclairage, tonalité des couleurs, calibration de l'image et redémarrage en dépendent.",
       "ip_control_no_host": "Aucun hôte TV n'est configuré pour cette entrée."
     },
     "abort": {
@@ -122,7 +132,10 @@
       "reauth_successful": "Ré-authentification réussie.",
       "reauth_failed": "Échec de la ré-authentification.",
       "reconfigure_successful": "Configuration mise à jour.",
-      "ip_control_pair_successful": "IP Control appairé avec succès. Le jeton d'accès a été enregistré."
+      "ip_control_pair_successful": "IP Control appairé avec succès. Le jeton d'accès a été enregistré.",
+      "st_device_updated": "Appareil SmartThings mis à jour. L'intégration se recharge.",
+      "st_not_configured": "SmartThings n'est pas configuré pour ce téléviseur.",
+      "st_device_missing": "Aucun appareil SmartThings sélectionné."
     },
     "create_entry": {
       "default": "{name} configuré avec succès"
@@ -193,7 +206,16 @@
           "ext_power_entity": "Entité d'alimentation externe",
           "use_mute_check": "Utiliser l'état muet pour détecter l'alimentation",
           "dump_apps": "Debug : exporter la liste des applications",
-          "toggle_art_mode": "Bouton d'alimentation bascule vers le mode Art"
+          "toggle_art_mode": "Bouton d'alimentation bascule vers le mode Art",
+          "st_poll_on_interval": "Intervalle SmartThings, TV allumée (s)",
+          "ip_control_poll_interval": "Intervalle IP Control (s)",
+          "content_list_interval": "Intervalle de rafraîchissement de la liste d'œuvres (s)",
+          "art_exit_source": "Source en sortant de l'Art Mode",
+          "report_art_mode_as_off": "Afficher le lecteur multimédia éteint en Art Mode"
+        },
+        "data_description": {
+          "art_exit_source": "Entrée ou application à afficher quand l'Art Mode est désactivé depuis Home Assistant (switch Art Mode ou art_set_artmode). Laisser vide pour garder le comportement du TV : il revient à la dernière source, souvent TV (Samsung TV Plus) sur une Frame. Non appliqué quand on quitte l'Art Mode avec la télécommande. Nécessite une source que le TV peut atteindre : une liste auto-découverte depuis SmartThings ne contient que des clés ST_, qui basculent sur la touche WebSocket équivalente (ST_HDMI3 → KEY_HDMI3) quand SmartThings est indisponible. Certains modèles ignorent les touches HDMI numérotées ; le journal le signale si le TV n'a pas changé d'entrée.",
+          "report_art_mode_as_off": "Facultatif : affiche le lecteur multimédia comme éteint pendant l’Art Mode, tout en conservant art_mode_status à « on ». Le visionnage normal reste signalé comme allumé. Le suivi de l’alimentation et les commandes d’Art Mode restent actifs. Désactivé par défaut."
         }
       },
       "save_exit": {
@@ -203,6 +225,7 @@
     "error": {
       "invalid_tv_list": "Format invalide. Veuillez utiliser le format JSON valide.",
       "ip_control_pair_failed": "Échec de l'appairage. Vérifiez que le téléviseur est allumé en visionnage normal (pas en mode Art) et que IP Remote est activé, puis réessayez.",
+      "ip_control_unreachable": "Impossible de joindre le téléviseur sur le port 1516 : rien n'écoute à cette adresse. L'état du téléviseur et le réglage IP Remote ne sont donc pas en cause. Ce modèle ne prend probablement pas en charge IP Control. Seules les entités rétroéclairage, tonalité des couleurs, calibration de l'image et redémarrage en dépendent.",
       "ip_control_no_host": "Aucune adresse hôte n'est configurée pour ce téléviseur."
     }
   },
@@ -224,6 +247,130 @@
     "button": {
       "reboot": {
         "name": "Redémarrer le téléviseur"
+      },
+      "art_brightness_reset": {
+        "name": "Réinitialiser luminosité"
+      }
+    },
+    "sensor": {
+      "illuminance": {
+        "name": "Luminosité ambiante"
+      },
+      "brightness_intensity": {
+        "name": "Intensité de luminosité"
+      },
+      "art_orientation": {
+        "name": "Orientation Art",
+        "state": {
+          "landscape": "Paysage",
+          "portrait": "Portrait"
+        }
+      }
+    },
+    "switch": {
+      "power": {
+        "name": "Alimentation"
+      },
+      "art_mode": {
+        "name": "Mode Art"
+      }
+    },
+    "select": {
+      "matte_type": {
+        "name": "Mat",
+        "state": {
+          "none": "Aucun effet mat",
+          "modernthin": "Mat moderne - Fin",
+          "modern": "Mat contemporain",
+          "modernwide": "Mat moderne - Large",
+          "flexible": "Mat contemporain - Automatique",
+          "shadowbox": "Mat ombré",
+          "panoramic": "Mat panoramique",
+          "triptych": "Mat triptyque",
+          "mix": "Mat mixte",
+          "squares": "Mat avec carrés"
+        }
+      },
+      "matte_color": {
+        "name": "Couleur mate",
+        "state": {
+          "black": "Noir",
+          "neutral": "Neutre",
+          "antique": "Antique",
+          "warm": "Chaude",
+          "polar": "Polaire",
+          "sand": "Sable",
+          "seafoam": "Ardoise",
+          "sage": "Sauge",
+          "burgandy": "Bourgogne",
+          "navy": "Bleu marine",
+          "apricot": "Abricot",
+          "byzantine": "Byzantium",
+          "lavender": "Lavande",
+          "redorange": "Orange",
+          "skyblue": "Bleu ciel",
+          "turquoise": "Turquoise"
+        }
+      },
+      "art_motion_timer": {
+        "name": "Minuterie de mouvement",
+        "state": {
+          "5": "5 minutes",
+          "15": "15 minutes",
+          "30": "30 minutes",
+          "60": "1 heure",
+          "120": "2 heures",
+          "180": "3 heures",
+          "240": "4 heures",
+          "off": "Désactivé",
+          "always": "Toujours"
+        }
+      },
+      "picture_mode": {
+        "name": "Mode Image",
+        "state": {
+          "dynamic": "Dynamique",
+          "standard": "Standard",
+          "natural": "Naturel",
+          "movie": "Cinéma",
+          "filmmaker_mode": "FILMMAKER MODE",
+          "eco": "Éco",
+          "intelligent": "Optimisation IA",
+          "ai_customization": "Personnalisation IA"
+        }
+      },
+      "qs_sound_mode": {
+        "name": "Mode son"
+      },
+      "qs_ai_mode": {
+        "name": "Mode AI"
+      },
+      "qs_energy_saving_solution": {
+        "name": "Solution d'économie d'énergie"
+      },
+      "qs_sleep_timer": {
+        "name": "Minuterie de veille"
+      },
+      "qs_game_mode": {
+        "name": "Mode Jeu"
+      },
+      "qs_picture_clarity": {
+        "name": "Clarté de l'image"
+      },
+      "qs_contrast_enhancer": {
+        "name": "Amélioration des contrastes"
+      },
+      "qs_color_tone": {
+        "name": "Nuance de couleur"
+      },
+      "qs_color_space": {
+        "name": "Espace de couleur"
+      },
+      "qs_digital_audio_format": {
+        "name": "Format de sortie audio numérique"
+      },
+      "source": {
+        "name": "Source"
       }
     }
   }

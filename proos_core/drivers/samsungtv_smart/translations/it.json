@@ -58,6 +58,14 @@
       "reauth_confirm": {
         "title": "Re-authentication Required",
         "description": "Your SmartThings authentication has expired. Click Submit to sign in again."
+      },
+      "reconfigure_st_device": {
+        "title": "Dispositivo SmartThings",
+        "description": "Seleziona il dispositivo SmartThings corrispondente a questo TV.\n\nAttualmente: **{current}**\n\nUn TV riparato, ripristinato, oppure rimosso e riaggiunto nell'app SmartThings riceve un **nuovo identificativo**, e quello precedente viene rifiutato con *Forbidden*. Riselezionarlo qui mantiene le tue entità e la cronologia.",
+        "data": {
+          "st_devices": "Dispositivo SmartThings",
+          "device_id": "ID dispositivo SmartThings"
+        }
       }
     },
     "error": {
@@ -79,7 +87,10 @@
       "missing_scopes": "The granted permissions are insufficient. Please ensure you grant all requested permissions.",
       "reauth_account_mismatch": "The account used for re-authentication doesn't match the original account.",
       "reauth_successful": "Re-authentication successful.",
-      "reauth_failed": "Re-authentication failed."
+      "reauth_failed": "Re-authentication failed.",
+      "st_device_updated": "Dispositivo SmartThings aggiornato. L'integrazione si sta ricaricando.",
+      "st_not_configured": "SmartThings non è configurato per questo TV.",
+      "st_device_missing": "Nessun dispositivo SmartThings selezionato."
     },
     "create_entry": {
       "default": "Successfully configured {name}"
@@ -150,7 +161,14 @@
           "ext_power_entity": "Binary sensor usato per aiutare a identificare lo stato",
           "use_mute_check": "Utilizza lo stato di volume muto per identificare false accensioni",
           "dump_apps": "Mostra lista apps nel file di log all'avvio (se possibile)",
-          "toggle_art_mode": "Pulsante di accensione passa a art mode (solo per Frame TV)"
+          "toggle_art_mode": "Pulsante di accensione passa a art mode (solo per Frame TV)",
+          "st_poll_on_interval": "Intervallo SmartThings a TV accesa (s)",
+          "content_list_interval": "Intervallo di aggiornamento elenco opere (s)",
+          "ip_control_poll_interval": "Intervallo IP Control (s)",
+          "art_exit_source": "Sorgente all'uscita dall'Art Mode"
+        },
+        "data_description": {
+          "art_exit_source": "Ingresso o app da mostrare quando l'Art Mode viene disattivato da Home Assistant (switch Art Mode o art_set_artmode). Lasciare vuoto per mantenere il comportamento del TV: torna all'ultima sorgente, spesso TV (Samsung TV Plus) su una Frame. Non applicato quando si esce dall'Art Mode con il telecomando. Richiede una sorgente raggiungibile dal TV: un elenco rilevato automaticamente da SmartThings contiene solo chiavi ST_, che ripiegano sul tasto WebSocket equivalente (ST_HDMI3 -> KEY_HDMI3) quando SmartThings non è disponibile. Alcuni modelli ignorano i tasti HDMI numerati; il registro lo segnala se il TV non ha cambiato ingresso."
         }
       },
       "save_exit": {
@@ -160,7 +178,8 @@
     "error": {
       "invalid_tv_list": "Formato not valido. Controlla la documentazione",
       "ip_control_no_host": "Nessun indirizzo host è configurato per questo televisore.",
-      "ip_control_pair_failed": "Associazione non riuscita. Assicurati che il televisore sia acceso e in visualizzazione normale (non in modalità Arte) e che IP Remote sia abilitato, quindi riprova."
+      "ip_control_pair_failed": "Associazione non riuscita. Assicurati che il televisore sia acceso e in visualizzazione normale (non in modalità Arte) e che IP Remote sia abilitato, quindi riprova.",
+      "ip_control_unreachable": "Impossibile raggiungere il TV sulla porta 1516: nessun servizio è in ascolto. Lo stato del TV e l'impostazione IP Remote non sono quindi la causa. Con ogni probabilità questo modello non supporta IP Control. Solo le entità retroilluminazione, tonalità colore, calibrazione immagine e riavvio dipendono da esso."
     }
   },
   "application_credentials": {
@@ -181,6 +200,88 @@
     "button": {
       "reboot": {
         "name": "Riavvia il televisore"
+      },
+      "art_brightness_reset": {
+        "name": "Ripristino luminosità"
+      }
+    },
+    "select": {
+      "matte_type": {
+        "name": "Passepartout",
+        "state": {
+          "none": "Nessun passepartout",
+          "modernthin": "Passepartout moderno - Sottile",
+          "modern": "Passepartout moderno",
+          "modernwide": "Passepartout moderno - Ampio",
+          "flexible": "Passepartout moderno - Auto",
+          "shadowbox": "Passepartout ombreggiato",
+          "panoramic": "Passepartout panoramico",
+          "triptych": "Passepartout trittico",
+          "mix": "Passepartout misto",
+          "squares": "Passepartout a quadrati"
+        }
+      },
+      "matte_color": {
+        "name": "Colore passepartout",
+        "state": {
+          "black": "Nero",
+          "neutral": "Neutro",
+          "antique": "Antico",
+          "warm": "Calda",
+          "polar": "Polare",
+          "sand": "Sabbia",
+          "seafoam": "Ardesia",
+          "sage": "Salvia",
+          "burgandy": "Bordeaux",
+          "navy": "Blu navy",
+          "apricot": "Albicocca",
+          "byzantine": "Bizantino",
+          "lavender": "Lavanda",
+          "redorange": "Arancio",
+          "skyblue": "Celeste",
+          "turquoise": "Turchese"
+        }
+      },
+      "art_motion_timer": {
+        "name": "Timer movimento",
+        "state": {
+          "5": "5 minuti",
+          "15": "15 minuti",
+          "30": "30 minuti",
+          "60": "1 ora",
+          "120": "2 ore",
+          "180": "3 ore",
+          "240": "4 ore",
+          "off": "Disattivato",
+          "always": "Sempre"
+        }
+      },
+      "picture_mode": {
+        "name": "Modalità immagine",
+        "state": {
+          "dynamic": "Dinamica",
+          "standard": "Standard",
+          "natural": "Naturale",
+          "movie": "Film",
+          "filmmaker_mode": "FILMMAKER MODE",
+          "eco": "Eco",
+          "intelligent": "Ottimizzazione AI",
+          "ai_customization": "Personalizzazione AI"
+        }
+      }
+    },
+    "switch": {
+      "art_mode": {
+        "name": "Modalità Arte"
+      }
+    },
+    "sensor": {
+      "art_orientation": {
+        "name": "Orientamento Art",
+        "state": {
+          "landscape": "Orizzontale",
+          "portrait": "Verticale"
+        }
       }
     }
   }

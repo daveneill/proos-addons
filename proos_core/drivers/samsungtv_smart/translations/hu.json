@@ -58,6 +58,14 @@
       "reauth_confirm": {
         "title": "Re-authentication Required",
         "description": "Your SmartThings authentication has expired. Click Submit to sign in again."
+      },
+      "reconfigure_st_device": {
+        "title": "SmartThings eszköz",
+        "description": "Válassza ki a tévéhez tartozó SmartThings eszközt.\n\nJelenleg: **{current}**\n\nA javított, visszaállított, vagy a SmartThings alkalmazásból eltávolított és újra hozzáadott tévé **új azonosítót** kap, a régit pedig *Forbidden* hibával utasítja el. Az itteni újraválasztás megőrzi az entitásokat és az előzményeket.",
+        "data": {
+          "st_devices": "SmartThings eszköz",
+          "device_id": "SmartThings eszközazonosító"
+        }
       }
     },
     "error": {
@@ -79,7 +87,10 @@
       "missing_scopes": "The granted permissions are insufficient. Please ensure you grant all requested permissions.",
       "reauth_account_mismatch": "The account used for re-authentication doesn't match the original account.",
       "reauth_successful": "Re-authentication successful.",
-      "reauth_failed": "Re-authentication failed."
+      "reauth_failed": "Re-authentication failed.",
+      "st_device_updated": "SmartThings eszköz frissítve. Az integráció újratöltődik.",
+      "st_not_configured": "A SmartThings nincs beállítva ehhez a tévéhez.",
+      "st_device_missing": "Nem lett SmartThings eszköz kiválasztva."
     },
     "create_entry": {
       "default": "Successfully configured {name}"
@@ -150,7 +161,14 @@
           "ext_power_entity": "Bemeneti érzékelő a bekapcsolási állapot felismeréséhez",
           "use_mute_check": "Hangerőnémítás állapotának használata hamis bekapcsolás észleléséhez",
           "dump_apps": "Az alkalmazások listájának naplófájlba való kiírása induláskor (amennyiben lehetséges)",
-          "toggle_art_mode": "Art módra váltó bekapcsológomb (kizárólag Frame TV esetén)"
+          "toggle_art_mode": "Art módra váltó bekapcsológomb (kizárólag Frame TV esetén)",
+          "st_poll_on_interval": "SmartThings időköz bekapcsolt TV-nél (mp)",
+          "content_list_interval": "Műalkotáslista frissítési időköze (mp)",
+          "ip_control_poll_interval": "IP Control időköz (mp)",
+          "art_exit_source": "Forrás az Art Mode elhagyásakor"
+        },
+        "data_description": {
+          "art_exit_source": "Bemenet vagy alkalmazás, amelyre váltani kell, amikor az Art Mode-ot a Home Assistant kapcsolja ki (Art Mode kapcsoló vagy art_set_artmode). Hagyja üresen a TV saját viselkedéséhez: visszatér az utolsó forráshoz, Frame-en gyakran TV (Samsung TV Plus). Távirányítóval történő kilépéskor nem érvényes. Olyan forrás kell, amelyet a TV el tud érni: a SmartThings által automatikusan felderített lista csak ST_ kulcsokat tartalmaz, amelyek a megfelelő WebSocket gombra esnek vissza (ST_HDMI3 -> KEY_HDMI3), ha a SmartThings nem elérhető. Egyes modellek figyelmen kívül hagyják a számozott HDMI gombokat; ilyenkor a napló jelzi, hogy a TV nem váltott bemenetet."
         }
       },
       "save_exit": {
@@ -160,7 +178,8 @@
     "error": {
       "invalid_tv_list": "Érvénytelen formátum. Kérjük, ellenőrizze a dokumentációt.",
       "ip_control_no_host": "Nincs gazdacím beállítva ehhez a TV-hez.",
-      "ip_control_pair_failed": "A párosítás sikertelen. Győződjön meg róla, hogy a TV be van kapcsolva és normál nézetben van (nem Art módban), és hogy az IP Remote engedélyezve van, majd próbálja újra."
+      "ip_control_pair_failed": "A párosítás sikertelen. Győződjön meg róla, hogy a TV be van kapcsolva és normál nézetben van (nem Art módban), és hogy az IP Remote engedélyezve van, majd próbálja újra.",
+      "ip_control_unreachable": "A tévé nem érhető el az 1516-os porton: semmi nem figyel rajta. Így sem a tévé állapota, sem az IP Remote beállítás nem az ok. Ez a modell nagy valószínűséggel nem támogatja az IP Controlt. Csak a háttérvilágítás, színtónus, képkalibráció és újraindítás entitások függenek tőle."
     }
   },
   "application_credentials": {
@@ -181,6 +200,88 @@
     "button": {
       "reboot": {
         "name": "TV újraindítása"
+      },
+      "art_brightness_reset": {
+        "name": "Fényerő visszaállítása"
+      }
+    },
+    "select": {
+      "matte_type": {
+        "name": "Paszpartu",
+        "state": {
+          "none": "Nincs paszpartu",
+          "modernthin": "Modern paszpartu – keskeny",
+          "modern": "Modern paszpartu",
+          "modernwide": "Modern paszpartu – széles",
+          "flexible": "Modern paszpartu – automatikus",
+          "shadowbox": "Árnyékkeretes paszpartu",
+          "panoramic": "Panorámás paszpartu",
+          "triptych": "Triptichon paszpartu",
+          "mix": "Vegyes paszpartu",
+          "squares": "Négyzetes paszpartu"
+        }
+      },
+      "matte_color": {
+        "name": "Paszpartu színe",
+        "state": {
+          "black": "Fekete",
+          "neutral": "Semleges",
+          "antique": "Antik",
+          "warm": "Meleg",
+          "polar": "Polár",
+          "sand": "Homok",
+          "seafoam": "Palaszürke",
+          "sage": "Zsályazöld",
+          "burgandy": "Burgundi vörös",
+          "navy": "Tengerészkék",
+          "apricot": "Kajszibarack",
+          "byzantine": "Bizánci",
+          "lavender": "Levendula",
+          "redorange": "Narancs",
+          "skyblue": "Égszínkék",
+          "turquoise": "Türkiz"
+        }
+      },
+      "art_motion_timer": {
+        "name": "Mozgásérzékelő időzítő",
+        "state": {
+          "5": "5 perc",
+          "15": "15 perc",
+          "30": "30 perc",
+          "60": "1 óra",
+          "120": "2 óra",
+          "180": "3 óra",
+          "240": "4 óra",
+          "off": "Ki",
+          "always": "Mindig"
+        }
+      },
+      "picture_mode": {
+        "name": "Képmód",
+        "state": {
+          "dynamic": "Dinamikus",
+          "standard": "Normál",
+          "natural": "Természetes",
+          "movie": "Film",
+          "filmmaker_mode": "FILMMAKER MODE",
+          "eco": "Eco",
+          "intelligent": "AI optimalizálás",
+          "ai_customization": "AI testreszabás"
+        }
+      }
+    },
+    "switch": {
+      "art_mode": {
+        "name": "Művészet üzemmód"
+      }
+    },
+    "sensor": {
+      "art_orientation": {
+        "name": "Art tájolás",
+        "state": {
+          "landscape": "Fekvő",
+          "portrait": "Álló"
+        }
       }
     }
   }

@@ -17,7 +17,9 @@ from __future__ import annotations
 
 import asyncio
 import base64
+from contextlib import suppress
 from datetime import datetime
+import io
 import json
 import logging
 import os
@@ -29,7 +31,80 @@ import uuid
 
 import aiohttp
 
+from . import _image_prep
+
 _LOGGER = logging.getLogger(__name__)
+
+
+def _map_format_to_wire(pil_format: str | None) -> str | None:
+    """Map a PIL image format to the Samsung wire file_type."""
+    if not pil_format:
+        return None
+    fmt = pil_format.upper()
+    if fmt in ("JPEG", "JPG", "MPO"):
+        return "jpg"
+    if fmt == "PNG":
+        return "png"
+    return fmt.lower()
+
+
+def _detect_wire_type(data: bytes, hint: str | None = None) -> str:
+    """Detect the real image format from bytes; fall back to the caller hint.
+
+    Pillow is imported lazily here (not at module scope) so a missing or
+    broken Pillow only degrades this best-effort upload-type detection — it
+    must never break importing this module, which would take the whole
+    integration (media_player, remote, buttons, ...) down with it. Every other
+    PIL use in this repo is lazy for the same reason.
+    """
+    try:
+        from PIL import Image  # noqa: PLC0415 - lazy: keep PIL out of import path
+
+        with Image.open(io.BytesIO(data)) as img:
+            wire = _map_format_to_wire(img.format)
+            if wire:
+                return wire
+    except Exception:  # noqa: BLE001 - detection is best-effort; fall back to hint
+        pass
+    normalized = (hint or "png").lower()
+    return "jpg" if normalized in ("jpg", "jpeg", "mpo") else normalized
+
+
+def slideshow_category_id(category: int | str) -> str:
+    """Return the Art-app category_id string for a slideshow source.
+
+    ``category`` is either the short My Collection number the services have
+    always taken (2 = My Photos, 4 = Favourites, 8 = purchased/Store) or a
+    full Art-app category id passed through untouched — e.g. an Art Store
+    collection such as ``STORE22_C0013`` (the TV's ``set_slideshow_status``
+    takes ``category_id`` + ``sub_category_id`` for those; see
+    notes/QN55LS03FAFXZA/ART_MODE_DECOMPILED.md, "Slideshow Commands").
+
+    Numbers are zero-padded to four digits, so 10+ no longer becomes
+    ``MY-C00010``.
+    """
+    if isinstance(category, int) or str(category).strip().isdigit():
+        return f"MY-C{int(category):04d}"
+    return str(category).strip()
+
+
+def build_slideshow_request(
+    request: str,
+    duration: int,
+    shuffle: bool,
+    category: int | str,
+    sub_category: str | None = None,
+) -> dict:
+    """Build a set_slideshow_status / set_auto_rotation_status payload."""
+    payload = {
+        "request": request,
+        "value": str(duration) if duration > 0 else "off",
+        "category_id": slideshow_category_id(category),
+        "type": "shuffleslideshow" if shuffle else "slideshow",
+    }
+    if sub_category:
+        payload["sub_category_id"] = str(sub_category).strip()
+    return payload
 
 
 class _DeviceLoggerAdapter(logging.LoggerAdapter):
@@ -43,6 +118,169 @@ ART_ENDPOINT = "com.samsung.art-app"
 D2D_SERVICE_MESSAGE_EVENT = "d2d_service_message"
 MS_CHANNEL_CONNECT_EVENT = "ms.channel.connect"
 MS_CHANNEL_READY_EVENT = "ms.channel.ready"
+
+# aiohttp WebSocket heartbeat (seconds): aiohttp sends a PING this often and,
+# if no PONG comes back in time, raises ServerTimeoutError on the receive loop.
+# That is what kills a "zombie" socket — one the TV dropped without a TCP FIN
+# (e.g. an abrupt power-off) so it still looks open but delivers nothing and
+# would otherwise never reconnect. Kept above the 15s art coordinator poll so a
+# genuinely live-but-quiet channel is not torn down unnecessarily.
+ART_WS_HEARTBEAT = 20
+
+# Auto-reconnect / keepalive (P4). When the Art WS receive loop exits because
+# the TV dropped the socket mid-session (standby, network blip, missed
+# heartbeat PONG on a zombie socket), we schedule a bounded exponential-backoff
+# reconnect so the channel self-heals without waiting for the next lazy
+# _send_art_request or an HA restart. Backoff is CAPPED so a persistently
+# unreachable TV never turns into a hot reconnect loop.
+_KEEPALIVE_INTERVAL = 60.0  # idle ping cadence: keep a quiet-but-live WS open
+_MAX_BACKOFF = 60.0  # hard cap on the per-attempt reconnect delay (seconds)
+
+# Upload d2d socket: write the image in chunks of this size, draining after
+# each, so data really hits the wire before the socket is closed (see upload()).
+# The drain-per-chunk is what matters, not the chunk size; 512K keeps the
+# flush guarantee with far fewer syscalls than the reference's 64K.
+_UPLOAD_CHUNK_SIZE = 512 * 1024
+
+# Circuit breaker: consecutive request timeouts on a live socket before the
+# channel is declared wedged (TV art APP dead while its network stack keeps
+# the WS open and answering PINGs — heartbeat can't catch that) and the socket
+# is force-closed to hand recovery to the auto-reconnect path (issue #153).
+ART_WS_TIMEOUT_TRIP = 3
+
+# Once the circuit breaker trips, suppress new requests long enough for the
+# forced close and backed-off reconnect to settle.  Without this gate, the
+# media player, sensor, number and select platforms can immediately enqueue a
+# fresh burst against the same dying socket.
+ART_WS_RECOVERY_COOLDOWN = 30.0
+
+# How many times the recovery cooldown may double while the channel keeps
+# wedging without ever answering a request: 30s, 60s, 120s, 240s. Caps the
+# retry rate on a TV that accepts the socket and then kills it on a schedule,
+# instead of re-arming into the same failure every cycle (#273).
+ART_WS_RECOVERY_BACKOFF_MAX_DOUBLINGS = 3
+
+# A wedge this soon after the previous one counts as a recurrence, and doubles
+# the recovery cooldown even when the channel answered in between. A channel
+# that answers some requests and times out on others — an art app polled on a
+# TV showing HDMI — otherwise resets the escalation on every cycle and loops at
+# the base cooldown indefinitely (measured: 10-11 wedges in ~1 h, every
+# 4-8 min, with no backing-off line, on two consecutive mornings; #273).
+ART_WS_WEDGE_RECURRENCE_WINDOW = 900.0
+
+# The wedge breaker above exists for a zombie art app (#153): socket alive,
+# app dead, EVERY request times out AND nothing is ever pushed. But a 2019
+# Frame (art API 0.97, #315) keeps pushing art_mode_changed broadcasts while
+# never answering request/response reads (get_current_artwork,
+# get_artmode_settings, …). Those reads time out and trip the breaker, which
+# force-closes and backs off — and during the backoff the channel is down, so
+# the broadcasts the Art Mode switch depends on are lost, which is the >5 min
+# switch lag. Reconnecting does not help (the reads still won't answer) and
+# only drops events. So an unsolicited event within this window proves the app
+# is alive and suppresses the forced reconnect. A true zombie pushes nothing,
+# so it still recovers — within this window of its last event.
+ART_WS_EVENT_LIVENESS_WINDOW = 180.0
+
+# The window above assumes a channel that answers reads *and* pushes events, so
+# 3 minutes of event silence while reads time out is suspicious. A channel that
+# has pushed events but has never once answered a read since connecting is the
+# broadcast-only 0.97 Frame instead: its reads time out by design, so a read
+# timeout carries no information about the app's health, and reconnecting only
+# costs the broadcasts the Art Mode switch depends on. Such a set also
+# broadcasts rarely — only on an actual transition — so a quiet stretch is
+# normal: measured 6 min between two art_mode_changed events, and a 3rd read
+# timeout 195 s after the last one, just past the window above, which tripped
+# the breaker and left Art Mode unknown (#326). Give it a much longer stretch
+# of silence before declaring the app dead; a true zombie pushes nothing at
+# all, so it still recovers once this elapses.
+ART_WS_BROADCAST_ONLY_LIVENESS_WINDOW = 900.0
+
+# When the receive loop ends, the cached art_mode is dropped so a dead channel
+# cannot keep reporting a stale "on" (Art Mode being a Frame's last state
+# before power-off). That fall-through assumes some independent source — IP
+# Control, SmartThings, a meaningful REST PowerState — can supply the real
+# value instead. A local-only 0.97 Frame has none, so art_mode_status simply
+# vanished and the switch and sensor went unknown the moment the channel
+# blipped, even though it reconnected a second later (#326). Keep the last
+# value this long across a drop so a short reconnect is invisible, then let it
+# expire so a genuine power-off is not pinned "on" indefinitely.
+ART_WS_STATE_RETENTION = 120.0
+
+# Samsung firmware can leave a WebSocket transport half-open indefinitely.
+# Integration unload (and therefore Home Assistant shutdown/restart) must not
+# wait forever for aiohttp's close handshake.
+ART_WS_CLOSE_TIMEOUT = 2.0
+
+# Art-app error codes returned in {"event": "error", "error_code": N} replies,
+# per the decompiled firmware (notes/QN55LS03FAFXZA/ART_MODE_DECOMPILED.md).
+# Logged alongside the raw code so e.g. a thumbnail failure reads as
+# "SYSTEM_FAIL (-1)" instead of a bare, otherwise meaningless "-1".
+ART_ERROR_CODES = {
+    -14: "INSUFFICIENT_SYSTEM_SPACE",
+    -13: "PREVIEW_NOT_STARTED",
+    -12: "CHECKOUT_IN_PROGRESS",
+    -11: "INSUFFICIENT_SPACE",
+    -10: "TEMPORARILY_UNAVAILABLE",
+    -9: "NOT_SUPPORTED_API",
+    -8: "SSO_REQUIRED",
+    -7: "INVALID_PARAMETER",
+    -6: "REQUEST_PARSE_FAIL",
+    -5: "DB_ERROR",
+    -4: "FILE_NOT_FOUND",
+    -3: "NO_MEMORY",
+    -2: "NO_PERMISSION",
+    -1: "SYSTEM_FAIL",
+    0: "NO_ERROR",
+}
+
+
+def _describe_art_error(error_code: Any) -> str:
+    """Format an art-app error_code with its known name, if any."""
+    try:
+        name = ART_ERROR_CODES.get(int(error_code))
+    except (TypeError, ValueError):
+        name = None
+    return f"{name} ({error_code})" if name else str(error_code)
+
+
+# get_current_rotation / get_device_info current_rotation_status values.
+_ROTATION_STATUS = {"1": "landscape", "2": "portrait"}
+
+# get_content_list categories served from the "recently set" list.
+_RECENT_CATEGORIES = ("MY-C0008", "MY-C0009")
+
+
+def _dedupe_content_list(content_list: list) -> list:
+    """Drop the duplicates of an unfiltered get_content_list reply.
+
+    The art-app prepends the recently set artworks, labelled MY-C0008, to the
+    MY-C0002 / MY-C0004 / MY-C0001 lists, so a recent artwork appears twice
+    (and a favourite photo is both in MY-C0002 and MY-C0004). Keep one entry
+    per content_id, preferring the one carrying its real category.
+    """
+    by_id: dict[Any, dict] = {}
+    for item in content_list:
+        if not isinstance(item, dict):
+            continue
+        content_id = item.get("content_id")
+        if not content_id:
+            continue
+        kept = by_id.get(content_id)
+        if kept is None or (
+            kept.get("category_id") in _RECENT_CATEGORIES
+            and item.get("category_id") not in _RECENT_CATEGORIES
+        ):
+            by_id[content_id] = item
+    return list(by_id.values())
+
+
+def _build_ws_image_frame(envelope: dict, data: bytes) -> bytes:
+    """Frame one WS-binary art upload: 2-byte big-endian header length, then
+    the compact JSON ``art_app_request`` envelope, then the raw image bytes."""
+    header = json.dumps(envelope, separators=(",", ":")).encode("utf-8")
+    if len(header) > 0xFFFF:
+        raise ValueError("Art upload header too large for a 2-byte length")
+    return len(header).to_bytes(2, "big") + header + data
 
 
 def _get_ssl_context() -> ssl.SSLContext:
@@ -73,9 +311,20 @@ class SamsungTVAsyncArt:
         name: str = "HomeAssistant",
         supports_get_brightness: bool | None = None,
         supports_get_color_temperature: bool | None = None,
+        art_on_non_frame: bool = False,
     ) -> None:
         """Initialize the Art API."""
         self._host = host
+        # CONF_ART_ON_NON_FRAME: also ask the art-app channel when the REST
+        # flag says "not a Frame" (see supported()).
+        self._art_on_non_frame = art_on_non_frame
+        # Set once the probe got an api_version answer, or seeded from the
+        # persisted IS_FRAME_TV_ART_APP flag (mark_art_channel_confirmed).
+        # Read through art_channel_confirmed so the sensor platform can
+        # persist where the confirmation came from.
+        self._art_channel_verified = False
+        # One INFO line per session for a probe that gets no answer.
+        self._probe_silent_logged = False
         self._log = _DeviceLoggerAdapter(_LOGGER, {"host": host})
         self._port = port
         self._token = token
@@ -87,19 +336,117 @@ class SamsungTVAsyncArt:
         self._ws: aiohttp.ClientWebSocketResponse | None = None
         self._art_uuid: str = str(uuid.uuid4())
 
-        # State
-        self.art_mode: bool | None = None
+        # State. art_mode is exposed as a property so a value kept across a
+        # channel drop can expire on its own (ART_WS_STATE_RETENTION).
+        self._art_mode: bool | None = None
+        self._art_mode_retained_until: float | None = None
+        # art_mode_changed broadcasts, numbered as they arrive, and the number
+        # of the latest one per state. The switch's write guard confirms a
+        # write by a broadcast of the requested state that arrived AFTER the
+        # write, rather than by the cached art_mode, which may already have
+        # held that value before the write (#290).
+        self.art_mode_broadcast_count = 0
+        self.art_mode_broadcast_at: dict[bool, int] = {}
+        # The latest art_mode_changed broadcast as (state, time.monotonic() of
+        # arrival). The media player weighs it against the age of its cached
+        # getTVStates.pictureMode snapshot: a broadcast heard AFTER that
+        # snapshot was taken is the newer word on what the panel shows. Only the
+        # broadcast is stamped — a get_artmode_status reply can be the stale
+        # latch of #273, so it must never outrank the panel.
+        self.art_mode_last_broadcast: tuple[bool, float] | None = None
+
+        # When the panel last announced go_to_standby. The event is too
+        # ambiguous to move art_mode (see the handler), but it is the TV
+        # saying it is on its way off, and that is exactly what a caller
+        # about to send it an input key needs to know.
+        self.standby_last_broadcast: float | None = None
 
         # Async handling
         self._pending_requests: dict[str, asyncio.Future] = {}
+        # set_artmode() waiters: some Frames never echo the matching
+        # request_id, only the art_mode_changed broadcast. Resolved as soon
+        # as that broadcast arrives, instead of always paying the full
+        # request timeout.
+        self._art_mode_broadcast_waiters: list[asyncio.Future] = []
+        # Whether the last set_artmode handed its request to the socket. False
+        # when the channel could not be opened (failed, rate-limited, backing
+        # off): nothing reached the TV. See set_artmode.
+        self.last_set_artmode_sent = False
         self._recv_task: asyncio.Task | None = None
         self._connected = False
+
+        # Auto-reconnect / keepalive tasks (P4). _keepalive_task pings an idle
+        # channel; _reconnect_task runs the backoff loop after an unexpected
+        # drop. Both are cancelled in close() so an intentional teardown never
+        # races against a reconnect that could re-open the socket behind us.
+        self._keepalive_task: asyncio.Task | None = None
+        self._reconnect_task: asyncio.Task | None = None
+        self._force_close_task: asyncio.Task | None = None
 
         # Connection failure tracking for exponential backoff (v6.3.5)
         self._connection_failures = 0
         self._max_connection_failures = 3  # Start backoff after 3 failures
         self._backoff_until: float | None = None
         self._last_connection_attempt: float = 0
+        # Circuit breaker: consecutive request timeouts on a live socket
+        # (zombie art app detection — see _note_request_timeout).
+        self._timeout_streak = 0
+        # Whether any request has been answered since the current connection was
+        # established. A port that (re)connects but never answers is not healthy
+        # — some 2020 Frames accept a bare ms.channel.connect on the plain-ws
+        # port (8001) while the art app never becomes ready, so every request
+        # times out. When a wedge trips with this still False, the port is a
+        # zombie and _note_request_timeout flips to the alternate one (#12).
+        self._got_response_since_connect = False
+        # Narrower than the flag above, which any pushed event also sets: True
+        # only once a request/response READ has been answered on this
+        # connection. That is what tells a Frame whose reads work apart from a
+        # broadcast-only 0.97 set, whose reads never answer — see
+        # ART_WS_BROADCAST_ONLY_LIVENESS_WINDOW (#326).
+        self._answered_request_since_connect = False
+        # When the TV last pushed us any art message (a broadcast or a request
+        # reply). Proof the art app is alive even when request/response reads
+        # time out, used to hold off the wedge breaker on a 0.97 Frame (#315).
+        self._last_event_at: float | None = None
+        # Suspends that breaker while an upload waits for image_added, so
+        # unrelated thumbnail timeouts can't tear the socket down mid-upload.
+        self._upload_in_progress = False
+
+        # The TV's Art app is effectively a single-request protocol.  Several
+        # HA platforms share this client and otherwise poll it concurrently,
+        # overwriting event-keyed pending requests and amplifying a slow TV
+        # into a reconnect storm.
+        self._request_lock = asyncio.Lock()
+        # Serialises _probe_art_channel(): the platform setups call supported()
+        # together, all before the first probe has answered.
+        self._probe_lock = asyncio.Lock()
+        self._request_cooldown_until = 0.0
+        # Consecutive wedges on connections that never answered anything. Each
+        # one doubles the recovery cooldown, so a channel the TV keeps killing
+        # is retried further and further apart instead of every cycle. Reset as
+        # soon as a request is actually answered (#273: lifting the cooldown on
+        # ms.channel.ready alone removed all spacing and took the wedge count
+        # from 5 to 94 in a comparable window).
+        self._unproductive_cycles = 0
+        # Set by the owner when this channel is the only thing that can report
+        # Art Mode — no IP Control paired, no SmartThings. Every second of
+        # recovery backoff is then a second of blind, so the escalation is not
+        # applied. See _note_request_timeout.
+        self.sole_art_source = False
+        # Wedges that keep recurring within ART_WS_WEDGE_RECURRENCE_WINDOW,
+        # whether or not the channel answered in between, and when the last one
+        # was. Escalates the cooldown on their own, so a channel that is
+        # partly answering cannot loop at the base cooldown forever (#273).
+        self._recurring_wedges = 0
+        self._last_wedge_at: float | None = None
+        # True once the current port has actually answered a request. The art
+        # port is a property of the TV/firmware, so it is discovered at connect
+        # time (open() falls back to the alternate port when the connection
+        # fails) and then treated as settled: a proven port is never swapped at
+        # runtime on a wedge, and only a proven port is persisted (#273
+        # follow-up — a runtime swap on transient Wi-Fi loss ping-ponged and
+        # rewrote the stored port each time).
+        self._proven_port: int | None = None
 
         # Connection lock to prevent concurrent connection attempts (v6.3.5)
         self._connection_lock = asyncio.Lock()
@@ -163,6 +510,40 @@ class SamsungTVAsyncArt:
         self._art_uuid = str(uuid.uuid4())
         return self._art_uuid
 
+    @property
+    def recovery_remaining(self) -> float:
+        """Seconds left in the post-wedge recovery cooldown (0 when requests flow).
+
+        While it is positive every request is refused immediately, so a caller
+        looping over many requests (thumbnail batch) should pause, not plough on.
+        """
+        return max(0.0, self._request_cooldown_until - time.monotonic())
+
+    @property
+    def art_mode(self) -> bool | None:
+        """Cached Art Mode state, or None when it is not known.
+
+        Normally written by the art_mode_changed broadcast. After the channel
+        drops, the last value is kept for ART_WS_STATE_RETENTION so a brief
+        reconnect does not blank Art Mode on a set whose only source is this
+        channel; once that elapses it reverts to None and the consumers fall
+        back to their independent sources.
+        """
+        if (
+            self._art_mode_retained_until is not None
+            and time.monotonic() >= self._art_mode_retained_until
+        ):
+            self._art_mode = None
+            self.art_mode_last_broadcast = None
+            self._art_mode_retained_until = None
+        return self._art_mode
+
+    @art_mode.setter
+    def art_mode(self, value: bool | None) -> None:
+        self._art_mode = value
+        # A value observed on a live channel is current, not on borrowed time.
+        self._art_mode_retained_until = None
+
     def register_capability_callback(self, func) -> None:
         """Register a callback fired when a get-capability is first learned.
 
@@ -172,6 +553,22 @@ class SamsungTVAsyncArt:
         never on a transport/connection failure.
         """
         self._capability_callback = func
+
+    def _capability_probe_is_trustworthy(self) -> bool:
+        """Whether silence to a capability probe really means "unsupported".
+
+        A capability is latched permanently (persisted to entry.data, cleared
+        only by a reconfigure), so it must not be decided by a channel that is
+        merely busy. A 65" LS03A latched BOTH art get-capabilities to false
+        from one 1 s timeout 12 s after a wedge-forced reconnect while its TV
+        was waking; its same-model sibling reads true for both (#273).
+
+        Trust the silence only on a channel that has answered something since
+        it connected and is not in post-wedge recovery.
+        """
+        if not self._got_response_since_connect:
+            return False
+        return self._request_cooldown_until <= time.monotonic()
 
     def _learn_capability(self, flag_name: str, value: bool) -> None:
         """Notify the caller that a capability has been determined."""
@@ -252,8 +649,14 @@ class SamsungTVAsyncArt:
             self._session = aiohttp.ClientSession()
         return self._session
 
-    async def open(self) -> bool:
-        """Open WebSocket connection and start listening."""
+    async def open(self, *, count_failure: bool = True) -> bool:
+        """Open WebSocket connection and start listening.
+
+        ``count_failure=False`` is for the reconnect loop, which spaces and
+        bounds its own attempts. Counted, they put open() into its 2-minute
+        backoff about 15 s after a drop, so the loop's later attempts were
+        refused, and so was any art write once the TV was back.
+        """
         # Acquire lock to prevent concurrent connection attempts (v6.3.5)
         async with self._connection_lock:
             # Reuse the existing connection only if it is genuinely alive.
@@ -300,7 +703,7 @@ class SamsungTVAsyncArt:
             time_since_last = time.time() - self._last_connection_attempt
             if time_since_last < 5:
                 self._log.debug(
-                    "Art API: Too soon since last attempt (%.1fs ago), waiting",
+                    "Art API: Too soon since last attempt (%.1fs ago), skipping",
                     time_since_last,
                 )
                 return False
@@ -316,37 +719,64 @@ class SamsungTVAsyncArt:
             # configured port (e.g. 2024 Tizen filtering 8002) would otherwise
             # leave Art Mode permanently unreachable until the user manually
             # reconfigures. Mirror the same fallback here so it self-heals.
+            # Once a port has answered this session it stays the reference:
+            # a previous connect may have fallen back to the other port (a
+            # waking TV that briefly refuses the proven one), so retry the
+            # proven port first rather than staying on the fallback.
+            if self._proven_port is not None and self._port != self._proven_port:
+                self._port = self._proven_port
+
             if await self._connect_once(self._port):
                 return True
 
+            previous_port = self._port
             alternate_port = 8001 if self._port == 8002 else 8002
             self._log.debug(
                 "Art API: Port %d failed, trying alternate port %d",
-                self._port,
+                previous_port,
                 alternate_port,
             )
+            # _connect_once already sets self._port to the port it succeeds on,
+            # so log previous_port (not self._port) to avoid a nonsensical
+            # "Port changed from N to N" line.
             if await self._connect_once(alternate_port):
-                self._log.warning(
-                    "Art API: Port changed from %d to %d "
-                    "(likely a firmware update filtered the previous port)",
-                    self._port,
-                    alternate_port,
-                )
+                if previous_port != alternate_port:
+                    self._log.info(
+                        "Art API: port %d did not accept a connection, now on "
+                        "port %d (not stored until it answers a request)",
+                        previous_port,
+                        alternate_port,
+                    )
+                # Switch in memory only. Connecting is not evidence the art app
+                # will serve anything, and on a Wi-Fi Frame a single failed
+                # connect to the good port at startup would otherwise rewrite
+                # the stored port for good (measured on 192.168.1.31: one
+                # "Port changed from 8002 to 8001" at start-up, persisted). The
+                # port is written once it actually answers — see
+                # _wait_for_response, which owns _proven_port.
                 self._port = alternate_port
-                self._learn_port(alternate_port)
                 return True
 
+            if not count_failure:
+                return False
             # Both ports failed: track the failure once for the whole attempt
             # (not once per port), so a temporarily unreachable TV does not
             # reach the backoff threshold twice as fast.
             self._connection_failures += 1
-            self._log.warning(
+            # A TV that's simply off/unreachable trips this on every poll, and
+            # the early attempts usually recover on their own, so keep them at
+            # DEBUG. Surface a single INFO line only on the last attempt — i.e.
+            # when we actually give up and back off — rather than WARNING, since
+            # an unreachable TV is an expected condition, not a fault.
+            reached_max = self._connection_failures >= self._max_connection_failures
+            self._log.log(
+                logging.INFO if reached_max else logging.DEBUG,
                 "Art API: Connection failure %d/%d",
                 self._connection_failures,
                 self._max_connection_failures,
             )
 
-            if self._connection_failures >= self._max_connection_failures:
+            if reached_max:
                 # Exponential backoff: 2, 5, 10, 20, 30 minutes (capped)
                 backoff_minutes = min(
                     2
@@ -354,7 +784,7 @@ class SamsungTVAsyncArt:
                     30,
                 )
                 self._backoff_until = time.time() + (backoff_minutes * 60)
-                self._log.warning(
+                self._log.debug(
                     "Art API: Too many connection failures (%d), entering %d minute backoff period",
                     self._connection_failures,
                     backoff_minutes,
@@ -382,6 +812,7 @@ class SamsungTVAsyncArt:
                 self._ws_url,
                 timeout=aiohttp.ClientTimeout(total=self._timeout),
                 ssl=ssl_context,
+                heartbeat=ART_WS_HEARTBEAT,
             )
 
             # Wait for connection events
@@ -398,7 +829,24 @@ class SamsungTVAsyncArt:
                         self._log.debug("Art API: Connection event: %s", event)
 
                         if event == MS_CHANNEL_READY_EVENT:
-                            # Perfect! Got ready event
+                            # Got ready. On a channel that has been answering,
+                            # lift the recovery cooldown now instead of leaving
+                            # pollers idle for the rest of the 30s window: on a
+                            # TV that drops the client on a schedule (a
+                            # ~200-240s clientDisconnect cadence was measured on
+                            # a 2020 Frame), reconnect + ready can land ~7s after
+                            # the wedge and the fixed cooldown wasted ~23s of an
+                            # already-working socket.
+                            #
+                            # But ready alone does NOT prove the app will serve
+                            # requests: on a channel wedging without ever
+                            # answering, lifting here re-armed straight back into
+                            # the failure and removed all spacing (#273: 5 -> 94
+                            # wedges). While unproductive cycles are being
+                            # counted, keep the backed-off cooldown and let it
+                            # expire on its own.
+                            if self._unproductive_cycles == 0:
+                                self._request_cooldown_until = 0.0
                             connected = True
                             break
                         elif event == MS_CHANNEL_CONNECT_EVENT:
@@ -421,7 +869,7 @@ class SamsungTVAsyncArt:
                     "Art API: Did not receive connect/ready event on port %d",
                     port,
                 )
-                await self.close()
+                await self._drop_failed_connect()
                 self._port = original_port
                 return False
 
@@ -433,33 +881,74 @@ class SamsungTVAsyncArt:
                 self._connection_failures = 0
 
             self._connected = True
+            # New connection: nothing has answered on it yet. If a wedge trips
+            # before anything does, this port is a zombie (see
+            # _note_request_timeout) and we flip to the alternate one.
+            self._got_response_since_connect = False
+            self._answered_request_since_connect = False
 
             # Start the receive loop
             self._recv_task = asyncio.create_task(self._receive_loop())
+            # Start the idle keepalive so a quiet-but-live channel is not
+            # dropped by the TV. Cancelled in close() and on an unexpected
+            # receive-loop exit (a fresh one starts on the next connect).
+            self._keepalive_task = asyncio.create_task(self._keepalive())
 
             self._log.debug("Art API: Connected and listening on port %d", port)
             return True
 
         except Exception as ex:
             self._log.debug("Art API: Connection on port %d failed: %s", port, ex)
-            await self.close()
+            await self._drop_failed_connect()
             self._port = original_port
             return False
+
+    async def _drop_failed_connect(self) -> None:
+        """Close the socket a failed _connect_once opened, and nothing else.
+
+        Not close(): that is the intentional teardown, and it cancels the
+        reconnect loop, which reaches _connect_once through open(). The loop
+        then cancelled itself: the CancelledError surfaced on the alternate
+        port's ws_connect, which ``except Exception`` does not catch, so no
+        failure was counted, no backoff entered and no "reconnect gave up"
+        logged (8.10.0 log: 8001 refused, 8002 tried, then nothing). A failed
+        lazy open() from a poller killed a sleeping reconnect loop the same
+        way. The receive loop and keepalive start only on success, so the
+        half-open socket is all there is to drop.
+        """
+        ws, self._ws = self._ws, None
+        if ws is not None and not ws.closed:
+            await self._close_ws_bounded(ws)
 
     async def close(self) -> None:
         """Close the connection."""
         self._connected = False
 
+        # Cancel the reconnect loop first: setting _connected = False above
+        # marks this as an intentional teardown, but a reconnect task already
+        # in flight would otherwise re-open the socket right after we close it.
+        if self._reconnect_task and not self._reconnect_task.done():
+            self._reconnect_task.cancel()
+        self._reconnect_task = None
+
+        if self._force_close_task and not self._force_close_task.done():
+            self._force_close_task.cancel()
+        self._force_close_task = None
+
+        if self._keepalive_task:
+            self._keepalive_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await self._keepalive_task
+            self._keepalive_task = None
+
         if self._recv_task:
             self._recv_task.cancel()
-            try:
+            with suppress(asyncio.CancelledError):
                 await self._recv_task
-            except asyncio.CancelledError:
-                pass
             self._recv_task = None
 
         if self._ws and not self._ws.closed:
-            await self._ws.close()
+            await self._close_ws_bounded(self._ws)
         self._ws = None
 
         # Cancel all pending requests
@@ -472,6 +961,53 @@ class SamsungTVAsyncArt:
         if self._session and not self._external_session:
             await self._session.close()
             self._session = None
+
+    @staticmethod
+    def _backoff_delay(attempt: int) -> float:
+        """Exponential backoff (1, 2, 4, ...) capped at _MAX_BACKOFF seconds."""
+        return float(min(2**attempt, int(_MAX_BACKOFF)))
+
+    async def _reconnect_with_backoff(self, max_attempts: int = 6) -> bool:
+        """Try to reopen the WS with bounded exponential backoff.
+
+        Returns True as soon as open() succeeds. Each attempt sleeps a capped
+        delay first (so we never hammer a TV that's simply off), and open()
+        applies its own 5s rate-limit on top, so this can never become a hot
+        loop. Its failures are not counted towards open()'s backoff, which is
+        there to space the pollers' attempts. Gives up after max_attempts; the
+        next lazy _send_art_request will retry open() later if the TV comes
+        back.
+        """
+        for attempt in range(max_attempts):
+            await asyncio.sleep(self._backoff_delay(attempt))
+            if await self.open(count_failure=False):
+                self._log.debug("Art API: reconnected after %d attempt(s)", attempt + 1)
+                return True
+        # DEBUG: the socket dropped and the TV stayed off the network for the
+        # whole minute this loop covers (network loss, reboot, deep standby).
+        # A normal standby keeps the art socket open and is not seen here:
+        # 4 standbys on a 55" LS03D left it up, it dropped once, when the TV
+        # left the network. Unreachable is expected, not a fault (see open());
+        # the next request retries.
+        self._log.debug(
+            "Art API: reconnect gave up after %d attempts; the next request "
+            "will retry",
+            max_attempts,
+        )
+        return False
+
+    async def _keepalive(self) -> None:
+        """Emit a periodic ping so an idle Art WS session is not dropped."""
+        try:
+            while self._connected and self._ws and not self._ws.closed:
+                await asyncio.sleep(_KEEPALIVE_INTERVAL)
+                if self._ws and not self._ws.closed:
+                    await self._ws.ping()
+        except asyncio.CancelledError:
+            # Normal on close()/reconnect teardown — exit quietly.
+            pass
+        except Exception:  # noqa: BLE001 - a failed ping must not crash the task
+            self._log.debug("Art API: keepalive ping failed", exc_info=True)
 
     async def _receive_loop(self) -> None:
         """Background task to receive and process WebSocket messages.
@@ -496,6 +1032,7 @@ class SamsungTVAsyncArt:
         if not self._ws:
             return
 
+        ws = self._ws
         cancelled = False
         try:
             async for msg in self._ws:
@@ -506,6 +1043,16 @@ class SamsungTVAsyncArt:
                         await self._process_event(event, response)
                     except json.JSONDecodeError:
                         self._log.debug("Art API: Failed to decode message")
+                elif msg.type == aiohttp.WSMsgType.BINARY:
+                    # API 0.97 Frames (e.g. the 2019 QN55LS03R, #311) answer a
+                    # get_thumbnail over a binary WebSocket frame instead of
+                    # handing back conn_info for a separate socket. The frame is
+                    # the same 2-byte-length + JSON-header + raw-bytes envelope
+                    # the 0.97 upload path uses (#307); _process_binary resolves
+                    # the waiting request with the bytes attached. Newer Frames
+                    # never send one, so this is dead weight for them, not a
+                    # behaviour change.
+                    self._process_binary(msg.data)
                 elif msg.type == aiohttp.WSMsgType.ERROR:
                     self._log.debug("Art API: WebSocket error")
                     break
@@ -524,12 +1071,37 @@ class SamsungTVAsyncArt:
         finally:
             if not cancelled:
                 # Receive loop is exiting on its own (TV standby, network
-                # drop, transport closed) and nobody else will clean up.
-                # Drop stale references so the next _send_art_request
-                # triggers a fresh open().
+                # drop, transport closed, or a missed heartbeat PONG on a
+                # zombie socket) and nobody else will clean up. Drop stale
+                # references so the next _send_art_request triggers a fresh
+                # open(). aiohttp ends the `async for` on CLOSE without
+                # yielding it, so the CLOSED branch above never logs: say it
+                # here.
+                self._log.debug(
+                    "Art API: receive loop ended (close code %s); reconnecting",
+                    getattr(ws, "close_code", None),
+                )
                 self._connected = False
                 self._ws = None
                 self._recv_task = None
+                # The channel that keeps art_mode live is gone, so the last
+                # value (typically "on", since Art Mode is a Frame's last state
+                # before power-off) must not be reported indefinitely:
+                # _art_mode_is_on() has to fall through to the independent
+                # power sources (IP Control / SmartThings / REST PowerState)
+                # rather than pin a false "on". But dropping it instantly blanks
+                # Art Mode on a set that has no such source — a local-only 0.97
+                # Frame, where this channel is the only truth — even when the
+                # reconnect lands a second later (#326). So start the retention
+                # clock instead: the value (and the broadcast that justifies it)
+                # survives a brief drop and expires on its own if the channel
+                # stays down. A reconnect refreshes it from the first event.
+                if self._art_mode is None:
+                    self.art_mode_last_broadcast = None
+                else:
+                    self._art_mode_retained_until = (
+                        time.monotonic() + ART_WS_STATE_RETENTION
+                    )
                 # Fail in-flight pending requests immediately rather than
                 # letting their callers block on the per-request timeout;
                 # the response will never arrive on this dead channel.
@@ -537,6 +1109,23 @@ class SamsungTVAsyncArt:
                     if not future.done():
                         future.cancel()
                 self._pending_requests.clear()
+                # Cancel the now-orphaned keepalive (it pinged THIS dead
+                # socket); a fresh one is started by the next successful
+                # connect, so we never end up with two pinging in parallel.
+                if self._keepalive_task and not self._keepalive_task.done():
+                    self._keepalive_task.cancel()
+                self._keepalive_task = None
+                # Schedule a bounded backoff reconnect so the Art channel
+                # self-heals without waiting for the next lazy
+                # _send_art_request or an HA restart. Fire-and-forget, but
+                # tracked on self so close() can cancel it — that prevents an
+                # intentional teardown from racing a reconnect. Skip if one is
+                # already running (a reconnect that opened a socket which then
+                # dropped again handles its own retries).
+                if self._reconnect_task is None or self._reconnect_task.done():
+                    self._reconnect_task = asyncio.create_task(
+                        self._reconnect_with_backoff()
+                    )
 
     async def _process_event(self, event: str, response: dict) -> None:
         """Process incoming WebSocket events."""
@@ -552,14 +1141,41 @@ class SamsungTVAsyncArt:
         except json.JSONDecodeError:
             return
 
+        # The TV pushed us a parseable art message: the app is alive right now,
+        # whatever the request/response reads are doing. Record it so the wedge
+        # breaker can tell a genuinely dead app (#153) from a 0.97 Frame that
+        # only speaks in broadcasts (#315). An event is also the app proving the
+        # port works, so clear the wedge streak and mark the connection
+        # productive: an interleaved broadcast keeps active toggling from ever
+        # tripping the breaker, and a channel heard from is not the "port never
+        # becomes ready" zombie the unproductive-backoff escalation is for (#12).
+        self._last_event_at = time.monotonic()
+        self._timeout_streak = 0
+        self._got_response_since_connect = True
+
         sub_event = data.get("event", "")
 
-        # Update art mode status from events
-        if "artmode_status" in sub_event:
+        # Update art mode status from events. Exclude set_artmode_status: it is
+        # the reply to our OWN write, carrying 'status' (not 'value'), so reading
+        # it here made data.get("value") None and forced art_mode False whatever
+        # it reported. On some 2024 Frames (QA65LS03D) that reply trails the
+        # authoritative art_mode_changed broadcast by up to ~13 s, so it
+        # overwrote a correct "on" with False and — with no IP Control or
+        # SmartThings to re-read — the switch and sensor stuck at off (#264). The
+        # get_artmode_status status report (which does carry 'value') still
+        # matches here; the write's reply is still resolved by request_id below.
+        if "artmode_status" in sub_event and sub_event != "set_artmode_status":
             self.art_mode = data.get("value") == "on"
         elif sub_event == "art_mode_changed":
             self.art_mode = data.get("status") == "on"
+            self.art_mode_broadcast_count += 1
+            self.art_mode_broadcast_at[self.art_mode] = self.art_mode_broadcast_count
+            self.art_mode_last_broadcast = (self.art_mode, time.monotonic())
             self._fire_art_event()
+            for future in self._art_mode_broadcast_waiters:
+                if not future.done():
+                    future.set_result(None)
+            self._art_mode_broadcast_waiters.clear()
         elif sub_event == "go_to_standby":
             # Ambiguous, not a definitive "art mode off": the panel also
             # fires this when it dims for its own power-save sleep timer
@@ -572,6 +1188,11 @@ class SamsungTVAsyncArt:
             # flipping art_mode_status to "off" while artwork was still on
             # screen. Leave self.art_mode untouched and let the event
             # callback trigger an authoritative re-check instead.
+            #
+            # Stamped all the same: ambiguous about art mode is not ambiguous
+            # about power, and a caller that is about to act on the panel can
+            # weigh it (#319 family — a key sent into a power transition).
+            self.standby_last_broadcast = time.monotonic()
             self._fire_art_event()
         elif sub_event in (
             "image_selected",
@@ -579,15 +1200,21 @@ class SamsungTVAsyncArt:
             "slideshow_changed",
             "favorite_changed",
             "rotation_changed",
+            "image_added",
+            "image_of_list_added",
         ):
             # Confirmed broadcasts (WEBSOCKET_DECOMPILED.md) for changes the
             # Frame Art sensor otherwise only learns about on its next poll.
+            # image_added / image_of_list_added fire when the TV materializes
+            # new content locally — that is when an Art Store (SAM-S*)
+            # thumbnail finally becomes fetchable, so refreshing here retries
+            # the thumbnail that was skipped while the content was uncached.
             self._fire_art_content_event()
 
         # Check for error
         if sub_event == "error":
             error_code = data.get("error_code", "unknown")
-            self._log.debug("Art API: Error event: %s", error_code)
+            self._log.debug("Art API: Error event: %s", _describe_art_error(error_code))
 
         # Resolve pending requests
         request_id = data.get("request_id", data.get("id"))
@@ -613,6 +1240,69 @@ class SamsungTVAsyncArt:
                 self._log.debug("Art API: Matched by sub_event '%s'", sub_event)
                 future.set_result(data)
 
+    def _process_binary(self, raw: bytes) -> None:
+        """Resolve a request answered over a binary WebSocket frame (#311).
+
+        API 0.97 Frames return thumbnail bytes as a binary frame rather than
+        the conn_info-plus-socket handshake newer Frames use. The frame mirrors
+        the 0.97 upload envelope (#307): a 2-byte big-endian header length, a
+        JSON header, then the raw bytes. The header is a d2d_service_message
+        whose ``data`` is the JSON we would otherwise have received as text —
+        for a thumbnail, ``{"event": "thumbnail", "content_id": ..., ...}``.
+
+        The decoded payload is attached under ``binary`` and the pending request
+        is resolved by whichever identifier the frame carries — the echoed
+        request_id/id if present, else the content_id — so the normal
+        request_id keying is never disturbed and get_thumbnail can also listen
+        on a content_id alias. Anything undecodable or not a thumbnail is
+        ignored rather than allowed to break the receive loop (its failure would
+        tear down and reconnect the channel).
+        """
+        try:
+            if len(raw) < 2:
+                return
+            header_len = int.from_bytes(raw[:2], "big")
+            if header_len <= 0 or 2 + header_len > len(raw):
+                self._log.debug(
+                    "Art API: binary frame header length %d out of range (%d bytes)",
+                    header_len,
+                    len(raw),
+                )
+                return
+            header = json.loads(raw[2 : 2 + header_len])
+            payload = raw[2 + header_len :]
+            data_str = header.get("data") if isinstance(header, dict) else None
+            data = json.loads(data_str) if isinstance(data_str, str) else data_str
+        except (ValueError, json.JSONDecodeError) as ex:
+            self._log.debug("Art API: undecodable binary frame: %s", ex)
+            return
+
+        if not isinstance(data, dict):
+            return
+        if data.get("event") != "thumbnail":
+            # Nothing else is expected over a binary frame today; don't guess.
+            self._log.debug(
+                "Art API: ignoring binary frame for event '%s'", data.get("event")
+            )
+            return
+
+        result = {**data, "binary": payload}
+        for key in (data.get("request_id"), data.get("id"), data.get("content_id")):
+            if key and key in self._pending_requests:
+                future = self._pending_requests.get(key)
+                if future and not future.done():
+                    self._log.debug(
+                        "Art API: thumbnail binary frame (%d bytes) matched '%s'",
+                        len(payload),
+                        key,
+                    )
+                    future.set_result(result)
+                return
+        self._log.debug(
+            "Art API: thumbnail binary frame for '%s' had no waiter",
+            data.get("content_id"),
+        )
+
     async def _wait_for_response(
         self,
         request_key: str,
@@ -621,7 +1311,7 @@ class SamsungTVAsyncArt:
         """Wait for a response matching the request key."""
         if request_key not in self._pending_requests:
             self._pending_requests[request_key] = (
-                asyncio.get_event_loop().create_future()
+                asyncio.get_running_loop().create_future()
             )
 
         try:
@@ -629,22 +1319,309 @@ class SamsungTVAsyncArt:
                 self._pending_requests[request_key],
                 timeout=timeout,
             )
+            # A real answer proves the art app is alive — reset the breaker and
+            # mark this connection as one the current port actually serves. It
+            # also ends any recovery backoff: the escalation only exists for
+            # cycles that never got an answer (#273).
+            self._timeout_streak = 0
+            self._got_response_since_connect = True
+            # This one is a READ that answered, which a pushed event is not:
+            # it rules out the broadcast-only 0.97 Frame (#326).
+            self._answered_request_since_connect = True
+            self._unproductive_cycles = 0
+            # First real answer on this port proves it: settle it and persist
+            # it. Persisting here rather than on a speculative switch means the
+            # stored port only ever records a port the TV actually served.
+            # Only the FIRST answering port of the session is proven: an answer
+            # on a fallback port (a waking TV refusing the proven one for a few
+            # seconds) serves the request but must not re-prove and persist it,
+            # or the stored port flips at every wake (8002 -> 8001 measured on
+            # four Frames in one evening, #273).
+            if self._proven_port is None:
+                self._proven_port = self._port
+                self._learn_port(self._port)
             return result
         except asyncio.TimeoutError:
             self._log.debug("Art API: Timeout waiting for '%s'", request_key)
+            self._note_request_timeout()
             return None
         except asyncio.CancelledError:
+            # Channel teardown cancelled the future — the receive loop is
+            # already handling recovery; not a zombie-app signal.
             return None
         finally:
             self._pending_requests.pop(request_key, None)
+
+    def _note_request_timeout(self) -> None:
+        """Circuit breaker for a zombie art channel (app dead, socket alive).
+
+        The TV's art APP can crash while its network stack keeps the WebSocket
+        open and answering PINGs: the aiohttp heartbeat sees a healthy socket,
+        the receive loop never exits, and every request just times out forever
+        — the integration stays wedged until a reload (issue #153). Detect it
+        by counting CONSECUTIVE request timeouts (any real answer resets the
+        count); at the threshold, force-close the socket so the receive loop
+        exits through its normal unintentional-drop path, which cleans up and
+        starts the bounded-backoff auto-reconnect.
+
+        Occasional single timeouts (e.g. the capability probes on TVs that
+        don't implement a request) don't trip it: interleaved successful
+        requests keep resetting the streak.
+
+        An upload in flight suspends the breaker entirely. On TVs whose
+        get_thumbnail never answers (2024 Frames), the thumbnail coordinator
+        piles up timeouts *while* an upload waits for ``image_added``; tripping
+        here would force-close the socket, cancel that pending wait and report
+        a bogus "no content_id returned" for an upload the TV was still
+        processing. The channel is demonstrably alive during an upload anyway —
+        the TV just answered send_image and accepted the d2d transfer.
+        """
+        if self._upload_in_progress:
+            return
+        self._timeout_streak += 1
+        if self._timeout_streak < ART_WS_TIMEOUT_TRIP:
+            return
+        if not self._connected or not self._ws or self._ws.closed:
+            # Already disconnected — lazy open()/auto-reconnect owns recovery.
+            self._timeout_streak = 0
+            return
+        # A channel that is still pushing unsolicited events is not the dead app
+        # this breaker exists for (#153): the 0.97 Frame broadcasts
+        # art_mode_changed while never answering request/response reads (#315).
+        # Reconnecting would not make those reads answer, and the backoff that
+        # follows drops the broadcasts the Art Mode switch relies on. Hold off
+        # while the app is proving itself alive; a truly dead app pushes nothing
+        # and still trips once this window of silence elapses.
+        last_event = self._last_event_at
+        # A channel that has never answered a read is broadcast-only by design,
+        # so its read timeouts are not evidence of a dead app and it may stay
+        # quiet far longer between transitions (#326).
+        liveness_window = (
+            ART_WS_EVENT_LIVENESS_WINDOW
+            if self._answered_request_since_connect
+            else ART_WS_BROADCAST_ONLY_LIVENESS_WINDOW
+        )
+        if last_event is not None and time.monotonic() - last_event <= liveness_window:
+            self._log.debug(
+                "Art API: %d request timeouts but the channel is still pushing "
+                "events (%.0fs ago, window %.0fs%s) — not reconnecting",
+                self._timeout_streak,
+                time.monotonic() - last_event,
+                liveness_window,
+                "" if self._answered_request_since_connect else ", broadcast-only",
+            )
+            self._timeout_streak = 0
+            return
+        self._log.warning(
+            "Art API: %d consecutive request timeouts on a live socket — "
+            "art channel looks wedged, forcing reconnect",
+            self._timeout_streak,
+        )
+        self._timeout_streak = 0
+        # A connection that answered at least once was genuinely working, so its
+        # wedge is a fresh fault and gets the base cooldown. One that never
+        # answered is an unproductive cycle: double the cooldown each time so a
+        # channel the TV keeps killing is retried further apart (#273).
+        if self._got_response_since_connect:
+            self._unproductive_cycles = 0
+        else:
+            self._unproductive_cycles = min(
+                self._unproductive_cycles + 1, ART_WS_RECOVERY_BACKOFF_MAX_DOUBLINGS
+            )
+        # Independently of that: a wedge soon after the last one is a recurrence.
+        # The reset above is right for a one-off fault on a working channel, but
+        # a channel that answers some requests and times out on the rest resets
+        # it on every cycle, so the spacing never grows. Count recurrences too
+        # and take whichever escalation is larger; a quiet window clears it.
+        now = time.monotonic()
+        if (
+            self._last_wedge_at is not None
+            and now - self._last_wedge_at <= ART_WS_WEDGE_RECURRENCE_WINDOW
+        ):
+            self._recurring_wedges = min(
+                self._recurring_wedges + 1, ART_WS_RECOVERY_BACKOFF_MAX_DOUBLINGS
+            )
+        else:
+            self._recurring_wedges = 0
+        self._last_wedge_at = now
+        doublings = max(self._unproductive_cycles, self._recurring_wedges)
+        if self.sole_art_source and doublings:
+            # Spacing the retries out assumes something else keeps reporting
+            # art mode meanwhile. With no IP Control and no SmartThings there
+            # is nothing: the channel is shut for the whole cooldown and every
+            # art_mode_changed the TV sends in that window is lost. Measured on
+            # a 2019 Frame (#337): wedge at 20:14:04 -> 60 s, then 120 s, then
+            # 240 s, each new wedge landing just after the previous cooldown
+            # expired, and a transition taking ~5 min to show. The TV was
+            # reachable throughout — every reconnect succeeded. Keep the base
+            # cooldown so recovery still exists (#153) without the blind
+            # window growing.
+            self._log.debug(
+                "Art API: this channel is the only art-mode source — keeping "
+                "the base %.0fs cooldown instead of escalating to %.0fs",
+                ART_WS_RECOVERY_COOLDOWN,
+                ART_WS_RECOVERY_COOLDOWN * (2**doublings),
+            )
+            doublings = 0
+        cooldown = ART_WS_RECOVERY_COOLDOWN * (2**doublings)
+        self._request_cooldown_until = max(
+            self._request_cooldown_until,
+            time.monotonic() + cooldown,
+        )
+        # A connection that wedged without ever answering a single request is a
+        # zombie: on some 2020 Frames the plain-ws port (8001) accepts a bare
+        # ms.channel.connect but its art app never becomes ready, so every
+        # request times out — and because _connect_once "succeeded" there, each
+        # reconnect keeps choosing the same dead port and never retries the
+        # secure port (8002) that actually works, looping forever (#12). Flip to
+        # the alternate port before the reconnect so open() tries the good one
+        # first. A port that HAS answered is left alone (a transient wedge on a
+        # genuinely-working port must not bounce it to the other one).
+        if not self._got_response_since_connect and self._proven_port != self._port:
+            alternate_port = 8001 if self._port == 8002 else 8002
+            self._log.warning(
+                "Art API: port %d has never answered a request — trying port %d "
+                "for the reconnect",
+                self._port,
+                alternate_port,
+            )
+            # Not persisted: only a port that actually answers is learned (see
+            # _wait_for_response). A speculative switch must not rewrite the
+            # stored port.
+            self._port = alternate_port
+        elif not self._got_response_since_connect:
+            # The port is known good — it has served this TV before. A wedge
+            # with no answer here means the TV or the network is away (a Wi-Fi
+            # Frame dropping off, a set powering down), not a wrong port, and
+            # both ports look equally dead in that state. Switching would just
+            # ping-pong: 55 flips each way were measured in one window on a
+            # Wi-Fi Frame, each one also rewriting the stored port (#273
+            # follow-up). Say so and let the backoff above space the retries.
+            # The socket is still open here — the breaker returns early when
+            # it is not — so "away" is a guess: true of a half-dead TCP
+            # connection on a Wi-Fi Frame (#273), false of a TV that simply is
+            # not answering art reads (#337, where every reconnect succeeded).
+            # Say what was observed and leave the cause open.
+            self._log.warning(
+                "Art API: no request answered on port %d since it connected "
+                "(the TV may be away, or its art app not answering); "
+                "keeping the port and backing off for %.0fs",
+                self._port,
+                cooldown,
+            )
+        elif self._recurring_wedges:
+            # The channel answers some requests and times out on the others, so
+            # neither branch above applies and nothing used to be said at all.
+            # Usually the art app being polled on a TV that is on, but showing
+            # an input rather than art.
+            self._log.warning(
+                "Art API: the channel answers but art requests keep timing out "
+                "(%d wedges in a row; the TV may be on a non-art input); "
+                "backing off for %.0fs",
+                self._recurring_wedges + 1,
+                cooldown,
+            )
+        # Close from a task: _ws.close() makes the receive loop's `async for`
+        # terminate (CLOSED), and its cleanup/auto-reconnect machinery takes
+        # over — one recovery path for every kind of dead channel.
+        if self._force_close_task is None or self._force_close_task.done():
+            self._force_close_task = asyncio.create_task(self._force_close_ws())
+
+    async def _force_close_ws(self) -> None:
+        """Close the current WS to trigger the receive-loop recovery path."""
+        ws = self._ws
+        if ws is None or ws.closed:
+            return
+        closed = await self._close_ws_bounded(ws)
+        if closed:
+            return
+
+        # A transport that ignores close would otherwise leave _receive_loop
+        # alive forever and block both recovery and integration unload.  Detach
+        # it and start the same bounded reconnect path the receive loop would
+        # normally schedule after observing CLOSED.
+        if self._ws is ws:
+            self._connected = False
+            self._ws = None
+            recv_task = self._recv_task
+            self._recv_task = None
+            if recv_task and recv_task is not asyncio.current_task():
+                recv_task.cancel()
+            if self._reconnect_task is None or self._reconnect_task.done():
+                self._reconnect_task = asyncio.create_task(
+                    self._reconnect_with_backoff()
+                )
+
+    async def _close_ws_bounded(self, ws: aiohttp.ClientWebSocketResponse) -> bool:
+        """Close a WebSocket without ever blocking HA shutdown indefinitely."""
+        close_task = asyncio.create_task(ws.close())
+        done, _pending = await asyncio.wait({close_task}, timeout=ART_WS_CLOSE_TIMEOUT)
+        if close_task not in done:
+            close_task.cancel()
+
+            # Do not await a cancellation-resistant transport.  Consume the
+            # eventual result so a late exception cannot become an unhandled
+            # task warning.
+            def _consume_result(task: asyncio.Task) -> None:
+                with suppress(BaseException):
+                    task.result()
+
+            close_task.add_done_callback(_consume_result)
+            self._log.warning(
+                "Art API: WebSocket close did not finish within %.1fs; "
+                "detaching the stale transport",
+                ART_WS_CLOSE_TIMEOUT,
+            )
+            return False
+        try:
+            close_task.result()
+        except Exception as ex:  # noqa: BLE001 - best effort; caller recovers
+            self._log.debug("Art API: WebSocket close failed: %s", ex)
+            return False
+        return True
 
     async def _send_art_request(
         self,
         request_data: dict[str, Any],
         wait_for_event: str | None = None,
         timeout: float = 5.0,
+        bypass_cooldown: bool = False,
+        alias_keys: list[str] | None = None,
     ) -> dict[str, Any] | None:
-        """Send an art API request and wait for response."""
+        """Serialize Art requests and suppress bursts during socket recovery.
+
+        ``bypass_cooldown`` is for an explicit art-mode write. The cooldown
+        exists to stop the POLLERS refilling a socket that is recovering; a
+        write asked for by a user or an automation is not a poller, it is rare,
+        and on a TV stuck on an input it is the very request that ends the
+        wedge loop. Blocking it only made Art Mode unreachable for as long as
+        the backoff lasted (#273: "Failed to turn Art Mode ON after 3 attempts"
+        twice, five minutes apart, while the channel was backing off).
+        """
+        async with self._request_lock:
+            cooldown_remaining = (
+                0.0
+                if bypass_cooldown
+                else self._request_cooldown_until - time.monotonic()
+            )
+            if cooldown_remaining > 0:
+                self._log.debug(
+                    "Art API: recovery cooldown active; skipping request for %.1fs",
+                    cooldown_remaining,
+                )
+                return None
+            return await self._send_art_request_locked(
+                request_data, wait_for_event, timeout, alias_keys
+            )
+
+    async def _send_art_request_locked(
+        self,
+        request_data: dict[str, Any],
+        wait_for_event: str | None,
+        timeout: float,
+        alias_keys: list[str] | None = None,
+    ) -> dict[str, Any] | None:
+        """Send one request while the per-TV request lock is held."""
         # Ensure connected - also reconnect if WebSocket was closed by TV
         if not self._connected or not self._ws or self._ws.closed:
             if self._ws and self._ws.closed:
@@ -667,7 +1644,15 @@ class SamsungTVAsyncArt:
         request_key = wait_for_event or request_data["id"]
 
         # Create future before sending
-        self._pending_requests[request_key] = asyncio.get_event_loop().create_future()
+        future = asyncio.get_running_loop().create_future()
+        self._pending_requests[request_key] = future
+        # Point each alias at the SAME future so an answer that arrives under a
+        # different identifier (e.g. a 0.97 thumbnail binary frame keyed by
+        # content_id, #311) still resolves this one await, with the normal
+        # request_id keying left untouched. Never shadow the primary key.
+        alias_keys = [k for k in (alias_keys or []) if k and k != request_key]
+        for alias in alias_keys:
+            self._pending_requests[alias] = future
 
         # Build command
         command = {
@@ -679,26 +1664,71 @@ class SamsungTVAsyncArt:
             },
         }
 
+        sent = False
         try:
             await self._ws.send_json(command)
+            sent = True
             self._log.debug(
                 "Art API: Sent request '%s'", request_data.get("request", "unknown")
             )
 
-            # Wait for response
+            # Wait for response (_wait_for_response pops its own request_key)
             return await self._wait_for_response(request_key, timeout)
 
         except Exception as ex:
             self._log.debug("Art API: Error sending request: %s", ex)
             self._pending_requests.pop(request_key, None)
+            if not sent:
+                # Nothing left HA ("Cannot write to closing transport"):
+                # set_artmode reads request_id as "handed to the socket".
+                request_data.pop("request_id", None)
             # Mark as disconnected to force reconnection on next request
             self._connected = False
             return None
+        finally:
+            # Drop the aliases we added; _wait_for_response only pops the
+            # primary key, so an orphaned alias would otherwise linger (and
+            # could catch a later, unrelated frame).
+            for alias in alias_keys:
+                self._pending_requests.pop(alias, None)
 
     # ==================== REST API Methods ====================
 
+    @property
+    def art_channel_confirmed(self) -> bool:
+        """True when art support was confirmed by the art-app probe, not REST.
+
+        False for a Frame (the REST flag answered first and the channel was
+        never asked) and until the probe has answered on a non-Frame set.
+        """
+        return self._art_channel_verified
+
+    def mark_art_channel_confirmed(self) -> None:
+        """Trust an earlier session's probe answer (IS_FRAME_TV_ART_APP).
+
+        The platforms skip the live check on that persisted flag; the media
+        player's own check (_ensure_frame_tv_check) does not read the entry,
+        so without this it re-asked the channel on the first art service after
+        every restart and, while the TV sat in deep standby, answered each art
+        service "Frame TV not supported" instead of the channel's real error.
+        Like a Frame's persisted True, the confirmation is not re-verified
+        until the option is toggled.
+        """
+        self._art_channel_verified = True
+
     async def supported(self) -> bool:
-        """Check if the TV supports Frame TV art mode."""
+        """Check if the TV supports Frame TV art mode.
+
+        The REST device info flag FrameTVSupport is the normal answer. With
+        art_on_non_frame set, a TV that reports it "false" is asked for the
+        art-app channel's api_version instead: a version string means the app
+        is there and the art features work (2026 Micro RGB R95H). A positive
+        probe is kept for the session; a silent channel is not, so a set that
+        was asleep at startup is asked again on the next call, as the REST
+        path already does.
+        """
+        if self._art_channel_verified:
+            return True
         try:
             session = await self._get_session()
             url = f"http://{self._host}:8001/api/v2/"
@@ -707,10 +1737,62 @@ class SamsungTVAsyncArt:
                     if resp.status == 200:
                         data = await resp.json()
                         device = data.get("device", {})
-                        return device.get("FrameTVSupport") == "true"
+                        if device.get("FrameTVSupport") == "true":
+                            return True
         except Exception as ex:
             self._log.debug("Art API: Error checking support: %s", ex)
-        return False
+        if not self._art_on_non_frame:
+            return False
+        return await self._probe_art_channel()
+
+    async def _probe_art_channel(self) -> bool:
+        """Ask the art-app channel for its api_version (art_on_non_frame only).
+
+        A version string means the art app is there: remember it for the
+        session and return True. A silent channel (no answer, the request
+        cooldown, a closed socket) returns False and is not remembered, so the
+        next supported() call asks again.
+
+        The request is ``api_version`` straight away, not get_api_version():
+        that helper asks ``get_api_version`` first, which the 6.0 app on the
+        R95H never answers, so the probe would pay a full timeout before
+        asking the question the app does answer. The platform setups call
+        supported() together, all before the first probe has answered, so the
+        probe is serialised and the first answer serves the rest: one request
+        on the wire, one log line.
+        """
+        async with self._probe_lock:
+            if self._art_channel_verified:
+                return True
+            try:
+                data = await self._send_art_request(
+                    {"request": "api_version"}, timeout=self._timeout
+                )
+            except Exception as ex:
+                self._log.debug("Art API: art-app channel probe failed: %s", ex)
+                return False
+            # _send_art_request returns None when the channel does not answer.
+            version = data.get("version") if isinstance(data, dict) else None
+            if not version:
+                # Say so once per session at INFO, as the connection path does
+                # when it gives up: with the option on and the channel silent
+                # the art entities quietly stay away, and DEBUG is off by
+                # default.
+                self._log.log(
+                    logging.DEBUG if self._probe_silent_logged else logging.INFO,
+                    "Art API: FrameTVSupport is not 'true' and the art-app "
+                    "channel did not answer api_version - Art Mode features "
+                    "stay off until it does (Frame Art on a non-Frame TV is on)",
+                )
+                self._probe_silent_logged = True
+                return False
+            self._art_channel_verified = True
+            self._log.info(
+                "Art API: FrameTVSupport is not 'true' but the art-app channel "
+                "answers (api_version %s) - Art Mode features enabled",
+                version,
+            )
+            return True
 
     async def on(self) -> bool:
         """Check if the TV is on."""
@@ -731,6 +1813,16 @@ class SamsungTVAsyncArt:
         """Check if currently in art mode."""
         return await self.on() and self.art_mode is True
 
+    async def in_artmode(self) -> bool:
+        """Authoritative art-mode check.
+
+        Trust the Art WebSocket (get_artmode_status), not REST PowerState:
+        2025 Frames report PowerState="standby" while Art Mode is ON.
+        """
+        if await self.on():
+            return True
+        return (await self.get_artmode()) == "on"
+
     # ==================== Art API Methods ====================
 
     async def get_api_version(self) -> str | None:
@@ -740,28 +1832,51 @@ class SamsungTVAsyncArt:
             data = await self._send_art_request({"request": "api_version"})
         return data.get("version") if data else None
 
-    async def available(self, category: str | None = None) -> list:
+    async def available(
+        self, category: str | None = None, *, strict: bool = False
+    ) -> list | None:
         """Get list of available artwork.
 
-        category: 'MY-C0002' for my pictures, 'MY-C0004' for favourites, 'MY-C0008' for store
+        category: 'MY-C0002' for my pictures, 'MY-C0004' for favourites,
+        'MY-C0001' for the default artworks, 'MY-C0008' for recently set.
+
+        The art-app reads ``category_id`` (decompiled 3.50.106); ``category``
+        is what older clients sent and is kept for firmware that may still
+        read it. Without ``category_id`` the TV returns only recents +
+        MY-C0002 + MY-C0004 + MY-C0001, with every recent item relabelled
+        MY-C0008: any other category filtered client-side came back empty,
+        and the full list counted each recent artwork twice.
+
+        By default a failed read (no answer, unparsable reply) returns [] like an
+        empty library. With strict=True it returns None instead, so a caller
+        that acts on the list (deleting local files) can tell "the TV has no
+        artwork" from "the TV did not answer".
         """
-        data = await self._send_art_request(
-            {"request": "get_content_list", "category": category},
-            timeout=15,
-        )
+        failed: list | None = None if strict else []
+        request: dict[str, Any] = {"request": "get_content_list", "category": category}
+        if category:
+            request["category_id"] = category
+        data = await self._send_art_request(request, timeout=15)
         if not data:
-            return []
+            return failed
 
         content_list = data.get("content_list", "[]")
         if isinstance(content_list, str):
             try:
                 content_list = json.loads(content_list)
             except json.JSONDecodeError:
-                return []
+                return failed
 
+        if not isinstance(content_list, list):
+            return failed
         if category:
-            return [v for v in content_list if v.get("category_id") == category]
-        return content_list
+            matching = [v for v in content_list if v.get("category_id") == category]
+            # A TV that honours category_id labels recents with their real
+            # category, not MY-C0008/MY-C0009: the reply is already filtered.
+            if not matching and category in _RECENT_CATEGORIES:
+                return content_list
+            return matching
+        return _dedupe_content_list(content_list)
 
     async def get_current(self) -> dict[str, Any] | None:
         """Get information about the currently displayed artwork."""
@@ -794,7 +1909,7 @@ class SamsungTVAsyncArt:
         if data.get("event") == "error":
             self._log.debug(
                 "Art API: get_thumbnail_list returned error: %s",
-                data.get("error_code"),
+                _describe_art_error(data.get("error_code")),
             )
             return {}
 
@@ -897,7 +2012,7 @@ class SamsungTVAsyncArt:
             self._log.debug("Art API: Traceback: %s", traceback.format_exc())
             return {}
 
-    async def get_thumbnail(self, content_id: str) -> bytes | None:
+    async def get_thumbnail(self, content_id: str, timeout: float = 10) -> bytes | None:
         """Get thumbnail for a specific piece of art.
 
         Strategy (learned once per session via _supports_thumbnail_list):
@@ -930,24 +2045,32 @@ class SamsungTVAsyncArt:
         # on most TV models. Only the direct socket fallback (get_thumbnail) fails for
         # SAM-* images. Never set the flag to False: a startup error (TV not ready)
         # must not permanently disable the fast path for the whole session.
-        self._log.debug(
-            "Art API: Trying get_thumbnail_list for %s (capability=%s)",
-            content_id,
-            self._supports_thumbnail_list,
-        )
-        result = await self._get_thumbnail_via_list(content_id)
-        if result:
-            if self._supports_thumbnail_list is None:
-                self._log.info(
-                    "Art API: TV supports get_thumbnail_list — "
-                    "fast path active for this session"
-                )
-                self._supports_thumbnail_list = True
-            return result
+        # Skip the list path entirely once we've learned this TV rejects it
+        # with a definitive error -1 (2024-2025 Tizen): otherwise every single
+        # thumbnail fetch logs a SYSTEM_FAIL and wastes a round-trip before the
+        # direct get_thumbnail fallback below.
+        if self._supports_thumbnail_list is not False:
+            self._log.debug(
+                "Art API: Trying get_thumbnail_list for %s (capability=%s)",
+                content_id,
+                self._supports_thumbnail_list,
+            )
+            result = await self._get_thumbnail_via_list(content_id)
+            if result:
+                if self._supports_thumbnail_list is None:
+                    self._log.info(
+                        "Art API: TV supports get_thumbnail_list — "
+                        "fast path active for this session"
+                    )
+                    self._supports_thumbnail_list = True
+                return result
 
         self._log.debug("Art API: Using get_thumbnail direct for %s", content_id)
 
-        # Send the request and get connection info
+        # Send the request and get connection info. Listen on the content_id
+        # alias too: a 0.97 Frame answers over a binary frame keyed by
+        # content_id rather than returning conn_info (#311), and _process_binary
+        # resolves this same await with the bytes under "binary".
         data = await self._send_art_request(
             {
                 "request": "get_thumbnail",
@@ -958,16 +2081,36 @@ class SamsungTVAsyncArt:
                     "id": self._get_uuid(),
                 },
             },
-            timeout=10,
+            timeout=timeout,
+            alias_keys=[content_id],
         )
 
         if not data:
             self._log.debug("Art API: No response for get_thumbnail either")
             return None
 
+        # API 0.97: the bytes came back on the WebSocket itself, no socket hop.
+        binary = data.get("binary")
+        if binary is not None:
+            self._log.debug(
+                "Art API: get_thumbnail for %s returned over a binary frame (%d bytes)",
+                content_id,
+                len(binary),
+            )
+            # This TV serves thumbnails over the binary frame, so the
+            # get_thumbnail_list probe at the top is pure waste on it: learn to
+            # skip straight to this path on the next fetch (same flag the
+            # 2024-2025 Tizen direct-only Frames use).
+            if self._supports_thumbnail_list is not False:
+                self._supports_thumbnail_list = False
+            return binary
+
         # Check for error
         if data.get("event") == "error":
-            self._log.debug("Art API: get_thumbnail error: %s", data.get("error_code"))
+            self._log.debug(
+                "Art API: get_thumbnail error: %s",
+                _describe_art_error(data.get("error_code")),
+            )
             return None
 
         try:
@@ -1056,8 +2199,24 @@ class SamsungTVAsyncArt:
             self._log.debug(
                 "Art API: get_thumbnail_list error for %s: %s",
                 content_id,
-                data.get("error_code"),
+                _describe_art_error(data.get("error_code")),
             )
+            # A definitive error_code -1 means this model doesn't support the
+            # list path at all (2024-2025 Tizen) — remember it so we stop
+            # re-probing it on every single thumbnail and go straight to the
+            # direct get_thumbnail. We only latch on this explicit code, NOT on
+            # a missing/transient response (handled above as "no response"),
+            # so a TV-not-ready blip can't permanently disable the fast path.
+            try:
+                if int(data.get("error_code")) == -1:
+                    if self._supports_thumbnail_list is not False:
+                        self._log.info(
+                            "Art API: TV does not support get_thumbnail_list "
+                            "(error -1) — using direct get_thumbnail from now on"
+                        )
+                    self._supports_thumbnail_list = False
+            except (TypeError, ValueError):
+                pass
             return None
 
         try:
@@ -1188,33 +2347,71 @@ class SamsungTVAsyncArt:
     async def get_artmode(self) -> str | None:
         """Get current art mode status."""
         data = await self._send_art_request({"request": "get_artmode_status"})
-        if data:
-            value = data.get("value")
+        if data is not None:
+            value = data.get("value", data.get("status", "off"))
             self.art_mode = value == "on"
             return value
         return None
+
+    def art_mode_broadcast_since(self, mark: int, turn_on: bool) -> bool:
+        """Whether an art_mode_changed broadcast to this state arrived after mark.
+
+        ``mark`` is ``art_mode_broadcast_count`` read before a write.
+        """
+        return self.art_mode_broadcast_at.get(turn_on, 0) > mark
 
     async def set_artmode(self, mode: str | bool) -> bool:
         """Set art mode on or off."""
         if isinstance(mode, bool):
             mode = "on" if mode else "off"
-        data = await self._send_art_request(
-            {
-                "request": "set_artmode_status",
-                "value": mode,
-            }
-        )
-        if data is not None:
-            return True
-        # Fallback for older Frames (e.g. 2020/2021): these confirm the change
-        # by broadcasting an `art_mode_changed` event that carries no
-        # request_id, so it never matches the pending request and the send
-        # above times out even though the TV did switch. The event handler
-        # already updates self.art_mode from that broadcast, so trust it here
-        # rather than reporting a false failure. If the TV genuinely did not
-        # change, self.art_mode won't match the requested state and we still
-        # return False — so the success path is unchanged.
         desired = mode == "on"
+
+        # Some Frames (e.g. 2020/2021) never echo the matching request_id for
+        # set_artmode_status, only the art_mode_changed broadcast — and that
+        # broadcast carries no request_id either, so it can't be awaited via
+        # _send_art_request's normal matching. Race both: whichever confirms
+        # first (the direct response, or the broadcast updating self.art_mode)
+        # wins, instead of always paying the full request timeout.
+        broadcast_future = asyncio.get_running_loop().create_future()
+        self._art_mode_broadcast_waiters.append(broadcast_future)
+        request = {"request": "set_artmode_status", "value": mode}
+        self.last_set_artmode_sent = False
+        request_task = asyncio.ensure_future(
+            self._send_art_request(request, bypass_cooldown=True)
+        )
+        try:
+            done, _ = await asyncio.wait(
+                {request_task, broadcast_future},
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            if request_task in done and request_task.result() is not None:
+                return True
+            if self.art_mode == desired:
+                if broadcast_future in done:
+                    self._log.debug(
+                        "Art API: set_artmode(%s) confirmed early by an "
+                        "art_mode_changed broadcast",
+                        mode,
+                    )
+                return True
+            if request_task not in done:
+                await request_task
+                if request_task.result() is not None:
+                    return True
+        finally:
+            if broadcast_future in self._art_mode_broadcast_waiters:
+                self._art_mode_broadcast_waiters.remove(broadcast_future)
+            if not request_task.done():
+                request_task.cancel()
+            # _send_art_request_locked stamps request_id only once the channel
+            # is open, right before send_json, and drops it again if send_json
+            # fails: without it nothing left HA.
+            self.last_set_artmode_sent = "request_id" in request
+
+        # Final fallback: the request timed out and no broadcast arrived in
+        # time either. If the TV's state already matches what we asked for
+        # (e.g. a late broadcast resolved it after our wait above), treat it
+        # as success; otherwise report a genuine failure.
         if self.art_mode == desired:
             self._log.debug(
                 "Art API: set_artmode(%s) timed out, but an art_mode_changed "
@@ -1260,27 +2457,32 @@ class SamsungTVAsyncArt:
         )
         return data is not None
 
-    async def get_matte_list(self, include_color: bool = False) -> list | tuple:
-        """Get list of available matte types."""
-        data = await self._send_art_request({"request": "get_matte_list"})
-        if data:
-            matte_types = data.get("matte_type_list", "[]")
-            if isinstance(matte_types, str):
-                try:
-                    matte_types = json.loads(matte_types)
-                except json.JSONDecodeError:
-                    matte_types = []
+    async def get_matte_list(self, include_color: bool = False) -> list | tuple | None:
+        """Get list of available matte types.
 
-            if include_color:
-                matte_colors = data.get("matte_color_list", "[]")
-                if isinstance(matte_colors, str):
-                    try:
-                        matte_colors = json.loads(matte_colors)
-                    except json.JSONDecodeError:
-                        matte_colors = []
-                return matte_types, matte_colors
-            return matte_types
-        return ([], []) if include_color else []
+        Returns ``None`` when the TV did not answer — a silent channel or its
+        recovery cooldown. A caller must tell that apart from a genuine empty
+        list: an unanswered request is not "this TV has no mattes" (#402).
+        """
+        data = await self._send_art_request({"request": "get_matte_list"})
+        if data is None:
+            return None
+        matte_types = data.get("matte_list", data.get("matte_type_list", "[]"))
+        if isinstance(matte_types, str):
+            try:
+                matte_types = json.loads(matte_types)
+            except json.JSONDecodeError:
+                matte_types = []
+
+        if include_color:
+            matte_colors = data.get("matte_color_list", "[]")
+            if isinstance(matte_colors, str):
+                try:
+                    matte_colors = json.loads(matte_colors)
+                except json.JSONDecodeError:
+                    matte_colors = []
+            return matte_types, matte_colors
+        return matte_types
 
     async def change_matte(
         self,
@@ -1383,7 +2585,11 @@ class SamsungTVAsyncArt:
                     self._supports_get_brightness = True
                     self._learn_capability("brightness", True)
                 return data
-            if self._supports_get_brightness is None and self._connected:
+            if (
+                self._supports_get_brightness is None
+                and self._connected
+                and self._capability_probe_is_trustworthy()
+            ):
                 # Connected but silent to this specific request => genuine
                 # "unsupported" signal. (A falsy result while NOT connected is a
                 # transport issue, not a capability answer — stay unknown.)
@@ -1429,7 +2635,11 @@ class SamsungTVAsyncArt:
                     self._supports_get_color_temperature = True
                     self._learn_capability("color_temperature", True)
                 return data
-            if self._supports_get_color_temperature is None and self._connected:
+            if (
+                self._supports_get_color_temperature is None
+                and self._connected
+                and self._capability_probe_is_trustworthy()
+            ):
                 self._log.info(
                     "Art API: TV did not respond to get_color_temperature within "
                     "1 s; falling back to get_artmode_settings for future polls"
@@ -1479,6 +2689,78 @@ class SamsungTVAsyncArt:
             self._invalidate_artmode_settings_cache()
         return data is not None
 
+    async def set_brightness_sensor_setting(self, value: str) -> bool:
+        """Enable/disable the Art Mode ambient brightness sensor.
+
+        Accepts ``"on"`` / ``"off"`` (per the decompiled firmware, calls
+        ScreenManagerSetBrightnessSensorEnableValue). Only supported on Frame
+        models that report `get_artmode_settings("brightness_sensor_setting")`.
+        No dedicated get request exists; read the current value back via
+        get_artmode_settings.
+        """
+        data = await self._send_art_request(
+            {"request": "set_brightness_sensor_setting", "value": value}
+        )
+        if data is not None:
+            self._invalidate_artmode_settings_cache()
+        return data is not None
+
+    async def reset_brightness(self) -> dict | None:
+        """Reset the Art Mode brightness to its default.
+
+        The reply carries ``brightness_value``, read back after the reset
+        (decompiled 3.50.106, MobileResetBrightnessCommand). None when the TV
+        did not answer.
+        """
+        data = await self._send_art_request({"request": "reset_brightness"})
+        if data is not None:
+            self._invalidate_artmode_settings_cache()
+        return data
+
+    async def get_device_info(self) -> dict | None:
+        """Read the art-app's capability flags.
+
+        Returns e.g. ``support_motion_sensor`` / ``support_brightness_sensor`` /
+        ``support_color_tone`` ("TRUE"/"FALSE"), ``resolution_type``,
+        ``tv_flash_size``, ``current_rotation_status``.
+        """
+        data = await self._send_art_request({"request": "get_device_info"})
+        if not isinstance(data, dict):
+            return None
+        return {
+            key: value
+            for key, value in data.items()
+            if key not in ("id", "request_id", "event", "target")
+        }
+
+    async def get_current_rotation(self) -> str | None:
+        """Return ``"landscape"`` or ``"portrait"`` (current_rotation_status 1/2)."""
+        data = await self._send_art_request({"request": "get_current_rotation"})
+        if not isinstance(data, dict):
+            return None
+        return _ROTATION_STATUS.get(str(data.get("current_rotation_status")))
+
+    async def get_art_picture_mode(self) -> int | None:
+        """Return the Art Mode picture type (platform value, 0 when unreadable)."""
+        data = await self._send_art_request({"request": "get_art_picture_mode"})
+        if not isinstance(data, dict):
+            return None
+        try:
+            return int(data.get("art_picture_mode"))
+        except (TypeError, ValueError):
+            return None
+
+    async def set_art_picture_mode(self, value: int) -> bool:
+        """Set the Art Mode picture type.
+
+        The TV defers the write while its picture-setting menu is open and
+        applies it when the menu closes; either way it answers ``value``.
+        """
+        data = await self._send_art_request(
+            {"request": "set_art_picture_mode", "art_picture_mode": int(value)}
+        )
+        return data is not None
+
     async def get_auto_rotation_status(self) -> dict | None:
         """Get auto rotation settings."""
         return await self._send_art_request({"request": "get_auto_rotation_status"})
@@ -1487,16 +2769,14 @@ class SamsungTVAsyncArt:
         self,
         duration: int = 0,
         shuffle: bool = True,
-        category: int = 2,
+        category: int | str = 2,
+        sub_category: str | None = None,
     ) -> bool:
         """Configure auto rotation."""
         data = await self._send_art_request(
-            {
-                "request": "set_auto_rotation_status",
-                "value": str(duration) if duration > 0 else "off",
-                "category_id": f"MY-C000{category}",
-                "type": "shuffleslideshow" if shuffle else "slideshow",
-            }
+            build_slideshow_request(
+                "set_auto_rotation_status", duration, shuffle, category, sub_category
+            )
         )
         return data is not None
 
@@ -1508,16 +2788,14 @@ class SamsungTVAsyncArt:
         self,
         duration: int = 0,
         shuffle: bool = True,
-        category: int = 2,
+        category: int | str = 2,
+        sub_category: str | None = None,
     ) -> bool:
         """Configure slideshow settings."""
         data = await self._send_art_request(
-            {
-                "request": "set_slideshow_status",
-                "value": str(duration) if duration > 0 else "off",
-                "category_id": f"MY-C000{category}",
-                "type": "shuffleslideshow" if shuffle else "slideshow",
-            }
+            build_slideshow_request(
+                "set_slideshow_status", duration, shuffle, category, sub_category
+            )
         )
         return data is not None
 
@@ -1579,8 +2857,17 @@ class SamsungTVAsyncArt:
         date: str | None = None,
         timeout: int = 30,
         hass=None,
+        panel: tuple[int, int] | None = None,
+        rotation: str | None = None,
     ) -> str | None:
-        """Upload a new image to the TV."""
+        """Upload a new image to the TV.
+
+        The image is normalised (baseline JPEG, EXIF stripped, fitted to
+        ``panel`` as it hangs - ``rotation`` "landscape" / "portrait") before
+        it is sent — see ``_image_prep``. Every upload path
+        funnels through here, so the card, ``art_upload`` and
+        ``art_upload_batch`` all get the same treatment.
+        """
         self._log.debug("Art API: Starting upload, file type: %s", type(file))
 
         if isinstance(file, str):
@@ -1597,7 +2884,7 @@ class SamsungTVAsyncArt:
                     file = await hass.async_add_executor_job(read_file, file)
                 else:
                     # Fallback for non-HA usage
-                    file = await asyncio.get_event_loop().run_in_executor(
+                    file = await asyncio.get_running_loop().run_in_executor(
                         None, read_file, file
                     )
 
@@ -1606,9 +2893,29 @@ class SamsungTVAsyncArt:
                 self._log.error("Art API: Failed to read file: %s", ex)
                 return None
 
-        file_size = len(file)
-        if file_type == "jpeg":
+        # Normalise to something the TV can actually decode. Done here rather
+        # than per-caller so the service and batch paths get it too; the batch
+        # fingerprints (mtime / perceptual hash) are computed on the SOURCE
+        # file before this, so skip-unchanged and dedup are unaffected.
+        try:
+            if hass is not None:
+                file, _suffix = await hass.async_add_executor_job(
+                    _image_prep.normalise_for_frame,
+                    file,
+                    panel or _image_prep.DEFAULT_PANEL,
+                    rotation,
+                )
+            else:
+                file, _suffix = _image_prep.normalise_for_frame(
+                    file, panel or _image_prep.DEFAULT_PANEL, rotation
+                )
             file_type = "jpg"
+        except Exception as ex:  # noqa: BLE001 - unsupported/corrupt image
+            self._log.error("Art API: Could not prepare image for upload: %s", ex)
+            return None
+
+        file_size = len(file)
+        file_type = _detect_wire_type(file, hint=file_type)
 
         self._log.debug(
             "Art API: Upload - file_size=%d, file_type=%s, matte=%s",
@@ -1624,6 +2931,32 @@ class SamsungTVAsyncArt:
         self._log.debug(
             "Art API: Sending send_image request, request_id=%s", request_id
         )
+
+        # Hold the timeout circuit breaker off for the whole transfer: on TVs
+        # whose get_thumbnail never answers, the coordinator's timeouts would
+        # otherwise trip it and force-close the socket while we wait for
+        # image_added, killing a perfectly good upload.
+        self._upload_in_progress = True
+        try:
+            return await self._upload_locked(
+                file, matte, portrait_matte, file_type, date, timeout, request_id
+            )
+        finally:
+            self._upload_in_progress = False
+            self._timeout_streak = 0
+
+    async def _upload_locked(  # noqa: PLR0913 - mirrors upload()'s parameters
+        self,
+        file: bytes,
+        matte: str,
+        portrait_matte: str,
+        file_type: str,
+        date: str,
+        timeout: int,
+        request_id: str,
+    ) -> str | None:
+        """Do the send_image handshake and d2d transfer (breaker suspended)."""
+        file_size = len(file)
 
         data = await self._send_art_request(
             {
@@ -1651,7 +2984,20 @@ class SamsungTVAsyncArt:
             return None
 
         if data.get("event") == "error":
-            self._log.error("Art API: send_image error: %s", data.get("error_code"))
+            error_code = data.get("error_code")
+            self._log.error("Art API: send_image error: %s", error_code)
+            # A 2019 Frame (art API "0.97") rejects the D2D socket handshake
+            # with SYSTEM_FAIL (-1) and takes the image as a binary WebSocket
+            # frame instead (#307). Fall back to that transport only on this
+            # exact refusal, so every TV that accepts D2D is untouched.
+            if str(error_code) == "-1":
+                self._log.debug(
+                    "Art API: D2D refused with SYSTEM_FAIL; retrying over the "
+                    "WS-binary transport"
+                )
+                return await self._upload_ws_binary(
+                    file, matte, file_type, self._get_uuid(), timeout
+                )
             return None
 
         try:
@@ -1711,8 +3057,16 @@ class SamsungTVAsyncArt:
                 writer.write(header.encode("ascii"))
 
                 self._log.debug("Art API: Sending file data (%d bytes)", file_size)
-                writer.write(file)
-                await writer.drain()
+                # Send in chunks, draining after each one, so the bytes are
+                # actually flushed to the wire as we go. Writing the whole file
+                # in one call only fills the asyncio buffer ("sent" in ms), and
+                # the immediate TLS close below then races with the buffered
+                # data — 2024 Frames (LS03D) end up with a truncated image:
+                # entry created, grey thumbnail, and no image_added event.
+                # Matches the reference implementation (samsung-tv-ws-api).
+                for pos in range(0, file_size, _UPLOAD_CHUNK_SIZE):
+                    writer.write(file[pos : pos + _UPLOAD_CHUNK_SIZE])
+                    await writer.drain()
                 self._log.debug("Art API: Data sent successfully")
             finally:
                 writer.close()
@@ -1739,20 +3093,221 @@ class SamsungTVAsyncArt:
             self._log.debug("Art API: Upload traceback: %s", traceback.format_exc())
             return None
 
+    async def _upload_ws_binary(
+        self,
+        file: bytes,
+        matte: str,
+        file_type: str,
+        request_id: str,
+        timeout: int,
+    ) -> str | None:
+        """Upload an image as a binary WebSocket frame (2019 Frames, #307).
+
+        The art app takes the image over the existing WebSocket as one binary
+        frame — a 2-byte big-endian header length, the ``art_app_request``
+        envelope, then the raw bytes — and replies under the same id with the
+        new content_id. The inner payload is exactly the one the #307 reporter
+        verified on a 2019 Frame (returning MY_F0096): a richer payload risks
+        re-triggering the SYSTEM_FAIL this path exists to avoid, and the frame
+        boundary already delimits the bytes, so no file_size is sent.
+        """
+        ft = file_type.lower()
+        wire_type = "JPEG" if ft in ("jpg", "jpeg") else ft.upper()
+        envelope = {
+            "method": "ms.channel.emit",
+            "params": {
+                "event": "art_app_request",
+                "to": "host",
+                "data": json.dumps(
+                    {
+                        "request": "send_image",
+                        "file_type": wire_type,
+                        "matte_id": matte or "none",
+                        "id": request_id,
+                    }
+                ),
+            },
+        }
+        try:
+            frame = _build_ws_image_frame(envelope, file)
+        except ValueError as ex:
+            self._log.error("Art API: %s", ex)
+            return None
+
+        # Serialize the send with other art requests (one ws, no concurrent
+        # writes); the reply is awaited after the lock, like the D2D path.
+        async with self._request_lock:
+            if not self._connected or not self._ws or self._ws.closed:
+                if not await self.open() or not self._ws or self._ws.closed:
+                    self._log.error("Art API: not connected for WS-binary upload")
+                    return None
+            # Register before sending so a fast reply isn't missed.
+            self._pending_requests[request_id] = (
+                asyncio.get_running_loop().create_future()
+            )
+            try:
+                await self._ws.send_bytes(frame)
+            except Exception as ex:  # noqa: BLE001 - surfaced; socket recovers
+                self._pending_requests.pop(request_id, None)
+                self._connected = False
+                self._log.error("Art API: failed to send image frame: %s", ex)
+                return None
+
+        self._log.debug(
+            "Art API: sent %d-byte WS-binary upload, waiting for reply", len(frame)
+        )
+        result = await self._wait_for_response(request_id, timeout=timeout)
+        if not result:
+            self._log.error("Art API: no reply to WS-binary upload")
+            return None
+        if result.get("event") == "error":
+            self._log.error(
+                "Art API: WS-binary send_image error: %s",
+                _describe_art_error(result.get("error_code")),
+            )
+            return None
+        content_id = result.get("content_id")
+        if content_id:
+            self._log.info(
+                "Art API: Upload successful (WS-binary), content_id=%s", content_id
+            )
+            return content_id
+        self._log.error("Art API: WS-binary upload returned no content_id")
+        return None
+
+    async def upload_batch(
+        self,
+        files: list[str],
+        *,
+        matte: str = "shadowbox_polar",
+        hass=None,
+        throttle: float = 2.0,
+        sidecar_path: str | None = None,
+        dedup_dir: str | None = None,
+        panel: tuple[int, int] | None = None,
+        rotation: str | None = None,
+    ) -> dict:
+        """Upload a list of image files, cheaply and idempotently.
+
+        - **Skip-unchanged**: with a ``sidecar_path``, files whose mtime is
+          unchanged since the last run are skipped, so re-running a folder
+          uploads 0 files instead of duplicating everything on the TV.
+        - **Perceptual dedup (opt-in)**: with a ``dedup_dir`` (the already
+          downloaded TV thumbnails), a candidate that is a confident near-match
+          of an image already on the TV is skipped — robust to the TV's
+          re-encode. Strict threshold + "can't fingerprint → never skip" keep
+          false skips (a photo silently never uploading) out.
+        - **Throttle**: uploads are spaced ``throttle`` seconds apart. Large
+          batches (>~25) reliably fail partway through without this pacing.
+
+        All filesystem access runs in the executor. Returns
+        ``{"uploaded": [...], "skipped": n, "skipped_duplicate": n,
+        "failed": [...]}``.
+        """
+        from . import _upload_sidecar as sc
+
+        sidecar: dict = {}
+        if sidecar_path and hass is not None:
+            sidecar = await hass.async_add_executor_job(sc.load_sidecar, sidecar_path)
+
+        # Reference fingerprints of what is already on the TV (opt-in). New
+        # uploads are appended so near-identical files within THIS batch are
+        # also caught.
+        ref_hashes: list[int] = []
+        if dedup_dir and hass is not None:
+            ref_hashes = await hass.async_add_executor_job(
+                sc.fingerprint_dir, dedup_dir
+            )
+
+        uploaded: list[str] = []
+        failed: list[str] = []
+        skipped = 0
+        skipped_dup = 0
+        did_upload = False
+
+        for path in files:
+            name = os.path.basename(path)
+            mtime = (
+                await hass.async_add_executor_job(sc.safe_mtime, path)
+                if hass is not None
+                else 0.0
+            )
+            if sidecar_path and not sc.needs_upload(name, mtime, sidecar):
+                skipped += 1
+                continue
+
+            candidate_hash = None
+            if dedup_dir and hass is not None:
+                candidate_hash = await hass.async_add_executor_job(sc.hash_file, path)
+                if sc.is_duplicate_hash(candidate_hash, ref_hashes):
+                    self._log.info(
+                        "Art API: batch upload skipping %s — perceptual "
+                        "duplicate of art already on the TV",
+                        name,
+                    )
+                    skipped_dup += 1
+                    continue
+
+            # Space out real uploads only (skips are free).
+            if did_upload and throttle > 0:
+                await asyncio.sleep(throttle)
+            did_upload = True
+
+            content_id = await self.upload(
+                path, matte=matte, hass=hass, panel=panel, rotation=rotation
+            )
+            if content_id:
+                uploaded.append(content_id)
+                sidecar[name] = {"content_id": content_id, "modified": mtime}
+                if candidate_hash is not None:
+                    ref_hashes.append(candidate_hash)  # catch within-batch dupes
+            else:
+                failed.append(path)
+
+        if sidecar_path and hass is not None:
+            await hass.async_add_executor_job(sc.save_sidecar, sidecar_path, sidecar)
+
+        self._log.info(
+            "Art API: batch upload done — %d uploaded, %d skipped, "
+            "%d duplicate, %d failed",
+            len(uploaded),
+            skipped,
+            skipped_dup,
+            len(failed),
+        )
+        return {
+            "uploaded": uploaded,
+            "skipped": skipped,
+            "skipped_duplicate": skipped_dup,
+            "failed": failed,
+        }
+
     async def delete(self, content_id: str) -> bool:
         """Delete an uploaded piece of art."""
         return await self.delete_list([content_id])
 
     async def delete_list(self, content_ids: list[str]) -> bool:
-        """Delete multiple uploaded pieces of art."""
+        """Delete uploaded art; True once the TV confirms with image_deleted.
+
+        The request is dropped silently during the socket-recovery cooldown and
+        the TV may never answer a dead channel, so returning True unconditionally
+        told a caller a delete had happened when nothing left HA (#401). Wait for
+        the ``image_deleted`` broadcast and report whether it came.
+        """
         content_id_list = [{"content_id": cid} for cid in content_ids]
-        await self._send_art_request(
+        data = await self._send_art_request(
             {
                 "request": "delete_image_list",
                 "content_id_list": content_id_list,
-            }
+            },
+            wait_for_event="image_deleted",
         )
-        return True
+        # The TV broadcasts image_added when art appears but nothing else when it
+        # is removed, so tell the listeners ourselves: the Frame Art coordinator
+        # caches the library size and would otherwise keep publishing the old
+        # count until its refresh interval elapsed.
+        self._fire_art_content_event()
+        return data is not None
 
     # ==================== Context Manager ====================
 

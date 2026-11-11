@@ -2,15 +2,23 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
 from datetime import timedelta
 from enum import Enum
 import logging
+import time
+from typing import NoReturn
 
-from aiohttp import ClientSession
+from aiohttp import ClientResponse, ClientResponseError, ClientSession
 from pysmartthings import SmartThings
 
 from homeassistant.util import Throttle
+
+if __package__:
+    from .shared_read import shared_json_get
+else:
+    from shared_read import shared_json_get
 
 # Capability names as strings (pysmartthings v6.0+ compatibility)
 CAP_SWITCH = "switch"
@@ -18,8 +26,39 @@ CAP_AUDIO_VOLUME = "audioVolume"
 CAP_AUDIO_MUTE = "audioMute"
 CAP_TV_CHANNEL = "tvChannel"
 CAP_MEDIA_INPUT_SOURCE = "mediaInputSource"
+CAP_LIGHT_CONTROL = "samsungvd.lightControl"
+
+HUE_SYNC_MODE_OFF = "TurnOff"
+HUE_SYNC_MODE_ON = "TurnOn"
+
+
+class SmartThingsCapabilityUnsupported(Exception):
+    """The TV does not expose the capability a command needs.
+
+    SmartThings answers 422 Unprocessable Entity for a command sent against a
+    capability absent from the device profile — the same code seen when
+    samsungvd.pictureMode is addressed on a model that only has
+    custom.picturemode. It is not a transient failure, so retrying is
+    pointless; but "absent" does not always mean "unsupported by the model",
+    since some capabilities only appear once the matching feature is set up on
+    the TV. Callers should say both rather than declare the model incapable.
+    """
+
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _has_content(value) -> bool:
+    """Whether a capability attribute value says anything.
+
+    Empty strings and lists of them are placeholders (see
+    async_hue_sync_session_active), not values.
+    """
+    if isinstance(value, (list, tuple)):
+        return any(_has_content(item) for item in value)
+    if isinstance(value, str):
+        return bool(value.strip())
+    return bool(value)
 
 
 class _STLoggerAdapter(logging.LoggerAdapter):
@@ -39,6 +78,17 @@ class _STLoggerAdapter(logging.LoggerAdapter):
 API_BASEURL = "https://api.smartthings.com/v1"
 API_DEVICES = f"{API_BASEURL}/devices"
 
+# After a setPictureMode + refresh, the mode is read back every
+# PICTURE_MODE_VERIFY_INTERVAL seconds until it matches, for at most
+# PICTURE_MODE_VERIFY_TIMEOUT seconds. The cloud's copy of the panel lags by a
+# variable amount: on a Frame 2024 (QE55LS03D) it still showed the previous
+# mode 6.6 s after an accepted send the panel had already applied, and caught
+# up a few seconds later. A single read at 5 s took that lag for a refusal and
+# sent the same mode again through the next variant, which the TV answers on
+# screen with "function not available".
+PICTURE_MODE_VERIFY_INTERVAL = 3
+PICTURE_MODE_VERIFY_TIMEOUT = 15
+
 # Device types
 DEVICE_TYPE_OCF = "OCF"
 DEVICE_TYPE_NAME_TV = "Samsung OCF TV"
@@ -46,6 +96,8 @@ DEVICE_TYPE_NAMES = ["Samsung OCF TV", "x.com.st.d.monitor"]
 
 # Component name
 COMPONENT_MAIN = "main"
+PERIODIC_REFRESH_INTERVAL = 60.0
+PERIODIC_REFRESH_MAX_BACKOFF = 15 * 60.0
 
 
 class STStatus(Enum):
@@ -58,6 +110,11 @@ class STStatus(Enum):
 
 class SmartThingsTV:
     """Class to read status for TV registered in SmartThings cloud using pysmartthings."""
+
+    _refresh_failures = 0
+    _next_periodic_refresh = 0.0
+    _periodic_refresh_in_progress = False
+    _refresh_request_seq = 0
 
     def __init__(
         self,
@@ -92,6 +149,12 @@ class SmartThingsTV:
         self._volume = 10
         self._source_list = None
         self._source_list_map = None
+        # Last source-list snapshot that was logged. _update_source_list runs on
+        # every SmartThings poll and its diagnostics almost never change, so they
+        # are emitted only when this signature moves (measured: 3 DEBUG lines
+        # ~2x/min, 1,974 lines in 5.5 h on one TV, burying real events). Same
+        # treatment the device-info payload already gets.
+        self._source_list_log_state: tuple | None = None
         self._source = ""
         self._channel = ""
         self._channel_name = ""
@@ -106,16 +169,60 @@ class SmartThingsTV:
         # (varies by model: some use custom.picturemode, others samsungvd.pictureMode)
         self._picture_mode_capability = None
         self._sound_mode_capability = None
+        # Capability VERIFIED to actually actuate setPictureMode on this panel
+        # (learned by the verify-and-fallback in async_set_picture_mode; some
+        # TVs answer 200 COMPLETED on one capability without applying it).
+        # Seeded from persisted entry data at startup; tried first on every
+        # change, with the other capability kept as fallback.
+        self._verified_picture_mode_capability: str | None = None
+        # Bumped by every async_set_picture_mode call: an older call that sees
+        # a newer number stops instead of verifying against, or re-sending
+        # over, the mode the newer call asked for.
+        self._picture_mode_seq = 0
+        # Optional callback (set by the media_player) invoked with the verified
+        # capability name so it can be persisted across HA restarts.
+        self.picture_mode_capability_persist_cb: Callable[[str], None] | None = None
 
         self._is_forced_val = False
         self._forced_count = 0
+        # True when the last poll read the current input from the device status.
+        # Some TVs (e.g. 2022 Frame) report mediaInputSource.inputSource as null
+        # and supportedInputSources as [], so the input is only available from
+        # the samsungvd.mediaInputSource REST status and has to be re-read on
+        # every poll — otherwise the reported source stays frozen (#230).
+        self._source_from_status = False
+
+    def set_verified_picture_mode_capability(self, capability: str | None) -> None:
+        """Seed the verified setPictureMode capability (from persisted data).
+
+        Accepts either the legacy bare capability ("custom.picturemode") or the
+        newer "capability|form" pair (form: "name" or "id"), e.g.
+        "custom.picturemode|name".
+        """
+        if capability is None:
+            return
+        cap, _, form = capability.partition("|")
+        if cap in ("custom.picturemode", "samsungvd.pictureMode") and form in (
+            "",
+            "name",
+            "id",
+        ):
+            self._verified_picture_mode_capability = capability
+        else:
+            self._log.debug(
+                "Ignoring unknown persisted picture mode capability: %s", capability
+            )
 
     def _get_api_key(self) -> str:
         """Get API key used to connect to SmartThings."""
         if self._api_key_callback is not None:
             if api_key := self._api_key_callback():
-                self._api_key = api_key
-                self._st.authenticate(api_key)
+                if api_key != self._api_key:
+                    self._api_key = api_key
+                    self._st.authenticate(api_key)
+                    self._refresh_failures = 0
+                    self._next_periodic_refresh = 0.0
+                    self._refresh_request_seq += 1
         return self._api_key
 
     # ──────────────────────────────────────────────────────────────────────────
@@ -197,6 +304,16 @@ class SmartThingsTV:
         """Return picture mode list."""
         return self._picture_mode_list
 
+    @property
+    def picture_mode_map(self) -> dict[str, str]:
+        """Return the display name -> internal id map for picture modes.
+
+        The ids (``modeStandard``, ``modeMovie``, ...) are the only
+        language-independent handle on a picture mode; the display names are
+        localized by the TV.
+        """
+        return dict(self._picture_mode_map)
+
     def get_source_name(self, source_key: str) -> str:
         """Get source name from key."""
         if not self._source_list_map or source_key not in self._source_list_map:
@@ -236,7 +353,7 @@ class SmartThingsTV:
         capability: str,
         command: str,
         arguments: list | None = None,
-    ) -> None:
+    ) -> bool:
         """Send a command via direct REST API.
 
         Used instead of pysmartthings Command class, which is an Enum in
@@ -244,7 +361,7 @@ class SmartThingsTV:
         """
         if not self._device_id or not self._session:
             self._log.error("Cannot send REST command: device_id or session missing")
-            return
+            return False
 
         api_key = self._get_api_key()
         url = f"{API_DEVICES}/{self._device_id}/commands"
@@ -264,8 +381,9 @@ class SmartThingsTV:
                 "Accept": "application/json",
             },
             json={"commands": [cmd]},
-            raise_for_status=True,
         ) as resp:
+            if resp.status >= 400:
+                await self._raise_command_refused(resp, capability, command)
             result = await resp.json()
             self._log.debug(
                 "REST command %s/%s sent, status: %s, response: %s",
@@ -274,6 +392,68 @@ class SmartThingsTV:
                 resp.status,
                 result,
             )
+            # HTTP 200 only means SmartThings accepted the request; the body
+            # says whether the device executed it. A FAILED result here means
+            # the TV is registered in the cloud but not reachable by it --
+            # typically because the TV itself cannot reach Samsung's servers
+            # (blocked DNS, firewall). That looked like success in the log
+            # while nothing happened on the panel (#197), so say it plainly.
+            if any(
+                (item or {}).get("status") == "FAILED"
+                for item in (result or {}).get("results", [])
+            ):
+                self._log.warning(
+                    "SmartThings accepted %s/%s but the TV did not execute it "
+                    "(result: FAILED) — the TV is registered in the cloud but "
+                    "the cloud cannot reach it. Check the TV's own internet "
+                    "access (DNS/ad-blocking rules on samsung* domains).",
+                    capability,
+                    command,
+                )
+                return False
+            return True
+
+    async def _raise_command_refused(
+        self, resp: ClientResponse, capability: str, command: str
+    ) -> NoReturn:
+        """Raise a refused command's error, keeping what SmartThings said.
+
+        SmartThings explains a refusal in the body ({"requestId": ..., "error":
+        {"code", "message", "details"}}), but aiohttp's raise_for_status keeps
+        only the status line, so a 409 on Hue Sync reached the log as
+        "409, message='Conflict'" and nothing more (#298). The body's code and
+        message go into the ClientResponseError message, so every caller that
+        logs the error now logs them, and err.status is unchanged for the
+        callers that branch on it.
+        """
+        try:
+            body = await resp.json(content_type=None)
+        except Exception:  # noqa: BLE001 - an unreadable body still raises below
+            body = None
+        error = body.get("error") if isinstance(body, dict) else None
+        request_id = body.get("requestId") if isinstance(body, dict) else None
+        reason = []
+        if isinstance(error, dict):
+            reason = [str(p) for p in (error.get("code"), error.get("message")) if p]
+        message = resp.reason or ""
+        if reason:
+            message = f"{message} ({': '.join(reason)})"
+        if request_id:
+            message = f"{message} [requestId {request_id}]"
+        self._log.debug(
+            "REST command %s/%s refused, status: %s, body: %s",
+            capability,
+            command,
+            resp.status,
+            body,
+        )
+        raise ClientResponseError(
+            resp.request_info,
+            resp.history,
+            status=resp.status,
+            message=message.strip(),
+            headers=resp.headers,
+        )
 
     async def _update_source_list(self, main_comp: dict) -> None:
         """Update source list from device status, with custom name support.
@@ -284,21 +464,14 @@ class SmartThingsTV:
         the capability or the map attribute.
         """
         has_media_input = "mediaInputSource" in main_comp
-        self._log.debug(
-            "Samsung TV: _update_source_list called, mediaInputSource in comp: %s",
-            has_media_input,
-        )
+        has_supported = False
+        supported_val = None
         if has_media_input:
             media_input = main_comp["mediaInputSource"]
 
             has_supported = "supportedInputSources" in media_input
             supported_val = (
                 media_input["supportedInputSources"].value if has_supported else None
-            )
-            self._log.debug(
-                "Samsung TV: supportedInputSources present=%s, value=%s",
-                has_supported,
-                supported_val,
             )
 
             if has_supported and supported_val:
@@ -326,15 +499,53 @@ class SmartThingsTV:
                         if sources_map_raw:
                             self._apply_source_name_map(sources_map_raw)
 
-        # Fallback: if pysmartthings didn't provide sources, fetch via REST
-        if not self._source_list and self._state == STStatus.STATE_ON:
-            self._log.debug("Samsung TV: source_list empty, trying REST fallback")
+        # Fallback: fetch via REST when pysmartthings gave us no source list,
+        # or when it gave us no current input this poll. The second case is not
+        # a one-off: on TVs whose mediaInputSource attributes are always null,
+        # this REST read is the ONLY place the current input comes from, so it
+        # has to run on every poll or the source never changes again (#230).
+        if self._state == STStatus.STATE_ON and (
+            not self._source_list or not self._source_from_status
+        ):
+            self._log.debug(
+                "Samsung TV: reading input source via REST (list empty: %s, "
+                "input in status: %s)",
+                not self._source_list,
+                self._source_from_status,
+            )
             await self._fetch_input_source_map()
 
+        self._log_source_list_state(has_media_input, has_supported, supported_val)
+
+    def _log_source_list_state(
+        self, has_media_input: bool, has_supported: bool, supported_val
+    ) -> None:
+        """Emit the source-list diagnostics only when the snapshot changes.
+
+        These three lines used to be logged on every SmartThings poll while
+        describing a list that essentially never moves.
+        """
+        signature = (
+            has_media_input,
+            has_supported,
+            repr(supported_val),
+            tuple(sorted((self._source_list_map or {}).items())),
+        )
+        if signature == self._source_list_log_state:
+            return
+        self._source_list_log_state = signature
+
+        self._log.debug(
+            "Samsung TV: source list updated (mediaInputSource in comp: %s, "
+            "supportedInputSources present=%s, value=%s)",
+            has_media_input,
+            has_supported,
+            supported_val,
+        )
         if self._source_list:
             self._log.debug(
                 "Samsung TV: sources loaded: %s",
-                {k: v for k, v in self._source_list_map.items()},
+                dict(self._source_list_map or {}),
             )
         else:
             self._log.debug("Samsung TV: no sources available after update")
@@ -377,7 +588,8 @@ class SmartThingsTV:
             )
             self._log.debug("Samsung TV: fetching input sources via REST: %s", cap_name)
             try:
-                async with self._session.get(
+                async with shared_json_get(
+                    self._session,
                     url,
                     headers={
                         "Authorization": f"Bearer {api_key}",
@@ -483,6 +695,11 @@ class SmartThingsTV:
                             m_id = m_name = entry
                         else:
                             continue
+                        # Samsung's localized names arrive padded in some
+                        # locales (" Prirodzený", " Dynamický" -- see #197).
+                        # A leading space is not part of the name: it would
+                        # show in the UI and be sent back as the argument.
+                        m_name = m_name.strip() or m_id
                         if m_id:
                             new_map[m_name] = m_id
                     if new_map:
@@ -493,7 +710,10 @@ class SmartThingsTV:
             if not self._picture_mode_list:
                 _sk = "supportedPictureModes"
                 if _sk in picture_mode_cap:
-                    self._picture_mode_list = picture_mode_cap[_sk].value
+                    self._picture_mode_list = [
+                        m.strip() if isinstance(m, str) else m
+                        for m in (picture_mode_cap[_sk].value or [])
+                    ] or None
 
             # If pysmartthings did not expose supportedPictureModesMap,
             # fetch it directly from the REST capability status endpoint.
@@ -547,7 +767,8 @@ class SmartThingsTV:
             f"/components/main/capabilities/{capability}/status"
         )
         try:
-            async with self._session.get(
+            async with shared_json_get(
+                self._session,
                 url,
                 headers={
                     "Authorization": f"Bearer {api_key}",
@@ -574,6 +795,11 @@ class SmartThingsTV:
                             m_id = m_name = entry
                         else:
                             continue
+                        # Samsung's localized names arrive padded in some
+                        # locales (" Prirodzený", " Dynamický" -- see #197).
+                        # A leading space is not part of the name: it would
+                        # show in the UI and be sent back as the argument.
+                        m_name = m_name.strip() or m_id
                         if m_id:
                             new_map[m_name] = m_id
                     if new_map:
@@ -644,15 +870,30 @@ class SmartThingsTV:
     # ──────────────────────────────────────────────────────────────────────────
 
     @Throttle(timedelta(seconds=1))
-    async def async_device_update(self, use_channel_info: bool = True):
-        """Update device status using pysmartthings."""
+    async def async_device_update(
+        self,
+        use_channel_info: bool = True,
+        allow_refresh: bool = True,
+    ):
+        """Update device status using pysmartthings.
+
+        ``allow_refresh`` controls only the active SmartThings refresh command.
+        Status polling still runs when it is false. The media player uses its
+        locally detected power state for this flag so a stale cloud ON state
+        cannot keep sending refresh commands to a sleeping TV.
+        """
         self._get_api_key()
 
         # Periodically send a refresh command to force the TV to report
         # its actual state to SmartThings cloud. Without this, values like
         # pictureMode remain stale (e.g. always "Standard") until the
         # SmartThings app is opened. Throttled to once per 60 seconds.
-        if self._state == STStatus.STATE_ON:
+        #
+        # SmartThings can keep reporting switch=on after the panel has already
+        # powered down. In that case refresh returns FAILED every minute. Gate
+        # the active command on the caller's local power verdict, while still
+        # allowing the normal read-only status poll below.
+        if allow_refresh and self._state == STStatus.STATE_ON:
             await self._periodic_refresh()
 
         try:
@@ -693,17 +934,19 @@ class SmartThingsTV:
             if "audioMute" in main_comp and "mute" in main_comp["audioMute"]:
                 self._muted = main_comp["audioMute"]["mute"].value == "muted"
 
-            # Update source — try standard capability first
-            if (
-                "mediaInputSource" in main_comp
-                and "inputSource" in main_comp["mediaInputSource"]
-            ):
-                input_val = main_comp["mediaInputSource"]["inputSource"].value
-                if input_val:
-                    self._source = input_val
-            # Note: if inputSource is null from standard capability,
-            # _update_source_list / _fetch_input_source_map will read it
-            # from samsungvd.mediaInputSource REST response instead.
+            # Update source — standard capability first, then the Samsung one.
+            self._source_from_status = False
+            for _src_cap in ("mediaInputSource", "samsungvd.mediaInputSource"):
+                if _src_cap in main_comp and "inputSource" in main_comp[_src_cap]:
+                    input_val = main_comp[_src_cap]["inputSource"].value
+                    if input_val:
+                        self._source = input_val
+                        self._source_from_status = True
+                        break
+            # If neither capability carried a value, _update_source_list falls
+            # back to reading samsungvd.mediaInputSource over REST — on every
+            # poll, not only the first one, or the source would stay frozen at
+            # whatever input the TV was on when the list was first built (#230).
 
             # Update channel info if enabled
             if use_channel_info and self._state == STStatus.STATE_ON:
@@ -771,9 +1014,11 @@ class SmartThingsTV:
             # SmartThings cloud (TV in deep sleep, off the network, or
             # hardware unresponsive). This is a normal, expected case —
             # not an integration bug — so we log it as WARNING instead of
-            # ERROR to reduce noise in logs.
-            err_str = str(err)
-            if "409" in err_str or "Conflict" in err_str:
+            # ERROR to reduce noise in logs. Decided on the status, not on
+            # "409" in the text: the text carries the device id and, since
+            # the refusal body is kept, SmartThings' random requestId, and
+            # either can contain "409" on a 401 or 403.
+            if isinstance(err, ClientResponseError) and err.status == 409:
                 self._log.warning(
                     "Cannot turn on device via SmartThings "
                     "(device appears offline): %s",
@@ -876,6 +1121,97 @@ class SmartThingsTV:
             self._log.error("Error selecting VD source: %s", err)
             raise
 
+    async def async_hue_sync_session_active(self) -> bool | None:
+        """Whether a Hue Sync session is currently running, or None if unknown.
+
+        samsungvd.lightControl only steers an ALREADY-running Hue Sync session:
+        while a session exists the capability reports supportedModes /
+        streamControl / selectedAppId, and while none exists it is empty and
+        setLightControlMode returns COMPLETED without doing anything (#266). So
+        this is the signal for whether setLightControlMode will have any effect.
+        Returns True when a session is running, False when the capability is
+        empty (no session), and None when it can't be read.
+
+        "Empty" includes placeholders: a 55" Frame 2024 (QE55LS03DAUXXN, the
+        pysmartthings vd_frame_2024 fixture) idles at supportedModes [""],
+        selectedAppId "" and streamControl false. A plain truthiness test read
+        that [""] as a running session, so start_hue_sync never launched the app
+        and stop_hue_sync sent its command instead of reporting nothing to stop
+        (#298).
+        """
+        if not self._device_id or not self._session:
+            return None
+        api_key = self._get_api_key()
+        url = (
+            f"{API_DEVICES}/{self._device_id}"
+            f"/components/main/capabilities/{CAP_LIGHT_CONTROL}/status"
+        )
+        try:
+            async with self._session.get(
+                url,
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Accept": "application/json",
+                },
+            ) as resp:
+                if resp.status != 200:
+                    self._log.debug(
+                        "Could not read %s status (HTTP %s)",
+                        CAP_LIGHT_CONTROL,
+                        resp.status,
+                    )
+                    return None
+                data = await resp.json()
+        except Exception as err:  # noqa: BLE001 - best-effort probe
+            self._log.debug("Could not read %s status: %s", CAP_LIGHT_CONTROL, err)
+            return None
+
+        active = any(
+            _has_content((data.get(attr) or {}).get("value"))
+            for attr in ("supportedModes", "streamControl", "selectedAppId")
+        )
+        self._log.debug(
+            "%s status: %s -> Hue Sync session %s",
+            CAP_LIGHT_CONTROL,
+            data,
+            "running" if active else "not running",
+        )
+        return active
+
+    async def async_set_hue_sync(self, enabled: bool) -> None:
+        """Turn a running Hue Sync session on or off (samsungvd.lightControl).
+
+        This does not launch the TV app; the media player does that first when
+        no session is running (#266).
+        """
+        mode = HUE_SYNC_MODE_ON if enabled else HUE_SYNC_MODE_OFF
+        try:
+            await self._send_rest_command(
+                capability=CAP_LIGHT_CONTROL,
+                command="setLightControlMode",
+                arguments=[mode],
+            )
+        except ClientResponseError as err:
+            if err.status == 422:
+                # The capability is not in the device profile as SmartThings
+                # sees it. Reported on a 2022 Frame (QE65LS03BAUXXH); the
+                # feature was developed against an S95C. Whether it is missing
+                # for good or only until the Hue Sync TV app is set up is not
+                # something the error distinguishes, so the message says both.
+                self._log.warning(
+                    "SmartThings rejected %s with 422: this TV does not expose "
+                    "that capability right now. It may be absent on the model, "
+                    "or only appear once the Hue Sync TV app is installed and "
+                    "paired with a bridge",
+                    CAP_LIGHT_CONTROL,
+                )
+                raise SmartThingsCapabilityUnsupported(CAP_LIGHT_CONTROL) from err
+            self._log.error("Error setting Hue Sync mode: %s", err)
+            raise
+        except Exception as err:
+            self._log.error("Error setting Hue Sync mode: %s", err)
+            raise
+
     # ──────────────────────────────────────────────────────────────────────────
     # Sound / picture mode (pysmartthings — unchanged)
     # ──────────────────────────────────────────────────────────────────────────
@@ -906,18 +1242,37 @@ class SmartThingsTV:
             self._log.error("Error setting sound mode: %s", err)
             raise
 
-    async def async_set_picture_mode(self, mode: str):
+    async def async_set_picture_mode(self, mode: str) -> bool | None:
         """Select picture mode using direct REST API.
+
+        Returns True when the panel was READ BACK as having applied the mode,
+        None when a send was accepted but could not be verified, and False when
+        nothing was applied (no attempt, every attempt rejected, or accepted
+        and demonstrably not applied). The caller uses this to decide whether
+        the WebSocket key is still needed — see async_select_picture_mode.
 
         Tries both capability variants: some Samsung TVs accept commands
         on custom.picturemode but not samsungvd.pictureMode, or vice versa.
         We try the detected capability first, then fall back to the other.
+
+        A successful HTTP send is NOT enough to stop: some TVs answer
+        ``200 COMPLETED`` and then silently drop the command — observed with
+        ``custom.picturemode`` under self-published OAuth app clients (the
+        official app / a PAT actuate the same panel fine, issue #116). So
+        after each accepted send the mode is read back, and if the TV did
+        not apply it the other capability is tried too — but only once the
+        read-back has had time to catch up (see _async_verify_picture_mode):
+        a redundant send of a mode the panel already applied is not harmless,
+        the TV answers it on screen with "function not available".
         """
+        self._picture_mode_seq += 1
+        seq = self._picture_mode_seq
+
         if self._state != STStatus.STATE_ON:
             self._log.debug(
                 "Cannot set picture mode: TV state is %s (not ON)", self._state
             )
-            return
+            return False
 
         # Resolve display name -> internal API id using the map.
         mode_id = self._picture_mode_map.get(mode, mode)
@@ -929,73 +1284,311 @@ class SmartThingsTV:
                 self._picture_mode_list,
             )
 
-        # Try detected capability first, fallback to the other.
-        # custom.picturemode returns 422 on some TVs (Frame 2024) which could
-        # interfere with the session, so we use the detected capability first.
+        # Attempt matrix: (capability × argument form). Field testing on #116
+        # proved the argument FORM matters as much as the capability: on an
+        # S90C, custom.picturemode answers 200 COMPLETED for the internal id
+        # ("modeMovie") while doing NOTHING, but actuates the panel when sent
+        # the display NAME ("Movie") — and samsungvd.pictureMode 422s outright.
+        # (This is also why the legacy PAT/REST era "worked": it sent names;
+        # the name->id map landed together with OAuth support.) So each
+        # capability is tried with the NAME first, then the id, each send
+        # verified; the verified (capability, form) pair is memorized.
         primary = self._picture_mode_capability or "samsungvd.pictureMode"
         fallback = (
             "custom.picturemode"
             if primary == "samsungvd.pictureMode"
             else "samsungvd.pictureMode"
         )
-        capabilities_to_try = [primary, fallback]
+        forms = {"name": mode, "id": mode_id}
+        attempts: list[tuple[str, str]] = []  # (capability, form)
 
-        for capability in capabilities_to_try:
+        def _add(capability: str | None, form: str) -> None:
+            if not capability:
+                return
+            if forms["name"] == forms["id"] and form == "id":
+                return  # no map: both forms identical, one attempt is enough
+            if (capability, form) not in attempts:
+                attempts.append((capability, form))
+
+        verified = self._verified_picture_mode_capability
+        if verified:
+            v_cap, _, v_form = verified.partition("|")
+            if v_form in forms:
+                _add(v_cap, v_form)
+            else:  # legacy memory: bare capability, form unknown
+                _add(v_cap, "name")
+                _add(v_cap, "id")
+        for capability in (primary, fallback):
+            _add(capability, "name")
+            _add(capability, "id")
+
+        any_sent = False
+        failures: list[str] = []
+        # Capabilities this device has already refused as unsupported. The
+        # matrix tries each capability twice (name form, id form); a 422 is a
+        # verdict on the capability itself, so the second form is a wasted
+        # request -- and wasted requests are what push SmartThings into rate
+        # limiting (#197: a UE50RU7172 answered 422 for samsungvd.pictureMode
+        # and 409 for custom.picturemode, then 429 for everything once the
+        # four-request matrix had run a few times).
+        unsupported: set[str] = set()
+        for capability, form in attempts:
+            if capability in unsupported:
+                continue
+            if seq != self._picture_mode_seq:
+                self._log.debug(
+                    "Picture mode '%s' superseded by a newer request; not "
+                    "sending further variants",
+                    mode,
+                )
+                return None
+            argument = forms[form]
             try:
                 await self._send_rest_command(
                     capability=capability,
                     command="setPictureMode",
-                    arguments=[mode_id],
+                    arguments=[argument],
                 )
-                self._log.debug(
-                    "Picture mode '%s' (id: %s) sent via %s",
-                    mode,
-                    mode_id,
-                    capability,
-                )
-                self._picture_mode = mode
-
-                # Send a refresh command to force the TV to update its
-                # cached state in SmartThings cloud. Without this, the API
-                # returns stale values (e.g. always "Standard") until the
-                # SmartThings app is opened. Samsung confirmed this behavior
-                # and recommended the refresh workaround.
-                await self._async_refresh_device_status()
-                return
             except Exception as err:
                 self._log.debug(
-                    "setPictureMode via %s failed: %s, trying fallback",
+                    "setPictureMode via %s (%s=%s) failed: %s, trying next",
                     capability,
+                    form,
+                    argument,
                     err,
                 )
+                # Kept so the final error can say WHY every attempt failed.
+                # Reporting only "failed via any capability/form" (#197) left
+                # nothing to act on without turning on debug logging first.
+                failures.append(f"{capability} ({form}={argument!r}): {err}")
+                status = (
+                    getattr(err, "status", None)
+                    if isinstance(err, ClientResponseError)
+                    else None
+                )
+                if status == 429:
+                    # Rate limited. Every remaining attempt would fail the same
+                    # way and dig the hole deeper, so stop here.
+                    self._log.warning(
+                        "SmartThings is rate limiting this device (429) — "
+                        "abandoning the remaining picture mode attempts"
+                    )
+                    break
+                if status == 422:
+                    unsupported.add(capability)
+                continue
+            self._log.debug(
+                "Picture mode '%s' sent via %s (%s form: %s)",
+                mode,
+                capability,
+                form,
+                argument,
+            )
+            # Whether an earlier variant of this call was accepted too: if so,
+            # a match now cannot tell which of the two the panel applied.
+            sent_before = any_sent
+            any_sent = True
+            self._picture_mode = mode
 
-        self._log.error("Failed to set picture mode '%s' via both capabilities", mode)
+            # Send a refresh command to force the TV to update its
+            # cached state in SmartThings cloud. Without this, the API
+            # returns stale values (e.g. always "Standard") until the
+            # SmartThings app is opened. Samsung confirmed this behavior
+            # and recommended the refresh workaround.
+            await self._async_refresh_device_status()
 
-    async def _async_refresh_device_status(self) -> None:
+            # Read the mode back: COMPLETED does not guarantee the panel
+            # applied it (see docstring). None = could not verify — assume
+            # applied rather than blind-firing the remaining attempts.
+            applied = await self._async_verify_picture_mode(mode, mode_id, seq)
+            if applied:
+                # Confirmed on the panel: remember this (capability, form) so
+                # later changes go straight through (persisted across restarts).
+                # Not when an earlier variant was accepted as well — it may be
+                # the one that applied, late.
+                if not sent_before:
+                    self._remember_picture_mode_capability(f"{capability}|{form}")
+                return True
+            if applied is None:
+                return None
+            self._log.warning(
+                "setPictureMode via %s (%s form) was accepted (COMPLETED) but "
+                "the TV still reports another mode — trying the next variant",
+                capability,
+                form,
+            )
+
+        if not any_sent:
+            self._log.error(
+                "Failed to set picture mode '%s' — every attempt was rejected "
+                "by SmartThings: %s",
+                mode,
+                "; ".join(failures) or "no attempt was made",
+            )
+            return False
+        else:
+            # All accepted-but-unapplied (or the last one unverifiable).
+            # Keep the optimistic value: the select entity holds the pending
+            # mode and reconciles with the cloud on its own grace window.
+            self._log.warning(
+                "Picture mode '%s' could not be confirmed on the TV via any "
+                "capability/argument form; if it did not change, the cloud "
+                "command channel likely cannot actuate this panel (see #116)",
+                mode,
+            )
+            return False
+
+    def _remember_picture_mode_capability(self, capability: str) -> None:
+        """Memorize (and persist) the capability confirmed to actuate the panel.
+
+        Only called after a VERIFIED apply — never on an unverifiable send — so
+        a flaky cloud read can't memorize the wrong capability. If the panel's
+        behaviour ever changes (e.g. a firmware update), a later verified apply
+        through the other capability simply overwrites the memory.
+        """
+        if capability == self._verified_picture_mode_capability:
+            return
+        self._log.debug(
+            "Picture mode capability verified working: %s (was: %s) — memorizing",
+            capability,
+            self._verified_picture_mode_capability,
+        )
+        self._verified_picture_mode_capability = capability
+        if self.picture_mode_capability_persist_cb is not None:
+            try:
+                self.picture_mode_capability_persist_cb(capability)
+            except Exception as err:  # pylint: disable=broad-except
+                self._log.debug("Could not persist picture mode capability: %s", err)
+
+    async def _async_verify_picture_mode(
+        self, mode: str, mode_id: str, seq: int | None = None
+    ) -> bool | None:
+        """Return whether the TV now reports the requested mode, None if unknown.
+
+        Reads the capability status every PICTURE_MODE_VERIFY_INTERVAL seconds
+        after the refresh command, until it matches or
+        PICTURE_MODE_VERIFY_TIMEOUT has passed: the cloud catches up with the
+        panel after a variable delay. Returns False only when the TV answered
+        and never reported the mode, None when no read succeeded or a newer
+        request (``seq``) took over — the caller must not treat that as "not
+        applied".
+        """
+        if not self._device_id or not self._session:
+            return None
+        answered = False
+        waited = 0
+        while waited < PICTURE_MODE_VERIFY_TIMEOUT:
+            await asyncio.sleep(PICTURE_MODE_VERIFY_INTERVAL)
+            waited += PICTURE_MODE_VERIFY_INTERVAL
+            if seq is not None and seq != self._picture_mode_seq:
+                return None
+            raw_mode = await self._async_read_picture_mode()
+            if raw_mode is None:
+                continue
+            answered = True
+            self._log.debug(
+                "Picture mode verify after %ds: TV reports '%s' (wanted '%s' / "
+                "id '%s')",
+                waited,
+                raw_mode,
+                mode,
+                mode_id,
+            )
+            if self._picture_mode_matches(raw_mode, mode, mode_id):
+                return True
+        return False if answered else None
+
+    async def _async_read_picture_mode(self) -> str | None:
+        """GET the picture mode capability status; None when unreadable.
+
+        The ``pictureMode`` attribute reports the display NAME on some models
+        (Frame 2024: "Dynamique") and the internal id on others.
+        """
+        capability = self._picture_mode_capability or "samsungvd.pictureMode"
+        url = (
+            f"{API_DEVICES}/{self._device_id}"
+            f"/components/main/capabilities/{capability}/status"
+        )
+        try:
+            async with self._session.get(
+                url,
+                headers={
+                    "Authorization": f"Bearer {self._get_api_key()}",
+                    "Accept": "application/json",
+                },
+            ) as resp:
+                if resp.status != 200:
+                    self._log.debug(
+                        "Picture mode verify read failed (status %s)", resp.status
+                    )
+                    return None
+                data = await resp.json()
+        except Exception as err:
+            self._log.debug("Picture mode verify read failed: %s", err)
+            return None
+        return data.get("pictureMode", {}).get("value") or None
+
+    def _picture_mode_matches(self, raw_mode: str, mode: str, mode_id: str) -> bool:
+        """Whether a reported mode is the target, as a name or as an id."""
+        if raw_mode in (mode, mode_id):
+            return True
+        # Normalize through the map: raw may be a name where we hold the id,
+        # or vice versa.
+        if self._picture_mode_map:
+            if self._picture_mode_map.get(raw_mode) == mode_id:
+                return True  # raw is the name of our target id
+            reverse = {v: k for k, v in self._picture_mode_map.items()}
+            if reverse.get(raw_mode) == mode:
+                return True  # raw is the id of our target name
+        return False
+
+    async def _async_refresh_device_status(self) -> bool:
         """Send a 'refresh' command to force SmartThings to re-read TV state.
 
         The SmartThings app does this when opened, which is why the API
         returns correct values after opening the app. Samsung confirmed
         this is the recommended workaround for stale capability values.
         """
+        self._refresh_request_seq += 1
+        request_seq = self._refresh_request_seq
         try:
-            await self._send_rest_command(
+            self._get_api_key()
+            request_seq = self._refresh_request_seq
+            result = await self._send_rest_command(
                 capability="refresh",
                 command="refresh",
             )
-            self._log.debug("Sent refresh command to update SmartThings state")
+            succeeded = result is True
         except Exception as err:
+            succeeded = False
             self._log.debug("Refresh command failed (non-critical): %s", err)
+        if request_seq == self._refresh_request_seq:
+            self._refresh_failures = (
+                0 if succeeded else min(self._refresh_failures + 1, 4)
+            )
+            interval = min(
+                PERIODIC_REFRESH_INTERVAL * 2**self._refresh_failures,
+                PERIODIC_REFRESH_MAX_BACKOFF,
+            )
+            self._next_periodic_refresh = time.monotonic() + interval
+            self._log.debug(
+                "SmartThings active refresh %s; next background attempt in %.0fs",
+                "accepted" if succeeded else "failed",
+                interval,
+            )
+        return succeeded
 
-    @Throttle(timedelta(seconds=60))
     async def _periodic_refresh(self) -> None:
-        """Periodically refresh SmartThings state during polling.
-
-        Ensures that changes made via the TV remote control or other
-        sources are reflected in the SmartThings API. Throttled to
-        once per 60 seconds to avoid API rate limiting.
-        """
-        await self._async_refresh_device_status()
+        """Back off background refreshes; command verification bypasses this method."""
+        now = time.monotonic()
+        if self._periodic_refresh_in_progress or now < self._next_periodic_refresh:
+            return
+        self._periodic_refresh_in_progress = True
+        self._next_periodic_refresh = now + PERIODIC_REFRESH_INTERVAL
+        try:
+            await self._async_refresh_device_status()
+        finally:
+            self._periodic_refresh_in_progress = False
 
 
 class InvalidSmartThingsSoundMode(RuntimeError):

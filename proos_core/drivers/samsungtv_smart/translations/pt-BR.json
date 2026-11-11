@@ -58,6 +58,14 @@
       "reauth_confirm": {
         "title": "Re-authentication Required",
         "description": "Your SmartThings authentication has expired. Click Submit to sign in again."
+      },
+      "reconfigure_st_device": {
+        "title": "Dispositivo SmartThings",
+        "description": "Selecione o dispositivo SmartThings correspondente a esta TV.\n\nAtualmente: **{current}**\n\nUma TV reparada, redefinida, ou removida e readicionada no aplicativo SmartThings recebe um **novo identificador**, e o antigo é recusado com *Forbidden*. Reselecioná-lo aqui preserva suas entidades e histórico.",
+        "data": {
+          "st_devices": "Dispositivo SmartThings",
+          "device_id": "ID do dispositivo SmartThings"
+        }
       }
     },
     "error": {
@@ -79,7 +87,10 @@
       "missing_scopes": "The granted permissions are insufficient. Please ensure you grant all requested permissions.",
       "reauth_account_mismatch": "The account used for re-authentication doesn't match the original account.",
       "reauth_successful": "Re-authentication successful.",
-      "reauth_failed": "Re-authentication failed."
+      "reauth_failed": "Re-authentication failed.",
+      "st_device_updated": "Dispositivo SmartThings atualizado. A integração está recarregando.",
+      "st_not_configured": "O SmartThings não está configurado para esta TV.",
+      "st_device_missing": "Nenhum dispositivo SmartThings selecionado."
     },
     "create_entry": {
       "default": "Successfully configured {name}"
@@ -150,7 +161,14 @@
           "ext_power_entity": "Binary sensor para ajudar a detectar o status de energia",
           "use_mute_check": "Use o status de volume mudo para detectar um falso status de LIGADO",
           "dump_apps": "Despejar a lista de aplicativos no arquivo de log na inicialização (quando possível)",
-          "toggle_art_mode": "Toggle Art Mode on Power"
+          "toggle_art_mode": "Toggle Art Mode on Power",
+          "st_poll_on_interval": "Intervalo SmartThings com TV ligada (s)",
+          "content_list_interval": "Intervalo de atualização da lista de obras (s)",
+          "ip_control_poll_interval": "Intervalo do IP Control (s)",
+          "art_exit_source": "Fonte ao sair do Art Mode"
+        },
+        "data_description": {
+          "art_exit_source": "Entrada ou app a exibir quando o Art Mode é desativado pelo Home Assistant (switch Art Mode ou art_set_artmode). Deixe vazio para manter o comportamento da TV: ela volta à última fonte, muitas vezes TV (Samsung TV Plus) em uma Frame. Não é aplicado ao sair do Art Mode pelo controle remoto. Precisa de uma fonte que a TV consiga alcançar: uma lista detectada automaticamente pelo SmartThings contém apenas chaves ST_, que recorrem à tecla WebSocket equivalente (ST_HDMI3 -> KEY_HDMI3) quando o SmartThings está indisponível. Alguns modelos ignoram as teclas HDMI numeradas; o log avisa se a TV não mudou de entrada."
         }
       },
       "save_exit": {
@@ -160,7 +178,8 @@
     "error": {
       "invalid_tv_list": "Invalid list format. Please use valid JSON format.",
       "ip_control_no_host": "Nenhum endereço de host está configurado para esta TV.",
-      "ip_control_pair_failed": "Falha no emparelhamento. Verifique se a TV está ligada e em visualização normal (não no modo Arte) e se o IP Remote está ativado, depois tente novamente."
+      "ip_control_pair_failed": "Falha no emparelhamento. Verifique se a TV está ligada e em visualização normal (não no modo Arte) e se o IP Remote está ativado, depois tente novamente.",
+      "ip_control_unreachable": "Não foi possível acessar a TV na porta 1516: nada está escutando nela. Portanto, nem o estado da TV nem a configuração IP Remote são a causa. É provável que este modelo não seja compatível com o IP Control. Apenas as entidades de luz de fundo, tom de cor, calibração de imagem e reinicialização dependem dele."
     }
   },
   "application_credentials": {
@@ -181,6 +200,88 @@
     "button": {
       "reboot": {
         "name": "Reiniciar a TV"
+      },
+      "art_brightness_reset": {
+        "name": "Restauração de Brilho"
+      }
+    },
+    "select": {
+      "matte_type": {
+        "name": "Tapete",
+        "state": {
+          "none": "Nenhum Fosco Selecionado",
+          "modernthin": "Fosco Moderno – Leve",
+          "modern": "Fosco Moderno",
+          "modernwide": "Fosco Moderno – Amplo",
+          "flexible": "Fosco Moderno – Automático",
+          "shadowbox": "Fosco Sombreado",
+          "panoramic": "Fosco Panorâmico",
+          "triptych": "Fosco Tríptico",
+          "mix": "Fosco Misto",
+          "squares": "Fosco Quadrados"
+        }
+      },
+      "matte_color": {
+        "name": "Cor fosca",
+        "state": {
+          "black": "Preto",
+          "neutral": "Neutro",
+          "antique": "Antigo",
+          "warm": "Aquecido",
+          "polar": "Polar",
+          "sand": "Areia",
+          "seafoam": "Ardósia",
+          "sage": "Sálvia",
+          "burgandy": "Bordô",
+          "navy": "Azul-marinho",
+          "apricot": "Damasco",
+          "byzantine": "Bizantino",
+          "lavender": "Lavanda",
+          "redorange": "Laranja",
+          "skyblue": "Céu Azul",
+          "turquoise": "Turquesa"
+        }
+      },
+      "art_motion_timer": {
+        "name": "Temporizador de movimento",
+        "state": {
+          "5": "5 minutos",
+          "15": "15 minutos",
+          "30": "30 minutos",
+          "60": "1 hora",
+          "120": "2 horas",
+          "180": "3 horas",
+          "240": "4 horas",
+          "off": "Desligado",
+          "always": "Sempre"
+        }
+      },
+      "picture_mode": {
+        "name": "Modo de imagem",
+        "state": {
+          "dynamic": "Dinâmico",
+          "standard": "Padrão",
+          "natural": "Natural",
+          "movie": "Filme",
+          "filmmaker_mode": "FILMMAKER MODE",
+          "eco": "Eco",
+          "intelligent": "Otimização IA",
+          "ai_customization": "Personalização IA"
+        }
+      }
+    },
+    "switch": {
+      "art_mode": {
+        "name": "Modo Arte"
+      }
+    },
+    "sensor": {
+      "art_orientation": {
+        "name": "Orientação Art",
+        "state": {
+          "landscape": "Paisagem",
+          "portrait": "Retrato"
+        }
       }
     }
   }

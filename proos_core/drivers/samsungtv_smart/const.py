@@ -1,6 +1,8 @@
 """Constants for the samsungtv_smart integration."""
 
+from collections.abc import Mapping
 from enum import Enum
+from typing import Any
 
 
 class AppLoadMethod(Enum):
@@ -36,8 +38,20 @@ __min_ha_version__ = f"{MIN_HA_MAJ_VER}.{MIN_HA_MIN_VER}.0"
 DATA_CFG = "cfg"
 DATA_CFG_YAML = "cfg_yaml"
 DATA_OPTIONS = "options"
+DATA_ENTRY_DATA = "entry_data"  # Snapshot of entry.data to detect data changes
 DATA_ART_API = "art_api"  # Shared Frame Art API instance
+DATA_MOBILEBFF = "mobilebff"  # Shared quick-settings channel (api/mobilebff.py)
+DATA_ST_POWER = "st_power"  # SmartThings power coordinator, for diagnostics
+DATA_ART_CACHE = "art_cache"  # Shared ArtIdentifyCache instance (per entry)
+DATA_IP_CONTROL_STATE_COORDINATOR = "ip_control_state_coordinator"
 CONF_IS_FRAME_TV = "is_frame_tv"  # Persisted flag: TV confirmed as Frame TV
+# Bumped to a fresh value on every reconfigure so a reconfigure always changes
+# the reload fingerprint — even a same-host re-pair or port re-detect that
+# only touches keys listed in _NO_RELOAD_DATA_KEYS. This lets those
+# runtime-learned keys be excluded from the fingerprint (so their automatic
+# refresh no longer reloads the integration, #12) without also blinding the
+# reconfigure-driven reload.
+CONF_RECONFIGURE_GENERATION = "reconfigure_generation"
 # V7: persisted capability flags for the dedicated brightness / colour-temp
 # WebSocket requests. On TVs that don't respond (e.g. Frame 2024) we learn
 # this at runtime and remember it across restarts so we don't pay the probe
@@ -52,6 +66,84 @@ CONF_CONTENT_LIST_INTERVAL = "content_list_interval"
 DEFAULT_CONTENT_LIST_INTERVAL = 300
 MIN_CONTENT_LIST_INTERVAL = 30
 MAX_CONTENT_LIST_INTERVAL = 3600
+
+# SmartThings cloud poll cadence (seconds), while the TV is ON. The local
+# WebSocket / UPnP / IP Control are the primary state source (power, app,
+# volume, mute) and keep polling every SCAN_INTERVAL; SmartThings is only
+# hit for cloud-only data (channel name, picture mode, sound mode, power
+# metering) at this slower cadence to cut cloud API usage. While the TV is
+# OFF, SmartThings is throttled to ST_POLL_OFF_INTERVAL regardless.
+CONF_ST_POLL_ON_INTERVAL = "st_poll_on_interval"
+DEFAULT_ST_POLL_ON_INTERVAL = 30
+MIN_ST_POLL_ON_INTERVAL = 5
+MAX_ST_POLL_ON_INTERVAL = 600
+# IP Control (local JSON-RPC) poll cadence (seconds) for the read-only state
+# sensors: speaker, volume, mute, picture size/mode, sound mode, input source
+# and — when the tuner is the active input — the local channel number. This is
+# a LAN call to the TV with no cloud quota behind it, which is why it is a
+# separate setting from CONF_ST_POLL_ON_INTERVAL rather than sharing it: the
+# reason to slow SmartThings down (cloud rate limits) does not apply here.
+# The floor is deliberately low but not zero — old panels (e.g. the 2018 set of
+# issue #206) are slow to answer, and below ~5 s the requests start to overlap
+# the responses rather than making anything more responsive.
+CONF_IP_CONTROL_POLL_INTERVAL = "ip_control_poll_interval"
+DEFAULT_IP_CONTROL_POLL_INTERVAL = 10
+MIN_IP_CONTROL_POLL_INTERVAL = 5
+MAX_IP_CONTROL_POLL_INTERVAL = 600
+
+# Fixed SmartThings poll cadence (seconds) while the TV is OFF. A short
+# keepalive so a power-on is still picked up from the cloud as a backup to
+# the local WebSocket, without hammering the API during standby.
+ST_POLL_OFF_INTERVAL = 30
+
+# Persisted (entry.data): which SmartThings capability was VERIFIED to actually
+# actuate the panel for setPictureMode ("custom.picturemode" or
+# "samsungvd.pictureMode"). Learned at runtime by the verify-and-fallback logic
+# (some TVs answer 200 COMPLETED on one capability without applying it — issue
+# #116) and prioritized on later changes, surviving HA restarts. The other
+# capability is always kept as fallback. Excluded from the reload fingerprint
+# in __init__.py so persisting it never triggers an integration reload.
+CONF_ST_PICTURE_MODE_CAPABILITY = "st_picture_mode_capability"
+
+# ── Artwork identification (Frame TV, v8.4) ────────────────────────────────
+# Opt-in pipeline: on each artwork change, a reverse image search (Google Cloud
+# Vision Web Detection) produces candidate titles/artists, then an LLM
+# (Anthropic or OpenAI) confirms/enriches against the thumbnail. Results are
+# cached (keyed by the Samsung content_id for Store artworks, by image hash for
+# personal ones) so each artwork is identified only once. Keys live in
+# entry.data (secrets, like the ST/IP tokens).
+CONF_ART_IDENTIFY_ENABLE = "art_identify_enable"
+CONF_ART_VISION_API_KEY = "art_vision_api_key"
+CONF_ART_LLM_PROVIDER = "art_llm_provider"  # "anthropic" | "openai"
+CONF_ART_LLM_API_KEY = "art_llm_api_key"
+CONF_ART_LLM_MODEL = "art_llm_model"
+# Also run on personal uploads (MY-*). Off by default: they are almost never in
+# Vision's art index, so they'd just burn quota returning "not identified".
+CONF_ART_IDENTIFY_PERSONAL = "art_identify_personal"
+
+ART_LLM_PROVIDERS = ("anthropic", "openai", "gemini")
+DEFAULT_ART_LLM_PROVIDER = "anthropic"
+# Last-resort defaults, used ONLY when the provider's model list cannot be
+# read (no key yet, or the API is unreachable). The real default is picked
+# from the live list — see art_identify.async_pick_default_model — because a
+# pinned id eventually gets retired and breaks identification for everyone who
+# never touched the setting (issue #188).
+DEFAULT_ART_LLM_MODEL = {
+    "anthropic": "claude-haiku-4-5",
+    "openai": "gpt-4o-mini",
+    "gemini": "gemini-flash-latest",
+}
+
+# Cache TTLs (seconds). A successful identification never changes, so it is kept
+# effectively forever; a "not identified" result is retried after a couple of
+# weeks (better model / better web indexing since). Transport errors are never
+# cached, so they retry on the next artwork change.
+ART_CACHE_TTL_HIT = 3650 * 86400
+ART_CACHE_TTL_MISS = 14 * 86400
+# Debounce (seconds) after a content_id change before running the pipeline, so a
+# quick slideshow flip-through doesn't fire an identification per frame.
+ART_IDENTIFY_DEBOUNCE = 8
+
 CONF_SLIDESHOW_API = "slideshow_api"  # Persisted: "slideshow" or "auto_rotation"
 LOCAL_LOGO_PATH = "local_logo_path"
 WS_PREFIX = "[Home Assistant]"
@@ -64,21 +156,53 @@ ATTR_DEVICE_OS = "device_os"
 CONF_APP_LAUNCH_METHOD = "app_launch_method"
 CONF_APP_LIST = "app_list"
 CONF_APP_LOAD_METHOD = "app_load_method"
+CONF_REST_APP_LIST = "rest_app_list"
+DEFAULT_REST_APP_LIST: dict[str, str] = {}
+CONF_REST_APP_POLL_INTERVAL = "rest_app_poll_interval"
+DEFAULT_REST_APP_POLL_INTERVAL = 30
 CONF_CHANNEL_LIST = "channel_list"
 CONF_DEVICE_MODEL = "device_model"
 CONF_DEVICE_NAME = "device_name"
 CONF_DEVICE_OS = "device_os"
 CONF_DUMP_APPS = "dump_apps"
 CONF_EXT_POWER_ENTITY = "ext_power_entity"
+CONF_EXTERNAL_AUDIO_ENTITY = "external_audio_entity"
 CONF_LOAD_ALL_APPS = "load_all_apps"
 CONF_LOGO_OPTION = "logo_option"
 CONF_PING_PORT = "ping_port"
 CONF_POWER_ON_METHOD = "power_on_method"
+# REST/HTTP port, learned independently of CONF_PORT (the WS/token + Art port).
+# Some older Frames (~2020) serve the REST API on 8001 while the secure token
+# WebSocket + Art channel live on 8002, so a single shared port made the two
+# self-heal mechanisms fight forever (8001 <-> 8002 ping-pong). Falls back to
+# CONF_PORT when unset (existing installs / TVs where one port serves both).
+CONF_REST_PORT = "rest_port"
+# Art WebSocket port, learned independently of CONF_PORT (the remote WS/token
+# port). While a TV boots, the art socket can transiently accept and answer on
+# 8001 before the secure 8002 art channel is ready, so the Art API would "prove"
+# 8001 and — when it shared CONF_PORT with the remote channel — overwrite the
+# remote channel's correct 8002, forcing an 8001 -> 8002 re-heal on every
+# restart (observed on 192.168.1.161). Falls back to CONF_PORT when unset.
+CONF_ART_PORT = "art_port"
+# Source (input or app name) to switch to after Art Mode is turned off from
+# Home Assistant. Empty: the TV goes back to its last source, as it always did.
+CONF_ART_EXIT_SOURCE = "art_exit_source"
 CONF_SHOW_CHANNEL_NR = "show_channel_number"
 CONF_SOURCE_LIST = "source_list"
 CONF_SYNC_TURN_OFF = "sync_turn_off"
 CONF_SYNC_TURN_ON = "sync_turn_on"
 CONF_TOGGLE_ART_MODE = "toggle_art_mode"
+CONF_REPORT_ART_MODE_AS_OFF = "report_art_mode_as_off"
+DEFAULT_REPORT_ART_MODE_AS_OFF = False
+# Advanced option: enable the art features on a TV whose REST device info says
+# FrameTVSupport "false" but whose art-app channel answers (2026 Micro RGB
+# MRN75R95HAFXZA, api_version 6.0.0.0). Off by default.
+CONF_ART_ON_NON_FRAME = "art_on_non_frame"
+# CONF_IS_FRAME_TV value when the art-app probe, not the REST flag, confirmed
+# the art support. Truthy like True for every reader; __init__.py uses it to
+# drop the flag again when the option is turned off, leaving a Frame's own
+# True alone, and to seed the shared art client with the confirmation.
+IS_FRAME_TV_ART_APP = "art_app"
 CONF_USE_LOCAL_LOGO = "use_local_logo"
 CONF_USE_MUTE_CHECK = "use_mute_check"
 CONF_USE_ST_CHANNEL_INFO = "use_st_channel_info"
@@ -96,17 +220,10 @@ CONF_DEVICE_ID = "device_id"
 CONF_AUTH_METHOD = "auth_method"
 CONF_OAUTH_TOKEN = "oauth_token"
 
-# IP Control (JSON-RPC) — persisted access token, per TV (entry.data).
+# IP Control (JSON-RPC, port 1516) — persisted access token, per TV (entry.data).
 # Presence of a token means the feature is paired/enabled for that TV.
 CONF_IP_CONTROL_TOKEN = "ip_control_token"
 CONF_ENABLE_IP_CONTROL = "enable_ip_control"
-# The TCP port the TV's IP Control JSON-RPC service listens on. Samsung uses
-# different ports across model generations: 2020+ Frames listen on 1516, while
-# the 2019 QLEDs (Q-series) listen on 1515. The port is auto-probed at pair
-# time (see ipcontrol.IP_CONTROL_PORT_CANDIDATES) and persisted here per TV so
-# the installer never has to know which model uses which port. Absent on
-# entries paired before this field existed → falls back to the 1516 default.
-CONF_IP_CONTROL_PORT = "ip_control_port"
 # Whether IP Control's artModeControl/getTVStates are used for Art Mode
 # detection and switching. Disabled by default: some firmwares (e.g. after a
 # factory reset) leave artModeControl wedged "on" regardless of the actual
@@ -114,16 +231,84 @@ CONF_IP_CONTROL_PORT = "ip_control_port"
 # Control (CONF_ENABLE_IP_CONTROL / CONF_POWER_ON_METHOD) is unaffected by
 # this setting. Re-enable once the TV's firmware reports artModeControl
 # correctly again.
+#
+# OFF MEANS NO artModeControl TRAFFIC AT ALL — reads and writes. Until 8.7.7
+# this gated only the getter, so a user who disabled it on our own advice (the
+# path "can break Art Mode entirely and may need a factory reset", seen on a
+# QE55LS03D) still had every art-mode toggle sent to the TV over JSON-RPC.
+# Art mode then uses the WebSocket art channel for both reading and switching,
+# which is what the documentation always said it did.
 CONF_IP_CONTROL_ART_MODE = "ip_control_art_mode"
-# PROOS: the discrete token this panel's firmware uses for its TUNER input
-# (read it from the ip_input_source attribute while the panel is on the
-# real tuner). When set, selecting source "TV" sends this token instead.
-CONF_IP_TUNER_TOKEN = "ip_tuner_token"
+
+# Device identity, learned once via IP Control's getDeviceInformation right
+# after pairing. Used to gate which model-dependent features/entities get
+# created (not every TV supports the same IP Control capability set).
+# Distinct from CONF_DEVICE_MODEL (the WS-discovered friendly model name):
+# modelID here is the raw internal code IP Control returns (e.g. "25_PTM_FTV").
+CONF_IP_CONTROL_MODEL_ID = "ip_control_model_id"
+CONF_IP_CONTROL_FW_VERSION = "ip_control_fw_version"
+
+# The port the TV answered on, learned at pairing time and reused afterwards.
+# Samsung moved this once: 1515 up to the 2019 models, 1516 from 2020 onwards
+# (documented by the RTI and Allonis control drivers). This integration was
+# built against 2024/2025 Frames, so it only ever tried 1516 — leaving older
+# sets looking unsupported when they simply listen elsewhere (#206).
+# Absent from entry.data on TVs paired before this was introduced, hence the
+# default: those all paired on 1516 by definition.
+CONF_IP_CONTROL_PORT = "ip_control_port"
+# Mirrors api.ipcontrol.DEFAULT_IP_CONTROL_PORT — kept here so the config layer
+# does not have to import the api layer. Ordered: the modern port is tried
+# first, since it covers every model this integration primarily targets.
+IP_CONTROL_PORTS = (1516, 1515)
+
+
+def ip_control_port(entry_data: Mapping[str, Any]) -> int:
+    """Return the IP Control port to use for a TV, from its entry data."""
+    return entry_data.get(CONF_IP_CONTROL_PORT) or IP_CONTROL_PORTS[0]
+
 
 # Authentication methods
 AUTH_METHOD_OAUTH = "oauth"
 AUTH_METHOD_PAT = "pat"
 AUTH_METHOD_ST_ENTRY = "st_entry"
+# No SmartThings at all — local WebSocket / IP Control only. Selecting this on
+# reconfigure strips every SmartThings/OAuth credential from the entry (#258).
+AUTH_METHOD_NONE = "none"
+
+# The entry title the config flow gives a new entry carries the way it reaches
+# SmartThings: "<name> (OAuth)", "<name> (SmartThings)", or the bare name when
+# there is no cloud credential. A reconfigure that changes the auth method used
+# to leave that suffix behind, so an entry switched to local only kept reading
+# "(OAuth)" (#409).
+_AUTH_TITLE_SUFFIX = {
+    AUTH_METHOD_OAUTH: " (OAuth)",
+    AUTH_METHOD_PAT: " (SmartThings)",
+    AUTH_METHOD_ST_ENTRY: " (SmartThings)",
+}
+
+
+def auto_entry_title(name: str, auth_method: str | None) -> str:
+    """The title the config flow gives an entry for this name and auth method."""
+    return name + _AUTH_TITLE_SUFFIX.get(auth_method or "", "")
+
+
+def retitled_entry(
+    current: str, name: str | None, auth_method: str | None
+) -> str | None:
+    """The new title after an auth change, or None to leave the title alone.
+
+    Only a title that is still one the flow generated for this name is
+    rewritten: Home Assistant lets the user rename an entry, and a name they
+    chose must survive a reconfigure. None also when nothing would change.
+    """
+    if not name:
+        return None
+    generated = {name, *(name + suffix for suffix in _AUTH_TITLE_SUFFIX.values())}
+    if current not in generated:
+        return None
+    title = auto_entry_title(name, auth_method)
+    return None if title == current else title
+
 
 # obsolete
 CONF_UPDATE_METHOD = "update_method"
@@ -132,20 +317,17 @@ CONF_SCAN_APP_HTTP = "scan_app_http"
 
 DEFAULT_APP = "TV/HDMI"
 DEFAULT_PORT = 8001
+# Input source ids (casefolded) that mean "the built-in tuner", i.e. the only
+# inputs on which a tuner channel number is meaningful. Samsung reports the
+# tuner under several spellings depending on model and API.
+TUNER_INPUT_SOURCES = frozenset({"tv", "digitaltv", "dtv"})
 DEFAULT_SOURCE_LIST = {"TV": "KEY_TV", "HDMI": "KEY_HDMI"}
-# ProOS standard discrete-input source map. Applied automatically as the source
-# list for any TV that is IP-Control paired, so the installer gets working
-# discrete HDMI 1-4 + broadcast tuner with no configuration. Each label maps to
-# the IP_ source key the media_player routes through the IP Control
-# inputSourceControl path (the dead KEY_HDMIn remote codes are never used).
-# An explicit source list set in options still takes precedence over this.
-STANDARD_IP_SOURCE_MAP = {
-    "HDMI 1": "IP_HDMI1",
-    "HDMI 2": "IP_HDMI2",
-    "HDMI 3": "IP_HDMI3",
-    "HDMI 4": "IP_HDMI4",
-    "TV": "IP_TV",
-}
+# ProOS: the standard discrete-input list a TV paired for IP Control shows when no source list was set by hand. Every
+# ProOS activity names these inputs ("HDMI 1" … "TV"), so they must read the same on every TV and every build.
+STANDARD_IP_SOURCE_MAP = {"HDMI 1": "IP_HDMI1", "HDMI 2": "IP_HDMI2", "HDMI 3": "IP_HDMI3", "HDMI 4": "IP_HDMI4", "TV": "IP_TV"}
+# ProOS: the discrete token this panel's firmware uses for its TUNER (blank = "TV"). Some panels land the generic "TV"
+# on the smart hub instead of the tuner (seen on the Family Room Frame, 2 Aug 2026).
+CONF_IP_TUNER_TOKEN = "ip_tuner_token"
 DEFAULT_TIMEOUT = 6
 
 MAX_WOL_REPEAT = 5
@@ -159,14 +341,21 @@ RESULT_SUCCESS = "success"
 RESULT_WRONG_APIKEY = "wrong_api_key"
 
 SERVICE_SELECT_PICTURE_MODE = "select_picture_mode"
+SERVICE_START_HUE_SYNC = "start_hue_sync"
+SERVICE_STOP_HUE_SYNC = "stop_hue_sync"
+# Tizen app id of the Philips Hue Sync TV service. samsungvd.lightControl only
+# steers an already-running session, so start_hue_sync launches this first (#266).
+HUE_SYNC_APP_ID = "com.lighting.HueSyncService"
 
 # Frame Art Extended Services
 SERVICE_ART_GET_ARTMODE = "art_get_artmode"
 SERVICE_ART_SET_ARTMODE = "art_set_artmode"
 SERVICE_ART_AVAILABLE = "art_available"
 SERVICE_ART_GET_CURRENT = "art_get_current"
+SERVICE_ART_IDENTIFY = "art_identify"
 SERVICE_ART_SELECT_IMAGE = "art_select_image"
 SERVICE_ART_UPLOAD = "art_upload"
+SERVICE_ART_UPLOAD_BATCH = "art_upload_batch"
 SERVICE_ART_DELETE = "art_delete"
 SERVICE_ART_GET_THUMBNAIL = "art_get_thumbnail"
 SERVICE_ART_GET_THUMBNAILS_BATCH = "art_get_thumbnails_batch"
@@ -181,23 +370,48 @@ SERVICE_ART_GET_MATTE_LIST = "art_get_matte_list"
 SERVICE_ART_SET_FAVOURITE = "art_set_favourite"
 SERVICE_ART_SET_SLIDESHOW = "art_set_slideshow"
 SERVICE_ART_SET_AUTO_ROTATION = "art_set_auto_rotation"
+SERVICE_ART_GET_DEVICE_INFO = "art_get_device_info"
+SERVICE_ART_SET_PICTURE_MODE = "art_set_picture_mode"
+SERVICE_ART_RESTART_APP = "art_restart_app"
+SERVICE_ART_RECOVER = "art_recover"
+
+# Tizen app id of the built-in Art Mode app. The art API has no reset verb —
+# its only reset is reset_brightness — but Art Mode is an ordinary Tizen app,
+# so stopping and relaunching it is the software equivalent of the power cycle
+# that unwedges a Frame whose art app has stopped answering (#326, #337).
+ART_APP_ID = "org.tizen.art-app"
+
+SERVICE_SEND_TEXT = "send_text"
 
 # Frame Art Service Attributes
 ATTR_CONTENT_ID = "content_id"
 ATTR_CATEGORY_ID = "category_id"
+ATTR_SUB_CATEGORY_ID = "sub_category_id"
 ATTR_FILE_PATH = "file_path"
 ATTR_FILE_TYPE = "file_type"
+ATTR_TEXT = "text"
+ATTR_SCREEN_RESOLUTION = "screen_resolution"
 ATTR_MATTE_ID = "matte_id"
 ATTR_FILTER_ID = "filter_id"
 ATTR_BRIGHTNESS = "brightness"
 ATTR_COLOR_TEMPERATURE = "color_temperature"
 ATTR_SHOW = "show"
+ATTR_WAKE = "wake"
 ATTR_DURATION = "duration"
 ATTR_SHUFFLE = "shuffle"
 ATTR_ENABLED = "enabled"
 ATTR_STATUS = "status"
+ATTR_DELAY = "delay"
+ATTR_ART_PICTURE_MODE = "art_picture_mode"
 
 SIGNAL_CONFIG_ENTITY = f"{DOMAIN}_config"
+# Sent by the Art Mode switch, suffixed with the entry id, once it has turned
+# Art Mode off: the media player then applies CONF_ART_EXIT_SOURCE.
+SIGNAL_ART_EXITED = f"{DOMAIN}_art_exited"
+# Sent by the Art Mode switch while it waits for a TV that answers on the
+# network but still reads as off: the media player re-sends its configured
+# wake, never KEY_POWER (#319).
+SIGNAL_WAKE_NUDGE = f"{DOMAIN}_wake_nudge"
 
 STD_APP_LIST = {
     "org.tizen.browser": {
