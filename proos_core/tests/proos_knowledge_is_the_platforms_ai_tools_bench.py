@@ -239,7 +239,7 @@ async def main():
            and srv.index('["assist", "tool"]') > srv.index("def do_POST")))
     check("   (SOURCE) the door registers the tools at setup and takes them back with the entry",
           "entry.async_on_unload(llm_tools.async_register(hass, entry))" in D.files()["__init__.py"].decode()
-          and "llm_tools.py" in D.DOOR_FILES and D.DOOR_BUILD == "9")
+          and "llm_tools.py" in D.DOOR_FILES and D.DOOR_BUILD in ("9", "10"))   # 1326: build 10 keeps the AI tools
     print("\n%d passed, %d failed" % (PASS, len(FAIL)))
     return 1 if FAIL else 0
 

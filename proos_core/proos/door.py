@@ -44,7 +44,7 @@ import time
 
 # Bumped ONLY when the integration's own code below changes — a Core
 # update that leaves the door alone must not ask for a restart.
-DOOR_BUILD = "9"
+DOOR_BUILD = "10"
 DOMAIN = "proos"
 # REGISTER 928 (door build 3): conversation.py — "ProOS Assist", the platform's
 # own way of plugging an assistant into its voice pipeline, so a room's own
@@ -54,8 +54,9 @@ DOMAIN = "proos"
 # REGISTER 1306 (door build 8): sensor.py — ProOS's room states (sensor.proos_*) become REAL entities owned by this
 # integration instead of bare states Core writes into the platform's state list (the design's Stage D, item 16).
 # REGISTER 1325 (door build 9): llm_tools.py — ProOS's read-only knowledge as the platform's own AI tools (plan D17).
+# REGISTER 1326 (door build 10): repairs.py + translations/en.json — Health's open faults on the platform's Repairs list.
 DOOR_FILES = ("manifest.json", "__init__.py", "config_flow.py", "conversation.py", "presence.py", "sensor.py",
-              "llm_tools.py")
+              "llm_tools.py", "repairs.py", "translations/en.json")
 QUIET_FILE = "proos_quiet"            # in the platform's config folder: present = the platform stays unannounced
 
 # How long a non-live answer is trusted before the door is asked again
@@ -146,6 +147,12 @@ async def async_setup_entry(hass, entry):
         from . import presence
         await presence.async_start(hass, entry)
     except Exception:  # noqa: BLE001 — never stop the door over the announcement
+        pass
+    # Door build 10 (register 1326): Health's open faults kept on the platform's Repairs list.
+    try:
+        from . import repairs
+        await repairs.async_start(hass, entry)
+    except Exception:  # noqa: BLE001 — never stop the door over the repairs list
         pass
     # Door build 9 (register 1325): ProOS's read-only knowledge as the platform's own AI tools.
     try:
@@ -716,6 +723,65 @@ def async_register(hass, entry):
 '''
 
 
+_REPAIRS = '''"""ProOS faults on the platform's own Repairs list (register 1326, plan item D18).
+
+Written by ProOS Core (proos/door.py, door build 10). Core pushes Health's open faults on the platform's event bus
+("proos_incidents" — the whole list, on every change and every few minutes); this keeps the platform's Repairs list
+the SAME: a fault Health opens appears there, a fault Health closes leaves it. Only an integration can raise a repair
+(the 5 Oct finding) — this is that integration. Health stays where the fix buttons are; a repair says so.
+"""
+from __future__ import annotations
+
+import re
+
+from homeassistant.core import callback
+from homeassistant.helpers import issue_registry as ir
+
+DOMAIN = "proos"
+EVENT = "proos_incidents"
+PREFIX = "incident_"
+_SEV = {"critical": ir.IssueSeverity.CRITICAL, "error": ir.IssueSeverity.ERROR}
+
+
+def _iid(raw):
+    return PREFIX + re.sub(r"[^a-z0-9_]+", "_", str(raw or "").lower()).strip("_")[:120]
+
+
+@callback
+def sync(hass, entry, incidents):
+    """Make the platform's ProOS repairs exactly Health's list."""
+    want = {}
+    for i in incidents or []:
+        if isinstance(i, dict) and i.get("id"):
+            want[_iid(i["id"])] = i
+    reg = ir.async_get(hass)
+    for (dom, iid) in list(reg.issues):
+        if dom == DOMAIN and iid.startswith(PREFIX) and iid not in want:
+            ir.async_delete_issue(hass, DOMAIN, iid)
+    for iid, i in want.items():
+        ir.async_create_issue(
+            hass, DOMAIN, iid, is_fixable=False, is_persistent=False, config_entry_id=entry.entry_id,
+            severity=_SEV.get(str(i.get("severity") or "").lower(), ir.IssueSeverity.WARNING),
+            translation_key="incident",
+            translation_placeholders={"title": str(i.get("title") or "A ProOS fault"),
+                                      "cause": str(i.get("cause") or ""),
+                                      "fix": str(i.get("fix") or "Open ProOS Pro, Health, for the fix.")})
+
+
+async def async_start(hass, entry):
+    @callback
+    def _heard(event):
+        sync(hass, entry, (event.data or {}).get("incidents"))
+
+    entry.async_on_unload(hass.bus.async_listen(EVENT, _heard))
+'''
+
+_TRANSLATIONS = json.dumps({"issues": {"incident": {
+    "title": "ProOS: {title}",
+    "description": "{cause}\\n\\n{fix}\\n\\nThis is ProOS Health's own fault; it closes here when Health closes it."}}},
+    indent=2).replace("\\\\n", "\\n")
+
+
 def files(core_url: str | None = None) -> dict:
     """The door's files, as bytes, for THIS box (Core's own address inside)."""
     core = core_url or core_address()
@@ -727,6 +793,8 @@ def files(core_url: str | None = None) -> dict:
         "presence.py": (_PRESENCE % {"quiet": QUIET_FILE}).encode("utf-8"),
         "sensor.py": (_SENSOR % {"core": core}).encode("utf-8"),
         "llm_tools.py": (_LLM % {"core": core}).encode("utf-8"),
+        "repairs.py": _REPAIRS.encode("utf-8"),
+        "translations/en.json": _TRANSLATIONS.encode("utf-8"),
     }
 
 
@@ -744,6 +812,7 @@ def install(config_dir: str | None = None, core_url: str | None = None) -> dict:
     for name, want in files(core_url).items():
         dst = os.path.join(dest_dir, name)
         try:
+            os.makedirs(os.path.dirname(dst), exist_ok=True)      # 1326: translations/en.json sits in a subfolder
             have = None
             if os.path.exists(dst):
                 with open(dst, "rb") as fh:
@@ -751,7 +820,7 @@ def install(config_dir: str | None = None, core_url: str | None = None) -> dict:
             if have == want:
                 result["current"].append(name)
                 continue
-            fd, tmp = tempfile.mkstemp(dir=dest_dir, prefix="." + name + ".")
+            fd, tmp = tempfile.mkstemp(dir=os.path.dirname(dst), prefix="." + os.path.basename(name) + ".")
             try:
                 with os.fdopen(fd, "wb") as fh:
                     fh.write(want)

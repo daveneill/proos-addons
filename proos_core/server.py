@@ -1679,6 +1679,20 @@ def _health_assist_loop():
         time.sleep(15)
 
 
+def _repairs_loop():
+    """REGISTER 1326 (plan D18): Health's open faults kept on the platform's Repairs list, through the door."""
+    from proos import repairspush as _rp
+    pusher = _rp.Pusher()
+    time.sleep(45)
+    while True:
+        try:
+            if _healthmon_mod is not None and pusher.tick(_client, _healthmon_mod.incidents() or []):
+                print("  [repairs] the platform's Repairs list now matches Health", flush=True)
+        except Exception as e:                                   # noqa: BLE001
+            print("  [repairs] push failed: %s" % e, flush=True)
+        time.sleep(30)
+
+
 def _outcome_loop():
     """REGISTER 1179: decide the watched requests from the rooms' own records; a failure the conversation did not
     pick up goes to the phone of the person who asked (Dave 22:29 "Just go" — the audit's item 1: their own failed
@@ -13918,6 +13932,7 @@ def main():
     threading.Thread(target=_sweep_loop, name="proos-sweep-daily", daemon=True).start()
     threading.Thread(target=_platform_faults_loop, name="proos-platform-faults", daemon=True).start()
     threading.Thread(target=_outcome_loop, name="proos-outcome", daemon=True).start()   # register 1179
+    threading.Thread(target=_repairs_loop, name="proos-repairs", daemon=True).start()   # register 1326
     threading.Thread(target=_health_assist_loop, name="proos-health-assist", daemon=True).start()   # register 1180
     threading.Thread(target=_reconnect_loop, name="proos-reconnect", daemon=True).start()
     if _WATCH_REDISCOVER_SEC > 0:

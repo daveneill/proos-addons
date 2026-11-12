@@ -201,6 +201,8 @@ def cards(now=None) -> list:
     for i in snap.get("repairs") or []:
         if i.get("ignored") or i.get("dismissed_version"):
             continue
+        if i.get("domain") == "proos":
+            continue                  # 1326: ProOS's own repairs are Health's faults, already on Health — never twice
         title = i.get("title") or str(i.get("issue_id") or "").replace("_", " ").strip().capitalize() or "A platform repair"
         out.append(_card("platform_repair", "%s/%s" % (i.get("domain"), i.get("issue_id")), title,
                          "The platform's Repairs list says: %s (%s, %s)." % (i.get("description") or title, i.get("domain"), i.get("severity") or "warning"),
