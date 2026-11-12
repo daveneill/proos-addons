@@ -44,7 +44,7 @@ import time
 
 # Bumped ONLY when the integration's own code below changes — a Core
 # update that leaves the door alone must not ask for a restart.
-DOOR_BUILD = "8"
+DOOR_BUILD = "9"
 DOMAIN = "proos"
 # REGISTER 928 (door build 3): conversation.py — "ProOS Assist", the platform's
 # own way of plugging an assistant into its voice pipeline, so a room's own
@@ -53,7 +53,9 @@ DOMAIN = "proos"
 # platform's own announcer, and (only when Core says so) stops the platform announcing itself.
 # REGISTER 1306 (door build 8): sensor.py — ProOS's room states (sensor.proos_*) become REAL entities owned by this
 # integration instead of bare states Core writes into the platform's state list (the design's Stage D, item 16).
-DOOR_FILES = ("manifest.json", "__init__.py", "config_flow.py", "conversation.py", "presence.py", "sensor.py")
+# REGISTER 1325 (door build 9): llm_tools.py — ProOS's read-only knowledge as the platform's own AI tools (plan D17).
+DOOR_FILES = ("manifest.json", "__init__.py", "config_flow.py", "conversation.py", "presence.py", "sensor.py",
+              "llm_tools.py")
 QUIET_FILE = "proos_quiet"            # in the platform's config folder: present = the platform stays unannounced
 
 # How long a non-live answer is trusted before the door is asked again
@@ -144,6 +146,12 @@ async def async_setup_entry(hass, entry):
         from . import presence
         await presence.async_start(hass, entry)
     except Exception:  # noqa: BLE001 — never stop the door over the announcement
+        pass
+    # Door build 9 (register 1325): ProOS's read-only knowledge as the platform's own AI tools.
+    try:
+        from . import llm_tools
+        entry.async_on_unload(llm_tools.async_register(hass, entry))
+    except Exception:  # noqa: BLE001 — never stop the door over the AI tools
         pass
     return True
 
@@ -590,6 +598,124 @@ class ProOSState(RestoreEntity, SensorEntity):
 '''
 
 
+_LLM = '''"""ProOS's knowledge as the platform's own AI tools (register 1325, plan item D17).
+
+Written by ProOS Core (proos/door.py, door build 9). The platform lets an integration add its own AI tools (2026.11;
+KNX was first). This registers a "ProOS" tool set. Its tools are Pro Assist's own READ-ONLY tools: Core lists them
+(GET /assist/platform_tools, with Pro Assist's own descriptions — one place) and Core answers them
+(POST /assist/tool). The list is read when an AI asks, kept five minutes, so Core starting later or a Core update adding
+a tool needs no restart. Nothing here can change the house.
+"""
+from __future__ import annotations
+
+import time
+from dataclasses import dataclass, field as dc_field
+
+import aiohttp
+import probatio
+from homeassistant.helpers import llm
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
+
+CORE = "%(core)s"
+PANEL_NAME = "ProOS Panel"
+PANEL_GROUP = "system-users"          # not an administrator, not the owner
+API_ID = "proos"
+API_NAME = "ProOS"
+API_PROMPT = ("ProOS knows this home as its installer set it up: each room's activity, which device is really playing "
+              "and its real volume. Use the ProOS tools to answer what is happening in a room; they only read.")
+LIST_KEEP_S = 300                     # plumbing: how long the tool list from Core is kept
+CALL_S = 30                           # plumbing: a read through Core fits
+_TYPES = {"string": str, "integer": int, "number": float, "boolean": bool, "array": list, "object": dict}
+_READ_ONLY = llm.ToolAnnotations(read_only=True, destructive=False, idempotent=True, open_world=False)
+
+
+async def panel_token(hass, entry):
+    """The panel's own platform user (a system user, made once) — the same sign-in ProOS Assist's voice uses."""
+    auth = hass.auth
+    uid = entry.data.get("panel_user")
+    user = await auth.async_get_user(uid) if uid else None
+    if user is None:
+        user = await auth.async_create_system_user(PANEL_NAME, group_ids=[PANEL_GROUP])
+        hass.config_entries.async_update_entry(entry, data={**entry.data, "panel_user": user.id})
+    rt = next(iter(user.refresh_tokens.values()), None)
+    if rt is None:
+        rt = await auth.async_create_refresh_token(user)
+    return auth.async_create_access_token(rt)
+
+
+def _schema(js):
+    props = (js or {}).get("properties") or {}
+    req = set((js or {}).get("required") or [])
+    out = {}
+    for k, p in props.items():
+        mark = probatio.Required if k in req else probatio.Optional
+        desc = (p or {}).get("description")
+        out[mark(k, description=desc) if desc else mark(k)] = _TYPES.get((p or {}).get("type"), str)
+    return probatio.Schema(out)
+
+
+class ProOSTool(llm.Tool):
+    """One of Pro Assist's read-only tools, answered by Core."""
+
+    def __init__(self, entry, spec):
+        self.name = "proos_" + spec["name"]
+        self.title = "ProOS " + spec["name"].replace("_", " ")
+        self.description = spec.get("description") or ""
+        self.parameters = _schema(spec.get("input_schema"))
+        self.annotations = _READ_ONLY
+        self.integration = "proos"
+        self._entry = entry
+        self._core_name = spec["name"]
+
+    async def async_call(self, hass, tool_input, llm_context):
+        args = self.parameters(tool_input.tool_args)
+        try:
+            token = await panel_token(hass, self._entry)
+            async with async_get_clientsession(hass).post(
+                    CORE + "/assist/tool", json={"name": self._core_name, "args": dict(args)},
+                    headers={"Authorization": "Bearer " + token},
+                    timeout=aiohttp.ClientTimeout(total=CALL_S)) as r:
+                data = await r.json(content_type=None)
+        except Exception as e:  # noqa: BLE001 — Core's silence, said in words
+            return llm.ToolResult(data={"error": "ProOS is not answering: %%s" %% e}, error=True)
+        if not isinstance(data, dict):
+            data = {"result": data}
+        return llm.ToolResult(data=data, error=bool(data.get("error")))
+
+
+@dataclass(kw_only=True)
+class ProOSAPI(llm.API):
+    """The "ProOS" tool set."""
+
+    entry: object
+    _tools: list = dc_field(init=False, default_factory=list)
+    _read_at: float = dc_field(init=False, default=0.0)
+
+    async def _tools_now(self):
+        if self._tools and time.monotonic() - self._read_at < LIST_KEEP_S:
+            return self._tools
+        try:
+            token = await panel_token(self.hass, self.entry)
+            async with async_get_clientsession(self.hass).get(
+                    CORE + "/assist/platform_tools", headers={"Authorization": "Bearer " + token},
+                    timeout=aiohttp.ClientTimeout(total=CALL_S)) as r:
+                specs = ((await r.json(content_type=None)) or {}).get("tools") or []
+            self._tools = [ProOSTool(self.entry, s) for s in specs if s.get("name")]
+            self._read_at = time.monotonic()
+        except Exception:  # noqa: BLE001 — Core not up yet: the last list, or none, until it answers
+            pass
+        return self._tools
+
+    async def async_get_api_instance(self, llm_context):
+        return llm.APIInstance(api=self, api_prompt=API_PROMPT, llm_context=llm_context,
+                               tools=list(await self._tools_now()))
+
+
+def async_register(hass, entry):
+    return llm.async_register_api(hass, ProOSAPI(hass=hass, id=API_ID, name=API_NAME, entry=entry))
+'''
+
+
 def files(core_url: str | None = None) -> dict:
     """The door's files, as bytes, for THIS box (Core's own address inside)."""
     core = core_url or core_address()
@@ -600,6 +726,7 @@ def files(core_url: str | None = None) -> dict:
         "conversation.py": (_CONV % {"core": core}).encode("utf-8"),
         "presence.py": (_PRESENCE % {"quiet": QUIET_FILE}).encode("utf-8"),
         "sensor.py": (_SENSOR % {"core": core}).encode("utf-8"),
+        "llm_tools.py": (_LLM % {"core": core}).encode("utf-8"),
     }
 
 

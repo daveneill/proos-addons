@@ -9036,3 +9036,31 @@ def test_provider() -> dict:
         return {"ok": ok}
     except Exception as e:  # noqa: BLE001
         return {"ok": False, "error": str(e)}
+
+
+# ── PROOS'S KNOWLEDGE AS THE PLATFORM'S OWN AI TOOLS (register 1325, 12 Nov 2026 — plan item D17) ─────────────────────
+# The platform lets an integration add its own AI tools (helpers.llm, 2026.11; KNX did). The door integration registers a
+# "ProOS" tool set; each of its tools is one of Pro Assist's own, called through Core (POST /assist/tool), with the
+# description and parameters read from TOOLS here — one place, never copied. The platform's own assistants (and its
+# built-in tool server) can then ask ProOS what only ProOS knows. ONLY READS are offered: no AI outside Pro Assist can
+# act on the house through ProOS — Pro Assist's consent rules (confirm-is-consent) stay Pro Assist's. "First one tool,
+# measured, then the rest" (the plan): room_status first.
+PLATFORM_AI_TOOLS = ("room_status",)
+
+
+def platform_tools() -> list:
+    """The tools the platform's AI is offered: Pro Assist's own definitions, read-only ones only."""
+    by = {t.get("name"): t for t in TOOLS}
+    return [{"name": n, "description": by[n].get("description") or "", "input_schema": by[n].get("input_schema") or {}}
+            for n in PLATFORM_AI_TOOLS if n in by]
+
+
+def run_platform_tool(runner, name: str, args: dict) -> dict:
+    """One platform-AI call: refused unless it is on the read-only list; else the tool, as Pro Assist runs it."""
+    if name not in PLATFORM_AI_TOOLS:
+        return {"error": "ProOS offers the platform's AI only these tools: %s" % ", ".join(PLATFORM_AI_TOOLS)}
+    try:
+        out = runner.run(name, dict(args or {}))
+    except Exception as e:  # noqa: BLE001 — said in words, never a crash in the platform's AI
+        return {"error": "ProOS could not answer %s: %s" % (name, e)}
+    return out if isinstance(out, dict) else {"result": out}

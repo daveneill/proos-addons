@@ -9017,6 +9017,13 @@ class Handler(BaseHTTPRequestHandler):
                 except Exception:                                # noqa: BLE001
                     _names = {}
                 return self._send(200, _assist.heard_view(since, names=_names))
+            if parts == ["assist", "platform_tools"]:
+                # 1325 (plan D17): the tools the platform's own AI is offered — Pro Assist's definitions, reads only
+                if not _assist:
+                    return self._send(503, {"error": "assist module not loaded"})
+                if not getattr(self, "_user", None):
+                    return self._send(401, {"error": "sign in required"})
+                return self._send(200, {"tools": _assist.platform_tools()})
             if parts == ["assist", "standing"]:
                 # 1316: what Pro Assist has been asked, and what it now does as a standing instruction
                 from proos import standing as _stnd
@@ -12343,6 +12350,25 @@ class Handler(BaseHTTPRequestHandler):
                                              where=where, how={"road": "live", "tools": [b.get("name")]})
                 except Exception:                                # noqa: BLE001
                     pass
+                return self._send(200, out)
+            if parts == ["assist", "tool"]:
+                # 1325 (plan D17): ONE read-only Pro Assist tool, called by the platform's own AI through the door's
+                # "ProOS" tool set. The caller is whoever signed in (the door's panel user); the list is enforced in
+                # assist.run_platform_tool, so nothing outside PLATFORM_AI_TOOLS runs here.
+                if not _assist:
+                    return self._send(503, {"error": "assist module not loaded"})
+                u = getattr(self, "_user", None)
+                if not u:
+                    return self._send(401, {"error": "sign in required"})
+                b = self._body() or {}
+                uinfo = {"id": u.get("id"), "name": u.get("name"), "is_admin": bool(u.get("is_admin")),
+                         "is_owner": bool(u.get("is_owner")), "tech": bool(users and users.is_tech(u.get("id")))}
+                rnr = _assist.ToolRunner(_client, _ws_call, project, uinfo, ma=_ma,
+                                         awareness=_assist_awareness(), mcp=_mcp_client())
+                t0 = time.time()
+                out = _assist.run_platform_tool(rnr, str(b.get("name") or ""), b.get("args") or {})
+                print("  platform AI · %s %s → %s (%d ms)" % (b.get("name"), b.get("args") or {},
+                      "error" if out.get("error") else "answered", int((time.time() - t0) * 1000)), flush=True)
                 return self._send(200, out)
             if parts == ["assist", "chat"]:
                 if not _assist:
