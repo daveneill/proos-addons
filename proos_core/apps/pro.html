@@ -3098,6 +3098,11 @@ body.v3.railmin .aw-screen{left:108px!important}
       <div class="panel-head"><button class="back" onclick="goHome()">‹ Home</button><div class="panel-title">Share With Another Control System</div></div>
       <div id="share-body"></div>
     </div>
+    <!-- THE RACK (register 1322): infrared, 433 MHz radio and RS-232 gear, sorted from the platform's own list. -->
+    <div class="panel" id="panel-rack">
+      <div class="panel-head"><button class="back" onclick="goHome()">‹ Home</button><div class="panel-title">The Rack</div><button class="btn-ghost" style="margin-left:auto" onclick="openRack()">Read Again</button></div>
+      <div id="rack-body"></div>
+    </div>
     <div class="panel" id="panel-savant">
       <div class="panel-head"><button class="back" onclick="goHome()">‹ Home</button><div class="panel-title">Savant</div></div>
       <div id="savant-body"></div>
@@ -3398,7 +3403,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111201';
+const PROOS_BUILD='2026111202';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -8795,6 +8800,69 @@ function renderSharePanel(){
   const sh=st.shared||[];
   h+=`<div class="sav-card"><div class="sav-t" style="margin-bottom:4px">What Is Shared</div><div class="sav-s" style="margin-bottom:6px">Each topic carries {"state": …, "attributes": {…}}, retained, sent on every change and again whenever the platform starts.</div>`
      +(sh.length?sh.map(x=>`<div class="sav-row"><span class="sav-nm">${esc(entName(x.entity_id))}</span><span class="sav-v"><code>${esc(x.topic)}</code></span></div>`).join(''):'<div class="sav-s">No ProOS room states yet.</div>')+`</div>`;
+  setHTML(host,h);
+}
+// ── THE RACK (register 1322, 12 Nov 2026) ─────────────────────────────────
+// Dave 16:01: "It needs to support anything we add to the device list and update from their updates". So there is
+// NO brand list in ProOS. Every integration the platform has is sorted by what its OWN manifest says it needs:
+// its "connectivity" — infrared, rf, serial or modbus — the platform's own declaration (and, for a driver that leaves
+// that out, its dependencies: "infrared", "radio_frequency", or "usb" for a port on the box; its own setup asks which). Read fresh each time the card opens, so a platform update, a
+// community driver or a ProOS driver appears here by itself. A USB radio stick (its manifest carries its own "usb"
+// matcher, so it finds itself) and the box's own hardware entries are not rack gear. Tapping one runs the platform's
+// own setup inside Pro — addIntegration, the same door as every other integration; nothing is rebuilt.
+let _rack=null;
+function rackGroups(names, manifests, entries, entityIds){
+  const have={}; (entries||[]).forEach(e=>{ if(e&&e.domain) have[e.domain]=(have[e.domain]||0)+1; });
+  const g={ir:[],rf:[],wired:[]};
+  (manifests||[]).forEach(m=>{
+    if(!m||!m.domain) return; const deps=m.dependencies||[], conn=m.connectivity||[];
+    const row={domain:m.domain, name:m.name||(names||{})[m.domain]||m.domain, set:have[m.domain]||0};
+    // the platform's own word first — the manifest's "connectivity" (18 infrared, 15 rf, 35 serial, 15 modbus on
+    // 2026.11.1); a driver that leaves it out is sorted by what it depends on instead. One maker can be both (a hub
+    // that sends infrared AND radio is listed under each).
+    if(conn.includes('infrared') || deps.includes('infrared')) g.ir.push(row);
+    if(conn.includes('rf') || deps.includes('radio_frequency')) g.rf.push(row);
+    if(conn.includes('serial') || conn.includes('modbus')
+       || (!conn.length && deps.includes('usb') && !m.usb && m.integration_type!=='hardware' && m.domain!=='bluetooth')) g.wired.push(row);
+  });
+  Object.values(g).forEach(a=>a.sort((x,y)=>x.name.localeCompare(y.name)));
+  const ids=entityIds||[];
+  g.adapters={ir:ids.filter(i=>i.startsWith('infrared.')), rf:ids.filter(i=>i.startsWith('radio_frequency.'))};
+  return g;
+}
+async function loadRack(){
+  try{
+    const d=await snd({type:'integration/descriptions'},20000); const D=(d&&d.result)||{}; const names={}, all=new Set();
+    // a brand groups its integrations (one maker → its infrared and serial ones): walk the groups, or half the list is missed
+    const walk=o=>{ for(const [k,v] of Object.entries(o||{})){ all.add(k); if(v&&v.name) names[k]=v.name; if(v&&v.integrations) walk(v.integrations); } };
+    walk((D.core||{}).integration); walk((D.custom||{}).integration);
+    const doms=[...all], mf=[];
+    for(let i=0;i<doms.length;i+=100){
+      const part=doms.slice(i,i+100);
+      try{ const r=await snd({type:'manifest/list',integrations:part},20000); mf.push(...((r&&r.result)||[])); }
+      catch(e){ for(const x of part){ try{ const r=await snd({type:'manifest/list',integrations:[x]}); mf.push(...((r&&r.result)||[])); }catch(_){ /* a brand name, not an integration */ } } }
+    }
+    const er=await snd({type:'config/entity_registry/list'},20000);
+    const entries=await loadConfigEntries();
+    _rack=rackGroups(names, mf, entries, ((er&&er.result)||[]).map(e=>e.entity_id));
+    _rack.read=mf.length;
+  }catch(e){ _rack={err:'The platform did not answer'}; }
+  renderRackPanel();
+}
+function openRack(){ show('rack'); _rack=null; renderRackPanel(); loadRack(); }
+function renderRackPanel(){
+  const host=document.getElementById('rack-body'); if(!host) return; const r=_rack;
+  if(!r){ setHTML(host,'<div class="sav-card"><div class="sav-s">Reading the platform\'s list…</div></div>'); return; }
+  if(r.err){ setHTML(host,'<div class="sav-card"><div class="sav-t">The Rack</div><div class="sav-s">'+esc(r.err)+'.</div></div>'); return; }
+  const row=x=>`<div class="row tappable" onclick="addIntegration('${esc(x.domain)}')"><div class="rl rl-logo">${intgLogo(x.domain)}<span>${esc(x.name)}</span></div><div class="rr">${x.set?esc('Set up ('+x.set+') · Add Another'):'Set Up'} &rsaquo;</div></div>`;
+  const ad=(ids,label)=>`<div class="sav-row"><span class="sav-dot ${ids.length?'on':'bad'}"></span><span class="sav-nm">${label}</span><span class="sav-v">${ids.length?esc(ids.map(entName).join(', ')):'None on this box'}</span></div>`;
+  const sec=(t,s,a)=>`<div class="sav-card"><div class="sav-t" style="margin-bottom:4px">${t} (${a.length})</div><div class="sav-s" style="margin-bottom:6px">${s}</div>${a.map(row).join('')||'<div class="sav-s">None in this platform version.</div>'}</div>`;
+  let h=`<div class="sav-card"><div class="sav-t">Gear the Network Can't Reach</div><div class="sav-s">Infrared, 433 MHz radio and RS-232. Every brand here is the platform's own, read from it just now (${r.read} integrations), so a platform update or a driver you add appears by itself. Tap one to set it up; it lands in its room like any other device.</div></div>`;
+  h+=`<div class="sav-card"><div class="sav-t" style="margin-bottom:4px">Adapters on This Box</div>`+ad(r.adapters.ir,'Infrared')+ad(r.adapters.rf,'433 MHz Radio')
+     +`<div class="sav-s" style="margin-top:6px">RS-232 and serial: each setup lists the ports this box can see — a Connect AUX-2, a USB serial cable or an ESPHome serial proxy.</div></div>`;
+  h+=sec('Infrared', r.adapters.ir.length?'Sent through the infrared adapter above.':'Needs an infrared adapter first — an ESPHome infrared proxy such as the Seeed XIAO IR Mate. Until one is added, a setup has nothing to send through.', r.ir);
+  h+=sec('433 MHz Radio', r.adapters.rf.length?'Sent through the radio adapter above.':'Needs a 433 MHz radio adapter first — an ESPHome radio proxy.', r.rf);
+  h+=sec('Wired to a Port (RS-232, RS-485, Modbus)','The setup asks which port the device is on.', r.wired);
   setHTML(host,h);
 }
 // ── SAVANT (register 630) ─────────────────────────────────────────────────
@@ -20145,7 +20213,7 @@ function ahRemove(){
     });
 }
 
-const PANELS=['home','library','manage','backups','channels','maintenance','site','credentials','unifi-suite','unifi','unifi-net','unifi-connect','unifi-access','users','room','integration','rooms','activities','automations','scripts','irrigation','savant','share','helpers','blueprints','labels','tech','music','applehome','dashremote','wallpanel','remotecfg','wpedit','navlayout','hub','assist2','systems','toolbox','device','history'];
+const PANELS=['home','library','manage','backups','channels','maintenance','site','credentials','unifi-suite','unifi','unifi-net','unifi-connect','unifi-access','users','room','integration','rooms','activities','automations','scripts','irrigation','savant','share','rack','helpers','blueprints','labels','tech','music','applehome','dashremote','wallpanel','remotecfg','wpedit','navlayout','hub','assist2','systems','toolbox','device','history'];
 function show(panel){
   PANELS.forEach(p=>{ const el=document.getElementById('panel-'+p); if(el) el.classList.toggle('active', p===panel); });
   // One-shot entrance arm: content pops in on panel ENTRY, then disarms so
@@ -22419,6 +22487,7 @@ const SYS_ICO={
   music: ()=>proosLogoIcon(),
   ah:    ()=>AH_HOME_ICO,
   sav:   ()=>_sv('<rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8M12 17v4M7 11h3l2-3 2 5 2-2h1"/>'),
+  rack:  ()=>_sv('<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M4 9h16M4 15h16"/><circle cx="8" cy="6" r=".8"/><circle cx="8" cy="12" r=".8"/><circle cx="8" cy="18" r=".8"/>'),
   shr:   ()=>_sv('<circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.2 10.9l7.6-3.8M8.2 13.1l7.6 3.8"/>'),
   // ── Systems · This home
   nt:    ()=>_sv('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>'),
@@ -22481,6 +22550,8 @@ function renderSystems(){
   const groups=[
     ['Platform',[
       ['integ','Integrations','Discovered, certified and configured',()=>openBay('library')],
+      // THE RACK (register 1322): infrared, radio and RS-232 gear, sorted from the platform's own list — never ours.
+      ['rack','The Rack','Infrared, 433 MHz radio and RS-232 gear',()=>openRack()],
       ['net','Network','UniFi, cameras and network confirmation',()=>openTech('net')],
       ['music','Music','ProOS Music and room audio',()=>openMusic()],
       ['ah','Apple Home','Publish to residents\' Home apps',()=>openAppleHome()],
