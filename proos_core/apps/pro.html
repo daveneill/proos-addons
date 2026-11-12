@@ -3403,7 +3403,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111203';
+const PROOS_BUILD='2026111204';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -6425,14 +6425,27 @@ function openPowerLog(entityId){
     .then(r=>r&&r.ok?r.json():null).then(d=>{
       const log=(d&&d.log)||[];
       if(!log.length){ body.innerHTML='<div class="wiz-hint">No power changes in the last 48 hours.</div>'; return; }
-      body.innerHTML='<div class="wiz-hint">Every power change, attributed: <b>ProOS</b> = a room activity did it · <b>external</b> = native remote, an app, or another device waking it over CEC — equally legitimate. External events when nobody was using the room are this device’s own behaviour.</div>'
+      body.innerHTML='<div class="wiz-hint">Every power change, with the cause the platform recorded for it: a person, an app on the box, an automation — or <b>the device itself</b> (its own remote, a timer, its app or another device over CEC; all legitimate). Changes by the device itself when nobody was using the room are this device’s own behaviour.</div>'
         + log.map(e=>{ const t=new Date(e.ts*1000);
             const when=t.toLocaleDateString(undefined,{weekday:'short'})+' '+('0'+t.getHours()).slice(-2)+':'+('0'+t.getMinutes()).slice(-2);
             // register 659: a dropout is its own row — NO READING, attributed to no one
             const what=e.to==='on'?'ON':(e.to==='off'?'OFF':'NO READING');
-            const by=e.to==='no_reading'?'the platform lost it':(e.by==='proos'?'ProOS':'external');
-            return `<div class="rp-room" style="cursor:default"><span>${esc(when)} — ${what}</span><span class="rr-v" style="${e.by==='proos'?'color:var(--accent)':''}">${by}</span></div>`; }).join('');
+            const by=e.to==='no_reading'?'the platform lost it':powerCauseWords(e);
+            return `<div class="rp-room" style="cursor:default"><span>${esc(when)} — ${what}</span><span class="rr-v" style="${(e.by==='device'||e.by==='unknown')?'':'color:var(--accent)'}">${esc(by)}</span></div>`; }).join('');
     }).catch(()=>{ body.innerHTML='<div class="wiz-hint">ProOS Core unreachable.</div>'; });
+}
+// WHO DID IT (register 1324): the cause the platform recorded for the change (powerlog.cause_of), in words.
+function powerCauseWords(e){
+  const how=e.how==='script.turn_on'?' · an activity':(e.how&&/\.turn_(on|off)$|\.toggle$/.test(e.how)?' · a direct command':'');
+  switch(e.by){
+    case 'person': return (e.who||'a person')+how;
+    case 'app': return 'an app on the box'+how;
+    case 'automation': return 'automation '+(e.who||'')+how;
+    case 'script': return 'script '+(e.who||'');
+    case 'integration': return (e.who||'an integration')+how;
+    case 'device': return 'the device itself';
+    default: return 'no record of the cause';
+  }
 }
 // ── ONE QUESTION, ONE POPUP (register 460) ───────────────────────────
 // Dave: "they only really need to be a popup to the centre of the screen like

@@ -7996,9 +7996,9 @@ class Handler(BaseHTTPRequestHandler):
                 if not (users and u and (u.get("is_admin") or u.get("is_owner")
                                          or users.is_tech(u.get("id")))):
                     return self._send(403, {"error": "installer access required"})
-                # Power timeline (spec 2 Aug): every on/off of a media
-                # device, each attributed proos vs external — awareness at a
-                # glance; the pattern speaks for itself, nothing judges.
+                # Power timeline (spec 2 Aug): every on/off of a media device, each with the cause the PLATFORM
+                # recorded for it (1324: a person, an app on the box, an automation, the device itself, or no
+                # record) — awareness at a glance; the pattern speaks for itself, nothing judges.
                 qs = parse_qs(urlparse(self.path).query)
                 ent = (qs.get("entity", [""])[0]).strip()
                 if not ent:
@@ -8010,7 +8010,7 @@ class Handler(BaseHTTPRequestHandler):
                 try:
                     from proos import powerlog as _plog
                     return self._send(200, _plog.fetch_log(
-                        _client, project.load, ent, min(hrs, 240.0)))
+                        _client, project.load, ent, min(hrs, 240.0), ws_read=_ws_call))   # 1324: who = the platform's record
                 except Exception as e:                           # noqa: BLE001
                     return self._send(200, {"entity": ent, "log": [],
                                             "error": str(e)})

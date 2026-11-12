@@ -919,14 +919,18 @@ TOOLS = [
      "input_schema": {"type": "object", "properties": {}, "required": []}},
     {"name": "device_powerlog",
      "description": "Every time a TV/media player turned ON or OFF recently, "
-                    "each attributed: 'proos' (a room activity did it) or "
-                    "'external' (native remote, an app, or another device "
-                    "waking the display through CEC — ALL equally "
-                    "legitimate). THE tool for 'is this TV turning itself "
-                    "on?': read the pattern — external events at times "
-                    "nobody was using the room are the DEVICE's own "
-                    "behaviour, not a system fault. State the pattern "
-                    "plainly; judge nothing; advise disabling nothing.",
+                    "each with the cause the platform RECORDED for it: by = "
+                    "'person' (who = their name, through the app/Pro/dashboard), "
+                    "'app' (an app on the box — the Supervisor account, which "
+                    "ProOS Core and other apps share; never say which), "
+                    "'automation'/'script' (who = its name), 'integration' "
+                    "(HomeKit, Google …), 'device' (no cause: the device "
+                    "changed by itself — its own remote, a timer, its app, CEC "
+                    "— all legitimate), or 'unknown' (no record). how = the "
+                    "action (script.turn_on = an activity or script). THE "
+                    "tool for 'is this TV turning itself on?': read the "
+                    "pattern; state it plainly; judge nothing; advise "
+                    "disabling nothing.",
      "input_schema": {"type": "object", "properties": {
          "entity_id": {"type": "string"},
          "hours": {"type": "number",
@@ -2502,8 +2506,20 @@ def _music_send(client, eid, uri, enqueue, wait=None):
     return sent
 
 
+# Register 1324: the ONLY platform commands a read tool may send — lists and gets, nothing that changes the home.
+# A read tool is given ws_read (below), never ws_call, so "it only looks" is true by construction, not by trust.
+_WS_READS = frozenset({"config/auth/list", "config/area_registry/list", "config/device_registry/list",
+                       "config/entity_registry/list", "get_states", "get_config"})
+
+
 class ToolRunner:
     """Executes tool calls for one chat turn as one authenticated caller."""
+
+    def ws_read(self, msg_type, **fields):
+        """The platform's command line, for READS only (register 1324): anything outside _WS_READS is refused."""
+        if msg_type not in _WS_READS:
+            raise PermissionError("not a read: %s" % msg_type)
+        return self.ws_call(msg_type, **fields)
 
     def __init__(self, client, ws_call, project_mod, user: dict, ma=None,
                  awareness=None, mcp=None):
@@ -3696,7 +3712,7 @@ class ToolRunner:
             hours = 48.0
         try:
             from . import powerlog as _plog
-            return _plog.fetch_log(self.client, self.project.load, eid, hours)
+            return _plog.fetch_log(self.client, self.project.load, eid, hours, ws_read=self.ws_read)
         except Exception as e:                                   # noqa: BLE001
             return {"error": str(e)}
 
