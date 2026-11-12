@@ -3095,7 +3095,7 @@ body.v3.railmin .aw-screen{left:108px!important}
          and the profile the Savant dealer imports all live here; Core keeps the
          switch in its own store. Nothing in the platform's UI, no add-on option. -->
     <div class="panel" id="panel-share">
-      <div class="panel-head"><button class="back" onclick="goHome()">‹ Home</button><div class="panel-title">Share With Another Control System</div></div>
+      <div class="panel-head"><button class="back" onclick="goHome()">‹ Home</button><div class="panel-title">Share With Another Control System</div><button class="btn-ghost" style="margin-left:auto" onclick="openShare()">Read Again</button></div>
       <div id="share-body"></div>
     </div>
     <!-- THE RACK (register 1322): infrared, 433 MHz radio and RS-232 gear, sorted from the platform's own list. -->
@@ -3403,7 +3403,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111206';
+const PROOS_BUILD='2026111207';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -8797,7 +8797,7 @@ let _trgSt=null;
 async function loadTriggers(){ try{ const r=await _coreFetch(proCoreUrl()+'/triggers',{},15000); _trgSt=r.ok?await r.json():{err:'Core did not answer'}; }catch(e){ _trgSt={err:'Core did not answer'}; } renderSharePanel(); }
 async function _trgPost(path,body,done){
   try{ const r=await _coreFetch(proCoreUrl()+'/triggers'+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})},20000); const j=await r.json().catch(()=>({}));
-    if(r.ok){ toast(done); await loadTriggers(); } else toast(j.error||'Not done'); }catch(e){ toast(_coreFailWords('',e)); } }
+    if(r.ok){ toast(j.made&&j.made.ready===false?'Made — the platform has not started it yet; Read Again in a moment':done); await loadTriggers(); } else toast(j.error||'Not done'); }catch(e){ toast(_coreFailWords('',e)); } }   // 1328a: Core answers once the platform runs it
 function makeTrigger(){ const n=(document.getElementById('trg-name')||{}).value||'', t=(document.getElementById('trg-target')||{}).value||'';
   if(!n.trim()||!t){ toast('Name it, and pick what it starts'); return; } _trgPost('',{name:n.trim(),target:t},'Outside Trigger made'); }
 async function removeTrigger(i){ const t=((_trgSt||{}).triggers||[])[i]; if(!t) return; const id=t.id, name=t.name; if(await proAsk('Remove the Outside Trigger "'+name+'"?\n\nThe other system\'s calls to its address will do nothing from now on.')) _trgPost('/'+encodeURIComponent(id)+'/remove',{},'Removed'); }

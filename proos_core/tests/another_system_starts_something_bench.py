@@ -8,6 +8,7 @@ Run: python3 tests/another_system_starts_something_bench.py
   4. the box's ProOS automations are listed back with name, target, address and "last used"; others are not
   5. both addresses are built from the box's own (home) and ProOS Connect's (away) — none invented when unknown
   6. remove takes back only ProOS's own; test calls the trigger exactly as the other system will
+  7. (1328a) Make answers once the platform is RUNNING the trigger, and says "not ready" when it never started
 """
 import os
 import sys
@@ -95,5 +96,29 @@ T.remove(P, made["id"])
 check("6 · remove takes back only ProOS's own; test calls the trigger as the other system will",
       (took_other, "other_one" in P.autos, made["id"] in P.autos, P.calls[-2][:2]),
       (False, True, False, ("POST", "/api/webhook/" + trig["webhook_id"])))
+
+# 7 · (1328a, read on the box 13 Nov) the platform saves the automation, then starts it a moment later: Make answers
+#     only once the platform is running it — and says so honestly when it never started
+class SlowPlatform(Platform):
+    def __init__(self, starts_after):
+        super().__init__()
+        self.reads, self.starts_after = 0, starts_after
+
+    def _req(self, m, path, body=None):
+        if path == "/api/states":
+            self.reads += 1
+            out = Platform._req(self, m, path, body)
+            return [s for s in out if not s["attributes"]["id"].startswith(T.AUTO_PREFIX) or self.reads > self.starts_after]
+        return Platform._req(self, m, path, body)
+
+
+slept = []
+SP = SlowPlatform(3)
+m1 = T.create(SP, "Gate Opened", "scene.evening", sleep=slept.append)
+check("7 · Make waits until the platform is running it, then says ready", (m1["ready"], m1["on"], len(slept)), (True, True, 3))
+slept.clear()
+m2 = T.create(SlowPlatform(10 ** 6), "Never Starts", "scene.evening", sleep=slept.append)
+check("   …and when it never starts, it waits a bounded time and says NOT ready (never claimed)",
+      (m2["ready"], sum(slept) >= T.READY_WAIT_S, len(slept) < 40), (False, True, True))
 print("\n%d passed, %d failed" % (PASS, len(FAIL)))
 sys.exit(1 if FAIL else 0)

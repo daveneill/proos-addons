@@ -91,10 +91,35 @@ def listing(client) -> list:
     return sorted(out, key=lambda t: t["name"].lower())
 
 
-def create(client, name: str, target: str) -> dict:
+READY_WAIT_S = 10.0     # plumbing: how long Make waits for the platform to start the new automation (1328a)
+READY_STEP_S = 0.5
+
+
+def _running(client, aid: str):
+    for st in client._req("GET", "/api/states") or []:
+        if str(st.get("entity_id") or "").startswith("automation.") and (st.get("attributes") or {}).get("id") == aid:
+            return st
+    return None
+
+
+def create(client, name: str, target: str, sleep=None) -> dict:
+    """Make it, then wait until the platform is RUNNING it before answering (1328a, read on the box 13 Nov: the list
+    re-read straight after Make came back empty — the platform saves the automation, then starts it a moment later).
+    "ready" says which: True only when the platform's own state for it was read; never claimed otherwise."""
+    import time as _t
+    sleep = sleep or _t.sleep
     auto = automation(name, target)
     client._req("POST", "/api/config/automation/config/%s" % auto["id"], auto)
-    return from_config(auto, None)
+    st, waited = None, 0.0
+    while True:
+        st = _running(client, auto["id"])
+        if st or waited >= READY_WAIT_S:
+            break
+        sleep(READY_STEP_S)
+        waited += READY_STEP_S
+    out = from_config(auto, st)
+    out["ready"] = st is not None
+    return out
 
 
 def remove(client, aid: str) -> bool:
