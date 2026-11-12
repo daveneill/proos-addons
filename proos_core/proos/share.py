@@ -122,7 +122,17 @@ def enable(client, on: bool) -> dict:
             client._req("DELETE", path)
         except Exception:  # noqa: BLE001
             pass
-        return {"sharing": False}
+        # 1313 — RULE ZERO: the broker keeps a retained message until it is cleared, so a system still subscribed
+        # would go on reading the last room states as if current. Off clears every ProOS topic (an empty retained
+        # message is MQTT's own "nothing here").
+        cleared = 0
+        for e in shared_entities(client._req("GET", "/api/states") or []):
+            try:
+                client._req("POST", "/api/services/mqtt/publish", {"topic": topic_for(e), "payload": "", "retain": True})
+                cleared += 1
+            except Exception:  # noqa: BLE001
+                pass
+        return {"sharing": False, "cleared": cleared}
     ents = shared_entities(client._req("GET", "/api/states") or [])
     if not ents:
         raise RuntimeError("no ProOS room states to share yet")
