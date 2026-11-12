@@ -22,6 +22,11 @@ ADDON = "core_mosquitto"
 PORT = 1883
 REFRESH_EVENT = "proos_share_refresh"
 
+
+def _sleep(sec):
+    import time
+    time.sleep(sec)
+
 _TOPIC = ("{% set o = e.split('.')[1] %}"
           "{% if o.startswith('proos_activity_') %}proos/room/{{ o[15:] }}/activity"
           "{% elif o.startswith('proos_home_') %}proos/home/{{ o[11:] }}"
@@ -122,11 +127,23 @@ def enable(client, on: bool) -> dict:
     if not ents:
         raise RuntimeError("no ProOS room states to share yet")
     client._req("POST", path, automation(ents))
+    # 1312 — read on Dave's box: the ask fired straight after the write reached nobody (the platform was still loading
+    # the automation; last_triggered stayed empty). Ask only once the platform shows it running, waiting at most 15 s.
+    ready = False
+    for _ in range(30):
+        try:
+            ready = any((s or {}).get("attributes", {}).get("id") == AUTOMATION_ID and (s or {}).get("state") == "on"
+                        for s in (client._req("GET", "/api/states") or []) if str((s or {}).get("entity_id", "")).startswith("automation."))
+        except Exception:  # noqa: BLE001
+            ready = False
+        if ready:
+            break
+        _sleep(0.5)
     try:
         client._req("POST", "/api/events/%s" % REFRESH_EVENT, {})
     except Exception:  # noqa: BLE001
         pass
-    return {"sharing": True, "shared": len(ents)}
+    return {"sharing": True, "shared": len(ents), "published": ready}
 
 
 def set_login(sup, username: str, password: str) -> dict:
