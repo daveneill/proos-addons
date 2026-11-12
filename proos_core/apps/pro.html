@@ -3403,7 +3403,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111202';
+const PROOS_BUILD='2026111203';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -8816,7 +8816,8 @@ function rackGroups(names, manifests, entries, entityIds){
   const g={ir:[],rf:[],wired:[]};
   (manifests||[]).forEach(m=>{
     if(!m||!m.domain) return; const deps=m.dependencies||[], conn=m.connectivity||[];
-    const row={domain:m.domain, name:m.name||(names||{})[m.domain]||m.domain, set:have[m.domain]||0};
+    // 1322c (read on Dave's box): a legacy integration has no setup screen (no config_flow) — it is listed, never offered
+    const row={domain:m.domain, name:m.name||(names||{})[m.domain]||m.domain, set:have[m.domain]||0, flow:!!m.config_flow};
     // the platform's own word first — the manifest's "connectivity" (18 infrared, 15 rf, 35 serial, 15 modbus on
     // 2026.11.1); a driver that leaves it out is sorted by what it depends on instead. One maker can be both (a hub
     // that sends infrared AND radio is listed under each).
@@ -8854,7 +8855,7 @@ function renderRackPanel(){
   const host=document.getElementById('rack-body'); if(!host) return; const r=_rack;
   if(!r){ setHTML(host,'<div class="sav-card"><div class="sav-s">Reading the platform\'s list…</div></div>'); return; }
   if(r.err){ setHTML(host,'<div class="sav-card"><div class="sav-t">The Rack</div><div class="sav-s">'+esc(r.err)+'.</div></div>'); return; }
-  const row=x=>`<div class="row tappable" onclick="addIntegration('${esc(x.domain)}')"><div class="rl rl-logo">${intgLogo(x.domain)}<span>${esc(x.name)}</span></div><div class="rr">${x.set?esc('Set up ('+x.set+') · Add Another'):'Set Up'} &rsaquo;</div></div>`;
+  const row=x=>!x.flow?`<div class="row"><div class="rl rl-logo">${intgLogo(x.domain)}<span>${esc(x.name)}</span></div><div class="rr" style="opacity:.6">Set up by file only</div></div>`:`<div class="row tappable" onclick="addIntegration('${esc(x.domain)}')"><div class="rl rl-logo">${intgLogo(x.domain)}<span>${esc(x.name)}</span></div><div class="rr">${x.set?esc('Set up ('+x.set+') · Add Another'):'Set Up'} &rsaquo;</div></div>`;
   const ad=(ids,label)=>`<div class="sav-row"><span class="sav-dot ${ids.length?'on':'bad'}"></span><span class="sav-nm">${label}</span><span class="sav-v">${ids.length?esc(ids.map(entName).join(', ')):'None on this box'}</span></div>`;
   const sec=(t,s,a)=>`<div class="sav-card"><div class="sav-t" style="margin-bottom:4px">${t} (${a.length})</div><div class="sav-s" style="margin-bottom:6px">${s}</div>${a.map(row).join('')||'<div class="sav-s">None in this platform version.</div>'}</div>`;
   let h=`<div class="sav-card"><div class="sav-t">Gear the Network Can't Reach</div><div class="sav-s">Infrared, 433 MHz radio and RS-232. Every brand here is the platform's own, read from it just now (${r.read} integrations), so a platform update or a driver you add appears by itself. Tap one to set it up; it lands in its room like any other device.</div></div>`;

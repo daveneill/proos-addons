@@ -1,0 +1,15 @@
+{
+  "domain": "global_cache",
+  "name": "Global Caché",
+  "codeowners": ["@protech-proos"],
+  "config_flow": true,
+  "connectivity": ["infrared", "serial", "network"],
+  "dependencies": ["infrared"],
+  "after_dependencies": ["usb"],
+  "dhcp": [{ "macaddress": "000C1E*" }],
+  "documentation": "https://www.globalcache.com/files/docs/API-GC-UnifiedTCPv1.1.pdf",
+  "integration_type": "hub",
+  "iot_class": "local_push",
+  "requirements": [],
+  "version": "1.0.0+proos.1"
+}

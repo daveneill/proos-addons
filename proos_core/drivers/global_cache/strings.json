@@ -1,0 +1,23 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "title": "Global Caché",
+        "description": "The address of an iTach, iTach Flex, GC-100 or Global Connect module. Each Global Connect module has its own address — add each one.",
+        "data": { "host": "Address" }
+      },
+      "confirm": {
+        "title": "Global Caché found",
+        "description": "{what} at {host}. Add it?"
+      }
+    },
+    "error": {
+      "cannot_connect": "Nothing answered as a Global Caché unit at that address on port 4998. {reason}"
+    },
+    "abort": {
+      "already_configured": "This unit is already set up.",
+      "cannot_connect": "The unit was found but did not answer on port 4998."
+    }
+  }
+}

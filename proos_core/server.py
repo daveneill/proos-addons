@@ -8895,6 +8895,11 @@ class Handler(BaseHTTPRequestHandler):
                     if _drivers is not None:
                         _cat = dict(_cat); _ints = dict(_cat.get("integrations") or {})
                         for _dom, _dv in _drivers.shipped().items():
+                            # register 1323: a driver Core carries but that has not passed on-box validation and Dave's
+                            # approval carries a NOT_CERTIFIED file and is NOT called certified (Global Caché, built before
+                            # a unit exists to prove it on). Removing the file is the certification.
+                            if "NOT_CERTIFIED" in (_dv.get("files") or {}):
+                                continue
                             _e = dict(_ints.get(_dom) or {}); _e["tier"] = "certified"; _e["proos_build"] = _dv.get("version") or ""
                             _ints[_dom] = _e
                         _cat["integrations"] = _ints
