@@ -64,6 +64,18 @@ def confidence_of(weighted: float, days: int, regularity: float, age_days: float
             "freshness": round(fre, 3), "confidence": round(sup * spr * reg * fre, 3)}
 
 
+# L3 (register 1315) — what each level of confidence permits (the design §4). "on" alone earns nothing.
+BAND_MENTION = 0.40            # under this: not spoken of, not reasoned from
+BAND_OFFER = 0.65              # may be offered once, as a scene
+BAND_STRONG = 0.80             # + half its starts from outside ProOS: may be offered as an automation
+_NOT_A_HABIT = {"on"}
+
+
+def band(conf: float) -> str:
+    c = float(conf or 0.0)
+    return "strong" if c >= BAND_STRONG else "offer" if c >= BAND_OFFER else "mention" if c >= BAND_MENTION else "none"
+
+
 def patterns(events, min_days: int = 3, now: float | None = None) -> list:
     """Per-activity usage patterns for ONE room's journal events. Returns a list
     of dicts, most-used first:
@@ -137,11 +149,15 @@ def patterns(events, min_days: int = 3, now: float | None = None) -> list:
             "last_seen": g["last"],
             "habit": len(g["days"]) >= min_days,
             "weighted": round(g["weight"], 3),
+            "band": None,                                   # set below, from the confidence (L3)
             **confidence_of(g["weight"], len(g["days"]),
                             (max(g["whours"].values()) / g["weight"]) if g["weight"] else 0.0,
                             max(0.0, (_now - g["last"]) / 86400.0) if g["last"] else 999.0),
         })
-    out.sort(key=lambda p: p["count"], reverse=True)
+    for p in out:
+        p["band"] = "none" if p["activity"] in _NOT_A_HABIT else band(p["confidence"])
+        p["habit"] = p["band"] != "none"            # L3: a habit is a confidence of 0.40 or more, not three days
+    out.sort(key=lambda p: (p["confidence"], p["count"]), reverse=True)
     return out
 
 
@@ -158,7 +174,7 @@ def expectation(events, at_ts, min_days: int = 3):
     now_pod = _part_of_day(dt.hour)
     now_weekend = dt.weekday() >= 5
     best = None
-    for p in patterns(events, min_days):
+    for p in patterns(events, min_days, now=at_ts):     # 1315: confidence as of the moment asked about
         if not p["habit"] or p["part_of_day"] != now_pod:
             continue
         dt_ok = (p["day_type"] == "any day"

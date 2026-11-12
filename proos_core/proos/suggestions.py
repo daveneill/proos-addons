@@ -36,6 +36,12 @@ import time
 STORE = os.path.join(os.environ.get("PROOS_DATA_DIR", "/data"), "suggestions.json")
 SNOOZE_SECONDS = 7 * 86400
 EXTERNAL_SHARE_FOR_AUTOMATION = 0.5   # half or more of its starts came from outside ProOS
+# L3 (register 1315): offers follow the learning algorithm's BAND, which the nightly file carries per pattern (usage.py
+# decides it — one rule, one place; this module reads the file and imports nothing): "offer" (0.65+) earns a scene,
+# "strong" (0.80+) with half its starts from outside ProOS earns an automation. A TIME automation (the design allows
+# it at 0.80 with regularity over 0.7) is NOT offered: ProOS knows the part of the day, not a measured start time,
+# and the design forbids inventing one.
+_OFFER_BANDS = ("offer", "strong")
 _SKIP_ACTIVITIES = {"on"}             # "the room was on" is not a habit worth a scene
 _MUSIC = {"playing", "music", "listen"}
 _ANSWERS = ("yes", "later", "never")
@@ -99,12 +105,16 @@ def derive(habits: dict, names: dict | None = None) -> list:
             act = str(p.get("activity") or "")
             if not act or act in _SKIP_ACTIVITIES:
                 continue
+            if p.get("band") not in _OFFER_BANDS:
+                continue                    # L3: "mention" — Assist may say it if asked — never a card
+            conf = float(p.get("confidence") or 0.0)
             label = _label(room, p)
             rn = _room_name(room, names)
             ev = {"days": int(p.get("days") or 0), "count": int(p.get("count") or 0),
                   "last_seen": p.get("last_seen"), "part_of_day": p.get("part_of_day"),
                   "day_type": p.get("day_type"),
-                  "external_share": float(p.get("external_share") or 0.0)}
+                  "external_share": float(p.get("external_share") or 0.0),
+                  "confidence": float(conf)}
             base = {"room": room, "room_name": rn, "activity": act, "label": label,
                     "evidence": ev, "title": "Pro Assist noticed"}
             scene_name = "%s %s" % (rn, label)
@@ -115,7 +125,7 @@ def derive(habits: dict, names: dict | None = None) -> list:
                           "for %s the way it is usually used. Read the room first, then "
                           "tell me what the scene does." % (scene_name, _the(rn), label)))
             _keep(out, s)
-            if ev["external_share"] >= EXTERNAL_SHARE_FOR_AUTOMATION:
+            if ev["external_share"] >= EXTERNAL_SHARE_FOR_AUTOMATION and p.get("band") == "strong":
                 a = dict(base, id=_sid(room, label, "automation"), kind="automation",
                          text=("%s in %s is usually started with its own remote. Want "
                                "ProOS to set the room up the way you like it when that "
@@ -126,7 +136,7 @@ def derive(habits: dict, names: dict | None = None) -> list:
                               % (label, _the(rn))))
                 _keep(out, a)
     rows = list(out.values())
-    rows.sort(key=lambda r: (-r["evidence"]["days"], -r["evidence"]["count"],
+    rows.sort(key=lambda r: (-r["evidence"]["confidence"], -r["evidence"]["days"], -r["evidence"]["count"],
                              r["kind"] != "scene", r["room_name"]))
     return rows
 
@@ -135,8 +145,8 @@ def _keep(out: dict, s: dict) -> None:
     """Two habit keys for one thing (e.g. watch_apple_tv and the room-prefixed
     key) collapse to one offer — the stronger evidence wins."""
     cur = out.get(s["id"])
-    if cur is None or (s["evidence"]["days"], s["evidence"]["count"]) > (
-            cur["evidence"]["days"], cur["evidence"]["count"]):
+    if cur is None or (s["evidence"]["confidence"], s["evidence"]["days"], s["evidence"]["count"]) > (
+            cur["evidence"]["confidence"], cur["evidence"]["days"], cur["evidence"]["count"]):
         out[s["id"]] = s
 
 
@@ -161,7 +171,7 @@ def _save(d: dict) -> None:
         pass
 
 
-def answer(sid: str, ans: str, by: str = "", text: str = "") -> dict:
+def answer(sid: str, ans: str, by: str = "", text: str = "", confidence=None) -> dict:
     """Record what a person said to an offer. Returns the record."""
     ans = str(ans or "").lower().strip()
     if ans not in _ANSWERS:
@@ -172,6 +182,8 @@ def answer(sid: str, ans: str, by: str = "", text: str = "") -> dict:
     answers = d.setdefault("answers", {})
     answers[sid] = {"answer": ans, "ts": round(time.time(), 1), "by": by or "",
                     "text": (text or "")[:300]}
+    if confidence is not None:
+        answers[sid]["confidence"] = round(float(confidence), 3)     # 1315: a snoozed offer returns only if it rose
     _save(d)
     return {"ok": True, "id": sid, "answer": ans}
 
@@ -193,7 +205,7 @@ def forget_text(text: str) -> int:
     return len(gone)
 
 
-def _hidden(rec: dict | None, now: float) -> bool:
+def _hidden(rec: dict | None, now: float, conf=None) -> bool:
     if not rec:
         return False
     a = rec.get("answer")
@@ -201,9 +213,14 @@ def _hidden(rec: dict | None, now: float) -> bool:
         return True
     if a == "later":
         try:
-            return now - float(rec.get("ts") or 0) < SNOOZE_SECONDS
+            if now - float(rec.get("ts") or 0) < SNOOZE_SECONDS:
+                return True
         except Exception:               # noqa: BLE001
             return False
+        # 1315 (the design §5): after the week it returns only if its confidence has RISEN since — a pattern that is
+        # merely still true is not new information.
+        was = rec.get("confidence")
+        return was is not None and conf is not None and float(conf) <= float(was)
     return False
 
 
@@ -216,7 +233,7 @@ def pending(habits: dict, names: dict | None = None, declines=(),
     low = {str(t or "").strip().lower() for t in (declines or ())}
     out = []
     for s in derive(habits, names):
-        if _hidden(answers.get(s["id"]), now):
+        if _hidden(answers.get(s["id"]), now, s["evidence"].get("confidence")):
             continue
         if s["text"].strip().lower() in low:
             continue

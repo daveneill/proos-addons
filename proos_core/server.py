@@ -12494,8 +12494,15 @@ class Handler(BaseHTTPRequestHandler):
                     from proos import suggestions as _sg
                 except Exception as e:                           # noqa: BLE001
                     return self._send(503, {"error": "suggestions unavailable: %s" % e})
+                _conf = None                                     # 1315: the offer's confidence when answered
+                try:
+                    from proos import habits as _hbx
+                    _conf = next((x["evidence"].get("confidence") for x in _sg.derive(_hbx.load() or {})
+                                  if x["id"] == b.get("id")), None)
+                except Exception:                                # noqa: BLE001
+                    _conf = None
                 res = _sg.answer(b.get("id") or "", b.get("answer") or "",
-                                 by=u.get("name") or "", text=b.get("text") or "")
+                                 by=u.get("name") or "", text=b.get("text") or "", confidence=_conf)
                 if res.get("error"):
                     return self._send(400, res)
                 if res.get("answer") == "never" and b.get("text"):

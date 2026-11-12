@@ -3784,6 +3784,13 @@ class ToolRunner:
             except Exception:                                    # noqa: BLE001
                 events = []
             s = usage.summary(events)
+        # L3 (register 1315): under 0.40 a pattern is "not spoken of, not reasoned from" (the learning algorithm §4) —
+        # Assist is handed only what clears that bar, each with its band and confidence.
+        s = dict(s)
+        s["patterns"] = [p for p in (s.get("patterns") or []) if (p.get("band") or "none") != "none"]
+        s["habits"] = [p for p in (s.get("habits") or []) if (p.get("band") or "none") != "none"]
+        s["bands"] = ("mention = may say it if asked, never volunteer; offer = may offer once as a scene; "
+                      "strong = may offer an automation when its starts come from outside ProOS")
         s["area_id"] = area
         return s
 
