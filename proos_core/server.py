@@ -3114,7 +3114,12 @@ def apply_auto_reachability():
     POST /reachability/refresh (e.g. after commissioning a new device)."""
     if _cfg is None:
         return {"auto": 0, "manual": 0, "total": 0}
-    manual = dict(_cfg.get("_reach_manual") or _cfg.get("reachability") or {})
+    # REGISTER 1327 (13 Nov 2026): an EMPTY manual layer stays empty. `_reach_manual or reachability` read an empty
+    # manual layer ({} is falsy) as "not yet remembered" and took the whole PREVIOUS MERGED map as manual — so the
+    # first re-derivation after Core started froze whatever the map held then (73 entries, before the UniFi trackers
+    # were read) as the installer's own settings, and "manual always wins" kept 27 devices off their UniFi tracker
+    # for good: Health leaned on the retired copies' dead Connection sensors (read on Dave's box, 13 Nov 06:40).
+    manual = dict(_cfg["_reach_manual"] if "_reach_manual" in _cfg else (_cfg.get("reachability") or {}))
     auto = {}
     if netmap is not None:
         try:
