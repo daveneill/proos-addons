@@ -8969,6 +8969,18 @@ class Handler(BaseHTTPRequestHandler):
                 except Exception:                                # noqa: BLE001
                     _names = {}
                 return self._send(200, _assist.heard_view(since, names=_names))
+            if parts == ["assist", "habits"]:
+                # WHAT PRO ASSIST HAS LEARNED (register 1314): every room's patterns with the learning algorithm's
+                # confidence and its four parts — computed fresh from the journal (?refresh=1) or the nightly file.
+                # Installer and above; a reading only.
+                u = getattr(self, "_user", None)
+                if not (users and u and (u.get("is_admin") or u.get("is_owner") or users.is_tech(u.get("id")))):
+                    return self._send(403, {"error": "installer access required"})
+                from proos import habits as _hb, journal as _jn, usage as _us
+                q = parse_qs(urlparse(self.path).query)
+                if (q.get("refresh") or ["0"])[0] == "1":
+                    return self._send(200, _hb.refresh(_jn, _us))
+                return self._send(200, _hb.load() or {})
             if parts == ["assist", "suggestions"]:
                 # PRO ASSIST NOTICED (register 431, stage H2). The offers the
                 # nightly habits file supports, minus what this person has

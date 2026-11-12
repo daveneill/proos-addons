@@ -35,13 +35,44 @@ def _part_of_day(hour: int) -> str:
     return "night"                      # 22:00–05:00
 
 
-def patterns(events, min_days: int = 3) -> list:
+# THE LEARNING ALGORITHM, L1 + L2 (register 1314, 12 Nov 2026 — ProOS_Assist_Learning_Algorithm_2026-09-17.md §2–3).
+# Counting is not learning: three days was a habit whether it was last week or two months ago, at one hour or every
+# hour. Each pattern now also carries the design's confidence — the PRODUCT of four scores, so one fatal weakness is
+# never averaged away. Every number is the design's starting value, to be read off Dave's box before it is settled.
+HALF_LIFE_DAYS = 14.0          # weight = 0.5 ^ (age / 14)
+SUPPORT_FULL = 8.0             # weighted occurrences for full marks
+SPREAD_FULL = 5.0              # distinct days for full marks
+FRESH_FULL_DAYS = 7.0          # freshness 1.0 within a week…
+FRESH_ZERO_DAYS = 42.0         # …tailing to 0 at six weeks
+
+
+def _freshness(age_days: float) -> float:
+    if age_days <= FRESH_FULL_DAYS:
+        return 1.0
+    if age_days >= FRESH_ZERO_DAYS:
+        return 0.0
+    return 1.0 - (age_days - FRESH_FULL_DAYS) / (FRESH_ZERO_DAYS - FRESH_FULL_DAYS)
+
+
+def confidence_of(weighted: float, days: int, regularity: float, age_days: float) -> dict:
+    """The design's confidence and its four parts — pure, so the bench and the box read the same arithmetic."""
+    sup = min(1.0, weighted / SUPPORT_FULL)
+    spr = min(1.0, days / SPREAD_FULL)
+    reg = max(0.0, min(1.0, regularity))
+    fre = _freshness(age_days)
+    return {"support": round(sup, 3), "spread": round(spr, 3), "regularity": round(reg, 3),
+            "freshness": round(fre, 3), "confidence": round(sup * spr * reg * fre, 3)}
+
+
+def patterns(events, min_days: int = 3, now: float | None = None) -> list:
     """Per-activity usage patterns for ONE room's journal events. Returns a list
     of dicts, most-used first:
       {activity, label, source, count, days, part_of_day, day_type,
        external_share, last_seen, habit}
     `habit` is True when the activity recurs across at least `min_days` distinct
     days — one-offs are reported but never called habits."""
+    import time as _t
+    _now = float(now) if now is not None else _t.time()
     groups: dict = {}
     for ev in (events or []):
         if not isinstance(ev, dict) or ev.get("type") != "verdict":
@@ -56,8 +87,11 @@ def patterns(events, min_days: int = 3) -> list:
             continue
         g = groups.setdefault(to, {"count": 0, "days": set(), "hours": {},
                                    "sources": {}, "weekday": 0, "weekend": 0,
-                                   "external": 0, "last": 0.0, "labels": {}})
+                                   "external": 0, "last": 0.0, "labels": {},
+                                   "weight": 0.0, "whours": {}})
         g["count"] += 1
+        _w = 0.5 ** (max(0.0, (_now - float(ev.get("ts"))) / 86400.0) / HALF_LIFE_DAYS)   # L1
+        g["weight"] += _w
         # the verdict's own label ("Apple TV") rides along so an offer built
         # from this pattern speaks the home's words, never the key (reg 431)
         lab = d.get("label")
@@ -66,6 +100,7 @@ def patterns(events, min_days: int = 3) -> list:
         g["days"].add(dt.date().toordinal())
         pod = _part_of_day(dt.hour)
         g["hours"][pod] = g["hours"].get(pod, 0) + 1
+        g["whours"][pod] = g["whours"].get(pod, 0.0) + _w            # L2: the busiest part's SHARE, weighted
         src = d.get("source")
         if src:
             g["sources"][src] = g["sources"].get(src, 0) + 1
@@ -101,6 +136,10 @@ def patterns(events, min_days: int = 3) -> list:
                                if g["count"] else 0.0),
             "last_seen": g["last"],
             "habit": len(g["days"]) >= min_days,
+            "weighted": round(g["weight"], 3),
+            **confidence_of(g["weight"], len(g["days"]),
+                            (max(g["whours"].values()) / g["weight"]) if g["weight"] else 0.0,
+                            max(0.0, (_now - g["last"]) / 86400.0) if g["last"] else 999.0),
         })
     out.sort(key=lambda p: p["count"], reverse=True)
     return out
