@@ -7717,6 +7717,11 @@ class Handler(BaseHTTPRequestHandler):
             if parts in (["unifi", "status"], ["unifi", "curation"]):
                 if getattr(self, "_user", None) is None:
                     return self._send(403, {"error": "authentication required"})
+            if parts == ["share", "status"]:
+                # Pro's Systems > Share With Another Control System (register 1311): the broker, the platform's MQTT,
+                # whether ProOS's sharing automation is in place, what is shared, the logins' usernames only.
+                from proos import share as _share
+                return self._send(200, _share.status(_client, _supervisor_req))
             if parts == ["savant", "status"]:
                 # Pro's Systems > Savant page (register 630): plain facts —
                 # switched on?, port open?, a profile on the line?, its last
@@ -9416,6 +9421,7 @@ class Handler(BaseHTTPRequestHandler):
         "apps/brands/",          # teaching/retiring an app — commissioning work
         "remotes",               # accepting, setting up or forgetting a ProOS Remote (register 969j)
         "network/",              # changing the box's own network ports, keeping or putting back (register 969z)
+        "share/",                # sharing with another control system, and its MQTT login (register 1311)
     )
     # Homeowner actions that sit UNDER an installer prefix but are reads in
     # disguise — a POST only because they carry a body, not a config write.
@@ -9511,6 +9517,25 @@ class Handler(BaseHTTPRequestHandler):
                 _savantfeed_mod.save_zone_map(body.get("zone"), body.get("area"),
                                               body.get("value"), body.get("target"))
                 return self._send(200, _savant_status())
+            if parts == ["share", "config"]:
+                # 1311: {"enabled": true|false} — writes or removes the platform automation that publishes.
+                from proos import share as _share
+                body = self._body() or {}
+                try:
+                    _share.enable(_client, bool(body.get("enabled")))
+                except Exception as e:                           # noqa: BLE001
+                    return self._send(409, {"error": str(e)})
+                return self._send(200, _share.status(_client, _supervisor_req))
+            if parts == ["share", "login"]:
+                # 1311: the installer's login for the other system, typed by him in Pro and handed to Mosquitto's own
+                # settings. The password is never logged, stored by Core, or sent back.
+                from proos import share as _share
+                body = self._body() or {}
+                try:
+                    _share.set_login(_supervisor_req, body.get("username"), body.get("password"))
+                except Exception as e:                           # noqa: BLE001
+                    return self._send(400, {"error": str(e)})
+                return self._send(200, _share.status(_client, _supervisor_req))
             if parts == ["savant", "config"]:
                 # Pro's switch (register 630): {"enabled": true|false}. Kept in
                 # Core's own store; the feed opens or closes right now.

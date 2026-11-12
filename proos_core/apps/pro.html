@@ -3094,6 +3094,10 @@ body.v3.railmin .aw-screen{left:108px!important}
          through Pro integrations not native HA." The bridge's switch, its status
          and the profile the Savant dealer imports all live here; Core keeps the
          switch in its own store. Nothing in the platform's UI, no add-on option. -->
+    <div class="panel" id="panel-share">
+      <div class="panel-head"><button class="back" onclick="goHome()">‹ Home</button><div class="panel-title">Share With Another Control System</div></div>
+      <div id="share-body"></div>
+    </div>
     <div class="panel" id="panel-savant">
       <div class="panel-head"><button class="back" onclick="goHome()">‹ Home</button><div class="panel-title">Savant</div></div>
       <div id="savant-body"></div>
@@ -3394,7 +3398,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111101';
+const PROOS_BUILD='2026111201';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -8762,6 +8766,37 @@ const IRR_ZONE='dashboard_irrigation', IRR_CTL='dashboard_irrigation_control';
 let _irrQ='';
 function openIrrigation(){ show('irrigation'); const h=document.getElementById('irrigation-body'); if(h) h.innerHTML=''; renderIrrigationPanel(); }
 function _irrRole(e){ const l=e.labels||[]; return l.includes(IRR_ZONE)?'zone':(l.includes(IRR_CTL)?'ctl':''); }
+// ── SHARE WITH ANOTHER CONTROL SYSTEM (register 1311) ──────────────────────
+// The platform's Mosquitto is the broker and one platform automation publishes every ProOS room's activity and the
+// home summary, retained. The other system's login is the installer's: typed here, handed to Mosquitto, never shown.
+let _shrSt=null;
+function openShare(){ show('share'); _shrSt=null; renderSharePanel(); loadShare(); }
+async function loadShare(){ try{ const r=await _coreFetch(proCoreUrl()+'/share/status',{},10000); _shrSt=r.ok?await r.json():{err:'Core did not answer'}; }catch(e){ _shrSt={err:'Core did not answer'}; } renderSharePanel(); }
+async function setShare(on){ try{ const r=await _coreFetch(proCoreUrl()+'/share/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:!!on})},15000); const j=await r.json().catch(()=>({})); if(r.ok){ _shrSt=j; toast(on?'Sharing on':'Sharing off'); } else toast(j.error||"Couldn't change sharing"); }catch(e){ toast("Couldn't reach Core"); } renderSharePanel(); }
+async function saveShareLogin(){ const u=(document.getElementById('shr-user')||{}).value||'', p=(document.getElementById('shr-pass')||{}).value||''; if(!u.trim()||!p){ toast('Type a username and a password'); return; }
+  try{ const r=await _coreFetch(proCoreUrl()+'/share/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u.trim(),password:p})},30000); const j=await r.json().catch(()=>({})); const pf=document.getElementById('shr-pass'); if(pf) pf.value=''; if(r.ok){ _shrSt=j; toast('Login saved — the broker restarted'); } else toast(j.error||"Couldn't save the login"); }catch(e){ toast("Couldn't reach Core"); } renderSharePanel(); }
+function renderSharePanel(){
+  const host=document.getElementById('share-body'); if(!host) return; const st=_shrSt;
+  if(!st){ setHTML(host,'<div class="sav-card"><div class="sav-s">Reading…</div></div>'); return; }
+  if(st.err){ setHTML(host,'<div class="sav-card"><div class="sav-t">Share With Another Control System</div><div class="sav-s">'+esc(st.err)+'. This build of Core may not have sharing yet.</div></div>'); return; }
+  const b=st.broker||{}, ready=b.installed&&b.running&&st.mqtt_loaded, on=!!st.sharing, ip=esc((location.hostname||'').replace(/^\[|\]$/g,''));
+  const row=(ok,nm,v)=>`<div class="sav-row"><span class="sav-dot ${ok?'on':'bad'}"></span><span class="sav-nm">${nm}</span><span class="sav-v">${v}</span></div>`;
+  let h=`<div class="sav-card"><div class="sav-h"><div><div class="sav-t">Share Room Activity Over MQTT</div><div class="sav-s">Another control system — Control4, Crestron, Savant, Node-RED or a building system — follows every room's activity and the home summary. The platform's own broker and MQTT do the work; ProOS only turns it on.</div></div>
+      <button class="sw ${on?'on':''}" role="switch" aria-checked="${on}" ${ready?'':'disabled'} onclick="setShare(${!on})"><span class="sw-knob"></span></button></div></div>`;
+  h+=`<div class="sav-card">`+row(b.installed,'Broker (Mosquitto)',b.installed?(b.running?'Running':'Installed, not running'):'Not installed')
+     +row(st.mqtt_loaded,'Platform MQTT',st.mqtt_loaded?'Connected':'Not set up')
+     +row(on,'Sharing',on?(st.up_to_date===false?'On — the room list changed, switch off and on to update':'On'):'Off')+`</div>`;
+  h+=`<div class="sav-card"><div class="sav-t" style="margin-bottom:4px">Connect The Other System</div>
+      <div class="sav-row"><span class="sav-nm">Broker address</span><span class="sav-v">${ip}</span></div>
+      <div class="sav-row"><span class="sav-nm">Port</span><span class="sav-v">${b.port||1883}</span></div>
+      <div class="sav-row"><span class="sav-nm">Logins</span><span class="sav-v">${(st.logins||[]).length?esc(st.logins.join(', ')):'None yet'}</span></div>
+      <div class="sav-s" style="margin:8px 0 4px">Give the other system its own login. Type it here; the password is handed to the broker and never shown again.</div>
+      <div class="sav-row"><input id="shr-user" class="sav-sel" placeholder="Username" autocomplete="off" style="flex:1"><input id="shr-pass" class="sav-sel" type="password" placeholder="Password" autocomplete="new-password" style="flex:1"><button class="btn-primary" onclick="saveShareLogin()">Save Login</button></div></div>`;
+  const sh=st.shared||[];
+  h+=`<div class="sav-card"><div class="sav-t" style="margin-bottom:4px">What Is Shared</div><div class="sav-s" style="margin-bottom:6px">Each topic carries {"state": …, "attributes": {…}}, retained, sent on every change and again whenever the platform starts.</div>`
+     +(sh.length?sh.map(x=>`<div class="sav-row"><span class="sav-nm">${esc(entName(x.entity_id))}</span><span class="sav-v"><code>${esc(x.topic)}</code></span></div>`).join(''):'<div class="sav-s">No ProOS room states yet.</div>')+`</div>`;
+  setHTML(host,h);
+}
 // ── SAVANT (register 630) ─────────────────────────────────────────────────
 let _savPoll=null, _savStatus=null;
 function openSavant(){ show('savant'); renderSavantPanel(); loadSavantStatus(); clearInterval(_savPoll); _savPoll=setInterval(()=>{ if(document.getElementById('panel-savant')?.classList.contains('active')) loadSavantStatus(); else clearInterval(_savPoll); }, 5000); }
@@ -20110,7 +20145,7 @@ function ahRemove(){
     });
 }
 
-const PANELS=['home','library','manage','backups','channels','maintenance','site','credentials','unifi-suite','unifi','unifi-net','unifi-connect','unifi-access','users','room','integration','rooms','activities','automations','scripts','irrigation','savant','helpers','blueprints','labels','tech','music','applehome','dashremote','wallpanel','remotecfg','wpedit','navlayout','hub','assist2','systems','toolbox','device','history'];
+const PANELS=['home','library','manage','backups','channels','maintenance','site','credentials','unifi-suite','unifi','unifi-net','unifi-connect','unifi-access','users','room','integration','rooms','activities','automations','scripts','irrigation','savant','share','helpers','blueprints','labels','tech','music','applehome','dashremote','wallpanel','remotecfg','wpedit','navlayout','hub','assist2','systems','toolbox','device','history'];
 function show(panel){
   PANELS.forEach(p=>{ const el=document.getElementById('panel-'+p); if(el) el.classList.toggle('active', p===panel); });
   // One-shot entrance arm: content pops in on panel ENTRY, then disarms so
@@ -22384,6 +22419,7 @@ const SYS_ICO={
   music: ()=>proosLogoIcon(),
   ah:    ()=>AH_HOME_ICO,
   sav:   ()=>_sv('<rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8M12 17v4M7 11h3l2-3 2 5 2-2h1"/>'),
+  shr:   ()=>_sv('<circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.2 10.9l7.6-3.8M8.2 13.1l7.6 3.8"/>'),
   // ── Systems · This home
   nt:    ()=>_sv('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>'),
   bk:    ()=>_sv('<path d="M21 8v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8"/><rect x="1.5" y="3" width="21" height="5" rx="1.5"/><path d="M10 12h4"/>'),
@@ -22451,7 +22487,10 @@ function renderSystems(){
       // THE SAVANT BRIDGE IS COMMISSIONED HERE (register 630). ProOS on top of
       // a Savant home: the feed's switch, its live status and the profile the
       // Savant dealer imports into Blueprint — never the platform's UI.
-      ['sav','Savant','Room state to and from a Savant host',()=>openSavant()]]],
+      ['sav','Savant','Room state to and from a Savant host',()=>openSavant()],
+      // SHARE OVER THE PLATFORM'S OWN MQTT (register 1311): Control4, Crestron, Node-RED or a building system
+      // follows every room's activity — the platform's Mosquitto and MQTT do the work; ProOS turns it on.
+      ['shr','Share With Another Control System','Room activity over MQTT, for Control4, Crestron and others',()=>openShare()]]],
     ['This home',[
       ['bk','Backups','Restore points, schedule, downloads',()=>openBackups()],
       ['us','Users and access','People, roles, sign-in, keys',()=>openUsers()],
@@ -22775,7 +22814,7 @@ function v3SecOf(p){
   if(p==='v3devices'||p==='device'||p==='library'||p==='integration') return 'devices';
   // REGISTER 1256 (Dave 8 Nov 17:29: "They are all an integration"; 17:33 the one flow): UniFi, Apple Home, Savant and
   // Irrigation are integrations — their pages live in Devices › Integrations, not a Systems group in System Setup.
-  if(['unifi-suite','unifi','unifi-net','unifi-access','unifi-connect','applehome','savant','irrigation'].includes(p)) return 'devices';
+  if(['unifi-suite','unifi','unifi-net','unifi-access','unifi-connect','applehome','savant','share','irrigation'].includes(p)) return 'devices';
   if(p==='activities'||p==='scripts'||p==='automations') return 'scenes';
   if(p==='v3diag'||p==='manage') return 'diagnostics';
   if(p==='tech') return (_techView==='net'||_techView==='notify')?'setup':'toolbox';
