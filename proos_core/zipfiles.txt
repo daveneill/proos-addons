@@ -5320,6 +5320,7 @@ proos/platform_backup.py
 proos/platform_entries.py
 proos/platformfaults.py
 proos/repairspush.py
+proos/triggers.py
 proos/platformlog.py
 proos/platformaddr.py
 proos/homelocale.py

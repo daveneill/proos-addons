@@ -3403,7 +3403,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111204';
+const PROOS_BUILD='2026111205';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -8788,7 +8788,39 @@ function _irrRole(e){ const l=e.labels||[]; return l.includes(IRR_ZONE)?'zone':(
 // The platform's Mosquitto is the broker and one platform automation publishes every ProOS room's activity and the
 // home summary, retained. The other system's login is the installer's: typed here, handed to Mosquitto, never shown.
 let _shrSt=null;
-function openShare(){ show('share'); _shrSt=null; renderSharePanel(); loadShare(); }
+function openShare(){ show('share'); _shrSt=null; _trgSt=null; renderSharePanel(); loadShare(); loadTriggers(); }
+// ── OUTSIDE TRIGGERS (register 1328, plan F23) ─────────────────────────────
+// Another system (Control4, Savant, a doorbell, a UniFi alarm) starts an activity or a scene by calling an address.
+// Each is ONE platform automation with a webhook trigger (Core: proos/triggers.py) — the platform does the listening.
+// The address is the key: shown in full, copied, never shared beyond the other system.
+let _trgSt=null;
+async function loadTriggers(){ try{ const r=await _coreFetch(proCoreUrl()+'/triggers',{},15000); _trgSt=r.ok?await r.json():{err:'Core did not answer'}; }catch(e){ _trgSt={err:'Core did not answer'}; } renderSharePanel(); }
+async function _trgPost(path,body,done){
+  try{ const r=await _coreFetch(proCoreUrl()+'/triggers'+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})},20000); const j=await r.json().catch(()=>({}));
+    if(r.ok){ toast(done); await loadTriggers(); } else toast(j.error||'Not done'); }catch(e){ toast(_coreFailWords('',e)); } }
+function makeTrigger(){ const n=(document.getElementById('trg-name')||{}).value||'', t=(document.getElementById('trg-target')||{}).value||'';
+  if(!n.trim()||!t){ toast('Name it, and pick what it starts'); return; } _trgPost('',{name:n.trim(),target:t},'Outside Trigger made'); }
+async function removeTrigger(i){ const t=((_trgSt||{}).triggers||[])[i]; if(!t) return; const id=t.id, name=t.name; if(await proAsk('Remove the Outside Trigger "'+name+'"?\n\nThe other system\'s calls to its address will do nothing from now on.')) _trgPost('/'+encodeURIComponent(id)+'/remove',{},'Removed'); }
+async function testTrigger(i){ const t=((_trgSt||{}).triggers||[])[i]; if(!t) return; const id=t.id, name=t.name, what=_trgWhat(t.target); if(await proAsk('Test "'+name+'"?\n\nThis calls it the way the other system will, so '+what+' really starts.')) _trgPost('/'+encodeURIComponent(id)+'/test',{},'Called — '+what+' should be starting'); }
+async function copyTrigger(i,where){ const t=((_trgSt||{}).triggers||[])[i]; const url=t&&t.addresses&&t.addresses[where]; if(!url) return; try{ await navigator.clipboard.writeText(url); toast('Address copied'); }catch(e){ toast('Copy did not work — select the address and copy it'); } }
+function _trgWhat(e){ const t=(((_trgSt||{}).targets)||[]).find(x=>x.entity_id===e); return t?t.name:(e||'nothing'); }
+function triggersCard(){
+  const st=_trgSt;
+  if(!st) return '<div class="sav-card"><div class="sav-t">Outside Triggers</div><div class="sav-s">Reading…</div></div>';
+  if(st.err) return '<div class="sav-card"><div class="sav-t">Outside Triggers</div><div class="sav-s">'+esc(st.err)+'.</div></div>';
+  const addr=(lbl,u,i,w)=>u?`<div class="sav-row"><span class="sav-nm">${lbl}</span><span class="sav-v"><code style="word-break:break-all">${esc(u)}</code> <button class="btn-ghost" onclick="copyTrigger(${i},'${w}')">Copy</button></span></div>`:'';
+  let h=`<div class="sav-card"><div class="sav-t">Outside Triggers</div><div class="sav-s" style="margin-bottom:6px">Another system starts an activity or a scene here by calling an address (POST, PUT or GET) — Control4, Savant, a doorbell, a UniFi alarm. Each is the platform's own automation, so it keeps working without ProOS. The address is the key: give it only to that system.</div>`;
+  (st.triggers||[]).forEach((t,i)=>{ const what=_trgWhat(t.target), used=t.last_used?new Date(t.last_used).toLocaleString():'Never';
+    h+=`<div style="border-top:1px solid var(--line,rgba(255,255,255,.08));padding-top:8px;margin-top:8px"><div class="sav-row"><span class="sav-nm"><b>${esc(t.name)}</b></span><span class="sav-v">Starts ${esc(what)}</span></div>`
+      +addr('At Home',t.addresses&&t.addresses.home,i,'home')+addr('Away (ProOS Connect)',t.addresses&&t.addresses.away,i,'away')
+      +`<div class="sav-row"><span class="sav-nm">Last Used</span><span class="sav-v">${esc(used)}</span></div>`
+      +`<div class="sav-row" style="justify-content:flex-end;gap:8px"><button class="btn-ghost" onclick="testTrigger(${i})">Test</button><button class="btn-ghost" onclick="removeTrigger(${i})">Remove</button></div></div>`; });
+  if(!(st.triggers||[]).length) h+='<div class="sav-s">None yet.</div>';
+  const opts=(st.targets||[]).map(x=>`<option value="${esc(x.entity_id)}">${esc(x.name)}${x.entity_id.startsWith('scene.')?' (scene)':''}</option>`).join('');
+  h+=`<div class="sav-t" style="margin:12px 0 4px">Make an Outside Trigger</div><div class="sav-row"><input id="trg-name" class="sav-sel" placeholder="Name, e.g. Doorbell Pressed" autocomplete="off" style="flex:1"><select id="trg-target" class="sav-sel" style="flex:1"><option value="">Starts…</option>${opts}</select><button class="btn-p" onclick="makeTrigger()">Make</button></div>`;
+  if(!st.away) h+='<div class="sav-s" style="margin-top:6px">Away address: shown once ProOS Connect\'s line to this home is open.</div>';
+  return h+'</div>';
+}
 async function loadShare(){ try{ const r=await _coreFetch(proCoreUrl()+'/share/status',{},10000); _shrSt=r.ok?await r.json():{err:'Core did not answer'}; }catch(e){ _shrSt={err:'Core did not answer'}; } renderSharePanel(); }
 async function setShare(on){ try{ const r=await _coreFetch(proCoreUrl()+'/share/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:!!on})},15000); const j=await r.json().catch(()=>({})); if(r.ok){ _shrSt=j; toast(on?'Sharing on':'Sharing off'); } else toast(j.error||"Couldn't change sharing"); }catch(e){ toast("Couldn't reach Core"); } renderSharePanel(); }
 async function saveShareLogin(){ const u=(document.getElementById('shr-user')||{}).value||'', p=(document.getElementById('shr-pass')||{}).value||''; if(!u.trim()||!p){ toast('Type a username and a password'); return; }
@@ -8813,6 +8845,7 @@ function renderSharePanel(){
   const sh=st.shared||[];
   h+=`<div class="sav-card"><div class="sav-t" style="margin-bottom:4px">What Is Shared</div><div class="sav-s" style="margin-bottom:6px">Each topic carries {"state": …, "attributes": {…}}, retained, sent on every change and again whenever the platform starts.</div>`
      +(sh.length?sh.map(x=>`<div class="sav-row"><span class="sav-nm">${esc(entName(x.entity_id))}</span><span class="sav-v"><code>${esc(x.topic)}</code></span></div>`).join(''):'<div class="sav-s">No ProOS room states yet.</div>')+`</div>`;
+  h+=triggersCard();   // 1328
   setHTML(host,h);
 }
 // ── THE RACK (register 1322, 12 Nov 2026) ─────────────────────────────────

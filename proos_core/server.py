@@ -8841,6 +8841,32 @@ class Handler(BaseHTTPRequestHandler):
                 # 970a: what the last weather pass found — created, current, moved, skipped (no location) or the
                 # platform's own refusal, word for word
                 return self._send(200, _WEATHER_STD.get("last") or {"pending": "the first weather pass runs 30 s after start"})
+            if parts == ["triggers"]:
+                # 1328 (plan F23): the box's Outside Triggers, each with its two addresses, and what one may start.
+                if _project_caller(getattr(self, "_user", None)) is None:
+                    return self._send(403, {"error": "installer access required"})
+                from proos import triggers as _trg
+                try:
+                    from proos import platformdoor as _pdm
+                    _home = _pdm.want_url(_sv("GET", "/network/info") or {})
+                except Exception:                                    # noqa: BLE001
+                    _home = None
+                try:
+                    from proos import connecttunnel as _ctm
+                    _rr = _ctm.reading()
+                    _away = _rr.get("app_url") if _rr.get("line") == "open" else None
+                except Exception:                                    # noqa: BLE001
+                    _away = None
+                _items = _trg.listing(_client)
+                for _t in _items:
+                    _t["addresses"] = _trg.addresses(_t.get("webhook_id") or "", _home, _away)
+                _targets = []
+                for _st in (_client._req("GET", "/api/states") or []):
+                    _e = _st.get("entity_id") or ""
+                    if _e.split(".", 1)[0] in _trg.TARGET_DOMAINS:
+                        _targets.append({"entity_id": _e, "name": (_st.get("attributes") or {}).get("friendly_name") or _e})
+                _targets.sort(key=lambda x: (x["entity_id"].split(".")[0] != "script", x["name"].lower()))
+                return self._send(200, {"triggers": _items, "targets": _targets, "home": _home, "away": _away})
             if parts == ["connect", "address"]:
                 # 969x (Dave, 14:16: test in the TestFlight app, not a web login). The home's app address on ProOS
                 # Connect while its line is allowed — what the app uses away from home — read from Connect's own last
@@ -12155,6 +12181,28 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, res)
                 except Exception as e:  # noqa: BLE001
                     return self._send(200, {"ok": False, "lines": ["STOP: %s" % e]})
+            if parts and parts[0] == "triggers":
+                # 1328 (plan F23): make, remove or test an Outside Trigger — a platform automation with a webhook trigger.
+                if _project_caller(getattr(self, "_user", None)) is None:
+                    return self._send(403, {"error": "installer access required"})
+                from proos import triggers as _trg
+                b = self._body() or {}
+                try:
+                    if parts == ["triggers"]:
+                        return self._send(200, {"made": _trg.create(_client, b.get("name"), b.get("target"))})
+                    if len(parts) == 3 and parts[2] == "remove":
+                        return self._send(200, {"removed": _trg.remove(_client, parts[1])})
+                    if len(parts) == 3 and parts[2] == "test":
+                        _t = next((t for t in _trg.listing(_client) if t["id"] == parts[1]), None)
+                        if not _t:
+                            return self._send(404, {"error": "no such Outside Trigger"})
+                        _trg.test(_client, _t["webhook_id"])
+                        return self._send(200, {"tested": True, "target": _t.get("target")})
+                except ValueError as e:
+                    return self._send(400, {"error": str(e)})
+                except Exception as e:                               # noqa: BLE001
+                    return self._send(502, {"error": "the platform did not take it: %s" % str(e)[:160]})
+                return self._send(404, {"error": "unknown"})
             # ── A CLIENT'S VOICE BECOMES TEXT (register 240) ──────────────
             # Dave's ruling, 19 Aug: the platform's own transcriber — the one
             # his box is already set up for, reading en-AU, which we read off
