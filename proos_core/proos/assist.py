@@ -2839,6 +2839,9 @@ class ToolRunner:
                 out = self.mcp.call(tool["name"], args or {})
             except Exception as e:                               # noqa: BLE001
                 out = {"error": str(e)[:300]}
+            if tool.get("name") == "ha_call_service" and isinstance(out, dict) and not out.get("error"):
+                # 1316: the command as asked, for standing instructions (Core files it after the turn; never replayed here)
+                self.calls_made = getattr(self, "calls_made", []) + [dict(args or {})]
             # REGISTER 1256: the read-back ProOS's own control always did (446/1082) — the platform's word that the
             # call ran is not the device's word that it changed
             if _before and isinstance(out, dict) and not out.get("error"):
@@ -8204,7 +8207,7 @@ def _plan_reply(runner, user, session, text, where, t0, reply, how, ai_ms):
         _sess_save()
     _hist_append(user, session, text, reply, where, _how_of(runner, "plan", how))
     _said = list(getattr(runner, "spoken", None) or [])
-    return {"reply": reply, "actions": runner.actions, "trace": runner.trace, "timing": runner.timing,
+    return {"reply": reply, "actions": runner.actions, "calls_made": list(getattr(runner, "calls_made", []) or []), "trace": runner.trace, "timing": runner.timing,
             "provider": "plan", "speak_lead": None if _said else reply, "spoken_already": _said, "speak_suppress": bool(_said)}
 
 
@@ -8622,7 +8625,7 @@ def chat(client, ws_call, project_mod, user: dict, text: str,
         # _said is empty, nothing is suppressed, and the person still hears why.
         _said = list(getattr(runner, "spoken", None) or [])
         _suppress = bool(_said)
-        return {"reply": reply, "actions": runner.actions, "trace": runner.trace,
+        return {"reply": reply, "actions": runner.actions, "calls_made": list(getattr(runner, "calls_made", []) or []), "trace": runner.trace,
                 "timing": runner.timing, "provider": "direct",
                 "speak_lead": None if _suppress else reply,
                 "spoken_already": _said,
@@ -8720,7 +8723,7 @@ def chat(client, ws_call, project_mod, user: dict, text: str,
     # register 979: a web notice is not the act confirmed aloud — only the acts' own lines can make the reply repeat news
     _notices = set(getattr(runner, "notices", None) or [])
     _suppress = any(s not in _notices for s in _said) and len(reply or "") <= _SAY_AGAIN
-    return {"reply": reply, "actions": runner.actions,
+    return {"reply": reply, "actions": runner.actions, "calls_made": list(getattr(runner, "calls_made", []) or []),
             "trace": runner.trace,     # every tool call — checking included
             "timing": _tm,             # register 484: how long, never what
             "provider": cfg["provider"],

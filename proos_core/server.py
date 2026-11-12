@@ -4356,6 +4356,11 @@ def factory_reset(clear_proos_data=False, keep_auth=False):
             _sugg_mod.clear()
         except Exception:                                        # noqa: BLE001
             pass
+        try:                              # register 1316: what people asked twice, and its automations (ProOS's own)
+            from proos import standing as _standing_mod
+            _standing_mod.clear(_client)
+        except Exception:                                        # noqa: BLE001
+            pass
         if _roomdevices:
             _roomdevices.clear()
         if _appfavs:
@@ -5067,6 +5072,44 @@ def _reconnect_once():
             _journal_mod.emit("site", "auto_heal", ev)
 
     return _rc.check(_client.config_entries(), _data, _client.reload_integration, _log)
+
+
+def _standing_names() -> dict:
+    """Entity names and "area:<id>" room names, for standing instructions' sentences (register 1316)."""
+    out = {}
+    try:
+        for st in (_client._req("GET", "/api/states") or []):
+            nm = (st.get("attributes") or {}).get("friendly_name")
+            if nm:
+                out[st.get("entity_id")] = nm
+        for a in (_client.area_registry() or []):
+            out["area:" + str(a.get("area_id"))] = a.get("name") or a.get("area_id")
+    except Exception:                                            # noqa: BLE001
+        pass
+    return out
+
+
+def _standing_area_of(eid: str):
+    """The room an entity is in — its own area, else its device's (register 1316)."""
+    try:
+        ent = next((e for e in (_client.entity_registry() or []) if e.get("entity_id") == eid), None)
+        if not ent:
+            return None
+        if ent.get("area_id"):
+            return ent["area_id"]
+        dev = next((d for d in (_client.device_registry() or []) if d.get("id") == ent.get("device_id")), None)
+        return (dev or {}).get("area_id")
+    except Exception:                                            # noqa: BLE001
+        return None
+
+
+def _standing_activity_of(area: str):
+    """(state, label) of the room's ProOS activity sensor — what the room is doing (register 1316)."""
+    try:
+        st = _client._req("GET", "/api/states/sensor.proos_activity_%s" % area) or {}
+        return st.get("state"), (st.get("attributes") or {}).get("label")
+    except Exception:                                            # noqa: BLE001
+        return None, None
 
 
 def _supervisor_req(method, path, body):
@@ -8969,6 +9012,10 @@ class Handler(BaseHTTPRequestHandler):
                 except Exception:                                # noqa: BLE001
                     _names = {}
                 return self._send(200, _assist.heard_view(since, names=_names))
+            if parts == ["assist", "standing"]:
+                # 1316: what Pro Assist has been asked, and what it now does as a standing instruction
+                from proos import standing as _stnd
+                return self._send(200, {"standing": _stnd.listing()})
             if parts == ["assist", "habits"]:
                 # WHAT PRO ASSIST HAS LEARNED (register 1314): every room's patterns with the learning algorithm's
                 # confidence and its four parts — computed fresh from the journal (?refresh=1) or the nightly file.
@@ -9529,6 +9576,11 @@ class Handler(BaseHTTPRequestHandler):
                 _savantfeed_mod.save_zone_map(body.get("zone"), body.get("area"),
                                               body.get("value"), body.get("target"))
                 return self._send(200, _savant_status())
+            if parts == ["assist", "standing", "forget"]:
+                # 1316: forget one — its record and its platform automation
+                from proos import standing as _stnd
+                body = self._body() or {}
+                return self._send(200, {"forgot": _stnd.forget(_client, str(body.get("id") or ""))})
             if parts == ["share", "config"]:
                 # 1311: {"enabled": true|false} — writes or removes the platform automation that publishes.
                 from proos import share as _share
@@ -12354,6 +12406,18 @@ class Handler(BaseHTTPRequestHandler):
                             return self._send(200, {"reply": "Okay.", "goodbye": True,
                                                     "spoke": {"sent": False, "why": "the conversation ended"}})
 
+                # REGISTER 1316 — STANDING INSTRUCTIONS: a yes or no to the offer Assist just made ("want me to do it
+                # automatically…?") is answered here, by Core, without the model: yes writes the platform automation.
+                try:
+                    from proos import standing as _stnd
+                    if _stnd.pending_for(uinfo, _sess):
+                        _sa = _stnd.answer(_client, uinfo, _sess, _text, _standing_names())
+                        if _sa:
+                            _assist_journal_turn(uinfo, {"reply": _sa, "actions": [{"tool": "standing_instruction"}]})
+                            return self._send(200, {"reply": _sa, "spoke": _assist_speak(where, _sa)})
+                except Exception as _se:                         # noqa: BLE001 — the turn runs as before
+                    print("  [standing] answer skipped: %s" % _se, flush=True)
+
                 # EVERYTHING A FINISHED TURN OWES, whether it was waited on or
                 # watched (register 466). This used to sit inline under the one
                 # blocking call; it is a function now because a background turn
@@ -12361,6 +12425,17 @@ class Handler(BaseHTTPRequestHandler):
                 # the journal stamp, the room speaking, and the provider named
                 # only to the tiers that may know it (register 425).
                 def _finish(_res):
+                    # 1316: the second asking earns one line — the offer to make it standing
+                    try:
+                        if _res.get("calls_made") and not _res.get("error"):
+                            from proos import standing as _stnd
+                            _off = _stnd.observe(uinfo, _sess, _text, _res.get("calls_made"), _standing_area_of,
+                                                 _standing_activity_of, _standing_names())
+                            if _off:
+                                _res["reply"] = (str(_res.get("reply") or "").rstrip() + "\n\n" + _off).strip()
+                                _res["standing_offer"] = True
+                    except Exception as _se:                     # noqa: BLE001
+                        print("  [standing] observe skipped: %s" % _se, flush=True)
                     # Core stamps the turn itself — reads and acts alike; the
                     # glass renders the record, it no longer writes it.
                     _assist_journal_turn(uinfo, _res)
