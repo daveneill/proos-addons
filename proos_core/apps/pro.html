@@ -3403,7 +3403,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111205';
+const PROOS_BUILD='2026111206';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -22932,7 +22932,7 @@ function v3SecOf(p){
   if(p==='v3devices'||p==='device'||p==='library'||p==='integration') return 'devices';
   // REGISTER 1256 (Dave 8 Nov 17:29: "They are all an integration"; 17:33 the one flow): UniFi, Apple Home, Savant and
   // Irrigation are integrations — their pages live in Devices › Integrations, not a Systems group in System Setup.
-  if(['unifi-suite','unifi','unifi-net','unifi-access','unifi-connect','applehome','savant','share','irrigation'].includes(p)) return 'devices';
+  if(['unifi-suite','unifi','unifi-net','unifi-access','unifi-connect','applehome','savant','irrigation'].includes(p)) return 'devices';   // 1329: 'share' is System Setup's now
   if(p==='activities'||p==='scripts'||p==='automations') return 'scenes';
   if(p==='v3diag'||p==='manage') return 'diagnostics';
   if(p==='tech') return (_techView==='net'||_techView==='notify')?'setup':'toolbox';
@@ -23067,6 +23067,9 @@ const V3DIAG=[['sweep','Health Sweep','health'],['awareness','Awareness','spark'
 const V3SETUP=[['site','Building Settings','home',()=>openSite()],['users','Manage Users','user',()=>openUsers()],['software','Software','box',()=>v3Software()],
   ['backups','Backups','clock',()=>openBackups()],['music','Music Services','music',()=>openMusic()],
   ['dashremote','Dashboards','grid',()=>openDashRemote()],['channels','Channel Lists','list',()=>openChannels()],['notify','Notifications','bolt',()=>openTech('notify')],['net','Network','map',()=>openTech('net')],
+  // REGISTER 1329 (Dave 13 Nov 09:12 "okay"): The Rack (1322) and the Share page (1321, 1328) were listed only in the old
+  // Systems list that 1256 took off the menu — built, but unreachable. Their rows sit here, after Network.
+  ['rack','The Rack','remote',()=>openRack()],['share','Other Control Systems','plug',()=>openShare()],
   ['credentials','Credentials','shield',()=>openCredentials()],['maintenance','Maintenance','setup',()=>openMaintenance()]];
 // REGISTER 1215: UniFi is ONE suite (Dave 5 Nov) — Protect and Network open from inside it.
 // REGISTER 1256 — NO SYSTEMS GROUP. Apple Home, UniFi, Savant and Irrigation are integrations (Dave 8 Nov 17:29), added
