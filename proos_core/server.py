@@ -1496,6 +1496,10 @@ def _reload_integration(entity, action, rec=None):
         # TO ASSIST — no scripted ladder. True only when the device itself
         # read back alive after Assist's turn.
         # REGISTER 1164: the watcher's AUTOMATIC hand-over — once per device per day (Fix in Pro is not this path).
+        if not _health_auto_on():                                # register 1335: paused in Pro
+            print("[watcher] recovery: %s — automatic hand-over to Assist is paused in Pro; left on Health" % entity,
+                  flush=True)
+            return False
         if not _autofix_mod.allowed(entity):
             print("[watcher] recovery: %s was already handed to Assist automatically in the last 24 h — "
                   "left on Health for the installer (Fix in Pro still hands it over)" % entity, flush=True)
@@ -1613,6 +1617,14 @@ def _outcome_phones(user_id):
 _health_handed: set = set()     # register 1180: Health problems already offered to Assist in this run (by id)
 
 
+def _health_auto_on():
+    """REGISTER 1335: Health may hand problems to Assist by itself (Pro › Assist AI switch; on unless switched off)."""
+    try:
+        return bool(_assist.health_auto()) if (_assist is not None and hasattr(_assist, "health_auto")) else True
+    except Exception:                                            # noqa: BLE001
+        return True
+
+
 def _health_to_assist(inc):
     """REGISTER 1180: one Health problem handed to Assist (the 14 Sep road: diagnose and fix as a Developer session
     does), as the engine, in its own session; the reply is journalled where Pro's Master Log shows it."""
@@ -1666,6 +1678,8 @@ def _health_assist_loop():
                 iid = inc.get("id") or "%s:%s" % (inc.get("kind"), inc.get("subject"))
                 if inc.get("kind") not in _autofix_mod.AUTO_KINDS or iid in _health_handed:
                     continue
+                if not _health_auto_on():                        # register 1335: paused in Pro — not marked handed,
+                    continue                                     # so switching it back on offers it then
                 _health_handed.add(iid)
                 subj = _autofix_mod.health_subject(inc)
                 if not _autofix_mod.allowed(subj):
@@ -4894,7 +4908,7 @@ def _platform_log_read():
                                       {"title": inc["title"], "cause": inc["cause"], "rose": row.get("rose")})
             except Exception:                                    # noqa: BLE001
                 pass
-            if _autofix_mod.allowed(inc["subject"]):
+            if _health_auto_on() and _autofix_mod.allowed(inc["subject"]):     # 1335: paused in Pro → stays on Health
                 threading.Thread(target=_health_to_assist, args=(inc,), name="proos-log-assist", daemon=True).start()
     except Exception as e:                                       # noqa: BLE001
         print("  [platform-log] repeat check failed: %s" % e, flush=True)

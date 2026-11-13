@@ -3415,7 +3415,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111209';
+const PROOS_BUILD='2026111210';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -14944,6 +14944,9 @@ async function tlLoad(){
     h+=people.map(function(u){ var on=_tl.off.indexOf(u.id)<0;
       return '<label style="display:flex;align-items:center;gap:10px;margin:4px 0 4px 6px;cursor:pointer"><input type="checkbox" data-tl="'+esc(u.id)+'"'+(on?' checked':'')+(st.realtime_enabled?'':' disabled')+' onchange="tlSave()"/> '+esc(u.name||u.username||u.id)+'</label>'; }).join('');
   }
+  // 1335 (Dave 13 Nov "Pause it while we gauge"): Health's automatic hand-overs to Assist, one switch
+  h+='<label style="display:flex;align-items:center;gap:10px;margin:14px 0 2px;cursor:pointer"><input type="checkbox" id="hl-auto"'+(st.health_auto!==false?' checked':'')+' onchange="hlSave()"/> <b>Health Hands Problems to Assist</b></label>'
+    +'<div style="margin:0 0 6px 28px">'+(st.health_auto!==false?'On: once a problem a day, Health asks Assist to fix it by itself.':'Paused: problems stay on Health with their Fix button; nothing goes to the AI by itself.')+'</div>';
   // 1288: the Assist AI decides the road — ChatGPT talks Live; Claude holds the conversation on the ordinary microphone
   if(st.provider==='claude') h+='<div style="margin-top:6px">Assist AI is Claude, so the microphone holds the conversation instead: after each spoken answer it listens again by itself — no need to press the mic. It stops after 8 seconds of quiet, or when someone says “stop”, “thanks” or “that’s all”. Tap the mic while Assist is speaking to cut in. Talk Live (talking over Assist) is used when ChatGPT is chosen.</div>';
   else if(st.provider && st.provider!=='openai') h+='<div style="margin-top:6px;color:var(--warn)">Talk Live needs Assist on OpenAI — it is off until then.</div>';
@@ -14954,6 +14957,12 @@ async function tlSave(){
   var off=[]; document.querySelectorAll('#tl-body input[data-tl]').forEach(function(c){ if(!c.checked) off.push(c.getAttribute('data-tl')); });
   try{ var r=await fetch(proCoreUrl()+'/assist/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({realtime_enabled:!!home.checked, realtime_off_for:off})});
     toast(r.ok?'Talk Live saved':'Could not save Talk Live'); }catch(e){ toast('Could not save Talk Live'); }
+  tlLoad();
+}
+async function hlSave(){
+  var c=document.getElementById('hl-auto'); if(!c) return;
+  try{ var r=await fetch(proCoreUrl()+'/assist/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({health_auto:!!c.checked})});
+    toast(r.ok?(c.checked?'Health hands problems to Assist':'Health hand-overs paused'):'Could not save'); }catch(e){ toast('Could not save'); }
   tlLoad();
 }
 // ── REALTIME PROTOTYPE CLIENT (register 1148) ─────────────────────────────────────────────────────────────────

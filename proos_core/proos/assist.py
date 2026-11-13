@@ -675,6 +675,8 @@ def save_config(body: dict) -> dict:
     # REGISTER 1153: Talk Live for the home — on unless the installer turns it off; a person can be left out.
     if "realtime_enabled" in body:
         cfg["realtime_enabled"] = bool(body.get("realtime_enabled"))
+    if "health_auto" in body:                                     # register 1335
+        cfg["health_auto"] = bool(body.get("health_auto"))
     if "realtime_off_for" in body:
         cfg["realtime_off_for"] = sorted({str(x) for x in (body.get("realtime_off_for") or []) if x})
     if cfg.get("provider") not in ("claude", "openai"):
@@ -707,8 +709,16 @@ def status(full: bool = False) -> dict:
             "has_image_key": bool(_image_key(cfg)),
             "has_photo_key": bool((cfg.get("photo_key") or "").strip()),   # 1281
             "realtime_enabled": cfg.get("realtime_enabled", True) is not False,
-            "realtime_off_for": list(cfg.get("realtime_off_for") or [])})
+            "realtime_off_for": list(cfg.get("realtime_off_for") or []),
+            "health_auto": health_auto(cfg)})                            # register 1335
     return out
+
+
+def health_auto(cfg: dict = None) -> bool:
+    """REGISTER 1335 (Dave 13 Nov 18:1x, "Pause it while we gauge"): whether Health hands problems to Assist BY ITSELF.
+    On unless switched off in Pro. Off stops only the automatic hand-overs (the watcher's, Health's problems, repeating
+    platform warnings); every problem stays on Health with its Fix button, and Fix still hands it over."""
+    return (cfg if isinstance(cfg, dict) else load_config()).get("health_auto", True) is not False
 
 
 def _photo_key(cfg: dict = None) -> str:
