@@ -2408,7 +2408,13 @@ def _is_home(user: dict) -> bool:
 # weather/lock/camera/alarm read-outs, scene_create/scene_delete/scene_companions, automation_create/trigger/delete and
 # platform_control_enable: each one the platform's own tools already do (and its guards still check them, in _run_mcp).
 # The installer tier (platform reads only) is unchanged.
-_PLATFORM_FIRST_KEEP = {"scene_dashboard"}
+_PLATFORM_FIRST_KEEP = {"scene_dashboard", "rooms_overview", "room_activity", "room_off"}
+# REGISTER 1337 (Dave 13 Nov 18:56, after the Family Room review: Assist rebuilt Watch Apple TV by hand and GUESSED "HDMI 1
+# … the input it's been on most this week" — "it needs to know about activities"; "still keeping the activities … once
+# you add this"): the three tools that carry what only ProOS knows — the commissioned rooms with their activities
+# (rooms_overview), running an activity (room_activity), and a whole room off by the room's own rule (room_off, Dave's
+# 1 Nov ruling). The platform has no activity, no committed room and no room-off rule; without these Assist could only
+# rebuild them from guesses.
 # REGISTER 1279 (Dave 10 Nov 08:47 "1. yes"): the first thing Assist adds back — putting a scene on the dashboard's Scenes
 # page. The page is ProOS's; the platform has no tool for it, so without this Assist made a scene and said "added to your
 # dashboard" with no way to do it.
