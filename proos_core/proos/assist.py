@@ -1068,29 +1068,29 @@ TOOLS = [
      "input_schema": {"type": "object", "properties": {
          "area_id": {"type": "string"}}, "required": ["area_id"]}},
     {"name": "app_launch",
-     "description": "Open a streaming app (Netflix, Disney+, YouTube…) in a room — through the room's APP SHORTCUT, the one "
-                    "the installer set up in Pro (register 867): its device, its command, the display on and routed first, "
-                    "then the device read back. Call with area_id + app. If the room has NO shortcut for that app you get "
-                    "{not_set_up: true, say, devices:[{entity_id,name}]} — say `say` to the user (it offers to add it) and, "
-                    "if they agree, call app_shortcut_create with the device they chose (the default is the first). NEVER "
-                    "launch on a device's own app list; the lists are the device's claim, the shortcut is the record. Judge "
-                    "the OUTCOME by `confirmed` and the room's verdict sensor (rooms_overview: verdict_sensor), never by a streamer's "
-                    "raw state — many cannot see which app is on screen, so 'idle' is not evidence of failure.",
+     "description": "Open a streaming app (Netflix, Disney+, YouTube…) in a room. Call with area_id + app — it does the "
+                    "whole job: the room's App Shortcut if there is one, otherwise it opens the app anyway on the device "
+                    "the room is watching or the only one that has it (register 1339) — the room's Watch activity first "
+                    "(TV on, out of Art Mode, input, sound), then the app. If several devices have it you get {ask: true, "
+                    "say, devices} — say `say` and call again with the device they name. Say what it returns in `say`. "
+                    "NEVER offer to save it unprompted; only if the person asks, call app_shortcut_create. Judge the "
+                    "outcome by `taken`/`confirmed` and the room's verdict sensor (rooms_overview: verdict_sensor), never by "
+                    "a streamer's raw state — 'idle' is not evidence of failure.",
      "input_schema": {"type": "object", "properties": {
          "area_id": {"type": "string"},
          "app": {"type": "string", "description": "app name, e.g. 'Netflix'"},
-         "device": {"type": "string", "description": "entity_id of the device, when the room has shortcuts for the same app on several"}},
+         "device": {"type": "string", "description": "entity_id of the device, when the person named one"}},
          "required": ["area_id", "app"]}},
     {"name": "app_shortcut_create",
-     "description": "Set an app up in a room as an App Shortcut — ONLY after the user agreed. Core builds it for the device, "
-                    "TESTS it (the real launch; the device must read back showing the app) and adds it to the room's Apps "
-                    "only when the device confirmed; otherwise nothing is added and you get the device's own words. From "
-                    "then on voice and the room's Apps page use it.",
+     "description": "Save an app as a favourite (an App Shortcut) in a room — ONLY when the person asks ('save that as a "
+                    "favourite', 'keep Netflix on the Apple TV'). An app just opened in this conversation is saved as it "
+                    "ran; otherwise Core tests it on the device first and saves it only if the device took it. Say the "
+                    "returned `say` — it tells them where it now appears.",
      "input_schema": {"type": "object", "properties": {
          "area_id": {"type": "string"},
          "app": {"type": "string"},
-         "device": {"type": "string", "description": "entity_id of the device to run it on (from app_launch's devices)"}},
-         "required": ["area_id", "app", "device"]}},
+         "device": {"type": "string", "description": "entity_id of the device (omit to save the app just opened)"}},
+         "required": []}},
     # 970oo: "find me something to watch" — what a room can play, starting a show, learning what works (watchplay.py)
     {"name": "watch_options",
      "description": "What a room can PLAY before you suggest anything to watch: each app set up in the room, the "
@@ -2442,7 +2442,16 @@ def _is_home(user: dict) -> bool:
 # platform_control_enable: each one the platform's own tools already do (and its guards still check them, in _run_mcp).
 # The installer tier (platform reads only) is unchanged.
 _PLATFORM_FIRST_KEEP = {"scene_dashboard", "rooms_overview", "room_activity", "room_off",
-                        "room_activities", "activity_rewrite", "activity_test"}
+                        "room_activities", "activity_rewrite", "activity_test",
+                        "app_launch", "app_shortcut_create"}
+# REGISTER 1339 (Dave 14 Nov 08:01/08:07): opening an app in a room — the room's activity first, then the app the way
+# its shortcut would, on the device the room uses — and saving it as a favourite only when asked. The platform's own
+# select_source/play_media knows neither the room's activity nor ProOS's launch methods, nor where a favourite shows.
+# WHERE A SAVED APP APPEARS — read from the pages (14 Nov): the room's App Shortcuts ARE its favourites (1045); every
+# ProOS app dashboard (phone, iPad) draws them on that room's page (_favMerge of /areas/<room>/appfavs) and Pro lists them
+# under the room's App Shortcuts; the wall panel draws no app widget (_ppRoomWidgets has no 'apps' case).
+WHERE_SAVED_APPS = ("It now shows on the <room> page of the ProOS app on every phone and iPad, and in Pro under the "
+                    "<room>'s App Shortcuts. The wall panels don't show app favourites yet.")
 # REGISTER 1338 (Dave 14 Nov 07:02 "Yes"): fitting a room's activities to the room and proving them. The platform's script
 # tool can write steps, but knows nothing of what a ProOS activity must END in, of testing it from the room's rest, or of
 # keeping the generator off an activity Assist has fitted — those three are ProOS's.
@@ -3324,9 +3333,14 @@ class ToolRunner:
         return None
 
     def t_app_launch(self, args):
-        """REGISTER 867: an app opens through the room's APP SHORTCUT — the installer's record of device and command —
-        never through a device's own app list. No shortcut → not launched; the answer carries the offer to set it up
-        (and the devices that say they could), kept as this session's pending offer so "yes" settles it."""
+        """An app opens in a room. The room's APP SHORTCUT first (register 867) — the installer's record of device and
+        command. REGISTER 1339 (Dave 14 Nov 08:01/08:07: "assist still need to be able to launch an app … without needing
+        to add it as a favourite"; "leave it until it is asked"): with no shortcut, Assist opens it ANYWAY, the same way a
+        shortcut does — the room's Watch activity for that device, then the app command — on the device the room is
+        already watching, or the only one that says it has the app; with several and none in use it asks which (one
+        question, never "add it?"). Nothing is saved unless the person asks (app_shortcut_create). The trade-off, stated:
+        a one-off launch trusts the device's own claim to carry the app (867's unreliable lists); a device that does not
+        take the command says so."""
         aid = self._resolve_area_id(args.get("area_id"))
         app = (args.get("app") or "").strip()
         if not aid or not app:
@@ -3338,19 +3352,32 @@ class ToolRunner:
         room = self._room_name(aid) or aid
         dev = (args.get("device") or "").strip() or None
         sc = _sc.find(aid, app, dev) or (None if dev else _sc.find(aid, app))
+        oneoff = False
         if sc is None:
             devices = _sc.could_run(self.client, self.project, aid, app)
-            say = _sc.offer_words(room, app, devices)
-            offer = {"kind": "shortcut", "area": aid, "room": room, "app": app, "devices": devices,
-                     "default": (next((d for d in devices if d.get("is_display")), devices[0])["entity_id"] if devices else None)}
-            self._offer(offer if devices else None)
-            print("  [assist] app %s in %s: not set up%s" % (app, aid, " — offered" if devices else ""), flush=True)
-            return {"ok": False, "not_set_up": True, "say": say, "devices": devices, "error": say.rstrip("?.") }
+            if not devices:
+                say = "None of the devices in the %s say they have %s." % (room, app)
+                return {"ok": False, "not_set_up": True, "say": say, "devices": [], "error": say.rstrip(".")}
+            ids = [d["entity_id"] for d in devices]
+            pick = dev if dev in ids else (None if dev else self._room_watching(aid, ids))
+            if pick is None and not dev and len(devices) == 1:
+                pick = ids[0]
+            if pick is None:
+                names = [d["name"] for d in devices]
+                say = "%s is on the %s in the %s — which one?" % (app, " and the ".join(names), room)
+                self._offer({"kind": "app_device", "area": aid, "room": room, "app": app, "devices": devices,
+                             "default": None})
+                return {"ok": False, "ask": True, "say": say, "devices": devices}
+            sc, err = _sc.from_request(self.client, {"app": app, "target": pick})
+            if err or not sc:
+                say = "I can't open %s on the %s — %s." % (app, self._device_name(pick), str(err or "no way to open it").rstrip("."))
+                return {"ok": False, "say": say, "error": say}
+            oneoff = True
         res = _sc.launch(self.client, self.project, aid, sc) or {}
         if res.get("ok"):
             res["launched"] = sc.get("name") or app
             res["device"] = sc.get("target")
-            self._audit("app_launch", app=res["launched"], device=res["device"], area=aid, shortcut=True)
+            self._audit("app_launch", app=res["launched"], device=res["device"], area=aid, shortcut=not oneoff)
             res["verify_by"] = "sensor.proos_activity_%s" % aid
             # register 109 kept: the launch's own read-back and the room's verdict judge it; a streamer's raw 'idle' is
             # NOT evidence of failure; the person's own screen is the final witness.
@@ -3363,7 +3390,41 @@ class ToolRunner:
             # when the device reports that app in front; otherwise it says what it is doing — "Opening Netflix in the Office."
             _an = sc.get("name") or app
             res["say"] = ("%s, %s." % (room, _an)) if res.get("opened") is True else ("Opening %s in %s." % (_an, _direct._art(room)))
+            if oneoff:
+                # 1339: a one-off — said with its device, kept for this session so "save that as a favourite" can keep it
+                res["one_off"] = True
+                res["say"] = ("%s is open on the %s." % (_an, self._device_name(sc["target"])) if res.get("opened") is True
+                              else "Opening %s on the %s." % (_an, self._device_name(sc["target"])))
+                self._last_launch({"area": aid, "app": app, "device": sc["target"], "sc": sc,
+                                   "taken": bool(res.get("taken", res.get("confirmed")))})
+        elif oneoff and not res.get("say"):
+            res["say"] = "I couldn't open %s — %s." % (app, str(res.get("error") or "the device didn't take it").rstrip("."))
         return res
+
+    # REGISTER 1339: the last one-off app launch of a session — what "save that as a favourite" refers to
+    _launched = {}
+
+    def _last_launch(self, rec=None):
+        key = getattr(self, "session_key", None)
+        if key is None:
+            return None
+        if rec is not None:
+            ToolRunner._launched[key] = dict(rec, ts=time.time())
+            return rec
+        r = ToolRunner._launched.get(key)
+        return r if r and time.time() - r["ts"] <= 1800 else None
+
+    def _room_watching(self, aid, ids):
+        """The device of the activity the room is running now (its own activity sensor), when it is one of ids."""
+        try:
+            st = (self.client._req("GET", "/api/states/sensor.proos_activity_%s" % aid) or {}).get("state")
+            acts = (self.project.activities_status(self.client, self.project.load(), aid) or {}).get("activities") or []
+            for a in acts:
+                if st and a.get("key") == st and a.get("source_eid") in ids:
+                    return a["source_eid"]
+        except Exception:  # noqa: BLE001 — not known is not a guess: the caller asks
+            pass
+        return None
 
     def t_watch_options(self, args):
         """970oo: what the room can play and how far each goes (shortcuts + what this home has learned)."""
@@ -3403,22 +3464,37 @@ class ToolRunner:
         return out
 
     def t_app_shortcut_create(self, args):
-        """REGISTER 867: build the shortcut, TEST it on the device, add it only when the device confirmed."""
+        """REGISTER 867: build the shortcut, TEST it on the device, add it only when the device confirmed.
+        REGISTER 1339 (Dave 14 Nov 08:07: "be able to save it as a favourite if asked and advise it will appear on the
+        dashboard and which dashboard"): an app just opened in this session as a one-off, and taken by the device, IS the
+        test — it is saved as it ran, without opening it again. The answer says where it now appears."""
         aid = self._resolve_area_id(args.get("area_id"))
         app = (args.get("app") or "").strip()
         dev = (args.get("device") or "").strip()
+        last = self._last_launch()
+        if last and (not aid or aid == last["area"]) and (not app or app.lower() == str(last["app"]).lower()) \
+                and (not dev or dev == last["device"]):
+            aid, app, dev = last["area"], last["app"], last["device"]
         if not aid or not app or not dev:
             return {"error": "area_id, app and device required"}
         from . import shortcuts as _sc
         room = self._room_name(aid) or aid
-        out = _sc.build_tested(self.client, self.project, aid, app, dev)
+        if last and last.get("taken") and (aid, app, dev) == (last["area"], last["app"], last["device"]):
+            sc = last["sc"]
+            added = _sc.add(aid, sc)
+            out = ({"error": added["error"], "shortcut": sc} if added.get("error")
+                   else {"ok": True, "added": True, "shortcut": sc, "count": added.get("count"), "tested": "just opened"})
+        else:
+            out = _sc.build_tested(self.client, self.project, aid, app, dev)
         name = ((out.get("shortcut") or {}).get("name")) or app
         dname = self._device_name(dev)
         if out.get("ok"):
             self._audit("app_shortcut_create", app=name, device=dev, area=aid, tested=True)
             from . import voiceapps as _va
             _va.rewrite_after_shortcuts(self.client, self.project)   # register 879: apps AND the music sentence's taken list
-            out["say"] = "%s is set up in the %s on the %s — and it's on now." % (name, room, dname)
+            out["where"] = WHERE_SAVED_APPS
+            out["say"] = ("%s is saved as a favourite in the %s, on the %s. %s"
+                          % (name, room, dname, WHERE_SAVED_APPS.replace("<room>", room)))
         else:
             out["say"] = "I couldn't set %s up in the %s — %s." % (name, room, str(out.get("error") or "the test failed").rstrip("."))
         return out
@@ -3463,19 +3539,22 @@ class ToolRunner:
         t = " " + " ".join(str(text or "").lower().replace("’", "'").split()).strip(" .!?") + " "
         if any(" %s " % w in t for w in self.NO_WORDS):
             self._offer(None)
-            return {"ok": True, "say": "Okay — not added."}
-        dev = None
+            return {"ok": True, "say": "Okay." if p.get("kind") == "app_device" else "Okay — not added."}
+        dev, best = None, 0
         for d in p.get("devices") or []:
             n = " " + str(d.get("name") or "").lower() + " "
             short = n.replace(" " + str(p.get("room") or "").lower() + " ", " ")
-            if n.strip() and (n in t or (short.strip() and short in t)):
-                dev = d["entity_id"]
-                break
+            # 1339: the LONGEST name heard wins — "the apple tv" once matched the Bedroom TV by its short name " tv "
+            for cand in (n, short):
+                if cand.strip() and cand in t and len(cand.strip()) > best:
+                    dev, best = d["entity_id"], len(cand.strip())
         if dev is None and any(" %s " % w in t for w in self.YES_WORDS):
             dev = p.get("default")
         if dev is None:
             return None
         self._offer(None)
+        if p.get("kind") == "app_device":       # 1339: "which one?" answered — open it there, once; nothing saved
+            return self.t_app_launch({"area_id": p["area"], "app": p["app"], "device": dev})
         if p.get("kind") == "shortcut":
             return self.t_app_shortcut_create({"area_id": p["area"], "app": p["app"], "device": dev})
         if p.get("kind") == "dashboard":
@@ -8228,7 +8307,7 @@ def _app_turn(runner, user, text, where, session, t0):
     res = runner.t_app_launch({"area_id": aid, "app": app}) or {}
     say = res.get("say") or ("I couldn't do that — %s." % str(res.get("error") or "it couldn't be done").rstrip("."))
     print("  [assist] APP %s in %s → %s" % (app, aid, "launched" if res.get("ok") else ("offered" if res.get("not_set_up") else (res.get("error") or res))), flush=True)
-    return _plan_reply(runner, user, session, text, where, t0, say, "app" if res.get("ok") else ("app:offer" if res.get("not_set_up") else "app:failed"), 0)
+    return _plan_reply(runner, user, session, text, where, t0, say, "app" if res.get("ok") else ("app:ask" if res.get("ask") else ("app:offer" if res.get("not_set_up") else "app:failed")), 0)
 
 
 def _home_plan_turn(runner, client, project_mod, user, text, where, session, t0):
