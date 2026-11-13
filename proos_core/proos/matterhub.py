@@ -7,9 +7,11 @@ platform's own devices as a local Matter bridge. ProOS builds no bridge — it a
 
 HOW CORE REACHES IT. The hub's settings answer only the Supervisor (it starts with --http-ip-whitelist=172.30.32.2 and
 a random ingress port), and ProOS's front door refuses ingress by design (frontdoor.NOT_PASSED). So Core goes the
-platform's own way, from inside the box: the Supervisor gives Core an ingress session (POST /ingress/session — Core has
-hassio_role admin), and Core calls the hub through the platform's ingress address with that session. Nothing is opened
-to the network.
+platform's own way, from inside the box, as the platform's own pages do: the PLATFORM asks the Supervisor for an
+ingress session (websocket supervisor/api /ingress/session — the Supervisor takes that call from the platform only,
+`require_home_assistant`; read on the box 13 Nov: Core asking it directly got 401), and Core calls the Supervisor's own
+ingress route (/ingress/<token>/…, which needs only that session) — the Supervisor forwards it to the hub from the one
+address the hub allows. Nothing is opened to the network.
 
 WHAT IS READ, NOT ASSUMED: the bridge's status, how many devices it carries, the devices that FAILED to publish,
 whether it is commissioned, and which controllers hold it (its fabrics — Google, Amazon, Apple are named by the vendor
@@ -35,11 +37,11 @@ def find_slug(sv) -> str | None:
 
 
 class Hub:
-    """sv: Core's Supervisor call (returns the 'data'); base: the platform's address from inside the box;
-    opener: urllib's, swappable on the bench."""
+    """sv: Core's Supervisor call (returns the 'data'); ws: one command over Core's platform websocket;
+    supervisor: the Supervisor's address; opener: urllib's, swappable on the bench."""
 
-    def __init__(self, sv, base, opener=None):
-        self.sv, self.base, self.open = sv, base, (opener or urllib.request.urlopen)
+    def __init__(self, sv, ws, supervisor="http://supervisor", opener=None):
+        self.sv, self.ws, self.supervisor, self.open = sv, ws, supervisor, (opener or urllib.request.urlopen)
 
     def info(self) -> dict:
         slug = find_slug(self.sv)
@@ -57,10 +59,11 @@ class Hub:
             raise RuntimeError("the Matter Hub is installed but not running")
         if not inf.get("entry"):
             raise RuntimeError("the Supervisor gave no address for the Matter Hub")
-        session = (self.sv("POST", "/ingress/session") or {}).get("session")
+        session = (self.ws("supervisor/api", endpoint="/ingress/session", method="post") or {}).get("session")
         if not session:
-            raise RuntimeError("the Supervisor gave no session for the Matter Hub")
-        url = self.base().rstrip("/") + inf["entry"].rstrip("/") + "/api/matter/" + path.lstrip("/")
+            raise RuntimeError("the platform gave no session for the Matter Hub")
+        token = inf["entry"].strip("/").split("/")[-1]           # /api/hassio_ingress/<token>/ → <token>
+        url = self.supervisor.rstrip("/") + "/ingress/" + token + "/api/matter/" + path.lstrip("/")
         data = json.dumps(body).encode() if body is not None else None
         req = urllib.request.Request(url, data=data, method=method)
         req.add_header("Cookie", "ingress_session=" + session)

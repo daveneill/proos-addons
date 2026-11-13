@@ -4,7 +4,8 @@ GET/DELETE /api/matter/bridges/<id>, the BridgeDataWithMetadata shape).
 Run: python3 tests/google_and_alexa_through_the_matter_hub_bench.py
 
   1. the hub is found by asking the Supervisor (its slug ends _hamh) — not installed / not running is said, not guessed
-  2. Core reaches it from INSIDE the box: a Supervisor ingress session, the platform's own address + the hub's entry
+  2. Core reaches it from INSIDE the box: the platform asks for the ingress session (the Supervisor takes that from the
+     platform only — Core asking directly got 401 on the box), and the Supervisor's own ingress route carries the call
   3. the test bridge is ONE room's lights: area AND domain light ("all"), named "ProOS Bridge"
   4. what Pro shows is the hub's reading: status, devices, the ones that failed, paired, pairing code
   5. who it is paired with comes from the controller's own vendor id; an unknown id is shown as its number
@@ -45,8 +46,6 @@ class Sup:
                     ([{"slug": "3fd9e6b0_hamh", "installed": True}] if self.installed else [])}
         if path == "/addons/3fd9e6b0_hamh/info":
             return {"version": "2.0.59", "state": self.state, "ingress_entry": "/api/hassio_ingress/ENTRY/"}
-        if path == "/ingress/session":
-            return {"session": "S3SS"}
         raise AssertionError(path)
 
 
@@ -87,16 +86,27 @@ class HubSrv:
         return R()
 
 
-st = M.status(M.Hub(Sup(installed=False), lambda: "http://homeassistant:8123"))
-st2 = M.status(M.Hub(Sup(state="stopped"), lambda: "http://homeassistant:8123"))
+WS = []
+
+
+def ws(msg_type, **fields):
+    WS.append((msg_type, fields))
+    return {"session": "S3SS"}
+
+
+st = M.status(M.Hub(Sup(installed=False), ws))
+st2 = M.status(M.Hub(Sup(state="stopped"), ws))
 check("1 · found by asking the Supervisor; not installed / not running said as such",
       (st, st2["installed"], st2["running"], st2["version"], st2["bridges"]),
       ({"installed": False, "running": False, "version": None, "bridges": []}, True, False, "2.0.59", []))
 srv = HubSrv()
-hub = M.Hub(Sup(), lambda: "http://homeassistant:8123", opener=srv)
+sup = Sup()
+hub = M.Hub(sup, ws, "http://supervisor", opener=srv)
 M.status(hub)
-check("2 · reached from inside the box: the platform's address + the hub's entry, with a Supervisor ingress session",
-      srv.seen[0], ("GET", "http://homeassistant:8123/api/hassio_ingress/ENTRY/api/matter/bridges", "ingress_session=S3SS"))
+check("2 · reached from inside the box: the PLATFORM asks for the session; Core calls the Supervisor's ingress route",
+      (WS[0], srv.seen[0], ("POST", "/ingress/session") in sup.calls),
+      (("supervisor/api", {"endpoint": "/ingress/session", "method": "post"}),
+       ("GET", "http://supervisor/ingress/ENTRY/api/matter/bridges", "ingress_session=S3SS"), False))
 req = M.test_bridge_request("office")
 check("3 · the test bridge is one room's lights — area AND light — named ProOS Bridge",
       req, {"name": "ProOS Bridge", "filter": {"include": [{"type": "area", "value": "office"},
