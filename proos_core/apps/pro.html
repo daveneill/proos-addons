@@ -2107,6 +2107,18 @@ body.v3 .assist-fab{display:none!important}
 .chl-tools{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px}
 .chl-q,.chl-in{height:40px;border-radius:12px;background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.1);color:#fff;font:inherit;font-size:15px;font-weight:400;padding:0 12px;min-width:0}
 .chl-hint{display:block;margin:6px 4px 0;font-size:13px;color:rgba(255,255,255,.55);line-height:1.45}
+/* 1331 (Dave 13 Nov 16:38 "make sure it matches the layout"): the Channel Lists form look, for any v3 page */
+.v3form{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;padding:2px 4px 4px}
+.v3f{display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:600;color:rgba(255,255,255,.62);flex:1 1 200px;min-width:0}
+.v3in{height:44px;border-radius:12px;background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.1);color:#fff;font:inherit;font-size:15px;font-weight:400;padding:0 12px;min-width:0;-webkit-appearance:none;appearance:none}
+.v3in:focus{outline:none;border-color:rgba(33,57,240,.8)}
+.v3form .v3btn{height:44px;flex:0 0 auto}
+.v3hint{display:block;margin:8px 4px 0;font-size:13px;color:rgba(255,255,255,.55);line-height:1.45}
+.v3code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;color:rgba(255,255,255,.85);word-break:break-all}
+.v3row .rr.v{color:rgba(255,255,255,.75)}
+.v3row .ri img{width:24px;height:24px;object-fit:contain}
+.v3row .rr .v3btn{padding:8px 14px;font-size:13.5px}
+.v3stack{display:flex;flex-direction:column;gap:18px}
 .chl-q{flex:1;min-width:200px}
 #channels-body{container-type:inline-size}
 .chl-split{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,360px);gap:16px;align-items:start}
@@ -3095,7 +3107,7 @@ body.v3.railmin .aw-screen{left:108px!important}
          and the profile the Savant dealer imports all live here; Core keeps the
          switch in its own store. Nothing in the platform's UI, no add-on option. -->
     <div class="panel" id="panel-share">
-      <div class="panel-head"><button class="back" onclick="goHome()">‹ Home</button><div class="panel-title">Share With Another Control System</div><button class="btn-ghost" style="margin-left:auto" onclick="openShare()">Read Again</button></div>
+      <div class="panel-head"><button class="back" onclick="goHome()">‹ Home</button><div class="panel-title">Share With Another Control System</div></div>
       <div id="share-body"></div>
     </div>
     <!-- THE RACK (register 1322): infrared, 433 MHz radio and RS-232 gear, sorted from the platform's own list. -->
@@ -3403,7 +3415,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111208';
+const PROOS_BUILD='2026111209';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -8812,71 +8824,78 @@ async function _mhPost(path,body,done){
 function makeMatterTest(){ const a=(document.getElementById('mh-area')||{}).value||''; if(!a){ toast('Pick a room'); return; } _mhPost('/test',{area_id:a},'ProOS Bridge made'); }
 async function removeMatterBridge(i){ const b=(((_mhSt||{}).bridges)||[])[i]; if(!b) return; if(await proAsk('Remove "'+b.name+'"?\n\nGoogle Home and Alexa will lose the devices it carries.')) _mhPost('/'+encodeURIComponent(b.id)+'/remove',{},'Bridge removed'); }
 function matterCard(){
-  const st=_mhSt, T='<div class="sav-t">Google and Alexa</div>';
-  if(!st) return '<div class="sav-card">'+T+'<div class="sav-s">Reading…</div></div>';
-  if(st.err) return '<div class="sav-card">'+T+'<div class="sav-s">'+esc(st.err)+'.</div></div>';
-  if(!st.installed) return '<div class="sav-card">'+T+'<div class="sav-s">The Matter Hub is not on this box.</div></div>';
-  if(!st.running) return '<div class="sav-card">'+T+'<div class="sav-s">The Matter Hub '+esc(st.version||'')+' is installed but not running.</div></div>';
-  const rows=(st.bridges||[]).map((b,i)=>`<div class="sav-card" style="margin:8px 0 0">
-      <div class="sav-row"><span class="sav-nm" style="font-weight:600">${esc(b.name)}</span><span class="sav-v">${esc(b.status||'')}${b.reason?' — '+esc(b.reason):''}</span></div>
-      <div class="sav-row"><span class="sav-nm">Devices</span><span class="sav-v">${b.devices==null?'Not read':b.devices}</span></div>
-      ${(b.failed||[]).length?`<div class="sav-row"><span class="sav-nm">Not Published</span><span class="sav-v">${b.failed.map(f=>esc(entName(f.entity_id))+' ('+esc(f.reason)+')').join(', ')}</span></div>`:''}
-      <div class="sav-row"><span class="sav-nm">Paired With</span><span class="sav-v">${(b.controllers||[]).length?esc(b.controllers.join(', ')):'Nothing yet'}</span></div>
-      ${b.code?`<div class="sav-row"><span class="sav-nm">Pairing Code</span><span class="sav-v"><code style="font-size:16px;letter-spacing:1px">${esc(b.code)}</code></span></div>`:''}
-      ${b.proos?`<div class="sav-row"><span class="sav-nm"></span><span class="sav-v"><button class="btn-ghost" onclick="removeMatterBridge(${i})">Remove</button></span></div>`:''}
-    </div>`).join('');
-  const has=(st.bridges||[]).some(b=>b.proos);
-  const areaOpts=(_areas||[]).slice().sort((x,y)=>String(x.name).localeCompare(String(y.name))).map(a=>`<option value="${esc(a.area_id)}">${esc(a.name)}</option>`).join('');
-  return `<div class="sav-card">${T}<div class="sav-s">On test: the community Matter Hub ${esc(st.version||'')} publishes a room's lights as a Matter bridge. In Google Home or the Alexa app, add a Matter device and type the pairing code.</div>
-    ${rows||'<div class="sav-s" style="margin-top:6px">No bridges yet.</div>'}
-    ${has?'':`<div class="sav-row" style="margin-top:8px"><select id="mh-area" class="sav-sel" style="flex:1"><option value="">Pick a room…</option>${areaOpts}</select><button class="btn" onclick="makeMatterTest()">Make Test Bridge</button></div>`}
-  </div>`;
+  const st=_mhSt, head=`<div class="v3dh2"><div class="t">Google and Alexa</div><div class="s">On test: the community Matter Hub${st&&st.version?' '+esc(st.version):''} publishes devices as a Matter bridge. In Google Home or the Alexa app, add a Matter device and type the pairing code.</div></div>`;
+  if(!st) return '<div class="v3card">'+head+'<div class="v3empty">Reading…</div></div>';
+  if(st.err) return '<div class="v3card">'+head+'<div class="v3empty">'+esc(st.err)+'.</div></div>';
+  if(!st.installed) return '<div class="v3card">'+head+'<div class="v3empty">The Matter Hub is not on this box.</div></div>';
+  if(!st.running) return '<div class="v3card">'+head+'<div class="v3empty">The Matter Hub is installed but not running.</div></div>';
+  const word=v=>{ v=String(v||''); return v?v.charAt(0).toUpperCase()+v.slice(1):'Not Read'; };
+  const srow=(t1,rr,t2)=>`<div class="v3row static"><div class="rt"><div class="t1">${t1}</div>${t2?`<div class="t2">${t2}</div>`:''}</div><div class="rr v">${rr}</div></div>`;
+  let h='<div class="v3card">'+head;
+  (st.bridges||[]).forEach((b,i)=>{
+    h+=`<div class="v3sec"><div class="h">${esc(b.name)}</div><div class="v3rows">`
+      +srow('Status',`<span class="v3chip ${b.status==='running'?'ok':'amber'}">${esc(word(b.status))}</span>`, b.reason?esc(b.reason):'')
+      +srow('Devices',b.devices==null?'Not Read':String(b.devices))
+      +((b.failed||[]).length?srow('Not Published',String(b.failed.length),b.failed.map(f=>esc(entName(f.entity_id))+' — '+esc(f.reason)).join(' · ')):'')
+      +srow('Paired With',(b.controllers||[]).length?esc(b.controllers.join(', ')):'Nothing Yet')
+      +(b.code?srow('Pairing Code',`<span class="v3code" style="font-size:17px;letter-spacing:1px">${esc(b.code)}</span>`):'')
+      +'</div></div>'
+      +(b.proos?`<div class="v3foot"><span class="t2">Removing it takes these devices out of Google Home and Alexa.</span><button class="v3btn" onclick="removeMatterBridge(${i})">Remove Bridge</button></div>`:'');
+  });
+  if(!(st.bridges||[]).some(b=>b.proos)){
+    const areaOpts=(_areas||[]).slice().sort((x,y)=>String(x.name).localeCompare(String(y.name))).map(a=>`<option value="${esc(a.area_id)}">${esc(a.name)}</option>`).join('');
+    h+=`<div class="v3sec"><div class="h">Make a Test Bridge</div><div class="v3form"><label class="v3f">Room<select id="mh-area" class="v3in"><option value="">Choose a Room…</option>${areaOpts}</select></label><button class="v3btn pri" onclick="makeMatterTest()">Make Test Bridge</button></div><span class="v3hint">The test bridge carries that room's lights.</span></div>`;
+  }
+  return h+'</div>';
 }
 function _trgWhat(e){ const t=(((_trgSt||{}).targets)||[]).find(x=>x.entity_id===e); return t?t.name:(e||'nothing'); }
 function triggersCard(){
   const st=_trgSt;
-  if(!st) return '<div class="sav-card"><div class="sav-t">Outside Triggers</div><div class="sav-s">Reading…</div></div>';
-  if(st.err) return '<div class="sav-card"><div class="sav-t">Outside Triggers</div><div class="sav-s">'+esc(st.err)+'.</div></div>';
-  const addr=(lbl,u,i,w)=>u?`<div class="sav-row"><span class="sav-nm">${lbl}</span><span class="sav-v"><code style="word-break:break-all">${esc(u)}</code> <button class="btn-ghost" onclick="copyTrigger(${i},'${w}')">Copy</button></span></div>`:'';
-  let h=`<div class="sav-card"><div class="sav-t">Outside Triggers</div><div class="sav-s" style="margin-bottom:6px">Another system starts an activity or a scene here by calling an address (POST, PUT or GET) — Control4, Savant, a doorbell, a UniFi alarm. Each is the platform's own automation, so it keeps working without ProOS. The address is the key: give it only to that system.</div>`;
-  (st.triggers||[]).forEach((t,i)=>{ const what=_trgWhat(t.target), used=t.last_used?new Date(t.last_used).toLocaleString():'Never';
-    h+=`<div style="border-top:1px solid var(--line,rgba(255,255,255,.08));padding-top:8px;margin-top:8px"><div class="sav-row"><span class="sav-nm"><b>${esc(t.name)}</b></span><span class="sav-v">Starts ${esc(what)}</span></div>`
-      +addr('At Home',t.addresses&&t.addresses.home,i,'home')+addr('Away (ProOS Connect)',t.addresses&&t.addresses.away,i,'away')
-      +`<div class="sav-row"><span class="sav-nm">Last Used</span><span class="sav-v">${esc(used)}</span></div>`
-      +`<div class="sav-row" style="justify-content:flex-end;gap:8px"><button class="btn-ghost" onclick="testTrigger(${i})">Test</button><button class="btn-ghost" onclick="removeTrigger(${i})">Remove</button></div></div>`; });
-  if(!(st.triggers||[]).length) h+='<div class="sav-s">None yet.</div>';
-  const opts=(st.targets||[]).map(x=>`<option value="${esc(x.entity_id)}">${esc(x.name)}${x.entity_id.startsWith('scene.')?' (scene)':''}</option>`).join('');
-  h+=`<div class="sav-t" style="margin:12px 0 4px">Make an Outside Trigger</div><div class="sav-row"><input id="trg-name" class="sav-sel" placeholder="Name, e.g. Doorbell Pressed" autocomplete="off" style="flex:1"><select id="trg-target" class="sav-sel" style="flex:1"><option value="">Starts…</option>${opts}</select><button class="btn-p" onclick="makeTrigger()">Make</button></div>`;
-  if(!st.away) h+='<div class="sav-s" style="margin-top:6px">Away address: shown once ProOS Connect\'s line to this home is open.</div>';
-  return h+'</div>';
+  const head=`<div class="v3dh2"><div class="t">Outside Triggers</div><div class="s">Another system — Control4, Savant, a doorbell, a UniFi alarm — starts an activity or a scene here by calling an address (POST, PUT or GET). Each is the platform's own automation, so it keeps working without ProOS. The address is the key: give it only to that system.</div></div>`;
+  if(!st) return '<div class="v3card">'+head+'<div class="v3empty">Reading…</div></div>';
+  if(st.err) return '<div class="v3card">'+head+'<div class="v3empty">'+esc(st.err)+'.</div></div>';
+  const tr=st.triggers||[];
+  const addr=(lbl,u,i,w)=>u?`<div class="v3row static"><div class="rt"><div class="t2" style="margin:0">${lbl}</div><div class="v3code" style="margin-top:3px">${esc(u)}</div></div><div class="rr"><button class="v3btn" onclick="copyTrigger(${i},'${w}')">Copy</button></div></div>`:'';
+  let h='<div class="v3card">'+head+`<div class="v3sec"><div class="h"><span>Triggers · ${tr.length}</span><button onclick="loadTriggers()">Read Again</button></div>`;
+  if(!tr.length) h+='<div class="v3rows"><div class="v3empty">No Outside Triggers yet.</div></div>';
+  tr.forEach((t,i)=>{ const used=t.last_used?new Date(t.last_used).toLocaleString():'Never';
+    h+=`<div class="v3rows" style="margin-bottom:10px"><div class="v3row static"><div class="ri">${V3ICONS.bolt}</div><div class="rt"><div class="t1">${esc(t.name)}</div><div class="t2">Starts ${esc(_trgWhat(t.target))} · Last Used ${esc(used)}</div></div><div class="rr"><button class="v3btn" onclick="testTrigger(${i})">Test</button><button class="v3btn" onclick="removeTrigger(${i})">Remove</button></div></div>`
+      +addr('At Home',t.addresses&&t.addresses.home,i,'home')+addr('Away (ProOS Connect)',t.addresses&&t.addresses.away,i,'away')+'</div>'; });
+  const opts=(st.targets||[]).map(x=>`<option value="${esc(x.entity_id)}">${esc(x.name)}${x.entity_id.startsWith('scene.')?' (Scene)':''}</option>`).join('');
+  h+=`</div><div class="v3sec"><div class="h">Make an Outside Trigger</div><div class="v3form"><label class="v3f">Name<input id="trg-name" class="v3in" placeholder="e.g. Doorbell Pressed" autocomplete="off"></label><label class="v3f">Starts<select id="trg-target" class="v3in"><option value="">Choose an Activity or Scene…</option>${opts}</select></label><button class="v3btn pri" onclick="makeTrigger()">Make</button></div>`;
+  if(!st.away) h+='<span class="v3hint">The away address appears once ProOS Connect\'s line to this home is open.</span>';
+  return h+'</div></div>';
 }
 async function loadShare(){ try{ const r=await _coreFetch(proCoreUrl()+'/share/status',{},10000); _shrSt=r.ok?await r.json():{err:'Core did not answer'}; }catch(e){ _shrSt={err:'Core did not answer'}; } renderSharePanel(); }
 async function setShare(on){ try{ const r=await _coreFetch(proCoreUrl()+'/share/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:!!on})},15000); const j=await r.json().catch(()=>({})); if(r.ok){ _shrSt=j; toast(on?'Sharing on':'Sharing off'); } else toast(j.error||"Couldn't change sharing"); }catch(e){ toast("Couldn't reach Core"); } renderSharePanel(); }
 async function saveShareLogin(){ const u=(document.getElementById('shr-user')||{}).value||'', p=(document.getElementById('shr-pass')||{}).value||''; if(!u.trim()||!p){ toast('Type a username and a password'); return; }
   try{ const r=await _coreFetch(proCoreUrl()+'/share/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u.trim(),password:p})},30000); const j=await r.json().catch(()=>({})); const pf=document.getElementById('shr-pass'); if(pf) pf.value=''; if(r.ok){ _shrSt=j; toast('Login saved — the broker restarted'); } else toast(j.error||"Couldn't save the login"); }catch(e){ toast("Couldn't reach Core"); } renderSharePanel(); }
 function renderSharePanel(){
+  // 1331: Pro's v3 page look (as Channel Lists) — cards, section headings, striped rows, chips — not the Savant cards
   const host=document.getElementById('share-body'); if(!host) return; const st=_shrSt;
-  if(!st){ setHTML(host,'<div class="sav-card"><div class="sav-s">Reading…</div></div>'); return; }
-  if(st.err){ setHTML(host,'<div class="sav-card"><div class="sav-t">Share With Another Control System</div><div class="sav-s">'+esc(st.err)+'. This build of Core may not have sharing yet.</div></div>'); return; }
+  if(!st){ setHTML(host,'<div class="v3card"><div class="v3empty">Reading…</div></div>'); return; }
+  if(st.err){ setHTML(host,'<div class="v3card"><div class="v3dh2"><div class="t">Share Room Activity Over MQTT</div></div><div class="v3empty">'+esc(st.err)+'. This build of Core may not have sharing yet.</div></div>'); return; }
   const b=st.broker||{}, ready=b.installed&&b.running&&st.mqtt_loaded, on=!!st.sharing, ip=esc((location.hostname||'').replace(/^\[|\]$/g,''));
-  const row=(ok,nm,v)=>`<div class="sav-row"><span class="sav-dot ${ok?'on':'bad'}"></span><span class="sav-nm">${nm}</span><span class="sav-v">${v}</span></div>`;
-  let h=`<div class="sav-card"><div class="sav-h"><div><div class="sav-t">Share Room Activity Over MQTT</div><div class="sav-s">Another control system — Control4, Crestron, Savant, Node-RED or a building system — follows every room's activity and the home summary. The platform's own broker and MQTT do the work; ProOS only turns it on.</div></div>
-      <button class="sw ${on?'on':''}" role="switch" aria-checked="${on}" ${ready?'':'disabled'} onclick="setShare(${!on})"><span class="sw-knob"></span></button></div></div>`;
-  h+=`<div class="sav-card">`+row(b.installed,'Broker (Mosquitto)',b.installed?(b.running?'Running':'Installed, not running'):'Not installed')
-     +row(st.mqtt_loaded,'Platform MQTT',st.mqtt_loaded?'Connected':'Not set up')
-     +row(on,'Sharing',on?(st.up_to_date===false?'On — the room list changed, switch off and on to update':'On'):'Off')+`</div>`;
-  h+=`<div class="sav-card"><div class="sav-t" style="margin-bottom:4px">Connect The Other System</div>
-      <div class="sav-row"><span class="sav-nm">Broker address</span><span class="sav-v">${ip}</span></div>
-      <div class="sav-row"><span class="sav-nm">Port</span><span class="sav-v">${b.port||1883}</span></div>
-      <div class="sav-row"><span class="sav-nm">Logins</span><span class="sav-v">${(st.logins||[]).length?esc(st.logins.join(', ')):'None yet'}</span></div>
-      <div class="sav-s" style="margin:8px 0 4px">Give the other system its own login. Type it here; the password is handed to the broker and never shown again.</div>
-      <div class="sav-row"><input id="shr-user" class="sav-sel" placeholder="Username" autocomplete="off" style="flex:1"><input id="shr-pass" class="sav-sel" type="password" placeholder="Password" autocomplete="new-password" style="flex:1"><button class="btn-primary" onclick="saveShareLogin()">Save Login</button></div></div>`;
+  const chip=(ok,txt)=>`<span class="v3chip ${ok?'ok':'amber'}">${esc(txt)}</span>`;
+  const srow=(t1,t2,rr)=>`<div class="v3row static"><div class="rt"><div class="t1">${t1}</div>${t2?`<div class="t2">${t2}</div>`:''}</div><div class="rr v">${rr}</div></div>`;
   const sh=st.shared||[];
-  h+=`<div class="sav-card"><div class="sav-t" style="margin-bottom:4px">What Is Shared</div><div class="sav-s" style="margin-bottom:6px">Each topic carries {"state": …, "attributes": {…}}, retained, sent on every change and again whenever the platform starts.</div>`
-     +(sh.length?sh.map(x=>`<div class="sav-row"><span class="sav-nm">${esc(entName(x.entity_id))}</span><span class="sav-v"><code>${esc(x.topic)}</code></span></div>`).join(''):'<div class="sav-s">No ProOS room states yet.</div>')+`</div>`;
+  let h=`<div class="v3stack"><div class="v3card"><div class="v3dh2"><div class="t">Share Room Activity Over MQTT</div><div class="s">Another control system — Control4, Crestron, Savant, Node-RED or a building system — follows every room's activity and the home summary. The platform's own broker and MQTT do the work; ProOS only turns it on.</div></div>
+    <div class="v3sec"><div class="h">Status</div><div class="v3rows">`
+    +srow('Sharing', on&&st.up_to_date===false?'The room list changed — switch off and on to update':'', `<button class="sw ${on?'on':''}" role="switch" aria-checked="${on}" ${ready?'':'disabled'} onclick="setShare(${!on})"><span class="sw-knob"></span></button>`)
+    +srow('Broker (Mosquitto)','',chip(b.installed&&b.running, b.installed?(b.running?'Running':'Installed, Not Running'):'Not Installed'))
+    +srow('Platform MQTT','',chip(st.mqtt_loaded, st.mqtt_loaded?'Connected':'Not Set Up'))
+    +`</div></div>
+    <div class="v3sec"><div class="h">Connect the Other System</div><div class="v3rows">`
+    +srow('Broker Address','',`<span class="v3code">${ip}</span>`)+srow('Port','',`<span class="v3code">${b.port||1883}</span>`)
+    +srow('Logins','',(st.logins||[]).length?esc(st.logins.join(', ')):'None Yet')
+    +`</div><div class="v3form" style="margin-top:12px"><label class="v3f">Username<input id="shr-user" class="v3in" autocomplete="off"></label><label class="v3f">Password<input id="shr-pass" class="v3in" type="password" autocomplete="new-password"></label><button class="v3btn pri" onclick="saveShareLogin()">Save Login</button></div>
+      <span class="v3hint">Give the other system its own login. The password is handed to the broker and never shown again.</span></div>
+    <div class="v3sec"><div class="h">What Is Shared · ${sh.length}</div>`
+    +(sh.length?`<div class="v3rows">${sh.map(x=>srow(esc(entName(x.entity_id)),'',`<span class="v3code">${esc(x.topic)}</span>`)).join('')}</div>`:'<div class="v3rows"><div class="v3empty">No ProOS room states yet.</div></div>')
+    +`<span class="v3hint">Each topic carries {"state": …, "attributes": {…}}, retained, sent on every change and again whenever the platform starts.</span></div></div>`;
   h+=triggersCard();   // 1328
   h+=matterCard();     // 1330
-  setHTML(host,h);
+  setHTML(host,h+'</div>');
 }
 // ── THE RACK (register 1322, 12 Nov 2026) ─────────────────────────────────
 // Dave 16:01: "It needs to support anything we add to the device list and update from their updates". So there is
@@ -8928,19 +8947,21 @@ async function loadRack(){
 }
 function openRack(){ show('rack'); _rack=null; renderRackPanel(); loadRack(); }
 function renderRackPanel(){
+  // 1331: Pro's v3 page look — cards, section headings, striped rows that highlight when pressed, chips
   const host=document.getElementById('rack-body'); if(!host) return; const r=_rack;
-  if(!r){ setHTML(host,'<div class="sav-card"><div class="sav-s">Reading the platform\'s list…</div></div>'); return; }
-  if(r.err){ setHTML(host,'<div class="sav-card"><div class="sav-t">The Rack</div><div class="sav-s">'+esc(r.err)+'.</div></div>'); return; }
-  const row=x=>!x.flow?`<div class="row"><div class="rl rl-logo">${intgLogo(x.domain)}<span>${esc(x.name)}</span></div><div class="rr" style="opacity:.6">Set up by file only</div></div>`:`<div class="row tappable" onclick="addIntegration('${esc(x.domain)}')"><div class="rl rl-logo">${intgLogo(x.domain)}<span>${esc(x.name)}</span></div><div class="rr">${x.set?esc('Set up ('+x.set+') · Add Another'):'Set Up'} &rsaquo;</div></div>`;
-  const ad=(ids,label)=>`<div class="sav-row"><span class="sav-dot ${ids.length?'on':'bad'}"></span><span class="sav-nm">${label}</span><span class="sav-v">${ids.length?esc(ids.map(entName).join(', ')):'None on this box'}</span></div>`;
-  const sec=(t,s,a)=>`<div class="sav-card"><div class="sav-t" style="margin-bottom:4px">${t} (${a.length})</div><div class="sav-s" style="margin-bottom:6px">${s}</div>${a.map(row).join('')||'<div class="sav-s">None in this platform version.</div>'}</div>`;
-  let h=`<div class="sav-card"><div class="sav-t">Gear the Network Can't Reach</div><div class="sav-s">Infrared, 433 MHz radio and RS-232. Every brand here is the platform's own, read from it just now (${r.read} integrations), so a platform update or a driver you add appears by itself. Tap one to set it up; it lands in its room like any other device.</div></div>`;
-  h+=`<div class="sav-card"><div class="sav-t" style="margin-bottom:4px">Adapters on This Box</div>`+ad(r.adapters.ir,'Infrared')+ad(r.adapters.rf,'433 MHz Radio')
-     +`<div class="sav-s" style="margin-top:6px">RS-232 and serial: each setup lists the ports this box can see — a Connect AUX-2, a USB serial cable or an ESPHome serial proxy.</div></div>`;
+  const head=n=>`<div class="v3dh2"><div class="t">Gear the Network Can't Reach</div><div class="s">Infrared, 433 MHz radio and RS-232. Every brand here is the platform's own${n?', read from it just now ('+n+' integrations)':''}, so a platform update or a driver you add appears by itself. Tap one to set it up; it lands in its room like any other device.</div></div>`;
+  if(!r){ setHTML(host,'<div class="v3card">'+head(0)+'<div class="v3empty">Reading the platform\'s list…</div></div>'); return; }
+  if(r.err){ setHTML(host,'<div class="v3card">'+head(0)+'<div class="v3empty">'+esc(r.err)+'.</div></div>'); return; }
+  const row=x=>!x.flow
+    ?`<div class="v3row static"><div class="ri">${intgLogo(x.domain)}</div><div class="rt"><div class="t1">${esc(x.name)}</div></div><div class="rr">Set Up by File Only</div></div>`
+    :`<div class="v3row" onclick="addIntegration('${esc(x.domain)}')"><div class="ri">${intgLogo(x.domain)}</div><div class="rt"><div class="t1">${esc(x.name)}</div>${x.set?`<div class="t2">${x.set} Set Up</div>`:''}</div><div class="rr">${x.set?'Add Another':'Set Up'}<svg class="cv" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></div></div>`;
+  const ad=(ids,label)=>`<div class="v3row static"><div class="rt"><div class="t1">${label}</div>${ids.length?`<div class="t2">${esc(ids.map(entName).join(', '))}</div>`:''}</div><div class="rr"><span class="v3chip ${ids.length?'ok':'amber'}">${ids.length?'Ready':'None on This Box'}</span></div></div>`;
+  const sec=(t,hint,a)=>`<div class="v3sec"><div class="h">${t} · ${a.length}</div><div class="v3rows">${a.map(row).join('')||'<div class="v3empty">None in this platform version.</div>'}</div><span class="v3hint">${hint}</span></div>`;
+  let h='<div class="v3card">'+head(r.read)+`<div class="v3sec"><div class="h"><span>Adapters on This Box</span><button onclick="openRack()">Read Again</button></div><div class="v3rows">`+ad(r.adapters.ir,'Infrared')+ad(r.adapters.rf,'433 MHz Radio')+`</div><span class="v3hint">RS-232 and serial: each setup lists the ports this box can see — a Connect AUX-2, a USB serial cable or an ESPHome serial proxy.</span></div>`;
   h+=sec('Infrared', r.adapters.ir.length?'Sent through the infrared adapter above.':'Needs an infrared adapter first — an ESPHome infrared proxy such as the Seeed XIAO IR Mate. Until one is added, a setup has nothing to send through.', r.ir);
   h+=sec('433 MHz Radio', r.adapters.rf.length?'Sent through the radio adapter above.':'Needs a 433 MHz radio adapter first — an ESPHome radio proxy.', r.rf);
   h+=sec('Wired to a Port (RS-232, RS-485, Modbus)','The setup asks which port the device is on.', r.wired);
-  setHTML(host,h);
+  setHTML(host,h+'</div>');
 }
 // ── SAVANT (register 630) ─────────────────────────────────────────────────
 let _savPoll=null, _savStatus=null;
