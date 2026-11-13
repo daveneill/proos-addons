@@ -44,7 +44,7 @@ import time
 
 # Bumped ONLY when the integration's own code below changes — a Core
 # update that leaves the door alone must not ask for a restart.
-DOOR_BUILD = "12"
+DOOR_BUILD = "13"
 DOMAIN = "proos"
 # REGISTER 928 (door build 3): conversation.py — "ProOS Assist", the platform's
 # own way of plugging an assistant into its voice pipeline, so a room's own
@@ -57,6 +57,7 @@ DOMAIN = "proos"
 # REGISTER 1326 (door build 10): repairs.py + translations/en.json — Health's open faults on the platform's Repairs list.
 # REGISTER 1330d (door build 11): matterhub.py — the Matter Hub (Google and Alexa) asked from inside the platform, for Core only.
 # REGISTER 1330e (door build 12): the door asks Core to vouch for each call, instead of trusting the caller's address.
+# REGISTER 1330h (door build 13): the hub's session is opened as an administrator (its page is administrators-only).
 DOOR_FILES = ("manifest.json", "__init__.py", "config_flow.py", "conversation.py", "presence.py", "sensor.py",
               "llm_tools.py", "repairs.py", "matterhub.py", "translations/en.json")
 QUIET_FILE = "proos_quiet"            # in the platform's config folder: present = the platform stays unannounced
@@ -794,7 +795,7 @@ _MATTERHUB = '''"""The Matter Hub (Google and Alexa), asked from inside the plat
 
 Written by ProOS Core (proos/door.py, door build 11). The hub's settings answer only the Supervisor, through an
 ingress session, and only the platform may ask the Supervisor for one (for a user it names). Core cannot; this door
-can. It asks for a session for the door's own panel user, calls the hub through the Supervisor's ingress route, and
+can. It asks for a session for an administrator (the hub's page is administrators-only — 1330h), calls the hub through the Supervisor's ingress route, and
 hands Core the hub's answer. The session never leaves the platform.
 
 FOR CORE ONLY: every call carries a one-time word Core issued, and the door asks Core (inside the box) whether it did —
@@ -815,6 +816,19 @@ CORE = "%(core)s"
 URL = "/api/proos_core_only/matterhub/{tail:.*}"
 PATHS = re.compile(r"^bridges(/[A-Za-z0-9_-]+)?$")       # the hub's bridge API — nothing else is carried
 CALL_S = 25
+
+
+async def _admin_user_id(hass, entry):
+    """The Matter Hub's page is for administrators only, and the Supervisor checks the session's user (1330h, read on the
+    box: a session for the door's panel user, not an administrator, met "403: Forbidden"). The panel user when it is
+    one; otherwise the platform's owner, the administrator every box has."""
+    uid = (entry.data or {}).get("panel_user")
+    if uid:
+        u = await hass.auth.async_get_user(uid)
+        if u and u.is_active and u.is_admin:
+            return u.id
+    owner = await hass.auth.async_get_owner()
+    return owner.id if owner and owner.is_active else None
 
 
 async def _core_vouches(hass, word):
@@ -858,9 +872,9 @@ class MatterHubDoor(HomeAssistantView):
             token = request.query.get("token") or ""
             if not re.match(r"^[A-Za-z0-9_-]+$", slug + token):
                 return self.json({"error": "no Matter Hub address"}, status_code=400)
-            uid = (self.entry.data or {}).get("panel_user")
+            uid = await _admin_user_id(self.hass, self.entry)
             if not uid:
-                return self.json({"error": "the door has no panel user to open the Matter Hub with"}, status_code=503)
+                return self.json({"error": "no administrator on the platform to open the Matter Hub as"}, status_code=503)
             client = get_supervisor_client(self.hass)
             session = await client.ingress.create_session(CreateSessionOptions(user_id=uid))
             base = str(self.hass.data[DATA_COMPONENT].base_url).rstrip("/")

@@ -7,8 +7,8 @@ Run: python3 tests/google_and_alexa_through_the_matter_hub_bench.py
   2. Core reaches it from INSIDE the box through the DOOR (Core asking the Supervisor got 401, the platform's websocket
      'unauthorized' — 1330b, 1330c); Core holds no session
   8. the door: answers only a call Core vouches for (a one-time word, asked back of Core — 1330e: the address check
-     refused Core itself on the box); carries the hub's bridge paths only; makes the session for its panel
-     user and calls the Supervisor's ingress route; ProOS's front door never passes the path
+     refused Core itself on the box); carries the hub's bridge paths only; makes the session for an
+     administrator (the hub's page is administrators-only — 1330h) and calls the Supervisor's ingress route; ProOS's front door never passes the path
   3. the test bridge is ONE room's lights: area AND domain light ("all"), named "ProOS Bridge"
   4. what Pro shows is the hub's reading: status, devices, the ones that failed, paired, pairing code
   5. who it is paired with comes from the controller's own vendor id; an unknown id is shown as its number
@@ -227,7 +227,18 @@ sys.modules[DM.__name__] = DM
 exec(compile(D.files("http://abc-proos:8770")["matterhub.py"].decode(), "matterhub.py", "exec"), DM.__dict__)
 
 
-hass = types.SimpleNamespace(data={"hassio": types.SimpleNamespace(base_url="http://172.30.32.2")})
+class Auth:
+    users = {"u-panel": types.SimpleNamespace(id="u-panel", is_active=True, is_admin=False),
+             "u-owner": types.SimpleNamespace(id="u-owner", is_active=True, is_admin=True)}
+
+    async def async_get_user(self, uid):
+        return self.users.get(uid)
+
+    async def async_get_owner(self):
+        return self.users["u-owner"]
+
+
+hass = types.SimpleNamespace(data={"hassio": types.SimpleNamespace(base_url="http://172.30.32.2")}, auth=Auth())
 v = DM.MatterHubDoor(hass, types.SimpleNamespace(data={"panel_user": "u-panel"}))
 
 
@@ -255,9 +266,10 @@ none, made_up, first, c, reused, stale = asyncio.run(door_runs())
 check("8 · the door answers only a call Core vouches for — none, made up, used twice or stale is refused",
       (none[1], made_up[1], reused[1], stale[1], none[2]["error"]), (403, 403, 403, 403, "for ProOS Core only"))
 check("   …and carries the hub's bridge paths only", first[1], 404)
-check("   …makes the session for its panel user inside the platform and calls the Supervisor's ingress route",
+check("   …makes the session inside the platform for an ADMINISTRATOR (the panel user is not one, so the owner — 1330h)\n"
+      "       and calls the Supervisor's ingress route",
       (made_sessions, outbound, c[:2]),
-      (["u-panel"], [("GET", "http://172.30.32.2/ingress/ENTRY/api/matter/bridges", {"ingress_session": "SESSION"})], ("resp", 200)))
+      (["u-owner"], [("GET", "http://172.30.32.2/ingress/ENTRY/api/matter/bridges", {"ingress_session": "SESSION"})], ("resp", 200)))
 srvsrc = open(os.path.join(CORE, "server.py"), encoding="utf-8").read()
 check("   (SOURCE) Core's /door/vouch answers the voucher and nothing else; Core sends one with every hub call",
       ('parts == ["door", "vouch"]' in srvsrc and '_mhv.vouch(_w)' in srvsrc.split('parts == ["door", "vouch"]')[1][:600],
@@ -265,7 +277,7 @@ check("   (SOURCE) Core's /door/vouch answers the voucher and nothing else; Core
 check("   …ProOS's front door never passes the path; the door is build 11 and installs the file",
       (FD.is_platform_path("api/proos_core_only/matterhub/bridges"), FD.is_platform_path("api/states"), D.DOOR_BUILD,
        "matterhub.py" in D.DOOR_FILES, "matterhub.async_register(hass, entry)" in D.files()["__init__.py"].decode()),
-      (False, True, "12", True, True))
+      (False, True, "13", True, True))
 _authsrc = srvsrc.split("    def _auth(self")[1].split("    def _body(self")[0]
 check("   (SOURCE) the door's question passes Core's sign-in gate, GET only (1330g: on the box it met a 401)",
       'if path == "door/vouch" and self.command == "GET":\n                return True' in _authsrc
