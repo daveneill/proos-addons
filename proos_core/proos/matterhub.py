@@ -6,12 +6,12 @@ shows "Home Assistant Cloud" in the customer's app; the Matter Hub (RiDDiX fork,
 platform's own devices as a local Matter bridge. ProOS builds no bridge — it asks the hub for one, and reads it back.
 
 HOW CORE REACHES IT. The hub's settings answer only the Supervisor (it starts with --http-ip-whitelist=172.30.32.2 and
-a random ingress port), and ProOS's front door refuses ingress by design (frontdoor.NOT_PASSED). So Core goes the
-platform's own way, from inside the box, as the platform's own pages do: the PLATFORM asks the Supervisor for an
-ingress session (websocket supervisor/api /ingress/session — the Supervisor takes that call from the platform only,
-`require_home_assistant`; read on the box 13 Nov: Core asking it directly got 401), and Core calls the Supervisor's own
-ingress route (/ingress/<token>/…, which needs only that session) — the Supervisor forwards it to the hub from the one
-address the hub allows. Nothing is opened to the network.
+a random ingress port), through an ingress session — and only the platform may ask the Supervisor for one, for a user
+it names (read on the box 13 Nov: Core asking the Supervisor got 401 (1330b); Core asking through the platform's
+websocket got "unauthorized", Core's platform user not being an admin (1330c)). So the DOOR asks (door build 11,
+1330d): Core calls the door's /api/proos_core_only/matterhub/<bridge path> on the platform from inside the box; the door,
+inside the platform, makes the session for its panel user, calls the hub, and hands back the hub's answer. The session
+never leaves the platform; the door answers Core's own address only; ProOS's front door never passes that path.
 
 WHAT IS READ, NOT ASSUMED: the bridge's status, how many devices it carries, the devices that FAILED to publish,
 whether it is commissioned, and which controllers hold it (its fabrics — Google, Amazon, Apple are named by the vendor
@@ -20,6 +20,7 @@ id the controller reported; an id ProOS does not know is shown as its number, ne
 from __future__ import annotations
 
 import json
+import urllib.parse
 import urllib.request
 
 SLUG_SUFFIX = "_hamh"                  # the hub's stable app; its prefix is the Supervisor's hash of the source
@@ -36,12 +37,15 @@ def find_slug(sv) -> str | None:
     return None
 
 
-class Hub:
-    """sv: Core's Supervisor call (returns the 'data'); ws: one command over Core's platform websocket;
-    supervisor: the Supervisor's address; opener: urllib's, swappable on the bench."""
+DOOR_PATH = "/api/proos_core_only/matterhub/"
 
-    def __init__(self, sv, ws, supervisor="http://supervisor", opener=None):
-        self.sv, self.ws, self.supervisor, self.open = sv, ws, supervisor, (opener or urllib.request.urlopen)
+
+class Hub:
+    """sv: Core's Supervisor call (returns the 'data'); base: the platform's address from inside the box;
+    opener: urllib's, swappable on the bench."""
+
+    def __init__(self, sv, base, opener=None):
+        self.sv, self.base, self.open = sv, base, (opener or urllib.request.urlopen)
 
     def info(self) -> dict:
         slug = find_slug(self.sv)
@@ -59,14 +63,11 @@ class Hub:
             raise RuntimeError("the Matter Hub is installed but not running")
         if not inf.get("entry"):
             raise RuntimeError("the Supervisor gave no address for the Matter Hub")
-        session = (self.ws("supervisor/api", endpoint="/ingress/session", method="post") or {}).get("session")
-        if not session:
-            raise RuntimeError("the platform gave no session for the Matter Hub")
         token = inf["entry"].strip("/").split("/")[-1]           # /api/hassio_ingress/<token>/ → <token>
-        url = self.supervisor.rstrip("/") + "/ingress/" + token + "/api/matter/" + path.lstrip("/")
+        url = (self.base().rstrip("/") + DOOR_PATH + path.lstrip("/") + "?" +
+               urllib.parse.urlencode({"slug": inf["slug"], "token": token}))
         data = json.dumps(body).encode() if body is not None else None
         req = urllib.request.Request(url, data=data, method=method)
-        req.add_header("Cookie", "ingress_session=" + session)
         if data is not None:
             req.add_header("Content-Type", "application/json")
         with self.open(req, timeout=timeout) as r:

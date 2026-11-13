@@ -8846,8 +8846,9 @@ class Handler(BaseHTTPRequestHandler):
                 if _project_caller(getattr(self, "_user", None)) is None:
                     return self._send(403, {"error": "installer access required"})
                 from proos import matterhub as _mh
+                from proos import platformaddr as _pa
                 try:
-                    return self._send(200, _mh.status(_mh.Hub(_sv, _ws_call, SUPERVISOR)))
+                    return self._send(200, _mh.status(_mh.Hub(_sv, _pa.base)))
                 except Exception as e:                               # noqa: BLE001
                     return self._send(502, {"error": "the Matter Hub did not answer: %s" % str(e)[:160]})
             if parts == ["triggers"]:
@@ -12195,7 +12196,8 @@ class Handler(BaseHTTPRequestHandler):
                 if _project_caller(getattr(self, "_user", None)) is None:
                     return self._send(403, {"error": "installer access required"})
                 from proos import matterhub as _mh
-                _hub = _mh.Hub(_sv, _ws_call, SUPERVISOR)
+                from proos import platformaddr as _pa
+                _hub = _mh.Hub(_sv, _pa.base)
                 b = self._body() or {}
                 try:
                     if parts == ["matterhub", "test"]:

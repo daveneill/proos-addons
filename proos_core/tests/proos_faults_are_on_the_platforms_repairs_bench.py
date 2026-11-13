@@ -132,6 +132,6 @@ check("   …and the installer writes the subfolder file", (os.path.exists(os.pa
 src_srv = open(os.path.join(CORE, "server.py"), encoding="utf-8").read()
 check("   (SOURCE) Core runs the push and the door starts the listener, build 10",
       'threading.Thread(target=_repairs_loop, name="proos-repairs"' in src_srv and "await repairs.async_start(hass, entry)"
-      in D.files()["__init__.py"].decode() and D.DOOR_BUILD == "10" and "repairs.py" in D.DOOR_FILES)
+      in D.files()["__init__.py"].decode() and D.DOOR_BUILD in ("10", "11") and "repairs.py" in D.DOOR_FILES)   # 1330d: build 11 keeps the Repairs listener
 print("\n%d passed, %d failed" % (PASS, len(FAIL)))
 sys.exit(1 if FAIL else 0)

@@ -4,8 +4,10 @@ GET/DELETE /api/matter/bridges/<id>, the BridgeDataWithMetadata shape).
 Run: python3 tests/google_and_alexa_through_the_matter_hub_bench.py
 
   1. the hub is found by asking the Supervisor (its slug ends _hamh) — not installed / not running is said, not guessed
-  2. Core reaches it from INSIDE the box: the platform asks for the ingress session (the Supervisor takes that from the
-     platform only — Core asking directly got 401 on the box), and the Supervisor's own ingress route carries the call
+  2. Core reaches it from INSIDE the box through the DOOR (Core asking the Supervisor got 401, the platform's websocket
+     'unauthorized' — 1330b, 1330c); Core holds no session
+  8. the door: answers Core's own address only; carries the hub's bridge paths only; makes the session for its panel
+     user and calls the Supervisor's ingress route; ProOS's front door never passes the path
   3. the test bridge is ONE room's lights: area AND domain light ("all"), named "ProOS Bridge"
   4. what Pro shows is the hub's reading: status, devices, the ones that failed, paired, pairing code
   5. who it is paired with comes from the controller's own vendor id; an unknown id is shown as its number
@@ -55,7 +57,7 @@ class HubSrv:
 
     def __call__(self, req, timeout=None):
         self.seen.append((req.get_method(), req.full_url, req.get_header("Cookie")))
-        path = req.full_url.split("/api/matter/", 1)[1]
+        path = req.full_url.split("/matterhub/", 1)[1].split("?")[0]
         m = req.get_method()
         out = None
         if path == "bridges" and m == "GET":
@@ -86,27 +88,19 @@ class HubSrv:
         return R()
 
 
-WS = []
-
-
-def ws(msg_type, **fields):
-    WS.append((msg_type, fields))
-    return {"session": "S3SS"}
-
-
-st = M.status(M.Hub(Sup(installed=False), ws))
-st2 = M.status(M.Hub(Sup(state="stopped"), ws))
+BASE = lambda: "http://homeassistant:8123"  # noqa: E731
+st = M.status(M.Hub(Sup(installed=False), BASE))
+st2 = M.status(M.Hub(Sup(state="stopped"), BASE))
 check("1 · found by asking the Supervisor; not installed / not running said as such",
       (st, st2["installed"], st2["running"], st2["version"], st2["bridges"]),
       ({"installed": False, "running": False, "version": None, "bridges": []}, True, False, "2.0.59", []))
 srv = HubSrv()
 sup = Sup()
-hub = M.Hub(sup, ws, "http://supervisor", opener=srv)
+hub = M.Hub(sup, BASE, opener=srv)
 M.status(hub)
-check("2 · reached from inside the box: the PLATFORM asks for the session; Core calls the Supervisor's ingress route",
-      (WS[0], srv.seen[0], ("POST", "/ingress/session") in sup.calls),
-      (("supervisor/api", {"endpoint": "/ingress/session", "method": "post"}),
-       ("GET", "http://supervisor/ingress/ENTRY/api/matter/bridges", "ingress_session=S3SS"), False))
+check("2 · Core asks the DOOR, on the platform from inside the box, with the hub's app and address — no session of its own",
+      (srv.seen[0], ("POST", "/ingress/session") in sup.calls),
+      (("GET", "http://homeassistant:8123/api/proos_core_only/matterhub/bridges?slug=3fd9e6b0_hamh&token=ENTRY", None), False))
 req = M.test_bridge_request("office")
 check("3 · the test bridge is one room's lights — area AND light — named ProOS Bridge",
       req, {"name": "ProOS Bridge", "filter": {"include": [{"type": "area", "value": "office"},
@@ -144,5 +138,105 @@ p = srv_src.split('if parts and parts[0] == "matterhub":')[1][:400]
 z = open(os.path.join(CORE, "zipfiles.txt"), encoding="utf-8").read().split()
 check("7 · (SOURCE) both routes installer-only; the module rides in the zip",
       ("installer access required" in g and "installer access required" in p and "proos/matterhub.py" in z))
+
+# ── 8 · the door file (door build 11) against a stand-in platform ──
+import asyncio  # noqa: E402
+import types  # noqa: E402
+
+made_sessions, outbound = [], []
+
+
+class View:
+    def json(self, d, status_code=200):
+        return ("json", status_code, d)
+
+
+class Resp:
+    def __init__(self, status, body):
+        self.status, self.body = status, body
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *a):
+        return False
+
+    async def read(self):
+        return self.body
+
+
+class Sess:
+    def request(self, method, url, data=None, headers=None, cookies=None, timeout=None):
+        outbound.append((method, url, cookies))
+        return Resp(200, b"[]")
+
+
+class Ingress:
+    async def create_session(self, opts):
+        made_sessions.append(opts.user_id)
+        return "SESSION"
+
+
+web = types.ModuleType("aiohttp.web")
+web.Response = lambda status, body, content_type: ("resp", status, body)
+aio = types.ModuleType("aiohttp")
+aio.web, aio.ClientTimeout = web, (lambda total=None: total)
+http = types.ModuleType("homeassistant.components.http")
+http.HomeAssistantView = View
+cs = types.ModuleType("homeassistant.helpers.aiohttp_client")
+cs.async_get_clientsession = lambda hass: Sess()
+models = types.ModuleType("aiohasupervisor.models")
+models.CreateSessionOptions = lambda user_id: types.SimpleNamespace(user_id=user_id)
+handler = types.ModuleType("homeassistant.components.hassio.handler")
+handler.get_supervisor_client = lambda hass: types.SimpleNamespace(ingress=Ingress())
+const = types.ModuleType("homeassistant.components.hassio.const")
+const.DATA_COMPONENT = "hassio"
+for n, m in {"aiohttp": aio, "aiohttp.web": web, "homeassistant": types.ModuleType("homeassistant"),
+             "homeassistant.components": types.ModuleType("homeassistant.components"),
+             "homeassistant.components.http": http, "homeassistant.helpers": types.ModuleType("homeassistant.helpers"),
+             "homeassistant.helpers.aiohttp_client": cs, "aiohasupervisor": types.ModuleType("aiohasupervisor"),
+             "aiohasupervisor.models": models, "homeassistant.components.hassio": types.ModuleType("homeassistant.components.hassio"),
+             "homeassistant.components.hassio.handler": handler, "homeassistant.components.hassio.const": const}.items():
+    sys.modules[n] = m
+from proos import door as D  # noqa: E402
+from proos import frontdoor as FD  # noqa: E402
+
+DM = types.ModuleType("custom_components.proos.matterhub")
+sys.modules[DM.__name__] = DM
+exec(compile(D.files("http://abc-proos:8770")["matterhub.py"].decode(), "matterhub.py", "exec"), DM.__dict__)
+
+
+class Loop:
+    async def getaddrinfo(self, host, port, type=None):
+        return [(2, 1, 6, "", ("172.30.33.5", 0))] if host == "abc-proos" else []
+
+
+hass = types.SimpleNamespace(loop=Loop(), data={"hassio": types.SimpleNamespace(base_url="http://172.30.32.2")})
+v = DM.MatterHubDoor(hass, types.SimpleNamespace(data={"panel_user": "u-panel"}))
+
+
+def rq(remote, method="GET", q=None):
+    async def read():
+        return b""
+    return types.SimpleNamespace(remote=remote, method=method, query=q or {"slug": "3fd9e6b0_hamh", "token": "ENTRY"}, read=read)
+
+
+async def door_runs():
+    a = await v.get(rq("192.168.8.50"), "bridges")
+    b = await v.get(rq("172.30.33.5"), "../addons/other")
+    c = await v.get(rq("172.30.33.5"), "bridges")
+    return a, b, c
+
+
+a, b, c = asyncio.run(door_runs())
+check("8 · the door answers Core's own address only, and the hub's bridge paths only",
+      (a[1], a[2]["error"], b[1]), (403, "for ProOS Core only", 404))
+check("   …makes the session for its panel user inside the platform and calls the Supervisor's ingress route",
+      (made_sessions, outbound, c[:2]),
+      (["u-panel"], [("GET", "http://172.30.32.2/ingress/ENTRY/api/matter/bridges", {"ingress_session": "SESSION"})], ("resp", 200)))
+check("   …ProOS's front door never passes the path; the door is build 11 and installs the file",
+      (FD.is_platform_path("api/proos_core_only/matterhub/bridges"), FD.is_platform_path("api/states"), D.DOOR_BUILD,
+       "matterhub.py" in D.DOOR_FILES, "matterhub.async_register(hass, entry)" in D.files()["__init__.py"].decode()),
+      (False, True, "11", True, True))
 print("\n%d passed, %d failed" % (PASS, len(FAIL)))
 sys.exit(1 if FAIL else 0)

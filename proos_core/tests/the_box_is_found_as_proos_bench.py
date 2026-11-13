@@ -185,8 +185,8 @@ asyncio.run(main())
 
 src = open(os.path.join(HERE, "..", "proos", "door.py"), encoding="utf-8").read()
 pres = D.files("http://core:8770")["presence.py"].decode()
-check("4 · build 7 ships presence.py (kept in build 8, 1306, build 9, 1325, and build 10, 1326), started with the entry; the quiet file is the one switch; no product named to a person",
-      D.DOOR_BUILD in ("7", "8", "9", "10") and "presence.py" in D.DOOR_FILES and "await presence.async_start(hass, entry)" in src
+check("4 · build 7 ships presence.py (kept in build 8, 1306, build 9, 1325, build 10, 1326, and build 11, 1330d), started with the entry; the quiet file is the one switch; no product named to a person",
+      D.DOOR_BUILD in ("7", "8", "9", "10", "11") and "presence.py" in D.DOOR_FILES and "await presence.async_start(hass, entry)" in src
       and "hass.config.path(QUIET_FILE)" in pres and "Home Assistant" not in pres, True)
 
 print("\n%d checks passed, %d failed" % (PASS, len(FAIL)))

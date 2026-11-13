@@ -44,7 +44,7 @@ import time
 
 # Bumped ONLY when the integration's own code below changes — a Core
 # update that leaves the door alone must not ask for a restart.
-DOOR_BUILD = "10"
+DOOR_BUILD = "11"
 DOMAIN = "proos"
 # REGISTER 928 (door build 3): conversation.py — "ProOS Assist", the platform's
 # own way of plugging an assistant into its voice pipeline, so a room's own
@@ -55,8 +55,9 @@ DOMAIN = "proos"
 # integration instead of bare states Core writes into the platform's state list (the design's Stage D, item 16).
 # REGISTER 1325 (door build 9): llm_tools.py — ProOS's read-only knowledge as the platform's own AI tools (plan D17).
 # REGISTER 1326 (door build 10): repairs.py + translations/en.json — Health's open faults on the platform's Repairs list.
+# REGISTER 1330d (door build 11): matterhub.py — the Matter Hub (Google and Alexa) asked from inside the platform, for Core only.
 DOOR_FILES = ("manifest.json", "__init__.py", "config_flow.py", "conversation.py", "presence.py", "sensor.py",
-              "llm_tools.py", "repairs.py", "translations/en.json")
+              "llm_tools.py", "repairs.py", "matterhub.py", "translations/en.json")
 QUIET_FILE = "proos_quiet"            # in the platform's config folder: present = the platform stays unannounced
 
 # How long a non-live answer is trusted before the door is asked again
@@ -153,6 +154,12 @@ async def async_setup_entry(hass, entry):
         from . import repairs
         await repairs.async_start(hass, entry)
     except Exception:  # noqa: BLE001 — never stop the door over the repairs list
+        pass
+    # Door build 11 (register 1330d): the Matter Hub asked from inside the platform, for Core only.
+    try:
+        from . import matterhub
+        matterhub.async_register(hass, entry)
+    except Exception:  # noqa: BLE001 — never stop the door over Google and Alexa
         pass
     # Door build 9 (register 1325): ProOS's read-only knowledge as the platform's own AI tools.
     try:
@@ -782,6 +789,98 @@ _TRANSLATIONS = json.dumps({"issues": {"incident": {
     indent=2).replace("\\\\n", "\\n")
 
 
+_MATTERHUB = '''"""The Matter Hub (Google and Alexa), asked from inside the platform — for ProOS Core only (register 1330d).
+
+Written by ProOS Core (proos/door.py, door build 11). The hub's settings answer only the Supervisor, through an
+ingress session, and only the platform may ask the Supervisor for one (for a user it names). Core cannot; this door
+can. It asks for a session for the door's own panel user, calls the hub through the Supervisor's ingress route, and
+hands Core the hub's answer. The session never leaves the platform.
+
+FOR CORE ONLY: answered only when the caller's address is Core's own on the box's internal network; ProOS's front door
+never passes this path from outside (frontdoor.NOT_PASSED). The paths are the hub's bridge API and nothing else.
+"""
+from __future__ import annotations
+
+import asyncio
+import json
+import re
+import socket
+from urllib.parse import urlparse
+
+import aiohttp
+from aiohttp import web
+from homeassistant.components.http import HomeAssistantView
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
+
+CORE = "%(core)s"
+URL = "/api/proos_core_only/matterhub/{tail:.*}"
+PATHS = re.compile(r"^bridges(/[A-Za-z0-9_-]+)?$")       # the hub's bridge API — nothing else is carried
+CALL_S = 25
+
+
+async def _core_addresses(hass):
+    host = urlparse(CORE).hostname or ""
+    try:
+        infos = await hass.loop.getaddrinfo(host, None, type=socket.SOCK_STREAM)
+    except Exception:  # noqa: BLE001
+        return set()
+    return {i[4][0] for i in infos}
+
+
+class MatterHubDoor(HomeAssistantView):
+    url = URL
+    name = "api:proos_core_only:matterhub"
+    requires_auth = False      # the caller is checked by its address: Core's own, inside the box
+
+    def __init__(self, hass, entry):
+        self.hass, self.entry = hass, entry
+
+    async def get(self, request, tail):
+        return await self._go(request, tail)
+
+    async def post(self, request, tail):
+        return await self._go(request, tail)
+
+    async def delete(self, request, tail):
+        return await self._go(request, tail)
+
+    async def _go(self, request, tail):
+        if request.remote not in await _core_addresses(self.hass):
+            return self.json({"error": "for ProOS Core only"}, status_code=403)
+        if not PATHS.match(tail or ""):
+            return self.json({"error": "not a Matter Hub bridge path"}, status_code=404)
+        try:
+            from aiohasupervisor.models import CreateSessionOptions
+            from homeassistant.components.hassio.handler import get_supervisor_client
+            from homeassistant.components.hassio.const import DATA_COMPONENT
+            slug = request.query.get("slug") or ""
+            token = request.query.get("token") or ""
+            if not re.match(r"^[A-Za-z0-9_-]+$", slug + token):
+                return self.json({"error": "no Matter Hub address"}, status_code=400)
+            uid = (self.entry.data or {}).get("panel_user")
+            if not uid:
+                return self.json({"error": "the door has no panel user to open the Matter Hub with"}, status_code=503)
+            client = get_supervisor_client(self.hass)
+            session = await client.ingress.create_session(CreateSessionOptions(user_id=uid))
+            base = str(self.hass.data[DATA_COMPONENT].base_url).rstrip("/")
+            body = await request.read()
+            async with async_get_clientsession(self.hass).request(
+                    request.method, "%%s/ingress/%%s/api/matter/%%s" %% (base, token, tail), data=body or None,
+                    headers={"Content-Type": "application/json"} if body else None,
+                    cookies={"ingress_session": session}, timeout=aiohttp.ClientTimeout(total=CALL_S)) as r:
+                raw = await r.read()
+                return web.Response(status=r.status, body=raw, content_type="application/json")
+        except Exception as e:  # noqa: BLE001 — the reason, said in words
+            return self.json({"error": "the Matter Hub did not answer: %%s" %% str(e)[:160]}, status_code=502)
+
+
+def async_register(hass, entry):
+    if not hass.data.get("proos_matterhub_door"):
+        hass.http.register_view(MatterHubDoor(hass, entry))
+        hass.data["proos_matterhub_door"] = True
+'''
+
+
 def files(core_url: str | None = None) -> dict:
     """The door's files, as bytes, for THIS box (Core's own address inside)."""
     core = core_url or core_address()
@@ -794,6 +893,7 @@ def files(core_url: str | None = None) -> dict:
         "sensor.py": (_SENSOR % {"core": core}).encode("utf-8"),
         "llm_tools.py": (_LLM % {"core": core}).encode("utf-8"),
         "repairs.py": _REPAIRS.encode("utf-8"),
+        "matterhub.py": (_MATTERHUB % {"core": core}).encode("utf-8"),
         "translations/en.json": _TRANSLATIONS.encode("utf-8"),
     }
 

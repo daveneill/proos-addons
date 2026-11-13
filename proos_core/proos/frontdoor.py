@@ -22,7 +22,8 @@ import time
 
 PLATFORM_PREFIXES = ("api/", "local/", "auth/external/")
 PLATFORM_EXACT = ("api", "auth/token", "auth/login_flow", "auth/providers")
-NOT_PASSED = ("api/hassio_ingress/",)        # the Supervisor's own door — never through ours
+NOT_PASSED = ("api/hassio_ingress/",          # the Supervisor's own door — never through ours
+              "api/proos_core_only/")        # 1330d: the door's paths for Core alone, inside the box
 DROP_HEADERS = ("connection", "keep-alive", "proxy-connection", "proxy-authorization", "x-forwarded-for",
                 "x-forwarded-host", "x-forwarded-proto", "forwarded", "x-real-ip", "x-ingress-path")
 IDLE_S = 600            # plumbing: a passed-through connection with nothing moving either way for this long is closed
