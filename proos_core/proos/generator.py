@@ -141,6 +141,14 @@ def _content_hash(cfg: dict) -> str:
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:16]
 
 
+def _assist_owned(cfg) -> bool:
+    """REGISTER 1338 (Dave 14 Nov 07:02 "Yes"): an activity Assist has rebuilt (proos_built_by) or tested (proos_tested)
+    for this room is never written over or removed by the generator — not by a sync, not by Regenerate. The generator
+    stays the starting point for every room; once Jarvis has fitted an activity to the room, it is the room's."""
+    v = (cfg or {}).get("variables") or {}
+    return bool(v.get("proos_tested")) or v.get("proos_built_by") == "assist"
+
+
 def _as_cfg(existing):
     """Coerce whatever client.get_script() returns into the script-config dict, or
     None if it isn't one. Defensive: if the client hands back a shape we don't
@@ -741,7 +749,7 @@ def _prune_orphans(client, tmpl, planned) -> list:
             if not isinstance(ecfg, dict):
                 continue
             stored = (ecfg.get("variables") or {}).get("proos_hash")
-            if stored and stored == _content_hash(ecfg):
+            if stored and stored == _content_hash(ecfg) and not _assist_owned(ecfg):
                 try:
                     if client.delete_script(eoid):
                         pruned.append(eoid)
@@ -820,7 +828,7 @@ def generate(client, cluster, commissioning=None, overwrite=False) -> dict:
             if eoid == keep_oid:
                 continue
             stored0 = (ecfg0.get("variables") or {}).get("proos_hash")
-            if stored0 and stored0 == _content_hash(ecfg0):
+            if stored0 and stored0 == _content_hash(ecfg0) and not _assist_owned(ecfg0):
                 try:
                     if client.delete_script(eoid):
                         deduped.append(eoid)
@@ -835,6 +843,9 @@ def generate(client, cluster, commissioning=None, overwrite=False) -> dict:
         if existing is None:
             client.upsert_script(oid, cfg)
             created.append(oid)
+            continue
+        if _assist_owned(_as_cfg(existing)):
+            kept.append(oid)          # register 1338: Assist built or tested it for this room -> never replaced
             continue
         if overwrite:
             client.upsert_script(oid, cfg)

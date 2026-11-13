@@ -888,6 +888,38 @@ TOOLS = [
                     "for 'turn the bedroom off'. For just the TV, use room_activity.",
      "input_schema": {"type": "object", "properties": {
          "area_id": {"type": "string"}}, "required": ["area_id"]}},
+    # REGISTER 1338 (Dave 14 Nov 07:02 "Yes"): Assist fits each room's activities to the room and proves them.
+    {"name": "room_activities",
+     "description": "A room's ProOS activities with who built each (the generator or Assist) and whether its present "
+                    "steps are TESTED (an activity edited after its test reads untested). Read this, then each "
+                    "activity's steps (the platform's script tool) and the room's real devices — the TV's own features "
+                    "(e.g. a Frame's Art Mode switch), the receiver or speaker, the inputs each source is on — before "
+                    "changing anything.",
+     "input_schema": {"type": "object", "properties": {
+         "area_id": {"type": "string"}}, "required": ["area_id"]}},
+    {"name": "activity_rewrite",
+     "description": "Fit an EXISTING room activity to the room: replaces its steps, keeping the same script, name and "
+                    "ProOS markers so Pro, the dashboard and voice keep using it; marks it built by Assist (the "
+                    "generator then never writes over it). NEVER make a new script or automation for an activity — "
+                    "rewrite the room's own. Steps are plain platform script steps, written from what you READ on the "
+                    "devices (never a guessed input). why: one line the installer will read, e.g. 'the Frame rests in "
+                    "Art Mode — Display On now takes it out of Art Mode first'. Then test it with activity_test.",
+     "input_schema": {"type": "object", "properties": {
+         "script_entity_id": {"type": "string", "description": "script.proos_* — the activity to rewrite"},
+         "sequence": {"type": "array", "items": {"type": "object"}, "description": "the full new list of steps"},
+         "why": {"type": "string"}},
+         "required": ["script_entity_id", "sequence", "why"]}},
+    {"name": "activity_test",
+     "description": "Prove a Watch activity or TV Off on the real room: rests the room with its own TV Off, runs the "
+                    "activity, and reads back what it should have done (TV out of Art Mode and on, the input, the sound "
+                    "route, the source awake). Marks it TESTED only when every reading is seen; a failed test says which "
+                    "reading was wrong — fix the steps with activity_rewrite and test again. This TURNS THE ROOM'S TV "
+                    "AND SOUND ON AND OFF: ask first, naming the room and the activity, and call with consented=true "
+                    "only after a clear yes.",
+     "input_schema": {"type": "object", "properties": {
+         "script_entity_id": {"type": "string"},
+         "consented": {"type": "boolean", "description": "the person said yes to testing exactly this, now"}},
+         "required": ["script_entity_id", "consented"]}},
     {"name": "room_on",
      "description": "Turn a room's lights, switches and fans ON, skipping the installer's "
                     "power-protect list. AV is NOT started — starting a room means choosing an "
@@ -1828,6 +1860,7 @@ _READ_TOOLS = frozenset({
     "home_status", "knowledge_read", "knowledge_search", "locks_status",
     "memory_get", "music_search", "recovery_history", "room_health",
     "room_read", "room_record", "room_status", "rooms_overview",
+    "room_activities",   # 1338: lists a room's activities and their test marks — only looks
     "scenes_list", "security_status", "usage_history", "verify", "weather",
     "watch_options",                   # 970oo: reads the room's shortcuts and what the home learned
 })
@@ -2408,7 +2441,11 @@ def _is_home(user: dict) -> bool:
 # weather/lock/camera/alarm read-outs, scene_create/scene_delete/scene_companions, automation_create/trigger/delete and
 # platform_control_enable: each one the platform's own tools already do (and its guards still check them, in _run_mcp).
 # The installer tier (platform reads only) is unchanged.
-_PLATFORM_FIRST_KEEP = {"scene_dashboard", "rooms_overview", "room_activity", "room_off"}
+_PLATFORM_FIRST_KEEP = {"scene_dashboard", "rooms_overview", "room_activity", "room_off",
+                        "room_activities", "activity_rewrite", "activity_test"}
+# REGISTER 1338 (Dave 14 Nov 07:02 "Yes"): fitting a room's activities to the room and proving them. The platform's script
+# tool can write steps, but knows nothing of what a ProOS activity must END in, of testing it from the room's rest, or of
+# keeping the generator off an activity Assist has fitted — those three are ProOS's.
 # REGISTER 1337 (Dave 13 Nov 18:56, after the Family Room review: Assist rebuilt Watch Apple TV by hand and GUESSED "HDMI 1
 # … the input it's been on most this week" — "it needs to know about activities"; "still keeping the activities … once
 # you add this"): the three tools that carry what only ProOS knows — the commissioned rooms with their activities
@@ -3186,6 +3223,53 @@ class ToolRunner:
                      " means a camera's OWN speaker, never a music speaker;"
                      " media_in_no_room sit in NO room.")
             out["note"] = note
+        return out
+
+    # REGISTER 1338 — fit a room's activities to the room, and prove them on the room
+    def t_room_activities(self, args):
+        from . import activitytest as _at
+        aid = self._resolve_area_id(args.get("area_id"))
+        if not aid:
+            return {"error": "area_id required"}
+        if not re.match(r"^[a-z0-9_]+$", aid):
+            return {"error": "unknown room: %s" % aid}
+        rows = _at.summary(self.client, aid)
+        return {"area_id": aid, "display": self._room_display(aid), "activities": rows,
+                "note": "tested = proven on this room from rest with the readings; built_by assist = fitted by you"}
+
+    def t_activity_rewrite(self, args):
+        from . import activitytest as _at
+        eid = (args.get("script_entity_id") or "").strip()
+        if not str(args.get("why") or "").strip():
+            return {"error": "say why, in one line the installer will read"}
+        try:
+            out = _at.rewrite(self.client, eid, args.get("sequence"), args.get("why"))
+        except Exception as e:  # noqa: BLE001 — the platform's own refusal is the answer
+            return {"error": str(e)}
+        self.actions.append({"tool": "activity_rewrite", "target": eid})
+        self._audit("activity_rewrite", entity=eid, why=str(args.get("why"))[:300])
+        out["next"] = "test it with activity_test after the person says yes"
+        return out
+
+    def t_activity_test(self, args):
+        from . import activitytest as _at
+        if args.get("consented") and not getattr(self, "consent_ok", False):
+            return {"error": _CONSENT_UNPROVEN}
+        if not args.get("consented"):
+            return {"error": "ask first, in plain words: which room and activity, and that the TV and sound will turn "
+                             "off and on. Call again with consented=true only after a clear yes"}
+        eid = (args.get("script_entity_id") or "").strip()
+        try:
+            cfg = _at.read_activity(self.client, eid)
+            aid = ((cfg.get("variables") or {}).get("proos_area_id") or "")
+            disp = self._room_display(aid) if aid else None
+            if not disp:
+                return {"error": "this room has no committed display to read back"}
+            out = _at.run(self.client, eid, disp)
+        except Exception as e:  # noqa: BLE001
+            return {"error": str(e)}
+        self.actions.append({"tool": "activity_test", "target": eid})
+        self._audit("activity_test", entity=eid, consent="person-answered", passed=out.get("passed"))
         return out
 
     def t_room_activity(self, args):

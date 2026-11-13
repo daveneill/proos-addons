@@ -1,0 +1,260 @@
+"""ASSIST BUILDS AND TESTS A ROOM'S ACTIVITIES — register 1338 (14 Nov 2026).
+
+Dave, 13 Nov: "keep the activities but … have Assist build the activities based on the setup and test them as I think the
+generator is just using a generic one activity fits all template"; 14 Nov 07:02 "Yes" to the plan (generator stays the
+starting point; Jarvis corrects a room's activities under the same names; tests each from the room's resting state with
+the readings; the generator never overwrites one Jarvis has built or tested) — "just no testing in the bedroom right now".
+
+What was read first (register 1337): the generator's sources and sound ARE per room, but its one Display On is the same in
+every room and never touches Art Mode, while the Family Room's TV Off rests the Frame IN Art Mode (which the platform
+reads as "on") — so the next Watch skips the TV and the room sits on artwork.
+
+PLATFORM FIRST. The activity stays a plain platform script under its own name, written through the platform's own
+script config (so Pro, the dashboard, voice and the platform's editor all keep working with it). The platform has no idea
+what a ProOS activity is meant to END in, and no "test this from rest and prove it"; that is all this module adds:
+  rewrite()      replaces the steps of an EXISTING ProOS activity, keeping its name and ProOS's markers, and marks it
+                 built by Assist (the old test mark goes — new steps are untested steps)
+  expectations() what the activity should leave the room in, read from the activity's OWN steps (each input it selects,
+                 each device it turns on or off) and its kind (a Watch ends with the screen live and its source awake)
+  run()          rests the room with its own TV Off, runs the activity, reads every expectation back from the platform
+                 and, only when every one is seen, stamps the test mark: when, and the steps' hash at that moment
+  protected()    the generator's question — built or tested by Assist → never written over, never pruned
+
+THE TEST MARK IS A READING. It carries the content hash of the steps it was earned on; is_tested() is True only while the
+steps are still those steps. Edit the activity afterwards and it reads untested again — nothing is claimed for steps
+that were never run.
+"""
+from __future__ import annotations
+
+import datetime
+import json
+import time
+
+from . import generator as _gen
+
+TESTED = "proos_tested"
+BUILT = "proos_built_by"
+TESTABLE_KINDS = ("watch_source", "watch_tv", "tv_off")
+ASLEEP = ("off", "standby", "unavailable", "unknown")
+REST_WAIT_S = 45.0       # plumbing: how long TV Off may take to rest the room (its own speaker wait is 15 s)
+RUN_WAIT_S = 75.0        # plumbing: how long the activity may run (Display On waits 20 s; a wake retries)
+READ_WAIT_S = 20.0       # plumbing: how long a slow device may take to report what it did
+STEP_S = 1.0
+
+
+def _vars(cfg):
+    return dict((cfg or {}).get("variables") or {})
+
+
+def protected(cfg) -> bool:
+    """The generator's question (register 1338): an activity Assist built or tested is never replaced or removed by it."""
+    return _gen._assist_owned(cfg)
+
+
+def is_tested(cfg) -> bool:
+    """True only while the activity's steps are the steps the test was passed on."""
+    mark = _vars(cfg).get(TESTED)
+    return isinstance(mark, dict) and bool(mark.get("hash")) and mark["hash"] == _gen._content_hash(cfg)
+
+
+def _now():
+    return datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
+
+
+def read_activity(client, oid: str) -> dict:
+    oid = str(oid or "").replace("script.", "", 1).strip()
+    if not oid.startswith(_gen.PROOS_PREFIX + "_"):
+        raise ValueError("not a ProOS activity: %s" % oid)
+    cfg = _gen._as_cfg(client.get_script(oid))
+    if not cfg:
+        raise ValueError("no such activity on this box: %s" % oid)
+    if not _vars(cfg).get("proos_kind"):
+        raise ValueError("%s is not one of ProOS's activities (it carries no ProOS marker)" % oid)
+    return cfg
+
+
+def rewrite(client, oid: str, sequence, why: str = "") -> dict:
+    """New steps for an existing ProOS activity — same script, same name, same markers."""
+    oid = str(oid or "").replace("script.", "", 1).strip()
+    cfg = read_activity(client, oid)
+    if not isinstance(sequence, list) or not sequence or not all(isinstance(s, dict) for s in sequence):
+        raise ValueError("sequence must be the activity's list of steps, as the platform's script editor writes them")
+    if any(str(s.get("action") or "") == "script." + oid for s in sequence):
+        raise ValueError("an activity cannot run itself")
+    new = dict(cfg)
+    new["sequence"] = sequence
+    v = _vars(cfg)
+    v.pop(TESTED, None)                       # new steps are untested steps
+    v[BUILT] = "assist"
+    v["proos_built_at"] = _now()
+    if why:
+        v["proos_built_why"] = str(why)[:300]
+    new["variables"] = v                      # proos_hash is kept as it was: to the generator this is an edited script
+    client.upsert_script(oid, new)
+    back = read_activity(client, oid)
+    return {"ok": back.get("sequence") == sequence, "script_entity_id": "script." + oid,
+            "alias": back.get("alias"), "steps": len(back.get("sequence") or []), "tested": False}
+
+
+def _target(step):
+    t = step.get("target") or {}
+    e = t.get("entity_id") or step.get("entity_id")
+    if isinstance(e, list):
+        return e[0] if len(e) == 1 else None
+    return e
+
+
+def expectations(client, cfg, display=None) -> list:
+    """What the activity should leave the room in — from its own top-level steps and its kind. Each is a reading to
+    take, never a guess: {entity_id, what, state_in | attr+equals}."""
+    v = _vars(cfg)
+    kind = v.get("proos_kind")
+    out, seen = [], set()
+
+    def add(c):
+        k = (c["entity_id"], c.get("attr"), tuple(c.get("state_in") or ()), c.get("equals"))
+        if k not in seen:
+            seen.add(k)
+            out.append(c)
+
+    art = _gen._art_mode_switch(client, display) if display else None
+    if kind in ("watch_source", "watch_tv") and display:
+        if art:
+            add({"entity_id": art, "what": "the TV is out of Art Mode", "state_in": ["off"]})
+        add({"entity_id": display, "what": "the TV is on", "state_in": ["on"]})
+    if kind == "watch_source" and v.get("proos_source"):
+        add({"entity_id": v["proos_source"], "what": "the source is awake", "not_in": list(ASLEEP)})
+    for s in cfg.get("sequence") or []:
+        act = str(s.get("action") or s.get("service") or "")
+        e = _target(s)
+        if e and act == "media_player.select_source" and (s.get("data") or {}).get("source"):
+            add({"entity_id": e, "what": "input %s" % s["data"]["source"], "attr": "source",
+                 "equals": s["data"]["source"]})
+        elif e and act == "media_player.turn_on" and e != display:
+            add({"entity_id": e, "what": "it is on", "state_in": ["on"]})
+        elif e and act == "media_player.turn_off":
+            add({"entity_id": e, "what": "it is off", "state_in": list(ASLEEP)})
+        elif e and act in ("switch.turn_on", "switch.turn_off"):
+            add({"entity_id": e, "what": "switched %s" % act.split("_")[-1], "state_in": [act.split("_")[-1]]})
+    return out
+
+
+def _read(client, eid):
+    try:
+        st = client._req("GET", "/api/states/%s" % eid) or {}
+    except Exception:                         # noqa: BLE001 — a device that can't be read is read as unavailable
+        st = {}
+    return {"state": st.get("state", "unavailable"), "source": (st.get("attributes") or {}).get("source")}
+
+
+def check(client, checks) -> list:
+    res = []
+    for c in checks:
+        r = _read(client, c["entity_id"])
+        if c.get("attr"):
+            got = r.get(c["attr"])
+            ok = got == c.get("equals")
+        elif c.get("not_in"):
+            got = r["state"]
+            ok = got not in c["not_in"]
+        else:
+            got = r["state"]
+            ok = got in (c.get("state_in") or [])
+        res.append({"entity_id": c["entity_id"], "what": c["what"], "reading": got, "pass": ok})
+    return res
+
+
+def _script_state(client, oid):
+    return _read(client, "script." + oid)["state"]
+
+
+def _run_and_wait(client, oid, limit, sleep, clock):
+    client.call_service("script", "turn_on", "script." + oid)
+    t0 = clock()
+    sleep(STEP_S)
+    while clock() - t0 < limit:
+        if _script_state(client, oid) != "on":
+            return round(clock() - t0, 1)
+        sleep(STEP_S)
+    return None
+
+
+def rest_oid(cfg, oid):
+    """The room's own TV Off — the same room's script, by the generator's one naming."""
+    i = oid.find("_watch_")
+    return (oid[:i] + "_tv_off") if i > 0 else None
+
+
+def run(client, oid: str, display: str, sleep=None, clock=None) -> dict:
+    """Rest the room, run the activity, read every expectation back. Marks it tested only when all are seen."""
+    sleep, clock = sleep or time.sleep, clock or time.time
+    oid = str(oid or "").replace("script.", "", 1).strip()
+    cfg = read_activity(client, oid)
+    v = _vars(cfg)
+    kind = v.get("proos_kind")
+    if kind not in TESTABLE_KINDS:
+        raise ValueError("%s is a building block (%s) — test the Watch activities that use it" % (oid, kind))
+    out = {"script_entity_id": "script." + oid, "alias": cfg.get("alias"), "kind": kind}
+    if kind != "tv_off":
+        roid = rest_oid(cfg, oid)
+        rcfg = _gen._as_cfg(client.get_script(roid)) if roid else None
+        if not rcfg or _vars(rcfg).get("proos_kind") != "tv_off" or \
+                _vars(rcfg).get("proos_area_id") != v.get("proos_area_id"):
+            raise ValueError("this room has no TV Off to rest it with — can't test from rest")
+        took = _run_and_wait(client, roid, REST_WAIT_S, sleep, clock)
+        art = _gen._art_mode_switch(client, display) if display else None
+        rest = [{"entity_id": display, "what": "the TV is resting", "state_in": list(ASLEEP)}]
+        rested, t0 = [], clock()
+        while True:
+            rested = check(client, rest)
+            if art and not rested[0]["pass"]:
+                a = check(client, [{"entity_id": art, "what": "the TV is resting in Art Mode", "state_in": ["on"]}])
+                rested = a if a[0]["pass"] else rested + a
+            if all(r["pass"] for r in rested) or clock() - t0 >= READ_WAIT_S:
+                break
+            sleep(STEP_S)
+        out["rest"] = {"by": "script." + roid, "seconds": took, "readings": rested}
+        if took is None or not all(r["pass"] for r in rested):
+            out.update(passed=False, stage="rest",
+                       say="The room didn't reach its resting state, so the activity was not run.")
+            return out
+    exp = expectations(client, cfg, display)
+    took = _run_and_wait(client, oid, RUN_WAIT_S, sleep, clock)
+    res, t0 = check(client, exp), clock()
+    while not all(r["pass"] for r in res) and clock() - t0 < READ_WAIT_S:
+        sleep(STEP_S)
+        res = check(client, exp)
+    passed = took is not None and bool(res) and all(r["pass"] for r in res)
+    out.update(seconds=took, readings=res, passed=passed, stage="run")
+    if took is None:
+        out["say"] = "The activity was still running after %d seconds." % RUN_WAIT_S
+    new = dict(cfg)
+    nv = _vars(cfg)
+    if passed:
+        nv[TESTED] = {"at": _now(), "hash": _gen._content_hash(cfg), "by": "assist", "seconds": took,
+                      "readings": ["%s: %s" % (r["what"], r["reading"]) for r in res]}
+    elif TESTED in nv:
+        nv.pop(TESTED)                        # a mark the activity no longer earns is taken off
+    else:
+        return out
+    new["variables"] = nv
+    client.upsert_script(oid, new)
+    out["marked_tested"] = passed
+    return out
+
+
+def summary(client, area_slug: str) -> list:
+    """Every ProOS activity of a room with who built it and whether its present steps are tested."""
+    pre = "script.%s_%s_" % (_gen.PROOS_PREFIX, area_slug)
+    tmpl = ("{{ states.script | map(attribute='entity_id') | select('match', %s) | list | to_json }}"
+            % json.dumps("^" + pre.replace(".", "\\.")))
+    rows = []
+    for eid in json.loads(client.render_template(tmpl) or "[]"):
+        cfg = _gen._as_cfg(client.get_script(eid.split(".", 1)[1])) or {}
+        v = _vars(cfg)
+        mark = v.get(TESTED) if isinstance(v.get(TESTED), dict) else {}
+        rows.append({"script_entity_id": eid, "alias": cfg.get("alias"), "kind": v.get("proos_kind"),
+                     "built_by": v.get(BUILT) or "generator", "tested": is_tested(cfg),
+                     "tested_at": mark.get("at") if is_tested(cfg) else None,
+                     "changed_since_test": bool(mark) and not is_tested(cfg)})
+    return rows
