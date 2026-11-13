@@ -7493,6 +7493,19 @@ def _ran_out(runner, partial_text: str = "", why: str = "steps") -> str:
     return " ".join(parts)
 
 
+def _claude_step(usage) -> dict:
+    """REGISTER 1334: one Claude round's usage in the ledger's own shape (aiusage.record_turn): "input" is ALL input read
+    — the provider reports fresh, cache-read and cache-written input separately — "cached" the part read from cache,
+    "output", and the web searches the provider ran. Cache-written input is priced as ordinary input: the provider
+    charges a little more for it, so the ledger reads a little under, never over."""
+    u = usage if isinstance(usage, dict) else {}
+    fresh = int(u.get("input_tokens") or 0)
+    read = int(u.get("cache_read_input_tokens") or 0)
+    wrote = int(u.get("cache_creation_input_tokens") or 0)
+    web = int(((u.get("server_tool_use") or {}).get("web_search_requests")) or 0)
+    return {"input": fresh + read + wrote, "cached": read, "output": int(u.get("output_tokens") or 0), "web": web}
+
+
 def _chat_claude(cfg, doctrine, context, history, runner):
     model = _route_model(cfg.get("model") or DEFAULT_MODELS["claude"],
                          (cfg.get("fast_model") or "").strip(),
@@ -7511,6 +7524,7 @@ def _chat_claude(cfg, doctrine, context, history, runner):
     # each round was read from cache rather than re-read.
     _t_turn = time.time()
     _rounds = _model_ms = _tool_ms = _cache_r = _cache_w = 0
+    _steps, _counted = [], {"done": False}          # register 1334: this turn's rounds, for the cost ledger
 
     def _stamp():
         # _lead is defined below this closure and resolved when it RUNS, not
@@ -7521,6 +7535,13 @@ def _chat_claude(cfg, doctrine, context, history, runner):
                          "model_ms": _model_ms, "tool_ms": _tool_ms,
                          "cache_read": _cache_r, "cache_written": _cache_w,
                          "model": model}
+        # REGISTER 1334 (Dave 13 Nov 17:57 "okay"): THE CLAUDE ROAD IS COUNTED TOO. Only the OpenAI road ever called
+        # _count_turn (1162), so from 10 Nov, when Claude became the brain, every Claude turn was missing from the cost
+        # ledger and Pro showed nothing spent. _stamp runs once before every return of this road, so this is where
+        # the turn's rounds go to the same ledger, once.
+        if not _counted["done"]:
+            _counted["done"] = True
+            _count_turn(runner, model, _steps)
         return runner.timing
 
     # THE FIRST SENTENCE STARTS THE VOICE (register 487).
@@ -7566,6 +7587,7 @@ def _chat_claude(cfg, doctrine, context, history, runner):
         _u = resp.get("usage") or {}
         _cache_r += int(_u.get("cache_read_input_tokens") or 0)
         _cache_w += int(_u.get("cache_creation_input_tokens") or 0)
+        _steps.append(_claude_step(_u))                               # register 1334
         content = resp.get("content") or []
         # WHAT IS IN THE MESSAGE, NOT WHY IT STOPPED (register 467). This asked
         # the provider's stop_reason whether a tool was wanted, and the two

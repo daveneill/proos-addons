@@ -35,6 +35,13 @@ MODEL_PRICES = {
     "gpt-6-sol": {"text_in": 2.0, "cached_in": 0.20, "text_out": 10.0},
     "gpt-6-astra": {"text_in": 10.0, "cached_in": 1.0, "text_out": 50.0},
     "gpt-6-luna": {"text_in": 0.10, "cached_in": 0.01, "text_out": 0.50},
+    # REGISTER 1334: the Claude models, counted from 13 Nov. US$ per 1M — input, cache read, output — from a published
+    # summary of Anthropic's price list (cloudinsight.cc, checked 30 Sep / 28 Oct 2026); Haiku 5.5 at its up-to-100K tier.
+    # Anthropic's billing page is the truth; editable in assist.json "model_prices".
+    "claude-opus-5": {"text_in": 5.0, "cached_in": 0.50, "text_out": 25.0},
+    "claude-opus-5-5": {"text_in": 4.0, "cached_in": 0.20, "text_out": 20.0},
+    "claude-sonnet-5-5": {"text_in": 2.0, "cached_in": 0.10, "text_out": 10.0},
+    "claude-haiku-5-5": {"text_in": 0.10, "cached_in": 0.01, "text_out": 0.50},
 }
 
 
