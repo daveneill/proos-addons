@@ -10342,10 +10342,17 @@ class Handler(BaseHTTPRequestHandler):
 
                 def _runner():
                     try:
-                        out = _proof_mod.run_proof(
-                            plan, _fire, _read, timeout_s=45, settle_s=6,
-                            poll_s=1.0, progress=_progress, launch=_launch)
-                        out.update({"state": "done", "room": room,
+                        # REGISTER 1340 (Dave 14 Nov 08:52: "prove the room is when it should have this commisioning
+                        # process"): each Watch from rest with every device read back AND ProOS's own verdict, then
+                        # source-to-source, the shortcuts, TV Off — passes marked tested on the activity itself.
+                        # (proofrun.run_proof judged by the verdict alone; its verdict check rides inside each step now.)
+                        from proos import activitytest as _at_mod
+                        _disp = rec.get("display") if isinstance(rec.get("display"), str) else None
+                        if not _disp:
+                            raise RuntimeError("this room has no committed display to read back")
+                        out = _at_mod.prove(_client, plan, _disp, verdict=sensor, launch=_launch,
+                                            progress=_progress)
+                        out.update({"state": "done", "room": room, "area_id": slug,
                                     "finished": time.time()})
                     except Exception as e:               # noqa: BLE001
                         out = {"state": "error", "error": str(e)}
@@ -10356,8 +10363,9 @@ class Handler(BaseHTTPRequestHandler):
                         _j.emit(slug, "proof_run",
                                 {"passed": out.get("passed"),
                                  "total": out.get("total"),
+                                 "tested": out.get("tested"),
                                  "steps": [{k: s.get(k) for k in
-                                            ("alias", "ok", "seconds")}
+                                            ("alias", "ok", "seconds", "phase")}
                                            for s in out.get("steps") or []]})
                     except Exception:
                         pass

@@ -144,14 +144,32 @@ def _read(client, eid):
         st = client._req("GET", "/api/states/%s" % eid) or {}
     except Exception:                         # noqa: BLE001 — a device that can't be read is read as unavailable
         st = {}
-    return {"state": st.get("state", "unavailable"), "source": (st.get("attributes") or {}).get("source")}
+    a = st.get("attributes") or {}
+    return {"state": st.get("state", "unavailable"), "source": a.get("source"), "verified": a.get("verified")}
+
+
+def verdict_check(sensor, kind, source=None) -> dict:
+    """REGISTER 1340: what ProOS ITSELF must show for the room once the activity has run — the room's activity sensor
+    (the old proof's judge, register 1084: a Watch passes only when the room's devices CONFIRM it, verified)."""
+    return {"entity_id": sensor, "what": "ProOS shows the room %s" % ("off" if kind == "tv_off" else "watching it"),
+            "verdict": kind, "source": source}
 
 
 def check(client, checks) -> list:
     res = []
     for c in checks:
         r = _read(client, c["entity_id"])
-        if c.get("attr"):
+        if c.get("verdict"):
+            st = str(r["state"] or "")
+            got = st if c["verdict"] == "tv_off" else "%s%s" % (st, "" if r.get("verified") is True else " (not confirmed)")
+            if c["verdict"] == "tv_off":
+                ok = st == "off"
+            elif c["verdict"] == "watch_tv":
+                ok = st == "watch_tv" and r.get("verified") is True
+            else:
+                ok = (st.startswith("watch_") and st != "watch_tv" and r.get("source") == c.get("source")
+                      and r.get("verified") is True)
+        elif c.get("attr"):
             got = r.get(c["attr"])
             ok = got == c.get("equals")
         elif c.get("not_in"):
@@ -185,8 +203,11 @@ def rest_oid(cfg, oid):
     return (oid[:i] + "_tv_off") if i > 0 else None
 
 
-def run(client, oid: str, display: str, sleep=None, clock=None) -> dict:
-    """Rest the room, run the activity, read every expectation back. Marks it tested only when all are seen."""
+def run(client, oid: str, display: str, sleep=None, clock=None, rest=True, verdict=None, mark=True) -> dict:
+    """Rest the room, run the activity, read every expectation back. Marks it tested only when all are seen.
+    REGISTER 1340: rest=False runs it straight from whatever the room is on (Prove the Room's source-to-source switch);
+    verdict = the room's activity sensor, read as one more expectation; mark=False never ADDS a test mark (a switch
+    only takes one off when it fails)."""
     sleep, clock = sleep or time.sleep, clock or time.time
     oid = str(oid or "").replace("script.", "", 1).strip()
     cfg = read_activity(client, oid)
@@ -195,7 +216,7 @@ def run(client, oid: str, display: str, sleep=None, clock=None) -> dict:
     if kind not in TESTABLE_KINDS:
         raise ValueError("%s is a building block (%s) — test the Watch activities that use it" % (oid, kind))
     out = {"script_entity_id": "script." + oid, "alias": cfg.get("alias"), "kind": kind}
-    if kind != "tv_off":
+    if kind != "tv_off" and rest:
         roid = rest_oid(cfg, oid)
         rcfg = _gen._as_cfg(client.get_script(roid)) if roid else None
         if not rcfg or _vars(rcfg).get("proos_kind") != "tv_off" or \
@@ -219,6 +240,8 @@ def run(client, oid: str, display: str, sleep=None, clock=None) -> dict:
                        say="The room didn't reach its resting state, so the activity was not run.")
             return out
     exp = expectations(client, cfg, display)
+    if verdict:
+        exp.append(verdict_check(verdict, kind, v.get("proos_source")))
     took = _run_and_wait(client, oid, RUN_WAIT_S, sleep, clock)
     res, t0 = check(client, exp), clock()
     while not all(r["pass"] for r in res) and clock() - t0 < READ_WAIT_S:
@@ -230,6 +253,8 @@ def run(client, oid: str, display: str, sleep=None, clock=None) -> dict:
         out["say"] = "The activity was still running after %d seconds." % RUN_WAIT_S
     new = dict(cfg)
     nv = _vars(cfg)
+    if passed and not mark:
+        return out
     if passed:
         nv[TESTED] = {"at": _now(), "hash": _gen._content_hash(cfg), "by": "assist", "seconds": took,
                       "readings": ["%s: %s" % (r["what"], r["reading"]) for r in res]}
@@ -258,3 +283,67 @@ def summary(client, area_slug: str) -> list:
                      "tested_at": mark.get("at") if is_tested(cfg) else None,
                      "changed_since_test": bool(mark) and not is_tested(cfg)})
     return rows
+
+
+def prove(client, plan, display, verdict=None, launch=None, progress=None, sleep=None, clock=None) -> dict:
+    """PROVE THE ROOM IS ITS COMMISSIONING (register 1340, Dave 14 Nov 08:52: "I think prove the room is when it should
+    have this commisioning process"). plan: [{script, alias, kind, sc?}] — the room's Watch activities, its TV Off and
+    its app shortcuts. In order:
+      1 · each Watch from REST (the room's TV Off first), every reading back, ProOS's own verdict too → marked tested
+      2 · each Watch SWITCHED TO straight from another (W_last → W1 → W2 … → W_last) — a failure takes its mark off
+      3 · each app shortcut, by 1084's rule (passes when the device shows it; taken but unseen = SENT)
+      4 · TV Off, read back → marked tested
+    A failed step never stops the run, and the room always ends with TV Off."""
+    sleep, clock = sleep or time.sleep, clock or time.time
+    watches = [p for p in plan if p.get("kind") in ("watch_source", "watch_tv")]
+    offs = [p for p in plan if p.get("kind") == "tv_off"]
+    scs = [p for p in plan if p.get("kind") == "shortcut"]
+    steps = []
+
+    def note(step):
+        if progress:
+            try:
+                progress(step)
+            except Exception:                 # noqa: BLE001
+                pass
+
+    def one(p, phase, label, **kw):
+        note({"alias": label})
+        t0 = clock()
+        try:
+            r = run(client, p["script"], display, sleep=sleep, clock=clock, verdict=verdict, **kw)
+        except Exception as e:                # noqa: BLE001
+            r = {"passed": False, "error": str(e)}
+        bad = [x for x in (r.get("readings") or []) if not x["pass"]]
+        rest_bad = [x for x in ((r.get("rest") or {}).get("readings") or []) if not x["pass"]]
+        steps.append({"script": p["script"], "alias": label, "kind": p.get("kind"), "phase": phase,
+                      "ok": bool(r.get("passed")), "seconds": r.get("seconds"),
+                      "readings": r.get("readings") or [], "failed": bad, "rest_failed": rest_bad,
+                      "tested": bool(r.get("passed")) and kw.get("mark", True),
+                      "final": {"error": r.get("error") or r.get("say")}})
+
+    for p in watches:
+        one(p, "from_rest", "%s · from rest" % p.get("alias"))
+    if len(watches) > 1:
+        prev = watches[-1]
+        for p in watches:                     # each Watch arrives from the one before it (the first from the last)
+            if p is prev:
+                continue
+            one(p, "switch", "%s · switched from %s" % (p.get("alias"), prev.get("alias")), rest=False, mark=False)
+            prev = p
+    for p in scs:
+        note(p)
+        t0 = clock()
+        try:
+            res = (launch(p) if launch else {"error": "no launcher"}) or {}
+        except Exception as e:                # noqa: BLE001
+            res = {"error": str(e)}
+        _opened = res.get("opened") is True
+        steps.append({"script": p.get("script"), "alias": p.get("alias"), "kind": "shortcut", "phase": "shortcut",
+                      "ok": bool(res.get("ok")) and _opened, "sent": bool(res.get("ok")) and not _opened,
+                      "seconds": round(clock() - t0, 1), "final": {"shows": res.get("shows"), "error": res.get("error")}})
+    for p in offs:
+        one(p, "off", p.get("alias") or "TV Off")
+    return {"steps": steps, "passed": sum(1 for s in steps if s["ok"]),
+            "sent": sum(1 for s in steps if s.get("sent")), "total": len(steps),
+            "tested": sum(1 for s in steps if s.get("tested"))}

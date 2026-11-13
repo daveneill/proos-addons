@@ -3415,7 +3415,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111210';
+const PROOS_BUILD='2026111401';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -11812,11 +11812,11 @@ async function openProve(){
   try{ const r=await fetch(proCoreUrl()+'/rooms/'+encodeURIComponent(_roomHubArea)+'/prove'); const j=r.ok?await r.json():null;
     if(j&&j.state==='running'){ _proveShow(j); _provePoll(_roomHubArea); return; } }catch(e){}
   const name=(typeof _rhName==='function'&&_rhName())||'this room';
-  _recOverlay('<div style="font-size:15px;font-weight:600;margin-bottom:6px">Prove the Room</div>'
-    +'<div style="font-size:12px;color:#9aa8b8;margin-bottom:14px">Runs every activity in '+esc(name)+' one after another, checks that each one actually happened, opens each of the room’s app shortcuts on its device, then turns the room off. The equipment will turn on and off for a few minutes.</div>'
-    +'<button class="btn-primary" style="width:100%" onclick="_proveRun()">Run It Now</button>'
-    +'<button class="rp-cancel" style="margin-top:8px;width:100%" onclick="_proveClose()">Cancel</button>');
+  // REGISTER 1340 (Dave 14 Nov 08:52: "prove the room is when it should have this commisioning process")
+  _recOverlay('<div class="v3dh2"><div class="t">Prove the Room</div><div class="s">Commissions '+esc(name)+': each activity is run from the room resting, then switched straight from one source to another, then each app shortcut, then TV Off. Every device is read back. An activity that passes is marked Tested. One that fails shows what was wrong, and Jarvis can propose the fix. The equipment will turn on and off for a few minutes.</div></div>'
+    +'<div class="v3foot" style="display:flex;gap:8px;margin-top:14px"><button class="v3btn" onclick="_proveClose()">Cancel</button><button class="v3btn pri" style="flex:1" onclick="_proveRun()">Run It Now</button></div>');
 }
+let _proveLast=null;
 function _proveClose(){ if(_proveTimer){ clearInterval(_proveTimer); _proveTimer=null; } _recClose(); }
 async function _proveRun(){
   const area=_roomHubArea; if(!area){ _proveClose(); return; }
@@ -11835,28 +11835,61 @@ function _provePoll(area){
       if(j){ _proveShow(j); if(j.state==='done'||j.state==='error'){ clearInterval(_proveTimer); _proveTimer=null; } } }catch(e){}
   },2000);
 }
+function _proveWhy(s){
+  // what was wrong, in the platform's own readings (1340); a shortcut keeps 916/1084's words
+  if(s.kind==='shortcut') return s.ok?((s.final||{}).shows?'shows '+esc(s.final.shows):''):(s.sent?'Sent — the device doesn’t show which app is open':esc(((s.final||{}).error)||'the device did not take it'));
+  const bad=(s.rest_failed&&s.rest_failed.length?s.rest_failed:[]).concat(s.failed||[]);
+  if(s.ok) return s.tested?'Tested':'';
+  if(bad.length) return bad.map(f=>esc(f.what)+': read '+esc(String(f.reading))).join('<br>');
+  return esc(((s.final||{}).error)||'it did not finish');
+}
 function _proveShow(j){
   let body='';
   if(j.state==='running'){
-    body='<div style="font-size:13px;color:#cfd6df">Running'+(j.current?' — '+esc(j.current):'')+'…</div>';
+    body='<div class="v3empty">Running'+(j.current?' — '+esc(j.current):'')+'…</div>';
   }else if(j.state==='error'){
-    body='<div style="font-size:13px;color:#e17055">'+esc(j.error||'The proof stopped')+'</div>';
+    body='<div class="v3empty" style="color:#e17055">'+esc(j.error||'The proof stopped')+'</div>';
   }else{
+    _proveLast=j;
     const steps=j.steps||[];
-    body='<div style="font-size:13px;margin-bottom:10px;color:'+(j.passed===j.total?'#2fbf71':'#e0a33a')+'">'+j.passed+' of '+j.total+' Passed'+(j.sent?(' · '+j.sent+' Sent'):'')+'</div>'   // 1084: sent is not a pass
-      // 917 (Dave 17 Oct: "might need to allow second line if required as the channels on family room looks like it runs
-      // out of space"): the step's name wraps onto a second line; the time stays whole at the right, what a shortcut
-      // shows on a line of its own under it.
-      +steps.map(s=>'<div class="row" style="align-items:flex-start;gap:12px"><div class="rl" style="white-space:normal;min-width:0;flex:1;line-height:1.35">'+(s.ok?'✓ ':(s.sent?'→ ':'✗ '))+esc(s.alias||s.script)+'</div><div class="rr" style="color:#9aa8b8;flex-shrink:0;text-align:right;white-space:normal;max-width:45%;line-height:1.35">'
-        +(s.kind==='shortcut'
-          // 916: an app shortcut passes when its device took the command (Dave's rule, 871); what it shows is information
-          ?(s.ok?(s.seconds+' s'+((s.final||{}).shows?'<br>shows '+esc(s.final.shows):''))
-             :(s.sent?('Sent — the device doesn\'t show which app is open'+((s.final||{}).shows?'<br>it shows '+esc(s.final.shows):'')):esc(((s.final||{}).error)||'the device did not take it')))   // 1084
-          :(s.ok?(s.seconds+' s'):('the room read '+esc(((s.final||{}).state)||'nothing'))))+'</div></div>').join('');
+    const allOk=j.passed===j.total;
+    body='<div style="margin-bottom:10px"><span class="v3chip '+(allOk?'ok':'amber')+'">'+j.passed+' of '+j.total+' Passed'+(j.sent?(' · '+j.sent+' Sent'):'')+(j.tested!=null?(' · '+j.tested+' Tested'):'')+'</span></div>'
+      +'<div class="v3rows">'+steps.map(s=>'<div class="v3row" style="cursor:default;align-items:flex-start"><div class="rt"><div class="t1" style="white-space:normal">'+esc(s.alias||s.script)+'</div><div class="t2" style="white-space:normal;line-height:1.35">'+_proveWhy(s)+'</div></div><div class="rr"><span class="v3chip '+(s.ok?'ok':(s.sent?'amber':'red'))+'">'+(s.ok?'Passed':(s.sent?'Sent':'Failed'))+'</span>'+(s.seconds!=null?'<div class="t2" style="text-align:right;margin-top:4px">'+s.seconds+' s</div>':'')+'</div></div>').join('')+'</div>';
+    const failed=steps.filter(s=>!s.ok&&!s.sent&&s.kind!=='shortcut');
+    if(failed.length) body+='<div id="prove-fix" style="margin-top:14px"><button class="v3btn pri" style="width:100%" onclick="_proveFixAsk()">Ask Jarvis to Fix</button><div class="v3hint" style="margin-top:6px">Jarvis reads the room and proposes the change. Nothing changes until you tap Apply.</div></div>';
   }
-  _recOverlay('<div style="font-size:15px;font-weight:600;margin-bottom:10px">Prove the Room</div>'+body
-    +'<button class="rp-cancel" style="margin-top:14px;width:100%" onclick="_proveClose()">'+(j.state==='running'?'Hide':'Close')+'</button>');
+  _recOverlay('<div class="v3dh2"><div class="t">Prove the Room</div></div>'+body
+    +'<div class="v3foot" style="display:flex;gap:8px;margin-top:14px">'+(j.state==='done'?'<button class="v3btn" onclick="_proveRun()">Prove Again</button>':'')+'<button class="v3btn" style="flex:1" onclick="_proveClose()">'+(j.state==='running'?'Hide':'Close')+'</button></div>');
 }
+let _proveFixSess=null;
+function _proveMd(t){ return esc(String(t||'')).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/\n/g,'<br>'); }
+async function _proveFixSay(text, busy){
+  const box=document.getElementById('prove-fix'); if(!box) return null;
+  setHTML(box, '<div class="v3empty">'+busy+'</div>');
+  try{
+    const r=await fetch(proCoreUrl()+'/assist/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session:_proveFixSess, text:text, area_id:_roomHubArea})});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok||!j.reply){ setHTML(box, '<div class="v3empty" style="color:#e17055">'+esc((j&&j.error)||('Jarvis could not answer ('+r.status+')'))+'</div>'); return null; }
+    return j;
+  }catch(e){ setHTML(box, '<div class="v3empty" style="color:#e17055">Could not reach ProOS Core</div>'); return null; }
+}
+async function _proveFixAsk(){
+  const j=_proveLast; if(!j) return;
+  const name=(typeof _rhName==='function'&&_rhName())||_roomHubArea;
+  _proveFixSess='prove-'+_roomHubArea+'-'+Date.now();
+  const lines=(j.steps||[]).filter(s=>!s.ok&&!s.sent&&s.kind!=='shortcut').map(s=>'- '+(s.alias||s.script)+': '+(((s.rest_failed||[]).concat(s.failed||[])).map(f=>f.what+' read '+f.reading).join('; ')||((s.final||{}).error)||'did not finish'));
+  const ask='Prove the Room just ran in the '+name+'. These steps failed, with what the platform read:\n'+lines.join('\n')
+    +'\nRead the room’s devices and those activities’ steps, then tell me in plain words what you would change in each and why. Don’t change anything yet. Finish by asking whether to apply it and test it again.';
+  const r=await _proveFixSay(ask,'Jarvis is reading the room…'); if(!r) return;
+  setHTML(document.getElementById('prove-fix'), '<div class="v3card" style="padding:12px;font-size:13.5px;line-height:1.45">'+_proveMd(r.reply)+'</div>'
+    +'<div style="display:flex;gap:8px;margin-top:10px"><button class="v3btn" onclick="_proveFixNo()">Not Now</button><button class="v3btn pri" style="flex:1" onclick="_proveFixApply()">Apply and Test Again</button></div>');
+}
+async function _proveFixApply(){
+  const r=await _proveFixSay('yes','Jarvis is applying it and testing — the equipment will turn on and off…'); if(!r) return;
+  setHTML(document.getElementById('prove-fix'), '<div class="v3card" style="padding:12px;font-size:13.5px;line-height:1.45">'+_proveMd(r.reply)+'</div>'
+    +'<button class="v3btn pri" style="width:100%;margin-top:10px" onclick="_proveRun()">Prove the Room Again</button>');
+}
+function _proveFixNo(){ const b=document.getElementById('prove-fix'); if(b) setHTML(b, '<div class="v3hint">Nothing was changed.</div>'); }
 function _recOverlay(inner){
   let ov=document.getElementById('rec-modal'); if(ov) ov.remove();
   ov=document.createElement('div'); ov.id='rec-modal';
