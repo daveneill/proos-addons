@@ -5321,6 +5321,7 @@ proos/platform_entries.py
 proos/platformfaults.py
 proos/repairspush.py
 proos/triggers.py
+proos/matterhub.py
 proos/platformlog.py
 proos/platformaddr.py
 proos/homelocale.py

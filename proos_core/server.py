@@ -8841,6 +8841,16 @@ class Handler(BaseHTTPRequestHandler):
                 # 970a: what the last weather pass found — created, current, moved, skipped (no location) or the
                 # platform's own refusal, word for word
                 return self._send(200, _WEATHER_STD.get("last") or {"pending": "the first weather pass runs 30 s after start"})
+            if parts == ["matterhub"]:
+                # 1330 (plan item 24): the Matter Hub (Google and Alexa) — installed? running? its bridges, read from it.
+                if _project_caller(getattr(self, "_user", None)) is None:
+                    return self._send(403, {"error": "installer access required"})
+                from proos import matterhub as _mh
+                from proos import platformaddr as _pa
+                try:
+                    return self._send(200, _mh.status(_mh.Hub(_sv, _pa.base)))
+                except Exception as e:                               # noqa: BLE001
+                    return self._send(502, {"error": "the Matter Hub did not answer: %s" % str(e)[:160]})
             if parts == ["triggers"]:
                 # 1328 (plan F23): the box's Outside Triggers, each with its two addresses, and what one may start.
                 if _project_caller(getattr(self, "_user", None)) is None:
@@ -12181,6 +12191,24 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, res)
                 except Exception as e:  # noqa: BLE001
                     return self._send(200, {"ok": False, "lines": ["STOP: %s" % e]})
+            if parts and parts[0] == "matterhub":
+                # 1330 (plan item 24): make or remove the ProOS Bridge on the Matter Hub, from inside the box.
+                if _project_caller(getattr(self, "_user", None)) is None:
+                    return self._send(403, {"error": "installer access required"})
+                from proos import matterhub as _mh
+                from proos import platformaddr as _pa
+                _hub = _mh.Hub(_sv, _pa.base)
+                b = self._body() or {}
+                try:
+                    if parts == ["matterhub", "test"]:
+                        return self._send(200, {"made": _mh.make_test_bridge(_hub, b.get("area_id"))})
+                    if len(parts) == 3 and parts[2] == "remove":
+                        return self._send(200, {"removed": _mh.remove_bridge(_hub, parts[1])})
+                except ValueError as e:
+                    return self._send(400, {"error": str(e)})
+                except Exception as e:                               # noqa: BLE001
+                    return self._send(502, {"error": "the Matter Hub did not take it: %s" % str(e)[:160]})
+                return self._send(404, {"error": "unknown"})
             if parts and parts[0] == "triggers":
                 # 1328 (plan F23): make, remove or test an Outside Trigger — a platform automation with a webhook trigger.
                 if _project_caller(getattr(self, "_user", None)) is None:

@@ -3403,7 +3403,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111207';
+const PROOS_BUILD='2026111208';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -8788,7 +8788,7 @@ function _irrRole(e){ const l=e.labels||[]; return l.includes(IRR_ZONE)?'zone':(
 // The platform's Mosquitto is the broker and one platform automation publishes every ProOS room's activity and the
 // home summary, retained. The other system's login is the installer's: typed here, handed to Mosquitto, never shown.
 let _shrSt=null;
-function openShare(){ show('share'); _shrSt=null; _trgSt=null; renderSharePanel(); loadShare(); loadTriggers(); }
+function openShare(){ show('share'); _shrSt=null; _trgSt=null; _mhSt=null; renderSharePanel(); loadShare(); loadTriggers(); loadMatterHub(); }
 // ── OUTSIDE TRIGGERS (register 1328, plan F23) ─────────────────────────────
 // Another system (Control4, Savant, a doorbell, a UniFi alarm) starts an activity or a scene by calling an address.
 // Each is ONE platform automation with a webhook trigger (Core: proos/triggers.py) — the platform does the listening.
@@ -8803,6 +8803,35 @@ function makeTrigger(){ const n=(document.getElementById('trg-name')||{}).value|
 async function removeTrigger(i){ const t=((_trgSt||{}).triggers||[])[i]; if(!t) return; const id=t.id, name=t.name; if(await proAsk('Remove the Outside Trigger "'+name+'"?\n\nThe other system\'s calls to its address will do nothing from now on.')) _trgPost('/'+encodeURIComponent(id)+'/remove',{},'Removed'); }
 async function testTrigger(i){ const t=((_trgSt||{}).triggers||[])[i]; if(!t) return; const id=t.id, name=t.name, what=_trgWhat(t.target); if(await proAsk('Test "'+name+'"?\n\nThis calls it the way the other system will, so '+what+' really starts.')) _trgPost('/'+encodeURIComponent(id)+'/test',{},'Called — '+what+' should be starting'); }
 async function copyTrigger(i,where){ const t=((_trgSt||{}).triggers||[])[i]; const url=t&&t.addresses&&t.addresses[where]; if(!url) return; try{ await navigator.clipboard.writeText(url); toast('Address copied'); }catch(e){ toast('Copy did not work — select the address and copy it'); } }
+// ── GOOGLE AND ALEXA (register 1330, plan item 24) — the Matter Hub, read through Core from inside the box ──────────
+let _mhSt=null;
+async function loadMatterHub(){ try{ const r=await _coreFetch(proCoreUrl()+'/matterhub',{},20000); _mhSt=r.ok?await r.json():{err:((await r.json().catch(()=>({}))).error)||'Core did not answer'}; }catch(e){ _mhSt={err:'Core did not answer'}; } renderSharePanel(); }
+async function _mhPost(path,body,done){
+  try{ const r=await _coreFetch(proCoreUrl()+'/matterhub'+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})},30000); const j=await r.json().catch(()=>({}));
+    if(r.ok){ toast(done); await loadMatterHub(); } else toast(j.error||'Not done'); }catch(e){ toast(_coreFailWords('',e)); } }
+function makeMatterTest(){ const a=(document.getElementById('mh-area')||{}).value||''; if(!a){ toast('Pick a room'); return; } _mhPost('/test',{area_id:a},'ProOS Bridge made'); }
+async function removeMatterBridge(i){ const b=(((_mhSt||{}).bridges)||[])[i]; if(!b) return; if(await proAsk('Remove "'+b.name+'"?\n\nGoogle Home and Alexa will lose the devices it carries.')) _mhPost('/'+encodeURIComponent(b.id)+'/remove',{},'Bridge removed'); }
+function matterCard(){
+  const st=_mhSt, T='<div class="sav-t">Google and Alexa</div>';
+  if(!st) return '<div class="sav-card">'+T+'<div class="sav-s">Reading…</div></div>';
+  if(st.err) return '<div class="sav-card">'+T+'<div class="sav-s">'+esc(st.err)+'.</div></div>';
+  if(!st.installed) return '<div class="sav-card">'+T+'<div class="sav-s">The Matter Hub is not on this box.</div></div>';
+  if(!st.running) return '<div class="sav-card">'+T+'<div class="sav-s">The Matter Hub '+esc(st.version||'')+' is installed but not running.</div></div>';
+  const rows=(st.bridges||[]).map((b,i)=>`<div class="sav-card" style="margin:8px 0 0">
+      <div class="sav-row"><span class="sav-nm" style="font-weight:600">${esc(b.name)}</span><span class="sav-v">${esc(b.status||'')}${b.reason?' — '+esc(b.reason):''}</span></div>
+      <div class="sav-row"><span class="sav-nm">Devices</span><span class="sav-v">${b.devices==null?'Not read':b.devices}</span></div>
+      ${(b.failed||[]).length?`<div class="sav-row"><span class="sav-nm">Not Published</span><span class="sav-v">${b.failed.map(f=>esc(entName(f.entity_id))+' ('+esc(f.reason)+')').join(', ')}</span></div>`:''}
+      <div class="sav-row"><span class="sav-nm">Paired With</span><span class="sav-v">${(b.controllers||[]).length?esc(b.controllers.join(', ')):'Nothing yet'}</span></div>
+      ${b.code?`<div class="sav-row"><span class="sav-nm">Pairing Code</span><span class="sav-v"><code style="font-size:16px;letter-spacing:1px">${esc(b.code)}</code></span></div>`:''}
+      ${b.proos?`<div class="sav-row"><span class="sav-nm"></span><span class="sav-v"><button class="btn-ghost" onclick="removeMatterBridge(${i})">Remove</button></span></div>`:''}
+    </div>`).join('');
+  const has=(st.bridges||[]).some(b=>b.proos);
+  const areaOpts=(_areas||[]).slice().sort((x,y)=>String(x.name).localeCompare(String(y.name))).map(a=>`<option value="${esc(a.area_id)}">${esc(a.name)}</option>`).join('');
+  return `<div class="sav-card">${T}<div class="sav-s">On test: the community Matter Hub ${esc(st.version||'')} publishes a room's lights as a Matter bridge. In Google Home or the Alexa app, add a Matter device and type the pairing code.</div>
+    ${rows||'<div class="sav-s" style="margin-top:6px">No bridges yet.</div>'}
+    ${has?'':`<div class="sav-row" style="margin-top:8px"><select id="mh-area" class="sav-sel" style="flex:1"><option value="">Pick a room…</option>${areaOpts}</select><button class="btn" onclick="makeMatterTest()">Make Test Bridge</button></div>`}
+  </div>`;
+}
 function _trgWhat(e){ const t=(((_trgSt||{}).targets)||[]).find(x=>x.entity_id===e); return t?t.name:(e||'nothing'); }
 function triggersCard(){
   const st=_trgSt;
@@ -8846,6 +8875,7 @@ function renderSharePanel(){
   h+=`<div class="sav-card"><div class="sav-t" style="margin-bottom:4px">What Is Shared</div><div class="sav-s" style="margin-bottom:6px">Each topic carries {"state": …, "attributes": {…}}, retained, sent on every change and again whenever the platform starts.</div>`
      +(sh.length?sh.map(x=>`<div class="sav-row"><span class="sav-nm">${esc(entName(x.entity_id))}</span><span class="sav-v"><code>${esc(x.topic)}</code></span></div>`).join(''):'<div class="sav-s">No ProOS room states yet.</div>')+`</div>`;
   h+=triggersCard();   // 1328
+  h+=matterCard();     // 1330
   setHTML(host,h);
 }
 // ── THE RACK (register 1322, 12 Nov 2026) ─────────────────────────────────
