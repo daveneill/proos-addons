@@ -266,5 +266,9 @@ check("   …ProOS's front door never passes the path; the door is build 11 and 
       (FD.is_platform_path("api/proos_core_only/matterhub/bridges"), FD.is_platform_path("api/states"), D.DOOR_BUILD,
        "matterhub.py" in D.DOOR_FILES, "matterhub.async_register(hass, entry)" in D.files()["__init__.py"].decode()),
       (False, True, "12", True, True))
+_authsrc = srvsrc.split("    def _auth(self")[1].split("    def _body(self")[0]
+check("   (SOURCE) the door's question passes Core's sign-in gate, GET only (1330g: on the box it met a 401)",
+      'if path == "door/vouch" and self.command == "GET":\n                return True' in _authsrc
+      and _authsrc.index('"door/vouch"') < _authsrc.index("if path not in auth.PUBLIC_PATHS"))
 print("\n%d passed, %d failed" % (PASS, len(FAIL)))
 sys.exit(1 if FAIL else 0)

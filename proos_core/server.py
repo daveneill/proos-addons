@@ -6524,6 +6524,11 @@ class Handler(BaseHTTPRequestHandler):
             # checked in the handler before anything else. Only the POST.
             if path == "signin/check" and self.command == "POST":
                 return True
+            # 1330g: the door asking whether Core issued a one-time word carries no login — the word is the check, and
+            # the answer is only true/false. Read on the box: without this the door's question met the sign-in gate
+            # (401), so the door refused Core itself.
+            if path == "door/vouch" and self.command == "GET":
+                return True
             if path not in auth.PUBLIC_PATHS:
                 self._send(401, {"error": "authentication required"})
                 return False
