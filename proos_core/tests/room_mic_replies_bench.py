@@ -198,7 +198,7 @@ check("  …wiring: the reopen asks the platform's start_conversation with the s
       '"start_conversation", m,' in SRV and '"preannounce": False' in SRV)
 check("  …wiring: the measured length rides to the door, and the door holds the turn that long (build 5)",
       '_sp["say_s"] = _rmic.hold_seconds(_secs)' in fin and 'say = (res.get("spoke") or {}).get("say_s")' in CONV
-      and door.DOOR_BUILD in ("5", "6", "7", "8", "9", "10", "11"))   # 1330d: build 11 (the Matter Hub door) keeps it   # 1326: build 10 (Repairs) keeps it   # 1325: build 9 (ProOS's AI tools) keeps the measured hold   # 1306: build 8 (ProOS's sensors) keeps it too   # re-pinned 1259: build 6 (the ProOS announcement) keeps the measured hold; 1262: build 7 (its minute check on the platform's loop) keeps it too
+      and door.DOOR_BUILD in ("5", "6", "7", "8", "9", "10", "11", "12"))   # 1330d/e: builds 11 and 12 (the Matter Hub door) keep it   # 1326: build 10 (Repairs) keeps it   # 1325: build 9 (ProOS's AI tools) keeps the measured hold   # 1306: build 8 (ProOS's sensors) keeps it too   # re-pinned 1259: build 6 (the ProOS announcement) keeps the measured hold; 1262: build 7 (its minute check on the platform's loop) keeps it too
 check("  …wiring: the door hands an unspoken reply to the mic to say itself (and keeps it listening after a question)",
       'resp.async_set_speech(res.get("reply")' in CONV and "continue_conversation=asks" in CONV)
 check("  …wiring: the setting is changed only by the trade and journaled",

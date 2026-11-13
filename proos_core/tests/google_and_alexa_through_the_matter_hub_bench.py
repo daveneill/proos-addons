@@ -6,7 +6,8 @@ Run: python3 tests/google_and_alexa_through_the_matter_hub_bench.py
   1. the hub is found by asking the Supervisor (its slug ends _hamh) — not installed / not running is said, not guessed
   2. Core reaches it from INSIDE the box through the DOOR (Core asking the Supervisor got 401, the platform's websocket
      'unauthorized' — 1330b, 1330c); Core holds no session
-  8. the door: answers Core's own address only; carries the hub's bridge paths only; makes the session for its panel
+  8. the door: answers only a call Core vouches for (a one-time word, asked back of Core — 1330e: the address check
+     refused Core itself on the box); carries the hub's bridge paths only; makes the session for its panel
      user and calls the Supervisor's ingress route; ProOS's front door never passes the path
   3. the test bridge is ONE room's lights: area AND domain light ("all"), named "ProOS Bridge"
   4. what Pro shows is the hub's reading: status, devices, the ones that failed, paired, pairing code
@@ -53,10 +54,12 @@ class Sup:
 
 class HubSrv:
     def __init__(self):
+        self.vouchers = []
         self.bridges, self.seen = [{"id": "b-other", "name": "Garage things", "status": "running", "deviceCount": 2}], []
 
     def __call__(self, req, timeout=None):
         self.seen.append((req.get_method(), req.full_url, req.get_header("Cookie")))
+        self.vouchers.append(req.get_header("X-proos-voucher"))
         path = req.full_url.split("/matterhub/", 1)[1].split("?")[0]
         m = req.get_method()
         out = None
@@ -166,9 +169,27 @@ class Resp:
 
 
 class Sess:
+    def get(self, url, params=None, timeout=None):
+        assert url == "http://abc-proos:8770/door/vouch"
+        return VouchResp(M.vouch(params["word"]))
+
     def request(self, method, url, data=None, headers=None, cookies=None, timeout=None):
         outbound.append((method, url, cookies))
         return Resp(200, b"[]")
+
+
+class VouchResp:
+    def __init__(self, ok):
+        self.ok = ok
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *a):
+        return False
+
+    async def json(self, content_type=None):
+        return {"vouched": self.ok}
 
 
 class Ingress:
@@ -206,37 +227,44 @@ sys.modules[DM.__name__] = DM
 exec(compile(D.files("http://abc-proos:8770")["matterhub.py"].decode(), "matterhub.py", "exec"), DM.__dict__)
 
 
-class Loop:
-    async def getaddrinfo(self, host, port, type=None):
-        return [(2, 1, 6, "", ("172.30.33.5", 0))] if host == "abc-proos" else []
-
-
-hass = types.SimpleNamespace(loop=Loop(), data={"hassio": types.SimpleNamespace(base_url="http://172.30.32.2")})
+hass = types.SimpleNamespace(data={"hassio": types.SimpleNamespace(base_url="http://172.30.32.2")})
 v = DM.MatterHubDoor(hass, types.SimpleNamespace(data={"panel_user": "u-panel"}))
 
 
-def rq(remote, method="GET", q=None):
+def rq(word, method="GET", q=None):
     async def read():
         return b""
-    return types.SimpleNamespace(remote=remote, method=method, query=q or {"slug": "3fd9e6b0_hamh", "token": "ENTRY"}, read=read)
+    return types.SimpleNamespace(remote="172.30.32.1", method=method, headers={"X-ProOS-Voucher": word} if word else {},
+                                 query=q or {"slug": "3fd9e6b0_hamh", "token": "ENTRY"}, read=read)
 
 
 async def door_runs():
-    a = await v.get(rq("192.168.8.50"), "bridges")
-    b = await v.get(rq("172.30.33.5"), "../addons/other")
-    c = await v.get(rq("172.30.33.5"), "bridges")
-    return a, b, c
+    none = await v.get(rq(None), "bridges")
+    made_up = await v.get(rq("guessed-word"), "bridges")
+    w = M.issue_voucher()
+    first = await v.get(rq(w), "../addons/other")
+    w2 = M.issue_voucher()
+    c = await v.get(rq(w2), "bridges")
+    reused = await v.get(rq(w2), "bridges")
+    old = M.issue_voucher(now=1.0)
+    stale = await v.get(rq(old), "bridges")
+    return none, made_up, first, c, reused, stale
 
 
-a, b, c = asyncio.run(door_runs())
-check("8 · the door answers Core's own address only, and the hub's bridge paths only",
-      (a[1], a[2]["error"], b[1]), (403, "for ProOS Core only", 404))
+none, made_up, first, c, reused, stale = asyncio.run(door_runs())
+check("8 · the door answers only a call Core vouches for — none, made up, used twice or stale is refused",
+      (none[1], made_up[1], reused[1], stale[1], none[2]["error"]), (403, 403, 403, 403, "for ProOS Core only"))
+check("   …and carries the hub's bridge paths only", first[1], 404)
 check("   …makes the session for its panel user inside the platform and calls the Supervisor's ingress route",
       (made_sessions, outbound, c[:2]),
       (["u-panel"], [("GET", "http://172.30.32.2/ingress/ENTRY/api/matter/bridges", {"ingress_session": "SESSION"})], ("resp", 200)))
+srvsrc = open(os.path.join(CORE, "server.py"), encoding="utf-8").read()
+check("   (SOURCE) Core's /door/vouch answers the voucher and nothing else; Core sends one with every hub call",
+      ('parts == ["door", "vouch"]' in srvsrc and '_mhv.vouch(_w)' in srvsrc.split('parts == ["door", "vouch"]')[1][:600],
+       len(srv.vouchers) > 3 and all(v and len(v) >= 32 for v in srv.vouchers) and len(set(srv.vouchers)) == len(srv.vouchers)), (True, True))
 check("   …ProOS's front door never passes the path; the door is build 11 and installs the file",
       (FD.is_platform_path("api/proos_core_only/matterhub/bridges"), FD.is_platform_path("api/states"), D.DOOR_BUILD,
        "matterhub.py" in D.DOOR_FILES, "matterhub.async_register(hass, entry)" in D.files()["__init__.py"].decode()),
-      (False, True, "11", True, True))
+      (False, True, "12", True, True))
 print("\n%d passed, %d failed" % (PASS, len(FAIL)))
 sys.exit(1 if FAIL else 0)

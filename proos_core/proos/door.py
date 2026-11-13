@@ -44,7 +44,7 @@ import time
 
 # Bumped ONLY when the integration's own code below changes — a Core
 # update that leaves the door alone must not ask for a restart.
-DOOR_BUILD = "11"
+DOOR_BUILD = "12"
 DOMAIN = "proos"
 # REGISTER 928 (door build 3): conversation.py — "ProOS Assist", the platform's
 # own way of plugging an assistant into its voice pipeline, so a room's own
@@ -56,6 +56,7 @@ DOMAIN = "proos"
 # REGISTER 1325 (door build 9): llm_tools.py — ProOS's read-only knowledge as the platform's own AI tools (plan D17).
 # REGISTER 1326 (door build 10): repairs.py + translations/en.json — Health's open faults on the platform's Repairs list.
 # REGISTER 1330d (door build 11): matterhub.py — the Matter Hub (Google and Alexa) asked from inside the platform, for Core only.
+# REGISTER 1330e (door build 12): the door asks Core to vouch for each call, instead of trusting the caller's address.
 DOOR_FILES = ("manifest.json", "__init__.py", "config_flow.py", "conversation.py", "presence.py", "sensor.py",
               "llm_tools.py", "repairs.py", "matterhub.py", "translations/en.json")
 QUIET_FILE = "proos_quiet"            # in the platform's config folder: present = the platform stays unannounced
@@ -796,16 +797,14 @@ ingress session, and only the platform may ask the Supervisor for one (for a use
 can. It asks for a session for the door's own panel user, calls the hub through the Supervisor's ingress route, and
 hands Core the hub's answer. The session never leaves the platform.
 
-FOR CORE ONLY: answered only when the caller's address is Core's own on the box's internal network; ProOS's front door
-never passes this path from outside (frontdoor.NOT_PASSED). The paths are the hub's bridge API and nothing else.
+FOR CORE ONLY: every call carries a one-time word Core issued, and the door asks Core (inside the box) whether it did —
+a call Core did not vouch for is refused (1330e: read on the box, the caller's address as the platform sees it is not
+the address of Core's own name, so an address check refused Core itself). ProOS's front door never passes this path
+from outside (frontdoor.NOT_PASSED). The paths are the hub's bridge API and nothing else.
 """
 from __future__ import annotations
 
-import asyncio
-import json
 import re
-import socket
-from urllib.parse import urlparse
 
 import aiohttp
 from aiohttp import web
@@ -818,19 +817,21 @@ PATHS = re.compile(r"^bridges(/[A-Za-z0-9_-]+)?$")       # the hub's bridge API 
 CALL_S = 25
 
 
-async def _core_addresses(hass):
-    host = urlparse(CORE).hostname or ""
+async def _core_vouches(hass, word):
+    if not word:
+        return False
     try:
-        infos = await hass.loop.getaddrinfo(host, None, type=socket.SOCK_STREAM)
-    except Exception:  # noqa: BLE001
-        return set()
-    return {i[4][0] for i in infos}
+        async with async_get_clientsession(hass).get(
+                CORE + "/door/vouch", params={"word": word}, timeout=aiohttp.ClientTimeout(total=5)) as r:
+            return bool(((await r.json(content_type=None)) or {}).get("vouched"))
+    except Exception:  # noqa: BLE001 — Core not answering: not vouched
+        return False
 
 
 class MatterHubDoor(HomeAssistantView):
     url = URL
     name = "api:proos_core_only:matterhub"
-    requires_auth = False      # the caller is checked by its address: Core's own, inside the box
+    requires_auth = False      # the caller is checked by Core itself: a one-time word Core vouches for
 
     def __init__(self, hass, entry):
         self.hass, self.entry = hass, entry
@@ -845,7 +846,7 @@ class MatterHubDoor(HomeAssistantView):
         return await self._go(request, tail)
 
     async def _go(self, request, tail):
-        if request.remote not in await _core_addresses(self.hass):
+        if not await _core_vouches(self.hass, request.headers.get("X-ProOS-Voucher")):
             return self.json({"error": "for ProOS Core only"}, status_code=403)
         if not PATHS.match(tail or ""):
             return self.json({"error": "not a Matter Hub bridge path"}, status_code=404)

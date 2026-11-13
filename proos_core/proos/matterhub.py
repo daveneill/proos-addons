@@ -11,7 +11,8 @@ it names (read on the box 13 Nov: Core asking the Supervisor got 401 (1330b); Co
 websocket got "unauthorized", Core's platform user not being an admin (1330c)). So the DOOR asks (door build 11,
 1330d): Core calls the door's /api/proos_core_only/matterhub/<bridge path> on the platform from inside the box; the door,
 inside the platform, makes the session for its panel user, calls the hub, and hands back the hub's answer. The session
-never leaves the platform; the door answers Core's own address only; ProOS's front door never passes that path.
+never leaves the platform; the door answers only a call Core vouches for (a one-time word, asked back of Core — 1330e);
+ProOS's front door never passes that path.
 
 WHAT IS READ, NOT ASSUMED: the bridge's status, how many devices it carries, the devices that FAILED to publish,
 whether it is commissioned, and which controllers hold it (its fabrics — Google, Amazon, Apple are named by the vendor
@@ -38,6 +39,30 @@ def find_slug(sv) -> str | None:
 
 
 DOOR_PATH = "/api/proos_core_only/matterhub/"
+VOUCH_S = 30.0          # plumbing: how long a voucher Core hands the door stays good (it is used at once, and once)
+_VOUCHERS: dict = {}
+
+
+def issue_voucher(now=None) -> str:
+    """A one-time word Core hands the door with each call; the door asks Core whether Core issued it (1330e — read on
+    the box: the caller's ADDRESS as the platform sees it is not Core's own name's address, so the door asks instead)."""
+    import secrets as _s
+    import time as _t
+    now = _t.time() if now is None else now
+    for k, at in list(_VOUCHERS.items()):
+        if now - at > VOUCH_S:
+            _VOUCHERS.pop(k, None)
+    v = _s.token_urlsafe(24)
+    _VOUCHERS[v] = now
+    return v
+
+
+def vouch(word: str, now=None) -> bool:
+    """True once, for a voucher Core issued in the last VOUCH_S seconds."""
+    import time as _t
+    now = _t.time() if now is None else now
+    at = _VOUCHERS.pop(str(word or ""), None)
+    return at is not None and now - at <= VOUCH_S
 
 
 class Hub:
@@ -68,6 +93,7 @@ class Hub:
                urllib.parse.urlencode({"slug": inf["slug"], "token": token}))
         data = json.dumps(body).encode() if body is not None else None
         req = urllib.request.Request(url, data=data, method=method)
+        req.add_header("X-ProOS-Voucher", issue_voucher())
         if data is not None:
             req.add_header("Content-Type", "application/json")
         with self.open(req, timeout=timeout) as r:

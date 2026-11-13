@@ -7920,6 +7920,12 @@ class Handler(BaseHTTPRequestHandler):
                 # whether this box still has its starter installer login. Pro's page and the app's own sign-in both read it,
                 # and say "a new box" only when it is one.
                 return self._send(200, {"new_box": bool(provision and provision.starter_login_pending())})
+            if parts == ["door", "vouch"]:
+                # 1330e: the door asks whether Core issued this one-time word — True once, within 30 s. Nothing secret
+                # is answered; a word is 32 random characters and dies on first use.
+                from proos import matterhub as _mhv
+                _w = (parse_qs(urlparse(self.path).query).get("word") or [""])[0]
+                return self._send(200, {"vouched": _mhv.vouch(_w)})
             if parts == ["health"]:
                 # awareness rides along (3 Aug): the posture is a per-site
                 # option — surfaces must show it, never assume it.
