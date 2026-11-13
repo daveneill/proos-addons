@@ -177,6 +177,7 @@ def cards(now=None) -> list:
     at = snap.get("at")
     seen = _load_seen()
     out = []
+    _read_now.clear()
     for e in snap.get("entries") or []:
         st, eid = e.get("state"), e.get("entry_id")
         if e.get("disabled_by"):
@@ -204,15 +205,29 @@ def cards(now=None) -> list:
         if i.get("domain") == "proos":
             continue                  # 1326: ProOS's own repairs are Health's faults, already on Health — never twice
         title = i.get("title") or str(i.get("issue_id") or "").replace("_", " ").strip().capitalize() or "A platform repair"
-        out.append(_card("platform_repair", "%s/%s" % (i.get("domain"), i.get("issue_id")), title,
-                         "The platform's Repairs list says: %s (%s, %s)." % (i.get("description") or title, i.get("domain"), i.get("severity") or "warning"),
-                         at, [], "repair:%s/%s" % (i.get("domain"), i.get("issue_id"))))
+        # REGISTER 1342 (Dave 14 Nov 09:56: "If it cant be fixed from the warning then it just needs to be in the log"):
+        # a Repairs issue carries no button ProOS can press — it goes to the Master Log, once, never to Needs Attention.
+        _log_once("repair:%s/%s" % (i.get("domain"), i.get("issue_id")),
+                  "The platform reports: %s." % str(i.get("description") or title).strip().rstrip("."))
     res = snap.get("resolution") or {}
+    names = res.get("names") or {}
     for i in res.get("issues") or []:
         t = i.get("type") or "issue"
-        words = "The box's own check reports %s (%s%s)." % (t.replace("_", " "), i.get("context") or "system",
-                                                            (", " + str(i.get("reference"))) if i.get("reference") else "")
+        ref = i.get("reference")
+        who = names.get(ref) or (str(ref).split("_", 1)[-1].replace("_", " ").title() if ref else None)
+        # 1342: in words — the app's own name, never its slug, the platform's context word or "hassio"
+        words = "The box's own check reports %s%s." % (_SUP_WORDS.get(t, t.replace("_", " ")).lower(),
+                                                       (" for " + who) if who else "")
         acts = []
+        if t == "boot_fail" and who:
+            words = "%s didn't start when the box started up." % who
+        # 1342: the box's OWN fix for this issue (its resolution suggestion) is the card's button — a start or restart
+        for sg in res.get("suggestions") or []:
+            if (sg.get("context"), sg.get("reference")) != (i.get("context"), ref):
+                continue
+            lab = _SUGGEST_WORDS.get(sg.get("type"))
+            if lab and sg.get("uuid"):
+                acts.append({"kind": "pf_suggest", "label": lab % (who or "It"), "uuid": sg["uuid"]})
         _auto_on = bool(_auto["since"]) and ((now or time.time()) - _auto["since"]) < AUTO_GRACE_S
         if t == "no_current_backup" and _auto_on:
             words = ("ProOS is making the box's own full backup now — the daily backups already include ProOS and "
@@ -225,17 +240,45 @@ def cards(now=None) -> list:
                      "includes the add-ons. ProOS Core is an add-on: its rooms, activities and settings are only safe "
                      "in a full backup.")
             acts = [{"kind": "pf_full_backup", "label": "Include ProOS in Backups"}]
+        if not acts and not (t == "no_current_backup" and _auto_on):   # 1342: nothing to press → the log (ProOS's own
+            # running full backup keeps its card — 1024: it says the fix is under way and clears itself)
+            _log_once("supervisor:%s/%s/%s" % (t, i.get("context"), ref or ""), words)
+            continue
         _c = _card("platform_box", "%s/%s/%s" % (t, i.get("context"), i.get("reference") or ""),
-                   _SUP_WORDS.get(t, t.replace("_", " ").title()), words, at, acts, "supervisor:%s" % t)
+                   ("%s Didn't Start" % who) if (t == "boot_fail" and who) else _SUP_WORDS.get(t, t.replace("_", " ").title()),
+                   words, at, acts, "supervisor:%s" % t)
         if t == "no_current_backup" and _auto_on:
             _c["auto_fixing"] = True      # register 1024: not an alert while ProOS's own run of the box's fix is under way
         out.append(_c)
     for k in ("unhealthy", "unsupported"):
         for why in res.get(k) or []:
-            out.append(_card("platform_box", "%s/%s" % (k, why), "The Box Reports It Is %s" % k.title(),
-                             "The box's own check reports it is %s: %s." % (k, str(why).replace("_", " ")),
-                             at, [], "supervisor:%s:%s" % (k, why)))
+            _log_once("supervisor:%s:%s" % (k, why),
+                      "The box's own check reports it is %s: %s." % (k, str(why).replace("_", " ")))   # 1342: no button
+    if snap.get("at") is not None and not snap.get("error"):
+        _logged.intersection_update(_read_now)       # cleared → logged again if it ever comes back
     return out
+
+
+# REGISTER 1342 — WHAT HAS NO BUTTON GOES TO THE LOG, ONCE. The server sets LOG to the Master Log's writer; each problem
+# is written the first time it is read (again after a restart, or after it cleared and came back) — never a card.
+LOG = None
+_logged = set()
+_SUGGEST_WORDS = {"execute_start": "Start %s", "execute_restart": "Restart %s"}   # the box's own fix, said as the button
+
+
+_read_now = set()
+
+
+def _log_once(key, words):
+    _read_now.add(key)
+    if key in _logged:
+        return
+    _logged.add(key)
+    if LOG is not None:
+        try:
+            LOG(words)
+        except Exception:                                        # noqa: BLE001
+            pass
 
 
 # ── THE BOX'S OWN FULL BACKUP, RUN AUTOMATICALLY (register 1024; Dave, 27 Oct 08:42: "2") ──────────────────────────

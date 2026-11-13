@@ -4807,13 +4807,22 @@ class _PlatformFaultReaders:
         if not os.environ.get("SUPERVISOR_TOKEN"):
             return {}
         d = _supervisor_req("GET", "/resolution/info", None) or {}
-        return d.get("data") or d
+        d = d.get("data") or d
+        try:                                                     # 1342: an app is named by its name, never its slug
+            ad = _supervisor_req("GET", "/addons", None) or {}
+            d["names"] = {a.get("slug"): a.get("name") for a in ((ad.get("data") or ad).get("addons") or [])
+                          if a.get("slug")}
+        except Exception:                                        # noqa: BLE001
+            d["names"] = {}
+        return d
 
 
 def _platform_faults_read():
     from proos import platformfaults as _pf
     if _client is None:
         return None
+    if _pf.LOG is None and _journal_mod is not None:             # 1342: what has no button goes to the Master Log
+        _pf.LOG = lambda words: _journal_mod.emit("site", "platform_notice", {"words": words})
     snap = _pf.refresh(_PlatformFaultReaders())
     _pf.prune_acks()
     if snap.get("error"):
@@ -4955,6 +4964,22 @@ def _platform_fault_fix(iid, kind):
                 pass
         if not res.get("ok"):
             return {"error": res.get("words") or res.get("skipped") or res.get("error") or "not set up"}
+    if act["kind"] == "pf_suggest":
+        # 1342: the box's own fix for its own issue (a Supervisor resolution suggestion — start or restart an app)
+        try:
+            _supervisor_req("POST", "/resolution/suggestion/%s" % act["uuid"], None)
+            ok = True
+        except Exception as e:                                   # noqa: BLE001
+            ok, _why = False, str(e)
+        if _journal_mod is not None:
+            try:
+                _journal_mod.emit("site", "repair", {"incident": iid, "action": "pf_suggest", "ok": ok,
+                                                     "words": act.get("label")})
+            except Exception:                                    # noqa: BLE001
+                pass
+        if not ok:
+            return {"error": "The box refused: %s" % _why}
+        time.sleep(8)
     if act["kind"] == "pf_reload":
         ok = _reload_entry(act.get("entry"))
         if _journal_mod is not None:

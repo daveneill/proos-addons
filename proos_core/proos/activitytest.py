@@ -331,19 +331,35 @@ def prove(client, plan, display, verdict=None, launch=None, progress=None, sleep
                 continue
             one(p, "switch", "%s · switched from %s" % (p.get("alias"), prev.get("alias")), rest=False, mark=False)
             prev = p
+    # REGISTER 1342 (Dave 14 Nov 09:56: "a media player will not report what app its on so this can only send the
+    # command after confirming the unit is actually on … if its sent the command and it didnt change then all that can
+    # be done is send command again"). Rulings 871/873 restated: the device confirmed on and the command taken IS the
+    # pass — a device that cannot report its app is never marked down for it. Only a device that DOES report, and
+    # shows something else, has the command sent once more; still not, it failed. A device that can't be read at all
+    # was not confirmed on — that is not a pass.
+    def _go(p):
+        try:
+            return (launch(p) if launch else {"error": "no launcher"}) or {}
+        except Exception as e:                # noqa: BLE001
+            return {"error": str(e)}
+
     for p in scs:
         note(p)
         t0 = clock()
-        try:
-            res = (launch(p) if launch else {"error": "no launcher"}) or {}
-        except Exception as e:                # noqa: BLE001
-            res = {"error": str(e)}
-        _opened = res.get("opened") is True
+        res, again = _go(p), False
+        if not res.get("ok") and res.get("taken") and res.get("opened") is False:
+            res, again = _go(p), True         # it reports, and showed something else — send it once more
+        unc = res.get("unconfirmed") or []
+        ok = bool(res.get("ok")) and not unc
+        cant_tell = ok and res.get("opened") is not True
         steps.append({"script": p.get("script"), "alias": p.get("alias"), "kind": "shortcut", "phase": "shortcut",
-                      "ok": bool(res.get("ok")) and _opened, "sent": bool(res.get("ok")) and not _opened,
-                      "seconds": round(clock() - t0, 1), "final": {"shows": res.get("shows"), "error": res.get("error")}})
+                      "ok": ok, "sent": cant_tell, "sent_again": again,
+                      "seconds": round(clock() - t0, 1),
+                      "final": {"shows": res.get("shows") if res.get("opened") is True else None,
+                                "error": res.get("error") or (("couldn't confirm %s is on" % " and ".join(unc))
+                                                              if unc else None)}})
     for p in offs:
         one(p, "off", p.get("alias") or "TV Off")
     return {"steps": steps, "passed": sum(1 for s in steps if s["ok"]),
-            "sent": sum(1 for s in steps if s.get("sent")), "total": len(steps),
+            "sent": 0, "total": len(steps),                          # 1342: a shortcut sent to a confirmed-on device passed
             "tested": sum(1 for s in steps if s.get("tested"))}

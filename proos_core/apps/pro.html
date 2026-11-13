@@ -3415,7 +3415,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111402';
+const PROOS_BUILD='2026111403';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -11837,7 +11837,8 @@ function _provePoll(area){
 }
 function _proveWhy(s){
   // what was wrong, in the platform's own readings (1340); a shortcut keeps 916/1084's words
-  if(s.kind==='shortcut') return s.ok?((s.final||{}).shows?'shows '+esc(s.final.shows):''):(s.sent?'Sent — the device doesn’t show which app is open':esc(((s.final||{}).error)||'the device did not take it'));
+  // 1342 (Dave 14 Nov 09:56): the device on and the command taken is a pass; a device that can't report its app is never marked down
+  if(s.kind==='shortcut') return s.ok?((s.final||{}).shows?'shows '+esc(s.final.shows):'Sent — the device was on and took it'+(s.sent_again?' (sent twice)':'')):esc(((s.final||{}).error)||'the device did not take it');
   const bad=(s.rest_failed&&s.rest_failed.length?s.rest_failed:[]).concat(s.failed||[]);
   if(s.ok) return s.tested?'Tested':'';
   if(bad.length) return bad.map(f=>esc(f.what)+': read '+esc(String(f.reading))).join('<br>');
@@ -11854,7 +11855,7 @@ function _proveShow(j){
     const steps=j.steps||[];
     const allOk=j.passed===j.total;
     body='<div style="margin-bottom:10px"><span class="v3chip '+(allOk?'ok':'amber')+'">'+j.passed+' of '+j.total+' Passed'+(j.sent?(' · '+j.sent+' Sent'):'')+(j.tested!=null?(' · '+j.tested+' Tested'):'')+'</span></div>'
-      +'<div class="v3rows">'+steps.map(s=>'<div class="v3row" style="cursor:default;align-items:flex-start"><div class="rt"><div class="t1" style="white-space:normal">'+esc(s.alias||s.script)+'</div><div class="t2" style="white-space:normal;line-height:1.35">'+_proveWhy(s)+'</div></div><div class="rr"><span class="v3chip '+(s.ok?'ok':(s.sent?'amber':'red'))+'">'+(s.ok?'Passed':(s.sent?'Sent':'Failed'))+'</span>'+(s.seconds!=null?'<div class="t2" style="text-align:right;margin-top:4px">'+s.seconds+' s</div>':'')+'</div></div>').join('')+'</div>';
+      +'<div class="v3rows">'+steps.map(s=>'<div class="v3row" style="cursor:default;align-items:flex-start"><div class="rt"><div class="t1" style="white-space:normal">'+esc(s.alias||s.script)+'</div><div class="t2" style="white-space:normal;line-height:1.35">'+_proveWhy(s)+'</div></div><div class="rr"><span class="v3chip '+(s.ok?'ok':'red')+'">'+(s.ok?'Passed':'Failed')+'</span>'+(s.seconds!=null?'<div class="t2" style="text-align:right;margin-top:4px">'+s.seconds+' s</div>':'')+'</div></div>').join('')+'</div>';
     const failed=steps.filter(s=>!s.ok&&!s.sent&&s.kind!=='shortcut');
     if(failed.length) body+='<div id="prove-fix" style="margin-top:14px"><button class="v3btn pri" style="width:100%" onclick="_proveFixAsk()">Fix and Test Again</button><div class="v3hint" style="margin-top:6px">Jarvis fixes what failed and tests it again — the equipment will turn on and off.</div></div>';
   }
@@ -21612,7 +21613,7 @@ async function setDevNotify(deviceId,on){
     toast(on?'Alerts on for this device':'Alerts off for this device'); }catch(e){ toast(_coreFailWords('',e)); }
   await _devNotifyFill(deviceId);
 }
-const _HLT_KIND_BTNS=['backup_location','backup_on','backup_now','backup_full','sweep_recheck','pf_reload','pf_recheck','pf_full_backup','uni_relink'];
+const _HLT_KIND_BTNS=['backup_location','backup_on','backup_now','backup_full','sweep_recheck','pf_reload','pf_recheck','pf_full_backup','uni_relink','pf_suggest'];   // 1342: + the box's own fix (Start …)
 async function hltFix(id, kind){
   toast('Working…');
   try{
@@ -22241,6 +22242,8 @@ function jrowDesc(e,_jnm){
   // REGISTER 1027: the platform's own integration log, as Core serves it (word for word for the Developer; the
   // platform's name already reads ProOS for tech/installer) — integration · level · ×count — then the message.
   if(e.type==='integration_log'){ const lv=String(d.level||'').toLowerCase(); return (d.integration||'—')+' · '+(lv==='error'?'Error':lv==='warning'?'Warning':(d.level||''))+(d.count>1?' \u00d7'+d.count:'')+' \u2014 '+String(d.message||'').split('\n')[0]; }
+  // REGISTER 1342: a platform problem with no button ProOS can press lands here, in words (never on Needs Attention)
+  if(e.type==='platform_notice') return proosWords(String(d.words||''));
   let desc='';
   if(e.type==='verdict'){
         const tw=_jrowActWord(d.to, e.room);
