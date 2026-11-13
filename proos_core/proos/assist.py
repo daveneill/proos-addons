@@ -8494,7 +8494,7 @@ def _act_confirmed(client, tool, args, out, wait_s=None, sleep=None):
 def chat(client, ws_call, project_mod, user: dict, text: str,
          session: str = "default", home_name: str = "", ma=None,
          where: dict | None = None, awareness=None, mcp=None,
-         on_runner=None) -> dict:
+         on_runner=None, tapped_yes: bool = False) -> dict:
     text = (text or "").strip()
     if not text:
         return {"error": "empty message"}
@@ -8856,7 +8856,10 @@ def chat(client, ws_call, project_mod, user: dict, text: str,
     key = ((user or {}).get("id") or "anon", session or "default")
     with _LOCK:
         history = _safe_trim(list(_SESSIONS.get(key) or []), _MAX_TURNS)
-    runner.consent_ok = _consent_proven(history, text)
+    # REGISTER 1341 (Dave 14 Nov 09:41: "we dont need the explanation just its fixed"): the installer's own TAP on a
+    # button that says what it will do (Pro's Prove the Room "Fix and Test Again") is their yes — the same standing as
+    # answering Assist's question; the server passes it only for an installer and above, never from the model.
+    runner.consent_ok = bool(tapped_yes) or _consent_proven(history, text)
     runner.sources = []                     # 970mm: this turn's web pages only
     history.append({"role": "user", "content": text})
     # What the model is TOLD must match what it is HANDED: the engine's

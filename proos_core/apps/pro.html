@@ -3415,7 +3415,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111401';
+const PROOS_BUILD='2026111402';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -11856,40 +11856,43 @@ function _proveShow(j){
     body='<div style="margin-bottom:10px"><span class="v3chip '+(allOk?'ok':'amber')+'">'+j.passed+' of '+j.total+' Passed'+(j.sent?(' · '+j.sent+' Sent'):'')+(j.tested!=null?(' · '+j.tested+' Tested'):'')+'</span></div>'
       +'<div class="v3rows">'+steps.map(s=>'<div class="v3row" style="cursor:default;align-items:flex-start"><div class="rt"><div class="t1" style="white-space:normal">'+esc(s.alias||s.script)+'</div><div class="t2" style="white-space:normal;line-height:1.35">'+_proveWhy(s)+'</div></div><div class="rr"><span class="v3chip '+(s.ok?'ok':(s.sent?'amber':'red'))+'">'+(s.ok?'Passed':(s.sent?'Sent':'Failed'))+'</span>'+(s.seconds!=null?'<div class="t2" style="text-align:right;margin-top:4px">'+s.seconds+' s</div>':'')+'</div></div>').join('')+'</div>';
     const failed=steps.filter(s=>!s.ok&&!s.sent&&s.kind!=='shortcut');
-    if(failed.length) body+='<div id="prove-fix" style="margin-top:14px"><button class="v3btn pri" style="width:100%" onclick="_proveFixAsk()">Ask Jarvis to Fix</button><div class="v3hint" style="margin-top:6px">Jarvis reads the room and proposes the change. Nothing changes until you tap Apply.</div></div>';
+    if(failed.length) body+='<div id="prove-fix" style="margin-top:14px"><button class="v3btn pri" style="width:100%" onclick="_proveFixAsk()">Fix and Test Again</button><div class="v3hint" style="margin-top:6px">Jarvis fixes what failed and tests it again — the equipment will turn on and off.</div></div>';
   }
   _recOverlay('<div class="v3dh2"><div class="t">Prove the Room</div></div>'+body
     +'<div class="v3foot" style="display:flex;gap:8px;margin-top:14px">'+(j.state==='done'?'<button class="v3btn" onclick="_proveRun()">Prove Again</button>':'')+'<button class="v3btn" style="flex:1" onclick="_proveClose()">'+(j.state==='running'?'Hide':'Close')+'</button></div>');
 }
 let _proveFixSess=null;
 function _proveMd(t){ return esc(String(t||'')).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/\n/g,'<br>'); }
-async function _proveFixSay(text, busy){
+async function _proveFixSay(text, busy, tapped){
   const box=document.getElementById('prove-fix'); if(!box) return null;
   setHTML(box, '<div class="v3empty">'+busy+'</div>');
   try{
-    const r=await fetch(proCoreUrl()+'/assist/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session:_proveFixSess, text:text, area_id:_roomHubArea})});
+    const r=await fetch(proCoreUrl()+'/assist/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({session:_proveFixSess, text:text, area_id:_roomHubArea}, tapped?{consent:'tapped'}:{}))});
     const j=await r.json().catch(()=>({}));
     if(!r.ok||!j.reply){ setHTML(box, '<div class="v3empty" style="color:#e17055">'+esc((j&&j.error)||('Jarvis could not answer ('+r.status+')'))+'</div>'); return null; }
     return j;
   }catch(e){ setHTML(box, '<div class="v3empty" style="color:#e17055">Could not reach ProOS Core</div>'); return null; }
 }
+// REGISTER 1341 (Dave 14 Nov 09:41: "we dont need the explanation just its fixed then maybe can ask what it changed
+// otherwise it talks forever"): ONE tap fixes and re-tests (the tap is the yes — consent:'tapped'); Jarvis answers one line
+// per activity; what it changed only when asked.
 async function _proveFixAsk(){
   const j=_proveLast; if(!j) return;
   const name=(typeof _rhName==='function'&&_rhName())||_roomHubArea;
   _proveFixSess='prove-'+_roomHubArea+'-'+Date.now();
   const lines=(j.steps||[]).filter(s=>!s.ok&&!s.sent&&s.kind!=='shortcut').map(s=>'- '+(s.alias||s.script)+': '+(((s.rest_failed||[]).concat(s.failed||[])).map(f=>f.what+' read '+f.reading).join('; ')||((s.final||{}).error)||'did not finish'));
-  const ask='Prove the Room just ran in the '+name+'. These steps failed, with what the platform read:\n'+lines.join('\n')
-    +'\nRead the room’s devices and those activities’ steps, then tell me in plain words what you would change in each and why. Don’t change anything yet. Finish by asking whether to apply it and test it again.';
-  const r=await _proveFixSay(ask,'Jarvis is reading the room…'); if(!r) return;
+  const ask='Prove the Room just ran in the '+name+'. These failed, with what the platform read:\n'+lines.join('\n')
+    +'\nRead the devices and fix the room’s own activities, then test each one you changed with activity_test (consented=true — I tapped Fix and Test Again, that is my yes).'
+    +' Reply with ONE short line per activity and nothing else: "<activity> — fixed, passes now" or "<activity> — still failing: <the reading>". No explanation; I’ll ask what you changed if I want to know.';
+  const r=await _proveFixSay(ask,'Jarvis is fixing and testing — the equipment will turn on and off…',true); if(!r) return;
   setHTML(document.getElementById('prove-fix'), '<div class="v3card" style="padding:12px;font-size:13.5px;line-height:1.45">'+_proveMd(r.reply)+'</div>'
-    +'<div style="display:flex;gap:8px;margin-top:10px"><button class="v3btn" onclick="_proveFixNo()">Not Now</button><button class="v3btn pri" style="flex:1" onclick="_proveFixApply()">Apply and Test Again</button></div>');
+    +'<div style="display:flex;gap:8px;margin-top:10px"><button class="v3btn" onclick="_proveFixWhat()">What Did You Change?</button><button class="v3btn pri" style="flex:1" onclick="_proveRun()">Prove the Room Again</button></div>');
 }
-async function _proveFixApply(){
-  const r=await _proveFixSay('yes','Jarvis is applying it and testing — the equipment will turn on and off…'); if(!r) return;
+async function _proveFixWhat(){
+  const r=await _proveFixSay('What did you change? Short — one line per activity.','Asking Jarvis…'); if(!r) return;
   setHTML(document.getElementById('prove-fix'), '<div class="v3card" style="padding:12px;font-size:13.5px;line-height:1.45">'+_proveMd(r.reply)+'</div>'
     +'<button class="v3btn pri" style="width:100%;margin-top:10px" onclick="_proveRun()">Prove the Room Again</button>');
 }
-function _proveFixNo(){ const b=document.getElementById('prove-fix'); if(b) setHTML(b, '<div class="v3hint">Nothing was changed.</div>'); }
 function _recOverlay(inner){
   let ov=document.getElementById('rec-modal'); if(ov) ov.remove();
   ov=document.createElement('div'); ov.id='rec-modal';

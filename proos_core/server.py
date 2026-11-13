@@ -12685,7 +12685,10 @@ class Handler(BaseHTTPRequestHandler):
                         _client, _ws_call, project, uinfo, _text, session=_sess,
                         home_name=_ASSIST_HOME_NAME, ma=_ma, where=where,
                         awareness=_assist_awareness(), mcp=_mcp_client(),
-                        on_runner=_hand)
+                        on_runner=_hand,
+                        # 1341: a tap on Pro's "Fix and Test Again" is the installer's yes — installer and above only
+                        tapped_yes=(b.get("consent") == "tapped" and bool(uinfo.get("is_admin") or uinfo.get("is_owner")
+                                                                           or uinfo.get("tech"))))
 
                 # THE TURN IS STARTED, NOT WAITED ON (register 466). The app
                 # asks for this by saying so, and an older app that does not —
