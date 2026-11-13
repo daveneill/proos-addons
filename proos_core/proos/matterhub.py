@@ -21,6 +21,7 @@ id the controller reported; an id ProOS does not know is shown as its number, ne
 from __future__ import annotations
 
 import json
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -96,8 +97,17 @@ class Hub:
         req.add_header("X-ProOS-Voucher", issue_voucher())
         if data is not None:
             req.add_header("Content-Type", "application/json")
-        with self.open(req, timeout=timeout) as r:
-            raw = r.read().decode() or "null"
+        try:
+            with self.open(req, timeout=timeout) as r:
+                raw = r.read().decode() or "null"
+        except urllib.error.HTTPError as e:      # 1330f: say WHO refused and in what words — the door, or the hub
+            try:
+                said = e.read().decode("utf-8", "replace")[:200]
+            except Exception:                    # noqa: BLE001
+                said = ""
+            raise RuntimeError("HTTP %s from %s: %s" % (e.code, "the door" if "for ProOS Core only" in said or
+                                                        "Matter Hub bridge path" in said else "the hub's side",
+                                                        said or e.reason)) from None
         return json.loads(raw)
 
 
