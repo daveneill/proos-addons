@@ -4494,7 +4494,7 @@ def factory_reset(clear_proos_data=False, keep_auth=False):
                    "remotes.json", "remote_logins.json",
                    # the box's ProOS Connect id and secret (register 969u) — a reset box asks to join afresh and is
                    # approved again on Connect, so a box passed to another home never carries the old approval
-                   "connect.json",
+                   "connect.json", "connect_policy.json",
                    # the box's remote-access key pair and Connect's pinned host key (register 969v) — made afresh with
                    # the new Connect id
                    "connect_ssh_ed25519", "connect_ssh_ed25519.pub", "connect_known_hosts",
@@ -9254,6 +9254,20 @@ class Handler(BaseHTTPRequestHandler):
                 if _assist is not None and _full:
                     _st = dict(_st, assist_open=bool(_assist.open_mode()))   # register 1258: everybody the same?
                 return self._send(200, _st)
+            if parts == ["assist", "connect"]:
+                # REGISTER 1347: what Pro shows of ProOS Connect's keys — which ones Connect holds, its AI setting, and
+                # this home's use this month (Connect's own count). Installer, owner, tech. Never a key.
+                u = getattr(self, "_user", None) or {}
+                if not (u.get("is_admin") or u.get("is_owner") or (users and users.is_tech(u.get("id")))):
+                    return self._send(403, {"error": "installer access required"})
+                from proos import connectkeys as _ck
+                _pol = _ck.refresh() or _ck.policy()
+                _full = bool(u.get("is_owner") or (users and users.is_tech(u.get("id"))))
+                out = {"reached": bool(_pol.get("read_at")), "ready": _pol.get("ready") or {},
+                       "plan": _pol.get("plan") or "", "usage": _ck.usage()}
+                if _full:
+                    out.update(provider=_pol.get("provider") or "", model=_pol.get("model") or "")
+                return self._send(200, out)
             if parts == ["assist", "proof"]:
                 # THE PROOF RUN (register 111). Dave: "I believe what I can
                 # test." Every READ tool runs live, read-only BY CONSTRUCTION
@@ -10786,6 +10800,12 @@ class Handler(BaseHTTPRequestHandler):
                 # sandbox) the test server; a TestFlight / App Store build the live server — then that server's key
                 _env = "sandbox" if reg["app_id"].endswith(".dev") else "production"
                 cred = _apns_cred(_env)
+                try:                        # REGISTER 1347: ProOS Connect signs with ProOS's one Apple key, when it holds it
+                    from proos import connectkeys as _ck
+                    if _ck.holds("push"):
+                        cred = {"via": "connect", "env": _env, "key_id": "ProOS Connect"}
+                except Exception:  # noqa: BLE001
+                    pass
                 if not cred:
                     # REGISTER 897 (read on the box 16 Oct, Dave 12:31 "B"): with a live-server key loaded, the developer
                     # builds were told "no Apple push key is loaded" — untrue; what is missing is THIS server's key.
@@ -10802,7 +10822,12 @@ class Handler(BaseHTTPRequestHandler):
                     print(f"  push · {who} → rate limit reached", flush=True)
                     return self._send(429, {"message": "rate limit reached", "errorMessage": "rate limit reached"})
                 try:
-                    res = push.send(cred, b)
+                    if cred.get("via") == "connect":
+                        if not token:
+                            raise push.PushError("no push_token in notification")
+                        res = _ck.push(token, push.build_apns_payload(b), cred["topic"], _env == "sandbox")
+                    else:
+                        res = push.send(cred, b)
                 except push.PushError as e:
                     print(f"  push · {who} → failed: {e}", flush=True)
                     _push_note(reg, False, "the alert could not be sent: %s" % e)

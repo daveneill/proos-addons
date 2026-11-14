@@ -3415,7 +3415,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111405';
+const PROOS_BUILD='2026111406';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -14837,13 +14837,20 @@ async function techViewAssist(view){
   // 113): this page is for configuration. assistCoverage() itself is
   // untouched, and unplaced devices are still placeable from the room pages.
   setHTML(view,
-     '<div class="wiz-hint">Natural-language Pro Assist. The assistant can only act through ProOS tools — activities for AV, committed members for devices — and verifies every action against actual state. '
-    +(st.enabled?'<b style="color:#84d9b4">Enabled</b> · '+esc(prov)+' · '+esc(st.model||''):'<b style="color:#e3a23c">Not configured</b>')+'</div>'
+     '<div class="wiz-hint">Natural-language Pro Assist. The assistant can only act through ProOS tools — activities for AV, committed members for devices — and verifies every action against actual state. </div>'
+    // ── REGISTER 1347: PROOS'S KEYS LIVE ON PROOS CONNECT. No key of ProOS's own on this box: the AI, scene pictures,
+    // iPhone alerts and Apple Music are all served through ProOS Connect, which holds one key per supplier for every home.
+    +'<div class="bld-sec" style="margin-top:12px"><div class="bld-sec-h">Pro Assist</div><div id="as-connect" class="wiz-hint">Asking ProOS Connect…</div></div>'
+    // the Developer's own key (13 Sep ruling 5) — owner and tech only, folded away; used only when Connect holds none
+    +(('provider' in st)?'<details id="as-dev" class="bld-sec" style="margin-top:12px"'+(st.ai_source==='box'?' open':'')+'><summary class="bld-sec-h" style="cursor:pointer">Developer — This Box\'s Own Key</summary>'
+    +'<div class="wiz-hint">For development only. ProOS Connect holds ProOS\'s keys for every home. A key saved here is used only when ProOS Connect does not hold one — or always, with this switch on.</div>'
+    +'<label style="display:flex;gap:6px;align-items:center;margin:6px 0"><input id="as-own" type="checkbox"'+(st.ai_source==='box'?' checked':'')+'/> Use This Box\'s Own Key Instead of ProOS Connect</label>'
     +'<div class="field"><div class="field-label">Provider</div><select id="as-prov" class="set-input" onchange="assistKeyLabel()">'
     +opt('','— off —')+opt('claude','Claude (Anthropic)')+opt('openai','ChatGPT (OpenAI)')+'</select></div>'
     +'<div class="field"><div class="field-label">Model (blank = recommended default)</div><input id="as-model" class="set-input" type="text" value="'+esc(st.model||'')+'" autocapitalize="off" autocorrect="off" spellcheck="false"/></div>'
     +'<div class="field"><div class="field-label" id="as-key-label">API key</div><input id="as-key" class="set-input" type="password" autocomplete="new-password" placeholder="sk-…"/><div class="field-hint" id="as-key-hint"></div></div>'
     +'<div class="field"><div class="field-label">Scene image key — OpenAI, optional '+(st.has_image_key?'(saved — blank to keep)':'')+'</div><input id="as-imgkey" class="set-input" type="password" autocomplete="new-password" placeholder="'+(st.has_image_key?'••••••••':'sk-… (for AI-generated scene photos)')+'"/><div class="field-hint">Lets the assistant generate a bespoke photo per scene. Only needed if the assistant isn\'t already on OpenAI.</div></div>'
+    +'</details>':'')
     // REGISTER 1281/1282/1283: the Unsplash key for Find in every picture editor (areas, Home, scenes). Kept on the box.
     +'<div class="field"><div class="field-label">Photo Search Key — Unsplash Access Key '+(st.has_photo_key?'(saved — blank to keep)':'')+'</div><input id="as-photokey" class="set-input" type="password" autocomplete="new-password" placeholder="'+(st.has_photo_key?'••••••••':'The Access Key (not the Secret Key)')+'"/><div class="field-hint">Lets Find show real, watermark-free photos of anything. From your application\'s page on the Unsplash developer site.</div></div>'
     +'<div style="display:flex;gap:8px;margin-top:10px"><button class="btn-primary" onclick="assistSaveCfg()">Save</button>'
@@ -14898,11 +14905,12 @@ async function techViewAssist(view){
     // ProOS Connect later). The token is made on the installer's Mac from the Protech key; only the
     // token is pasted. Core says whose key it is and when it ends — it never shows the token again.
     +'<div class="bld-sec" style="margin-top:18px"><div class="bld-sec-h">Apple Music Token</div>'
-    +'<div class="wiz-hint">Lets this home search Apple Music. Made on your Mac from the Protech MusicKit key; lasts up to six months.</div>'
+    +'<div class="wiz-hint">Lets this home search Apple Music. Made by ProOS Connect with ProOS\'s MusicKit key (register 1347).</div>'
     +'<div id="am-status" class="wiz-hint" style="margin:6px 0">Checking…</div>'
+    +'<details><summary class="field-label" style="cursor:pointer">Developer — Paste a Token Instead</summary><div class="wiz-hint">Used only when ProOS Connect does not hold the MusicKit key.</div>'
     +'<div class="field"><div class="field-label">Paste a New Token</div><textarea id="am-token" class="set-input" rows="3" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="eyJ…"></textarea></div>'
     +'<div style="display:flex;gap:8px;margin-top:8px"><button class="btn-ghost" onclick="appleTokenSave()">Save Token</button>'
-    +'<button class="btn-ghost" onclick="appleTokenSave(true)">Remove Token</button></div></div>'
+    +'<button class="btn-ghost" onclick="appleTokenSave(true)">Remove Token</button></div></details></div>'
     // ── MUSIC SIGN-INS (registers 768, 775–778). Which of a speaker's services answer, which don't and why,
     // and a Connect for any the person can sign in to on the service's own page (Dave, 12 Oct: "I want any
     // signins to be on both" — this and the homeowner's Music page). ProOS never sees a password.
@@ -14912,7 +14920,7 @@ async function techViewAssist(view){
     +'<button class="btn-ghost" onclick="musicSignInsLoad()">Check</button></div>'
     +'<div id="mi-out" class="wiz-hint" style="margin-top:10px"></div></div>');
   _asKeys=st.keys_saved||{};
-  assistKeyLabel();
+  assistKeyLabel(); assistConnectLoad(st);                                     // register 1347
   assistVoiceLoad(); try{ rtUsageShow(); rtRooms(); tlLoad(); }catch(e){}   // registers 1151, 1153
   appleTokenLoad();
 }
@@ -14922,7 +14930,8 @@ function _amShow(d){
   if(!d.set){ el.textContent='No token — Apple Music can\u2019t be searched in this home yet.'; return; }
   el.innerHTML=(d.expired?'<b style="color:#e0564b">Expired</b>':'<b style="color:#84d9b4">Set</b>')
     +' · key '+esc(d.key_id||'?')+' · team '+esc(d.team_id||'?')+' · ends '+esc(d.expires||'?')
-    +(d.expired?'':' ('+Math.floor(d.days_left)+' days left)');
+    +(d.expired?'':' ('+Math.floor(d.days_left)+' days left)')
+    +(d.via==='connect'?' · made by ProOS Connect':(d.via==='box'?' · pasted into this box':''));
 }
 function _miEnt(){ return ((document.getElementById('mi-ent')||{}).value||'').trim(); }
 async function musicSignInsLoad(){
@@ -15248,10 +15257,47 @@ async function assistVoiceSave(engineOnly){
 // register 114): ticks were my testimony, the Master Log is the house's own
 // evidence, and the log won. The Core route GET /assist/proof REMAINS (it is
 // benched and read-only) for audits driven from outside the glass.
+// ── REGISTER 1347: JARVIS THROUGH PROOS CONNECT. Which keys Connect holds, the AI it runs, this home's month — all read
+// from Connect itself (GET /assist/connect). Never a key.
+const _AI_NAMES={'claude-opus-5-5':'Claude Opus 5.5','claude-sonnet-5-5':'Claude Sonnet 5.5','claude-haiku-5-5':'Claude Haiku 5.5',
+  'claude-opus-5':'Claude Opus 5','gpt-6-astra':'ChatGPT 6 Astra','gpt-6.1-sol':'ChatGPT 6.1 Sol','gpt-6-luna':'ChatGPT 6 Luna'};
+async function assistConnectLoad(st){
+  const el=document.getElementById('as-connect'); if(!el) return;
+  let d={}; try{ const r=await fetch(proCoreUrl()+'/assist/connect'); d=await r.json(); if(!r.ok) d={error:d.error||('HTTP '+r.status)}; }catch(e){ d={error:'ProOS Core unreachable'}; }
+  const G='color:#84d9b4', A='color:#e3a23c', R='color:#e0564b', rd=d.ready||{};
+  const name=m=>esc(_AI_NAMES[m]||m||'');
+  let head;
+  if(st.via==='connect') head='<b style="'+G+'">Included in ProOS Connect · Active</b>'+(st.model?' · '+name(st.model):'');
+  else if(st.via==='box') head='<b style="'+A+'">Using This Box’s Own Key</b> · '+(st.ai_source==='box'?'the Developer switch is on':'ProOS Connect does not hold the AI key yet')+(st.model?' · '+name(st.model):'');
+  else head='<b style="'+R+'">Not Set Up</b> · ProOS Connect does not hold the AI key yet';
+  const chip=(ok,t)=>'<span style="display:inline-block;margin:4px 6px 0 0;padding:3px 9px;border-radius:999px;border:1px solid '+(ok?'rgba(132,217,180,.45)':'rgba(255,255,255,.15)')+';'+(ok?G:'opacity:.6')+'">'+(ok?'✓ ':'')+t+'</span>';
+  let html=head;
+  if(d.error) html+='<div style="margin-top:6px"><b style="'+R+'">ProOS Connect couldn’t be read</b> · '+esc(d.error)+'</div>';
+  else{
+    if(!d.reached) html+='<div style="margin-top:6px;'+A+'">ProOS Connect hasn’t answered this box yet.</div>';
+    html+='<div style="margin-top:6px">'+chip(rd.anthropic,'Claude')+chip(rd.openai,'ChatGPT · Pictures · Talk Live')+chip(rd.push,'iPhone Alerts')+chip(rd.music,'Apple Music')+'</div>';
+    const u=d.usage||{}, m=u.usage||{};
+    if(u.ok) html+='<div style="margin-top:8px">This Month · <b>$'+Number(m.usd||0).toFixed(2)+'</b> · '+(m.calls||0)+' AI call'+((m.calls||0)===1?'':'s')+' · '+(m.pushes||0)+' alert'+((m.pushes||0)===1?'':'s')+(u.plan?' · plan: '+esc(u.plan):'')+'</div>';
+    else if(u.error) html+='<div style="margin-top:8px;opacity:.7">This month’s use couldn’t be read · '+esc(u.error)+'</div>';
+  }
+  if(st.box_keys&&st.via==='connect') html+='<div style="margin-top:8px">This box still holds a key of its own. It isn’t used while ProOS Connect holds one. <button class="btn-ghost" style="margin-left:6px" onclick="assistClearBoxKeys()">Remove This Box’s Keys</button></div>';
+  setHTML(el, html);
+}
+async function assistClearBoxKeys(){
+  try{
+    const r=await fetch(proCoreUrl()+'/assist/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clear_box_keys:true})});
+    const d=await r.json(); if(!r.ok){ toast(d.error||'Couldn’t remove'); return; }
+    toast('This box’s own keys removed'); techViewAssist(document.getElementById('tech-view'));
+  }catch(e){ toast(_coreFailWords('',e)); }
+}
 async function assistSaveCfg(){
-  const body={provider:document.getElementById('as-prov').value, model:document.getElementById('as-model').value.trim()};
-  const k=document.getElementById('as-key').value.trim(); if(k) body.api_key=k;
-  const ik=document.getElementById('as-imgkey').value.trim(); if(ik) body.image_key=ik;
+  const body={}, _v=id=>((document.getElementById(id)||{}).value||'').trim();
+  if(document.getElementById('as-prov')){                                       // register 1347: the Developer's fields
+    body.provider=document.getElementById('as-prov').value; body.model=_v('as-model');
+    const k=_v('as-key'); if(k) body.api_key=k;
+    const ik=_v('as-imgkey'); if(ik) body.image_key=ik;
+    body.ai_source=(document.getElementById('as-own')||{}).checked?'box':'connect';
+  }
   const pk=((document.getElementById('as-photokey')||{}).value||'').trim(); if(pk) body.photo_key=pk;   // 1281
   try{
     const r=await fetch(proCoreUrl()+'/assist/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
@@ -15284,11 +15330,17 @@ async function assistTestCfg(){
 const _NT_SERVERS=[['production','Live Server','TestFlight and App Store apps'],['sandbox','Test Server','apps run from Xcode (the developer build)'],['both','Both Servers','an older key that works on both']];
 async function techViewNotify(view){
   let st=null; try{ const r=await fetch(proCoreUrl()+'/push/config'); if(r.ok) st=await r.json(); }catch(e){}
+  // REGISTER 1347: ProOS Connect signs every home's alerts with ProOS's one Apple key, whenever it holds it
+  let cx=null; try{ const r=await fetch(proCoreUrl()+'/assist/connect'); if(r.ok) cx=await r.json(); }catch(e){}
+  const viaConnect=!!(cx&&cx.ready&&cx.ready.push);
   const keys=(st&&st.keys)||{}, cov=(st&&st.covers)||{}, ref=(st&&st.refused)||{};
   const loaded=!!(st&&st.set);
   const line=_NT_SERVERS.filter(([k])=>keys[k]&&keys[k].set).map(([k,l])=>l+': Key ID '+esc(keys[k].key_id||''));
   setHTML(view,
-     '<div class="wiz-hint">Alerts from this home reach ProOS phones through ProOS Core, signed with your Apple push key. '
+     (viaConnect?'<div class="wiz-hint"><b style="color:#84d9b4">Included in ProOS Connect · Active</b> — alerts from this home are signed and sent by ProOS Connect with ProOS\'s Apple push key. Nothing to load on this box.</div>'
+      +'<details class="bld-sec" style="margin-top:12px"><summary class="bld-sec-h" style="cursor:pointer">Developer — This Box\'s Own Push Key</summary>'
+      +'<div class="wiz-hint">Used only when ProOS Connect does not hold the Apple push key.</div>':'')
+    +'<div class="wiz-hint">'+(viaConnect?'This box\'s own key: ':'Alerts from this home reach ProOS phones through ProOS Core, signed with your Apple push key. ')
     +(st===null?'<b style="color:#e3a23c">ProOS Core unreachable</b>'
       : !loaded?'<b style="color:#e3a23c">No key loaded</b> — the box will log “no Apple push key loaded” for every alert until one is.'
       : '<b style="color:#84d9b4">'+line.join(' · ')+'</b>'
@@ -15305,8 +15357,9 @@ async function techViewNotify(view){
     +'<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="btn-primary" onclick="notifyKeySave()">Load Key</button>'
     +_NT_SERVERS.filter(([k])=>keys[k]&&keys[k].set).map(([k,l])=>'<button class="btn-ghost" onclick="notifyKeyClear(\''+k+'\')">Remove '+l+' Key</button>').join('')+'</div>'
     +'<div id="nt-out" class="wiz-hint" style="margin-top:10px"></div></div>'
+    +(viaConnect?'</details>':'')
     +'<div class="bld-sec" style="margin-top:18px"><div class="bld-sec-h">Send a Test Alert</div>'
-    +'<div class="wiz-hint">Goes the whole way: this box → ProOS Core → Apple → the phone. If nothing arrives within ten seconds, Logs → ProOS Core shows a line beginning “push ·” that says why.</div>'
+    +'<div class="wiz-hint">Goes the whole way: this box → ProOS Core → '+(viaConnect?'ProOS Connect → ':'')+'Apple → the phone. If nothing arrives within ten seconds, Logs → ProOS Core shows a line beginning “push ·” that says why.</div>'
     +'<div id="nt-phones" class="wiz-hint">Reading the phones this box knows…</div></div>');
   notifyPhonesLoad();
 }

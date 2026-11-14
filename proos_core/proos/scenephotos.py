@@ -169,10 +169,10 @@ def _one_image(model: str, prompt: str, size: str, api_key: str):
     with 400 'Unknown parameter: response_format' (observed live). gpt-image-1
     returns b64_json; dall-e-* return a temporary URL — handle both."""
     body = {"model": model, "prompt": prompt, "n": 1, "size": size}
-    req = urllib.request.Request(
-        _OPENAI_IMG_URL, data=json.dumps(body).encode("utf-8"),
-        headers={"Content-Type": "application/json",
-                 "Authorization": "Bearer " + api_key}, method="POST")
+    from . import connectkeys as _ck                    # register 1347: the key lives on ProOS Connect
+    _url, _hdrs = _ck.wire(_OPENAI_IMG_URL, {"Content-Type": "application/json",
+                                             "Authorization": "Bearer " + api_key})
+    req = urllib.request.Request(_url, data=json.dumps(body).encode("utf-8"), headers=_hdrs, method="POST")
     with urllib.request.urlopen(req, timeout=_GEN_TIMEOUT) as r:
         d = json.loads(r.read().decode("utf-8"))
     item = (d.get("data") or [{}])[0]

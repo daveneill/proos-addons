@@ -5397,6 +5397,7 @@ savant/README.md
 savant/proos_avbridge.xml
 server.py
 proos/connectvoice.py
+proos/connectkeys.py
 proos/connecttunnel.py
 proos/netchange.py
 proos/weatherstd.py

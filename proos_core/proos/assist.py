@@ -639,7 +639,8 @@ def _with_active_key(cfg: dict) -> dict:
     return cfg
 
 
-def load_config() -> dict:
+def _box_config() -> dict:
+    """assist.json as the box holds it — what save_config writes back (never Connect's choice of AI)."""
     try:
         with open(_CFG_PATH, encoding="utf-8") as fh:
             d = json.load(fh)
@@ -648,8 +649,35 @@ def load_config() -> dict:
         return {}
 
 
+def _via_connect(cfg: dict) -> dict:
+    """REGISTER 1347 — PROOS'S KEYS LIVE ON PROOS CONNECT. When Connect holds the key for the AI the fleet runs on, that
+    AI and model are this box's, and the active key is Connect's marker (connectkeys.wire sends the call to Connect with
+    the box's credential). The box's own key is used only when Connect does not hold one, or when the Developer pinned
+    the box to its own key (ai_source "box" — 13 Sep ruling 5). cfg["via"] says which: "connect", "box" or ""."""
+    if cfg.get("ai_source") == "box":
+        cfg["via"] = "box" if cfg.get("api_key") else ""
+        return cfg
+    try:
+        from . import connectkeys as _ck
+        pol = _ck.policy()
+        prov, model = _ck.ai_choice(pol)
+        supplier = {"claude": "anthropic", "openai": "openai"}.get(prov or "")
+        if supplier and _ck.holds(supplier, pol):
+            cfg.update(provider=prov, model=model or DEFAULT_MODELS[prov], api_key=_ck.CONNECT,
+                       fast_model=(pol.get("fast_model") or "").strip(), via="connect")
+            return cfg
+    except Exception as e:                                       # noqa: BLE001
+        print("  [assist] ProOS Connect's AI setting unreadable (%s) — the box's own key, if any" % e, flush=True)
+    cfg["via"] = "box" if cfg.get("api_key") else ""
+    return cfg
+
+
+def load_config() -> dict:
+    return _via_connect(_box_config())
+
+
 def save_config(body: dict) -> dict:
-    cfg = load_config()
+    cfg = _box_config()
     # fast_model (A5, optional): a cheaper model for short single-clause commands.
     # Blank = off, everything runs on the main model — the safe default.
     for k in ("provider", "model", "fast_model"):
@@ -675,6 +703,12 @@ def save_config(body: dict) -> dict:
     # REGISTER 1153: Talk Live for the home — on unless the installer turns it off; a person can be left out.
     if "realtime_enabled" in body:
         cfg["realtime_enabled"] = bool(body.get("realtime_enabled"))
+    if body.get("clear_box_keys"):                                # register 1347: the installer removes the box's own
+        cfg.pop("keys", None)                                     # keys once ProOS Connect holds ProOS's
+        cfg["image_key"] = ""
+        cfg.pop("ai_source", None)
+    if "ai_source" in body:                                       # register 1347: "box" = the Developer's own key
+        cfg["ai_source"] = "box" if body.get("ai_source") == "box" else "connect"
     if "health_auto" in body:                                     # register 1335
         cfg["health_auto"] = bool(body.get("health_auto"))
     if "realtime_off_for" in body:
@@ -703,6 +737,10 @@ def status(full: bool = False) -> dict:
             "provider": cfg.get("provider") or "",
             "model": cfg.get("model") or DEFAULT_MODELS.get(cfg.get("provider") or "", ""),
             "has_key": bool(cfg.get("api_key")),
+            # register 1347: where the AI's key is — "connect" (ProOS Connect holds it), "box" (this box's own), "" none
+            "via": cfg.get("via") or "",
+            "ai_source": "box" if cfg.get("ai_source") == "box" else "connect",
+            "box_keys": bool(cfg.get("keys")) or bool((cfg.get("image_key") or "").strip()),
             # which providers hold a key, so the form can say "no key saved
             # for Claude yet" before anyone presses Test (register 434)
             "keys_saved": {p: bool((cfg.get("keys") or {}).get(p)) for p in _PROVIDERS},
@@ -735,6 +773,13 @@ def _image_key(cfg: dict) -> str:
     same shape of trap as register 434. An OpenAI key entered anywhere
     serves images."""
     cfg = cfg or load_config()
+    if cfg.get("ai_source") != "box":                 # register 1347: Connect first, when it holds the OpenAI key
+        try:
+            from . import connectkeys as _ck
+            if _ck.holds("openai"):
+                return _ck.CONNECT
+        except Exception:                                        # noqa: BLE001
+            pass
     ik = (cfg.get("image_key") or "").strip()
     if ik:
         return ik
@@ -7147,9 +7192,10 @@ def _http_stream_claude(url, payload, headers, on_text=None):
     body = dict(payload, stream=True)
     last = None
     for attempt in range(3):
+        _url, _hdrs = _wire(url, headers)                 # register 1347: ProOS's keys live on ProOS Connect
         req = urllib.request.Request(
-            url, data=json.dumps(body).encode("utf-8"),
-            headers={"Content-Type": "application/json", **headers}, method="POST")
+            _url, data=json.dumps(body).encode("utf-8"),
+            headers={"Content-Type": "application/json", **_hdrs}, method="POST")
         try:
             with urllib.request.urlopen(req, timeout=_HTTP_TIMEOUT) as r:
                 blocks, order = {}, []
@@ -7269,9 +7315,10 @@ def _http_stream_openai(url, payload, headers, on_text=None, on_web=None):
     body = dict(payload, stream=True)
     last = None
     for attempt in range(3):
+        _url, _hdrs = _wire(url, headers)                 # register 1347: ProOS's keys live on ProOS Connect
         req = urllib.request.Request(
-            url, data=json.dumps(body).encode("utf-8"),
-            headers={"Content-Type": "application/json", **headers}, method="POST")
+            _url, data=json.dumps(body).encode("utf-8"),
+            headers={"Content-Type": "application/json", **_hdrs}, method="POST")
         try:
             with urllib.request.urlopen(req, timeout=_HTTP_TIMEOUT) as r:
                 return _read_openai_stream(r, on_text, on_web)
@@ -7334,6 +7381,12 @@ def _read_openai_stream(lines, on_text=None, on_web=None):
     return done
 
 
+def _wire(url, headers):
+    """Register 1347: a request carrying Connect's marker goes to ProOS Connect; one carrying a real key is unchanged."""
+    from . import connectkeys as _ck
+    return _ck.wire(url, headers)
+
+
 def _http_json(url, payload, headers):
     # Rate limits are handled HERE, invisibly (Dave, 4 Aug: a raw HTTP 429
     # JSON blob landed in the homeowner's chat). 429s carry a "try again in
@@ -7341,8 +7394,9 @@ def _http_json(url, payload, headers):
     import time as _t
     last = None
     for attempt in range(3):
-        req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"),
-                                     headers={"Content-Type": "application/json", **headers},
+        _url, _hdrs = _wire(url, headers)                 # register 1347: ProOS's keys live on ProOS Connect
+        req = urllib.request.Request(_url, data=json.dumps(payload).encode("utf-8"),
+                                     headers={"Content-Type": "application/json", **_hdrs},
                                      method="POST")
         try:
             with urllib.request.urlopen(req, timeout=_HTTP_TIMEOUT) as r:

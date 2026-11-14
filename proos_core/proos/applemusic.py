@@ -69,6 +69,20 @@ def clear_token():
 
 
 def _token():
+    """REGISTER 1347: the developer token is made on ProOS Connect with ProOS's one MusicKit key, whenever Connect holds
+    it; a token pasted into this box is used only when Connect does not."""
+    try:
+        from . import connectkeys as _ck
+        if _ck.holds("music"):
+            t = _ck.music_token()
+            if t:
+                return t
+    except Exception:                                            # noqa: BLE001
+        pass
+    return _box_token()
+
+
+def _box_token():
     try:
         with open(TOKEN_PATH, encoding="utf-8") as fh:
             return (json.load(fh) or {}).get("token") or None
@@ -83,11 +97,12 @@ def status(now=None):
     if not c:
         return {"set": False}
     head, body = c
+    via = "box" if tok == _box_token() else "connect"
     exp = int(body.get("exp") or 0)
     left = (exp - (now or time.time())) / 86400.0
     return {"set": True, "key_id": head.get("kid"), "team_id": body.get("iss"),
             "expires": time.strftime("%Y-%m-%d", time.localtime(exp)),
-            "days_left": round(left, 1), "expired": left <= 0}
+            "days_left": round(left, 1), "expired": left <= 0, "via": via}
 
 
 def ready():
