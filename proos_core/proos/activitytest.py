@@ -128,8 +128,8 @@ def expectations(client, cfg, display=None) -> list:
         act = str(s.get("action") or s.get("service") or "")
         e = _target(s)
         if e and act == "media_player.select_source" and (s.get("data") or {}).get("source"):
-            add({"entity_id": e, "what": "input %s" % s["data"]["source"], "attr": "source",
-                 "equals": s["data"]["source"]})
+            add({"entity_id": e, "what": ("input %s" if e == display else "the sound on %s") % s["data"]["source"],
+                 "attr": "source", "equals": s["data"]["source"]})      # 1343: the TV's input vs the sound's route
         elif e and act == "media_player.turn_on" and e != display:
             add({"entity_id": e, "what": "it is on", "state_in": ["on"]})
         elif e and act == "media_player.turn_off":

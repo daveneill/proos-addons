@@ -76,6 +76,34 @@ def apply_commissioning(area: str, acts: list) -> list:
     return acts
 
 
+# REGISTER 1344 — which script is this room's Watch for this source: asked of the scripts' own markers, kept a short
+# while per room (plumbing: the sweep asks every few seconds; the markers change only when an activity is rewritten).
+MARKER_TTL_S = 120.0
+_marker_cache: dict = {}
+
+
+def _scripts_by_source(client, area_slug: str) -> dict:
+    import json as _json
+    import time as _time
+    hit = _marker_cache.get(area_slug)
+    if hit and _time.time() - hit[0] < MARKER_TTL_S:
+        return hit[1]
+    out = {}
+    try:
+        pre = "script.%s_%s_" % (generator.PROOS_PREFIX, area_slug)
+        tmpl = ("{{ states.script | map(attribute='entity_id') | select('match', %s) | list | to_json }}"
+                % _json.dumps("^" + pre.replace(".", "\\.")))
+        for eid in _json.loads(client.render_template(tmpl) or "[]"):
+            cfg = generator._as_cfg(client.get_script(eid.split(".", 1)[1])) or {}
+            v = cfg.get("variables") or {}
+            if v.get("proos_kind") == "watch_source" and v.get("proos_source"):
+                out[v["proos_source"]] = eid
+    except Exception:                                    # noqa: BLE001 — not read is not a guess: the name rule stands in
+        return (hit or (0, {}))[1]
+    _marker_cache[area_slug] = (_time.time(), out)
+    return out
+
+
 class RoomController:
     """One room, addressed by its platform AREA ID (register 441). `area_id`
     is the key; `area` is the platform's live name for it, re-read on every
@@ -351,6 +379,16 @@ class RoomController:
                 return None
             src_eid = getattr(a, "source_eid", None)
             if src_eid:
+                # REGISTER 1344 (Dave 14 Nov 12:11 "Go"): the activity's script is FOUND by its own markers — the
+                # generator writes proos_source into every Watch it makes — not derived from the source's name. Read on
+                # the box: the Bedroom's Shield was renamed "Bedroom Shield TV", this derived script.proos_bedroom_
+                # watch_shield_tv (no such script; the activity is ..._watch_shield), so the room status never saw Watch
+                # Shield sent and read "Turning Off" for 90 s after every TV Off. The name rule stays only as the
+                # fallback for a room whose scripts carry no markers.
+                _cl = getattr(self, "client", None)
+                found = _scripts_by_source(_cl, area_slug).get(src_eid) if _cl is not None else None
+                if found:
+                    return found
                 for src in (getattr(self.cluster, "sources", None) or []):
                     if src.entity == src_eid:
                         suffix = "watch_" + generator._slug(self.cluster.label_for(src))
