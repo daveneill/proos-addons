@@ -1837,6 +1837,23 @@ _MORE_TOOLS = {
 
 _DEFERRED = set().union(*(g["tools"] for g in _TOOL_GROUPS.values()))
 
+# REGISTER 1346 — the platform's tools that ride EVERY call on the platform road: find, read, control, history, the
+# activity/automation/scene editors, rooms and floors, the log. Everything else of the platform's arrives on request.
+_PLATFORM_EVERYDAY = {"ha_search", "ha_get_state", "ha_get_entity", "ha_call_service", "ha_bulk_control",
+                      "ha_get_history", "ha_get_logs", "ha_list_floors_areas", "ha_eval_template",
+                      "ha_config_get_script", "ha_config_set_script", "ha_config_get_automation",
+                      "ha_config_set_automation", "ha_config_get_scene", "ha_config_set_scene"}
+_MORE_TOOLS_PF = {
+    "name": "more_tools",
+    "description":
+        "You hold the platform's everyday tools (find, read, control, history, logs, and the script, automation and "
+        "scene editors). For anything else of the platform's — integrations, devices and entities' registry settings, "
+        "helpers, dashboards, zones, backups, updates, apps, blueprints, labels, the energy setup — CALL THIS with "
+        "set='platform' first; the platform's whole tool list arrives at once for the rest of this conversation.",
+    "input_schema": {"type": "object", "properties": {
+        "set": {"type": "string", "description": "platform"}}, "required": ["set"]},
+}
+
 
 # ── THE TOOLS THAT ONLY LOOK (register 490) ─────────────────────────────────
 #
@@ -1952,8 +1969,10 @@ def _active_tools(runner) -> list:
     # tools for one job and letting the model pick the worse one.
     holds_acts = _mirror_open and any(not t.get("read_only") for t in mirror)
     opened = set(getattr(runner, "opened_tools", None) or ())
-    if pf:
-        opened.add("platform")
+    # REGISTER 1346 (Dave 14 Nov 13:38/13:45: "why the fuck would we send all the tools everytime" … "yes"): 1267 put the
+    # platform's WHOLE tool list on every call from the first word — measured on the ledger, ~129,000 tokens a call
+    # (30 Oct: ~11,700), 47c a question on Opus. Platform first stays; the platform's EVERYDAY tools ride every call, the
+    # rest arrive when a job asks for them (more_tools "platform", register 489's door).
     out = []
     for t in TOOLS:
         if pf:
@@ -2007,12 +2026,17 @@ def _active_tools(runner) -> list:
     # surface — carried on every round whether the turn touches the platform or
     # not. Register 245's finding stands untouched: when the model DOES hold
     # them, ours step aside for them. It holds them the moment it asks.
-    if mirror and "platform" in opened:
+    if mirror and ("platform" in opened or pf):
+        whole_list = "platform" in opened
         out.extend({"name": t["name"], "description": t.get("description") or "",
                     "input_schema": t.get("input_schema") or {"type": "object", "properties": {}}}
-                   for t in mirror if t.get("name") and t["name"] not in have)
-    if not pf and (mirror or _DEFERRED - set(t["name"] for t in out)):
-        out.append(dict(_MORE_TOOLS))       # 1267: platform first holds everything already — no "load more" door
+                   for t in mirror if t.get("name") and t["name"] not in have
+                   and (whole_list or t["name"] in _PLATFORM_EVERYDAY))
+    if pf:
+        if "platform" not in opened and any(t.get("name") not in _PLATFORM_EVERYDAY for t in mirror):
+            out.append(dict(_MORE_TOOLS_PF))   # 1346: the rest of the platform's tools, on request
+    elif mirror or _DEFERRED - set(t["name"] for t in out):
+        out.append(dict(_MORE_TOOLS))
     if runner.user.get("engine"):
         # the unattended turn is offered only what it may use (ruling, 5 Oct 2026)
         ro = {t.get("name") for t in mirror if t.get("read_only")}
