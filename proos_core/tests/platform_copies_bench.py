@@ -243,6 +243,7 @@ OWN = {
     "remote_logins.json": "the logins Core made for the accepted remotes (register 969j) — their passwords exist nowhere else; the platform keeps only a hash",
     "connect.json": "the box's ProOS Connect id and secret, made on the box (register 969u) — ProOS's own credential; the platform has no version of it",
     "connect_policy.json": "what ProOS Connect last said about the fleet's AI and which of ProOS's keys it holds (register 1347) — a copy of CONNECT's answer, never the platform's; no key in it",
+    "tiles_sync.json": "the box's last mirror of ProOS Connect's app tile library (register 1350) — counts and slugs only, a copy of CONNECT's answer; no tile in it",
     "net_pending.json": "a network change held for Keep These Settings, with the port's settings from before (register 969z) — ProOS's own way back; the platform keeps no such record",
     "weather_std.json": "which weather service Core set up and at what location (register 970a) — only so a move is noticed; the service itself and the location are the platform's",
 }

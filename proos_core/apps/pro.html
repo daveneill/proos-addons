@@ -3415,7 +3415,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111407';
+const PROOS_BUILD='2026111408';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -12330,7 +12330,7 @@ function shortcutsCardHTML(area, list, cat, devices){
       +'<div id="scb-wrap" style="display:none;margin-top:10px;border:0.5px solid var(--line);border-radius:12px;padding:14px">'
       +'<div class="wiz-hint" style="margin-bottom:8px">Teach ProOS this app now — it stays on this system and its artwork is fetched and shown here. No need to leave the job.</div>'
       +(typeof brandPickerHtml==='function'?brandPickerHtml('scb'):'')
-      +'<div style="margin-top:10px"><button class="rh-act-pill rh-act-new" onclick="brandAdd(\'scb\',\''+esc(area)+'\')">Add App</button></div>'
+      +'<div style="margin-top:10px"><button class="rh-act-pill rh-act-new" onclick="brandAsk(\'scb\',\''+esc(area)+'\')">Ask ProOS Connect for This App</button></div>'
       +'<div id="scb-out" class="wiz-hint" style="margin-top:8px;display:none"></div></div>'
     : '<div class="rh-empty">Save the room\'s display first, then add shortcuts.</div>';
   return '<div class="rh-card"><div class="rh-hd"><span class="rh-hd-t">App Shortcuts</span>'
@@ -13433,10 +13433,10 @@ function _chSideHTML(){
   }
   const conf=c.confirmed?'<span class="v3chip ok">Confirmed on '+_chEsc(_chName(c.confirmed.on))+' · '+_chEsc(new Date(c.confirmed.at*1000).toLocaleDateString())+(c.confirmed.by?' · '+_chEsc(c.confirmed.by):'')+'</span>':(isNew?'':'<span class="v3chip amber">To Check</span>');
   return '<div class="chl-sh2"><div class="h">'+(isNew?'New Channel':'Channel')+'</div>'+conf+'</div>'
-    +'<div class="chl-face">'+_chTile(c,'l')+'<div class="chl-logo-acts">'+(isNew?'<div class="t2">Save the channel first, then add its logo.</div>'
-      :(c.logo_tile?'<button type="button" class="v3btn" onclick="chLogoPick()">Replace Logo</button><button type="button" class="v3add" onclick="chLogoRemove()">Remove Logo</button>'
-        :'<button type="button" class="v3btn pri" onclick="chLogoPick()">Upload Logo</button><div class="t2">A finished 600×360 tile fills it as made. A logo on a clear background is fitted and centred.</div>'))+'</div></div>'
-    +(c.logo_tile?'<div class="chl-note blue">Every TV that uses '+_chEsc(L.name)+' shows this logo. It is kept in Tech Tools › App Tiles › Channels under the name '+_chEsc(c.name)+', so a channel of that name in any list wears it.</div>':'')
+    +'<div class="chl-face">'+_chTile(c,'l')+'<div class="chl-logo-acts"><div class="t2">'
+      // REGISTER 1350 (Dave 15 Nov 08:22 "Only from Connect"): channel logos are made on ProOS Connect, never on a box
+      +(c.logo_tile?'This channel\u2019s logo comes from ProOS Connect.':'No logo yet. Channel logos are added on ProOS Connect (App Tiles \u203a Channels) and reach every box within 10 minutes.')+'</div></div></div>'
+    +(c.logo_tile?'<div class="chl-note blue">Every TV that uses '+_chEsc(L.name)+' shows this logo. It is kept on ProOS Connect under the name '+_chEsc(c.name)+', so a channel of that name in any list, in any home, wears it.</div>':'')
     +'<div class="chl-two"><label>Number<input class="chl-in" id="chl-no" inputmode="numeric" maxlength="4" value="'+_chEsc(c.number)+'"></label><label>Name<input class="chl-in" id="chl-nm" maxlength="60" value="'+_chEsc(c.name)+'"></label></div>'
     +'<label class="chl-f">Also Called (for voice)<input class="chl-in" id="chl-aka" placeholder="ABC, the ABC" value="'+_chEsc((c.aka||[]).join(', '))+'"></label>'
     +'<div class="chl-f">Type<div class="chl-types" id="chl-types">'+types+'</div></div>'
@@ -13462,54 +13462,8 @@ async function chUnconfirm(){ const r=await _chPost('/channels/'+encodeURICompon
 async function chRemoveList(sure){ if(!sure) return; const id=_chv.lid, nm=(_chv.list&&_chv.list.name)||'The list'; const r=await _chPost('/channels/'+encodeURIComponent(id)+'/remove_list',{}); if(r.error){ toast(r.error); return; } _chv.undo={id:id, name:nm}; chBack(); }
 // ── REGISTER 1098 — CHANNEL LOGOS (Dave 30 Oct 18:54 mockup "Yes please"; 19:06 "just go with the upload … where are they
 // stored as a default job starts with no lists"; 19:07 "Sure"). A logo is a tile in ProOS's tile library, named
-// channel_<channel name> — Tech Tools › App Tiles › Channels — so it belongs to the name, not to a list, survives updates
-// and factory reset like every uploaded tile, and Export carries it into the shipped pack. FITTED and centred, never
-// cropped (the app-tile builder fills the tile, which is what cut the Samsung wordmark to "ISI").
-function _chLogoTile(src){
-  return new Promise((res,rej)=>{ const img=new Image();
-    img.onload=()=>{ try{
-      const W=img.naturalWidth||600, H=img.naturalHeight||360;
-      const s=document.createElement('canvas'); s.width=W; s.height=H; const sg=s.getContext('2d'); sg.drawImage(img,0,0,W,H);
-      const d=sg.getImageData(0,0,W,H).data; let x0=W,y0=H,x1=-1,y1=-1,clear=false,lum=0,n=0;
-      for(let y=0;y<H;y++) for(let x=0;x<W;x++){ const k=(y*W+x)*4; if(d[k+3]<16){ clear=true; continue; }
-        if(x<x0)x0=x; if(y<y0)y0=y; if(x>x1)x1=x; if(y>y1)y1=y; if(((x+y)&7)===0){ lum+=(0.2126*d[k]+0.7152*d[k+1]+0.0722*d[k+2])/255; n++; } }
-      if(x1<0){ x0=0; y0=0; x1=W-1; y1=H-1; }
-      // REGISTER 1101 (Dave 31 Oct 06:33 "I did 600x360 and it does not fill it"): a FINISHED tile — no clear background,
-      // already the tile's shape (600×360 or any 5:3, within 3 %) — fills the tile edge to edge, exactly as made.
-      if(!clear && Math.abs(W/H-600/360)/(600/360)<=0.03){
-        const f=document.createElement('canvas'); f.width=600; f.height=360; f.getContext('2d').drawImage(img,0,0,600,360);
-        res(f.toDataURL('image/png')); return; }
-      const sw=x1-x0+1, sh=y1-y0+1, ar=sw/Math.max(1,sh);
-      const box=clear?(ar>=2.2?[0.70,0.42]:(ar>=1?[0.58,0.58]:[0.42,0.70])):[0.86,0.80];   // a finished square/box logo keeps more of the tile
-      const sc=Math.min(600*box[0]/sw, 360*box[1]/sh), w=sw*sc, h=sh*sc;
-      const c=document.createElement('canvas'); c.width=600; c.height=360; const g=c.getContext('2d');
-      const dark=!(clear && n && lum/n<0.35);                // a dark logo on a clear background goes on a light tile
-      g.fillStyle=dark?'rgb(11,11,13)':'rgb(245,245,247)'; g.fillRect(0,0,600,360);
-      g.drawImage(s,x0,y0,sw,sh,Math.round((600-w)/2),Math.round((360-h)/2),Math.round(w),Math.round(h));
-      res(c.toDataURL('image/png')); }catch(e){ rej(e); } };
-    img.onerror=()=>rej(new Error('That file could not be read as a picture')); img.src=src; });
-}
-function _chLogoSlug(name){ return 'channel_'+String(name||'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,''); }
-// REGISTER 1103 (Dave 06:53 "Upload seems to work sometimes and other nothing happens"): the picker was never part of the
-// page, so the Mac/iPad web view could throw it away before the chosen file came back. It is in the page now, and the
-// channel is the one chosen when the picker opened, even if the selection changes while it is open.
-function chLogoPick(){ document.querySelectorAll('input[type=file].chl-file').forEach(x=>x.remove());
-  const sel=_chv.sel, i=document.createElement('input'); i.type='file'; i.className='chl-file'; i.accept='image/png,image/svg+xml,image/jpeg,image/webp';
-  i.style.cssText='position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0'; document.body.appendChild(i);
-  i.onchange=()=>{ const f=i.files&&i.files[0]; if(!f){ i.remove(); return; } const r=new FileReader(); r.onload=()=>{ i.remove(); chLogoFile(r.result, sel); }; r.onerror=()=>{ i.remove(); toast('That file could not be read'); }; r.readAsDataURL(f); };
-  i.click(); }
-async function chLogoFile(dataUrl, sel){
-  const c=((_chv.list&&_chv.list.channels)||[]).find(x=>x.id===(sel||_chv.sel)); if(!c){ toast('That channel has gone'); return; }
-  let png; try{ png=await _chLogoTile(dataUrl); }catch(e){ toast(e.message||'That file could not be read'); return; }
-  const r=await _chPost('/apps/art/upload',{name:_chLogoSlug(c.name), image:png, origin:'uploaded'});
-  if(r.error){ toast(r.error); return; }
-  window._chLogoV=Date.now(); toast('Logo saved for '+c.name); _chLoad();
-}
-async function chLogoRemove(){
-  const c=((_chv.list&&_chv.list.channels)||[]).find(x=>x.id===_chv.sel); if(!c||!c.logo_tile) return;
-  const r=await _chPost('/apps/art/delete',{slug:c.logo_tile}); if(r.error){ toast(r.error); return; }
-  window._chLogoV=Date.now(); toast('Logo removed'); _chLoad();
-}
+// channel_<channel name>, so it belongs to the name, not to a list. REGISTER 1350: made on ProOS Connect only (App Tiles ›
+// Channels, where the fitter now lives) and mirrored to every box; this page shows it and never stores one.
 // register 1097: Undo — the deleted list comes back exactly as it was (Core keeps it; channels.undo_remove)
 async function chUndoRemove(){ const u=_chv.undo; if(!u) return; const r=await _chPost('/channels/'+encodeURIComponent(u.id)+'/undo_remove',{}); if(r.error){ toast(r.error); return; } _chv.undo=null; toast(u.name+' is back'); _chLoad(); }
 async function _chTvOff(eid){
@@ -15158,120 +15112,36 @@ async function notifyTestSend(svc,btn){
 // tiles SHIPPED with the Core release, and tiles UPLOADED here (stored in
 // Core's data, survive updates + factory reset). An upload with the same slug
 // overrides the shipped tile; deleting the upload restores it. Tech/owner only.
-function _tileSlug(s){ return String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,''); }
 async function techViewTiles(view){
-  if(view._techFresh) setHTML(view,'<div class="empty"><div class="et">Reading tile pack…</div></div>');
+  // REGISTER 1350 (Dave 15 Nov 08:22: "Only from Connect as it keeps the dashboard our premium look not cheap logos thrown
+  // on buttons by an installer that look bad"). App Tiles, channel logos and apps are made on ProOS Connect; this box
+  // mirrors them every 10 minutes and keeps its own copy. This page SHOWS what the box has — nothing is added here.
+  if(view._techFresh) setHTML(view,'<div class="empty"><div class="et">Reading the tiles…</div></div>');
   let d=null; try{ const r=await fetch(proCoreUrl()+'/apps/art/list'); d=await r.json(); }catch(e){}
-  if(!d||d.error){ setHTML(view,'<div class="empty"><div class="et">Couldn\'t read the tile pack</div><div class="es">'+esc((d&&d.error)||'Needs ProOS Core 1.0.172 or newer')+'</div></div>'); return; }
-  const tiles=d.tiles||[];
-  let h='<div class="wiz-hint">App tile artwork served to every dashboard and remote. PNG, landscape 600×360, full-bleed — named by app slug (netflix, disney, prime_video, abc_iview…). Anything you upload here overrides the shipped tile on this system; delete it to go back.</div>'
-    +'<div class="field" style="border:0.5px solid var(--line);border-radius:12px;padding:14px;margin-top:12px">'
-    +'<div class="field-label">Upload tiles — the file name becomes the slug (netflix.png → netflix)</div>'
-    +'<div style="display:flex;gap:8px;align-items:center;margin-top:6px">'
-    +'<input id="tile-files" type="file" accept="image/png,image/jpeg,image/webp" multiple style="flex:1;min-width:0;color:var(--t2);font-size:12px"/>'
-    +'<button class="btn-primary" style="white-space:nowrap;width:auto;flex:0 0 auto;margin-top:0;padding:12px 26px" onclick="tilesUpload()">Upload</button></div>'
-    +'<div id="tile-up-out" class="wiz-hint" style="margin-top:8px;display:none"></div></div>';
-  // Apps this home actually has that still have no artwork. Finite checklist,
-  // built from what the devices report — not a guess at what a home might own.
+  if(!d||d.error){ setHTML(view,'<div class="empty"><div class="et">Couldn\'t read the tiles</div><div class="es">'+esc((d&&d.error)||'ProOS Core unreachable')+'</div></div>'); return; }
+  const tiles=d.tiles||[], cx=d.connect||{};
+  const head=cx.live
+    ?'<b style="color:#84d9b4">From ProOS Connect</b> · '+(cx.tiles||0)+' tile'+((cx.tiles||0)===1?'':'s')+' in the library'+((cx.failed||[]).length?' · <span style="color:#e3a23c">'+cx.failed.length+' still to arrive</span>':'')
+    :'<b style="color:#e3a23c">Not mirroring yet</b> · ProOS Connect’s library isn’t on for every box yet, so this box shows what it already had';
   const miss=((d.audit||{}).missing)||[];
-  if(miss.length){
-    h+='<div class="field" style="border:0.5px solid var(--line);border-radius:12px;padding:14px;margin-top:12px">'
-      +'<div class="field-label">'+miss.length+' app'+(miss.length===1?'':'s')+' on this system still showing a wordmark</div>'
-      +'<div class="wiz-hint" style="margin-top:4px">Looks each one up by brand domain, builds the tile and stores it here. '
-      +'Fetched once — dashboards always serve artwork from this box, never from the internet.</div>'
-      +'<div style="display:flex;flex-wrap:wrap;gap:6px;margin:10px 0">'
-      +miss.map(m=>'<span style="font-size:11px;font-family:ui-monospace,Menlo,monospace;padding:3px 8px;border-radius:6px;background:rgba(255,255,255,.06);color:var(--t2)">'+esc(m.slug)+'</span>').join('')
-      +'</div>'
-      +'<button class="btn-primary" style="width:auto;margin-top:0;padding:12px 26px" onclick="tilesFetch()">Fetch missing artwork</button>'
-      +'<div id="tile-fetch-out" class="wiz-hint" style="margin-top:8px;display:none"></div></div>';
-  }
-  // Pull the whole catalogue, not just this home's apps — so the artwork is
-  // already here the first time a customer installs something new.
-  const gaps=(d.catalogue_gaps)||[];
-  if(gaps.length){
-    h+='<div class="field" style="border:0.5px solid var(--line);border-radius:12px;padding:14px;margin-top:12px">'
-      +'<div class="field-label">Catalogue — '+gaps.length+' more brand'+(gaps.length===1?'':'s')+' ProOS knows but has no tile for</div>'
-      +'<div class="wiz-hint" style="margin-top:4px">Fetches artwork for every brand in the catalogue, whether or not it\'s installed here. '
-      +'A new app then shows correctly the day it appears, instead of a wordmark.</div>'
-      +'<button class="btn-primary" style="width:auto;margin-top:10px;padding:12px 26px" onclick="tilesFetch(true)">Fetch whole catalogue</button>'
-      +'<div id="tile-cat-out" class="wiz-hint" style="margin-top:8px;display:none"></div></div>';
-  }
-  // Teach this box an app it has never heard of — brand AND artwork in one
-  // step, so adding a new app is ONE job. Brandfetch search is the fast path;
-  // manual entry always remains.
-  h+='<div class="field" style="border:0.5px solid var(--line);border-radius:12px;padding:14px;margin-top:12px">'
-    +'<div class="field-label">Add an app</div>'
-    +'<div class="wiz-hint" style="margin-top:4px">For an app ProOS doesn\'t know yet. Searching fills in the brand domain that artwork is found by — check it\'s the Australian brand you meant.</div>'
-    +'<div style="margin-top:10px">'+brandPickerHtml('brand')+'</div>'
-    +'<div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">'
-    +'<input id="brand-art" type="file" accept="image/png,image/jpeg,image/webp" style="flex:1;min-width:0;color:var(--t2);font-size:12px"/>'
-    +'<button class="btn-primary" style="white-space:nowrap;width:auto;flex:0 0 auto;margin-top:0;padding:12px 26px" onclick="brandAdd(\'brand\')">Add app</button></div>'
-    +'<div class="wiz-hint" style="margin-top:4px">Leave the file empty and ProOS fetches the artwork by domain.</div>'
-    +'<div id="brand-out" class="wiz-hint" style="margin-top:8px;display:none"></div></div>';
-  // A global directory means this grid gets long — filter it rather than scroll.
-  const _added=d.brands||{}, _gone=(d.removed||[]);
+  let h='<div class="wiz-hint">Tiles, channel logos and apps are made on ProOS Connect (App Tiles) and reach every box within 10 minutes. Nothing is added on a box.</div>'
+    +'<div class="field" style="border:0.5px solid var(--line);border-radius:12px;padding:14px;margin-top:12px"><div class="wiz-hint" style="margin:0">'+head+'</div>'
+    +(miss.length?'<div class="wiz-hint" style="margin-top:8px">'+miss.length+' app'+(miss.length===1?'':'s')+' here still show'+(miss.length===1?'s':'')+' a wordmark — ProOS Connect has been told: '+miss.map(m=>esc(m.name||m.slug)).join(', ')+'</div>':'')
+    +'</div>';
   h+='<div style="display:flex;gap:8px;align-items:center;margin-top:16px;flex-wrap:wrap">'
     +'<input id="tile-filter" placeholder="Filter tiles…" oninput="tilesFilter()" style="flex:1 1 200px;min-width:0;padding:9px 11px;border-radius:9px;border:0.5px solid var(--line);background:var(--card);color:var(--t1);font-size:13px"/>'
-    +['uploaded','fetched','hidden','added here'].map(x=>'<button data-tile-chip="'+x+'" onclick="tilesFilterState(\''+x+'\')" style="background:rgba(255,255,255,.06);border:0.5px solid var(--line-soft);border-radius:999px;padding:6px 12px;font-size:11px;color:var(--t2);cursor:pointer">'+x+'</button>').join('')
     +'<span id="tile-filter-n" style="font-size:11px;color:var(--t3)"></span></div>';
-  // Apps switched off on this system. A shipped app can't be deleted (the image
-  // is read-only and an update brings it back), so it lives here instead —
-  // visible and restorable, never silently vanished.
-  if(_gone.length){
-    h+='<div class="field" style="border:0.5px solid var(--line);border-radius:12px;padding:14px;margin-top:12px">'
-      +'<div class="field-label">'+_gone.length+' app'+(_gone.length===1?'':'s')+' switched off on this system</div>'
-      +'<div class="wiz-hint" style="margin-top:4px">These stop being offered and stop resolving here. They ship with ProOS, so they can\'t be deleted \u2014 but you can put any of them back.</div>'
-      +'<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">'
-      +_gone.map(g=>'<button onclick="appRestore(\''+esc(g)+'\')" style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.06);border:0.5px solid var(--line-soft);border-radius:999px;padding:6px 12px;font-size:11px;color:var(--t2);cursor:pointer"><span style="font-family:ui-monospace,Menlo,monospace">'+esc(g)+'</span><span style="color:#84d9b4">Restore</span></button>').join('')
-      +'</div></div>';
-  }
-  // REGISTER 1098: channel logos (channel_<name>) have their own section below — the app grid is apps only
-  const _chTiles=tiles.filter(t=>/^channel_/.test(t.slug));
-  const _tileCard=t=>{
-      // Stable version per page-load (bumped after upload/delete/fetch) so the
-      // grid rides the server's cache instead of re-downloading every tile on
-      // every render — with the live stream holding a socket, per-render
-      // Date.now() busting starved the image lanes and the art went blank.
-      const url=proCoreUrl()+'/apps/art/tile/'+t.slug+'.png?v='+(window._tileV||(window._tileV=Date.now()));
-      // Two states that matter: found automatically, or put there on purpose.
-      const up=t.origin==='uploaded', fet=t.origin==='fetched', hid=t.origin==='hidden';
-      const badge=t.origin;
-      const bcol=hid?'rgba(225,112,85,.16);color:#e8a08c'
-               :(up?'var(--accent-soft);color:#aeb9ff'
-               :(fet?'rgba(132,217,180,.14);color:#84d9b4':'rgba(255,255,255,.08);color:var(--t3)'));
-      // A shipped tile can't be deleted (read-only add-on image) but it CAN be
-      // suppressed here, so every tile offers a way to stop it appearing.
-      const act = hid
-        ? '<button onclick="tileRestore(\''+esc(t.slug)+'\')" style="background:none;border:none;color:#84d9b4;font-size:11px;cursor:pointer;padding:4px">Restore</button>'
-        : '<button onclick="tileDelete(\''+esc(t.slug)+'\')" style="background:none;border:none;color:#e17055;font-size:11px;cursor:pointer;padding:4px">Delete</button>';
-      // Added on THIS system? then removing it deletes it outright; a shipped
-      // app can only be switched off here. The card says which it will do.
-      const localAdded=!!(_added&&_added[t.slug]);
-      const state=localAdded?'added here':t.origin;
-      const rm='<button onclick="appRemove(\''+esc(t.slug)+'\','+(localAdded?'true':'false')+')" style="background:none;border:none;color:var(--t3);font-size:11px;cursor:pointer;padding:4px">Remove app</button>';
-      return '<div data-tile-slug="'+esc(t.slug)+'" data-tile-state="'+esc(state)+'" style="border:0.5px solid var(--line-soft);border-radius:12px;overflow:hidden;background:var(--card)'+(hid?';opacity:.45':'')+'">'
-        +'<div style="aspect-ratio:5/3;background:#0c0d10"><img loading="lazy" src="'+url+'" alt="" style="width:100%;height:100%;object-fit:cover;display:block" onerror="this.style.display=\'none\'"></div>'
-        +'<div style="padding:8px 10px;display:flex;align-items:center;justify-content:space-between;gap:6px">'
-        +'<div style="min-width:0"><div style="font-size:12px;color:var(--t1);font-family:ui-monospace,Menlo,monospace;overflow:hidden;text-overflow:ellipsis">'+esc(t.slug)+'</div>'
-        +'<span style="font-size:9px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:1px 6px;border-radius:5px;background:'+bcol+'">'+badge+'</span></div>'
-        +'<div style="display:flex;flex-direction:column;align-items:flex-end">'+act+(/^channel_/.test(t.slug)?'':rm)+'</div></div></div>';
-    };
-  h+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-top:14px">'
-    +tiles.filter(t=>!/^channel_/.test(t.slug)).map(_tileCard).join('')+'</div>';
-  h+='<div class="field" style="border:0.5px solid var(--line);border-radius:12px;padding:14px;margin-top:18px">'
-    +'<div class="field-label">Channels — '+_chTiles.length+' logo'+(_chTiles.length===1?'':'s')+'</div>'
-    +'<div class="wiz-hint" style="margin-top:4px">Channel logos for Channel Lists. A logo belongs to a channel\'s name (channel_nine is any channel called Nine, or Also Called Nine), so a new job\'s lists pick it up. Fitted and centred on the tile. Export carries them into the shipped pack.</div>'
-    +'<div class="field-label" style="margin-top:10px">Upload channel logos — the file name becomes the channel name (Nine.png → Nine)</div>'
-    +'<div style="display:flex;gap:8px;align-items:center;margin-top:6px">'
-    +'<input id="chtile-files" type="file" accept="image/png,image/svg+xml,image/jpeg,image/webp" multiple style="flex:1;min-width:0;color:var(--t2);font-size:12px"/>'
-    +'<button class="btn-primary" style="white-space:nowrap;width:auto;flex:0 0 auto;margin-top:0;padding:12px 26px" onclick="chTilesUpload()">Upload</button></div>'
-    +'<div id="chtile-up-out" class="wiz-hint" style="margin-top:8px;display:none"></div>'
-    +(_chTiles.length?'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-top:12px">'+_chTiles.map(_tileCard).join('')+'</div>':'')
-    +'</div>';
-  if(!tiles.length) h+='<div class="empty" style="margin-top:14px"><div class="et">No tiles yet</div><div class="es">Fetch the artwork above, or upload your own — it appears on every dashboard.</div></div>';
-  if(tiles.length) h+='<div style="display:flex;gap:14px;align-items:center;margin-top:16px;padding-top:12px;border-top:0.5px solid var(--line-soft)">'
-    +'<button onclick="tilesClear(\'fetched\')" style="background:none;border:none;color:var(--t3);font-size:11px;cursor:pointer;padding:4px">Remove fetched artwork</button>'
-    +'<button onclick="tilesClear(\'all\')" style="background:none;border:none;color:#e17055;font-size:11px;cursor:pointer;padding:4px">Remove all artwork</button></div>';
+  const card=t=>{
+    const url=proCoreUrl()+'/apps/art/tile/'+t.slug+'.png?v='+(window._tileV||(window._tileV=Date.now()));
+    return '<div data-tile-slug="'+esc(t.slug)+'" data-tile-state="'+esc(t.origin)+'" style="border:0.5px solid var(--line-soft);border-radius:12px;overflow:hidden;background:var(--card)'+(t.origin==='hidden'?';opacity:.45':'')+'">'
+      +'<div style="aspect-ratio:5/3;background:#0c0d10"><img loading="lazy" src="'+url+'" alt="" style="width:100%;height:100%;object-fit:cover;display:block" onerror="this.style.display=\'none\'"></div>'
+      +'<div style="padding:8px 10px;font-size:12px;color:var(--t1);font-family:ui-monospace,Menlo,monospace;overflow:hidden;text-overflow:ellipsis">'+esc(t.slug)+'</div></div>';
+  };
+  const apps=tiles.filter(t=>!/^channel_/.test(t.slug)), chans=tiles.filter(t=>/^channel_/.test(t.slug));
+  h+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-top:14px">'+apps.map(card).join('')+'</div>';
+  if(chans.length) h+='<div class="field-label" style="margin-top:18px">Channels — '+chans.length+' logo'+(chans.length===1?'':'s')+'</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-top:10px">'+chans.map(card).join('')+'</div>';
+  if(!tiles.length) h+='<div class="empty" style="margin-top:14px"><div class="et">No tiles yet</div><div class="es">They arrive from ProOS Connect.</div></div>';
   setHTML(view,h);
 }
 
@@ -15359,84 +15229,28 @@ function brandPick(pfx,dom,nm){
 }
 // Store the brand, then settle its artwork in the SAME action: an uploaded PNG
 // always wins; otherwise fetch by domain. One job, one result line.
-async function brandAdd(pfx,area){
+async function brandAsk(pfx,area){
+  // REGISTER 1350: an app ProOS doesn't know goes on ProOS Connect's list with what the installer found (name, brand
+  // domain, device id) — Protech adds it there, and its name and tile reach every box. Nothing is added on this box.
   const nm=((document.getElementById(pfx+'-name')||{}).value||'').trim();
   const dom=((document.getElementById('brand-domain')||{}).value||'').trim();
   const ids=((document.getElementById('brand-ids')||{}).value||'').split(/[,\s]+/).filter(Boolean);
   const out=document.getElementById(pfx+'-out');
   const say=(t)=>{ if(out){ out.style.display='block'; out.innerHTML=t; } else toast(t.replace(/<[^>]+>/g,'')); };
-  if(!nm||!dom){ say('Give it a name and a brand domain.'); return; }
+  if(!nm){ say('Give it a name.'); return; }
   let res=null;
   try{
-    const r=await fetch(proCoreUrl()+'/apps/brands/add',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({name:nm,domain:dom,ids:ids,aliases:(window._scbAlias?[window._scbAlias]:[])})});
+    const r=await fetch(proCoreUrl()+'/apps/art/want',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({name:nm,domain:dom,ids:ids,alias:(window._scbAlias||'')})});
     res=await r.json();
   }catch(e){ say('Couldn\'t reach ProOS Core.'); return; }
-  if(!res||res.error){ say(esc((res&&res.error)||'Could not add it.')); return; }
-  const slug=res.slug;
-  let art='', shown=false;
-  const f=(document.getElementById('brand-art')||{}).files;
-  try{
-    if(f&&f.length){
-      const png=await _tileToPng(f[0]);
-      await fetch(proCoreUrl()+'/apps/art/upload',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({name:slug,image:png})});
-      art=' Artwork uploaded:'; shown=true;
-    }else{
-      // REGISTER 918: this asked /apps/art/fetch, which never existed on the box — so every app taught here said
-      // "No artwork yet". It now takes the Toolbox's own road: the brand's logo by domain (/apps/art/source),
-      // built into a tile here (_tileFromDataUrl), stored on the box (/apps/art/upload) — and the tile is SHOWN.
-      const fr=await fetch(proCoreUrl()+'/apps/art/source',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({app:slug, domain:dom})});
-      const fd=await fr.json().catch(()=>({}));
-      if(fr.ok&&fd&&fd.ok){
-        const png=await _tileFromDataUrl(fd.image);
-        const up=await fetch(proCoreUrl()+'/apps/art/upload',{method:'POST',headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({name:slug,image:png,origin:'fetched'})});
-        const ud=await up.json().catch(()=>({}));
-        art=(up.ok&&ud.ok)?' Artwork fetched from '+esc(dom)+':':' The artwork was found but not stored'+(ud&&ud.error?' — '+esc(ud.error):'')+'.';
-        if(up.ok&&ud.ok) shown=true;
-      }else{
-        art=' No artwork found for '+esc(dom)+(fd&&fd.error?' ('+esc(fd.error)+')':'')+' — check the brand, or upload a picture.';
-      }
-    }
-  }catch(e){ art=' Added, but the artwork step didn\'t finish.'; }
-  window._tileV=Date.now();
-  say('<b>'+esc(nm)+'</b> added.'+art+(shown?'<div style="margin-top:8px"><img alt="" src="'+proCoreUrl()+'/apps/art/tile/'+encodeURIComponent(slug)+'.png?v='+window._tileV+'" style="width:150px;height:90px;border-radius:10px;object-fit:cover;display:block"></div>':''));
+  if(!res||res.error){ say(esc((res&&res.error)||'Could not send it.')); return; }
+  say('<b>'+esc(nm)+'</b> is on ProOS Connect’s list. Once Protech adds it, its name and tile reach this box within 10 minutes.');
   if(area) window._scbAlias='';
-  // Called from a room page (installer, mid-commission): refresh that room's
-  // app list so the new app is immediately pickable — the whole point is that
-  // they never leave the job.
-  // Called from a room page: refresh THAT device's list in place, so the new tile shows there at once — without
-  // rebuilding the page (which would close this panel and lose the tile shown above).
-  if(area){ const t=_scDevSel[area]; if(t) scLoadDevApps(area,t,true); return; }
-  if(typeof techOpenTiles==='function') setTimeout(()=>techOpenTiles(),700);
 }
 // REMOVAL IS TOOLBOX-ONLY (Dave, 8 Aug): retiring an app is curation, not
 // commissioning. Two honest cases — added here = deleted; shipped = suppressed
 // on this box (the image is read-only and an update would bring it back).
-function appRemove(slug,localAdded){
-  const body = localAdded
-    ? '<div class="reset-wiped">This app was added on this system, so it will be deleted outright — its name, domain and device ids.</div>'
-    : '<div class="reset-wiped">This app ships with ProOS, so it can\'t be deleted — it will be switched off on this system instead and will stop being offered. You can restore it any time.</div>';
-  dangerConfirm('Remove '+slug+'?', body, '', async()=>{
-    try{
-      const r=await fetch(proCoreUrl()+'/apps/brands/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({slug})});
-      const d=await r.json();
-      if(d&&d.error){ toast(d.error); return; }
-      toast(d.action==='suppressed'?'Removed on this system':'Removed');
-      window._tileV=Date.now(); if(typeof techOpenTiles==='function') techOpenTiles();
-    }catch(e){ toast('Could not remove it'); }
-  });
-}
-async function appRestore(slug){
-  try{
-    const r=await fetch(proCoreUrl()+'/apps/brands/restore',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({slug})});
-    const d=await r.json();
-    if(d&&d.error){ toast(d.error); return; }
-    toast('Restored'); window._tileV=Date.now(); if(typeof techOpenTiles==='function') techOpenTiles();
-  }catch(e){ toast('Could not restore it'); }
-}
 // Dave, 8 Aug: "if there is going to be a large list it may be good to add a
 // search filter... if it is now going to be global I would anticipate it being
 // quite large." Client-side over tiles already loaded — no refetch, no
@@ -15456,197 +15270,7 @@ function tilesFilter(){
   const n=document.getElementById('tile-filter-n');
   if(n) n.textContent=shown+' of '+cards.length;
 }
-function tilesFilterState(st){
-  _tileFilterState=(_tileFilterState===st)?'':st;
-  document.querySelectorAll('[data-tile-chip]').forEach(b=>{
-    b.style.background=(b.getAttribute('data-tile-chip')===_tileFilterState)?'var(--accent-soft)':'rgba(255,255,255,.06)';
-  });
-  tilesFilter();
-}
 
-// Normalise every upload to spec (600×360 PNG, cover-cropped) before sending.
-function _tileToPng(file){
-  return new Promise((res,rej)=>{
-    const img=new Image(); const url=URL.createObjectURL(file);
-    img.onload=()=>{
-      const c=document.createElement('canvas'); c.width=600; c.height=360;
-      const g=c.getContext('2d'); const sc=Math.max(600/img.width,360/img.height);
-      const w=img.width*sc, hh=img.height*sc;
-      g.drawImage(img,(600-w)/2,(360-hh)/2,w,hh);
-      URL.revokeObjectURL(url); res(c.toDataURL('image/png'));
-    };
-    img.onerror=()=>{ URL.revokeObjectURL(url); rej(new Error('unreadable image')); };
-    img.src=url;
-  });
-}
-// ── build a tile from a transparent brand logo ───────────────────────────────
-// Same rules as the standalone Tile Maker: trim the padding, size by shape so a
-// wordmark and a symbol carry equal optical weight, and pick a background the
-// logo actually reads against.
-function _tileChan(v){ v/=255; return v<=0.04045?v/12.92:Math.pow((v+0.055)/1.055,2.4); }
-function _tileLum(c){ return 0.2126*_tileChan(c[0])+0.7152*_tileChan(c[1])+0.0722*_tileChan(c[2]); }
-function _tileContrast(a,b){ const x=_tileLum(a),y=_tileLum(b),hi=Math.max(x,y),lo=Math.min(x,y);
-  return (hi+0.05)/(lo+0.05); }
-function _tileInk(img){
-  const c=document.createElement('canvas'); c.width=c.height=64;
-  const g=c.getContext('2d'); g.drawImage(img,0,0,64,64);
-  const d=g.getImageData(0,0,64,64).data;
-  let t=[0,0,0],n=0,best=null,bs=0;
-  for(let i=0;i<d.length;i+=4){ if(d[i+3]<160) continue;
-    const r=d[i],gg=d[i+1],b=d[i+2]; t[0]+=r;t[1]+=gg;t[2]+=b;n++;
-    const mx=Math.max(r,gg,b),mn=Math.min(r,gg,b),s=mx===0?0:(mx-mn)/mx;
-    if(s>bs&&mx>60){ bs=s; best=[r,gg,b]; } }
-  if(!n) return {ink:[255,255,255],brand:null};
-  return {ink:[t[0]/n|0,t[1]/n|0,t[2]/n|0], brand: bs>=0.45?best:null};
-}
-function _tileTrim(img){
-  const c=document.createElement('canvas'); c.width=img.width||600; c.height=img.height||360;
-  const g=c.getContext('2d'); g.drawImage(img,0,0,c.width,c.height);
-  const d=g.getImageData(0,0,c.width,c.height).data;
-  let x0=c.width,y0=c.height,x1=-1,y1=-1,clear=0;
-  for(let y=0;y<c.height;y++) for(let x=0;x<c.width;x++){
-    const a=d[(y*c.width+x)*4+3];
-    if(a<40) clear++;
-    if(a>8){ if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y; } }
-  const transparent = clear > c.width*c.height*0.08;
-  if(x1<0) return {canvas:c,w:c.width,h:c.height,transparent};
-  const w=x1-x0+1,h=y1-y0+1;
-  const o=document.createElement('canvas'); o.width=w; o.height=h;
-  o.getContext('2d').drawImage(c,x0,y0,w,h,0,0,w,h);
-  return {canvas:o,w,h,transparent};
-}
-function _tileBuild(img){
-  const c=document.createElement('canvas'); c.width=600; c.height=360;
-  const g=c.getContext('2d');
-  const tr=_tileTrim(img);
-  if(!tr.transparent){                       // already finished artwork
-    const sc=Math.max(600/(img.width||600),360/(img.height||360));
-    const w=(img.width||600)*sc, hh=(img.height||360)*sc;
-    g.drawImage(img,(600-w)/2,(360-hh)/2,w,hh);
-    return c.toDataURL('image/png');
-  }
-  const {ink,brand}=_tileInk(img), DARK=[11,11,13], LIGHT=[245,245,247];
-  const bg = (brand && _tileContrast(ink,brand)>=3.0) ? brand
-           : (_tileContrast(ink,DARK)>=_tileContrast(ink,LIGHT) ? DARK : LIGHT);
-  g.fillStyle='rgb('+bg.join(',')+')'; g.fillRect(0,0,600,360);
-  const ar=tr.w/Math.max(1,tr.h);
-  const box = ar>=2.2?[0.66,0.42] : (ar>=1.0?[0.55,0.55] : [0.40,0.66]);
-  const sc=Math.min(600*box[0]/tr.w, 360*box[1]/tr.h);
-  const w=tr.w*sc, hh=tr.h*sc;
-  g.drawImage(tr.canvas,(600-w)/2,(360-hh)/2,w,hh);
-  return c.toDataURL('image/png');
-}
-function _tileFromDataUrl(src){
-  return new Promise((res,rej)=>{
-    const img=new Image();
-    img.onload=()=>{ try{ res(_tileBuild(img)); }catch(e){ rej(e); } };
-    img.onerror=()=>rej(new Error('unreadable artwork'));
-    img.src=src;
-  });
-}
-async function tilesFetch(whole){
-  const out=document.getElementById(whole?'tile-cat-out':'tile-fetch-out');
-  let d=null; try{ const r=await fetch(proCoreUrl()+'/apps/art/list'); d=await r.json(); }catch(e){}
-  const miss = whole ? ((d&&d.catalogue_gaps)||[]) : ((d&&d.audit&&d.audit.missing)||[]);
-  if(!miss.length){ toast('Nothing missing'); return; }
-  if(out){ out.style.display=''; out.textContent='Looking up '+miss.length+' brand'+(miss.length===1?'':'s')+'…'; }
-  let ok=0; const fail=[];
-  for(const m of miss){
-    if(out) out.textContent='Fetching '+m.slug+'… ('+(ok+fail.length+1)+' of '+miss.length+')';
-    try{
-      const r=await fetch(proCoreUrl()+'/apps/art/source',{method:'POST',
-        headers:{'Content-Type':'application/json'},body:JSON.stringify({app:m.slug})});
-      const s=await r.json().catch(()=>({}));
-      if(!r.ok||!s.ok){ fail.push(m.slug+(s.error?' — '+s.error:'')); continue; }
-      const png=await _tileFromDataUrl(s.image);
-      const up=await fetch(proCoreUrl()+'/apps/art/upload',{method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({name:m.file?m.file.replace(/\.png$/,''):m.slug,image:png,origin:'fetched'})});
-      const ud=await up.json().catch(()=>({}));
-      if(up.ok&&ud.ok) ok++; else fail.push(m.slug+(ud.error?' — '+ud.error:''));
-    }catch(e){ fail.push(m.slug+' — '+e.message); }
-  }
-  if(out) out.innerHTML=(ok?'<b style="color:#84d9b4">'+ok+' tile'+(ok===1?'':'s')+' added.</b> ':'')
-    +(fail.length?'<b style="color:#e0564b">Not found:</b> '+esc(fail.join(' · '))
-      +'<br><span style="color:var(--t3)">Upload these by hand, or add the brand domain to appart/domains.json.</span>':'');
-  toast(ok+' fetched');
-  techViewTiles(document.getElementById('tech-view'));
-}
-// register 1098: channel logos uploaded straight into App Tiles › Channels — fitted, never cropped (_chLogoTile)
-async function chTilesUpload(){
-  const inp=document.getElementById('chtile-files'), out=document.getElementById('chtile-up-out');
-  const files=[...(inp&&inp.files||[])];
-  if(!files.length){ toast('Choose one or more logo files first'); return; }
-  if(out){ out.style.display=''; out.textContent='Uploading…'; }
-  let ok=0; const fail=[];
-  for(const f of files){
-    const name=f.name.replace(/\.[^.]+$/,''), slug=_chLogoSlug(name);
-    if(slug==='channel_'){ fail.push(f.name); continue; }
-    try{
-      const src=await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(f); });
-      const png=await _chLogoTile(src);
-      const r=await fetch(proCoreUrl()+'/apps/art/upload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:slug,image:png})});
-      const d=await r.json().catch(()=>({}));
-      if(r.ok&&d.ok) ok++; else fail.push(f.name+(d.error?' ('+d.error+')':''));
-    }catch(e){ fail.push(f.name); }
-  }
-  if(out) out.innerHTML=(ok?'<b style="color:#84d9b4">'+ok+' logo'+(ok===1?'':'s')+' uploaded.</b> ':'')+(fail.length?'<b style="color:#e0564b">Failed:</b> '+esc(fail.join(', ')):'');
-  toast(ok+' uploaded'); window._tileV=Date.now();
-  techViewTiles(document.getElementById('tech-view'));
-}
-async function tilesUpload(){
-  const inp=document.getElementById('tile-files'), out=document.getElementById('tile-up-out');
-  const files=[...(inp&&inp.files||[])];
-  if(!files.length){ toast('Choose one or more image files first'); return; }
-  if(out){ out.style.display=''; out.textContent='Uploading…'; }
-  let ok=0, fail=[];
-  for(const f of files){
-    const slug=_tileSlug(f.name.replace(/\.[^.]+$/,''));
-    if(!slug){ fail.push(f.name); continue; }
-    try{
-      const png=await _tileToPng(f);
-      const r=await fetch(proCoreUrl()+'/apps/art/upload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:slug,image:png})});
-      const d=await r.json().catch(()=>({}));
-      if(r.ok&&d.ok) ok++; else fail.push(f.name+(d.error?' ('+d.error+')':''));
-    }catch(e){ fail.push(f.name); }
-  }
-  if(out) out.innerHTML=(ok?'<b style="color:#84d9b4">'+ok+' tile'+(ok===1?'':'s')+' uploaded.</b> ':'')+(fail.length?'<b style="color:#e0564b">Failed:</b> '+esc(fail.join(', ')):'');
-  toast(ok+' uploaded');
-  techViewTiles(document.getElementById('tech-view'));
-}
-async function tileDelete(slug){
-  // Core decides what "remove" means for this tile: an upload is deleted, a
-  // shipped tile is hidden on this system. Both are reversible.
-  if(!await proAsk('Stop showing the "'+slug+'" tile?\n\nUploaded artwork is deleted. Artwork that ships with ProOS is hidden on this system and can be restored.')) return;
-  try{
-    const r=await fetch(proCoreUrl()+'/apps/art/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({slug})});
-    const d=await r.json().catch(()=>({}));
-    if(!r.ok||d.error){ toast(d.error||'Failed'); return; }
-    toast(d.action==='hidden'?'Hidden':(d.action==='reverted'?'Reverted to the shipped tile':'Deleted'));
-    techViewTiles(document.getElementById('tech-view'));
-  }catch(e){ toast(_coreFailWords('',e)); }
-}
-async function tilesClear(what){
-  const msg = what==='fetched'
-    ? 'Remove every tile that was fetched automatically?\n\nYour own uploads are kept. Fetched artwork can be pulled again in one click.'
-    : 'Remove ALL app artwork on this system?\n\nEverything drops back to wordmarks until you fetch or upload again.';
-  if(!await proAsk(msg)) return;
-  try{
-    const r=await fetch(proCoreUrl()+'/apps/art/clear',{method:'POST',
-      headers:{'Content-Type':'application/json'},body:JSON.stringify({what})});
-    const d=await r.json().catch(()=>({}));
-    if(!r.ok||d.error){ toast(d.error||'Failed'); return; }
-    toast(d.count+' removed'); techViewTiles(document.getElementById('tech-view'));
-  }catch(e){ toast(_coreFailWords('',e)); }
-}
-async function tileRestore(slug){
-  try{
-    const r=await fetch(proCoreUrl()+'/apps/art/restore',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({slug})});
-    const d=await r.json().catch(()=>({}));
-    if(!r.ok||d.error){ toast(d.error||'Failed'); return; }
-    toast('Restored'); techViewTiles(document.getElementById('tech-view'));
-  }catch(e){ toast(_coreFailWords('',e)); }
-}
 
 async function techViewHealth(view){
   if(view._techFresh) setHTML(view,'<div class="empty"><div class="et">Reading system health…</div></div>');
@@ -22757,13 +22381,7 @@ if(typeof renderTech==='function'){
     }catch(e){}
   };
 }
-// tile mutations invalidate the art cache version so fresh uploads show now
-['tilesFetch','tileDelete','tileRestore','tilesUpload'].forEach(function(fn){
-  if(typeof window[fn]==='function'){
-    const o=window[fn];
-    window[fn]=async function(){ try{ return await o.apply(this,arguments); } finally{ window._tileV=Date.now(); } };
-  }
-});
+// register 1350: no tile is changed from Pro any more (ProOS Connect only), so nothing here bumps the art version
 
 // ── awareness screen: retract the shell while it owns the screen ──────────
 // (the class must go on BEFORE the original open measures the topbar, so the

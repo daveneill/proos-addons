@@ -4494,7 +4494,7 @@ def factory_reset(clear_proos_data=False, keep_auth=False):
                    "remotes.json", "remote_logins.json",
                    # the box's ProOS Connect id and secret (register 969u) — a reset box asks to join afresh and is
                    # approved again on Connect, so a box passed to another home never carries the old approval
-                   "connect.json", "connect_policy.json",
+                   "connect.json", "connect_policy.json", "tiles_sync.json",
                    # the box's remote-access key pair and Connect's pinned host key (register 969v) — made afresh with
                    # the new Connect id
                    "connect_ssh_ed25519", "connect_ssh_ed25519.pub", "connect_known_hosts",
@@ -9398,6 +9398,11 @@ class Handler(BaseHTTPRequestHandler):
                 out["brands"] = _appart.brands()
                 out["removed"] = sorted(_appart.removed_brands())
                 out["brandfetch"] = (_appart.client_id(_opt("brandfetch_client_id", "")) if _appart else (_opt("brandfetch_client_id", "") or "").strip())
+                try:                                             # 1350: the mirror's own last word
+                    from proos import tilesync as _ts
+                    out["connect"] = _ts.status()
+                except Exception:                                # noqa: BLE001
+                    out["connect"] = {}
                 return self._send(200, out)
             if parts == ["apps", "brands"]:
                 # What this box knows locally + the Brandfetch client id, for
@@ -11738,6 +11743,40 @@ class Handler(BaseHTTPRequestHandler):
                 b = self._body() or {}
                 res = _atv_write_apps((b.get("entity_id") or "").strip(), b.get("apps") or [])
                 return self._send(400 if res.get("error") else 200, res)
+            # REGISTER 1350 (Dave 15 Nov 08:22: "Only from Connect as it keeps the dashboard our premium look not cheap
+            # logos thrown on buttons by an installer"): app tiles, channel logos and the app records are made ONLY on
+            # ProOS Connect, and every box mirrors them (proos/tilesync.py). Nothing is added, fetched, changed or
+            # removed on a box — each of the box's old write doors answers so, in words.
+            if parts in (["apps", "art", "source"], ["apps", "art", "import"], ["apps", "art", "upload"],
+                         ["apps", "art", "clear"], ["apps", "art", "restore"], ["apps", "art", "delete"],
+                         ["apps", "brands", "add"], ["apps", "brands", "remove"], ["apps", "brands", "restore"]):
+                return self._send(410, {"error": "App tiles, channel logos and apps are managed on ProOS Connect "
+                                                  "(App Tiles) — every box receives them from there.",
+                                        "managed_on": "ProOS Connect"})
+            if parts == ["apps", "art", "want"]:
+                # 1350: a room page met an app ProOS doesn't know — it goes on ProOS Connect's list, with what was typed
+                u = self._user
+                if not (u and (u.get("is_admin") or u.get("is_owner") or (users and users.is_tech(u.get("id"))))):
+                    return self._send(403, {"error": "installer access required"})
+                b = self._body() or {}
+                try:
+                    from proos import tilesync as _ts
+                    res = _ts.ask_for_app(b.get("name") or "", b.get("domain") or "", b.get("ids") or [],
+                                          b.get("alias") or "")
+                except Exception as e:                           # noqa: BLE001
+                    res = {"error": "ProOS Connect could not be reached: %s" % str(e)[:120]}
+                return self._send(400 if res.get("error") else 200, res)
+            if parts == ["apps", "art", "offer"]:
+                # 1350: for the move, once — this box's own tiles go to ProOS Connect and wait there for Dave. Owner/tech.
+                u = self._user
+                if not (u and (u.get("is_owner") or (users and users.is_tech(u.get("id"))))):
+                    return self._send(403, {"error": "tech access required"})
+                try:
+                    from proos import tilesync as _ts
+                    res = _ts.offer()
+                except Exception as e:                           # noqa: BLE001
+                    res = {"error": "ProOS Connect could not be reached: %s" % str(e)[:120]}
+                return self._send(400 if res.get("error") else 200, res)
             if parts == ["apps", "art", "source"]:
                 # Look a brand's artwork up by domain. Fetched ONCE here; the
                 # finished tile is stored locally and served from the box, so
@@ -14008,6 +14047,16 @@ def main():
                     _ck_boot.refresh()
                 except Exception as _e:                          # noqa: BLE001
                     print("  [connect] keys check failed: %s" % _e, flush=True)
+                try:                    # REGISTER 1350: the app tile library — mirrored from Connect, wordmarks reported
+                    from proos import tilesync as _ts_boot
+                    _r = _ts_boot.sync()
+                    if _r.get("fetched") or _r.get("removed") or _r.get("failed"):
+                        print("  [connect] app tiles from ProOS Connect: %d fetched, %d removed, %d failed"
+                              % (len(_r.get("fetched") or []), len(_r.get("removed") or []), len(_r.get("failed") or [])),
+                              flush=True)
+                    _ts_boot.report_wanted(_site_app_names())
+                except Exception as _e:                          # noqa: BLE001
+                    print("  [connect] app tiles check failed: %s" % str(_e)[:160], flush=True)
                 time.sleep(_ck_boot.POLICY_TTL_S)
         threading.Thread(target=_connect_keys_loop, name="connect-keys", daemon=True).start()
     except Exception as _e:                                      # noqa: BLE001
