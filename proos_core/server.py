@@ -10286,6 +10286,47 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(status, {"error": str(e), "kind": e.kind})
                 except Exception as e:
                     return self._send(500, {"error": str(e)})
+            if len(parts) == 4 and parts[0] == "rooms" and parts[2] == "prove" and parts[3] == "witness":
+                # REGISTER 1343 (Dave 14 Nov 11:46: "there always needs to be a way to get a pass"): the installer saw a
+                # failed step working. The activity is marked tested AS THE INSTALLER'S, keeping the readings that
+                # disagreed as named overrides (activitytest.witness); the stored proof shows the step passed by them.
+                u = getattr(self, "_user", None)
+                if not (users and u and (u.get("is_admin") or u.get("is_owner")
+                                         or users.is_tech(u.get("id")))):
+                    return self._send(403, {"error": "installer access required"})
+                room = unquote(parts[1])
+                try:
+                    idx = int((self._body() or {}).get("step"))
+                except Exception:                        # noqa: BLE001
+                    return self._send(400, {"error": "step required"})
+                with _proof_lock:
+                    st = _proof_runs.get(room) or {}
+                    steps = st.get("steps") or []
+                    if st.get("state") != "done" or not (0 <= idx < len(steps)):
+                        return self._send(400, {"error": "no such step in the last proof"})
+                    step = steps[idx]
+                if step.get("ok"):
+                    return self._send(200, {"ok": True, "already": True})
+                from proos import activitytest as _at_w
+                disagreed = list(step.get("rest_failed") or []) + list(step.get("failed") or [])
+                if step.get("kind") in _at_w.TESTABLE_KINDS and str(step.get("script") or "").startswith("script."):
+                    try:
+                        _at_w.witness(_client, step["script"], disagreed,
+                                      who=(u.get("name") or "installer"))
+                    except Exception as e:               # noqa: BLE001
+                        return self._send(400, {"error": str(e)})
+                with _proof_lock:
+                    step.update({"ok": True, "witnessed": True, "tested": step.get("kind") in _at_w.TESTABLE_KINDS})
+                    st["passed"] = sum(1 for x in steps if x.get("ok"))
+                    st["tested"] = sum(1 for x in steps if x.get("tested"))
+                if _journal_mod is not None:
+                    try:
+                        _journal_mod.emit("site", "proof_witnessed", {"room": room, "step": step.get("alias"),
+                                                                      "disagreed": ["%s: %s" % (d.get("what"), d.get("reading"))
+                                                                                    for d in disagreed]})
+                    except Exception:                    # noqa: BLE001
+                        pass
+                return self._send(200, {"ok": True, "proof": st})
             if len(parts) == 3 and parts[0] == "rooms" and parts[2] == "prove":
                 # THE ROOM PROOF (matrix #7's Stage-4 test-fire, made real):
                 # fire every stored activity, judge each by the VERDICT (state

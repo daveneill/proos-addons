@@ -3415,7 +3415,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111403';
+const PROOS_BUILD='2026111404';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -11840,9 +11840,42 @@ function _proveWhy(s){
   // 1342 (Dave 14 Nov 09:56): the device on and the command taken is a pass; a device that can't report its app is never marked down
   if(s.kind==='shortcut') return s.ok?((s.final||{}).shows?'shows '+esc(s.final.shows):'Sent — the device was on and took it'+(s.sent_again?' (sent twice)':'')):esc(((s.final||{}).error)||'the device did not take it');
   const bad=(s.rest_failed&&s.rest_failed.length?s.rest_failed:[]).concat(s.failed||[]);
+  // 1343: passed on the installer's own eyes — say so, and name the readings that disagreed
+  const _v=(s.readings||[]).filter(r=>r.vouched);
+  if(s.witnessed) return 'Passed — you saw it working'+(bad0(s).length?' (the box read '+bad0(s).map(f=>esc(f.what)+': '+esc(String(f.reading))).join(', ')+')':'');
+  if(s.ok&&_v.length) return 'Tested — '+_v.map(f=>esc(f.what)+' read '+esc(String(f.reading))).join(', ')+', which you confirmed is fine';
   if(s.ok) return s.tested?'Tested':'';
   if(bad.length) return bad.map(f=>esc(f.what)+': read '+esc(String(f.reading))).join('<br>');
   return esc(((s.final||{}).error)||'it did not finish');
+}
+function bad0(s){ return (s.rest_failed||[]).concat(s.failed||[]); }
+async function _proveWitness(i){
+  const area=_roomHubArea;
+  try{
+    const r=await fetch(proCoreUrl()+'/rooms/'+encodeURIComponent(area)+'/prove/witness',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({step:i})});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok){ const b=document.getElementById('prove-step-'+i); if(b) setHTML(b,'<div class="v3hint" style="color:#e17055">'+esc(j.error||('Could not save ('+r.status+')'))+'</div>'); return; }
+    if(j.proof) _proveShow(j.proof);
+  }catch(e){}
+}
+function _proveChange(i){
+  const b=document.getElementById('prove-step-'+i); if(!b) return;
+  setHTML(b,'<input id="prove-chg-'+i+'" class="v3in" style="flex:1" placeholder="What should change? e.g. give the Shield longer to wake">'
+    +'<button class="v3btn pri" onclick="_proveChangeSend('+i+')">Send</button>');
+  const f=document.getElementById('prove-chg-'+i); if(f) f.focus();
+}
+async function _proveChangeSend(i){
+  const j=_proveLast; const s=j&&(j.steps||[])[i]; const f=document.getElementById('prove-chg-'+i); const b=document.getElementById('prove-step-'+i);
+  const words=(f&&f.value||'').trim(); if(!s||!b||!words) return;
+  const name=(typeof _rhName==='function'&&_rhName())||_roomHubArea;
+  _proveFixSess='prove-'+_roomHubArea+'-'+Date.now();
+  const ask='In the '+name+', '+(s.alias||s.script)+' failed in Prove the Room ('+(bad0(s).map(x=>x.what+' read '+x.reading).join('; ')||((s.final||{}).error)||'did not finish')+'). The installer says: "'+words+'". Make that change to the room\u2019s own activity, test it with activity_test (consented=true \u2014 the installer tapped Send, that is their yes), and answer in ONE line: "fixed, passes now" or "still failing: <the reading>".';
+  setHTML(b,'<div class="v3empty" style="flex:1">Jarvis is changing it and testing — the equipment will turn on and off…</div>');
+  try{
+    const r=await fetch(proCoreUrl()+'/assist/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session:_proveFixSess, text:ask, area_id:_roomHubArea, consent:'tapped'})});
+    const k=await r.json().catch(()=>({}));
+    setHTML(b,'<div class="v3card" style="flex:1;padding:10px;font-size:13px">'+_proveMd(k.reply||k.error||('Jarvis could not answer ('+r.status+')'))+'</div>');
+  }catch(e){ setHTML(b,'<div class="v3hint" style="color:#e17055">Could not reach ProOS Core</div>'); }
 }
 function _proveShow(j){
   let body='';
@@ -11855,7 +11888,10 @@ function _proveShow(j){
     const steps=j.steps||[];
     const allOk=j.passed===j.total;
     body='<div style="margin-bottom:10px"><span class="v3chip '+(allOk?'ok':'amber')+'">'+j.passed+' of '+j.total+' Passed'+(j.sent?(' · '+j.sent+' Sent'):'')+(j.tested!=null?(' · '+j.tested+' Tested'):'')+'</span></div>'
-      +'<div class="v3rows">'+steps.map(s=>'<div class="v3row" style="cursor:default;align-items:flex-start"><div class="rt"><div class="t1" style="white-space:normal">'+esc(s.alias||s.script)+'</div><div class="t2" style="white-space:normal;line-height:1.35">'+_proveWhy(s)+'</div></div><div class="rr"><span class="v3chip '+(s.ok?'ok':'red')+'">'+(s.ok?'Passed':'Failed')+'</span>'+(s.seconds!=null?'<div class="t2" style="text-align:right;margin-top:4px">'+s.seconds+' s</div>':'')+'</div></div>').join('')+'</div>';
+      +'<div class="v3rows">'+steps.map((s,i)=>'<div class="v3row" style="cursor:default;align-items:flex-start;flex-wrap:wrap"><div class="rt"><div class="t1" style="white-space:normal">'+esc(s.alias||s.script)+'</div><div class="t2" style="white-space:normal;line-height:1.35">'+_proveWhy(s)+'</div></div><div class="rr"><span class="v3chip '+(s.ok?'ok':'red')+'">'+(s.ok?'Passed':'Failed')+'</span>'+(s.seconds!=null?'<div class="t2" style="text-align:right;margin-top:4px">'+s.seconds+' s</div>':'')+'</div>'
+        // 1343 (Dave 14 Nov 11:46: "there always needs to be a way to get a pass or request change during this process")
+        +(s.ok?'':'<div id="prove-step-'+i+'" style="flex-basis:100%;display:flex;gap:8px;margin-top:8px"><button class="v3btn" onclick="_proveWitness('+i+')">It\u2019s Working</button><button class="v3btn" onclick="_proveChange('+i+')">Change It</button></div>')
+        +'</div>').join('')+'</div>';
     const failed=steps.filter(s=>!s.ok&&!s.sent&&s.kind!=='shortcut');
     if(failed.length) body+='<div id="prove-fix" style="margin-top:14px"><button class="v3btn pri" style="width:100%" onclick="_proveFixAsk()">Fix and Test Again</button><div class="v3hint" style="margin-top:6px">Jarvis fixes what failed and tests it again — the equipment will turn on and off.</div></div>';
   }
@@ -22244,6 +22280,7 @@ function jrowDesc(e,_jnm){
   if(e.type==='integration_log'){ const lv=String(d.level||'').toLowerCase(); return (d.integration||'—')+' · '+(lv==='error'?'Error':lv==='warning'?'Warning':(d.level||''))+(d.count>1?' \u00d7'+d.count:'')+' \u2014 '+String(d.message||'').split('\n')[0]; }
   // REGISTER 1342: a platform problem with no button ProOS can press lands here, in words (never on Needs Attention)
   if(e.type==='platform_notice') return proosWords(String(d.words||''));
+  if(e.type==='proof_witnessed') return 'Prove the Room: '+String(d.step||'a step')+' passed — the installer saw it working'+((d.disagreed||[]).length?' (the box read '+(d.disagreed||[]).join(', ')+')':'');   // 1343
   let desc='';
   if(e.type==='verdict'){
         const tw=_jrowActWord(d.to, e.room);

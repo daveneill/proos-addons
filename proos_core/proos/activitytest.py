@@ -242,11 +242,12 @@ def run(client, oid: str, display: str, sleep=None, clock=None, rest=True, verdi
     exp = expectations(client, cfg, display)
     if verdict:
         exp.append(verdict_check(verdict, kind, v.get("proos_source")))
+    ovr = overrides(cfg)
     took = _run_and_wait(client, oid, RUN_WAIT_S, sleep, clock)
-    res, t0 = check(client, exp), clock()
+    res, t0 = _vouched(check(client, exp), ovr), clock()
     while not all(r["pass"] for r in res) and clock() - t0 < READ_WAIT_S:
         sleep(STEP_S)
-        res = check(client, exp)
+        res = _vouched(check(client, exp), ovr)
     passed = took is not None and bool(res) and all(r["pass"] for r in res)
     out.update(seconds=took, readings=res, passed=passed, stage="run")
     if took is None:
@@ -258,6 +259,8 @@ def run(client, oid: str, display: str, sleep=None, clock=None, rest=True, verdi
     if passed:
         nv[TESTED] = {"at": _now(), "hash": _gen._content_hash(cfg), "by": "assist", "seconds": took,
                       "readings": ["%s: %s" % (r["what"], r["reading"]) for r in res]}
+        if ovr:
+            nv[TESTED]["overrides"] = ovr     # 1343: what the installer vouched for stays vouched for these steps
     elif TESTED in nv:
         nv.pop(TESTED)                        # a mark the activity no longer earns is taken off
     else:
@@ -363,3 +366,44 @@ def prove(client, plan, display, verdict=None, launch=None, progress=None, sleep
     return {"steps": steps, "passed": sum(1 for s in steps if s["ok"]),
             "sent": 0, "total": len(steps),                          # 1342: a shortcut sent to a confirmed-on device passed
             "tested": sum(1 for s in steps if s.get("tested"))}
+
+
+# ── REGISTER 1343 (Dave 14 Nov 11:46: "watch shield seems to keep failing but looks like it's working this is where
+# there is no way to say it is working and to get a pass there always needs to be a way to get a pass or request change
+# during this process"). THE INSTALLER'S EYES ARE A READING TOO. "It's Working" passes the activity as the installer
+# saw it, and records WHICH readings disagreed — named, never hidden — so the next proof does not fail it again on the
+# same reading while the steps are the same steps. A reading the installer did not vouch for still fails. Edit the
+# steps and the vouching goes with the old test mark.
+
+def overrides(cfg) -> list:
+    mark = _vars(cfg).get(TESTED)
+    if is_tested(cfg) and isinstance(mark, dict):
+        return [o for o in (mark.get("overrides") or []) if isinstance(o, dict) and o.get("entity_id")]
+    return []
+
+
+def _vouched(res, ovr):
+    keys = {(o["entity_id"], o.get("what")) for o in ovr}
+    for r in res:
+        if not r["pass"] and (r["entity_id"], r["what"]) in keys:
+            r["pass"], r["vouched"] = True, True
+    return res
+
+
+def witness(client, oid: str, disagreed, who: str = "installer") -> dict:
+    """The installer saw it working: mark it tested as theirs, keeping the readings that disagreed as its overrides."""
+    oid = str(oid or "").replace("script.", "", 1).strip()
+    cfg = read_activity(client, oid)
+    ovr = [{"entity_id": d.get("entity_id"), "what": d.get("what"), "reading": d.get("reading")}
+           for d in (disagreed or []) if isinstance(d, dict) and d.get("entity_id") and d.get("what")]
+    keep = overrides(cfg)
+    for o in keep:
+        if (o["entity_id"], o.get("what")) not in {(x["entity_id"], x["what"]) for x in ovr}:
+            ovr.append(o)
+    new = dict(cfg)
+    nv = _vars(cfg)
+    nv[TESTED] = {"at": _now(), "hash": _gen._content_hash(cfg), "by": who, "witnessed": True, "overrides": ovr,
+                  "readings": ["%s: %s (the installer saw it working)" % (o["what"], o.get("reading")) for o in ovr]}
+    new["variables"] = nv
+    client.upsert_script(oid, new)
+    return {"ok": True, "script_entity_id": "script." + oid, "overrides": ovr}
