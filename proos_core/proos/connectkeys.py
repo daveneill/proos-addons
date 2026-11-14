@@ -82,7 +82,7 @@ def refresh(fetch=None):
     pol = dict(pol, read_at=int(time.time()))
     try:
         os.makedirs(DATA_DIR, exist_ok=True)
-        tmp = POLICY_PATH + ".tmp"
+        tmp = "%s.%d.%d.tmp" % (POLICY_PATH, os.getpid(), threading.get_ident())   # 1349: one per writer
         with open(tmp, "w", encoding="utf-8") as fh:
             json.dump(pol, fh)
         os.replace(tmp, POLICY_PATH)

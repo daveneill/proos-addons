@@ -225,6 +225,20 @@ claims = json.loads(base64.urlsafe_b64decode(r["token"].split(".")[1] + "=="))
 ok(code == 200 and claims["iss"] == "TEAM123456" and claims["exp"] - claims["iat"] == G.MUSIC_TOKEN_S
    and r["expires"] == claims["exp"], "6 · a short-lived Apple Music developer token, signed here")
 
+# 6a · register 1349 (15 Nov, read on Dave's Connect: the .p8 files in, the ids not): an Apple key is HELD only when
+# every field it needs is here — the box removed its own Apple Music token on a 'ready' that could make none (503).
+G2 = relay.gateway
+half = {"music_p8": "x", "apns_p8": "x"}
+full = dict(half, music_key_id="MUSIC12345", music_team_id="TEAM123456", apns_key_id="PUSH123456",
+            apns_team_id="TEAM123456", apns_topic="au.com.x.proos")
+ok(G2.ready(half)["music"] is False and G2.ready(half)["push"] is False
+   and G2.apple_missing(half, "music") == ["MusicKit Key ID", "MusicKit Team ID"]
+   and G2.apple_missing(half, "push") == ["Push Key ID", "Team ID", "App Bundle ID"],
+   "6a · only the .p8 files in: NOT held — and the admin page names what is missing")
+ok(G2.ready(full)["music"] is True and G2.ready(full)["push"] is True, "  …every field in: held")
+src = open(os.path.join(RELAY_DIR, "relay.py")).read()
+ok("ready=gateway.ready(keys)" in src and "Needs %s" in src, "  …the box is told by that one rule, and the page says 'Needs …' (SPELLING)")
+
 # 6b · photo search (register 1348): ProOS's one Unsplash key, only Unsplash's search and its "picked" call
 code, r = call("GET", "/v1/photos/search?query=beach")
 ok(code == 503 and "photo search key" in r["error"], "6b · no Unsplash key yet: said")

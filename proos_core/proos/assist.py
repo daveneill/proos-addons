@@ -704,7 +704,9 @@ def retire_box_keys(ready: dict) -> list:
     if not gone:
         return []
     raw["keys"] = keys
-    tmp = _CFG_PATH + ".tmp"
+    # register 1349: two callers at once (the start-up check and a stale-policy refresh) both wrote "<path>.tmp" and one
+    # rename found it gone (box log 15 Nov). Its own temporary name per write, so neither can take the other's.
+    tmp = "%s.%d.%d.tmp" % (_CFG_PATH, os.getpid(), threading.get_ident())
     with open(tmp, "w", encoding="utf-8") as fh:
         json.dump(raw, fh)
     os.replace(tmp, _CFG_PATH)

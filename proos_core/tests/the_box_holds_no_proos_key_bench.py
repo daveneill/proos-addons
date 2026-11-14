@@ -138,6 +138,23 @@ ok(sorted(gone) == ["openai key", "picture key"] and not saved["keys"] and "imag
    and A.retire_box_keys({"anthropic": True, "openai": True, "photos": True}) == [],
    "  …and when it holds OpenAI's too, the box holds no key at all; asking again removes nothing more")
 ok("ai_source" not in A.status(full=True), "  …the Developer switch is gone from what Pro is told")
+# register 1349 (box log 15 Nov: "[Errno 2] No such file or directory: '/data/assist.json.tmp'"): two removals at once
+import threading as _th  # noqa: E402
+errs = []
+for _round in range(20):
+    box_cfg({"provider": "openai", "keys": {"openai": "a", "claude": "b"}, "image_key": "c", "photo_key": "d"})
+    def _run():
+        try:
+            A.retire_box_keys({"anthropic": True, "openai": True, "photos": True})
+        except Exception as e:  # noqa: BLE001
+            errs.append(str(e))
+    ts = [_th.Thread(target=_run) for _ in range(4)]
+    [t.start() for t in ts]
+    [t.join() for t in ts]
+with open(os.path.join(D, "assist.json")) as fh:
+    after = json.load(fh)
+ok(not errs and not after.get("keys") and not [f for f in os.listdir(D) if f.endswith(".tmp")],
+   "  …four removals at once, twenty times: none fails, the keys are gone, no temporary file is left (1349)")
 box_cfg({"provider": "openai", "model": "gpt-6-astra", "keys": {"openai": "sk-box-own"}})
 
 # 6
