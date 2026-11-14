@@ -5799,7 +5799,17 @@ def _no_key_words(env):
         return ("no key for Apple's %s is loaded — %s need one (Pro › System Setup › Notifications)"
                 % (("test server", "developer builds of the app") if env == "sandbox"
                    else ("live server", "TestFlight and App Store builds")))
-    return "no Apple push key is loaded in ProOS Core (Pro › System Setup › Notifications)"
+    return "ProOS Connect doesn't hold the Apple push key yet (register 1348: the key lives only on ProOS Connect)"
+
+
+def _retire_push_keys(ready):
+    """REGISTER 1348: once ProOS Connect holds the Apple push key, the keys loaded into this box are removed."""
+    if not ready.get("push"):
+        return []
+    gone = [slot for slot in _APNS_SLOTS.values() if _creds.get(slot)]
+    for slot in gone:
+        _creds.delete(slot)
+    return ["Apple push key (%s)" % slot for slot in gone]
 
 
 def _apns_config_status():
@@ -9265,6 +9275,13 @@ class Handler(BaseHTTPRequestHandler):
                 _full = bool(u.get("is_owner") or (users and users.is_tech(u.get("id"))))
                 out = {"reached": bool(_pol.get("read_at")), "ready": _pol.get("ready") or {},
                        "plan": _pol.get("plan") or "", "usage": _ck.usage()}
+                try:                    # register 1348: this box on Connect — approved, waiting, or not reached
+                    from proos import connectvoice as _cvs
+                    _bs = _cvs.status()
+                    out["box"] = {"status": _bs.get("status") or "", "box_id": _bs.get("box_id") or "",
+                                  "why": _bs.get("why") or ""}
+                except Exception as _e:                          # noqa: BLE001
+                    out["box"] = {"status": "unreachable", "why": str(_e)[:120]}
                 if _full:
                     out.update(provider=_pol.get("provider") or "", model=_pol.get("model") or "")
                 return self._send(200, out)
@@ -10842,9 +10859,12 @@ class Handler(BaseHTTPRequestHandler):
                 if str(_why).startswith("BadEnvironmentKey"):
                     # Apple's own word for "this key is not allowed on this server" — say it so it can be acted on
                     _srv = "live" if _env == "production" else "test"
-                    _push_note(reg, False, "Apple refused it: %s — the push key (Key ID …%s) is not allowed on Apple's %s server. "
-                               "Load a key for the %s server in Pro › System Setup › Notifications."
-                               % (_why, _last4(cred.get("key_id")) or "?", _srv, _srv), _env, cred.get("key_id"))
+                    _push_note(reg, False, ("Apple refused it: %s — the push key (Key ID …%s) is not allowed on Apple's %s server. "
+                                            % (_why, _last4(cred.get("key_id")) or "?", _srv))
+                               + ("Replace the push key on ProOS Connect with one made for Sandbox & Production."
+                                  if cred.get("via") == "connect" else
+                                  "Load a key for the %s server in Pro › System Setup › Notifications." % _srv),
+                               _env, cred.get("key_id"))
                 else:
                     _push_note(reg, False, "Apple refused it: %s" % _why)
                 return self._send(500, {"errorMessage": "APNs rejected: " + (res.get("reason") or str(res.get("status"))),
@@ -13971,6 +13991,27 @@ def main():
                 print("  music · pairing-admin check retry: %s" % _e,
                       flush=True)
     threading.Thread(target=_music_pairing_boot, daemon=True).start()
+
+    # REGISTER 1348 — EVERYTHING LINKED AUTOMATICALLY (Dave 14 Nov 15:04). The box reads ProOS Connect's word on its keys
+    # at start and every POLICY_TTL_S; each key Connect holds is then removed from the box (the AI and picture keys, the
+    # photo search key, a pasted Apple Music token, a loaded Apple push key). The box ends up holding none.
+    try:
+        from proos import connectkeys as _ck_boot, applemusic as _am_boot
+        if _assist is not None:
+            _ck_boot.RETIRE.append(_assist.retire_box_keys)
+        _ck_boot.RETIRE.append(_am_boot.retire_box_token)
+        _ck_boot.RETIRE.append(_retire_push_keys)
+
+        def _connect_keys_loop():
+            while True:
+                try:
+                    _ck_boot.refresh()
+                except Exception as _e:                          # noqa: BLE001
+                    print("  [connect] keys check failed: %s" % _e, flush=True)
+                time.sleep(_ck_boot.POLICY_TTL_S)
+        threading.Thread(target=_connect_keys_loop, name="connect-keys", daemon=True).start()
+    except Exception as _e:                                      # noqa: BLE001
+        print("  [connect] keys check not started: %s" % _e, flush=True)
 
     ma_enabled = bool(cfg.get("music_assistant", False))
 

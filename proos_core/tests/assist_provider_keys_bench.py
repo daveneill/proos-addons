@@ -109,7 +109,9 @@ src = open(os.path.join(os.path.dirname(__file__), "..", "proos", "assist.py"), 
 check("no reader reaches into keys[] directly — api_key is the one door",
       # 5 → 6, register 1347: status() also says whether the box still holds a key of its own (box_keys — Pro offers
       # Remove This Box's Keys while ProOS Connect holds ProOS's). A yes/no for the page, never a key; not a reader of one.
-      src.count('["keys"]') + src.count("get(\"keys\")") <= 6)
+      # 6 → 8, register 1348: retire_box_keys reads the box's keys (two reads: the type check and the list) to REMOVE
+      # each one ProOS Connect now holds — a remover, never a reader that uses a key.
+      src.count('["keys"]') + src.count("get(\"keys\")") <= 8)
 
 print("\n%d checks passed, %d failed" % (PASS, len(FAIL)))
 sys.exit(1 if FAIL else 0)

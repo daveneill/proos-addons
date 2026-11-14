@@ -12,11 +12,13 @@ real push hand-off — each with the network replaced by a recorder):
   3. what the box saves is still the box's own settings — Connect's choice is never written into assist.json
   4. a real Assist call with the marker goes to ProOS Connect: the box's id and secret, no key, the provider's own
      version header kept; a call carrying a real key goes to the provider unchanged
-  5. the Developer's switch (ai_source "box") pins the box to its own key
+  5. REGISTER 1348: once Connect holds a key, the box's own copy is REMOVED (AI keys, picture key, photo search key) —
+     and nothing is removed for a key Connect does not hold yet; the old Developer switch is gone
   6. scene pictures: Connect first when it holds the OpenAI key; the picture request goes to Connect
   7. Apple Music: the token is Connect's when it holds the MusicKit key, and Pro is told so
   8. iPhone alerts: Connect's answer comes back in push.send's own shape (delivered; a dead phone flagged)
-  9. Remove This Box's Keys clears the box's own AI and picture keys and nothing else
+  9. photo search (1348): Connect first when it holds the Unsplash key; the search and Unsplash's "picked" call go to
+     ProOS Connect, never to Unsplash with a key from the box
  10. Connect is asked at most once per refresh window, and only by a box with a Connect identity
 """
 import io
@@ -120,11 +122,23 @@ except RuntimeError:
     ok(True, "  …the marker never leaves for anywhere Connect does not carry")
 
 # 5
-A.save_config({"ai_source": "box"})
-c = A.load_config()
-ok(c["api_key"] == "sk-box-own" and c["via"] == "box" and A.status(full=True)["ai_source"] == "box",
-   "5 · the Developer's switch pins this box to its own key")
-A.save_config({"ai_source": "connect"})
+box_cfg({"provider": "openai", "keys": {"openai": "sk-box-own", "claude": "sk-ant-own"}, "image_key": "sk-img",
+         "photo_key": "unsplash-1", "realtime_enabled": False, "ai_source": "box"})
+gone = A.retire_box_keys({"anthropic": True, "openai": False, "photos": True})
+with open(os.path.join(D, "assist.json")) as fh:
+    saved = json.load(fh)
+ok(sorted(gone) == ["claude key", "photo search key"] and saved["keys"] == {"openai": "sk-box-own"}
+   and saved.get("image_key") == "sk-img" and "photo_key" not in saved and "ai_source" not in saved
+   and saved.get("realtime_enabled") is False,
+   "5 · Connect holds Claude and photo search: those box keys go; the OpenAI ones stay until Connect holds them")
+gone = A.retire_box_keys({"anthropic": True, "openai": True, "photos": True})
+with open(os.path.join(D, "assist.json")) as fh:
+    saved = json.load(fh)
+ok(sorted(gone) == ["openai key", "picture key"] and not saved["keys"] and "image_key" not in saved
+   and A.retire_box_keys({"anthropic": True, "openai": True, "photos": True}) == [],
+   "  …and when it holds OpenAI's too, the box holds no key at all; asking again removes nothing more")
+ok("ai_source" not in A.status(full=True), "  …the Developer switch is gone from what Pro is told")
+box_cfg({"provider": "openai", "model": "gpt-6-astra", "keys": {"openai": "sk-box-own"}})
 
 # 6
 ok(A._image_key(None) == CK.CONNECT, "6 · scene pictures: Connect's, while it holds the OpenAI key")
@@ -162,14 +176,19 @@ ok(res == {"ok": True, "status": 200, "via": "connect"} and dead["unregistered"]
    "8 · iPhone alerts: delivered, a dead phone flagged for pruning, an unreachable Connect said in words")
 
 # 9
-box_cfg({"provider": "openai", "keys": {"openai": "sk-box-own", "claude": "sk-ant-own"}, "image_key": "sk-img",
-         "photo_key": "unsplash-1", "realtime_enabled": False})
-A.save_config({"clear_box_keys": True})
-with open(os.path.join(D, "assist.json")) as fh:
-    saved = json.load(fh)
-ok(not saved.get("keys") and not saved.get("image_key") and saved.get("photo_key") == "unsplash-1"
-   and saved.get("realtime_enabled") is False,
-   "9 · Remove This Box's Keys: the AI and picture keys go; the home's other settings stay")
+from proos import photosearch as PS  # noqa: E402
+policy({"anthropic": True, "openai": True, "push": True, "music": True, "photos": True})
+ok(A._photo_key(None) == CK.CONNECT, "9 · photo search: Connect's, while it holds the Unsplash key")
+seen = []
+res = PS.search("beach house", A._photo_key(None),
+                opener=lambda req, timeout=None: (seen.append(req), _Resp(b'{"results":[{"urls":{"raw":"https://images.unsplash.com/x"},'
+                                                                         b'"links":{"download_location":"https://api.unsplash.com/photos/abc123/download?ixid=Z"}}]}'))[1])
+PS.track_use(res["photos"][0]["track"], A._photo_key(None), opener=lambda req, timeout=None: (seen.append(req), _Resp(b"{}"))[1])
+h = {k.lower(): v for k, v in seen[0].header_items()}
+ok(seen[0].full_url.startswith(CV.CONNECT_URL + "/v1/photos/search?") and "query=beach+house" in seen[0].full_url
+   and h.get("x-proos-box") == ident["box_id"] and "client-id" not in json.dumps(h).lower()
+   and seen[1].full_url == CV.CONNECT_URL + "/v1/photos/download?photo=abc123&ixid=Z",
+   "  …the search and Unsplash's 'a photo was picked' both go to ProOS Connect with the box's credential, no key")
 
 # 10
 os.remove(CK.POLICY_PATH)

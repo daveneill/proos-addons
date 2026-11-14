@@ -36,10 +36,31 @@ def _headers(key):
     return {"Authorization": "Client-ID " + key.strip(), "Accept-Version": "v1", "User-Agent": "ProOS"}
 
 
+def _connect():
+    """REGISTER 1348: photo search goes through ProOS Connect, which holds ProOS's one Unsplash key."""
+    from . import connectkeys as _ck
+    return _ck
+
+
+def _request(url, key):
+    """The request for one Unsplash address — to ProOS Connect when the key is Connect's marker."""
+    ck = _connect()
+    if key == ck.CONNECT:
+        u = urllib.parse.urlparse(url)
+        if u.path == "/search/photos":
+            to = ck._url() + "/v1/photos/search?" + u.query
+        else:                                                   # /photos/<id>/download?ixid=…
+            pid = u.path.split("/")[2]
+            to = ck._url() + "/v1/photos/download?" + urllib.parse.urlencode({"photo": pid}) + (
+                "&" + u.query if u.query else "")
+        return urllib.request.Request(to, headers=dict(ck._creds(), **{"User-Agent": "proos-core"}))
+    return urllib.request.Request(url, headers=_headers(key))
+
+
 def _fail(e):
     if isinstance(e, urllib.error.HTTPError):
         if e.code == 401:
-            return {"error": "Unsplash refused the key — check the Access Key in Pro › Tech › Assist.", "needs_key": True}
+            return {"error": "Unsplash refused ProOS's key — it is replaced on ProOS Connect.", "needs_key": True}
         if e.code in (403, 429):
             return {"error": "Unsplash's hourly limit is used up (50 an hour on a demo key) — try again later."}
         return {"error": "Unsplash didn't answer (%s)." % e.code}
@@ -52,11 +73,11 @@ def search(query: str, key: str, per_page: int = 15, opener=None) -> dict:
     if not q:
         return {"error": "Type what you are looking for first."}
     if not (key or "").strip():
-        return {"error": "Photo search needs an Unsplash Access Key — add it in Pro › Tech › Assist.", "needs_key": True}
+        return {"error": "Photo search isn't set up on ProOS Connect yet.", "needs_key": True}
     url = API + "?" + urllib.parse.urlencode({"query": q, "per_page": max(1, min(int(per_page or 15), 30)),
                                              "orientation": "landscape", "content_filter": "high"})
     try:
-        with (opener or urllib.request.urlopen)(urllib.request.Request(url, headers=_headers(key)), timeout=_TIMEOUT) as r:
+        with (opener or urllib.request.urlopen)(_request(url, key), timeout=_TIMEOUT) as r:
             data = json.loads(r.read().decode("utf-8") or "{}")
     except Exception as e:
         return _fail(e)
@@ -82,7 +103,7 @@ def track_use(download_location: str, key: str, opener=None) -> dict:
     if not (key or "").strip():
         return {"error": "no key"}
     try:
-        with (opener or urllib.request.urlopen)(urllib.request.Request(loc, headers=_headers(key)), timeout=_TIMEOUT) as r:
+        with (opener or urllib.request.urlopen)(_request(loc, key), timeout=_TIMEOUT) as r:
             r.read()
         return {"ok": True}
     except Exception as e:

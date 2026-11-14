@@ -10,8 +10,8 @@ the answer. One key per supplier, for every home; a home's plan is enforced ther
 
 THE RULE FOR A BOX THAT STILL HOLDS A KEY OF ITS OWN: Connect first, whenever Connect says it holds that key; the box's
 own key only when Connect does not (not yet set up, or not reachable when the box last asked) — so nothing stops
-working while the keys move. The Developer can also pin the box to its own key (assist.json ai_source "box": 13 Sep
-ruling 5, the developer override).
+working while the keys move. REGISTER 1348 (Dave 14 Nov 15:04): no Developer override and no key field in Pro; once
+Connect says it holds a key, the box's own copy is removed (retire, below) — automatically, every time Connect is read.
 
 How Assist's existing code is pointed here without touching its forty call sites: in Connect mode the active key Assist
 reads is CONNECT — a marker, not a key — and wire() turns any provider request carrying the marker into the same request
@@ -66,8 +66,12 @@ def _read_cache():
         return {}
 
 
+RETIRE = []      # register 1348: callables(ready) the server adds — each removes the box's own copy of a key Connect holds
+
+
 def refresh(fetch=None):
-    """Ask Connect now. Kept on the box so a question never waits on it. Returns the policy, or None."""
+    """Ask Connect now. Kept on the box so a question never waits on it. Returns the policy, or None. Then every box
+    copy of a key Connect holds is removed (RETIRE)."""
     try:
         pol = (fetch or (lambda: _get("/v1/ai/policy")))()
     except Exception as e:                                       # noqa: BLE001
@@ -84,6 +88,13 @@ def refresh(fetch=None):
         os.replace(tmp, POLICY_PATH)
     except Exception:                                            # noqa: BLE001
         pass
+    for fn in list(RETIRE):
+        try:
+            gone = fn(pol.get("ready") or {}) or []
+            if gone:
+                print("  [connect] ProOS Connect holds them now — removed from this box: %s" % ", ".join(gone), flush=True)
+        except Exception as e:                                   # noqa: BLE001
+            print("  [connect] couldn't remove a box key Connect now holds: %s" % str(e)[:120], flush=True)
     return pol
 
 

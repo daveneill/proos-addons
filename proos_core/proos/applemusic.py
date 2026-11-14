@@ -60,6 +60,14 @@ def save_token(token, now=None):
     return status(now)
 
 
+def retire_box_token(ready):
+    """REGISTER 1348: once ProOS Connect holds the MusicKit key, the token pasted into this box is removed."""
+    if ready.get("music") and _box_token():
+        clear_token()
+        return ["Apple Music token"]
+    return []
+
+
 def clear_token():
     try:
         os.remove(TOKEN_PATH)

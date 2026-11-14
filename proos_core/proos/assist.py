@@ -652,11 +652,10 @@ def _box_config() -> dict:
 def _via_connect(cfg: dict) -> dict:
     """REGISTER 1347 — PROOS'S KEYS LIVE ON PROOS CONNECT. When Connect holds the key for the AI the fleet runs on, that
     AI and model are this box's, and the active key is Connect's marker (connectkeys.wire sends the call to Connect with
-    the box's credential). The box's own key is used only when Connect does not hold one, or when the Developer pinned
-    the box to its own key (ai_source "box" — 13 Sep ruling 5). cfg["via"] says which: "connect", "box" or ""."""
-    if cfg.get("ai_source") == "box":
-        cfg["via"] = "box" if cfg.get("api_key") else ""
-        return cfg
+    the box's credential). REGISTER 1348 (Dave 14 Nov 15:04: "no need to keep if everthing will be linked
+    automatically"): there is no Developer switch any more and Pro has no key field; a key still on a box from before is
+    used only until Connect holds that key, and is then removed from the box (retire_box_keys).
+    cfg["via"] says which: "connect", "box" or ""."""
     try:
         from . import connectkeys as _ck
         pol = _ck.policy()
@@ -670,6 +669,46 @@ def _via_connect(cfg: dict) -> dict:
         print("  [assist] ProOS Connect's AI setting unreadable (%s) — the box's own key, if any" % e, flush=True)
     cfg["via"] = "box" if cfg.get("api_key") else ""
     return cfg
+
+
+def retire_box_keys(ready: dict) -> list:
+    """REGISTER 1348: once ProOS Connect says it holds a key, this box's own copy of it is removed — the box keeps none.
+    ready = Connect's {"anthropic", "openai", "photos", …}: True for each key Connect holds. Returns what was removed (names,
+    never a key). Nothing is removed for a key Connect does not hold yet."""
+    try:
+        with open(_CFG_PATH, encoding="utf-8") as fh:
+            raw = json.load(fh)
+    except Exception:                                            # noqa: BLE001
+        return []
+    if not isinstance(raw, dict):
+        return []
+    gone = []
+    keys = raw.get("keys")
+    if not isinstance(keys, dict):
+        keys = {}
+    for prov, supplier in (("claude", "anthropic"), ("openai", "openai")):
+        if ready.get(supplier) and keys.get(prov):
+            keys.pop(prov, None)
+            gone.append(prov + " key")
+    flat_prov = raw.get("provider") or ""
+    if raw.get("api_key") and ready.get({"claude": "anthropic", "openai": "openai"}.get(flat_prov, "")):
+        raw.pop("api_key", None)
+        gone.append(flat_prov + " key")
+    if ready.get("openai") and (raw.get("image_key") or "").strip():
+        raw.pop("image_key", None)
+        gone.append("picture key")
+    if ready.get("photos") and (raw.get("photo_key") or "").strip():
+        raw.pop("photo_key", None)
+        gone.append("photo search key")
+    raw.pop("ai_source", None)
+    if not gone:
+        return []
+    raw["keys"] = keys
+    tmp = _CFG_PATH + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(raw, fh)
+    os.replace(tmp, _CFG_PATH)
+    return gone
 
 
 def load_config() -> dict:
@@ -703,12 +742,6 @@ def save_config(body: dict) -> dict:
     # REGISTER 1153: Talk Live for the home — on unless the installer turns it off; a person can be left out.
     if "realtime_enabled" in body:
         cfg["realtime_enabled"] = bool(body.get("realtime_enabled"))
-    if body.get("clear_box_keys"):                                # register 1347: the installer removes the box's own
-        cfg.pop("keys", None)                                     # keys once ProOS Connect holds ProOS's
-        cfg["image_key"] = ""
-        cfg.pop("ai_source", None)
-    if "ai_source" in body:                                       # register 1347: "box" = the Developer's own key
-        cfg["ai_source"] = "box" if body.get("ai_source") == "box" else "connect"
     if "health_auto" in body:                                     # register 1335
         cfg["health_auto"] = bool(body.get("health_auto"))
     if "realtime_off_for" in body:
@@ -739,7 +772,6 @@ def status(full: bool = False) -> dict:
             "has_key": bool(cfg.get("api_key")),
             # register 1347: where the AI's key is — "connect" (ProOS Connect holds it), "box" (this box's own), "" none
             "via": cfg.get("via") or "",
-            "ai_source": "box" if cfg.get("ai_source") == "box" else "connect",
             "box_keys": bool(cfg.get("keys")) or bool((cfg.get("image_key") or "").strip()),
             # which providers hold a key, so the form can say "no key saved
             # for Claude yet" before anyone presses Test (register 434)
@@ -761,6 +793,12 @@ def health_auto(cfg: dict = None) -> bool:
 
 def _photo_key(cfg: dict = None) -> str:
     """REGISTER 1281: the box's Pexels key for photo search. Never sent to a page."""
+    try:                                              # register 1348: Connect's one Unsplash key, when it holds it
+        from . import connectkeys as _ck
+        if _ck.holds("photos"):
+            return _ck.CONNECT
+    except Exception:                                            # noqa: BLE001
+        pass
     return ((cfg or load_config()).get("photo_key") or "").strip()
 
 
@@ -773,13 +811,12 @@ def _image_key(cfg: dict) -> str:
     same shape of trap as register 434. An OpenAI key entered anywhere
     serves images."""
     cfg = cfg or load_config()
-    if cfg.get("ai_source") != "box":                 # register 1347: Connect first, when it holds the OpenAI key
-        try:
-            from . import connectkeys as _ck
-            if _ck.holds("openai"):
-                return _ck.CONNECT
-        except Exception:                                        # noqa: BLE001
-            pass
+    try:                                              # register 1347: Connect first, when it holds the OpenAI key
+        from . import connectkeys as _ck
+        if _ck.holds("openai"):
+            return _ck.CONNECT
+    except Exception:                                            # noqa: BLE001
+        pass
     ik = (cfg.get("image_key") or "").strip()
     if ik:
         return ik

@@ -3415,7 +3415,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111406';
+const PROOS_BUILD='2026111407';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -13710,7 +13710,7 @@ function openCredentials(){ show('credentials'); renderCredentials(); }
 // installer the commissioning surface — network witnesses and phone alerts among it — but
 // both lived only in the Protech toolbox. An installer now opens those two tools; every
 // other toolbox tool stays Protech's.
-const _TECH_TABS_INSTALLER=['net','notify'];
+const _TECH_TABS_INSTALLER=['net','notify','connect'];   // 1348: an installer sees ProOS Connect's status
 function _techFull(){ return !!(_me.tech||_me.developer); }
 function openTech(tab){ if(!_techFull() && !_me.admin){ toast('Tech tools are for Protech accounts'); return; }
   if(tab) _techView=tab;
@@ -14377,6 +14377,7 @@ async function renderTech(){
   }
   if(_techView==='assist') return techViewAssist(view);
   if(_techView==='notify') return techViewNotify(view);
+  if(_techView==='connect') return techViewConnect(view);            // register 1348
   if(_techView==='tiles') return techViewTiles(view);
   if(_techView==='health') return techViewHealth(view);
   if(_techView==='integrations') return techViewIntegrations(view);
@@ -14841,20 +14842,9 @@ async function techViewAssist(view){
     // ── REGISTER 1347: PROOS'S KEYS LIVE ON PROOS CONNECT. No key of ProOS's own on this box: the AI, scene pictures,
     // iPhone alerts and Apple Music are all served through ProOS Connect, which holds one key per supplier for every home.
     +'<div class="bld-sec" style="margin-top:12px"><div class="bld-sec-h">Pro Assist</div><div id="as-connect" class="wiz-hint">Asking ProOS Connect…</div></div>'
-    // the Developer's own key (13 Sep ruling 5) — owner and tech only, folded away; used only when Connect holds none
-    +(('provider' in st)?'<details id="as-dev" class="bld-sec" style="margin-top:12px"'+(st.ai_source==='box'?' open':'')+'><summary class="bld-sec-h" style="cursor:pointer">Developer — This Box\'s Own Key</summary>'
-    +'<div class="wiz-hint">For development only. ProOS Connect holds ProOS\'s keys for every home. A key saved here is used only when ProOS Connect does not hold one — or always, with this switch on.</div>'
-    +'<label style="display:flex;gap:6px;align-items:center;margin:6px 0"><input id="as-own" type="checkbox"'+(st.ai_source==='box'?' checked':'')+'/> Use This Box\'s Own Key Instead of ProOS Connect</label>'
-    +'<div class="field"><div class="field-label">Provider</div><select id="as-prov" class="set-input" onchange="assistKeyLabel()">'
-    +opt('','— off —')+opt('claude','Claude (Anthropic)')+opt('openai','ChatGPT (OpenAI)')+'</select></div>'
-    +'<div class="field"><div class="field-label">Model (blank = recommended default)</div><input id="as-model" class="set-input" type="text" value="'+esc(st.model||'')+'" autocapitalize="off" autocorrect="off" spellcheck="false"/></div>'
-    +'<div class="field"><div class="field-label" id="as-key-label">API key</div><input id="as-key" class="set-input" type="password" autocomplete="new-password" placeholder="sk-…"/><div class="field-hint" id="as-key-hint"></div></div>'
-    +'<div class="field"><div class="field-label">Scene image key — OpenAI, optional '+(st.has_image_key?'(saved — blank to keep)':'')+'</div><input id="as-imgkey" class="set-input" type="password" autocomplete="new-password" placeholder="'+(st.has_image_key?'••••••••':'sk-… (for AI-generated scene photos)')+'"/><div class="field-hint">Lets the assistant generate a bespoke photo per scene. Only needed if the assistant isn\'t already on OpenAI.</div></div>'
-    +'</details>':'')
-    // REGISTER 1281/1282/1283: the Unsplash key for Find in every picture editor (areas, Home, scenes). Kept on the box.
-    +'<div class="field"><div class="field-label">Photo Search Key — Unsplash Access Key '+(st.has_photo_key?'(saved — blank to keep)':'')+'</div><input id="as-photokey" class="set-input" type="password" autocomplete="new-password" placeholder="'+(st.has_photo_key?'••••••••':'The Access Key (not the Secret Key)')+'"/><div class="field-hint">Lets Find show real, watermark-free photos of anything. From your application\'s page on the Unsplash developer site.</div></div>'
-    +'<div style="display:flex;gap:8px;margin-top:10px"><button class="btn-primary" onclick="assistSaveCfg()">Save</button>'
-    +'<button class="btn-ghost" onclick="assistTestCfg()">Test</button></div>'
+    // REGISTER 1348 (Dave 14 Nov 15:04): no key field anywhere in Pro — the provider, model, every key and the Developer
+    // override are gone; ProOS Connect holds them and the box is linked automatically. Test asks the AI through Connect.
+    +'<div style="display:flex;gap:8px;margin-top:10px"><button class="btn-ghost" onclick="assistTestCfg()">Test Pro Assist</button></div>'
     +'<div id="as-out" class="wiz-hint" style="margin-top:10px"></div>'
     // ── ProOS VOICE (Dave, 16 Aug: "I would want to select a default
     // voice for ProOS"). Engines and voices are READ from the box and
@@ -14877,40 +14867,8 @@ async function techViewAssist(view){
     +'<div class="bld-sec" style="margin-top:18px"><div class="bld-sec-h">Talk Live</div>'
     +'<div class="wiz-hint">Every microphone in the ProOS app talks live with Assist — speak, interrupt, follow up — and ProOS Assist does the work through its own tools and rules. Each person is asked once before their voice is used. On for everyone unless it is turned off here.</div>'
     +'<div id="tl-body" class="wiz-hint">Loading…</div></div>'
-    // ── TALK TO ASSIST — REALTIME PROTOTYPE (register 1148, Dave 1 Nov 15:32 "build the prototype so we can see").
-    // The browser talks audio straight to the provider's realtime model with a short-lived key from Core; every tool
-    // the model calls runs through Core's own Assist. Owner/tech only. Text works without a microphone.
-    +'<div class="bld-sec" style="margin-top:18px"><div class="bld-sec-h">Talk to Assist — Realtime (Prototype)</div>'
-    +'<div class="wiz-hint">A spoken conversation with Assist: speak, interrupt, follow up. ProOS Assist does the work through its own tools and rules. Times are shown for every turn. The microphone needs a secure page (or Safari › Develop › Allow Media Capture on Insecure Sites); typing works anywhere.</div>'
-    +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><select id="rt-room" class="set-input" style="max-width:220px" onfocus="rtRooms()" onmousedown="rtRooms()"><option value="">Choose a room…</option></select>'
-    +'<select id="rt-voice" class="set-input" style="max-width:220px"><option value="ryan" selected>Voice: Ryan (ProOS)</option><option value="provider">Voice: OpenAI (fastest)</option></select>'
-    +'<button class="btn-ghost" id="rt-go" onclick="rtToggle()">Start Talking</button></div>'
-    +'<div style="display:flex;gap:8px;margin-top:8px"><input id="rt-text" class="set-input" type="text" placeholder="or type: which lamps are on in here" autocapitalize="off" autocorrect="off" spellcheck="false" onkeydown="if(event.key===\'Enter\')rtSendText()"/>'
-    +'<button class="btn-ghost" onclick="rtSendText()">Send</button></div>'
-    +'<pre id="rt-log" class="wiz-hint" style="white-space:pre-wrap;margin-top:10px;max-height:320px;overflow:auto"></pre>'
-    +'<div class="bld-sec-h" style="margin-top:12px">AI Costs</div><div id="rt-usage" class="wiz-hint">Loading…</div></div>'
-    // ── SPEAKER MUSIC TEST (register 741). Proves, from Core on this box, that a speaker reads the
-    // home's own music accounts, searches them and plays — the road register 740 proved from a Mac.
-    // Reads unless Play is ticked. A test, not a feature: its words are the engine's own.
-    +'<div class="bld-sec" style="margin-top:18px"><div class="bld-sec-h">Speaker Music Test</div>'
-    +'<div class="wiz-hint">Checks that a speaker can search the home\'s own music accounts from this box. Nothing plays unless Play is ticked.</div>'
-    +'<div class="field"><div class="field-label">Speaker</div><input id="sm-ent" class="set-input" type="text" value="media_player.office_office" autocapitalize="off" autocorrect="off" spellcheck="false"/></div>'
-    +'<div style="display:flex;gap:8px"><input id="sm-svc" class="set-input" type="text" value="Spotify" placeholder="Service"/>'
-    +'<input id="sm-acct" class="set-input" type="text" value="" placeholder="Account name (optional)"/>'
-    +'<input id="sm-term" class="set-input" type="text" value="relaxing" placeholder="Search"/></div>'
-    +'<div style="display:flex;gap:8px;align-items:center;margin-top:8px"><label style="display:flex;gap:6px;align-items:center"><input id="sm-play" type="checkbox"/> Play</label>'
-    +'<button class="btn-ghost" onclick="speakerMusicTest()">Run Test</button></div>'
-    +'<pre id="sm-out" class="wiz-hint" style="white-space:pre-wrap;margin-top:10px"></pre></div>'
-    // ── APPLE MUSIC TOKEN (music design stage 4, register 759; Dave's ruling 3: installer-pasted now,
-    // ProOS Connect later). The token is made on the installer's Mac from the Protech key; only the
-    // token is pasted. Core says whose key it is and when it ends — it never shows the token again.
-    +'<div class="bld-sec" style="margin-top:18px"><div class="bld-sec-h">Apple Music Token</div>'
-    +'<div class="wiz-hint">Lets this home search Apple Music. Made by ProOS Connect with ProOS\'s MusicKit key (register 1347).</div>'
-    +'<div id="am-status" class="wiz-hint" style="margin:6px 0">Checking…</div>'
-    +'<details><summary class="field-label" style="cursor:pointer">Developer — Paste a Token Instead</summary><div class="wiz-hint">Used only when ProOS Connect does not hold the MusicKit key.</div>'
-    +'<div class="field"><div class="field-label">Paste a New Token</div><textarea id="am-token" class="set-input" rows="3" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="eyJ…"></textarea></div>'
-    +'<div style="display:flex;gap:8px;margin-top:8px"><button class="btn-ghost" onclick="appleTokenSave()">Save Token</button>'
-    +'<button class="btn-ghost" onclick="appleTokenSave(true)">Remove Token</button></div></details></div>'
+    // REGISTER 1348: the Realtime prototype, the Speaker Music Test and the Apple Music token paste are off this page —
+    // Talk Live is the live voice for everyone, and ProOS Connect makes the Apple Music token.
     // ── MUSIC SIGN-INS (registers 768, 775–778). Which of a speaker's services answer, which don't and why,
     // and a Connect for any the person can sign in to on the service's own page (Dave, 12 Oct: "I want any
     // signins to be on both" — this and the homeowner's Music page). ProOS never sees a password.
@@ -14919,19 +14877,8 @@ async function techViewAssist(view){
     +'<div style="display:flex;gap:8px"><input id="mi-ent" class="set-input" type="text" value="media_player.office_office" autocapitalize="off" autocorrect="off" spellcheck="false"/>'
     +'<button class="btn-ghost" onclick="musicSignInsLoad()">Check</button></div>'
     +'<div id="mi-out" class="wiz-hint" style="margin-top:10px"></div></div>');
-  _asKeys=st.keys_saved||{};
-  assistKeyLabel(); assistConnectLoad(st);                                     // register 1347
-  assistVoiceLoad(); try{ rtUsageShow(); rtRooms(); tlLoad(); }catch(e){}   // registers 1151, 1153
-  appleTokenLoad();
-}
-function _amShow(d){
-  const el=document.getElementById('am-status'); if(!el) return;
-  if(!d||d.error){ el.innerHTML='<b style="color:#e0564b">'+esc((d&&d.error)||'Couldn\u2019t read')+'</b>'; return; }
-  if(!d.set){ el.textContent='No token — Apple Music can\u2019t be searched in this home yet.'; return; }
-  el.innerHTML=(d.expired?'<b style="color:#e0564b">Expired</b>':'<b style="color:#84d9b4">Set</b>')
-    +' · key '+esc(d.key_id||'?')+' · team '+esc(d.team_id||'?')+' · ends '+esc(d.expires||'?')
-    +(d.expired?'':' ('+Math.floor(d.days_left)+' days left)')
-    +(d.via==='connect'?' · made by ProOS Connect':(d.via==='box'?' · pasted into this box':''));
+  assistConnectLoad(st);                                                       // registers 1347, 1348
+  assistVoiceLoad(); try{ tlLoad(); }catch(e){}                                // register 1153
 }
 function _miEnt(){ return ((document.getElementById('mi-ent')||{}).value||'').trim(); }
 async function musicSignInsLoad(){
@@ -14981,52 +14928,12 @@ async function musicSignInConnect(sid, name){
     tick();
   }catch(e){ out.textContent='ProOS Core unreachable'; }
 }
-async function appleTokenLoad(){
-  try{ const r=await fetch(proCoreUrl()+'/speaker/apple-token'); _amShow(await r.json()); }catch(e){ _amShow({error:'ProOS Core unreachable'}); }
-}
-async function appleTokenSave(clear){
-  const ta=document.getElementById('am-token');
-  const token=clear?'':((ta&&ta.value)||'').trim();
-  if(!clear&&!token){ _amShow({error:'Paste the token first'}); return; }
-  try{
-    const r=await fetch(proCoreUrl()+'/speaker/apple-token',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token})});
-    const d=await r.json(); if(r.ok&&ta) ta.value=''; _amShow(d);
-  }catch(e){ _amShow({error:'ProOS Core unreachable'}); }
-}
 // ONE KEY PER PROVIDER (register 434). Core keeps a key for each provider;
 // the label says whether the provider chosen in the dropdown has one, and
 // changes as the dropdown changes — before anyone presses Test. Dave's
 // screenshot: Claude selected, the OpenAI key sent, "API key is invalid".
 let _asKeys={};
 const _AS_PROV_NAMES={claude:'Claude',openai:'ChatGPT'};
-function assistKeyLabel(){
-  const sel=document.getElementById('as-prov'), lab=document.getElementById('as-key-label'),
-        inp=document.getElementById('as-key'), hint=document.getElementById('as-key-hint');
-  if(!sel||!lab||!inp||!hint) return;
-  const p=sel.value, nm=_AS_PROV_NAMES[p]||'';
-  const other=Object.keys(_AS_PROV_NAMES).find(k=>k!==p&&_asKeys[k]);
-  if(!p){ lab.textContent='API key'; inp.placeholder='sk-…'; hint.textContent=''; return; }
-  if(_asKeys[p]){
-    lab.textContent='API key for '+nm+' (saved — leave blank to keep)';
-    inp.placeholder='••••••••';
-    hint.textContent=other?'The '+_AS_PROV_NAMES[other]+' key stays saved for when you switch back.':'';
-  } else {
-    lab.textContent='API key for '+nm;
-    inp.placeholder='sk-… (no '+nm+' key saved yet)';
-    hint.textContent='Paste a '+nm+' key, then Save. '+(other?'The '+_AS_PROV_NAMES[other]+' key is kept separately and is never sent to '+nm+'.':'');
-  }
-}
-async function speakerMusicTest(){
-  const out=document.getElementById('sm-out'); if(!out) return;
-  const v=id=>((document.getElementById(id)||{}).value||'').trim();
-  out.textContent='Running — about 15 seconds…';
-  try{
-    const r=await fetch(proCoreUrl()+'/speaker/proof',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({entity_id:v('sm-ent'),service:v('sm-svc')||'Spotify',account:v('sm-acct'),term:v('sm-term')||'relaxing',play:!!(document.getElementById('sm-play')||{}).checked})});
-    const d=await r.json();
-    out.textContent=((d.lines||[]).join('\n'))||(d.error||'No answer');
-  }catch(e){ out.textContent='ProOS Core unreachable'; }
-}
 // ── TALK LIVE SWITCHES (register 1153): the home, and each person. Saved in Core's Assist settings.
 var _tl={off:[]};
 async function tlLoad(){
@@ -15066,95 +14973,9 @@ async function hlSave(){
 // ── REALTIME PROTOTYPE CLIENT (register 1148) ─────────────────────────────────────────────────────────────────
 var _rt=null;
 function rtLog(line){ var el=document.getElementById('rt-log'); if(!el) return; var t=new Date(); el.textContent+=('['+t.toTimeString().slice(0,8)+'] '+line+'\n'); el.scrollTop=el.scrollHeight; }
-async function rtRooms(){
-  rtUsageShow();
-  var sel=document.getElementById('rt-room'); if(!sel||sel.options.length>1) return;
-  try{ var areas=(await snd({type:'config/area_registry/list'})).result||[];
-    sel.innerHTML='<option value="">No room (ask which)</option>'+areas.map(function(a){return '<option value="'+esc(a.area_id)+'">'+esc(a.name)+'</option>';}).join('');
-  }catch(e){}
-}
 // REGISTER 1151: what it costs — every finished response's tokens and each session's length go to Core's day ledger.
-function rtUsagePost(body){ try{ fetch(proCoreUrl()+'/assist/realtime/usage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(){ rtUsageShow(); }); }catch(e){} }
-async function rtUsageShow(){
-  // REGISTER 1162: every AI cost the box is charged for, by kind and model — Talk Live, Assist (the app and the room
-  // mics), the Health engine — with the last seven days' total and what that rate comes to over a month.
-  var el=document.getElementById('rt-usage'); if(!el) return;
-  try{ var d=await (await fetch(proCoreUrl()+'/assist/realtime/usage')).json();
-    var rows=(d.days||[]);
-    if(!rows.length){ el.textContent='Nothing used yet.'; return; }
-    var label=function(r){ return r.family==='realtime'?'Talk Live':(r.family==='engine'?'Health Engine · '+r.model:'Assist · '+r.model); };
-    var money=function(r){ return (typeof r.cost_usd==='number')?'about US$'+Number(r.cost_usd).toFixed(2):esc(r.price||'price not known'); };
-    var lines=rows.map(function(r){
-      var what=r.family==='realtime'
-        ? (r.sessions+' session'+(r.sessions===1?'':'s')+', '+r.minutes+' min, '+r.responses+' answers')
-        : (r.turns+' question'+(r.turns===1?'':'s')+', '+r.responses+' model rounds'+(r.web?', '+r.web+' web searches':''));
-      return esc(r.day)+' — '+esc(label(r))+': '+what+', '+money(r); });
-    var head='<b>Last 7 days: about US$'+Number(d.total_usd||0).toFixed(2)+'</b> · at that rate about US$'+Number(d.month_usd||0).toFixed(2)+' a month';
-    if((d.unpriced||[]).length) head+='<br><span style="color:var(--warn)">Not priced (counted only): '+esc(d.unpriced.join(', '))+'</span>';
-    setHTML(el, head+'<br>'+lines.join('<br>')+'<br><span style="opacity:.7">'+esc(d.note||'')+'</span>');
-  }catch(e){ el.textContent='Could not read usage.'; }
-}
-function rtSendEvent(ev){ if(_rt&&_rt.dc&&_rt.dc.readyState==='open') _rt.dc.send(JSON.stringify(ev)); }
-async function rtStart(withText){
-  if(_rt) return _rt;
-  var area=(document.getElementById('rt-room')||{}).value||'';
-  var voice=(document.getElementById('rt-voice')||{}).value||'ryan';
-  var rt=_rt={t0:performance.now(), area:area, pending:{}, saidAt:null, voice:voice, buf:'', q:[], playing:null, firstVoice:false};
-  rtLog('Asking ProOS for a session…');
-  var s=null;
-  try{ var r=await fetch(proCoreUrl()+'/assist/realtime/session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({area_id:area,voice:voice})}); s=await r.json(); }catch(e){ s={error:String(e)}; }
-  if(!s||!s.value){ rtLog('No session: '+((s&&s.error)||'no answer')+(s&&s.detail?' — '+s.detail:'')); _rt=null; return null; }
-  rtLog('Session ready ('+s.model+', '+s.tools+' Assist tools, '+s.ms+' ms, voice: '+(s.voice==='provider'?'OpenAI':'Ryan')+').');
-  var pc=rt.pc=new RTCPeerConnection();
-  var audio=rt.audio=document.createElement('audio'); audio.autoplay=true; document.body.appendChild(audio);
-  pc.ontrack=function(e){ audio.srcObject=e.streams[0]; };
-  var track=null;
-  if(window.isSecureContext && navigator.mediaDevices && navigator.mediaDevices.getUserMedia && !withText){
-    try{ rt.mic=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}}); track=rt.mic.getTracks()[0]; }
-    catch(e){ rtLog('Microphone refused — typing only.'); }
-  } else if(!withText){ rtLog('This page is not secure, so the browser gives no microphone — typing only.'); }
-  if(!track){ var ac=new (window.AudioContext||window.webkitAudioContext)(); var dst=ac.createMediaStreamDestination(); track=dst.stream.getAudioTracks()[0]; rt.silent=ac; }
-  pc.addTrack(track);
-  var dc=rt.dc=pc.createDataChannel('oai-events');
-  dc.onmessage=function(m){ var ev; try{ ev=JSON.parse(m.data); }catch(e){ return; } rtEvent(ev); };
-  var opened=new Promise(function(res){ dc.onopen=res; });
-  var offer=await pc.createOffer(); await pc.setLocalDescription(offer);
-  var ans=null;
-  try{ var rr=await fetch('https://api.openai.com/v1/realtime/calls',{method:'POST',headers:{'Authorization':'Bearer '+s.value,'Content-Type':'application/sdp'},body:offer.sdp});
-    if(!rr.ok){ rtLog('The provider refused the call: HTTP '+rr.status+' '+(await rr.text()).slice(0,200)); rtStop(); return null; }
-    ans=await rr.text(); }catch(e){ rtLog('Could not reach the provider: '+e); rtStop(); return null; }
-  await pc.setRemoteDescription({type:'answer',sdp:ans});
-  await opened;
-  rtLog('Connected in '+Math.round(performance.now()-rt.t0)+' ms. '+(rt.mic?'Speak now.':'Type below.'));
-  rt.connectedAt=performance.now(); rtUsagePost({session:true});
-  var b=document.getElementById('rt-go'); if(b) b.textContent='Stop';
-  return rt;
-}
-function rtStop(){
-  var rt=_rt; _rt=null; if(!rt) return;
-  if(rt.connectedAt) rtUsagePost({seconds:(performance.now()-rt.connectedAt)/1000});
-  try{ rt.dc&&rt.dc.close(); }catch(e){} try{ rt.pc&&rt.pc.close(); }catch(e){}
-  try{ rt.mic&&rt.mic.getTracks().forEach(function(t){t.stop();}); }catch(e){} try{ rt.silent&&rt.silent.close(); }catch(e){}
-  try{ rt.audio&&rt.audio.remove(); }catch(e){}
-  var b=document.getElementById('rt-go'); if(b) b.textContent='Start Talking';
-  rtLog('Ended.');
-}
-function rtToggle(){ rtRooms(); if(_rt) rtStop(); else rtStart(false); }
-async function rtSendText(){
-  var inp=document.getElementById('rt-text'); var text=(inp&&inp.value||'').trim(); if(!text) return; inp.value='';
-  await rtRooms(); var rt=_rt||await rtStart(true); if(!rt) return;
-  rt.saidAt=performance.now(); rt.firstVoice=false; rtHush(rt); rtLog('You: '+text);
-  rtSendEvent({type:'conversation.item.create',item:{type:'message',role:'user',content:[{type:'input_text',text:text}]}});
-  rtSendEvent({type:'response.create'});
-}
 // REGISTER 1150: RYAN SPEAKS. In "ryan" mode the model answers in text; each finished sentence is spoken in the home's own
 // voice through Core (/assist/speak — the ProOS voice pipeline's voice), queued in order; speaking again stops it.
-function rtSpeakSentence(rt, text){
-  text=(text||'').trim(); if(!text) return;
-  var p=fetch(proCoreUrl()+'/assist/speak',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text})})
-    .then(function(r){ return r.ok?r.blob():null; }).catch(function(){ return null; });
-  rt.q.push(p); if(!rt.playing) rtPlayNext(rt);
-}
 async function rtPlayNext(rt){
   if(_rt!==rt) return;
   var p=rt.q.shift(); if(!p){ rt.playing=null; return; }
@@ -15164,46 +14985,8 @@ async function rtPlayNext(rt){
   if(!rt.firstVoice){ rt.firstVoice=true; rtLog('(Ryan starts speaking — '+(rt.saidAt?Math.round(performance.now()-rt.saidAt)+' ms':'')+' after you finished)'); }
   try{ await a.play(); }catch(e){ rtPlayNext(rt); }
 }
-function rtHush(rt){ rt.q=[]; rt.buf=''; try{ rt.playing&&rt.playing.pause(); }catch(e){} rt.playing=null; }
-function rtTextDelta(rt, d){
-  rt.buf+=(d||'');
-  var m; while((m=rt.buf.match(/^([\s\S]*?[.!?])(\s+|$)/)) && m[1].length>1){ rtSpeakSentence(rt, m[1]); rt.buf=rt.buf.slice(m[0].length); if(!m[2]) break; }
-}
 // ONE reply after ALL of a response's tool calls have answered and the response itself has finished — the model may call
 // several tools at once, and asking for a reply after each one is refused ("already has an active response").
-function rtMaybeReply(rt){ if(rt&&rt.needReply&&!(rt.inflight>0)&&!rt.responseOpen){ rt.needReply=false; rtSendEvent({type:'response.create'}); } }
-async function rtEvent(ev){
-  var rt=_rt; if(!rt) return;
-  var ms=function(){ return rt.saidAt?Math.round(performance.now()-rt.saidAt)+' ms':''; };
-  switch(ev.type){
-    case 'input_audio_buffer.speech_started': rtLog('(hearing you)'); rtHush(rt); break;
-    case 'input_audio_buffer.speech_stopped': rt.saidAt=performance.now(); rt.firstVoice=false; break;
-    case 'conversation.item.input_audio_transcription.completed': {           // register 1163: act on the words
-      var tw=(ev.transcript||'').trim(); rtLog('You: '+tw);
-      if(ev.item_id) rtSendEvent({type:'conversation.item.delete',item_id:ev.item_id});
-      if(tw){ rtSendEvent({type:'conversation.item.create',item:{type:'message',role:'user',content:[{type:'input_text',text:tw}]}});
-        if(rt.responseOpen){ rt.needReply=true; } else { rtSendEvent({type:'response.create'}); } }
-      break; }
-    case 'output_audio_buffer.started': rtLog('(Assist starts speaking — '+ms()+' after you finished)'); break;
-    case 'response.output_audio_transcript.done': rtLog('Assist: '+(ev.transcript||'').trim()+'  ['+ms()+']'); break;
-    case 'response.output_text.delta': if(rt.voice!=='provider') rtTextDelta(rt, ev.delta); break;
-    case 'response.output_text.done':
-      if(rt.voice!=='provider'){ var rest=rt.buf; rt.buf=''; if(rest.trim()) rtSpeakSentence(rt, rest); }
-      rtLog('Assist: '+(ev.text||'').trim()+'  [text ready '+ms()+']'); break;
-    case 'response.function_call_arguments.done':
-      rt.inflight=(rt.inflight||0)+1; rt.needReply=true;
-      rtLog('→ ProOS tool '+ev.name+' '+(ev.arguments||'').slice(0,120));
-      var t0=performance.now(), out=null;
-      try{ var r=await fetch(proCoreUrl()+'/assist/realtime/tool',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:ev.name,arguments:ev.arguments,area_id:rt.area})}); out=await r.json(); }catch(e){ out={error:String(e)}; }
-      rtLog('← '+ev.name+(out&&out.error?' refused/failed: '+out.error:' answered')+' in '+Math.round(performance.now()-t0)+' ms');
-      rtSendEvent({type:'conversation.item.create',item:{type:'function_call_output',call_id:ev.call_id,output:JSON.stringify(out).slice(0,12000)}});
-      rt.inflight=Math.max(0,(rt.inflight||1)-1); rtMaybeReply(rt);
-      break;
-    case 'response.done': rt.responseOpen=false; if(ev.response&&ev.response.usage) rtUsagePost({usage:ev.response.usage}); rtMaybeReply(rt); break;
-    case 'response.created': rt.responseOpen=true; break;
-    case 'error': rtLog('Provider error: '+JSON.stringify(ev.error||ev).slice(0,240)); break;
-  }
-}
 async function assistTryIt(){
   const inp=document.getElementById('as-try'), out=document.getElementById('as-try-out');
   if(!inp||!out) return;
@@ -15262,48 +15045,34 @@ async function assistVoiceSave(engineOnly){
 const _AI_NAMES={'claude-opus-5-5':'Claude Opus 5.5','claude-sonnet-5-5':'Claude Sonnet 5.5','claude-haiku-5-5':'Claude Haiku 5.5',
   'claude-opus-5':'Claude Opus 5','gpt-6-astra':'ChatGPT 6 Astra','gpt-6.1-sol':'ChatGPT 6.1 Sol','gpt-6-luna':'ChatGPT 6 Luna'};
 async function assistConnectLoad(st){
+  // REGISTER 1348: this box on ProOS Connect, read from Connect itself — linked or not, which of ProOS's services it
+  // carries, and this home's month. No key anywhere: Connect holds them all.
   const el=document.getElementById('as-connect'); if(!el) return;
+  st=st||{};
   let d={}; try{ const r=await fetch(proCoreUrl()+'/assist/connect'); d=await r.json(); if(!r.ok) d={error:d.error||('HTTP '+r.status)}; }catch(e){ d={error:'ProOS Core unreachable'}; }
-  const G='color:#84d9b4', A='color:#e3a23c', R='color:#e0564b', rd=d.ready||{};
-  const name=m=>esc(_AI_NAMES[m]||m||'');
-  let head;
-  if(st.via==='connect') head='<b style="'+G+'">Included in ProOS Connect · Active</b>'+(st.model?' · '+name(st.model):'');
-  else if(st.via==='box') head='<b style="'+A+'">Using This Box’s Own Key</b> · '+(st.ai_source==='box'?'the Developer switch is on':'ProOS Connect does not hold the AI key yet')+(st.model?' · '+name(st.model):'');
-  else head='<b style="'+R+'">Not Set Up</b> · ProOS Connect does not hold the AI key yet';
+  const G='color:#84d9b4', A='color:#e3a23c', R='color:#e0564b', rd=d.ready||{}, bx=d.box||{};
   const chip=(ok,t)=>'<span style="display:inline-block;margin:4px 6px 0 0;padding:3px 9px;border-radius:999px;border:1px solid '+(ok?'rgba(132,217,180,.45)':'rgba(255,255,255,.15)')+';'+(ok?G:'opacity:.6')+'">'+(ok?'✓ ':'')+t+'</span>';
-  let html=head;
-  if(d.error) html+='<div style="margin-top:6px"><b style="'+R+'">ProOS Connect couldn’t be read</b> · '+esc(d.error)+'</div>';
-  else{
-    if(!d.reached) html+='<div style="margin-top:6px;'+A+'">ProOS Connect hasn’t answered this box yet.</div>';
-    html+='<div style="margin-top:6px">'+chip(rd.anthropic,'Claude')+chip(rd.openai,'ChatGPT · Pictures · Talk Live')+chip(rd.push,'iPhone Alerts')+chip(rd.music,'Apple Music')+'</div>';
+  let html;
+  if(d.error) html='<b style="'+R+'">ProOS Connect couldn’t be read</b> · '+esc(d.error);
+  else if(bx.status==='approved') html='<b style="'+G+'">Connected to ProOS Connect</b>'+(d.plan?' · plan: '+esc(d.plan):'');
+  else if(bx.status==='pending') html='<b style="'+A+'">Waiting for Approval on ProOS Connect</b> · approve this box on the Connect admin page';
+  else if(bx.status==='unreachable') html='<b style="'+R+'">ProOS Connect Not Reached</b>'+(bx.why?' · '+esc(bx.why):'');
+  else html='<b style="'+R+'">Not Linked to ProOS Connect</b>'+(bx.status?' · '+esc(bx.status):'');
+  if(!d.error){
+    html+='<div style="margin-top:6px">'+chip(rd.anthropic||rd.openai,'Pro Assist'+(st.model?' · '+esc(_AI_NAMES[st.model]||st.model):''))
+      +chip(rd.openai,'Scene Pictures · Talk Live')+chip(rd.photos,'Photo Search')+chip(rd.push,'iPhone Alerts')+chip(rd.music,'Apple Music')+'</div>';
     const u=d.usage||{}, m=u.usage||{};
-    if(u.ok) html+='<div style="margin-top:8px">This Month · <b>$'+Number(m.usd||0).toFixed(2)+'</b> · '+(m.calls||0)+' AI call'+((m.calls||0)===1?'':'s')+' · '+(m.pushes||0)+' alert'+((m.pushes||0)===1?'':'s')+(u.plan?' · plan: '+esc(u.plan):'')+'</div>';
-    else if(u.error) html+='<div style="margin-top:8px;opacity:.7">This month’s use couldn’t be read · '+esc(u.error)+'</div>';
+    if(u.ok) html+='<div style="margin-top:8px">This Month · <b>$'+Number(m.usd||0).toFixed(2)+'</b> · '+(m.calls||0)+' AI call'+((m.calls||0)===1?'':'s')+' · '+(m.pushes||0)+' alert'+((m.pushes||0)===1?'':'s')+' · '+(m.photos||0)+' photo search'+((m.photos||0)===1?'':'es')+'</div>';
+    if(bx.box_id) html+='<div style="margin-top:4px;opacity:.6">This box on Connect: '+esc(bx.box_id)+'</div>';
   }
-  if(st.box_keys&&st.via==='connect') html+='<div style="margin-top:8px">This box still holds a key of its own. It isn’t used while ProOS Connect holds one. <button class="btn-ghost" style="margin-left:6px" onclick="assistClearBoxKeys()">Remove This Box’s Keys</button></div>';
   setHTML(el, html);
 }
-async function assistClearBoxKeys(){
-  try{
-    const r=await fetch(proCoreUrl()+'/assist/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clear_box_keys:true})});
-    const d=await r.json(); if(!r.ok){ toast(d.error||'Couldn’t remove'); return; }
-    toast('This box’s own keys removed'); techViewAssist(document.getElementById('tech-view'));
-  }catch(e){ toast(_coreFailWords('',e)); }
-}
-async function assistSaveCfg(){
-  const body={}, _v=id=>((document.getElementById(id)||{}).value||'').trim();
-  if(document.getElementById('as-prov')){                                       // register 1347: the Developer's fields
-    body.provider=document.getElementById('as-prov').value; body.model=_v('as-model');
-    const k=_v('as-key'); if(k) body.api_key=k;
-    const ik=_v('as-imgkey'); if(ik) body.image_key=ik;
-    body.ai_source=(document.getElementById('as-own')||{}).checked?'box':'connect';
-  }
-  const pk=((document.getElementById('as-photokey')||{}).value||'').trim(); if(pk) body.photo_key=pk;   // 1281
-  try{
-    const r=await fetch(proCoreUrl()+'/assist/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-    const d=await r.json(); if(!r.ok){ toast(d.error||'Save failed'); return; }
-    toast(d.enabled?'Pro Assist AI enabled':'Saved'); techViewAssist(document.getElementById('tech-view'));
-  }catch(e){ toast(_coreFailWords('',e)); }
+// REGISTER 1348 — THE PROOS CONNECT PAGE (System Setup): the same reading, on its own, for setting up a new box.
+async function techViewConnect(view){
+  let st={}; try{ const r=await fetch(proCoreUrl()+'/assist/status'); st=await r.json(); }catch(e){}
+  setHTML(view,'<div class="wiz-hint">Every ProOS service that needs a supplier key — Pro Assist, scene pictures, Talk Live, photo search, iPhone alerts and Apple Music — runs through ProOS Connect. A new box is linked automatically once it is approved there; nothing is entered on the box.</div>'
+    +'<div class="bld-sec" style="margin-top:12px"><div class="bld-sec-h">ProOS Connect</div><div id="as-connect" class="wiz-hint">Asking ProOS Connect…</div></div>');
+  assistConnectLoad(st);
 }
 async function assistTestCfg(){
   const out=document.getElementById('as-out'); if(out) out.textContent='Testing…';
@@ -15329,74 +15098,18 @@ async function assistTestCfg(){
 // whether every phone can be reached.
 const _NT_SERVERS=[['production','Live Server','TestFlight and App Store apps'],['sandbox','Test Server','apps run from Xcode (the developer build)'],['both','Both Servers','an older key that works on both']];
 async function techViewNotify(view){
-  let st=null; try{ const r=await fetch(proCoreUrl()+'/push/config'); if(r.ok) st=await r.json(); }catch(e){}
-  // REGISTER 1347: ProOS Connect signs every home's alerts with ProOS's one Apple key, whenever it holds it
+  // REGISTER 1348 (Dave 14 Nov 15:04): no key on this page. ProOS Connect signs and sends every home's alerts with
+  // ProOS's one Apple push key; the page says whether Connect holds it, and keeps the test alert.
   let cx=null; try{ const r=await fetch(proCoreUrl()+'/assist/connect'); if(r.ok) cx=await r.json(); }catch(e){}
   const viaConnect=!!(cx&&cx.ready&&cx.ready.push);
-  const keys=(st&&st.keys)||{}, cov=(st&&st.covers)||{}, ref=(st&&st.refused)||{};
-  const loaded=!!(st&&st.set);
-  const line=_NT_SERVERS.filter(([k])=>keys[k]&&keys[k].set).map(([k,l])=>l+': Key ID '+esc(keys[k].key_id||''));
   setHTML(view,
-     (viaConnect?'<div class="wiz-hint"><b style="color:#84d9b4">Included in ProOS Connect · Active</b> — alerts from this home are signed and sent by ProOS Connect with ProOS\'s Apple push key. Nothing to load on this box.</div>'
-      +'<details class="bld-sec" style="margin-top:12px"><summary class="bld-sec-h" style="cursor:pointer">Developer — This Box\'s Own Push Key</summary>'
-      +'<div class="wiz-hint">Used only when ProOS Connect does not hold the Apple push key.</div>':'')
-    +'<div class="wiz-hint">'+(viaConnect?'This box\'s own key: ':'Alerts from this home reach ProOS phones through ProOS Core, signed with your Apple push key. ')
-    +(st===null?'<b style="color:#e3a23c">ProOS Core unreachable</b>'
-      : !loaded?'<b style="color:#e3a23c">No key loaded</b> — the box will log “no Apple push key loaded” for every alert until one is.'
-      : '<b style="color:#84d9b4">'+line.join(' · ')+'</b>'
-        +(!cov.production?' — <b style="color:#e3a23c">TestFlight and App Store apps can\u2019t be reached</b>: '+(ref.production?'Apple\u2019s live server refused Key ID '+esc(ref.production.key_id||'')+' (it only works on the test server) — load a key made for the live server.':'Apple\u2019s live server needs a key made for it (or for both).'):'')
-        +(!cov.sandbox?' — <b style="color:#e3a23c">developer builds can\u2019t be reached</b>: '+(ref.sandbox?'Apple\u2019s test server refused Key ID '+esc(ref.sandbox.key_id||'')+' — load a key made for the test server.':'Apple\u2019s test server needs a key made for it (or for both).'):''))+'</div>'
-    +'<div class="bld-sec"><div class="bld-sec-h">Apple Push Key</div>'
-    +'<div class="wiz-hint">From your Apple Developer account: Certificates, Identifiers &amp; Profiles → Keys → + → tick <b>Apple Push Notifications service (APNs)</b>, choose the environment → Register → Download. The file is named AuthKey_<i>KEYID</i>.p8; the Key ID is the ten characters in that name and on the key’s page. Apple lets you download it once.</div>'
-    +'<div class="field"><div class="field-label">This Key Is For</div><select id="nt-server" class="set-input">'
-      +_NT_SERVERS.map(([k,l,d])=>'<option value="'+k+'"'+(k===(!cov.production?'production':(!cov.sandbox?'sandbox':'production'))?' selected':'')+'>'+l+' — '+d+'</option>').join('')+'</select></div>'
-    +'<div class="field"><div class="field-label">Key File (.p8)</div><input id="nt-p8file" type="file" accept=".p8,text/plain" onchange="notifyKeyFilePicked(this)"/>'
-    +'<textarea id="nt-p8" rows="3" style="margin-top:6px" placeholder="…or paste the contents of the .p8 file here (begins -----BEGIN PRIVATE KEY-----)" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea></div>'
-    +'<div class="field"><div class="field-label">Key ID</div><input id="nt-keyid" class="set-input" type="text" value="" placeholder="e.g. 7Q3K2M9ABC" autocapitalize="characters" autocorrect="off" spellcheck="false"/></div>'
-    +'<div class="field"><div class="field-label">Team ID</div><input id="nt-team" class="set-input" type="text" value="'+esc((st&&st.team_id)||'7XG3S6MMW8')+'" placeholder="10 characters, top right of developer.apple.com/account" autocapitalize="characters" autocorrect="off" spellcheck="false"/></div>'
-    +'<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="btn-primary" onclick="notifyKeySave()">Load Key</button>'
-    +_NT_SERVERS.filter(([k])=>keys[k]&&keys[k].set).map(([k,l])=>'<button class="btn-ghost" onclick="notifyKeyClear(\''+k+'\')">Remove '+l+' Key</button>').join('')+'</div>'
-    +'<div id="nt-out" class="wiz-hint" style="margin-top:10px"></div></div>'
-    +(viaConnect?'</details>':'')
+     '<div class="wiz-hint">'+(cx===null?'<b style="color:#e3a23c">ProOS Connect couldn’t be read</b>'
+      :viaConnect?'<b style="color:#84d9b4">Included in ProOS Connect · Active</b> — alerts from this home are signed and sent by ProOS Connect. Nothing to set up on this box.'
+      :'<b style="color:#e3a23c">ProOS Connect doesn’t hold the Apple push key yet</b> — alerts can’t reach phones until it does.')+'</div>'
     +'<div class="bld-sec" style="margin-top:18px"><div class="bld-sec-h">Send a Test Alert</div>'
-    +'<div class="wiz-hint">Goes the whole way: this box → ProOS Core → '+(viaConnect?'ProOS Connect → ':'')+'Apple → the phone. If nothing arrives within ten seconds, Logs → ProOS Core shows a line beginning “push ·” that says why.</div>'
+    +'<div class="wiz-hint">Goes the whole way: this box → ProOS Core → ProOS Connect → Apple → the phone. If nothing arrives within ten seconds, Logs → ProOS Core shows a line beginning “push ·” that says why.</div>'
     +'<div id="nt-phones" class="wiz-hint">Reading the phones this box knows…</div></div>');
   notifyPhonesLoad();
-}
-function notifyKeyFilePicked(inp){
-  const f=inp&&inp.files&&inp.files[0]; if(!f) return;
-  const rd=new FileReader();
-  rd.onload=()=>{ const ta=document.getElementById('nt-p8'); if(ta) ta.value=String(rd.result||'').trim();
-    // AuthKey_ABC123DEFG.p8 carries the Key ID in its name; fill it if empty.
-    const m=/AuthKey_([A-Z0-9]{10})\.p8$/i.exec(f.name||''); const k=document.getElementById('nt-keyid');
-    if(m&&k&&!k.value.trim()) k.value=m[1].toUpperCase(); };
-  rd.readAsText(f);
-}
-function notifyKeyProblem(p8,keyId,team){
-  if(!p8) return 'Choose or paste the .p8 key file first.';
-  if(p8.indexOf('PRIVATE KEY')<0) return 'That is not a .p8 key file — it should begin -----BEGIN PRIVATE KEY-----.';
-  if(!/^[A-Z0-9]{10}$/.test(keyId)) return 'The Key ID is ten letters and digits (it is in the file name: AuthKey_KEYID.p8).';
-  if(!/^[A-Z0-9]{10}$/.test(team)) return 'The Team ID is ten letters and digits, shown at the top right of developer.apple.com/account.';
-  return '';
-}
-async function notifyKeySave(){
-  const p8=(document.getElementById('nt-p8')||{}).value||'', keyId=((document.getElementById('nt-keyid')||{}).value||'').trim().toUpperCase(),
-        team=((document.getElementById('nt-team')||{}).value||'').trim().toUpperCase(), out=document.getElementById('nt-out');
-  const why=notifyKeyProblem(p8.trim(),keyId,team); if(why){ if(out) out.textContent=why; return; }
-  if(out) out.textContent='Loading the key into ProOS Core…';
-  try{
-    const r=await fetch(proCoreUrl()+'/push/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({p8:p8.trim(),key_id:keyId,team_id:team,server:((document.getElementById('nt-server')||{}).value||'both')})});
-    const d=await r.json().catch(()=>({}));
-    if(!r.ok){ if(out) out.textContent=d.error||d.errorMessage||('Core refused ('+r.status+')'); return; }
-    toast('Apple push key loaded'); techViewNotify(document.getElementById('tech-view'));
-  }catch(e){ if(out) out.textContent=_coreFailWords('',e); }
-}
-async function notifyKeyClear(server){
-  server=server||'both'; const nm=((_NT_SERVERS.find(x=>x[0]===server)||[])[1]||'').toLowerCase();
-  if(!await proAsk('Remove the '+nm+' push key from this box? Phones that need it get no alerts until a key for that server is loaded again.')) return;
-  try{ const r=await fetch(proCoreUrl()+'/push/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clear:true,server})});
-    if(!r.ok){ toast('Core refused'); return; } toast('Key removed'); techViewNotify(document.getElementById('tech-view')); }
-  catch(e){ toast(_coreFailWords('',e)); }
 }
 // The phones the box can notify, as the builder and the test list see them:
 // read once from the box's notify services, kept in _notifyPhones, refreshed
@@ -23271,7 +22984,7 @@ function _v3homeAreas(){ return (_areas||[]).filter(a=>!_systemAreas.has(a.area_
 const V3DIAG=[['sweep','Health Sweep','health'],['awareness','Awareness','spark'],['incidents','Incidents','bolt'],['heard','Heard','ear'],['noticed','Assist Noticed','assist'],['log','Master Log','log']];
 const V3SETUP=[['site','Building Settings','home',()=>openSite()],['users','Manage Users','user',()=>openUsers()],['software','Software','box',()=>v3Software()],
   ['backups','Backups','clock',()=>openBackups()],['music','Music Services','music',()=>openMusic()],
-  ['dashremote','Dashboards','grid',()=>openDashRemote()],['channels','Channel Lists','list',()=>openChannels()],['notify','Notifications','bolt',()=>openTech('notify')],['net','Network','map',()=>openTech('net')],
+  ['dashremote','Dashboards','grid',()=>openDashRemote()],['channels','Channel Lists','list',()=>openChannels()],['connect','ProOS Connect','plug',()=>openTech('connect')],['notify','Notifications','bolt',()=>openTech('notify')],['net','Network','map',()=>openTech('net')],
   // REGISTER 1329 (Dave 13 Nov 09:12 "okay"): The Rack (1322) and the Share page (1321, 1328) were listed only in the old
   // Systems list that 1256 took off the menu — built, but unreachable. Their rows sit here, after Network.
   ['rack','The Rack','remote',()=>openRack()],['share','Other Control Systems','plug',()=>openShare()],
@@ -23288,7 +23001,7 @@ const V3TOOLS=[['log','Logs','log'],['health','Box Diagnostics','diagnostics'],[
 // each reached a page the menu already reaches (Inspect, Recovery Log, System Setup › Notifications and Dashboards,
 // Developer), so in the new flow they would be the doubled routes Dave ruled out.
 const V3TOOLSUB={log:'Core and the platform',health:'Resources, updates',prepare:'Before handover',integrations:'Faults and reloads',inspect:'One entity — state, attributes, registry',
-  dev:'Templates, actions, events, set state',terminal:'The box\'s shell',actions:'Restarts, update Core',assist:'Provider, voice, music test',tiles:'Shortcut artwork',
+  dev:'Templates, actions, events, set state',terminal:'The box\'s shell',actions:'Restarts, update Core',assist:'ProOS Connect, voice, Talk Live',tiles:'Shortcut artwork',
   helpers:'Toggles, numbers, texts',blueprints:'Import and manage',labels:'Tags and categories'};
 if(typeof renderToolbox==='function'){
   const _v3rtb=renderToolbox;
