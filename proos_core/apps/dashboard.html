@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111601';
+const PROOS_BUILD='2026111602';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -9759,6 +9759,7 @@ function updateRoomBg(roomIdx){
     if(CONFIG&&CONFIG.rooms) _stdKeepBg(homeAreaPhoto);   // 686
   }
   try{ if(typeof window._mxWarm==='function') window._mxWarm(); }catch(e){}   // 1365 motion 4: the room warms with its lights
+  try{ if(typeof window._mxRoomState==='function') window._mxRoomState(); }catch(e){}   // 1367: the room's on/off look
   // (1366, Dave 16 Nov 06:09/06:16: the film's poster is NOT the room page's background — "bad quality art looks bad";
   // it is the frosted background of the control pages instead, as the music player's is)
   const url=photo?`url('${photo}')`:'linear-gradient(135deg,#0a0a12,#1a1a2e)';
@@ -24102,6 +24103,12 @@ async function saveService(){
 </style>
 <!-- REGISTER 1365 motion styles (the type scale stays the last stylesheet) -->
 <style>
+/* 1367 (Dave 16 Nov 06:42): the room page takes the All Rooms tile's on/off look — grey and dark while everything in the room is
+   off, normal while anything is on — and follows the room live */
+#room-bg .room-bg-layer{transition:opacity var(--m-hold) var(--e-standard),filter var(--m-door) var(--e-standard)}
+#room-bg.mx-off .room-bg-layer{filter:grayscale(.85) brightness(.5)}
+.mx-grow.off .mx-grow-bg{filter:grayscale(.85) brightness(.5)}
+#atv-page.mx-from{will-change:clip-path}
 #mx-warm{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity var(--m-door) var(--e-standard);
   background:radial-gradient(70% 50% at 70% 28%,rgba(255,196,120,.55),transparent 70%),radial-gradient(60% 45% at 22% 72%,rgba(255,168,90,.28),transparent 70%)}
 .mx-grow{position:fixed;z-index:2147480000;overflow:hidden;pointer-events:none;background:#0a0a12;will-change:left,top,width,height}
@@ -28140,6 +28147,23 @@ try{ setInterval(_outcomesRead, LV_OUTCOME_EVERY_MS); }catch(e){}
     var t=o.toFixed(3); if(w.style.opacity!==t) w.style.opacity=t;
   };
 
+  // ── 1367 · A ROOM IS ON OR OFF, LIVE — the All Rooms tile's rule, on the tile and on the room's own page ─────────────
+  // On = Core's word for the room is anything but off (it is watching / playing), or any of its lights is on — the same
+  // two readings the tile's words come from (_ppPlaying, _ppLit). Checked on every change of a light, a player or the
+  // room's word, so the page and the tiles change the moment the last thing goes off — never only on a refresh.
+  function roomOn(r){ try{ return !!r && ((typeof _ppPlaying==='function'&&_ppPlaying(r)) || (typeof _ppLit==='function'&&_ppLit(r).length>0)); }catch(e){ return false; } }
+  window._mxRoomOn=roomOn;
+  window._mxRoomState=function(){
+    var bg=document.getElementById('room-bg');
+    if(bg){ var r=(typeof curRoom!=='undefined'&&curRoom>=0)?CONFIG.rooms[curRoom]:null; bg.classList.toggle('mx-off', !!r && !roomOn(r)); }
+    var g=document.getElementById('rooms-grid'); if(!g) return;
+    g.querySelectorAll('.room-card[data-id]').forEach(function(c){
+      var r=(CONFIG.rooms||[]).filter(function(x){ return String(x.id)===c.dataset.id; })[0]; if(!r) return;
+      var on=roomOn(r); if(c.classList.contains('live')!==on) c.classList.toggle('live', on);
+      var w=c.querySelector('.room-card-st'), t=(typeof _ppLine==='function')?_ppLine(r):''; if(w && w.textContent!==t) w.textContent=t;
+    });
+  };
+
   // ── TWEENS: a value redrawn in new markup moves from where it was (lights glow, climate dial) ────────────────────────
   var _mem={};
   function tweens(){
@@ -28184,7 +28208,7 @@ try{ setInterval(_outcomesRead, LV_OUTCOME_EVERY_MS); }catch(e){}
 
   // ── 3 · PAGES GROW FROM WHAT YOU TAPPED ──────────────────────────────────────────────────────────────────────────────
   function grow(fromRect, radius, bgCss, art, nameText, nameFrom, nameFs, toName){
-    var ov=document.createElement('div'); ov.className='mx-grow'+(art?' art':'');
+    var ov=document.createElement('div'); ov.className='mx-grow'+(art?' art':'')+(nameFs==='off'?' off':'');
     ov.style.cssText='left:'+fromRect.left+'px;top:'+fromRect.top+'px;width:'+fromRect.width+'px;height:'+fromRect.height+'px;border-radius:'+radius;
     ov.innerHTML='<div class="mx-grow-bg" style="'+bgCss+'"></div><div class="mx-grow-shade"></div>';
     document.body.appendChild(ov);
@@ -28204,8 +28228,8 @@ try{ setInterval(_outcomesRead, LV_OUTCOME_EVERY_MS); }catch(e){}
       return x.finished.then(function(){ ov.remove(); if(nm) nm.remove(); });
     }).catch(function(){ try{ ov.remove(); if(nm) nm.remove(); }catch(e){} });
   }
-  function shrink(toRect, radius, bgCss, art){
-    var ov=document.createElement('div'); ov.className='mx-grow'+(art?' art':'');
+  function shrink(toRect, radius, bgCss, art, off){
+    var ov=document.createElement('div'); ov.className='mx-grow'+(art?' art':'')+(off?' off':'');
     ov.style.cssText='left:0;top:0;width:'+innerWidth+'px;height:'+innerHeight+'px';
     ov.innerHTML='<div class="mx-grow-bg" style="'+bgCss+'"></div><div class="mx-grow-shade"></div>';
     document.body.appendChild(ov);
@@ -28231,7 +28255,7 @@ try{ setInterval(_outcomesRead, LV_OUTCOME_EVERY_MS); }catch(e){}
     showPage('home'); selectRoom(i);
     _lastRoomOpen=r.id;
     // 1366 (Dave 06:09 "the bold room name needs to go"): the tile alone grows — no name flies to the header
-    grow(rect, rad, photoCss(r), false, '', null, '', null);
+    grow(rect, rad, photoCss(r), false, '', null, roomOn(r)?'':'off', null);   // 1367: the grow carries the tile's on/off look
     setTimeout(staggerWidgets, 980);
   };
   // back to the Rooms page from a room: the page shrinks into that room's tile
@@ -28241,10 +28265,17 @@ try{ setInterval(_outcomesRead, LV_OUTCOME_EVERY_MS); }catch(e){}
       var from=curPage, room=(typeof curRoom!=='undefined'&&curRoom>=0)?CONFIG.rooms[curRoom]:null;
       var out=_showPage0.apply(this, arguments);
       try{
+        if(!RM && p==='rooms' && from!=='rooms' && !(from==='home' && room)){
+          // 1367 (Dave 06:42 "same speed opening the all rooms page"): the tiles arrive in turn over about a second
+          requestAnimationFrame(function(){ var n=0; document.querySelectorAll('#rooms-grid .room-card').forEach(function(c){
+            var b=c.getBoundingClientRect(); if(b.bottom<0||b.top>innerHeight) return;
+            c.animate([{opacity:0,transform:'translateY(18px) scale(.97)'},{opacity:1,transform:'none'}],{duration:700,delay:n*70,easing:SHEET,fill:'backwards'}); n++; }); });
+        }
+        try{ window._mxRoomState(); }catch(e){}
         if(!RM && p==='rooms' && from==='home' && room){
           requestAnimationFrame(function(){ var c=document.querySelector('#rooms-grid .room-card[data-id="'+String(room.id).replace(/"/g,'')+'"]'); if(!c) return;
             var b=c.getBoundingClientRect(); if(!b.width||b.bottom<0||b.top>innerHeight) return;
-            shrink(b, getComputedStyle(c).borderRadius||'18px', photoCss(room), false); });
+            shrink(b, getComputedStyle(c).borderRadius||'18px', photoCss(room), false, !roomOn(room)); });
         }
       }catch(e){}
       return out;
@@ -28264,7 +28295,16 @@ try{ setInterval(_outcomesRead, LV_OUTCOME_EVERY_MS); }catch(e){}
           var b=c.getBoundingClientRect(), art=cardArt(c), rad=getComputedStyle(c).borderRadius||'16px';
           var bg=art?('background-image:'+art):'background-image:linear-gradient(135deg,#1e1e28,#0a0a0e)';
           _grown={card:c, bg:bg, rad:rad, open:true};
-          grow(b, rad, bg, true, '', null, '', null);
+          // 1367 (Dave 06:42: tapping the art "sort of goes blank for a few seconds … then shows the control page"): the
+          // control page ITSELF opens out of the card — it is visible the whole way; no cover is drawn over it
+          var pg=document.getElementById('atv-page');
+          if(pg && pg.classList.contains('open')){
+            var W=innerWidth, H=innerHeight, r0=parseFloat(rad)||16;
+            var from='inset('+b.top+'px '+(W-b.right)+'px '+(H-b.bottom)+'px '+b.left+'px round '+r0+'px)';
+            pg.classList.add('mx-from');
+            var an=pg.animate([{clipPath:from},{clipPath:'inset(0px 0px 0px 0px round 0px)'}],{duration:700,easing:SHEET});
+            an.finished.then(function(){ pg.classList.remove('mx-from'); }).catch(function(){ pg.classList.remove('mx-from'); });
+          } else grow(b, rad, bg, true, '', null, '', null);
         }
       }catch(e){}
       return out;
@@ -28407,6 +28447,7 @@ try{ setInterval(_outcomesRead, LV_OUTCOME_EVERY_MS); }catch(e){}
       var out=_onState0.apply(this, arguments);
       try{
         if(eid.indexOf('light.')===0) window._mxWarm();
+        if(eid.indexOf('light.')===0 || eid.indexOf('media_player.')===0 || eid.indexOf('sensor.proos_activity_')===0) window._mxRoomState();
         if(_sw && _sw.groups) _mxPaint(false);
       }catch(e){}
       return out;
