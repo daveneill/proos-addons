@@ -3415,7 +3415,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111502';
+const PROOS_BUILD='2026111503';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -16910,7 +16910,47 @@ async function renderUsers(){
   if(!humans.length){ html+='<div class="empty"><div class="et">No people yet</div><div class="es">Add a homeowner or a pro below.</div></div>'; }
   else { humans.forEach(u=>{ html+=_usrCard(u); }); }
   html+='<button class="btn-ghost" style="margin-top:6px" onclick="usrAddToggle()">+ Add a Person</button><div id="usr-add"></div>';
+  html+='<div id="usr-homeaway"></div>';
   body.innerHTML=html;
+  usrHomeAwayLoad();
+}
+// ── HOME AND AWAY, THE UNIFI WAY (register 1358, Dave 15 Nov 16:13–16:15) ──
+// Each person's PRIMARY DEVICE decides whether they are home — read from ProOS Core (/people/homeaway), which keeps the
+// platform's person record following that one device (a Mac or a wall panel never counts unless chosen). The home's
+// radius is the platform's own home zone.
+async function usrHomeAwayLoad(){
+  const host=document.getElementById('usr-homeaway'); if(!host) return;
+  let d=null; try{ const r=await fetch(proCoreUrl()+'/people/homeaway'); d=r.ok?await r.json():null; }catch(e){}
+  if(!d){ setHTML(host,'<div class="bld-sec" style="margin-top:22px"><div class="bld-sec-h">Home and Away</div><div class="wiz-hint">Couldn\u2019t read it from ProOS Core.</div></div>'); return; }
+  const st=s=>s==='home'?'<span style="color:#84d9b4">Home</span>':s==='not_home'?'Away':(s?esc(String(s)):'Not known yet');
+  const ppl=(d.people||[]).filter(p=>(p.devices||[]).length);
+  const rows=ppl.map(p=>{
+    const opts=(p.devices||[]).filter(x=>x.tracker).map(x=>'<option value="'+esc(x.entry_id)+'"'+(x.entry_id===p.primary?' selected':'')+'>'+esc(x.name)+'</option>').join('');
+    const why=p.why==='chosen'?'Chosen':p.why==='first iPhone'?'The first iPhone they signed in on':'No phone signed in yet \u2014 choose one';
+    return '<div class="row"><div class="rl">'+esc(p.name||'\u2014')+' <span class="field-hint">\u00b7 '+st(p.state)+'</span>'
+      +'<div class="field-hint" style="margin-top:2px">Primary Device \u2014 '+why+'</div></div>'
+      +'<div class="rr"><select class="fsel" onchange="usrPrimarySet(\''+esc(p.person_id)+'\',this.value)">'
+      +(p.primary?'':'<option value="" selected>Choose\u2026</option>')+opts+'</select></div></div>';
+  }).join('');
+  const rad=(d.home&&d.home.radius)||'';
+  setHTML(host,'<div class="bld-sec" style="margin-top:22px"><div class="bld-sec-h">Home and Away</div>'
+    +'<div class="wiz-hint">Each person\u2019s Primary Device decides whether they\u2019re home. A Mac or a wall panel never counts unless it is chosen here.</div>'
+    +(rows||'<div class="wiz-hint">No one has signed in on a phone yet.</div>')
+    +'<div class="row" style="margin-top:10px"><div class="rl">Home Radius<div class="field-hint" style="margin-top:2px">How far from the home\u2019s location counts as home'+((d.home&&d.home.set)?'':' \u2014 the home\u2019s location isn\u2019t set yet')+'.</div></div>'
+    +'<div class="rr"><input id="usr-radius" type="number" min="50" max="2000" step="10" value="'+esc(String(rad))+'" style="width:84px"> m '
+    +'<button class="btn-ghost" style="padding:6px 12px" onclick="usrRadiusSet()">Save</button></div></div></div>');
+}
+async function usrPrimarySet(personId,entryId){
+  if(!entryId) return;
+  try{ const r=await fetch(proCoreUrl()+'/people/homeaway/primary',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({person_id:personId,entry_id:entryId})});
+    const j=await r.json(); toast(r.ok&&j.ok?'Primary Device set':(j.error||'ProOS Core refused it')); }catch(e){ toast(_coreFailWords('',e)); }
+  usrHomeAwayLoad();
+}
+async function usrRadiusSet(){
+  const v=parseInt((document.getElementById('usr-radius')||{}).value,10);
+  try{ const r=await fetch(proCoreUrl()+'/people/homeaway/home',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({radius:v})});
+    const j=await r.json(); toast(r.ok&&j.ok?'Home radius set to '+j.radius+' m':(j.error||'ProOS Core refused it')); }catch(e){ toast(_coreFailWords('',e)); }
+  usrHomeAwayLoad();
 }
 
 // The four tiers, in the product's words (register 721): Developer · Tech · Installer · Homeowner.

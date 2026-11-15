@@ -4495,6 +4495,8 @@ def factory_reset(clear_proos_data=False, keep_auth=False):
                    # the box's ProOS Connect id and secret (register 969u) — a reset box asks to join afresh and is
                    # approved again on Connect, so a box passed to another home never carries the old approval
                    "connect.json", "connect_policy.json", "tiles_sync.json",
+                   # each person's chosen Primary Device (register 1358) — the reset deletes the platform's people
+                   "presence.json",
                    # the box's remote-access key pair and Connect's pinned host key (register 969v) — made afresh with
                    # the new Connect id
                    "connect_ssh_ed25519", "connect_ssh_ed25519.pub", "connect_known_hosts",
@@ -5861,6 +5863,7 @@ _push_lock = threading.Lock()
 _PUSH_APP_PREFIX = "au.com.protechsystems.ProOS"
 
 
+_PRESENCE_EVERY_S = 60          # plumbing: how often a new sign-in's tracker is put back to the Primary Device (1358)
 _PUSH_STATUS_PATH = os.path.join(os.environ.get("PROOS_DATA_DIR", "/data"), "push_status.json")
 _PUSH_STATUS = {}
 
@@ -5931,6 +5934,39 @@ def _push_signins():
     _all = {r[0]: {"state": r[2], "last_reported": r[3], "last_updated": r[4]} for r in rows if len(r) == 5}
     _state = _all.get
     return _psi.signins(entries, ereg, _state, push_status())
+
+
+def _presence_read():
+    """REGISTER 1358: what home and away is made of, read from the platform — person records (person/list), the app
+    sign-ins (config entries), each sign-in's tracker and the person entities' states (one template read)."""
+    persons = ((_ws_call("person/list") or {}).get("storage")) or []
+    try:
+        with open(_HA_STORAGE_ENTRIES) as f:
+            entries = (json.load(f).get("data") or {}).get("entries", []) or []
+    except Exception:  # noqa: BLE001
+        entries = []
+    tpl = ("{% set ns = namespace(t=[], p=[]) %}"
+           "{% for e in integration_entities('mobile_app') if e.startswith('device_tracker.') %}"
+           "{% set ns.t = ns.t + [[config_entry_id(e), e, states(e)]] %}{% endfor %}"
+           "{% for s in states.person %}{% set ns.p = ns.p + [[s.entity_id, s.state, s.attributes.id]] %}{% endfor %}"
+           "{{ {'t': ns.t, 'p': ns.p} | tojson }}")
+    try:
+        got = json.loads(_client.render_template(tpl) or "{}")
+    except Exception:  # noqa: BLE001
+        got = {}
+    trackers = {r[0]: r[1] for r in got.get("t") or [] if len(r) == 3 and r[0]}
+    states = {r[1]: r[2] for r in got.get("t") or [] if len(r) == 3}
+    for r in got.get("p") or []:
+        if len(r) == 3 and r[2]:
+            states["person:%s" % r[2]] = r[1]
+    return persons, entries, trackers, states
+
+
+def _presence_write(person, device_trackers):
+    """The platform's own person/update — every field it holds passed back unchanged but the trackers."""
+    _ws_call("person/update", person_id=person["id"], name=person.get("name"), user_id=person.get("user_id"),
+             device_trackers=list(device_trackers), picture=person.get("picture"))
+    print("  presence · %s now follows %s" % (person.get("name"), ", ".join(device_trackers)), flush=True)
 
 
 def push_status():
@@ -8489,6 +8525,25 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, {"on": _proactive_mod.device_optins() if _proactive_mod else {},
                                         "critical": sorted(_proactive_mod.critical_devices(_reg_)) if _proactive_mod else [],
                                         "recipients": sorted(_alert_recipients() or [])})
+            if parts == ["people", "homeaway"]:
+                # REGISTER 1358: each person's devices and Primary Device, and the home's radius. A tech or the owner
+                # sees everyone; anyone else sees only themselves (the app's Coming and Going).
+                u = getattr(self, "_user", None)
+                if not (users and u):
+                    return self._send(403, {"error": "sign in first"})
+                from proos import presence as _pr
+                persons, entries, trackers, states = _presence_read()
+                ppl = _pr.people(persons, entries, trackers, states, _pr._load().get("primary") or {})
+                if not (u.get("is_owner") or users.is_tech(u.get("id"))):
+                    ppl = [x for x in ppl if x.get("user_id") == u.get("id")]
+                for x in ppl:                                    # the app's Coming and Going finds its own person
+                    x["me"] = x.get("user_id") == u.get("id")
+                try:
+                    z = (_client._req("GET", "/api/states/zone.home") or {}).get("attributes") or {}
+                except Exception:  # noqa: BLE001
+                    z = {}
+                return self._send(200, {"people": ppl, "home": {"radius": z.get("radius"),
+                                                                "set": bool(z.get("latitude"))}})
             if parts == ["push", "signins"]:
                 # REGISTER 1354: every app signed in to this box as the platform holds it — which app, when it last
                 # sent anything, which sign-ins share an alert channel and which one the last alert went to.
@@ -10827,6 +10882,45 @@ class Handler(BaseHTTPRequestHandler):
                 if not did_ or _proactive_mod is None:
                     return self._send(400, {"error": "device_id required"})
                 return self._send(200, {"ok": True, "on": _proactive_mod.set_device_optin(did_, bool(b_.get("on")))})
+            if parts == ["people", "homeaway", "primary"]:
+                # REGISTER 1358: choose a person's Primary Device — a tech or the owner for anyone, a person for
+                # themselves; only one of that person's own app sign-ins. The record follows it at once.
+                u = getattr(self, "_user", None)
+                if not (users and u):
+                    return self._send(403, {"error": "sign in first"})
+                from proos import presence as _pr
+                b_ = self._body() or {}
+                pid, eid = str(b_.get("person_id") or ""), str(b_.get("entry_id") or "")
+                persons, entries, trackers, states = _presence_read()
+                me = next((x for x in _pr.people(persons, entries, trackers, states) if x["person_id"] == pid), None)
+                if not me:
+                    return self._send(404, {"error": "no such person"})
+                if not (u.get("is_owner") or users.is_tech(u.get("id")) or me.get("user_id") == u.get("id")):
+                    return self._send(403, {"error": "only your own Primary Device"})
+                if not any(d["entry_id"] == eid and d["tracker"] for d in me["devices"]):
+                    return self._send(400, {"error": "that is not one of this person's devices"})
+                _pr.choose(pid, eid)
+                try:
+                    changed = _pr.keep(_presence_read, _presence_write)
+                except Exception as ex:  # noqa: BLE001
+                    return self._send(502, {"error": "saved, but the platform could not be updated yet: %s" % str(ex)[:120]})
+                return self._send(200, {"ok": True, "changed": changed})
+            if parts == ["people", "homeaway", "home"]:
+                # REGISTER 1358: the home's radius — the platform's own home zone (config/core/update), tech/owner.
+                u = getattr(self, "_user", None)
+                if not (users and u and (u.get("is_owner") or users.is_tech(u.get("id")))):
+                    return self._send(403, {"error": "tech access required"})
+                try:
+                    r_ = int((self._body() or {}).get("radius") or 0)
+                except (TypeError, ValueError):
+                    r_ = 0
+                if not 50 <= r_ <= 2000:
+                    return self._send(400, {"error": "a radius between 50 and 2000 metres"})
+                try:
+                    _ws_call("config/core/update", radius=r_)
+                except Exception as ex:  # noqa: BLE001
+                    return self._send(502, {"error": "the platform did not take it: %s" % str(ex)[:120]})
+                return self._send(200, {"ok": True, "radius": r_})
             if parts == ["push", "signins", "remove"]:
                 # REGISTER 1354 (Dave 15 Nov 13:25 "yes"): a tech removes a stale sign-in from Toolbox › Notifications.
                 # Only an app sign-in (mobile_app), named by the list the page was shown; the platform's own delete.
@@ -14120,6 +14214,18 @@ def main():
                     print("  [connect] app tiles check failed: %s" % str(_e)[:160], flush=True)
                 time.sleep(_ck_boot.POLICY_TTL_S)
         threading.Thread(target=_connect_keys_loop, name="connect-keys", daemon=True).start()
+
+        def _presence_loop():
+            # REGISTER 1358: the platform adds every new sign-in's tracker to its person; within a minute ProOS puts
+            # the record back on that person's Primary Device.
+            from proos import presence as _pr_boot
+            while True:
+                time.sleep(_PRESENCE_EVERY_S)
+                try:
+                    _pr_boot.keep(_presence_read, _presence_write)
+                except Exception as _e:                          # noqa: BLE001
+                    print("  presence · check failed: %s" % str(_e)[:160], flush=True)
+        threading.Thread(target=_presence_loop, name="presence", daemon=True).start()
     except Exception as _e:                                      # noqa: BLE001
         print("  [connect] keys check not started: %s" % _e, flush=True)
 

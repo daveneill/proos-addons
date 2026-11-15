@@ -59,6 +59,7 @@ PER_SITE = {
     "connect.json": "the box's ProOS Connect id and secret (register 969u) — a reset box asks to join afresh and is approved again",
     "connect_policy.json": "ProOS Connect's last word on the fleet's AI and its keys (register 1347) — a reset box asks Connect again within minutes",
     "tiles_sync.json": "the last tile mirror's record (register 1350) — a reset box mirrors Connect again within 10 minutes",
+    "presence.json": "each person's chosen Primary Device (register 1358) — the reset deletes the platform's people; a reset home chooses afresh",
     "net_pending.json": "a network change waiting for Keep These Settings (register 969z) — the reset starts with none",
     "weather_std.json": "where Core put the weather service (register 970a) — a reset box sets it up afresh at its new location",
     "navconfig.json": "published nav layout",
