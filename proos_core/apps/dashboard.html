@@ -3296,7 +3296,7 @@ html[data-link="remote"]{--m-tap:90ms;--m-move:200ms;--m-page:300ms}
 #widget-picker,#music-act-sheet,#music-queue-overlay,#scene-edit,.appc-ov,#setup,#pin-overlay,
 #assist-overlay,#all-lights-overlay,#loading,#proos-reboot,#proos-dashupd,#light-overlay,
 #climate-all-overlay,#climate-overlay,#rotate-overlay,#svc-sheet,#proos-sheet,#proos-tv-wait,#pp,#jv,.sg-pop,#proos-acard,#mus-ask,
-#mx-sweep,#device-chooser{padding-top:var(--proos-sat)}
+#pv-card,#mx-sweep,#device-chooser{padding-top:var(--proos-sat)}
 /* THE CLEARANCE IS A FLOOR, NOT AN ADDITION (7 Sep 2026, register 362).
    Dave: "Mobile needs to be looked at every page on the dashboard for layout
    these pages are all too low just looks all wrong". Measured at 393x852 with
@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111604';
+const PROOS_BUILD='2026111605';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -11017,6 +11017,11 @@ function renderWidgetContent(w){
   const widgetId=w.id;
   const r=curRoom===-1?null:CONFIG.rooms[curRoom];
   const icon = W_SVG[widgetId]||'';
+  // REGISTER 1370: the widget preview (Developer login or Pro mode, this screen only) draws Lights, Blinds and Now Playing the new way
+  if(typeof _pvTakes==='function' && _pvTakes(widgetId)){
+    const _pv=widgetId==='lights'?_pvLights(w):widgetId==='covers'?_pvCovers(w):_pvMedia(w);
+    if(_pv) return {icon, label:'', value:'', sub:'', html:_pv, hsig:_pv, on:false};
+  }
   switch(widgetId){
     case 'device': {
       const eid=w.entity;
@@ -12779,6 +12784,8 @@ function renderWidgetGrid(){
       if(_widgetEditMode) return;
       // 932 (panel build 2): a wall panel is never edited by a hold — Settings › Edit Home Screen opens it on purpose
       if(typeof _isPanel==='function' && _isPanel()) return;
+      // 1370: a preview widget's hold opens its full control — editing starts from the Edit button instead
+      if(cell.querySelector('.pvw')) return;
       _hx=e.clientX; _hy=e.clientY;
       clearTimeout(_holdTimer);
       _holdTimer=setTimeout(()=>{
@@ -12961,6 +12968,7 @@ function renderWidgetGrid(){
   addBtn.style.cssText=doneBtn.style.cssText+';color:rgba(255,255,255,0.9)';
   actionRow.style.justifyContent='flex-end';   // 1011b: + Add Widget and Done side by side at the right (they sat at opposite edges)
   addBtn.addEventListener('click', openWidgetPicker);
+  if(typeof _pvEditBtn==='function' && !(typeof _isPanel==='function' && _isPanel()) && _pvMayShow()) actionRow.appendChild(_pvEditBtn());   // 1370: Edit, shown while not editing
   actionRow.appendChild(addBtn);
   _ensureAddPill();   // the wall panel's own + (shown only in its edit mode)
   actionRow.appendChild(doneBtn);
@@ -15417,6 +15425,7 @@ function renderSettings(){
       </div>
       ${ssSettingRow()}
       ${retSettingRow()}
+      ${(typeof _pvSettingRow==='function')?_pvSettingRow():''}
       ${(typeof _proosAndroid==='function'&&_proosAndroid())?`<div class="set-row" style="cursor:pointer" onclick="micTestOpen()"><div class="sg-tx"><div class="set-label">Test Microphone</div><div class="set-field-hint sg-in">Say one sentence nine times so ProOS can choose the setting this screen hears you best with.</div></div><div class="set-value">&rsaquo;</div></div>`:''}
     </div>
     ${_installerMode ? `
@@ -24101,6 +24110,353 @@ async function saveService(){
 #assist-panel{transform:scale(0.97)!important;opacity:0;transition:transform var(--m-move) var(--e-sheet),opacity var(--m-move)!important}
 #assist-overlay.open #assist-panel{transform:none!important;opacity:1}
 </style>
+<!-- ══ REGISTER 1370 — THE WIDGET PREVIEW (Dave 16 Nov 10:24: "1. yes 2. I will go with your suggestion"). Behind a switch only the
+     Developer login or Pro mode can see (Settings › This Device › Widget Preview), on THIS screen only; off, nothing changes.
+     With it on, three widgets are drawn the new way on the real rooms and devices — Lights, Blinds (covers) and Now Playing —
+     and all three work by one grammar: TAP does the obvious thing, SLIDE across the widget sets the level (the widget fills like
+     liquid and the number rolls; the level is sent when you let go and the widget then settles on what the device REPORTS), HOLD
+     opens the full control as a centred card. Slide is sideways so a page of widgets still scrolls up and down. Editing the
+     layout no longer starts by holding one of these widgets: an Edit button stands where + Add Widget and Done appear. -->
+<style>
+.pvw{position:absolute;inset:0;border-radius:inherit;overflow:hidden;display:flex;flex-direction:column;justify-content:space-between;padding:14px 16px;
+  touch-action:pan-y;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;color:#fff;transition:transform var(--m-page) var(--e-spring)}
+.pvw.press{transform:scale(.965)}
+.pvw .pv-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;position:relative;z-index:2}
+.pvw .pv-ic{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;background:rgba(255,255,255,.09);color:rgba(255,255,255,.85);flex:none;transition:background var(--m-page) var(--e-standard),color var(--m-page) var(--e-standard)}
+.pvw .pv-ic svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.pvw .pv-bot{position:relative;z-index:2;min-width:0}
+.pvw .pv-n{font-size:30px;font-weight:600;letter-spacing:-.02em;line-height:1;display:flex;font-variant-numeric:tabular-nums;min-height:30px}
+.pvw .pv-nm{font-size:15px;font-weight:600;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pvw .pv-sub{font-size:12.5px;font-weight:500;color:rgba(255,255,255,.66);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pv-roll{display:inline-block;height:1em;line-height:1;overflow:hidden;vertical-align:top}
+.pv-roll>span{display:block;transition:transform var(--m-page) var(--e-spring)}
+.pv-roll>span>i{display:block;font-style:normal;height:1em;line-height:1}
+.pv-sw{width:42px;height:25px;border-radius:13px;background:rgba(255,255,255,.16);position:relative;flex:none;transition:background var(--m-move) var(--e-standard)}
+.pv-sw::after{content:'';position:absolute;left:3px;top:3px;width:19px;height:19px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.35);transition:transform var(--m-page) var(--e-spring)}
+.pvw.on .pv-sw{background:#2139F0}.pvw.on .pv-sw::after{transform:translateX(17px)}
+/* the liquid: it fills from the left, its edge a moving surface */
+.pv-fill{position:absolute;left:0;top:0;bottom:0;width:0;z-index:1;pointer-events:none;transition:width var(--m-page) var(--e-spring)}
+.pvw.drag .pv-fill,.pv-lane.drag .pv-lf{transition:none}
+.pv-fill i{position:absolute;inset:0}
+.pv-fill svg{position:absolute;right:-9px;top:0;width:10px;height:200%;animation:pvWave calc(var(--m-gate) * 3.5) linear infinite}
+.pvw.drag .pv-fill svg{animation-duration:var(--m-door)}
+@keyframes pvWave{to{transform:translateY(-50%)}}
+.pv-lights .pv-fill i{background:linear-gradient(90deg,rgba(255,170,80,.34),rgba(255,206,130,.55))}
+.pv-lights .pv-fill path{fill:rgba(255,206,130,.55)}
+.pv-lights.on .pv-ic{background:rgba(255,196,107,.24);color:#FFD89A}
+.widget-cell:has(.pv-lights.on){box-shadow:inset 0 0 0 1px rgba(255,210,150,.22),0 10px 34px rgba(255,170,80,.16)}
+/* each light its own lane (Wide) */
+.pv-lanes{display:grid;grid-template-columns:repeat(var(--n,3),minmax(0,1fr));gap:8px;position:relative;z-index:2;height:62px}
+.pv-lane{position:relative;border-radius:14px;overflow:hidden;background:rgba(255,255,255,.06);display:flex;flex-direction:column;justify-content:flex-end;padding:7px 9px;min-width:0}
+.pv-lane .pv-lf{position:absolute;left:0;top:0;bottom:0;width:0;background:linear-gradient(90deg,rgba(255,170,80,.34),rgba(255,206,130,.6));transition:width var(--m-page) var(--e-spring)}
+.pv-lane b{position:relative;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pv-lane small{position:relative;font-size:11px;line-height:1;margin-top:3px;color:rgba(255,255,255,.75);display:flex;align-items:flex-start}
+/* the blind: drawn at the motor's own report, its slats travel while it moves */
+.pv-blind{position:absolute;left:0;right:0;top:0;height:0;z-index:1;pointer-events:none;transition:height var(--m-door) var(--e-standard);
+  background:repeating-linear-gradient(180deg,rgba(225,218,205,.34) 0 9px,rgba(190,182,168,.34) 9px 10px);box-shadow:0 4px 10px rgba(0,0,0,.25)}
+.pv-covers.moving .pv-blind{animation:pvSlats var(--m-hold) linear infinite}
+@keyframes pvSlats{to{background-position:0 10px}}
+.pv-covers.closing .pv-blind{animation-direction:normal}.pv-covers.opening .pv-blind{animation-direction:reverse}
+.pv-cue{position:absolute;inset:0;z-index:3;display:grid;place-items:center;font-size:13px;font-weight:600;letter-spacing:.04em;opacity:0;pointer-events:none;transition:opacity var(--m-tap)}
+.pvw.drag .pv-cue{opacity:1;background:rgba(0,0,0,.25)}
+/* now playing: the cover bleeds in from the right, live bars, volume by sliding */
+.pv-media .pv-cv{position:absolute;right:0;top:0;bottom:0;width:52%;background:center/cover no-repeat;opacity:.85;-webkit-mask-image:linear-gradient(90deg,transparent,#000 70%);mask-image:linear-gradient(90deg,transparent,#000 70%);filter:saturate(1.15)}
+.pv-media .pv-row{display:flex;gap:12px;align-items:center;position:relative;z-index:2;min-width:0}
+.pv-media .pv-art{width:56px;height:56px;border-radius:12px;background:#222 center/cover;flex:none;position:relative;box-shadow:0 8px 20px rgba(0,0,0,.4);transition:transform var(--m-page) var(--e-spring)}
+.pv-media.paused .pv-art{transform:scale(.88)}
+.pv-bars{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;gap:3px;align-items:center;height:22px}
+.pv-bars i{width:3px;border-radius:2px;background:#fff;box-shadow:0 0 6px rgba(0,0,0,.5);animation:pvBar var(--m-hold) ease-in-out infinite}
+.pv-bars i:nth-child(2){animation-delay:-.3s}.pv-bars i:nth-child(3){animation-delay:-.6s}.pv-bars i:nth-child(4){animation-delay:-.15s}
+.pv-media.paused .pv-bars{display:none}
+@keyframes pvBar{0%,100%{height:5px}50%{height:20px}}
+.pv-media .pv-tt{min-width:0;flex:1}.pv-media .pv-tt b{display:block;font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pv-media .pv-tt small{display:block;font-size:12.5px;font-weight:500;color:rgba(255,255,255,.66);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pv-media .pv-pp{width:40px;height:40px;border-radius:50%;background:#fff;display:grid;place-items:center;flex:none}
+.pv-media .pv-pp svg{width:16px;height:16px;fill:#000}
+.pv-media .pv-tm{display:flex;gap:10px;align-items:center;position:relative;z-index:2;font-size:11.5px;color:rgba(255,255,255,.66);font-variant-numeric:tabular-nums}
+.pv-media .pv-tr{flex:1;height:3px;border-radius:2px;background:rgba(255,255,255,.18);overflow:hidden}.pv-media .pv-tr i{display:block;height:100%;background:#fff;width:0}
+.pv-vol{position:absolute;left:14px;right:14px;bottom:12px;height:34px;border-radius:12px;background:rgba(0,0,0,.4);overflow:hidden;z-index:3;display:flex;align-items:center;padding:0 12px;font-size:12.5px;font-weight:600;opacity:0;transform:translateY(8px);transition:opacity var(--m-move),transform var(--m-page) var(--e-spring);pointer-events:none}
+.pv-vol i{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,rgba(33,57,240,.75),rgba(77,99,255,.45));width:0}
+.pv-vol span{position:relative;display:flex;gap:6px}
+.pvw.vol .pv-vol{opacity:1;transform:none}
+/* the Edit button (preview): where + Add Widget and Done appear */
+#widget-edit-btn{display:none;background:rgba(255,255,255,0.08);border:0.5px solid rgba(255,255,255,0.2);border-radius:20px;color:rgba(255,255,255,0.9);font-size:11px;letter-spacing:0.06em;padding:6px 20px;cursor:pointer;font-family:inherit}
+body.pv-on #widget-edit-btn{display:inline-block}
+body.proos-editing #widget-edit-btn{display:none!important}
+/* the full control, grown out of the held widget — a centred card in the widgets' frosting */
+#pv-card{position:fixed;inset:0;z-index:10070;display:flex;align-items:center;justify-content:center;padding-left:16px;padding-right:16px;padding-bottom:16px}
+#pv-card .pv-scrim{position:absolute;inset:0;background:rgba(0,0,0,.35);-webkit-backdrop-filter:blur(18px) saturate(120%);backdrop-filter:blur(18px) saturate(120%)}
+#pv-card .pv-panel{position:relative;width:min(460px,100%);height:min(520px,calc(100% - 40px));border-radius:28px;display:flex;flex-direction:column;gap:14px;padding:22px 24px;color:#fff;
+  background:rgba(22,22,28,.62);-webkit-backdrop-filter:blur(26px) saturate(150%);backdrop-filter:blur(26px) saturate(150%);box-shadow:inset 0 0 0 1px rgba(255,255,255,.10),0 30px 60px rgba(0,0,0,.45)}
+#pv-card .pv-hd{display:flex;justify-content:space-between;align-items:center}
+#pv-card .pv-hd b{font-size:20px;font-weight:600}
+#pv-card .pv-x{width:40px;height:40px;border-radius:50%;border:0;background:rgba(255,255,255,.12);color:#fff;display:grid;place-items:center;cursor:pointer}
+#pv-card .pv-x svg{width:14px;height:14px;stroke:#fff;stroke-width:2;fill:none;stroke-linecap:round}
+#pv-card .pv-liq{position:relative;flex:1;min-height:0;display:flex;gap:18px;touch-action:none}
+#pv-card .pv-liq canvas{width:130px;height:100%;flex:none}
+#pv-card .pv-big{align-self:center;font-size:62px;font-weight:600;letter-spacing:-.03em;line-height:1;display:flex;font-variant-numeric:tabular-nums}
+#pv-card .pv-chips{display:flex;flex-wrap:wrap;gap:8px}
+#pv-card .pv-chip{font:inherit;font-size:13px;font-weight:500;padding:8px 12px;border-radius:12px;border:0;color:#fff;background:rgba(255,255,255,.08);cursor:pointer}
+#pv-card .pv-chip.on{background:rgba(255,196,107,.24);color:#FFD89A}
+#pv-card .pv-btns{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+#pv-card .pv-btns button{font:inherit;font-size:15px;font-weight:600;height:64px;border-radius:18px;border:0;color:#fff;background:rgba(255,255,255,.1);cursor:pointer}
+#pv-card .pv-btns button.lit{background:#fff;color:#000}
+@media (prefers-reduced-motion:reduce){.pv-fill svg,.pv-bars i,.pv-covers.moving .pv-blind{animation:none!important}.pvw,.pv-fill,.pv-lane .pv-lf,.pv-blind{transition:none!important}}
+</style>
+<script>
+(function(){
+  var KEY='proos_preview_widgets';
+  function on(){ try{ return localStorage.getItem(KEY)==='1'; }catch(e){ return false; } }
+  window._pvOn=on;
+  window._pvMayShow=function(){ try{ return !!((window._haUser&&window._haUser.is_owner)||(typeof _haUser!=='undefined'&&_haUser&&_haUser.is_owner)||(typeof _installerMode!=='undefined'&&_installerMode)); }catch(e){ return false; } };
+  window._pvSet=function(v){ try{ if(v) localStorage.setItem(KEY,'1'); else localStorage.removeItem(KEY); }catch(e){}
+    document.body.classList.toggle('pv-on', !!v); try{ renderWidgetGrid(); }catch(e){} try{ renderSettings(); }catch(e){} };
+  try{ document.body.classList.toggle('pv-on', on()); }catch(e){}
+  window._pvSettingRow=function(){
+    if(!window._pvMayShow()) return '';
+    var v=on();
+    return '<div class="set-row"><div class="sg-tx"><div class="set-label">Widget Preview</div><div class="set-field-hint sg-in">The new Lights, Blinds and Now Playing widgets on this screen only — tap, slide across, hold for the full control. Edit opens editing.</div></div>'
+      +'<button type="button" onclick="_pvSet(!_pvOn())" style="background:none;border:0.5px solid rgba(255,255,255,0.15);border-radius:8px;padding:6px 18px;font-size:13px;font-family:inherit;color:'+(v?'#7CF0C5':'rgba(255,255,255,.7)')+';cursor:pointer">'+(v?'On':'Off')+'</button></div>';
+  };
+  var KINDS={lights:1,covers:1,media:1};
+  window._pvTakes=function(id){ return on() && !!KINDS[id]; };
+  // the Edit button: editing now starts here, because holding one of these widgets opens its full control
+  window._pvEditBtn=function(){ var b=document.createElement('button'); b.id='widget-edit-btn'; b.type='button'; b.textContent='Edit';
+    b.addEventListener('click', function(){ try{ enterWidgetEditMode(); }catch(e){} }); return b; };
+
+  function _pvEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  var IC={bulb:'<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z"/>',
+          blind:'<rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M4 8h16M4 12h16M4 16h16"/>'};
+  function svgI(k){ return '<svg viewBox="0 0 24 24" aria-hidden="true">'+IC[k]+'</svg>'; }
+  var WAVE='<svg viewBox="0 0 10 200" preserveAspectRatio="none" aria-hidden="true"><path d="M0 0 Q10 12.5 0 25 T0 50 T0 75 T0 100 T0 125 T0 150 T0 175 T0 200 H-10 V0z"/></svg>';
+  // what the user just asked for, shown until the device reports it (or a few seconds pass) — then the device's own reading
+  var pend={};
+  function pendOr(k, dev){ var p=pend[k]; if(!p) return dev; if(Date.now()-p.t>4000 || (dev!=null && Math.abs(dev-p.v)<=2)){ delete pend[k]; return dev; } return p.v; }
+
+  // ── LIGHTS ── the room's lights; dimmers by their reported brightness, switches as full when on
+  function roomOf(w){ return (typeof curRoom!=='undefined'&&curRoom>=0)?CONFIG.rooms[curRoom]:null; }
+  function lightsOf(r){ return r?(r.lights||[]):[].concat.apply([],(CONFIG.rooms||[]).map(function(x){ return x.lights||[]; })); }
+  function dims(l){ try{ return typeof _wLightDims==='function'?_wLightDims(l):(att(l,'brightness')!=null); }catch(e){ return false; } }
+  function lvl(l){ if(st(l)!=='on') return 0; if(!dims(l)) return 100; var b=att(l,'brightness'); return (b!=null&&b!=='')?Math.max(1,Math.round(b/2.55)):100; }
+  function roomLevel(ls){ var on=ls.filter(function(l){ return st(l)==='on'; }); if(!on.length) return 0; var d=on.filter(dims); var src=d.length?d:on; return Math.round(src.reduce(function(a,l){ return a+lvl(l); },0)/src.length); }
+  function nameOf(l, r){ var n=String(att(l,'friendly_name')||l.split('.')[1]); var rn=r&&r.name?String(r.name):''; if(rn && n.toLowerCase().indexOf(rn.toLowerCase()+' ')===0 && n.length>rn.length+1) n=n.slice(rn.length+1); return n; }
+  window._pvLights=function(w){
+    var r=roomOf(w), ls=lightsOf(r), dm=(typeof _widgetDims==='function')?_widgetDims(w):{w:1,h:1};
+    var dev=roomLevel(ls), v=pendOr(w.uid, dev), anyOn=v>0;
+    var lit=ls.filter(function(l){ return st(l)==='on'; }).length;
+    var onlySw=anyOn && !ls.some(function(l){ return st(l)==='on'&&dims(l); });
+    var num=anyOn?(onlySw?'On':v+'%'):'Off';
+    var sub=ls.length?(lit+' of '+ls.length+' on'):'No lights';
+    if(dm.w>=2){
+      var show=ls.slice(0,4);
+      var lanes=show.map(function(l){ var lv=pendOr(w.uid+'|'+l, lvl(l)); var dd=dims(l);
+        return '<div class="pv-lane" data-ent="'+_pvEsc(l)+'" data-dim="'+(dd?1:0)+'"><div class="pv-lf" style="width:'+(st(l)==='on'?(dd?lv:100):0)+'%"></div><b>'+_pvEsc(nameOf(l,r))+'</b><small class="pv-num" data-k="'+_pvEsc(w.uid+'|'+l)+'" data-v="'+(st(l)==='on'?(dd?lv+'%':'On'):'Off')+'"></small></div>'; }).join('');
+      return '<div class="pvw pv-lights'+(anyOn?' on':'')+'" data-pv="lights" data-pvuid="'+_pvEsc(w.uid)+'">'
+        +'<div class="pv-top"><div style="min-width:0"><div class="pv-nm" style="margin:0">Lights</div><div class="pv-sub">'+_pvEsc(sub)+' · slide a light to dim it</div></div><span class="pv-ic">'+svgI('bulb')+'</span></div>'
+        +'<div class="pv-lanes" style="--n:'+Math.max(1,show.length)+'">'+lanes+'</div></div>';
+    }
+    return '<div class="pvw pv-lights'+(anyOn?' on':'')+'" data-pv="lights" data-pvuid="'+_pvEsc(w.uid)+'">'
+      +'<div class="pv-fill" style="width:'+(anyOn?v:0)+'%"><i></i>'+WAVE+'</div>'
+      +'<div class="pv-top"><span class="pv-ic">'+svgI('bulb')+'</span><span class="pv-sw"></span></div>'
+      +'<div class="pv-bot"><div class="pv-n pv-num" data-k="'+_pvEsc(w.uid)+'" data-v="'+_pvEsc(num)+'"></div><div class="pv-nm">Lights</div><div class="pv-sub">'+_pvEsc(sub)+'</div></div></div>';
+  };
+  function setLights(ls, v){
+    var d=ls.filter(dims), s=ls.filter(function(l){ return !dims(l); });
+    if(v<=0){ if(ls.length) svc('light','turn_off',{entity_id:ls}); return; }
+    if(d.length) svc('light','turn_on',{entity_id:d, brightness_pct:Math.round(v)});
+    if(s.length) svc('light','turn_on',{entity_id:s});
+  }
+
+  // ── BLINDS ── the covers, by the motor's own report; slide sets a position only where the cover can take one
+  var F_OPEN=1, F_CLOSE=2, F_POS=4, F_STOP=8;
+  function covState(c){ var s=st(c), p=parseFloat(att(c,'current_position')); var closed=isFinite(p)?(100-p):(s==='closed'?100:s==='open'?0:null); return {s:s, closed:closed, f:parseInt(att(c,'supported_features')||0,10)}; }
+  window._pvCovers=function(w){
+    var r=roomOf(w), cs=r?(r.covers||[]):[].concat.apply([],(CONFIG.rooms||[]).map(function(x){ return x.covers||[]; }));
+    if(!cs.length) return '';
+    var c=cs[0], k=covState(c), moving=(k.s==='opening'||k.s==='closing');
+    var shut=pendOr(w.uid, k.closed==null?0:k.closed);
+    var word = moving ? (k.s==='opening'?'Opening':'Closing') : (k.closed==null ? 'No reading' : (k.closed>=99?'Closed':k.closed<=1?'Open':'Open '+Math.round(100-k.closed)+'%'));
+    var num = moving ? '' : (k.closed==null?'':(k.f&F_POS?Math.round(100-shut)+'%':(k.closed>=99?'Shut':'Open')));
+    var can=(k.f&F_POS)?'Slide to set':'Slide to open or close';
+    return '<div class="pvw pv-covers'+(moving?' moving '+k.s:'')+'" data-pv="covers" data-pvuid="'+_pvEsc(w.uid)+'" data-ent="'+_pvEsc(c)+'">'
+      +'<div class="pv-blind" style="height:'+Math.max(0,Math.min(100,shut))+'%"></div><div class="pv-cue"></div>'
+      +'<div class="pv-top"><span class="pv-ic">'+svgI('blind')+'</span></div>'
+      +'<div class="pv-bot"><div class="pv-n pv-num" data-k="'+_pvEsc(w.uid)+'" data-v="'+_pvEsc(num)+'"></div><div class="pv-nm">'+_pvEsc(cs.length>1?'Blinds':nameOf(c,r))+'</div><div class="pv-sub">'+_pvEsc(word)+' · '+can+'</div></div></div>';
+  };
+
+  // ── NOW PLAYING ── the room's player: its cover, play/pause, volume by sliding
+  function mediaEnt(r){ var c=r?(typeof getRoomMediaCandidates==='function'?getRoomMediaCandidates(r):[]):[]; if(!r){ (CONFIG.rooms||[]).forEach(function(x){ c=c.concat(typeof getRoomMediaCandidates==='function'?getRoomMediaCandidates(x):[]); }); }
+    return c.filter(function(e){ return st(e)==='playing'; })[0] || c.filter(function(e){ return st(e)==='paused'; })[0] || c[0] || null; }
+  function volEnt(r, e){ try{ return (r&&typeof roomVolEndpoint==='function'&&roomVolEndpoint(r,'audio'))||e; }catch(x){ return e; } }
+  window._pvMedia=function(w){
+    var r=roomOf(w), e=mediaEnt(r); if(!e) return '';
+    var s=st(e), playing=s==='playing', t=att(e,'media_title')||att(e,'media_channel')||'', a=att(e,'media_artist')||'';
+    var p=(typeof _artOf==='function')?_artOf(e):att(e,'entity_picture'), art=p?artSrc(p):'';
+    var ve=volEnt(r,e), vol=Math.round((parseFloat(att(ve,'volume_level'))||0)*100);
+    var room=r?r.name:'';
+    if(!t && !playing && s!=='paused') return '<div class="pvw pv-media paused" data-pv="media" data-pvuid="'+_pvEsc(w.uid)+'" data-ent="'+_pvEsc(e)+'" data-vol="'+_pvEsc(ve)+'"><div class="pv-row"><div class="pv-art"></div><div class="pv-tt"><b>Nothing playing</b><small>'+_pvEsc(room)+'</small></div></div><div></div></div>';
+    return '<div class="pvw pv-media'+(playing?'':' paused')+'" data-pv="media" data-pvuid="'+_pvEsc(w.uid)+'" data-ent="'+_pvEsc(e)+'" data-vol="'+_pvEsc(ve)+'">'
+      +(art?'<div class="pv-cv" style="background-image:url(\''+String(art).replace(/'/g,'%27')+'\')"></div>':'')
+      +'<div class="pv-row"><div class="pv-art"'+(art?' style="background-image:url(\''+String(art).replace(/'/g,'%27')+'\')"':'')+'><div class="pv-bars"><i></i><i></i><i></i><i></i></div></div>'
+      +'<div class="pv-tt"><b>'+_pvEsc(t||'Playing')+'</b><small>'+_pvEsc([a,room].filter(Boolean).join(' · '))+'</small></div>'
+      +'<div class="pv-pp" data-pvact="pp"><svg viewBox="0 0 24 24">'+(playing?'<path d="M6 4h4v16H6zM14 4h4v16h-4z"/>':'<path d="M7 4l13 8-13 8z"/>')+'</svg></div></div>'
+      +'<div class="pv-tm"><span class="pv-t0"></span><span class="pv-tr"><i></i></span><span class="pv-t1"></span></div>'
+      +'<div class="pv-vol"><i style="width:'+vol+'%"></i><span>Volume <b class="pv-num" data-k="'+_pvEsc(w.uid)+'|vol" data-v="'+vol+'%"></b></span></div></div>';
+  };
+  // the time line moves every second without redrawing the widget
+  function fmt(s){ s=Math.max(0,Math.round(s)); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); }
+  setInterval(function(){ if(!on()) return; document.querySelectorAll('.pv-media[data-ent]').forEach(function(el){ var e=el.dataset.ent; var d=parseFloat(att(e,'media_duration')), p=parseFloat(att(e,'media_position'));
+    var tm=el.querySelector('.pv-tm'); if(!tm) return; if(!(d>0)||!isFinite(p)){ tm.style.visibility='hidden'; return; } tm.style.visibility='';
+    if(st(e)==='playing'){ var at=Date.parse(att(e,'media_position_updated_at')); if(isFinite(at)) p+=(Date.now()-at)/1000; } p=Math.max(0,Math.min(p,d));
+    tm.querySelector('i').style.width=(p/d*100).toFixed(1)+'%'; tm.querySelector('.pv-t0').textContent=fmt(p); tm.querySelector('.pv-t1').textContent='-'+fmt(d-p); }); }, 1000);
+
+  // ── ROLLING NUMBERS ── a number that changes rolls from the one it was
+  var mem={};
+  function roll(el){
+    var k=el.getAttribute('data-k'), v=el.getAttribute('data-v')||''; if(el._pv===v) return; el._pv=v;
+    var prev=mem[k]; mem[k]=v;
+    var shape=v.replace(/\d/g,'0');
+    if(el.dataset.shape!==shape || !el.querySelector('.pv-roll')){
+      el.dataset.shape=shape;
+      el.innerHTML=v.split('').map(function(ch){ return /\d/.test(ch)?'<span class="pv-roll"><span>'+'0123456789'.split('').map(function(n){ return '<i>'+n+'</i>'; }).join('')+'</span></span>':'<span>'+_pvEsc(ch)+'</span>'; }).join('');
+      var cols=el.querySelectorAll('.pv-roll>span'), pd=(prev&&prev.replace(/\d/g,'0')===shape)?prev.match(/\d/g):null;
+      cols.forEach(function(c,i){ c.style.transition='none'; c.style.transform='translateY(-'+(pd?+pd[i]:0)+'em)'; });
+      void el.offsetWidth; cols.forEach(function(c){ c.style.transition=''; });
+    }
+    var ds=v.match(/\d/g)||[], cs=el.querySelectorAll('.pv-roll>span'); cs.forEach(function(c,i){ c.style.transform='translateY(-'+(+ds[i])+'em)'; });
+  }
+  function rollAll(){ document.querySelectorAll('.pv-num[data-k]').forEach(roll); }
+  var q=false; try{ new MutationObserver(function(){ if(q) return; q=true; requestAnimationFrame(function(){ q=false; try{ rollAll(); }catch(e){} }); }).observe(document.body,{childList:true,subtree:true}); }catch(e){}
+
+  // ── THE GRAMMAR: tap · slide (sideways) · hold ──
+  var g=null;
+  function hap(k){ try{ _proosHaptic(k); }catch(e){} }
+  document.addEventListener('pointerdown', function(e){
+    var el=e.target.closest&&e.target.closest('.pvw'); if(!el || !on() || (typeof _widgetEditMode!=='undefined'&&_widgetEditMode)) return;
+    var lane=e.target.closest('.pv-lane'), r=el.getBoundingClientRect();
+    g={el:el, uid:el.dataset.pvuid, kind:el.dataset.pv, lane:lane, x:e.clientX, y:e.clientY, w:(lane||el).getBoundingClientRect().width, moved:false, held:false, v0:0, v:0, last10:-1, pp:!!(e.target.closest('[data-pvact="pp"]'))};
+    if(g.kind==='lights'){ g.v0 = lane ? lvl(lane.dataset.ent) : roomLevel(lightsOf(roomOf())); }
+    if(g.kind==='covers'){ var k=covState(el.dataset.ent); g.v0=k.closed==null?0:k.closed; }
+    if(g.kind==='media'){ g.v0=Math.round((parseFloat(att(el.dataset.vol,'volume_level'))||0)*100); }
+    g.v=g.v0;
+    el.classList.add('press');
+    g.ht=setTimeout(function(){ if(!g||g.moved) return; g.held=true; el.classList.remove('press'); hap('lift'); openCard(g.el, g.kind); }, 520);
+  }, true);
+  document.addEventListener('pointermove', function(e){
+    if(!g) return; var dx=e.clientX-g.x, dy=e.clientY-g.y;
+    if(!g.moved){ if(Math.abs(dx)>9 && Math.abs(dx)>Math.abs(dy)*1.2 && !(g.lane&&g.lane.dataset.dim!=='1')){ g.moved=true; clearTimeout(g.ht); g.el.classList.remove('press'); (g.lane||g.el).classList.add('drag'); g.el.classList.add('drag'); window._wBriDrag=true; if(g.kind==='media') g.el.classList.add('vol'); }
+      else if(Math.abs(dy)>10){ clearTimeout(g.ht); g.el.classList.remove('press'); g.scroll=true; } return; }
+    var v=Math.max(0,Math.min(100, g.v0 + dx/g.w*100)); g.v=Math.round(v);
+    var ten=Math.floor(g.v/10); if(ten!==g.last10){ if(g.last10>=0) hap('tick'); g.last10=ten; }
+    paintDrag();
+  }, true);
+  function paintDrag(){
+    var el=document.querySelector('.pvw[data-pvuid="'+g.uid+'"]')||g.el;
+    if(g.kind==='lights'){
+      if(g.lane){ var ln=el.querySelector('.pv-lane[data-ent="'+g.lane.dataset.ent+'"]')||g.lane; ln.querySelector('.pv-lf').style.width=g.v+'%'; var sm=ln.querySelector('.pv-num'); sm.setAttribute('data-v', g.v?g.v+'%':'Off'); roll(sm); }
+      else { var f=el.querySelector('.pv-fill'); if(f) f.style.width=g.v+'%'; el.classList.toggle('on', g.v>0); var n=el.querySelector('.pv-num'); n.setAttribute('data-v', g.v?g.v+'%':'Off'); roll(n); }
+    } else if(g.kind==='covers'){
+      var k=covState(el.dataset.ent), b=el.querySelector('.pv-blind'), cue=el.querySelector('.pv-cue');
+      if(k.f&F_POS){ b.style.height=g.v+'%'; var n2=el.querySelector('.pv-num'); n2.setAttribute('data-v', Math.round(100-g.v)+'%'); roll(n2); cue.textContent=''; }
+      else { var dir=g.v>g.v0+8?'close':(g.v<g.v0-8?'open':''); cue.textContent=dir==='close'?'Let go to close':dir==='open'?'Let go to open':''; b.style.height=(dir==='close'?Math.min(100,g.v):dir==='open'?Math.max(0,g.v):g.v0)+'%'; }
+    } else if(g.kind==='media'){
+      var vb=el.querySelector('.pv-vol i'); if(vb) vb.style.width=g.v+'%'; var n3=el.querySelector('.pv-vol .pv-num'); if(n3){ n3.setAttribute('data-v', g.v+'%'); roll(n3); }
+    }
+  }
+  function _pvEnd(e){
+    if(!g) return; var G=g; g=null; clearTimeout(G.ht); window._wBriDrag=false;
+    document.querySelectorAll('.pvw.press,.pvw.drag,.pv-lane.drag').forEach(function(x){ x.classList.remove('press','drag'); });
+    if(G.held || G.scroll) return;
+    var r=roomOf();
+    if(G.moved){
+      if(G.kind==='lights'){
+        if(G.lane){ pend[G.uid+'|'+G.lane.dataset.ent]={v:G.v,t:Date.now()}; setLights([G.lane.dataset.ent], G.v); }
+        else { pend[G.uid]={v:G.v,t:Date.now()}; setLights(lightsOf(r), G.v); }
+      } else if(G.kind==='covers'){
+        var c=G.el.dataset.ent, k=covState(c);
+        if(k.f&F_POS){ pend[G.uid]={v:G.v,t:Date.now()}; svc('cover','set_cover_position',{entity_id:c, position:Math.round(100-G.v)}); }
+        else if(G.v>G.v0+8 && (k.f&F_CLOSE)) svc('cover','close_cover',{entity_id:c});
+        else if(G.v<G.v0-8 && (k.f&F_OPEN)) svc('cover','open_cover',{entity_id:c});
+      } else if(G.kind==='media'){
+        svc('media_player','volume_set',{entity_id:G.el.dataset.vol, volume_level:Math.round(G.v)/100});
+        var el=G.el; setTimeout(function(){ var x=document.querySelector('.pvw[data-pvuid="'+G.uid+'"]'); if(x) x.classList.remove('vol'); }, 1100);
+      }
+      try{ renderWidgetGrid(); }catch(x){}
+      return;
+    }
+    // tap
+    hap('move');
+    if(G.kind==='lights'){
+      if(G.lane){ var l=G.lane.dataset.ent; svc('light', st(l)==='on'?'turn_off':'turn_on', {entity_id:l}); }
+      else { var ls=lightsOf(r), any=ls.some(function(x){ return st(x)==='on'; }); if(ls.length) svc('light', any?'turn_off':'turn_on', {entity_id:ls}); }
+    } else if(G.kind==='covers'){
+      var c2=G.el.dataset.ent, s=st(c2), k2=covState(c2);
+      if((s==='opening'||s==='closing') && (k2.f&F_STOP)) svc('cover','stop_cover',{entity_id:c2});
+      else if(s==='closed' || (k2.closed!=null&&k2.closed>50)) svc('cover','open_cover',{entity_id:c2}); else svc('cover','close_cover',{entity_id:c2});
+    } else if(G.kind==='media'){
+      if(G.pp) svc('media_player','media_play_pause',{entity_id:G.el.dataset.ent});
+      else { try{ openPlayer(G.el.dataset.ent, G.el.dataset.vol); }catch(x){} }
+    }
+  }
+  document.addEventListener('pointerup', _pvEnd, true);
+  document.addEventListener('pointercancel', function(){ if(g){ clearTimeout(g.ht); window._wBriDrag=false; document.querySelectorAll('.pvw.press,.pvw.drag').forEach(function(x){ x.classList.remove('press','drag'); }); g=null; } }, true);
+  // a completed slide or hold is not also a click on the cell
+  document.addEventListener('click', function(e){ var el=e.target.closest&&e.target.closest('.pvw'); if(el && on() && !(typeof _widgetEditMode!=='undefined'&&_widgetEditMode)){ e.stopPropagation(); e.preventDefault(); } }, true);
+
+  // ── HOLD: the full control, as a centred card ──
+  function openCard(from, kind){
+    if(kind==='media'){ try{ openPlayer(from.dataset.ent, from.dataset.vol); }catch(e){} return; }
+    var old=document.getElementById('pv-card'); if(old) old.remove();
+    var r=roomOf(), card=document.createElement('div'); card.id='pv-card'; card.setAttribute('role','dialog');
+    var title=kind==='lights'?((r?r.name+' ':'')+'Lights'):(from.querySelector('.pv-nm')||{}).textContent||'Blinds';
+    card.innerHTML='<div class="pv-scrim"></div><div class="pv-panel"><div class="pv-hd"><b>'+_pvEsc(title)+'</b><button type="button" class="pv-x" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div><div class="pv-body" style="flex:1;min-height:0;display:flex;flex-direction:column;gap:14px"></div></div>';
+    document.body.appendChild(card);
+    var panel=card.querySelector('.pv-panel'), body=card.querySelector('.pv-body');
+    var fr=from.getBoundingClientRect(), pr=panel.getBoundingClientRect();
+    try{ panel.animate([{transform:'translate('+(fr.left+fr.width/2-pr.left-pr.width/2)+'px,'+(fr.top+fr.height/2-pr.top-pr.height/2)+'px) scale('+(fr.width/pr.width)+','+(fr.height/pr.height)+')',opacity:.6},{transform:'none',opacity:1}],{duration:560,easing:'cubic-bezier(.32,.72,0,1)'}); }catch(e){}
+    function close(){ try{ var fr2=from.getBoundingClientRect(), pr2=panel.getBoundingClientRect();
+      panel.animate([{transform:'none',opacity:1},{transform:'translate('+(fr2.left+fr2.width/2-pr2.left-pr2.width/2)+'px,'+(fr2.top+fr2.height/2-pr2.top-pr2.height/2)+'px) scale('+(fr2.width/pr2.width)+','+(fr2.height/pr2.height)+')',opacity:0}],{duration:460,easing:'cubic-bezier(.32,.72,0,1)',fill:'forwards'}).finished.then(function(){ card.remove(); }); }catch(e){ card.remove(); } }
+    card.querySelector('.pv-x').onclick=close; card.querySelector('.pv-scrim').onclick=close;
+    if(kind==='lights'){
+      var ls=lightsOf(r);
+      body.innerHTML='<div class="pv-liq"><canvas></canvas><div class="pv-big pv-num" data-k="card|lights"></div></div><div class="pv-chips"></div>';
+      function chips(){ body.querySelector('.pv-chips').innerHTML=ls.map(function(l){ var o=st(l)==='on'; return '<button type="button" class="pv-chip'+(o?' on':'')+'" data-ent="'+_pvEsc(l)+'">'+_pvEsc(nameOf(l,r))+(o?' · '+(dims(l)?lvl(l)+'%':'On'):'')+'</button>'; }).join(''); }
+      chips(); var ct=setInterval(function(){ if(!card.isConnected){ clearInterval(ct); return; } chips(); }, 800);
+      body.querySelector('.pv-chips').onclick=function(e){ var b=e.target.closest('.pv-chip'); if(!b) return; hap('move'); svc('light', st(b.dataset.ent)==='on'?'turn_off':'turn_on', {entity_id:b.dataset.ent}); };
+      liquid(body.querySelector('.pv-liq'), function(){ return roomLevel(ls); }, function(v){ setLights(ls, v); });
+    } else {
+      var c=from.dataset.ent, k=covState(c);
+      body.innerHTML='<div style="flex:1"></div><div class="pv-btns"><button type="button" data-a="open_cover">Open</button><button type="button" data-a="stop_cover">Stop</button><button type="button" data-a="close_cover">Close</button></div>';
+      if(!(k.f&F_STOP)) body.querySelector('[data-a="stop_cover"]').disabled=true;
+      body.querySelector('.pv-btns').onclick=function(e){ var b=e.target.closest('button'); if(!b||b.disabled) return; svc('cover', b.dataset.a, {entity_id:c}); };
+      if(k.f&F_POS){ var lq=document.createElement('div'); lq.className='pv-liq'; lq.innerHTML='<canvas></canvas><div class="pv-big pv-num" data-k="card|cover"></div>'; body.replaceChild(lq, body.firstChild);
+        liquid(lq, function(){ var x=covState(c); return x.closed==null?0:100-x.closed; }, function(v){ svc('cover','set_cover_position',{entity_id:c, position:Math.round(v)}); }); }
+    }
+  }
+  // the liquid slider (Dave's video): the line bends round the finger, the scale swells as it passes, the number rolls;
+  // sent when let go, then it follows the device's own report
+  function liquid(box, read, send){
+    var c=box.querySelector('canvas'), x=c.getContext('2d'), num=box.querySelector('.pv-num');
+    var val=read(), shown=val, drag=false, bulge=.35, last10=Math.floor(val/10), held=0;
+    function draw(){ if(!box.isConnected) return;
+      if(!drag && Date.now()-held>3000) val=read();
+      var r=c.getBoundingClientRect(), d=devicePixelRatio||1; if(c.width!==Math.round(r.width*d)||c.height!==Math.round(r.height*d)){ c.width=Math.round(r.width*d); c.height=Math.round(r.height*d); }
+      x.setTransform(d,0,0,d,0,0); shown+=(val-shown)*.22; bulge+=((drag?1:.35)-bulge)*.15;
+      var top=16, bot=r.height-16, lx=r.width-34, y0=bot-(bot-top)*shown/100; x.clearRect(0,0,r.width,r.height);
+      for(var p=0;p<=100;p+=5){ var y=bot-(bot-top)*p/100, m=Math.max(0,1-Math.abs(y-y0)/80); if(p%10===0||m>.4){ x.fillStyle='rgba(255,255,255,'+(.32+.6*m)+')'; x.font='500 '+(10+8*m)+'px Inter,-apple-system,sans-serif'; x.textAlign='right'; x.fillText(p+'%', lx-24-22*m*bulge, y+4); } }
+      var gr=x.createLinearGradient(0,top,0,bot); gr.addColorStop(0,'#FFD89A'); gr.addColorStop(1,'#ff9a4a');
+      x.strokeStyle=gr; x.lineWidth=2.5; x.beginPath(); for(var yy=top-20; yy<=bot+20; yy+=2){ var dd=(yy-y0)/40, off=-26*bulge*Math.exp(-dd*dd); if(yy===top-20) x.moveTo(lx+off,yy); else x.lineTo(lx+off,yy); } x.stroke();
+      x.fillStyle='#fff'; x.beginPath(); x.arc(lx-26*bulge,y0,13,0,7); x.fill();
+      num.setAttribute('data-v', Math.round(shown)+'%'); roll(num);
+      requestAnimationFrame(draw); }
+    function _pvAt(e){ var r=c.getBoundingClientRect(); val=Math.max(0,Math.min(100,Math.round((r.bottom-16-e.clientY)/(r.height-32)*100))); var t=Math.floor(val/10); if(t!==last10){ hap('tick'); last10=t; } }
+    box.addEventListener('pointerdown',function(e){ drag=true; box.setPointerCapture(e.pointerId); _pvAt(e); });
+    box.addEventListener('pointermove',function(e){ if(drag) _pvAt(e); });
+    box.addEventListener('pointerup',function(){ if(!drag) return; drag=false; held=Date.now(); send(val); });
+    requestAnimationFrame(draw);
+  }
+})();
+</script>
 <!-- REGISTER 1365 motion styles (the type scale stays the last stylesheet) -->
 <style>
 /* 1367 (Dave 16 Nov 06:42): the room page takes the All Rooms tile's on/off look and follows the room live; 1369: off is a
