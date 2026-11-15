@@ -5307,6 +5307,7 @@ proos/mastore.py
 proos/membership.py
 proos/model.py
 proos/monitor.py
+proos/motion.py
 proos/music.py
 proos/musicsearch.py
 proos/musicstat.py

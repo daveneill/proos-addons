@@ -8333,6 +8333,49 @@ class Handler(BaseHTTPRequestHandler):
                 if steps is None:
                     steps = ctrl.fire_plan(target)
                 return self._send(200, {"area": ctrl.area, "steps": steps})
+            if len(parts) == 4 and parts[0] == "rooms" and parts[2] == "activities" and parts[3] == "expect":
+                # REGISTER 1365 (motion 1, Dave 15 Nov 21:36/21:38): what this activity should leave each device in —
+                # activitytest.expectations(), the room proof's own readings — grouped by device with its name, so the
+                # dashboard ticks each device only when the platform reports it there. Read only.
+                room = unquote(parts[1])
+                target = (parse_qs(urlparse(self.path).query).get("script", [""])[0]).strip()
+                if not target.startswith("script."):
+                    return self._send(400, {"error": "script (the activity's script entity id) required"})
+                try:
+                    from proos import activitytest as _at_x, motion as _mx
+                    cfg = _at_x.read_activity(_client, target)
+                    rec = (project._resolve_rec(project.load(), room) or {}) if project else {}
+                    disp = rec.get("display") if isinstance(rec.get("display"), str) else None
+                    exp = _at_x.expectations(_client, cfg, disp)
+                    names = {}
+                    for c in exp:
+                        e = c.get("entity_id")
+                        if e and e not in names:
+                            try:
+                                names[e] = ((_client._req("GET", "/api/states/%s" % e) or {}).get("attributes")
+                                            or {}).get("friendly_name")
+                            except Exception:            # noqa: BLE001
+                                names[e] = None
+                    return self._send(200, {"script": target, "rows": _mx.activity_rows(exp, names)})
+                except Exception as e:                   # noqa: BLE001
+                    return self._send(200, {"script": target, "rows": [], "why": str(e)})
+            if parts == ["scenes", "expect"]:
+                # REGISTER 1365 (motion 10): what a scene sets each device to — the platform's own scene config, read
+                # with Core's token — so the dashboard can show each room arrive. Read only.
+                ent = (parse_qs(urlparse(self.path).query).get("entity", [""])[0]).strip()
+                if not ent.startswith("scene."):
+                    return self._send(400, {"error": "entity (a scene) required"})
+                try:
+                    from proos import motion as _mx
+                    sid = ((_client._req("GET", "/api/states/%s" % ent) or {}).get("attributes") or {}).get("id")
+                    if not sid:
+                        return self._send(200, {"entity": ent, "entities": [], "why": "this scene has no stored set-up to read"})
+                    cfg = _client._req("GET", "/api/config/scene/config/%s" % sid) or {}
+                    out = _mx.scene_rows(cfg)
+                    out["entity"] = ent
+                    return self._send(200, out)
+                except Exception as e:                   # noqa: BLE001
+                    return self._send(200, {"entity": ent, "entities": [], "why": str(e)})
             if len(parts) == 3 and parts[0] == "rooms" and parts[2] == "status":
                 ctrl = get_controller(self._room(parts))
                 return self._send(200, ctrl.status())
