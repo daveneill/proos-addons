@@ -3330,6 +3330,10 @@ html[data-link="remote"]{--m-tap:90ms;--m-move:200ms;--m-page:300ms}
    … rather than the black"): the room's own picture, blurred and darkened as the other full pages use it. No picture → the
    black ground above. */
 #atv-page .atv-bg.photo{inset:-80px;background:#0b0b10 center/cover no-repeat;filter:blur(28px);transform:translateZ(0)}
+#atv-page .atv-bg.photo.art{filter:blur(40px) saturate(1.3)}   /* 1366: the playing picture, frosted like the music player's cover */
+#atv-page .atv-bg.photo.mx-in{animation:mxArtIn var(--m-listen) var(--e-standard)}
+@keyframes mxArtIn{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){#atv-page .atv-bg.photo.mx-in{animation:none}}
 /* 1092 (Dave 14:54, against Music and Media): the SAME darkening every full page gets — the room shade (#room-bg::after)
    under the pages' own 60% black (.page:not(#page-home)) — not a lighter one of its own. */
 #atv-page .atv-bg.photo::after{content:'';position:absolute;inset:0;background:linear-gradient(rgba(0,0,0,.60),rgba(0,0,0,.60)),var(--proos-shade,linear-gradient(to bottom,rgba(0,0,0,0.52) 0%,rgba(0,0,0,0.42) 25%,rgba(0,0,0,0.42) 45%,rgba(0,0,0,0.55) 60%,rgba(0,0,0,0.68) 75%,rgba(0,0,0,0.80) 100%))}
@@ -5077,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111503';
+const PROOS_BUILD='2026111601';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -9754,10 +9758,10 @@ function updateRoomBg(roomIdx){
     photo=homeAreaPhoto||null;
     if(CONFIG&&CONFIG.rooms) _stdKeepBg(homeAreaPhoto);   // 686
   }
-  // REGISTER 1365 motion 2: while the room is watching something with its own artwork, that artwork is the room's background
-  const _film=(idx>=0&&typeof window._mxFilmArt==='function')?window._mxFilmArt(r):'';
-  try{ if(typeof window._mxWarm==='function') window._mxWarm(); }catch(e){}   // motion 4: the room warms with its lights
-  const url=_film?`url('${_film}')`:(photo?`url('${photo}')`:'linear-gradient(135deg,#0a0a12,#1a1a2e)');
+  try{ if(typeof window._mxWarm==='function') window._mxWarm(); }catch(e){}   // 1365 motion 4: the room warms with its lights
+  // (1366, Dave 16 Nov 06:09/06:16: the film's poster is NOT the room page's background — "bad quality art looks bad";
+  // it is the frosted background of the control pages instead, as the music player's is)
+  const url=photo?`url('${photo}')`:'linear-gradient(135deg,#0a0a12,#1a1a2e)';
   // Skip the crossfade when the image hasn't changed. This function is called on every
   // relevant re-render and on each person-state update (presence ticks over on its own),
   // and each call would otherwise re-run the .8s opacity fade — briefly compositing two
@@ -9771,7 +9775,6 @@ function updateRoomBg(roomIdx){
   const curEl=document.getElementById('room-bg-'+bgActive);
   if(!nextEl||!curEl)return;
   nextEl.style.backgroundImage=url;
-  try{ if(typeof window._mxBgSwap==='function') window._mxBgSwap(nextEl, !!_film); }catch(e){}   // 1365 motion 2
   nextEl.classList.remove('hidden');
   curEl.classList.add('hidden');
   bgActive=next;
@@ -19247,6 +19250,15 @@ let _atv=null;               // {e, vol, ce, tab, room, np, accounts, kbOpen, ..
 const _ATV_TABS=['remote','apps','search','playing'];
 function _atvBgHTML(){
   const r=_atv&&_atv.room; const ph=(r&&r.photo)||(CONFIG&&CONFIG._homeAreaPhoto)||'';
+  // REGISTER 1366 (Dave 16 Nov 06:09 "better as frosted background of maybe the remote pages rather than the area page";
+  // 06:16 "just have the blurred background on the control pages like with music pages"): while this page's own device
+  // plays (or is paused on) something with its own picture, that picture — frosted as the music player frosts its cover —
+  // is the page's background instead of the room photo. A TV's own picture is a guessed logo, so the TV page keeps the room.
+  try{ if(_atv && _atv.kind!=='tv'){ const ps=states[_atv.e]&&states[_atv.e].state;
+    const pic=(ps==='playing'||ps==='paused')?((typeof _artOf==='function')?_artOf(_atv.e):att(_atv.e,'entity_picture')):null;
+    if(pic){ const u=artSrc(pic), fresh=_atv._bgArt!==u; _atv._bgArt=u;
+      return '<div class="atv-bg photo art'+(fresh?' mx-in':'')+'" style="background-image:url(\''+String(u).replace(/['"\\]/g,encodeURIComponent)+'\')"></div>'; }
+    _atv._bgArt=''; } }catch(e){}
   return ph?'<div class="atv-bg photo" style="background-image:url(\''+String(ph).replace(/['"\\]/g,encodeURIComponent)+'\')"></div>':'<div class="atv-bg"></div>';
 }
 function _atvLS(k,v){ try{ if(v===undefined) return localStorage.getItem('proos_atv_'+k); localStorage.setItem('proos_atv_'+k,v); }catch(e){ return null; } }
@@ -24090,10 +24102,8 @@ async function saveService(){
 </style>
 <!-- REGISTER 1365 motion styles (the type scale stays the last stylesheet) -->
 <style>
-#mx-film-wash{position:absolute;inset:-10%;background-size:cover;background-position:center;filter:blur(70px) saturate(1.8);opacity:0;pointer-events:none;mix-blend-mode:screen}
 #mx-warm{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity var(--m-door) var(--e-standard);
   background:radial-gradient(70% 50% at 70% 28%,rgba(255,196,120,.55),transparent 70%),radial-gradient(60% 45% at 22% 72%,rgba(255,168,90,.28),transparent 70%)}
-#room-bg.mx-film .room-bg-layer{transition:opacity var(--m-gate) var(--e-standard)}
 .mx-grow{position:fixed;z-index:2147480000;overflow:hidden;pointer-events:none;background:#0a0a12;will-change:left,top,width,height}
 .mx-grow-bg{position:absolute;inset:0;background-size:cover;background-position:center}
 .mx-grow-shade{position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,.52),rgba(0,0,0,.42) 25%,rgba(0,0,0,.42) 45%,rgba(0,0,0,.55) 60%,rgba(0,0,0,.68) 75%,rgba(0,0,0,.8))}
@@ -24165,7 +24175,7 @@ html.mx-js .widget-cell .mo-fan{animation:none!important}
 #mx-sweep .mx-sw-sum.ok{color:#9fe0bf}#mx-sweep .mx-sw-sum.no{color:#ffb0a8}
 @media (prefers-reduced-motion:reduce){
   #proos-acard .mx-pr .arc,#mx-sweep .arc,.player-panel.mx-on .mx-amb{animation:none!important}
-  #mx-warm,#mx-sweep .mx-rt,.player-panel:not(.is-remote) .player-art,#room-bg.mx-film .room-bg-layer{transition:none!important}
+  #mx-warm,#mx-sweep .mx-rt,.player-panel:not(.is-remote) .player-art{transition:none!important}
 }
 </style>
 <style id="proos-refresh">
@@ -28115,41 +28125,7 @@ try{ setInterval(_outcomesRead, LV_OUTCOME_EVERY_MS); }catch(e){}
     if(sum.textContent!==txt){ sum.textContent=txt; sum.className='mx-psum'+(c?' '+c:''); }
   };
 
-  // ── 2 · THE ROOM TAKES ON THE FILM ───────────────────────────────────────────────────────────────────────────────────
-  // The room's own word (its activity sensor) says what it is watching; the art is that source's own picture — the same
-  // resolver every player card uses (_artOf). A TV's own picture is a guessed logo (register: tvCard) — never used here.
-  window._mxFilmArt=function(r){
-    try{
-      if(!r||!r.id) return '';
-      var v='sensor.proos_activity_'+r.id, s=String(st(v)||'');
-      if(!s || ['off','unknown','unavailable','playing'].indexOf(s)>=0) return '';
-      var acts=(window._proosActsByArea&&window._proosActsByArea[window._proosAreaKey?window._proosAreaKey(r):r.id])||[];
-      var a=acts.filter(function(x){ return x&&x.key===s; })[0];
-      var e=a&&a.source_eid; if(!e) return '';
-      var ps=st(e); if(ps!=='playing' && ps!=='paused') return '';
-      if(att(e,'media_content_type')==='music') return '';
-      var p=(typeof _artOf==='function')?_artOf(e):att(e,'entity_picture');
-      return p?artSrc(p):'';
-    }catch(e){ return ''; }
-  };
-  var _filmOn=false;
-  window._mxBgSwap=function(nextEl, film){
-    var bg=document.getElementById('room-bg'); if(!bg) return;
-    var was=_filmOn; _filmOn=!!film;
-    bg.classList.toggle('mx-film', _filmOn || was);
-    var w=document.getElementById('mx-film-wash');
-    if(!w){ w=document.createElement('div'); w.id='mx-film-wash'; bg.appendChild(w); }
-    if(_filmOn){ w.style.backgroundImage=nextEl.style.backgroundImage; }
-    if(RM){ w.style.opacity=_filmOn?'.5':'0'; return; }
-    if(_filmOn && !was){
-      nextEl.animate([{transform:'scale(1.08)',filter:'blur(12px)'},{transform:'scale(1)',filter:'blur(0px)'}],{duration:2200,easing:EASE});
-      w.animate([{opacity:0,clipPath:'circle(0% at 50% 100%)'},{opacity:.5,clipPath:'circle(150% at 50% 100%)'}],{duration:1800,easing:EASE,fill:'forwards'});
-    } else if(!_filmOn && was){
-      w.animate([{opacity:.5},{opacity:0}],{duration:1400,easing:EASE,fill:'forwards'});
-      setTimeout(function(){ if(!_filmOn) bg.classList.remove('mx-film'); }, 2300);
-    } else if(_filmOn){ w.style.opacity='.5'; }
-  };
-
+  // ── 2 · THE FILM (1366): its picture is the control pages' frosted background (_atvBgHTML) — not the room page's ───────
   // ── 4 · THE ROOM WARMS WITH ITS LIGHTS ───────────────────────────────────────────────────────────────────────────────
   // The level the lights REPORT (brightness; a switch that is on counts as full). Never darker than the room's own photo
   // (26 Oct: backgrounds stay normal) — lights add warmth, off takes it away.
@@ -28215,7 +28191,7 @@ try{ setInterval(_outcomesRead, LV_OUTCOME_EVERY_MS); }catch(e){}
     var nm=null;
     if(nameText && nameFrom){ nm=document.createElement('div'); nm.className='mx-grow-name'; nm.textContent=nameText;
       nm.style.cssText='left:'+nameFrom.left+'px;top:'+nameFrom.top+'px;font-size:'+nameFs; document.body.appendChild(nm); }
-    var D=480;
+    var D=1000;                                  // 1366 (Dave 06:09 "a lot slower"): was 480
     var a=ov.animate([{left:fromRect.left+'px',top:fromRect.top+'px',width:fromRect.width+'px',height:fromRect.height+'px',borderRadius:radius},
                       {left:'0px',top:'0px',width:innerWidth+'px',height:innerHeight+'px',borderRadius:'0px'}],{duration:D,easing:SHEET,fill:'forwards'});
     requestAnimationFrame(function(){
@@ -28224,7 +28200,7 @@ try{ setInterval(_outcomesRead, LV_OUTCOME_EVERY_MS); }catch(e){}
     });
     return a.finished.then(function(){
       var f=[{opacity:1},{opacity:0}];
-      var x=ov.animate(f,{duration:240,easing:EASE,fill:'forwards'}); if(nm) nm.animate(f,{duration:240,easing:EASE,fill:'forwards'});
+      var x=ov.animate(f,{duration:360,easing:EASE,fill:'forwards'}); if(nm) nm.animate(f,{duration:240,easing:EASE,fill:'forwards'});
       return x.finished.then(function(){ ov.remove(); if(nm) nm.remove(); });
     }).catch(function(){ try{ ov.remove(); if(nm) nm.remove(); }catch(e){} });
   }
@@ -28235,7 +28211,7 @@ try{ setInterval(_outcomesRead, LV_OUTCOME_EVERY_MS); }catch(e){}
     document.body.appendChild(ov);
     var a=ov.animate([{left:'0px',top:'0px',width:innerWidth+'px',height:innerHeight+'px',borderRadius:'0px',opacity:1},
                       {left:toRect.left+'px',top:toRect.top+'px',width:toRect.width+'px',height:toRect.height+'px',borderRadius:radius,opacity:1,offset:.85},
-                      {left:toRect.left+'px',top:toRect.top+'px',width:toRect.width+'px',height:toRect.height+'px',borderRadius:radius,opacity:0}],{duration:460,easing:SHEET,fill:'forwards'});
+                      {left:toRect.left+'px',top:toRect.top+'px',width:toRect.width+'px',height:toRect.height+'px',borderRadius:radius,opacity:0}],{duration:960,easing:SHEET,fill:'forwards'});   // 1366: as slow as the grow
     a.finished.then(function(){ ov.remove(); }).catch(function(){ ov.remove(); });
   }
   function staggerWidgets(){
@@ -28252,11 +28228,11 @@ try{ setInterval(_outcomesRead, LV_OUTCOME_EVERY_MS); }catch(e){}
     var r=CONFIG.rooms[i];
     if(RM || !card || !r){ showPage('home'); selectRoom(i); return; }
     var rect=card.getBoundingClientRect(), rad=getComputedStyle(card).borderRadius||'18px';
-    var ne=card.querySelector('.room-card-name'), nr=ne?ne.getBoundingClientRect():null, nfs=ne?getComputedStyle(ne).fontSize:'18px';
     showPage('home'); selectRoom(i);
     _lastRoomOpen=r.id;
-    grow(rect, rad, photoCss(r), false, r.name, nr, nfs, function(){ var t=document.getElementById('client-name'); if(!t) return null; var b=t.getBoundingClientRect(); return b.width?{r:b, fs:getComputedStyle(t).fontSize}:null; });
-    setTimeout(staggerWidgets, 470);
+    // 1366 (Dave 06:09 "the bold room name needs to go"): the tile alone grows — no name flies to the header
+    grow(rect, rad, photoCss(r), false, '', null, '', null);
+    setTimeout(staggerWidgets, 980);
   };
   // back to the Rooms page from a room: the page shrinks into that room's tile
   var _showPage0=window.showPage;
@@ -28431,7 +28407,6 @@ try{ setInterval(_outcomesRead, LV_OUTCOME_EVERY_MS); }catch(e){}
       var out=_onState0.apply(this, arguments);
       try{
         if(eid.indexOf('light.')===0) window._mxWarm();
-        if((eid.indexOf('media_player.')===0 || eid.indexOf('sensor.proos_activity_')===0) && curPage==='home' && curRoom>=0) updateRoomBg();
         if(_sw && _sw.groups) _mxPaint(false);
       }catch(e){}
       return out;
