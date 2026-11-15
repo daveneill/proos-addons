@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111602';
+const PROOS_BUILD='2026111603';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -24108,7 +24108,6 @@ async function saveService(){
 #room-bg .room-bg-layer{transition:opacity var(--m-hold) var(--e-standard),filter var(--m-door) var(--e-standard)}
 #room-bg.mx-off .room-bg-layer{filter:grayscale(.85) brightness(.5)}
 .mx-grow.off .mx-grow-bg{filter:grayscale(.85) brightness(.5)}
-#atv-page.mx-from{will-change:clip-path}
 #mx-warm{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity var(--m-door) var(--e-standard);
   background:radial-gradient(70% 50% at 70% 28%,rgba(255,196,120,.55),transparent 70%),radial-gradient(60% 45% at 22% 72%,rgba(255,168,90,.28),transparent 70%)}
 .mx-grow{position:fixed;z-index:2147480000;overflow:hidden;pointer-events:none;background:#0a0a12;will-change:left,top,width,height}
@@ -24118,27 +24117,55 @@ async function saveService(){
 .mx-grow.art .mx-grow-shade{background:rgba(0,0,0,.55)}
 .mx-grow-name{position:fixed;z-index:2147480001;pointer-events:none;color:#fff;font-weight:600;letter-spacing:-.02em;white-space:nowrap;line-height:1.1;text-shadow:0 2px 14px rgba(0,0,0,.45)}
 html.mx-js .widget-cell .mo-fan{animation:none!important}
-/* 1 · the proof under the activity tiles */
-#proos-acard .mx-proof{margin-top:22px;display:flex;flex-direction:column;gap:2px;max-width:560px}
-#proos-acard .mx-pr{display:flex;align-items:center;gap:12px;padding:8px 10px;border-radius:12px}
-#proos-acard .mx-pr:nth-child(odd){background:rgba(255,255,255,.04)}
-#proos-acard .mx-pr .mx-rg{width:30px;height:30px;flex:none}
-#proos-acard .mx-pr .mx-rg svg{width:30px;height:30px;display:block}
-#proos-acard .mx-pr .bgc{fill:rgba(0,0,0,.35);stroke:rgba(255,255,255,.18);stroke-width:2}
-#proos-acard .mx-pr .arc{fill:none;stroke:#fff;stroke-width:2.4;stroke-linecap:round;stroke-dasharray:28 100;opacity:0;transform-origin:18px 18px}
-#proos-acard .mx-pr .tick,#proos-acard .mx-pr .cross{fill:none;stroke:#fff;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:24;stroke-dashoffset:24}
-#proos-acard .mx-pr.wait .arc{opacity:1;animation:pacSpin var(--m-hold) linear infinite}
-#proos-acard .mx-pr.ok .bgc{fill:#5FB98C;stroke:#5FB98C;transition:fill var(--m-tap),stroke var(--m-tap)}
-#proos-acard .mx-pr.ok .tick{stroke-dashoffset:0;transition:stroke-dashoffset var(--m-move) var(--e-standard)}
-#proos-acard .mx-pr.ok .mx-rg{animation:mxPop var(--m-move) var(--e-spring)}
-#proos-acard .mx-pr.no .bgc{fill:#E0564B;stroke:#E0564B}
-#proos-acard .mx-pr.no .cross{stroke-dashoffset:0;transition:stroke-dashoffset var(--m-move)}
-#proos-acard .mx-pr b{display:block;font-size:14.5px;font-weight:600}
-#proos-acard .mx-pr i{display:block;font-style:normal;font-size:12.5px;color:rgba(255,255,255,.6)}
-#proos-acard .mx-pr.ok i{color:#9fe0bf}
-#proos-acard .mx-pr.no i{color:#ffb0a8}
-#proos-acard .mx-psum{font-size:13.5px;font-weight:600;margin-top:10px;color:rgba(255,255,255,.7)}
-#proos-acard .mx-psum.ok{color:#9fe0bf}#proos-acard .mx-psum.no{color:#ffb0a8}
+/* 1 · ACTIVITIES PROVE THEMSELVES — register 1368 (Dave 16 Nov 06:42/07:08 "Yes"): normally the tapped tile's own ring
+   fills, one piece per device as each reports in; the signal path opens only when a device is slow or fails */
+#proos-acard .pac-t{position:relative}
+#proos-acard .pac-t.mx-ring .pac-spin{display:none!important}
+#proos-acard .mx-seg{position:absolute;left:-6px;top:-6px;width:calc(100% + 12px);pointer-events:none;overflow:visible;z-index:3}
+#proos-acard .mx-seg rect{fill:none;stroke-width:3.5;stroke-linecap:round;transition:stroke var(--m-move) var(--e-standard)}
+#proos-acard .mx-cap{font-size:12.5px;text-align:center;color:rgba(255,255,255,.66);min-height:1.5em;margin-top:-6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#proos-acard .mx-cap.ok{color:#9fe0bf}#proos-acard .mx-cap.no{color:#ffb0a8}
+#proos-acard .pac-pane{position:relative}
+#proos-acard .pac-tiles{transition:opacity var(--m-move) var(--e-standard)}
+#proos-acard .pac-tiles.mx-hide{opacity:0;pointer-events:none}
+#proos-acard .mx-path{position:absolute;left:24px;right:24px;top:6px;z-index:4}
+#proos-acard .mx-ph{display:flex;align-items:center;gap:20px}
+#proos-acard .mx-ph .pac-tile{width:220px;flex:none}
+#proos-acard .mx-ph b{display:block;font-size:22px;font-weight:600;letter-spacing:-.01em}
+#proos-acard .mx-ph span{display:block;color:rgba(255,255,255,.66);font-size:14px}
+#proos-acard .mx-chain{display:flex;align-items:flex-start;margin-top:30px}
+#proos-acard .mx-node{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;position:relative}
+#proos-acard .mx-node .mx-rg{width:54px;height:54px;flex:none;position:relative;z-index:1}
+#proos-acard .mx-node .mx-rg svg{width:100%;height:100%;display:block;overflow:visible}
+#proos-acard .mx-node .mx-tx{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:0}
+#proos-acard .mx-node b{font-size:14px;font-weight:600}
+#proos-acard .mx-node i{font-style:normal;font-size:12px;color:rgba(255,255,255,.55);max-width:170px}
+#proos-acard .mx-node.wait i{color:rgba(255,255,255,.66)}#proos-acard .mx-node.ok i{color:#9fe0bf}#proos-acard .mx-node.no i{color:#ffb0a8}
+#proos-acard .mx-wire{position:absolute;top:27px;left:calc(50% + 33px);right:calc(-50% + 33px);height:2px;background:rgba(255,255,255,.12);overflow:hidden}
+#proos-acard .mx-node:last-child .mx-wire{display:none}
+#proos-acard .mx-wire em{position:absolute;left:0;top:0;bottom:0;width:0;background:#7CF0C5;box-shadow:0 0 10px #7CF0C5;transition:width var(--m-page) var(--e-standard)}
+#proos-acard .mx-node.ok .mx-wire em{width:100%}
+#proos-acard .bgc{fill:rgba(0,0,0,.35);stroke:rgba(255,255,255,.2);stroke-width:2;transition:fill var(--m-tap),stroke var(--m-tap)}
+#proos-acard .arc{fill:none;stroke:#fff;stroke-width:2.4;stroke-linecap:round;stroke-dasharray:28 100;opacity:0;transform-origin:18px 18px}
+#proos-acard .ic{fill:none;stroke:rgba(255,255,255,.55);stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+#proos-acard .tick,#proos-acard .cross{fill:none;stroke:#fff;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:24;stroke-dashoffset:24}
+#proos-acard .wait .arc{opacity:1;animation:pacSpin var(--m-hold) linear infinite}
+#proos-acard .ok .bgc{fill:#5FB98C;stroke:#5FB98C}#proos-acard .ok .ic,#proos-acard .no .ic{stroke:transparent}
+#proos-acard .ok .tick{stroke-dashoffset:0;transition:stroke-dashoffset var(--m-move) var(--e-standard)}
+#proos-acard .ok .mx-rg{animation:mxPop var(--m-move) var(--e-spring)}
+#proos-acard .no .bgc{fill:#E0564B;stroke:#E0564B}#proos-acard .no .cross{stroke-dashoffset:0;transition:stroke-dashoffset var(--m-move)}
+#proos-acard .mx-phs.ok{color:#9fe0bf}#proos-acard .mx-phs.no{color:#ffb0a8}
+@media(max-width:768px){
+  #proos-acard .mx-path{left:20px;right:20px;top:4px}
+  #proos-acard .mx-ph{gap:14px}#proos-acard .mx-ph .pac-tile{width:128px}#proos-acard .mx-ph b{font-size:18px}
+  #proos-acard .mx-chain{flex-direction:column;margin-top:18px}
+  #proos-acard .mx-node{flex-direction:row;align-items:center;text-align:left;gap:14px;padding:6px 0}
+  #proos-acard .mx-node .mx-rg{width:44px;height:44px}
+  #proos-acard .mx-node .mx-tx{align-items:flex-start}#proos-acard .mx-node i{max-width:none}
+  #proos-acard .mx-wire{top:calc(50% + 24px);left:21px;right:auto;width:2px;height:22px}
+  #proos-acard .mx-wire em{width:100%!important;height:0;bottom:auto;transition:height var(--m-page) var(--e-standard)}
+  #proos-acard .mx-node.ok .mx-wire em{height:100%}
+}
 @keyframes mxPop{0%{transform:scale(.8)}60%{transform:scale(1.12)}100%{transform:scale(1)}}
 /* 8 · the cover's colours behind the player */
 .player-panel .mx-amb{position:absolute;inset:-15%;z-index:0;pointer-events:none;background-size:cover;background-position:center;filter:blur(60px) saturate(1.8) brightness(.55);transition:opacity var(--m-listen) var(--e-standard)}
@@ -24181,7 +24208,7 @@ html.mx-js .widget-cell .mo-fan{animation:none!important}
 #mx-sweep .mx-sw-sum{margin-top:16px;font-size:14px;font-weight:600;color:rgba(255,255,255,.72)}
 #mx-sweep .mx-sw-sum.ok{color:#9fe0bf}#mx-sweep .mx-sw-sum.no{color:#ffb0a8}
 @media (prefers-reduced-motion:reduce){
-  #proos-acard .mx-pr .arc,#mx-sweep .arc,.player-panel.mx-on .mx-amb{animation:none!important}
+  #proos-acard .arc,#mx-sweep .arc,.player-panel.mx-on .mx-amb{animation:none!important}
   #mx-warm,#mx-sweep .mx-rt,.player-panel:not(.is-remote) .player-art{transition:none!important}
 }
 </style>
@@ -28106,30 +28133,71 @@ try{ setInterval(_outcomesRead, LV_OUTCOME_EVERY_MS); }catch(e){}
   };
   window._mxProofTimedOut=function(roomId){ if(_proof && _proof.room===roomId) _proof.timedOut=true; };
   window._mxRowState=rowState;   // the bench drives the one rule a row is ticked by
+  // 1368: the ring on the tile normally; the signal path only when a device is slow or fails
+  var SLOW_MS=25000;     // plumbing: past this with a device still not reported, the path opens (Display On alone waits 20 s)
+  var ICN={tv:'<rect x="9" y="11" width="18" height="12" rx="2"/><path d="M15 26h6"/>',inp:'<path d="M10 18h12M18 13l5 5-5 5"/><path d="M26 11v14"/>',
+    box:'<rect x="10" y="13" width="16" height="10" rx="2"/><path d="M16.5 16l4 2-4 2z"/>',snd:'<path d="M11 15h4l5-4v14l-5-4h-4z"/><path d="M23 14.5a5 5 0 0 1 0 7"/>'};
+  function iconOf(r){
+    var w=(r.checks||[]).map(function(c){ return String(c.what||''); }).join(' ');
+    if(/sound/i.test(w)) return 'snd';
+    if((r.checks||[]).some(function(c){ return c.attr==='source'; })) return 'inp';
+    if(/TV|Art Mode/.test(w) || String(r.entity_id).indexOf('switch.')===0) return 'tv';
+    return 'box';
+  }
+  function nodeRing(ic){ return '<span class="mx-rg"><svg viewBox="0 0 36 36" aria-hidden="true"><circle class="bgc" cx="18" cy="18" r="16"/><circle class="arc" cx="18" cy="18" r="16"/><g class="ic">'+ICN[ic]+'</g><path class="tick" d="M11.5 18.5l4.2 4.2 8.8-9.2"/><path class="cross" d="M13 13l10 10M23 13l-10 10"/></svg></span>'; }
+  function rowWords(r, s, p){
+    if(s.ok) return (r.checks||[]).map(function(c){ return c.what; }).filter(Boolean).map(_mxCap).join(' · ');
+    if(p.timedOut) return _mxCap((s.first&&s.first.what)||'no answer')+' — '+(s.got==='no reading'?'no reading from it':'it still reads '+s.got);
+    return _mxCap((s.first&&s.first.what)||'')+'…';
+  }
   window._mxProofPaint=function(roomId){
-    var body=document.querySelector('#proos-acard .pac-body'); if(!body) return;
-    var el=document.getElementById('mx-proof'), p=_proof;
-    if(!p || p.room!==roomId || !p.rows || !p.rows.length){ if(el) el.remove(); return; }
-    if(!el){ el=document.createElement('div'); el.id='mx-proof'; el.className='mx-proof'; body.appendChild(el); }
-    var sig=p.script+'|'+p.rows.map(function(r){ return r.entity_id; }).join(',');
-    if(el.dataset.sig!==sig){
-      el.dataset.sig=sig;
-      el.innerHTML=p.rows.map(function(r,i){ return '<div class="mx-pr" data-i="'+i+'"><span class="mx-rg">'+RING+'</span><span><b>'+_mxEsc(r.name)+'</b><i></i></span></div>'; }).join('')
-        +'<div class="mx-psum" aria-live="polite"></div>';
+    var card=document.querySelector('#proos-acard .pac-card'); if(!card) return;
+    var p=_proof, tiles=document.getElementById('pac-tiles'), pane=card.querySelector('.pac-pane');
+    var path=document.getElementById('mx-path');
+    function clear(){ if(path) path.remove(); if(tiles) tiles.classList.remove('mx-hide');
+      card.querySelectorAll('.mx-seg,.mx-cap').forEach(function(x){ x.remove(); }); card.querySelectorAll('.pac-t.mx-ring').forEach(function(x){ x.classList.remove('mx-ring'); }); }
+    if(!p || p.room!==roomId || !p.rows || !p.rows.length){ clear(); return; }
+    var states_=p.rows.map(function(r){ return rowState(r); });
+    var n=states_.filter(function(x){ return x.ok; }).length, all=p.rows.length;
+    var bad=p.timedOut && n<all, slow=!bad && n<all && Date.now()-p.t0>SLOW_MS;
+    var tile=null; try{ tile=tiles && tiles.querySelector('.pac-t[data-script="'+(window.CSS&&CSS.escape?CSS.escape(p.script):p.script)+'"]'); }catch(e){}
+    // the ring on the tile, one piece per device (the Off pill has no tile: it shows the path only if something is wrong)
+    if(tile){
+      tile.classList.add('mx-ring');
+      var face=tile.querySelector('.pac-tile'), seg=tile.querySelector('.mx-seg');
+      if(!seg){ seg=document.createElementNS('http://www.w3.org/2000/svg','svg'); seg.setAttribute('class','mx-seg'); seg.setAttribute('viewBox','0 0 100 64'); seg.setAttribute('preserveAspectRatio','none'); tile.appendChild(seg); }
+      if(face){ seg.style.height=(face.offsetHeight+12)+'px'; }
+      var per=100/all, out='';
+      states_.forEach(function(x,i){ var col=x.ok?'#5FB98C':(p.timedOut?'#E0564B':'rgba(255,255,255,.22)');
+        out+='<rect x="1.5" y="1.5" width="97" height="61" rx="13" ry="13" pathLength="100" stroke="'+col+'" stroke-dasharray="'+(per-3).toFixed(1)+' 100" stroke-dashoffset="'+(-(i*per)).toFixed(1)+'" vector-effect="non-scaling-stroke"/>'; });
+      if(seg.dataset.h!==out){ seg.dataset.h=out; seg.innerHTML=out; }
+      var cp=tile.querySelector('.mx-cap'); if(!cp){ cp=document.createElement('div'); cp.className='mx-cap'; cp.setAttribute('aria-live','polite'); tile.appendChild(cp); }
+      var wait=p.rows[states_.findIndex(function(x){ return !x.ok; })], ct, cc='';
+      if(n===all){ ct='Ready'; cc='ok'; } else if(bad){ ct=(wait?wait.name:'A device')+' didn’t answer'; cc='no'; } else ct='Waiting on '+(wait?wait.name:'…');
+      if(cp.textContent!==ct){ cp.textContent=ct; cp.className='mx-cap'+(cc?' '+cc:''); }
     }
-    var n=0;
-    el.querySelectorAll('.mx-pr').forEach(function(row){
-      var r=p.rows[+row.dataset.i]; if(!r) return; var s=rowState(r), t;
-      var cls = s.ok ? 'ok' : (p.timedOut ? 'no' : 'wait');
-      if(s.ok){ n++; t=(r.checks||[]).map(function(c){ return c.what; }).filter(Boolean).map(cap).join(' · ')+' · confirmed'; }
-      else if(p.timedOut){ t=_mxCap((s.first&&s.first.what)||'no answer')+' — it still reads '+s.got; }
-      else { t=_mxCap((s.first&&s.first.what)||'')+'…'; }
-      if(!row.classList.contains(cls)){ row.classList.remove('ok','no','wait'); row.classList.add(cls); }
-      var i=row.querySelector('i'); if(i.textContent!==t) i.textContent=t;
+    // the signal path — only when a device is slow or has not answered
+    if(!(slow||bad)){ if(path) path.remove(); if(tiles) tiles.classList.remove('mx-hide'); return; }
+    if(!pane) return;
+    if(!path){
+      path=document.createElement('div'); path.id='mx-path'; path.className='mx-path';
+      var face2=tile&&tile.querySelector('.pac-tile');
+      var nm=tile?((tile.querySelector('.pac-tl')||{}).textContent||''):'Off';
+      path.innerHTML='<div class="mx-ph">'+(face2?face2.outerHTML.replace(/<span class="pac-spin"[^>]*><\/span>/,''):'')+'<div><b>'+_mxEsc(tile?('Watch '+nm):(document.getElementById('pac-off-t')||{}).textContent||'Off')+'</b><span class="mx-phs"></span></div></div>'
+        +'<div class="mx-chain">'+p.rows.map(function(r,i){ return '<div class="mx-node" data-i="'+i+'">'+nodeRing(iconOf(r))+'<div class="mx-tx"><b>'+_mxEsc(r.name)+'</b><i></i></div><span class="mx-wire"><em></em></span></div>'; }).join('')+'</div>';
+      var body=pane.querySelector('.pac-body'); (body||pane).appendChild(path);
+      if(tiles) tiles.classList.add('mx-hide');
+      if(!RM) path.animate([{opacity:0,transform:'translateY(12px)'},{opacity:1,transform:'none'}],{duration:500,easing:SHEET});
+    }
+    path.querySelectorAll('.mx-node').forEach(function(nd){
+      var i=+nd.dataset.i, r=p.rows[i], x=states_[i]; if(!r) return;
+      var cls=x.ok?'ok':(p.timedOut?'no':'wait');
+      if(!nd.classList.contains(cls)){ nd.classList.remove('ok','no','wait'); nd.classList.add(cls); }
+      var t=rowWords(r,x,p), it=nd.querySelector('i'); if(it.textContent!==t) it.textContent=t;
     });
-    var sum=el.querySelector('.mx-psum'), all=p.rows.length, txt, c='';
-    if(n===all){ txt='Ready'; c='ok'; } else if(p.timedOut){ txt=n+' of '+all+' confirmed — the rest did not read back'; c='no'; } else txt=n+' of '+all+' confirmed';
-    if(sum.textContent!==txt){ sum.textContent=txt; sum.className='mx-psum'+(c?' '+c:''); }
+    var sub=path.querySelector('.mx-phs'), st2, sc='';
+    if(n===all){ st2='Ready'; sc='ok'; } else if(bad){ st2=n+' of '+all+' confirmed — '+(all-n)+' didn’t answer'; sc='no'; } else st2=n+' of '+all+' confirmed — still waiting';
+    if(sub && sub.textContent!==st2){ sub.textContent=st2; sub.className='mx-phs'+(sc?' '+sc:''); }
   };
 
   // ── 2 · THE FILM (1366): its picture is the control pages' frosted background (_atvBgHTML) — not the room page's ───────
@@ -28281,49 +28349,8 @@ try{ setInterval(_outcomesRead, LV_OUTCOME_EVERY_MS); }catch(e){}
       return out;
     };
   }
-  // a player card grows into its control page (Apple TV, TV, Shield, or the player)
-  var _tap={el:null,t:0}, _grown=null;
-  document.addEventListener('click', function(ev){ try{ var c=ev.target.closest&&ev.target.closest('.mp-card,.mwc,.mw-card'); if(c){ _tap={el:c,t:Date.now()}; } }catch(e){} }, true);
-  function cardArt(c){ var b=c.querySelector('.mpc-bg,[style*="background-image"]'); var s=b?b.style.backgroundImage:''; if(!s){ var im=c.querySelector('img'); if(im&&im.src) s="url('"+im.src+"')"; } return s; }
-  var _openPlayer0=window.openPlayer;
-  if(typeof _openPlayer0==='function'){
-    window.openPlayer=function(){
-      var c=_tap.el, fresh=c && Date.now()-_tap.t<700 && c.isConnected; _tap.el=null;
-      var out=_openPlayer0.apply(this, arguments);
-      try{
-        if(fresh && !RM){
-          var b=c.getBoundingClientRect(), art=cardArt(c), rad=getComputedStyle(c).borderRadius||'16px';
-          var bg=art?('background-image:'+art):'background-image:linear-gradient(135deg,#1e1e28,#0a0a0e)';
-          _grown={card:c, bg:bg, rad:rad, open:true};
-          // 1367 (Dave 06:42: tapping the art "sort of goes blank for a few seconds … then shows the control page"): the
-          // control page ITSELF opens out of the card — it is visible the whole way; no cover is drawn over it
-          var pg=document.getElementById('atv-page');
-          if(pg && pg.classList.contains('open')){
-            var W=innerWidth, H=innerHeight, r0=parseFloat(rad)||16;
-            var from='inset('+b.top+'px '+(W-b.right)+'px '+(H-b.bottom)+'px '+b.left+'px round '+r0+'px)';
-            pg.classList.add('mx-from');
-            var an=pg.animate([{clipPath:from},{clipPath:'inset(0px 0px 0px 0px round 0px)'}],{duration:700,easing:SHEET});
-            an.finished.then(function(){ pg.classList.remove('mx-from'); }).catch(function(){ pg.classList.remove('mx-from'); });
-          } else grow(b, rad, bg, true, '', null, '', null);
-        }
-      }catch(e){}
-      return out;
-    };
-  }
-  function shrinkBack(){
-    var g=_grown; if(!g||!g.open) return; g.open=false; _grown=null;
-    if(RM || !g.card.isConnected) return;
-    var b=g.card.getBoundingClientRect(); if(!b.width||b.bottom<0||b.top>innerHeight) return;
-    shrink(b, g.rad, g.bg, true);
-  }
-  var _atvClose0=window.atvClose;
-  if(typeof _atvClose0==='function'){
-    window.atvClose=function(){ var was=(typeof _atv!=='undefined'&&!!_atv); var out=_atvClose0.apply(this, arguments); if(was) setTimeout(shrinkBack,0); return out; };
-  }
-  var _closePlayer0=window.closePlayer;
-  if(typeof _closePlayer0==='function'){
-    window.closePlayer=function(){ var ov=document.getElementById('player-overlay'); var was=!!(ov&&ov.classList.contains('open')); var out=_closePlayer0.apply(this, arguments); if(was) setTimeout(shrinkBack,0); return out; };
-  }
+  // (1368, Dave 16 Nov 07:08: "when you press the art on the media card … I dont like the transition can we take that one
+  // back to how it was before" — a player card opens its control page exactly as it did before 1365: nothing added.)
 
   // ── 8 · MUSIC COLOURS THE PAGE ───────────────────────────────────────────────────────────────────────────────────────
   var _updatePlayerUI0=window.updatePlayerUI;
