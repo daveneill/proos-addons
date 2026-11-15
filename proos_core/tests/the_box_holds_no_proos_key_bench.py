@@ -188,7 +188,8 @@ res = CK.push("abc", b'{"aps":{"alert":"hi"}}', "com.x.ProOS", False, post=lambd
 dead = CK.push("abc", b'{"aps":{}}', "com.x.ProOS", False,
                post=lambda: {"ok": False, "apple": 410, "said": '{"reason":"Unregistered"}'})
 down = CK.push("abc", b'{"aps":{}}', "com.x.ProOS", False, post=lambda: {"ok": False, "error": "unreachable"})
-ok(res == {"ok": True, "status": 200, "via": "connect"} and dead["unregistered"] and dead["status"] == 410
+# re-pinned 15 Nov (register 1353): an accepted alert's answer also carries Apple's receipt (empty when Connect sent none)
+ok(res == {"ok": True, "status": 200, "via": "connect", "receipt": {}} and dead["unregistered"] and dead["status"] == 410
    and not down["ok"] and down["reason"] == "unreachable",
    "8 · iPhone alerts: delivered, a dead phone flagged for pruning, an unreachable Connect said in words")
 

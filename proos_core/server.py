@@ -5876,7 +5876,7 @@ def _push_status_load():
     return _PUSH_STATUS
 
 
-def _push_note(reg, ok, words, env=None, key_id=None):
+def _push_note(reg, ok, words, env=None, key_id=None, receipt=None):
     """PLAN B1 (3 Oct 2026; L-4, L-5). What actually happened to the last alert for each
     ProOS phone — delivered to Apple, or why not — kept per registration. On Dave's box
     every alert for two months died at "no Apple push key loaded in Core" while the
@@ -5890,7 +5890,10 @@ def _push_note(reg, ok, words, env=None, key_id=None):
                               "app_id": (reg or {}).get("app_id"),
                               # which Apple server and which key Apple answered (register 893): the evidence for
                               # "does this key work on that server" — Apple's own reply, never assumed
-                              "env": env, "key_id": key_id}
+                              "env": env, "key_id": key_id,
+                              # register 1353: Apple's receipt for the alert it accepted (apns-id; apns-unique-id on
+                              # the test server) — what Apple's Push Notifications Console › Delivery Log looks up
+                              "receipt": dict(receipt or {})}
         tmp = _PUSH_STATUS_PATH + ".tmp"
         with open(tmp, "w", encoding="utf-8") as fh:
             json.dump(_PUSH_STATUS, fh)
@@ -10857,7 +10860,7 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(500, {"errorMessage": str(e)})
                 if res.get("ok"):
                     print(f"  push · {who} → delivered to Apple ({cred['env']})", flush=True)
-                    _push_note(reg, True, "delivered to Apple", _env, cred.get("key_id"))
+                    _push_note(reg, True, "delivered to Apple", _env, cred.get("key_id"), res.get("receipt"))
                     _push_prune_ghosts(reg)
                     return self._send(201, {"queued": True})
                 print(f"  push · {who} → Apple rejected: {res.get('reason') or res.get('status')}", flush=True)

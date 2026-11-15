@@ -3415,7 +3415,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111409';
+const PROOS_BUILD='2026111501';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -15060,8 +15060,11 @@ async function techViewNotify(view){
      '<div class="wiz-hint">'+(cx===null?'<b style="color:#e3a23c">ProOS Connect couldn’t be read</b>'
       :viaConnect?'<b style="color:#84d9b4">Included in ProOS Connect · Active</b> — alerts from this home are signed and sent by ProOS Connect. Nothing to set up on this box.'
       :'<b style="color:#e3a23c">ProOS Connect doesn’t hold the Apple push key yet</b> — alerts can’t reach phones until it does.')+'</div>'
-    +'<div class="bld-sec" style="margin-top:18px"><div class="bld-sec-h">Send a Test Alert</div>'
-    +'<div class="wiz-hint">Goes the whole way: this box → ProOS Core → ProOS Connect → Apple → the phone. If nothing arrives within ten seconds, Logs → ProOS Core shows a line beginning “push ·” that says why.</div>'
+    // REGISTER 1353 (Dave 15 Nov 11:53: "it should be test notification one not multople devices"): ONE button sends
+    // the test to every phone; each row below is only the reading — what Apple said, and Apple's receipt for it.
+    +'<div class="bld-sec" style="margin-top:18px"><div class="bld-sec-h" style="display:flex;align-items:center;justify-content:space-between">Send a Test Alert'
+    +'<button class="btn-ghost" id="nt-send" style="padding:6px 14px" onclick="notifyTestSend(this)">Send Test Alert</button></div>'
+    +'<div class="wiz-hint">Sends one test to every phone: this box → ProOS Core → ProOS Connect → Apple → the phone. Each phone below shows what Apple said. If Apple accepted it and the phone shows nothing, look its Apple Receipt up in Apple’s Push Notifications Console › Delivery Log.</div>'
     +'<div id="nt-phones" class="wiz-hint">Reading the phones this box knows…</div></div>');
   notifyPhonesLoad();
 }
@@ -15091,17 +15094,19 @@ async function notifyPhonesLoad(){
   // does nothing so don't know why it's there").
   let st={}; try{ const r=await _coreFetch(proCoreUrl()+'/push/status',{},8000); if(r.ok) st=((await r.json())||{}).phones||{}; }catch(e){}
   const lastWords=s=>{ const p=st[s]; if(!p||p.ok===undefined) return 'No alert has reached it that ProOS can see — it may use another app\u2019s push service, or be an old sign-in.';
-    const ago=p.at?(' \u00b7 '+new Date(p.at*1000).toLocaleString()):''; return (p.ok?'Last alert delivered':'Last alert did not get through: '+(p.words||''))+ago; };
+    const ago=p.at?(' \u00b7 '+new Date(p.at*1000).toLocaleString()):''; return (p.ok?'Apple accepted the last alert':'Last alert did not get through: '+(p.words||''))+ago; };
+  const receipt=s=>{ const r=(st[s]&&st[s].ok&&st[s].receipt)||{}; const u=r['apns-unique-id'], i=r['apns-id'];
+    return (u||i)?'<div class="field-hint" style="margin-top:2px;user-select:all">Apple Receipt · '+esc(u||i)+(u?'':' (live server)')+'</div>':''; };
   setHTML(host, phones.map(s=>'<div class="row"><div class="rl">'+esc((st[s]&&st[s].name)||s.replace(/^mobile_app_/,'').replace(/_/g,' '))
-    +'<div class="field-hint" style="margin-top:2px">'+esc(lastWords(s))+'</div></div>'
-    +'<div class="rr"><button class="btn-ghost" style="padding:6px 12px" onclick="notifyTestSend(\''+esc(s)+'\',this)">Send Test</button></div></div>').join(''));
+    +'<div class="field-hint" style="margin-top:2px">'+esc(lastWords(s))+'</div>'+receipt(s)+'</div></div>').join(''));
 }
-async function notifyTestSend(svc,btn){
+async function notifyTestSend(btn){
+  const phones=_notifyPhones||[]; if(!phones.length){ toast('No phones to send to'); return; }
   if(btn){ btn.disabled=true; btn.textContent='Sending…'; }
-  try{ await haRest('POST','/api/services/notify/'+svc,{title:'ProOS',message:'Test alert from your home — notifications are working.'},15000); toast('Sent to the box'); }
-  catch(e){ toast("The box couldn't send it"); }
-  if(btn){ btn.disabled=false; btn.textContent='Send Test'; }
-  setTimeout(()=>{ try{ notifyPhonesLoad(); }catch(_){} },6000);   // show what happened to it
+  const res=await Promise.all(phones.map(svc=>haRest('POST','/api/services/notify/'+svc,{title:'ProOS',message:'Test alert from your home — notifications are working.'},15000).then(()=>true,()=>false)));
+  toast(res.every(Boolean)?'Sent to every phone':'Sent — some phones could not be reached; see below');
+  if(btn){ btn.disabled=false; btn.textContent='Send Test Alert'; }
+  setTimeout(()=>{ try{ notifyPhonesLoad(); }catch(_){} },6000);   // show what Apple said for each
 }
 
 // ── Learn apps (Android TV) — RETIRED 6 Aug ─────────────────────────────────

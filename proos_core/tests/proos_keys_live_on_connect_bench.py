@@ -258,6 +258,33 @@ G2.push_send(dict(k1, apns_p8="KEY-TWO"), "t", b"{}", signer=_sig, post=_post, n
 ok(_signed == ["KEY-ONE", "KEY-TWO"],
    "  …a token is reused while the push details are the same, and re-signed the moment any of them change")
 
+# 6d · register 1353 (15 Nov, read on Dave's box: Apple accepted every test, no phone showed it): Apple's receipt is kept
+_hdr = "HTTP/2 200\r\napns-id: 6B1A-AAAA\r\napns-unique-id: 9f2c-bbbb\r\n"
+ok(G2.apple_receipt(_hdr) == {"apns-id": "6B1A-AAAA", "apns-unique-id": "9f2c-bbbb"}
+   and G2.apple_receipt("HTTP/2 200\r\napns-id: X1\r\n") == {"apns-id": "X1"},
+   "6d · Apple's receipt is read from its reply (apns-id always; apns-unique-id on the test server)")
+_cp = G2.subprocess.run
+G2.subprocess.run = lambda *a, **k: type("P", (), {"stdout": (_hdr + "\r\n" + "\n200").encode(), "stderr": b""})()
+_c, _said = G2._apns_post("api.sandbox.push.apple.com", "ab", "j", "t", b"{}")
+G2.subprocess.run = lambda *a, **k: type("P", (), {"stdout": ("HTTP/2 400\r\napns-id: Z\r\n\r\n" + '{"reason":"BadDeviceToken"}' + "\n400").encode(), "stderr": b""})()
+_c2, _said2 = G2._apns_post("api.push.apple.com", "ab", "j", "t", b"{}")
+G2.subprocess.run = _cp
+ok(_c == 200 and json.loads(_said) == {"apns-id": "6B1A-AAAA", "apns-unique-id": "9f2c-bbbb"}
+   and _c2 == 400 and json.loads(_said2)["reason"] == "BadDeviceToken",
+   "  …an accepted alert answers with the receipt; a refusal still answers with Apple's own reason")
+CORE = os.path.join(HERE, "..")
+sys.path.insert(0, CORE)
+from proos import connectkeys as _CK2  # noqa: E402
+_r = _CK2.push("ab", b'{"aps":{}}', "t", True, post=lambda: {"ok": True, "apple": 200, "said": _said})
+ok(_r["ok"] and _r["receipt"] == {"apns-id": "6B1A-AAAA", "apns-unique-id": "9f2c-bbbb"},
+   "  …and the box takes the receipt from Connect's answer")
+_srv = open(os.path.join(CORE, "server.py"), encoding="utf-8").read()
+_pro = open(os.path.join(CORE, "apps", "pro.html"), encoding="utf-8").read()
+ok('_push_note(reg, True, "delivered to Apple", _env, cred.get("key_id"), res.get("receipt"))' in _srv
+   and '"receipt": dict(receipt or {})' in _srv and "Apple Receipt · " in _pro and "notifyTestSend(this)" in _pro
+   and "onclick=\"notifyTestSend(\\''" not in _pro,
+   "  …(SOURCE) the box keeps it per phone; Pro shows it, with ONE Send Test Alert button (no button per phone)")
+
 # 6b · photo search (register 1348): ProOS's one Unsplash key, only Unsplash's search and its "picked" call
 code, r = call("GET", "/v1/photos/search?query=beach")
 ok(code == 503 and "photo search key" in r["error"], "6b · no Unsplash key yet: said")

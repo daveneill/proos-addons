@@ -193,7 +193,12 @@ def push(token, payload: bytes, topic, sandbox, post=None):
             return {"ok": False, "error": "ProOS Connect could not be reached: %s" % str(e)[:120]}
     d = (post or _post)() or {}
     if d.get("ok"):
-        return {"ok": True, "status": 200, "via": "connect"}
+        try:                    # register 1353: Apple's receipt for this alert, for its Push Notifications Console
+            rc = json.loads(d.get("said") or "{}") or {}
+        except Exception:                                        # noqa: BLE001
+            rc = {}
+        return {"ok": True, "status": 200, "via": "connect",
+                "receipt": {k: str(rc[k])[:64] for k in ("apns-id", "apns-unique-id") if rc.get(k)}}
     reason = ""
     try:
         reason = (json.loads(d.get("said") or "{}") or {}).get("reason", "")
