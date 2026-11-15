@@ -87,14 +87,38 @@ check("4 · the record follows exactly the primary among the app trackers (the M
       dict(W)["p-dave"], ["device_tracker.iphone_6"])
 check("  …a tracker that is not an app sign-in's is kept", dict(W)["p-sarah"],
       ["device_tracker.unifi_sarah_phone", "device_tracker.iphone_7"])
-check("  …a person with no possible primary is left alone", "p-guest" in dict(W), False)
+check("  …1360: a person never follows another login's device — Guest's record had Dave's iPad; with no device of their own it follows none",
+      dict(W)["p-guest"], [])
 W.clear()
 persons[0]["device_trackers"] = ["device_tracker.iphone_6"]
 persons[1]["device_trackers"] = ["device_tracker.unifi_sarah_phone", "device_tracker.iphone_7"]
+persons[2]["device_trackers"] = []
 check("  …nothing written when already right", (P.keep(read, write), W), ([], []))
 P.choose("p-dave", "ipad")
 P.keep(read, write)
 check("  …a choice is kept on the box and applied", W, [("p-dave", ["device_tracker.ipad"])])
+
+# 4b · register 1360 — a login with an app and no person gets one (read on Dave's box: the homeowner login had none)
+users = [{"id": DAVE, "name": "ProOS Developer"}, {"id": "u-home", "name": "Home", "is_active": True},
+         {"id": "u-sys", "name": "Supervisor", "system_generated": True}, {"id": "u-panel", "name": "Panel"},
+         {"id": "u-off", "name": "Old", "is_active": False}]
+entries += [entry("hphone", "u-home", "iPhone19,7", "2026-11-15T03:50", "Dave's iPhone 18 Pro Max"),
+            entry("hsys", "u-sys", "iPhone1,1", "2026-11-15T03:51", "x"), entry("hoff", "u-off", "iPhone1,1", "2026-11-15T03:52", "y")]
+trackers["hphone"] = "device_tracker.iphone_8"
+check("4b · a login with an app sign-in and no person needs one — never a system login, an inactive one, or one with no app",
+      P.missing_persons(users, persons, entries), [("u-home", "Home")])
+MADE = []
+
+
+def create(uid, name):
+    MADE.append(uid)
+    persons.append({"id": "p-home", "name": name, "user_id": uid, "device_trackers": []})
+
+
+W.clear()
+P.keep(read, write, lambda: users, create)
+check("  …made through the platform's person/create, then put on its first iPhone in the same pass",
+      (MADE, dict(W).get("p-home")), (["u-home"], ["device_tracker.iphone_8"]))
 
 # 5, 6 SOURCE
 SRC = open(os.path.join(CORE, "server.py"), encoding="utf-8").read()
@@ -110,8 +134,9 @@ check("  …(SOURCE) a choice: one of that person's own devices; only tech/owner
 h_ = SRC[SRC.index('if parts == ["people", "homeaway", "home"]:'):][:1000]
 check("  …(SOURCE) the radius goes to the platform's own home zone, 50–2000 m",
       '_ws_call("config/core/update", radius=r_)' in h_ and "50 <= r_ <= 2000" in h_)
-check("  …(SOURCE) a minute's loop keeps every record on its primary",
-      "_pr_boot.keep(_presence_read, _presence_write)" in SRC and "_PRESENCE_EVERY_S = 60" in SRC)
+check("  …(SOURCE) a minute's loop keeps every record on its primary, and gives every app login a person first",
+      "_pr_boot.keep(_presence_read, _presence_write, _presence_users, _presence_create)" in SRC
+      and '_ws_call("person/create", name=name, user_id=user_id, device_trackers=[])' in SRC and "_PRESENCE_EVERY_S = 60" in SRC)
 check("  …(SOURCE) the existing screen-presence route is untouched",
       SRC.count('if parts == ["presence"]:') == 2)
 

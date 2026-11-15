@@ -5969,6 +5969,17 @@ def _presence_write(person, device_trackers):
     print("  presence · %s now follows %s" % (person.get("name"), ", ".join(device_trackers)), flush=True)
 
 
+def _presence_users():
+    return _ws_call("config/auth/list") or []
+
+
+def _presence_create(user_id, name):
+    """REGISTER 1360: the platform's own person/create, linked to the login, following nothing until Core puts it on
+    the login's Primary Device."""
+    _ws_call("person/create", name=name, user_id=user_id, device_trackers=[])
+    print("  presence · made a person for the login %s" % name, flush=True)
+
+
 def push_status():
     """{device_name: {ok, words, at, app_id}} — the last real outcome per ProOS phone."""
     return dict(_PUSH_STATUS or _push_status_load())
@@ -10901,7 +10912,7 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(400, {"error": "that is not one of this person's devices"})
                 _pr.choose(pid, eid)
                 try:
-                    changed = _pr.keep(_presence_read, _presence_write)
+                    changed = _pr.keep(_presence_read, _presence_write, _presence_users, _presence_create)
                 except Exception as ex:  # noqa: BLE001
                     return self._send(502, {"error": "saved, but the platform could not be updated yet: %s" % str(ex)[:120]})
                 return self._send(200, {"ok": True, "changed": changed})
@@ -14222,7 +14233,7 @@ def main():
             while True:
                 time.sleep(_PRESENCE_EVERY_S)
                 try:
-                    _pr_boot.keep(_presence_read, _presence_write)
+                    _pr_boot.keep(_presence_read, _presence_write, _presence_users, _presence_create)
                 except Exception as _e:                          # noqa: BLE001
                     print("  presence · check failed: %s" % str(_e)[:160], flush=True)
         threading.Thread(target=_presence_loop, name="presence", daemon=True).start()

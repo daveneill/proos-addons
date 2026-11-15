@@ -83,22 +83,45 @@ def people(persons, entries, trackers, states=None, primaries=None):
 
 
 def wanted_trackers(person, app_trackers):
-    """The record's trackers as ProOS keeps them: everything not from an app sign-in, kept; of the app sign-ins' trackers,
-    only the primary's. None = leave the record as it is (no primary)."""
-    if not person.get("primary"):
-        return None
-    prim = next((d["tracker"] for d in person["devices"] if d["entry_id"] == person["primary"]), None)
-    if not prim:
-        return None
+    """The record's trackers as ProOS keeps them: everything not from an app sign-in, kept; of the app sign-ins'
+    trackers, only the primary's. REGISTER 1360 (read on Dave's box 15 Nov: "ProOS Developer" followed the homeowner
+    login's iPad): a person never follows another login's device, and with no primary follows no app device at all —
+    a Mac or an iPad is never chosen for anyone; Pro says "choose one"."""
     keep = [t for t in person["follows"] if t not in app_trackers]
-    return keep + [prim]
+    prim = next((d["tracker"] for d in person["devices"] if d["entry_id"] == person.get("primary")), None)
+    return keep + ([prim] if prim else [])
 
 
-def keep(read, write):
+def missing_persons(users, persons, entries):
+    """REGISTER 1360: every login that has signed in with a ProOS app needs its own person record, or it can never be
+    home or away. Read on Dave's box 15 Nov: the homeowner login (his iPhone, iPad and Mac) had none — the platform
+    makes a person only through its own onboarding; logins made by Core or by the ProOS sign-in get none.
+    Returns [(user_id, name)] to create — active, not the platform's own system logins, with an app sign-in."""
+    have = {p.get("user_id") for p in persons or [] if p.get("user_id")}
+    with_app = {(e.get("data") or {}).get("user_id") for e in entries or [] if e.get("domain") == "mobile_app"}
+    out = []
+    for u in users or []:
+        uid = u.get("id")
+        if (not uid or uid in have or uid not in with_app or u.get("system_generated")
+                or u.get("is_active") is False):
+            continue
+        out.append((uid, (u.get("name") or "").strip() or "Person"))
+    return out
+
+
+def keep(read, write, users=None, create=None):
     """Bring every person's record onto their primary device. read() → (persons, entries, trackers, states);
-    write(person_record, device_trackers) does the platform's person/update. Returns what was changed."""
+    write(person_record, device_trackers) does the platform's person/update. With users() and create(user_id, name)
+    (the platform's person/create), a login with an app sign-in and no person gets one first (1360).
+    Returns what was changed."""
     with _lock:
         persons, entries, trackers, states = read()
+        if users and create:
+            made = missing_persons(users(), persons, entries)
+            for uid, name in made:
+                create(uid, name)
+            if made:
+                persons, entries, trackers, states = read()
         app_trackers = set(trackers.values())
         changed = []
         by_id = {p.get("id"): p for p in persons or []}
