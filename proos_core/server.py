@@ -5915,15 +5915,21 @@ def _push_signins():
     except Exception:  # noqa: BLE001
         entries = []
 
-    def _state(eid):
-        try:
-            return _client._req("GET", "/api/states/%s" % eid) or None
-        except Exception:  # noqa: BLE001
-            return None
+    # The stamp read here (last_reported — moved by every report, even unchanged) is read through the platform's own
+    # template engine, which reads the live state machine. READ ON DAVE'S BOX 15 Nov: the REST state answer carries a
+    # STALE last_reported (12:12 where the live one was 13:42 — the platform caches that answer until a value changes),
+    # and Core's live cache keeps last_changed only. One read, only the app sign-ins' own readings.
+    _TPL = ("{% set ns = namespace(o=[]) %}{% for e in integration_entities('mobile_app') %}{% set s = states[e] %}"
+            "{% set ns.o = ns.o + [[e, config_entry_id(e), (s.state if s else 'unavailable'), "
+            "(s.last_reported.isoformat() if s else ''), (s.last_updated.isoformat() if s else '')]] %}{% endfor %}"
+            "{{ ns.o | tojson }}")
     try:
-        ereg = _client.entity_registry() or []
+        rows = json.loads(_client.render_template(_TPL) or "[]")
     except Exception:  # noqa: BLE001
-        ereg = []
+        rows = []
+    ereg = [{"entity_id": r[0], "config_entry_id": r[1]} for r in rows if len(r) == 5]
+    _all = {r[0]: {"state": r[2], "last_reported": r[3], "last_updated": r[4]} for r in rows if len(r) == 5}
+    _state = _all.get
     return _psi.signins(entries, ereg, _state, push_status())
 
 

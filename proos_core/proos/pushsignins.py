@@ -8,8 +8,8 @@ and only one of them is the channel. ProOS uses the platform's mechanism; it doe
 This module only READS what the platform holds and what ProOS measured, so Pro can show it and a tech can act:
 
   · every mobile_app sign-in: its name, which app it is (from the app's own bundle id), the device's model and system
-  · when the app last sent the box anything — its own "Last Update Trigger" sensor's last report (the app sends it
-    with every update); None when that sensor has nothing since the box started (said so, never guessed)
+  · when the app last reported to the box — the platform's last_reported stamp on the app's own readings, after the
+    box last started; None when it has not reported since (said so, never guessed)
   · which sign-ins share an alert channel, and — measured, from the box's own push relay — which sign-in the last alert
     for that channel actually went to
 
@@ -36,6 +36,16 @@ def slug(text):
     return re.sub(r"[^a-z0-9]+", "_", t).strip("_")
 
 
+def _after(t, start, slack_s=5):
+    """t is later than the platform's start instant (plus a few seconds' plumbing: the restore takes a moment)."""
+    from datetime import datetime
+    try:
+        f = lambda x: datetime.fromisoformat(str(x).replace("Z", "+00:00")).timestamp()
+        return not start or f(t) > f(start) + slack_s
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def app_kind(app_id):
     a = str(app_id or "")
     for bid, words in APPS:
@@ -49,25 +59,35 @@ def signins(entries, entity_registry, state_of, push_status):
     entity_registry: [{entity_id, config_entry_id}]. state_of(entity_id) → {state, last_reported} or None.
     push_status: {device_name: {entry_id?, ok, words, at, receipt}} — the box's own record of each alert.
     Returns the list Pro shows, oldest sign-in first."""
-    by_entry = {}
+    # REGISTER 1354, READ ON DAVE'S BOX: most app versions never send a Last Update Trigger sensor (2 of 8 sign-ins had
+    # one, both unavailable), so "last heard" is read from what EVERY app sends: its readings (battery, app version,
+    # location permission…), which the platform stamps last_reported each time the app reports — even unchanged. The
+    # box's own writes (notify.* entities, stamped when an alert is sent) are not the app. At start the platform
+    # restores every reading with the start instant; that instant is not a report, so only a stamp after it counts.
+    mine = {e.get("entry_id") for e in entries or [] if e.get("domain") == "mobile_app"}
+    by_entry, stamps = {}, []
     for e in entity_registry or []:
         eid, ce = e.get("entity_id") or "", e.get("config_entry_id")
-        # the platform numbers a second sign-in's sensors (…_last_update_trigger_2) — matched by its unique id too
-        if ce and eid.startswith("sensor.") and (re.search(r"_last_update_trigger(_\d+)?$", eid)
-                                                 or str(e.get("unique_id") or "").endswith("last_update_trigger")):
-            by_entry[ce] = eid
+        if ce not in mine or eid.startswith("notify."):
+            continue
+        s_ = state_of(eid) or {}
+        lu = s_.get("last_updated")
+        if lu:
+            stamps.append(lu)
+        if s_.get("state") in NOT_HEARD:
+            continue
+        lr = s_.get("last_reported") or lu
+        if lr:
+            by_entry.setdefault(ce, []).append(lr)
+    start = min(stamps) if stamps else ""
     out = []
     for e in entries or []:
         if e.get("domain") != "mobile_app":
             continue
         d = e.get("data") or {}
         name = d.get("device_name") or e.get("title") or "a device"
-        heard = None
-        trig = by_entry.get(e.get("entry_id"))
-        if trig:
-            s = state_of(trig) or {}
-            if s.get("state") not in NOT_HEARD:
-                heard = s.get("last_reported") or s.get("last_updated")
+        after = [t for t in by_entry.get(e.get("entry_id"), []) if _after(t, start)]
+        heard = max(after) if after else None
         out.append({"entry_id": e.get("entry_id"), "name": name, "channel": "mobile_app_" + slug(name),
                     "app": app_kind(d.get("app_id")), "proos": str(d.get("app_id") or "").startswith(PREFIX),
                     "model": d.get("model") or "", "os": " ".join(x for x in (d.get("os_name"), d.get("os_version")) if x),

@@ -88,14 +88,27 @@ store = [entry("a", P, "D1", "2026-11-01"), entry("b", P + "Pro", "D1", "2026-11
          entry("c", P + ".dev", "D2", "2026-11-03", "iPhone 17 Pro Max"), entry("d", P, "D3", "2026-11-04", "iPhone")]
 for e in store:
     e["data"].update(model="iPad14,1", os_name="iPadOS", os_version="26.1")
-ereg = [{"entity_id": "sensor.ipad_last_update_trigger", "config_entry_id": "a"},
-        {"entity_id": "sensor.ipad_last_update_trigger_2", "config_entry_id": "b"},
+# shaped like Dave's box (read 15 Nov 13:4x): the platform restored every reading at its start (14 Nov 02:14:02);
+# the apps' reports since moved last_reported; the box's own notify.* stamps are not the app
+ereg = [{"entity_id": "sensor.ipad_battery_level", "config_entry_id": "a"},
+        {"entity_id": "sensor.ipad_app_version", "config_entry_id": "a"},
+        {"entity_id": "sensor.ipad_battery_level_2", "config_entry_id": "b"},
+        {"entity_id": "sensor.iphone_17_pro_max_battery_level", "config_entry_id": "c"},
         {"entity_id": "sensor.iphone_17_pro_max_last_update_trigger", "config_entry_id": "c"},
-        {"entity_id": "sensor.ipad_battery_level", "config_entry_id": "a"}]
-STATES = {"sensor.ipad_last_update_trigger": {"state": "Periodic", "last_reported": "2026-11-15T01:00:00+00:00"},
-          "sensor.ipad_last_update_trigger_2": {"state": "Launch", "last_reported": "2026-11-15T02:00:00+00:00"},
-          "sensor.iphone_17_pro_max_last_update_trigger": {"state": "unavailable",
-                                                           "last_reported": "2026-11-14T02:14:02+00:00"}}
+        {"entity_id": "notify.iphone_17_pro_max", "config_entry_id": "c"},
+        {"entity_id": "sensor.iphone_battery_level", "config_entry_id": "d"},
+        {"entity_id": "light.kitchen", "config_entry_id": "hue"}]
+T0 = "2026-11-14T02:14:02.169882+00:00"
+STATES = {"sensor.ipad_battery_level": {"state": "90", "last_updated": "2026-11-15T01:12:06+00:00",
+                                        "last_reported": "2026-11-15T02:42:08+00:00"},
+          "sensor.ipad_app_version": {"state": "x", "last_updated": T0, "last_reported": "2026-11-15T02:42:08+00:00"},
+          "sensor.ipad_battery_level_2": {"state": "90", "last_updated": T0, "last_reported": "2026-11-15T02:16:35+00:00"},
+          "sensor.iphone_17_pro_max_battery_level": {"state": "100", "last_updated": T0, "last_reported": T0},
+          "sensor.iphone_17_pro_max_last_update_trigger": {"state": "unavailable", "last_updated": T0, "last_reported": T0},
+          "notify.iphone_17_pro_max": {"state": "2026-11-15T01:45:20", "last_updated": "2026-11-15T01:45:20+00:00",
+                                       "last_reported": "2026-11-15T01:45:20+00:00"},
+          "sensor.iphone_battery_level": {"state": "unavailable", "last_updated": T0,
+                                          "last_reported": "2026-11-15T03:00:00+00:00"}}
 pst = {"iPad": {"entry_id": "b", "ok": True, "words": "delivered to Apple", "at": 1794700000,
                 "receipt": {"apns-id": "R1"}},
        "iPhone 17 Pro Max": {"ok": True, "at": 1}}
@@ -105,8 +118,12 @@ check("2 · which app, from the app's own bundle id",
 check("  …the channel the platform sends by, and how many sign-ins share it",
       [(rows[k]["channel"], rows[k]["shares"]) for k in "abcd"],
       [("mobile_app_ipad", 1), ("mobile_app_ipad", 1), ("mobile_app_iphone_17_pro_max", 0), ("mobile_app_iphone", 0)])
-check("  …last heard = the app's Last Update Trigger report; an unavailable sensor is NOT a time; none is none",
-      [rows[k]["heard"] for k in "abcd"], ["2026-11-15T01:00:00+00:00", "2026-11-15T02:00:00+00:00", None, None])
+check("  …last heard = the latest report on the app's own readings, after the box started; the start-up restore is "
+      "not a report, the box's own alert stamp is not the app, an unavailable reading is not a report",
+      [rows[k]["heard"] for k in "abcd"], ["2026-11-15T02:42:08+00:00", "2026-11-15T02:16:35+00:00", None, None])
+_calls = []
+PS.signins(store, ereg, lambda eid: (_calls.append(eid), STATES.get(eid))[1], {})
+check("  …only the apps' own readings are read — never the rest of the house", "light.kitchen" not in _calls)
 check("  …the last alert for 'iPad' is shown on the sign-in it went to (the box's own record), not on the other",
       (rows["b"]["last_alert_here"], rows["b"]["last_alert"]["receipt"], rows["a"]["last_alert_here"], rows["a"]["last_alert"]),
       (True, {"apns-id": "R1"}, False, None))
@@ -123,6 +140,9 @@ r_ = SRC[SRC.index('if parts == ["push", "signins", "remove"]:'):][:1300]
 check("  …removal: tech/owner only, only a sign-in in that list, by the platform's own delete",
       'users.is_tech(u.get("id"))' in r_ and 'any(r["entry_id"] == eid for r in _push_signins())' in r_
       and '"/api/config/config_entries/entry/%s" % eid' in r_)
+check("  …(SOURCE) the stamps come through the platform's template engine (its REST answer was read stale on Dave's box)",
+      "_client.render_template(_TPL)" in SRC and "s.last_reported.isoformat()" in SRC
+      and "integration_entities('mobile_app')" in SRC)
 check("  …each alert's record names the sign-in it went to", '"entry_id": (reg or {}).get("entry_id"),' in SRC)
 GW = open(os.path.join(CORE, "..", "connect", "relay", "gateway.py"), encoding="utf-8").read()
 PU = open(os.path.join(CORE, "proos", "push.py"), encoding="utf-8").read()
