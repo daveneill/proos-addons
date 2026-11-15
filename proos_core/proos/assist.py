@@ -4050,6 +4050,8 @@ class ToolRunner:
                           if isinstance(_vl, (int, float)) else None,
                 "muted": a.get("is_volume_muted"),
                 "media_title": a.get("media_title"),
+                # register 1361: HBO Max names a film only in the artist field (title empty) — Assist reads it too
+                "media_artist": a.get("media_artist"),
                 "source": a.get("source")})
         return {
             "area_id": area,
@@ -6727,7 +6729,8 @@ def _now_words(st, eid=None) -> str:
         return ", ".join(bits)
     if dom == "media_player":
         bits = [s]
-        title = a.get("media_title") or a.get("media_channel") or ""
+        # register 1361: the title, else the artist (HBO Max's film), else the channel — the dashboard's one rule
+        title = a.get("media_title") or a.get("media_artist") or a.get("media_channel") or ""
         if s == "playing" and title:
             bits = ["playing %s" % str(title)[:40]]
         v = a.get("volume_level")

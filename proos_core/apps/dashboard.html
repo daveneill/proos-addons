@@ -5063,7 +5063,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111201';
+const PROOS_BUILD='2026111501';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -19321,7 +19321,7 @@ function atvMaybeUpdate(eid){
   if(_atv.kind==='shield') return _shMaybeUpdate(eid);   // register 1058
   const kb=_atvKbEntity();
   if(eid===_atv.e||eid===_atv.vol||eid===_atvRemoteEntity()||eid===kb){
-    const prevTitle=_atv._title; _atv._title=att(_atv.e,'media_title');
+    const prevTitle=_atv._title; _atv._title=_npName(_atv.e);
     if(eid===kb && states[kb] && states[kb].state==='on' && !_atv.kbOpen) _atvTypeOpen();
     if(eid===kb && states[kb] && states[kb].state!=='on' && _atv.kbOpen) _atvTypeClose();
     if(eid===_atv.e){ const on=_atvIsOn(_atv.e); if(_atv.wasOn && !on && !_atvRoomWatching(_atv.e)){ atvClose(); return; } if(on) _atv.wasOn=true; }
@@ -19532,17 +19532,30 @@ function _atvMoreSheet(){
 }
 
 // ── what is playing ─────────────────────────────────────────────────────────────────────────────────────────
-function _atvArt(){ const c=_atv.cat; if(c&&c.match&&c.image&&c.title===att(_atv.e,'media_title')) return c.image;
+// ONE RULE FOR "WHAT IS PLAYING" (register 1361, Dave 15 Nov 17:16–17:20). HBO Max reports a film's name in the
+// ARTIST field and leaves the title empty (read on Dave's box: media_title "", media_artist "Godzilla vs. Kong"). The
+// room card fell back to the app and the artist; the Apple TV page asked only for the title and said "Nothing reporting
+// what's playing" while the film played. One rule, every surface: the name is the title, else the artist, else the
+// show; an app that shares nothing but its own name says so.
+function _npName(e){ return String(att(e,'media_title')||att(e,'media_artist')||att(e,'media_series_title')||''); }
+function _npFromTitle(e){ return !!att(e,'media_title'); }
+function _npNoneHTML(e, cls){ const s=states[e]&&states[e].state, app=att(e,'app_name');
+  const words=(app&&(s==='playing'||s==='paused'))
+    ? ['Playing in '+_hEsc(app), _hEsc(app)+' doesn\'t share what\'s playing.']
+    : ['Nothing reporting what\'s playing', 'Apps that share what they play show it here.'];
+  return cls==='state' ? '<div class="atv-state"><div class="atv-sico">'+_atvIcon('play')+'</div><b>'+words[0]+'</b><span>'+words[1]+'</span></div>'
+                       : '<div class="atv-np empty"><b>'+words[0]+'</b><span>'+words[1]+'</span></div>'; }
+function _atvArt(){ const c=_atv.cat; if(c&&c.match&&c.image&&c.title===_npName(_atv.e)) return c.image;
   const p=att(_atv.e,'entity_picture'); return p?(String(p).slice(0,4)==='http'?p:HA+p):''; }
-function _atvSub(){ const e=_atv.e, c=(_atv.cat&&_atv.cat.match&&_atv.cat.title===att(e,'media_title'))?_atv.cat:{};
-  const ser=att(e,'media_series_title'), sea=att(e,'media_season')||c.season, ep=att(e,'media_episode')||c.episode;
+function _atvSub(){ const e=_atv.e, c=(_atv.cat&&_atv.cat.match&&_atv.cat.title===_npName(e))?_atv.cat:{};
+  const ser=_npFromTitle(e)?att(e,'media_series_title'):'', sea=att(e,'media_season')||c.season, ep=att(e,'media_episode')||c.episode;
   if(ser||sea||ep) return [ser, sea?('Season '+sea):'', ep?('Episode '+ep):''].filter(Boolean).join(' · ');
-  return att(e,'media_artist')||att(e,'media_album_name')||''; }
+  return _npFromTitle(e)?(att(e,'media_artist')||att(e,'media_album_name')||''):''; }   // 1361: never the name twice
 function _atvPos(){ const e=_atv.e, d=att(e,'media_duration'), p=att(e,'media_position'), u=att(e,'media_position_updated_at');
   if(d==null||p==null) return null; let pos=p; if(states[e].state==='playing'&&u) pos+= (Date.now()-new Date(u).getTime())/1000; return {pos:Math.min(pos,d), dur:d}; }
 function _atvNowCardHTML(){
-  const e=_atv.e, t=att(e,'media_title'), art=_atvArt(), app=att(e,'app_name');
-  if(!t) return '<div class="atv-np empty"><b>Nothing reporting what\'s playing</b><span>Apps that share what they play show it here.</span></div>';
+  const e=_atv.e, t=_npName(e), art=_atvArt(), app=att(e,'app_name');
+  if(!t) return _npNoneHTML(e,'np');
   const item=_atvNPItem(), opts=_atvLangSummary(item), nxt=_atvNext();
   return '<div class="atv-np" data-title="'+_hEsc(t)+'"><div class="atv-art"'+(art?' style="background-image:url(\''+art+'\')"':'')+'>'+(app?'<span class="atv-appchip">'+_hEsc(app)+'</span>':'')+'</div>'
     +'<div class="atv-npt"><b>'+_hEsc(t)+'</b><span>'+_hEsc(_atvSub())+'</span></div>'+_atvProgHTML()
@@ -19568,15 +19581,15 @@ function _atvRefreshNP(){
 // register 1037: Apple's catalogue fills in season, episode, description and full-size art — only for an EXACT match of
 // the show and the episode the Apple TV reported (Core: /appletv/nowplaying); no match → nothing is added
 function _atvLookUp(){
-  const e=_atv.e, title=att(e,'media_title'); if(!title){ _atv.cat=null; return; }
+  const e=_atv.e, title=_npName(e); if(!title){ _atv.cat=null; return; }   // 1361: the same name the page shows
   if(_atv.cat&&_atv.cat.title===title&&_atv.cat.ser===(att(e,'media_series_title')||att(e,'media_artist')||'')) return;
   // register 1038: an app that reports no series (HBO Max) puts the show in the artist field — used ONLY for an exact show +
   // episode match; a film is asked for only when the Apple TV says a film is playing
-  const ser=att(e,'media_series_title')||(att(e,'media_content_type')==='movie'?'':(att(e,'media_artist')||''));
+  const ser=!_npFromTitle(e)?'':(att(e,'media_series_title')||(att(e,'media_content_type')==='movie'?'':(att(e,'media_artist')||'')));
   const q='series='+encodeURIComponent(ser)+'&title='+encodeURIComponent(title)+'&kind='+encodeURIComponent(att(e,'media_content_type')||'')
     +(att(e,'media_season')?'&season='+encodeURIComponent(att(e,'media_season')):'')+(att(e,'media_episode')?'&episode='+encodeURIComponent(att(e,'media_episode')):'');
   _atv.cat={title:title, ser:(att(e,'media_series_title')||att(e,'media_artist')||''), match:false, pending:true};
-  _coreFetch(proosCoreBase()+'/appletv/nowplaying?'+q,{},12000).then(r=>r.json()).then(j=>{ if(!_atv||_atv.e!==e||att(e,'media_title')!==title) return;
+  _coreFetch(proosCoreBase()+'/appletv/nowplaying?'+q,{},12000).then(r=>r.json()).then(j=>{ if(!_atv||_atv.e!==e||_npName(e)!==title) return;
     _atv.cat=Object.assign({title:title, ser:(att(e,'media_series_title')||att(e,'media_artist')||'')},j); if(j.match) _atvRenderBody(); })
     .catch(()=>{ // register 1041 (Dave 07:19 "media art for some good other grainy"): a failed request is not an answer —
       // forget it so the next update asks again, and ask once more shortly
@@ -19630,7 +19643,7 @@ function _atvBindVol(b){
 }
 function _atvFootPaint(){ const f=document.getElementById('atv-foot'); if(!f||!_atv) return; f.innerHTML=_atvVolHTML(); f.hidden=!f.innerHTML; _atvBindVol(f);
   f.dataset.m=att(_atv.vol,'is_volume_muted')?'1':'0'; }
-function _atvMiniHTML(){ const t=att(_atv.e,'media_title'); if(!t) return '';
+function _atvMiniHTML(){ const t=_npName(_atv.e); if(!t) return '';
   return '<button type="button" class="atv-mini" data-title="'+_hEsc(t)+'"><i'+(_atvArt()?' style="background-image:url(\''+_atvArt()+'\')"':'')+'></i><div><b>'+_hEsc(t)+'</b><span>'+_hEsc([att(_atv.e,'app_name'),_atvSub()].filter(Boolean).join(' · '))+'</span>'+_atvProgHTML()+'</div>'+_atvIcon('chev')+'</button>'; }
 
 // live repaint without rebuilding the page (state pushes, the position ticker)
@@ -19646,7 +19659,7 @@ function _atvPaintLive(){
   // register 1040 (Dave 21:56 "volume slider does nothing"): redraw the bar only when the mute state CHANGES — a player
   // that reports none (an Apple TV) made every state push rebuild the slider under the finger — and never mid-drag
   const ft=document.getElementById('atv-foot'); if(ft && _draggingVol!==_atv.vol && ft.dataset.m!==(att(_atv.vol,'is_volume_muted')?'1':'0')) _atvFootPaint();
-  if(_atv.tab==='remote'||_atv.tab==='playing'){ const np=body.querySelector('.atv-np,.atv-npbig,.atv-mini'); if(np && np.dataset.title!==String(att(_atv.e,'media_title')||'')) _atvRenderBody(); }
+  if(_atv.tab==='remote'||_atv.tab==='playing'){ const np=body.querySelector('.atv-np,.atv-npbig,.atv-mini'); if(np && np.dataset.title!==_npName(_atv.e)) _atvRenderBody(); }
 }
 function _atvTick(){ if(!_atv) return; const p=_atvPos(); if(!p) return;
   document.querySelectorAll('#atv-page .atv-prog').forEach(el=>{ const i=el.querySelector('.atv-pt i'); if(i) i.style.width=(p.pos/p.dur*100).toFixed(1)+'%';
@@ -19897,8 +19910,8 @@ function _atvPlayEpisode(epId){
 
 // ── Now Playing ─────────────────────────────────────────────────────────────────────────────────────────────
 function _atvRenderPlaying(b){
-  const e=_atv.e, t=att(e,'media_title'), item=_atvNPItem(), np=_atv.np;
-  if(!t){ b.innerHTML='<div class="atv-state"><div class="atv-sico">'+_atvIcon('play')+'</div><b>Nothing reporting what\'s playing</b><span>Apps that share what they play show it here.</span></div>'; return; }
+  const e=_atv.e, t=_npName(e), item=_atvNPItem(), np=_atv.np;
+  if(!t){ b.innerHTML=_npNoneHTML(e,'state'); return; }
   const groups=item?(item.language_groups||[]).filter(g=>g.options&&g.options.length):[], cur=item?(item.current_language||[]):[];
   const chapters=item&&item.chapter_count?item.chapter_count:null;
   const queue=(np&&np.items||[]).slice(1);
@@ -27102,7 +27115,7 @@ function _ppMusicRoom(){
 function _ppMusicE(){ return _ppPlayer(_ppMusicRoom()); }
 function _ppNow(){
   var r=_ppRooms().find(_ppPlaying) || null; var p=_ppPlayer(r);
-  return r?{r:r, p:p, t:att(p,'media_title')||'Playing', a:att(p,'media_artist')||att(p,'media_album_name')||'', art:_ppArt(p)}:null;
+  return r?{r:r, p:p, t:_npName(p)||att(p,'app_name')||'Playing', a:_npFromTitle(p)?(att(p,'media_artist')||att(p,'media_album_name')||''):(att(p,'app_name')||''), art:_ppArt(p)}:null;   // 1361
 }
 
 function _ppBuild(scr){
@@ -27474,7 +27487,7 @@ function _ppUpdate(scr){
   if(scr==='home'){
     var n=_ppNow(), mr=_ppMusicRoom(), np=el.querySelector('.pp-np');
     if(np){
-      var show=n||(mr?{r:mr,p:_ppPlayer(mr),t:att(_ppPlayer(mr),'media_title')||'Nothing playing',a:att(_ppPlayer(mr),'media_artist')||'',art:_ppArt(_ppPlayer(mr))}:null);
+      var show=n||(mr?{r:mr,p:_ppPlayer(mr),t:_npName(_ppPlayer(mr))||'Nothing playing',a:_npFromTitle(_ppPlayer(mr))?(att(_ppPlayer(mr),'media_artist')||''):'',art:_ppArt(_ppPlayer(mr))}:null);
       np.style.visibility=show?'':'hidden';
       if(show){
         np.querySelectorAll('[data-nart]').forEach(function(x){ x.style.backgroundImage=show.art?"url('"+show.art.replace(/'/g,'%27')+"')":''; var s=x.querySelector('svg'); if(s) s.style.display=show.art?'none':''; });
@@ -27498,7 +27511,7 @@ function _ppUpdate(scr){
       var sl=c.querySelector('.pp-sl'); if(sl) _ppSetSL(sl, on?_ppPct(e):0, on?(_ppPct(e)+'%'):'Off'); });
     var pc=el.querySelector('[data-player]'); if(pc){ var p=pc.getAttribute('data-player'), s2=st(p);
       var art=_ppArt(p), a=pc.querySelector('[data-part]'); a.style.backgroundImage=art?"url('"+art.replace(/'/g,'%27')+"')":''; a.querySelector('svg').style.display=art?'none':'';
-      pc.querySelector('[data-pline]').textContent=(s2==='playing'||s2==='paused')?((att(p,'media_title')||'')+(att(p,'media_artist')?(' · '+att(p,'media_artist')):'')||'Playing'):'Not playing';
+      pc.querySelector('[data-pline]').textContent=(s2==='playing'||s2==='paused')?((_npName(p)+(_npFromTitle(p)&&att(p,'media_artist')?(' · '+att(p,'media_artist')):''))||att(p,'app_name')||'Playing'):'Not playing';
       pc.querySelector('[data-cmd="rpp"]').innerHTML=_ppIc(s2==='playing'?'pause':'play');
       var vl=parseFloat(att(_ppVolE(p),'volume_level')); _ppSetSL(pc.querySelector('.pp-sl'), isFinite(vl)?vl*100:0); }
     _ppRoomPatch(el);
@@ -27523,8 +27536,8 @@ function _ppUpdate(scr){
     var mr2=_ppMusicRoom(); if(!mr2) return; var p2=_ppPlayer(mr2), s3=st(p2), art2=_ppArt(p2);
     el.classList.toggle('paused', s3!=='playing');
     el.querySelectorAll('[data-nart]').forEach(function(x){ x.style.backgroundImage=art2?"url('"+art2.replace(/'/g,'%27')+"')":''; var s=x.querySelector('svg'); if(s) s.style.display=art2?'none':''; });
-    el.querySelector('[data-nt]').textContent=(s3==='playing'||s3==='paused')?(att(p2,'media_title')||'Playing'):'Nothing playing';
-    el.querySelector('[data-na]').textContent=(s3==='playing'||s3==='paused')?(att(p2,'media_artist')||att(p2,'media_album_name')||''):'Browse, or ask by voice';
+    el.querySelector('[data-nt]').textContent=(s3==='playing'||s3==='paused')?(_npName(p2)||att(p2,'app_name')||'Playing'):'Nothing playing';
+    el.querySelector('[data-na]').textContent=(s3==='playing'||s3==='paused')?(_npFromTitle(p2)?(att(p2,'media_artist')||att(p2,'media_album_name')||''):(att(p2,'app_name')||'')):'Browse, or ask by voice';
     var gm=att(p2,'group_members'); el.querySelector('[data-mgrp]').textContent=(Array.isArray(gm)&&gm.length>1)?('Grouped \u00b7 '+gm.length):'Group';
     el.querySelectorAll('.pp-mchips [data-mroom]').forEach(function(c){ var rr=_ppRoom(c.getAttribute('data-mroom')); c.classList.toggle('on', rr&&rr.id===mr2.id); c.classList.toggle('play', !!(rr&&_ppPlaying(rr))); });
     el.querySelector('[data-msrc]').textContent=_ppSrc(p2)||(s3==='playing'?'Playing':'');
