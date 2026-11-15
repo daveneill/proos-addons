@@ -8456,9 +8456,10 @@ class Handler(BaseHTTPRequestHandler):
                 # phone, keyed by the platform's notify service, so Pro can say which
                 # phones receive alerts — and which registration has never answered.
                 u = getattr(self, "_user", None)
-                if not (users and u and (u.get("is_admin") or u.get("is_owner")
-                                         or users.is_tech(u.get("id")))):
-                    return self._send(403, {"error": "installer access required"})
+                # REGISTER 1352 (Dave 15 Nov 11:00 "only for tech and developer NOT installer"): the alert test page reads
+                # this — tech and developer (owner) only.
+                if not (users and u and (u.get("is_owner") or users.is_tech(u.get("id")))):
+                    return self._send(403, {"error": "tech access required"})
                 st = push_status()
                 names = _SweepReaders().phone_names()
                 return self._send(200, {"phones": {svc: dict(st.get(nm) or {}, name=nm)

@@ -3415,7 +3415,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111408';
+const PROOS_BUILD='2026111409';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -13664,7 +13664,7 @@ function openCredentials(){ show('credentials'); renderCredentials(); }
 // installer the commissioning surface — network witnesses and phone alerts among it — but
 // both lived only in the Protech toolbox. An installer now opens those two tools; every
 // other toolbox tool stays Protech's.
-const _TECH_TABS_INSTALLER=['net','notify','connect'];   // 1348: an installer sees ProOS Connect's status
+const _TECH_TABS_INSTALLER=['net','connect'];   // 1348: an installer sees ProOS Connect's status. 1352: Notifications is tech/developer only
 function _techFull(){ return !!(_me.tech||_me.developer); }
 function openTech(tab){ if(!_techFull() && !_me.admin){ toast('Tech tools are for Protech accounts'); return; }
   if(tab) _techView=tab;
@@ -22471,7 +22471,8 @@ function v3SecOf(p){
   if(['unifi-suite','unifi','unifi-net','unifi-access','unifi-connect','applehome','savant','irrigation'].includes(p)) return 'devices';   // 1329: 'share' is System Setup's now
   if(p==='activities'||p==='scripts'||p==='automations') return 'scenes';
   if(p==='v3diag'||p==='manage') return 'diagnostics';
-  if(p==='tech') return (_techView==='net'||_techView==='notify')?'setup':'toolbox';
+  // register 1352: Notifications is a Toolbox test page now (tech and developer only); ProOS Connect sits in System Setup
+  if(p==='tech') return (_techView==='net'||_techView==='connect')?'setup':'toolbox';
   if(p==='toolbox'||p==='helpers'||p==='blueprints'||p==='labels') return 'toolbox';
   if(p==='assist2') return _v2sec||'home';
   return 'setup';   // site users history v3software backups music dashremote navlayout credentials maintenance applehome unifi unifi-net savant irrigation systems
@@ -22602,7 +22603,7 @@ function _v3homeAreas(){ return (_areas||[]).filter(a=>!_systemAreas.has(a.area_
 const V3DIAG=[['sweep','Health Sweep','health'],['awareness','Awareness','spark'],['incidents','Incidents','bolt'],['heard','Heard','ear'],['noticed','Assist Noticed','assist'],['log','Master Log','log']];
 const V3SETUP=[['site','Building Settings','home',()=>openSite()],['users','Manage Users','user',()=>openUsers()],['software','Software','box',()=>v3Software()],
   ['backups','Backups','clock',()=>openBackups()],['music','Music Services','music',()=>openMusic()],
-  ['dashremote','Dashboards','grid',()=>openDashRemote()],['channels','Channel Lists','list',()=>openChannels()],['connect','ProOS Connect','plug',()=>openTech('connect')],['notify','Notifications','bolt',()=>openTech('notify')],['net','Network','map',()=>openTech('net')],
+  ['dashremote','Dashboards','grid',()=>openDashRemote()],['channels','Channel Lists','list',()=>openChannels()],['connect','ProOS Connect','plug',()=>openTech('connect')],['net','Network','map',()=>openTech('net')],
   // REGISTER 1329 (Dave 13 Nov 09:12 "okay"): The Rack (1322) and the Share page (1321, 1328) were listed only in the old
   // Systems list that 1256 took off the menu — built, but unreachable. Their rows sit here, after Network.
   ['rack','The Rack','remote',()=>openRack()],['share','Other Control Systems','plug',()=>openShare()],
@@ -22613,13 +22614,15 @@ const V3SETUP=[['site','Building Settings','home',()=>openSite()],['users','Mana
 const V3SYSTEMS=[];
 const V3TOOLS=[['log','Logs','log'],['health','Box Diagnostics','diagnostics'],['prepare','Prepare','check'],['integrations','Recovery Log','plug'],['inspect','Inspect','spark'],
   ['dev','Developer','tag'],['terminal','Terminal','box'],['actions','Actions','bolt'],['assist','Assist AI','assist'],['tiles','App Tiles','grid'],
+  // REGISTER 1352 (Dave 15 Nov 11:00: "keep it as a test page but only for tech and developer NOT installer")
+  ['notify','Notifications','bolt'],
   ['helpers','Helpers','list'],['blueprints','Blueprints','map'],['labels','Labels','tag']];
 // TB-01 · the Toolbox board, as approved: one row per item in the list beside it, the same words, nothing else —
 // the old board's Entities/Integrations (raw)/Notifications/Dashboard layout/Nav layout tiles and its dev console
 // each reached a page the menu already reaches (Inspect, Recovery Log, System Setup › Notifications and Dashboards,
 // Developer), so in the new flow they would be the doubled routes Dave ruled out.
 const V3TOOLSUB={log:'Core and the platform',health:'Resources, updates',prepare:'Before handover',integrations:'Faults and reloads',inspect:'One entity — state, attributes, registry',
-  dev:'Templates, actions, events, set state',terminal:'The box\'s shell',actions:'Restarts, update Core',assist:'ProOS Connect, voice, Talk Live',tiles:'Shortcut artwork',
+  dev:'Templates, actions, events, set state',terminal:'The box\'s shell',actions:'Restarts, update Core',assist:'ProOS Connect, voice, Talk Live',tiles:'Shortcut artwork',notify:'Test alerts to each phone',
   helpers:'Toggles, numbers, texts',blueprints:'Import and manage',labels:'Tags and categories'};
 if(typeof renderToolbox==='function'){
   const _v3rtb=renderToolbox;

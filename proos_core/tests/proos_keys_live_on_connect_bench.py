@@ -239,6 +239,25 @@ ok(G2.ready(full)["music"] is True and G2.ready(full)["push"] is True, "  …eve
 src = open(os.path.join(RELAY_DIR, "relay.py")).read()
 ok("ready=gateway.ready(keys)" in src and "Needs %s" in src, "  …the box is told by that one rule, and the page says 'Needs …' (SPELLING)")
 
+# 6c · register 1352 (read on Dave's Connect 15 Nov: the MusicKit .p8 in the Push Key field → InvalidProviderToken)
+_spec = importlib.util.spec_from_file_location("gw_fresh", os.path.join(RELAY_DIR, "gateway.py"))
+G2 = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(G2)          # a fresh gateway: the relay checks above stood its push_send in
+mix = dict(full, apns_p8="SAMEKEY", music_p8="SAMEKEY", apns_key_id="PUSH123456", music_key_id="MUSIC12345")
+ok("AuthKey_PUSH123456.p8" in G2.apple_mixup(mix) and G2.apple_mixup(dict(full, apns_p8="A", music_p8="B")) == ""
+   and G2.apple_mixup(dict(mix, music_key_id="PUSH123456")) == "",
+   "6c · the same .p8 in both fields with different Key IDs is named on the page — and only that")
+_signed = []
+_sig = lambda si, pem: (_signed.append(pem), b"\x01" * 64)[1]
+G2._apns_jwt.update(tok=None, at=0, who=None)
+_post = lambda host, token, jwt, topic, payload: (200, "")
+k1 = dict(full, apns_p8="KEY-ONE")
+G2.push_send(k1, "t", b"{}", signer=_sig, post=_post, now=1000)
+G2.push_send(k1, "t", b"{}", signer=_sig, post=_post, now=1100)
+G2.push_send(dict(k1, apns_p8="KEY-TWO"), "t", b"{}", signer=_sig, post=_post, now=1200)
+ok(_signed == ["KEY-ONE", "KEY-TWO"],
+   "  …a token is reused while the push details are the same, and re-signed the moment any of them change")
+
 # 6b · photo search (register 1348): ProOS's one Unsplash key, only Unsplash's search and its "picked" call
 code, r = call("GET", "/v1/photos/search?query=beach")
 ok(code == 503 and "photo search key" in r["error"], "6b · no Unsplash key yet: said")
