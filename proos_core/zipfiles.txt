@@ -5341,6 +5341,7 @@ proos/protecttalk.py
 proos/provision.py
 proos/realtime.py
 proos/push.py
+proos/pushsignins.py
 proos/reach.py
 proos/reachability.py
 proos/readback.py

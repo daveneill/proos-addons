@@ -5891,6 +5891,8 @@ def _push_note(reg, ok, words, env=None, key_id=None, receipt=None):
                               # which Apple server and which key Apple answered (register 893): the evidence for
                               # "does this key work on that server" — Apple's own reply, never assumed
                               "env": env, "key_id": key_id,
+                              # register 1354: WHICH sign-in this alert went to (several can share a name)
+                              "entry_id": (reg or {}).get("entry_id"),
                               # register 1353: Apple's receipt for the alert it accepted (apns-id; apns-unique-id on
                               # the test server) — what Apple's Push Notifications Console › Delivery Log looks up
                               "receipt": dict(receipt or {})}
@@ -5900,6 +5902,29 @@ def _push_note(reg, ok, words, env=None, key_id=None, receipt=None):
         os.replace(tmp, _PUSH_STATUS_PATH)
     except Exception:                                            # noqa: BLE001
         pass
+
+
+def _push_signins():
+    """REGISTER 1354: every app sign-in, read from the platform (config entries, entity registry, states) and the
+    box's own alert record — proos/pushsignins.py. A part that cannot be read is left out, never invented: no
+    sensor read means "not heard", never a time."""
+    from proos import pushsignins as _psi
+    try:
+        with open(_HA_STORAGE_ENTRIES) as f:
+            entries = (json.load(f).get("data") or {}).get("entries", []) or []
+    except Exception:  # noqa: BLE001
+        entries = []
+
+    def _state(eid):
+        try:
+            return _client._req("GET", "/api/states/%s" % eid) or None
+        except Exception:  # noqa: BLE001
+            return None
+    try:
+        ereg = _client.entity_registry() or []
+    except Exception:  # noqa: BLE001
+        ereg = []
+    return _psi.signins(entries, ereg, _state, push_status())
 
 
 def push_status():
@@ -5978,10 +6003,13 @@ _push_pruned: set = set()
 
 
 def _push_prune_ghosts(reg: dict) -> int:
-    """Delete older ProOS registrations that share this phone's device id.
-    Returns how many were removed. Never touches the registration just used."""
-    dev, keep = reg.get("device_id"), reg.get("entry_id")
-    if not dev or not keep or keep in _push_pruned:
+    """Delete older ProOS registrations of the SAME APP that share this phone's device id.
+    Returns how many were removed. Never touches the registration just used.
+    REGISTER 1354 (15 Nov 2026): the device id is Apple's per-developer id, the SAME for every Protech app on one
+    device — so the Pro app and the homeowner app on Dave's iPad deleted each other's sign-in in turn (each
+    re-registered as new, then removed the other on its next alert). Only the same app is the same sign-in."""
+    dev, keep, app = reg.get("device_id"), reg.get("entry_id"), reg.get("app_id")
+    if not dev or not keep or not app or keep in _push_pruned:
         return 0
     _push_pruned.add(keep)
     removed = 0
@@ -5993,6 +6021,7 @@ def _push_prune_ghosts(reg: dict) -> int:
             if (e.get("domain") != "mobile_app" or e.get("entry_id") == keep
                     or not (d.get("app_id") or "").startswith(_PUSH_APP_PREFIX)
                     or d.get("device_id") != dev
+                    or (d.get("app_id") or "") != (app or "")
                     or (e.get("created_at") or 0) >= (reg.get("created_at") or 0)):
                 continue
             try:
@@ -8454,6 +8483,13 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, {"on": _proactive_mod.device_optins() if _proactive_mod else {},
                                         "critical": sorted(_proactive_mod.critical_devices(_reg_)) if _proactive_mod else [],
                                         "recipients": sorted(_alert_recipients() or [])})
+            if parts == ["push", "signins"]:
+                # REGISTER 1354: every app signed in to this box as the platform holds it — which app, when it last
+                # sent anything, which sign-ins share an alert channel and which one the last alert went to.
+                u = getattr(self, "_user", None)
+                if not (users and u and (u.get("is_owner") or users.is_tech(u.get("id")))):
+                    return self._send(403, {"error": "tech access required"})
+                return self._send(200, {"signins": _push_signins()})
             if parts == ["push", "status"]:
                 # PLAN B1/D2 (L-9): what actually happened to the last alert for each
                 # phone, keyed by the platform's notify service, so Pro can say which
@@ -10785,6 +10821,21 @@ class Handler(BaseHTTPRequestHandler):
                 if not did_ or _proactive_mod is None:
                     return self._send(400, {"error": "device_id required"})
                 return self._send(200, {"ok": True, "on": _proactive_mod.set_device_optin(did_, bool(b_.get("on")))})
+            if parts == ["push", "signins", "remove"]:
+                # REGISTER 1354 (Dave 15 Nov 13:25 "yes"): a tech removes a stale sign-in from Toolbox › Notifications.
+                # Only an app sign-in (mobile_app), named by the list the page was shown; the platform's own delete.
+                u = getattr(self, "_user", None)
+                if not (users and u and (u.get("is_owner") or users.is_tech(u.get("id")))):
+                    return self._send(403, {"error": "tech access required"})
+                eid = str((self._body() or {}).get("entry_id") or "").strip()
+                if not eid or not any(r["entry_id"] == eid for r in _push_signins()):
+                    return self._send(404, {"error": "no such sign-in"})
+                try:
+                    _client._req("DELETE", "/api/config/config_entries/entry/%s" % eid)
+                except Exception as ex:  # noqa: BLE001
+                    return self._send(502, {"error": "the box could not remove it: %s" % str(ex)[:120]})
+                print("  push · sign-in removed by a tech from Toolbox › Notifications", flush=True)
+                return self._send(200, {"ok": True})
             if parts == ["push", "forget"]:
                 # A phone signing out (register 313): verified exactly like an
                 # alert — webhook id + device token must match a ProOS

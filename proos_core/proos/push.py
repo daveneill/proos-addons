@@ -154,6 +154,8 @@ def _apns_post(host: str, token: str, jwt: str, topic: str,
              "-H", f"authorization: bearer {jwt}",
              "-H", f"apns-topic: {topic}",
              "-H", f"apns-push-type: {push_type}",
+             # register 1354: Apple holds an alert up to an hour for a phone it cannot reach this moment
+             "-H", f"apns-expiration: {int(time.time()) + 3600}",
              "--data-binary", "@-", url],
             input=payload, capture_output=True, timeout=15,
         )

@@ -3415,7 +3415,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111501';
+const PROOS_BUILD='2026111502';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -15064,7 +15064,7 @@ async function techViewNotify(view){
     // the test to every phone; each row below is only the reading — what Apple said, and Apple's receipt for it.
     +'<div class="bld-sec" style="margin-top:18px"><div class="bld-sec-h" style="display:flex;align-items:center;justify-content:space-between">Send a Test Alert'
     +'<button class="btn-ghost" id="nt-send" style="padding:6px 14px" onclick="notifyTestSend(this)">Send Test Alert</button></div>'
-    +'<div class="wiz-hint">Sends one test to every phone: this box → ProOS Core → ProOS Connect → Apple → the phone. Each phone below shows what Apple said. If Apple accepted it and the phone shows nothing, look its Apple Receipt up in Apple’s Push Notifications Console › Delivery Log.</div>'
+    +'<div class="wiz-hint">Sends one test to every phone: this box → ProOS Core → ProOS Connect → Apple → the phone. Below is every app signed in to this box. If Apple accepted an alert and the phone shows nothing, look its Apple Receipt up in Apple’s Push Notifications Console › Delivery Log; a sign-in not heard from in a long time, or one sharing a name, is usually the cause.</div>'
     +'<div id="nt-phones" class="wiz-hint">Reading the phones this box knows…</div></div>');
   notifyPhonesLoad();
 }
@@ -15085,20 +15085,38 @@ async function notifyPhonesRefresh(){
   }catch(e){} finally{ notifyPhonesRefresh._busy=false; }
 }
 // The phones: every notify.mobile_app_* the box offers, read from the box.
+// REGISTER 1354 (Dave 15 Nov 13:25): the list is EVERY APP SIGNED IN to this box, as the platform holds it — which app,
+// the device, when it last sent the box anything, and which sign-ins share one alert channel (the platform sends by
+// name, one channel per name; since iOS 16 every iPhone is "iPhone"). The sign-in the last alert went to carries what
+// Apple said and its receipt. A tech can remove a stale sign-in (asked twice on the button — no browser dialog).
 async function notifyPhonesLoad(){
   const host=document.getElementById('nt-phones'); if(!host) return;
-  _notifyPhones=null; await notifyPhonesRefresh(); const phones=_notifyPhones||[];
-  if(!phones.length){ setHTML(host,'No phones are registered with this box yet — sign in on a ProOS phone first.'); return; }
-  // WHAT HAPPENED LAST, PER PHONE (plan D2, L-9): a registration that never answers is
-  // shown as such instead of looking like a live phone (Dave, 3 Oct: "daves iphone 16 pro
-  // does nothing so don't know why it's there").
-  let st={}; try{ const r=await _coreFetch(proCoreUrl()+'/push/status',{},8000); if(r.ok) st=((await r.json())||{}).phones||{}; }catch(e){}
-  const lastWords=s=>{ const p=st[s]; if(!p||p.ok===undefined) return 'No alert has reached it that ProOS can see — it may use another app\u2019s push service, or be an old sign-in.';
-    const ago=p.at?(' \u00b7 '+new Date(p.at*1000).toLocaleString()):''; return (p.ok?'Apple accepted the last alert':'Last alert did not get through: '+(p.words||''))+ago; };
-  const receipt=s=>{ const r=(st[s]&&st[s].ok&&st[s].receipt)||{}; const u=r['apns-unique-id'], i=r['apns-id'];
-    return (u||i)?'<div class="field-hint" style="margin-top:2px;user-select:all">Apple Receipt · '+esc(u||i)+(u?'':' (live server)')+'</div>':''; };
-  setHTML(host, phones.map(s=>'<div class="row"><div class="rl">'+esc((st[s]&&st[s].name)||s.replace(/^mobile_app_/,'').replace(/_/g,' '))
-    +'<div class="field-hint" style="margin-top:2px">'+esc(lastWords(s))+'</div>'+receipt(s)+'</div></div>').join(''));
+  _notifyPhones=null; await notifyPhonesRefresh();
+  let rows=null; try{ const r=await _coreFetch(proCoreUrl()+'/push/signins',{},10000); if(r.ok) rows=((await r.json())||{}).signins||[]; }catch(e){}
+  if(rows===null){ setHTML(host,'The sign-ins on this box couldn’t be read.'); return; }
+  if(!rows.length){ setHTML(host,'No apps are signed in to this box yet — sign in on a ProOS phone first.'); return; }
+  const when=t=>{ const d=new Date(t); return isNaN(d)?'':d.toLocaleString(); };
+  const line=r=>{
+    const out=[];
+    out.push(r.heard?('Last heard from the app · '+when(r.heard)):'Not heard from since the box last started');
+    if(r.shares>0) out.push('<span style="color:#e3a23c">Shares the name “'+esc(r.name)+'” with '+r.shares+' other sign-in'+(r.shares>1?'s':'')+' — the box sends alerts by name, so only one of them gets alerts for “'+esc(r.name)+'”</span>');
+    const a=r.last_alert;
+    if(a){ const rc=a.receipt||{}, u=rc['apns-unique-id'], i=rc['apns-id'];
+      out.push((a.ok?'The last alert for “'+esc(r.name)+'” went here · Apple accepted it':'The last alert for “'+esc(r.name)+'” went here · did not get through: '+esc(a.words||''))+(a.at?' · '+new Date(a.at*1000).toLocaleString():''));
+      if(a.ok&&(u||i)) out.push('<span style="user-select:all">Apple Receipt · '+esc(u||i)+'</span>'+(u?'':' (live server)')); }
+    return out.map(x=>'<div class="field-hint" style="margin-top:2px">'+x+'</div>').join('');
+  };
+  setHTML(host, rows.map(r=>'<div class="row"><div class="rl">'+esc(r.name)
+    +' <span class="field-hint">· '+esc(r.app)+(r.model?' · '+esc(r.model):'')+(r.os?' · '+esc(r.os):'')+'</span>'
+    +line(r)+'</div><div class="rr"><button class="btn-ghost" style="padding:6px 12px" data-eid="'+esc(r.entry_id)+'" onclick="notifySigninRemove(this)">Remove</button></div></div>').join(''));
+}
+async function notifySigninRemove(btn){
+  if(!btn) return;
+  if(btn.dataset.sure!=='1'){ btn.dataset.sure='1'; btn.textContent='Tap Again to Remove'; setTimeout(()=>{ if(btn.isConnected){ btn.dataset.sure=''; btn.textContent='Remove'; } },5000); return; }
+  btn.disabled=true; btn.textContent='Removing…';
+  try{ const r=await _coreFetch(proCoreUrl()+'/push/signins/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({entry_id:btn.dataset.eid})},15000);
+    toast(r.ok?'Sign-in removed':'The box couldn’t remove it'); }catch(e){ toast('The box couldn’t remove it'); }
+  notifyPhonesLoad();
 }
 async function notifyTestSend(btn){
   const phones=_notifyPhones||[]; if(!phones.length){ toast('No phones to send to'); return; }
