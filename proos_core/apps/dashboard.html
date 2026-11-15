@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111603';
+const PROOS_BUILD='2026111604';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -24103,11 +24103,11 @@ async function saveService(){
 </style>
 <!-- REGISTER 1365 motion styles (the type scale stays the last stylesheet) -->
 <style>
-/* 1367 (Dave 16 Nov 06:42): the room page takes the All Rooms tile's on/off look — grey and dark while everything in the room is
-   off, normal while anything is on — and follows the room live */
+/* 1367 (Dave 16 Nov 06:42): the room page takes the All Rooms tile's on/off look and follows the room live; 1369: off is a
+   soft dim (a quarter darker, colour kept), never grey */
 #room-bg .room-bg-layer{transition:opacity var(--m-hold) var(--e-standard),filter var(--m-door) var(--e-standard)}
-#room-bg.mx-off .room-bg-layer{filter:grayscale(.85) brightness(.5)}
-.mx-grow.off .mx-grow-bg{filter:grayscale(.85) brightness(.5)}
+#room-bg.mx-off .room-bg-layer{filter:brightness(.75)}
+.mx-grow.off .mx-grow-bg{filter:brightness(.75)}
 #mx-warm{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity var(--m-door) var(--e-standard);
   background:radial-gradient(70% 50% at 70% 28%,rgba(255,196,120,.55),transparent 70%),radial-gradient(60% 45% at 22% 72%,rgba(255,168,90,.28),transparent 70%)}
 .mx-grow{position:fixed;z-index:2147480000;overflow:hidden;pointer-events:none;background:#0a0a12;will-change:left,top,width,height}
@@ -25308,17 +25308,18 @@ body:has(#widget-picker.open) #widget-add-pill{display:none!important}   /* regi
 .room-tabs.rtab-cards .rcard span{font-size:12px;color:rgba(255,255,255,.7);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* REGISTER 1011 — ROOM TILES AS ON THE PANEL (Dave, 26 Oct: "same as the flip panel and be darker if room off and normal
    when something on in room keeping in mind our rule that paused is not room off"). One rule everywhere: a room whose
-   line reads Off (_ppLine — Playing, a light, or Paused are not Off) shows its photo greyed and darker, exactly the
-   panel's grayscale(.85) brightness(.5); anything on shows it as it is. */
+   line reads Off (_ppLine — Playing, a light, or Paused are not Off) shows its photo a quarter darker — REGISTER 1369 (Dave
+   16 Nov 07:08 "when its dark it tends to give you a dark feeling not vibrant"; 07:33 "yes" to the soft dim): no grey, the
+   photo keeps its colour (was grayscale .85, brightness .5); anything on shows it as it is. */
 .room-tabs.rtab-cards .rcard::before{content:'';position:absolute;inset:0;pointer-events:none;border-radius:inherit;-webkit-backdrop-filter:none;backdrop-filter:none;transition:backdrop-filter var(--m-page) var(--e-standard),-webkit-backdrop-filter var(--m-page) var(--e-standard)}
-.room-tabs.rtab-cards .rcard:not(.live)::before{-webkit-backdrop-filter:grayscale(.85) brightness(.5);backdrop-filter:grayscale(.85) brightness(.5)}
+.room-tabs.rtab-cards .rcard:not(.live)::before{-webkit-backdrop-filter:brightness(.75);backdrop-filter:brightness(.75)}
 .room-tabs.rtab-cards .rcard>b,.room-tabs.rtab-cards .rcard>span{position:relative;z-index:1}
 /* 1083 (Dave 30 Oct 08:54, Home on the iPad: "Area thumbnails running over on long titles" — the Office's
    "Playing · Forever Now - 2011 Remaster" ran past both edges of its card). A flex child never shrinks below its text, so
    the ellipsis had nothing to cut against: the name and the line are held to the card's width. */
 .room-tabs.rtab-cards .rcard>b,.room-tabs.rtab-cards .rcard>span{max-width:100%;min-width:0;box-sizing:border-box}
 .room-card .room-card-bg{transition:filter var(--m-page) var(--e-standard)}
-.room-card:not(.live) .room-card-bg{filter:grayscale(.85) brightness(.5)}
+.room-card:not(.live) .room-card-bg{filter:brightness(.75)}
 .room-tabs.rtab-cards .rcard.live::after{content:'';position:absolute;top:12px;right:12px;width:8px;height:8px;border-radius:50%;background:#FFC46B;box-shadow:0 0 10px #FFC46B}
 /* 1124 (Dave 31 Oct 17:18, after the pictures: "yes change the home row also please on ipad and mobile"): Home's room cards
    are two tiles wide like the Rooms page (1123) — 428 (two 208s and the gap) on an iPad and the Mac; on a phone one card
@@ -26158,7 +26159,7 @@ html.pp-on #app{visibility:hidden}
 .pp-rc .chips svg{width:13px;height:13px}
 .pp-rc .chips .l{color:#FFC46B}.pp-rc .chips .m{color:#7CF0C5}
 .pp-rc.lit .chips .l,.pp-rc.play .chips .m{display:grid}
-.pp-rc.idle .ph{filter:grayscale(.85) brightness(.5)}
+.pp-rc.idle .ph{filter:brightness(.75)}
 /* rooms */
 #pp-rooms .pp-bg,#pp-lights .pp-bg,#pp-assist .pp-bg,#pp-settings .pp-bg,#pp-favs .pp-bg{inset:-80px;filter:blur(28px) brightness(.32)}
 .pp-grid{position:absolute;left:32px;right:32px;top:78px;bottom:62px;display:grid;grid-template-columns:repeat(4,1fr);gap:12px;align-content:start;padding-bottom:16px}

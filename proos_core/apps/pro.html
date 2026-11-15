@@ -2281,7 +2281,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 }
 /* REGISTER 1011 — Areas tiles as on the panel: Off = the photo greyed and darker; anything on (paused included) = as it is */
 .hub-room .ph-img{transition:filter .4s ease;filter:none}   /* on: the photo as it is (it was dimmed to .5 for every room) */
-.hub-room.hub-off .ph-img{filter:grayscale(.85) brightness(.5)}
+.hub-room.hub-off .ph-img{filter:brightness(.75)}   /* 1369: the soft dim, as the dashboard */
 /* Devices: a room is chosen on the page */
 .v3rooms{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:4px 22px 12px}
 .v3rooms-l{font-size:12.5px;color:rgba(255,255,255,.45);margin-right:4px}
@@ -3415,7 +3415,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111503';
+const PROOS_BUILD='2026111601';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
