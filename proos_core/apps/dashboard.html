@@ -3372,6 +3372,19 @@ html[data-link="remote"]{--m-tap:90ms;--m-move:200ms;--m-page:300ms}
 #atv-page .atv-trans button{width:52px;height:52px;border-radius:50%;display:grid;place-items:center;background:var(--atv-glass)!important}#atv-page .atv-trans button svg{width:22px;height:22px}
 #atv-page .atv-trans button.big{width:66px;height:66px;background:#fff!important;color:#000!important}#atv-page .atv-trans button.big svg{width:26px;height:26px}
 #atv-page .atv-tcap{text-align:center;font-size:11.5px;color:var(--atv-ink3);flex:none}
+/* register 1363: Apple's iPhone remote — the edge row on the touch surface, three big round keys (.atv-rk) below */
+#atv-page .atv-edge{position:absolute;left:10px;right:10px;bottom:10px;display:flex;align-items:flex-end;justify-content:space-between;z-index:2}
+#atv-page .atv-edge>button,#atv-page .atv-edge .ch button{width:52px;height:46px;display:grid;place-items:center;background:none!important;border:0;color:inherit;padding:0}
+#atv-page .atv-edge svg{width:27px;height:27px}
+#atv-page .atv-edge .ch{display:flex;flex-direction:column;align-items:center;gap:0}#atv-page .atv-edge .ch[hidden]{display:flex;visibility:hidden}
+#atv-page .atv-edge .ch b{font-size:14px;font-weight:600;letter-spacing:.04em;line-height:1}#atv-page .atv-edge .ch button{height:34px}
+#atv-page .atv-pad:has(.atv-edge) .atv-tphint{bottom:auto;top:42%}
+#atv-page .atv-pad:has(.atv-edge) .atv-dpad{inset:0 0 62px 0}
+#atv-page .atv-rk{display:flex;justify-content:center;align-items:center;gap:clamp(22px,8vw,56px);flex:none;padding-bottom:14px}
+#atv-page .atv-pad:has(.atv-edge){min-height:0}#atv-page .atv-cols:has(.atv-edge){grid-template-rows:minmax(0,1fr)}#atv-page .atv-cols:has(.atv-edge)>.atv-r{overflow-y:auto;scrollbar-width:none}#atv-page .atv-pad:has(.atv-edge) .atv-dpad{--ok:min(110px,30cqmin);--dk:min(60px,17cqmin)}
+#atv-page .atv-rk button{width:78px;height:78px;border-radius:50%;display:grid;place-items:center;background:var(--atv-glass)!important}
+#atv-page .atv-rk button.c{width:98px;height:98px}
+#atv-page .atv-rk svg{width:30px;height:30px}#atv-page .atv-rk button.c svg{width:38px;height:38px;stroke-width:1.9}
 /* now playing */
 #atv-page .atv-np{display:flex;flex-direction:column;gap:12px;padding:16px;border-radius:24px;background:var(--atv-glass);flex:1;min-height:0}
 #atv-page .atv-np.empty{justify-content:center;align-items:center;text-align:center;gap:6px}#atv-page .atv-np.empty b{font-size:16px;font-weight:600}#atv-page .atv-np.empty span{font-size:13px;color:var(--atv-ink2)}
@@ -3569,6 +3582,7 @@ html[data-link="remote"]{--m-tap:90ms;--m-move:200ms;--m-page:300ms}
   #atv-page .atv-l:has(.atv-pad){display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);grid-template-rows:1fr auto auto 1fr;column-gap:16px;row-gap:0;height:100%}
   #atv-page .atv-l:has(.atv-pad) .atv-pad{grid-column:1;grid-row:1/-1;min-height:0}
   #atv-page .atv-l:has(.atv-pad) .atv-keys{grid-column:2;grid-row:2;grid-template-columns:repeat(4,1fr);gap:6px}#atv-page .atv-key{padding:4px 2px 4px;gap:2px}#atv-page .atv-key svg{width:16px;height:16px}#atv-page .atv-key em{font-size:10px}
+  #atv-page .atv-l:has(.atv-pad) .atv-rk{grid-column:2;grid-row:2/4;gap:14px}#atv-page .atv-rk button{width:56px;height:56px}#atv-page .atv-rk button.c{width:70px;height:70px}
   #atv-page .atv-l:has(.atv-pad) .atv-trans{grid-column:2;grid-row:3;gap:10px;margin-top:10px}#atv-page .atv-trans button{width:40px;height:40px}#atv-page .atv-trans button.big{width:48px;height:48px}
   #atv-page .atv-tcap,#atv-page .atv-tphint span,#atv-page .atv-cols:has(.atv-pad) .atv-r{display:none}
   #atv-page .atv-tphint{bottom:10px;font-size:12px}
@@ -5063,7 +5077,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111501';
+const PROOS_BUILD='2026111502';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -19254,7 +19268,13 @@ function _atvIcon(n){ const P={
   mute:'<path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="m16 9.5 5 5M21 9.5l-5 5"/>', vol:'<path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4.5 4.5 0 0 1 0 6M18 6.5a8 8 0 0 1 0 11"/>',
   check:'<path d="m5 12.5 4.5 4.5L19 7.5"/>', x:'<path d="M6 6l12 12M18 6 6 18"/>', moon:'<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>',
   wifi:'<path d="M3 3l18 18M8.5 16.4a5 5 0 0 1 7 0M5 12.8a10 10 0 0 1 4.3-2.4M14.7 10.4A10 10 0 0 1 19 12.8"/><path d="M12 20h.01"/>',
-  prevch:'<path d="M6 5v14M19 5 9 12l10 7z"/>', nextch:'<path d="M18 5v14M5 5l10 7-10 7z"/>'};
+  prevch:'<path d="M6 5v14M19 5 9 12l10 7z"/>', nextch:'<path d="M18 5v14M5 5l10 7-10 7z"/>',
+  // register 1363 (Dave 15 Nov 19:00 "make sure the icons match same as Apple uses"): the iPhone Apple TV remote's own shapes
+  ppo:'<path d="M3.5 6.5v11l8-5.5z"/><path d="M15.5 6.5v11M20 6.5v11"/>',
+  tv:'<rect x="3" y="4.5" width="18" height="12.5" rx="2.2"/><path d="M8.5 20.2h7"/>',
+  guide:'<circle cx="4.6" cy="6.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="4.6" cy="12" r="1.1" fill="currentColor" stroke="none"/><circle cx="4.6" cy="17.5" r="1.1" fill="currentColor" stroke="none"/><path d="M9 6.5h11M9 12h11M9 17.5h11"/>',
+  opts:'<circle cx="12" cy="12" r="9"/><circle cx="7.9" cy="12" r="1.15" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.15" fill="currentColor" stroke="none"/><circle cx="16.1" cy="12" r="1.15" fill="currentColor" stroke="none"/>',
+  chup:'<path d="m5.5 15 6.5-6.5 6.5 6.5"/>', chdn:'<path d="m5.5 9 6.5 6.5 6.5-6.5"/>'};
   return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">'+(P[n]||'')+'</svg>'; }
 
 // ── talking to the Apple TV (the certified driver's own actions) ─────────────────────────────────────────────
@@ -19449,42 +19469,50 @@ function _atvPopClose(){ const p=document.getElementById('atv-page'); if(!p) ret
 
 // ── Remote ──────────────────────────────────────────────────────────────────────────────────────────────────
 function _atvRenderRemote(b){
-  const keys=[['menu','Back'],['home','Home'],['pp','Play/Pause'],['info','Info'],['cc','CC'],['apps','Apps'],['kbd','Type'],['more','More']];
+  // REGISTER 1363 (Dave 15 Nov 18:54–19:00, approved mock): Apple's own iPhone remote — the touch surface with Guide,
+  // −10, Options, +10 and (only while live TV plays) CH along its bottom edge; Play/Pause · Back · TV below; volume at
+  // the foot. Info, CC, Apps, Type, More and the rewind/fast-forward row are gone (Type still opens by itself when the
+  // Apple TV asks for text; CC stays on Now Playing). Dave: keep the D-pad / swipe switch.
   b.innerHTML=_atvMiniHTML()+'<div class="atv-cols"><section class="atv-l">'
     +'<div class="atv-pad '+_atv.mode+'" id="atv-pad"><div class="atv-tog"><button type="button" data-mode="dpad" class="'+(_atv.mode==='dpad'?'on':'')+'" aria-label="D-pad">'+_atvIcon('dpad')+'</button>'
     +'<button type="button" data-mode="touch" class="'+(_atv.mode==='touch'?'on':'')+'" aria-label="Touch surface">'+_atvIcon('hand')+'</button></div>'
-    +(_atv.mode==='touch'?'<div class="atv-tphint">Swipe to move · tap to select<br><span>Hold for options · hold an edge to scroll fast</span></div>'
+    +(_atv.mode==='touch'?'<div class="atv-tphint">Swipe to move · tap to select<br><span>Hold for options</span></div>'
       :'<div class="atv-dpad"><button type="button" class="dk u" data-k="up">'+_atvIcon('chev')+'</button><button type="button" class="dk r" data-k="right">'+_atvIcon('chev')+'</button>'
        +'<button type="button" class="dk d" data-k="down">'+_atvIcon('chev')+'</button><button type="button" class="dk l" data-k="left">'+_atvIcon('chev')+'</button><button type="button" class="ok" data-k="select">OK</button></div>')
-    +'</div><div class="atv-keys">'+keys.map(k=>'<button type="button" class="atv-key'+(k[0]==='kbd'&&_atvKbOn()?' lit':'')+'" data-key="'+k[0]+'">'+_atvIcon(k[0])+'<em>'+k[1]+'</em></button>').join('')+'</div>'
-    +'<div class="atv-trans"><button type="button" data-t="rew">'+_atvIcon('rew')+'</button><button type="button" data-t="skb">'+_atvIcon('skb')+'</button>'
-    +'<button type="button" class="big" data-t="pp" id="atv-ppbtn">'+_atvIcon(states[_atv.e]&&states[_atv.e].state==='playing'?'pause':'play')+'</button>'
-    +'<button type="button" data-t="skf">'+_atvIcon('skf')+'</button><button type="button" data-t="ffw">'+_atvIcon('ffw')+'</button></div>'
-    +'<div class="atv-tcap">Hold rewind or fast forward to scrub · let go to stop</div></section>'
+    +'<div class="atv-edge"><button type="button" data-t="guide" aria-label="Guide">'+_atvIcon('guide')+'</button>'
+    +'<button type="button" data-t="skb" aria-label="Back 10 seconds">'+_atvIcon('skb')+'</button>'
+    +'<button type="button" data-t="opts" aria-label="Options">'+_atvIcon('opts')+'</button>'
+    +'<button type="button" data-t="skf" aria-label="Forward 10 seconds">'+_atvIcon('skf')+'</button>'
+    +'<div class="ch"'+(_atvLiveTV()?'':' hidden')+'><button type="button" data-t="chup" aria-label="Channel up">'+_atvIcon('chup')+'</button><b>CH</b><button type="button" data-t="chdn" aria-label="Channel down">'+_atvIcon('chdn')+'</button></div></div>'
+    +'</div><div class="atv-rk"><button type="button" data-key="pp" aria-label="Play/Pause">'+_atvIcon('ppo')+'</button>'
+    +'<button type="button" class="c" data-key="menu" aria-label="Back">'+_atvIcon('menu')+'</button>'
+    +'<button type="button" data-key="home" aria-label="TV">'+_atvIcon('tv')+'</button></div></section>'
     +'<section class="atv-r">'+_atvNowCardHTML()+'</section></div>';
   b.querySelectorAll('[data-mode]').forEach(x=>x.onclick=()=>{ _atv.mode=x.dataset.mode; _atvLS('mode',_atv.mode); _atvRenderBody(); });
   if(_atv.mode==='touch') _atvBindTouch(b.querySelector('#atv-pad'));
+  // the edge row sits ON the touch surface: a press there is a button, never a touch on the surface
+  b.querySelectorAll('.atv-edge, .atv-tog').forEach(x=>['pointerdown','touchstart','mousedown'].forEach(ev=>x.addEventListener(ev,e=>e.stopPropagation())));
   b.querySelectorAll('.atv-dpad [data-k]').forEach(x=>{ const k=x.dataset.k;
     _atvPress(x,{tap:()=>_atvKey(k,'tap'), holdStart:()=>{ if(k==='select'){ _atvKey('select','hold'); return; } _atv.held=k; _atvKey(k,'down'); }, holdEnd:()=>{ if(k!=='select') _atvReleaseHeld(); }}); });
   b.querySelectorAll('[data-key]').forEach(x=>{ const k=x.dataset.key;
     if(k==='menu') _atvPress(x,{tap:()=>_atvKey('menu','tap'), hold:()=>_atvKey('top_menu')});
     else if(k==='home') _atvPress(x,{tap:()=>_atvKey('home','tap'), double:()=>_atvKey('home','double'), hold:()=>_atvKey('control_center')});
-    else if(k==='pp') _atvPress(x,{tap:()=>_atvKey('play_pause','tap')});
-    else if(k==='info') _atvPress(x,{tap:()=>_atvKey('select','hold')});
-    else if(k==='cc') _atvPress(x,{tap:_atvCCSheet});
-    else if(k==='apps') _atvPress(x,{tap:()=>_atvKey('home','double')});
-    else if(k==='kbd') _atvPress(x,{tap:_atvTypeOpen});
-    else if(k==='more') _atvPress(x,{tap:_atvMoreSheet}); });
+    else if(k==='pp') _atvPress(x,{tap:()=>_atvKey('play_pause','tap')}); });
   b.querySelectorAll('[data-t]').forEach(x=>{ const t=x.dataset.t;
-    if(t==='pp') _atvPress(x,{tap:()=>_atvKey('play_pause','tap')});
+    if(t==='guide') _atvPress(x,{tap:()=>_atvKey('guide','tap')});
+    else if(t==='opts') _atvPress(x,{tap:()=>_atvKey('select','hold')});
+    else if(t==='chup') _atvPress(x,{tap:()=>_atvKey('channel_up','tap')});
+    else if(t==='chdn') _atvPress(x,{tap:()=>_atvKey('channel_down','tap')});
     else if(t==='skb') _atvPress(x,{tap:()=>_atvCall('proos_media',{command:'skip_by',seconds:-10}).catch(_atvFail)});
-    else if(t==='skf') _atvPress(x,{tap:()=>_atvCall('proos_media',{command:'skip_by',seconds:10}).catch(_atvFail)});
-    else { const dir=t==='ffw'?'forward':'back';
-      _atvPress(x,{tap:()=>_atvCall('proos_media',{command:'skip_by',seconds:dir==='forward'?30:-30}).catch(_atvFail),
-        holdStart:()=>_atvCall('proos_media',{command:'scrub_'+dir+'_begin'}).catch(_atvFail),
-        holdEnd:()=>_atvCall('proos_media',{command:'scrub_'+dir+'_end'}).catch(_atvFail)}); } });
+    else if(t==='skf') _atvPress(x,{tap:()=>_atvCall('proos_media',{command:'skip_by',seconds:10}).catch(_atvFail)}); });
   _atvBindNow(b); const mini=b.querySelector('.atv-mini'); if(mini) mini.onclick=()=>{ _atv.tab='playing'; _atvLS('tab','playing'); _atvRender(); _atvRefreshNP(); };
 }
+// REGISTER 1363 (Dave 18:57 "Channel only when live tv app is playing"): live TV is what the Apple TV reports — a
+// programme playing with NO running length (read on Dave's box: Channels "9News Sunday" — media_duration none; an HBO
+// Max film — 6908 s, an HBO Max item loading — 0 s). The Apple TV library has no per-app channel answer (pyatv lists
+// ChannelUp as always available), so the programme's own report is the witness.
+function _atvLiveTV(){ if(!_atv) return false; const e=_atv.e, s=states[e]&&states[e].state;
+  return (s==='playing'||s==='paused') && !!_npName(e) && att(e,'media_duration')==null; }
 function _atvKbOn(){ const kb=_atvKbEntity(); return !!(kb&&states[kb]&&states[kb].state==='on'); }
 // the touch surface (register 1037; Dave: "remote gesture does not work very well"): the finger is sent to the Apple
 // TV as the Siri Remote sends it — a press where it lands, every move while it slides, a release where it lifts — one
@@ -19521,14 +19549,6 @@ function _atvBindTouch(pad){
   pad.addEventListener('pointercancel',()=>{ if(!st) return; clearTimeout(holdT); pad.classList.remove('touching'); st=0;
     if(edgeKey){ if(edgeKey!=='__select') _atvReleaseHeld(); edgeKey=null; return; }
     if(pressed){ send('release', last); pressed=false; } });
-}
-function _atvMoreSheet(){
-  const items=[['top_menu','Top Menu'],['control_center','Control Center'],['page_up','Page Up'],['page_down','Page Down'],['screensaver','Screen Saver'],['guide','Guide'],['__sleep','Sleep Apple TV']];
-  _atvPop('<div class="atv-poph"><b>More</b></div><div class="atv-list">'+items.map(i=>'<button type="button" data-m="'+i[0]+'">'+i[1]+'</button>').join('')+'</div>'
-    +'<div class="atv-popf"><button type="button" class="ghost" data-act="no">Close</button></div>', pop=>{
-    pop.querySelector('[data-act="no"]').onclick=_atvPopClose;
-    pop.querySelectorAll('[data-m]').forEach(x=>x.onclick=()=>{ const k=x.dataset.m; _atvPopClose();
-      if(k==='__sleep') svc('media_player','turn_off',{entity_id:_atv.e}); else _atvKey(k,'tap'); }); });
 }
 
 // ── what is playing ─────────────────────────────────────────────────────────────────────────────────────────
@@ -19653,7 +19673,7 @@ function _atvPaintLive(){
   const body=document.getElementById('atv-body'); if(!body) return;
   const wasState=!!body.querySelector('.atv-state'); const isState=(st.k==='offline'||(st.k==='asleep'&&_atv.tab!=='apps'));
   if(wasState!==isState){ _atvRenderBody(); return; }
-  const kb=body.querySelector('[data-key="kbd"]'); if(kb) kb.classList.toggle('lit',_atvKbOn());
+  const ch=body.querySelector('.atv-edge .ch'); if(ch) ch.hidden=!_atvLiveTV();   // 1363: CH only while live TV plays
   const pp=document.getElementById('atv-ppbtn'); if(pp) pp.innerHTML=_atvIcon(states[_atv.e]&&states[_atv.e].state==='playing'?'pause':'play');
   const r=document.getElementById('atv-volr'); if(r && _draggingVol!==_atv.vol && document.activeElement!==r){ const l=att(_atv.vol,'volume_level'); if(l!=null){ r.value=l.toFixed(2); r.parentNode.style.setProperty('--v',Math.round(l*100)+'%'); const n=document.getElementById('atv-vn'); if(n) n.textContent=Math.round(l*100); } }
   // register 1040 (Dave 21:56 "volume slider does nothing"): redraw the bar only when the mute state CHANGES — a player
