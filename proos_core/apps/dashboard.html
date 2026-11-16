@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111613';
+const PROOS_BUILD='2026111614';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -24806,7 +24806,7 @@ body.nx-on #nx-page.open{display:block}
     var a=window._proosAvatar||{}; if(a.url){ av.style.backgroundImage="url('"+a.url+"')"; av.textContent=''; } else { av.style.backgroundImage=''; av.textContent=a.initial||'D'; }
   }
   function _nxPage(html){ var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-home-pg');   // 1376/1377: leaving a room page or Home
+    p.classList.remove('nx-room-pg','nx-home-pg'); document.body.classList.remove('nx-scr');   // 1376/1377: leaving a room page or Home
     p.innerHTML='<div class="nx-in">'+html+'</div>'; p.classList.add('open'); p.scrollTop=0; return p; }
   function closePage(){ var p=document.getElementById('nx-page'); if(p) p.classList.remove('open'); }
   function _nxGoTo(id){
@@ -25085,7 +25085,7 @@ body.nx-on #nx-page.open{display:block}
     try{ showPage('home'); selectRoom(i); }catch(e){}   // the room is the current room underneath: its widgets, Assist's room, its activities load
     try{ _pacActs(r); }catch(e){}
     var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-home-pg'); p.classList.add('open','nx-room-pg'); p._sig=''; p.scrollTop=0; _nxrDraw();
+    p.classList.remove('nx-home-pg'); document.body.classList.remove('nx-scr'); p.classList.add('open','nx-room-pg'); p._sig=''; p.scrollTop=0; _nxrDraw();
     clearInterval(timer); timer=setInterval(_nxrDraw, 1000);   // live: the page follows the devices — a card arrives when something turns on, leaves when it goes off
   };
   window._nxRoomState=_nxrAvState; window._nxSceneHeld=_nxSceneHeld;
@@ -25133,6 +25133,9 @@ body.nx-on #nx-page.open{display:block}
 .nxh-scn.on::before{background:linear-gradient(135deg,rgba(50,72,255,.82),rgba(33,57,240,.9))}
 .nxh-scn.run{animation:nxhRun var(--m-hold) var(--e-standard)}
 @keyframes nxhRun{50%{box-shadow:0 0 0 3px rgba(138,152,255,.6)}}
+.nxh-cols .nxr-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+#nx-avatar{transition:opacity var(--m-page) var(--e-standard)}
+body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
 .nxh-more{font-size:13px;font-weight:600;color:#8A98FF;background:none;border:0;cursor:pointer;font-family:inherit}
 .nxh-ask{display:flex;align-items:center;gap:14px;width:100%;margin-top:12px;padding:16px;border-radius:22px;border:0;background:#1b1c20;color:#fff;text-align:left;cursor:pointer;font-family:inherit}
 .nxh-ask .nx-ic{background:linear-gradient(135deg,#5C70FF,#2139F0)}
@@ -25253,7 +25256,7 @@ body.nx-on #nx-page.open{display:block}
     html+='<div class="nxh-cols"><div>'+onNow+'</div><div>'+sc+yw+'</div></div></div>';
     var y=p.scrollTop; p.innerHTML=html; p.scrollTop=y; _nxhWire(p,M);
   }
-  function _nxhLeave(){ clearInterval(homeTimer); homeTimer=null; var p=document.getElementById('nx-page'); if(p){ p.classList.remove('open','nx-home-pg'); } }
+  function _nxhLeave(){ clearInterval(homeTimer); homeTimer=null; document.body.classList.remove('nx-scr'); var p=document.getElementById('nx-page'); if(p){ p.classList.remove('open','nx-home-pg'); } }
   function _nxhWire(p,M){
     var q=function(s,f){ p.querySelectorAll(s).forEach(function(b){ b.onclick=function(e){ f(b,e); }; }); };
     q('[data-hwx]',function(){ _nxhLeave(); try{ showPage('weather'); }catch(x){} });
@@ -25271,11 +25274,13 @@ body.nx-on #nx-page.open{display:block}
       var ls=(window._nxAll?_nxAll():[]).filter(function(d){ return d.k.kind==='light'&&d.r.now; }).map(function(d){ return d.lead; }); if(ls.length) svc('light','turn_off',{entity_id:ls});
       var pl=M.players.filter(function(e){ return st(e)==='playing'; }); if(pl.length) svc('media_player','media_pause',{entity_id:pl}); });
   }
-  function _nxhStop(){ clearInterval(homeTimer); homeTimer=null; var p=document.getElementById('nx-page'); if(p) p.classList.remove('nx-home-pg'); }
+  function _nxhStop(){ clearInterval(homeTimer); homeTimer=null; document.body.classList.remove('nx-scr'); var p=document.getElementById('nx-page'); if(p) p.classList.remove('nx-home-pg'); }
   window._nxHome=function(){
     try{ showPage('home'); selectRoom(-1); }catch(e){}   // Home's own widgets and Assist's "whole home" load underneath
     var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
     p.classList.remove('nx-room-pg'); p.classList.add('open','nx-home-pg'); p._sig=''; p.scrollTop=0; _nxhDraw();
+    // your picture steps aside once Home scrolls, so it never sits over a card (it stays at the top, as in the mock)
+    p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.classList.contains('nx-home-pg') && p.scrollTop>40); }; document.body.classList.remove('nx-scr');
     clearInterval(homeTimer); homeTimer=setInterval(_nxhDraw, 1000);   // live: a card arrives when something turns on, folds away when it goes off
   };
 })();
