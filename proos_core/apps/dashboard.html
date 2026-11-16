@@ -3296,7 +3296,7 @@ html[data-link="remote"]{--m-tap:90ms;--m-move:200ms;--m-page:300ms}
 #widget-picker,#music-act-sheet,#music-queue-overlay,#scene-edit,.appc-ov,#setup,#pin-overlay,
 #assist-overlay,#all-lights-overlay,#loading,#proos-reboot,#proos-dashupd,#light-overlay,
 #climate-all-overlay,#climate-overlay,#rotate-overlay,#svc-sheet,#proos-sheet,#proos-tv-wait,#pp,#jv,.sg-pop,#proos-acard,#mus-ask,
-#nx-page,#px-page,#pv-card,#mx-sweep,#device-chooser{padding-top:var(--proos-sat)}
+#nxl-sheet,#nx-page,#px-page,#pv-card,#mx-sweep,#device-chooser{padding-top:var(--proos-sat)}
 /* THE CLEARANCE IS A FLOOR, NOT AN ADDITION (7 Sep 2026, register 362).
    Dave: "Mobile needs to be looked at every page on the dashboard for layout
    these pages are all too low just looks all wrong". Measured at 393x852 with
@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111614';
+const PROOS_BUILD='2026111615';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -24806,7 +24806,7 @@ body.nx-on #nx-page.open{display:block}
     var a=window._proosAvatar||{}; if(a.url){ av.style.backgroundImage="url('"+a.url+"')"; av.textContent=''; } else { av.style.backgroundImage=''; av.textContent=a.initial||'D'; }
   }
   function _nxPage(html){ var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-home-pg'); document.body.classList.remove('nx-scr');   // 1376/1377: leaving a room page or Home
+    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg'); document.body.classList.remove('nx-scr');   // 1376/1377/1378: leaving a room page, Home or Lights
     p.innerHTML='<div class="nx-in">'+html+'</div>'; p.classList.add('open'); p.scrollTop=0; return p; }
   function closePage(){ var p=document.getElementById('nx-page'); if(p) p.classList.remove('open'); }
   function _nxGoTo(id){
@@ -24864,6 +24864,7 @@ body.nx-on #nx-page.open{display:block}
   }
   // a category: its devices by room (read-only for now — each kind's controls come with stage 5); the full page where one exists
   function drawCategory(c){
+    if(c==='Lights'&&typeof _nxLights==='function') return _nxLights();   // 1378: the Lights page
     var all=nxAll().filter(function(d){ return d.cat===c; }), rooms=CONFIG.rooms||[], by={};
     all.forEach(function(d){ (by[d.area||'']=by[d.area||'']||[]).push(d); });
     var html='<button type="button" class="nx-back" data-b>'+svgOf('back')+'</button><div class="nx-hd"><div><h1>'+nxEsc(c)+'</h1><div class="nx-sub">'+nxEsc((function(){ var x=catLine(c,all); return typeof x==='object'?x.w:x; })())+'</div></div>'+
@@ -25074,7 +25075,7 @@ body.nx-on #nx-page.open{display:block}
         var sp=_nxrDevicesIn(r).filter(function(d){ return d.k.kind==='speaker'&&states[d.lead]&&states[d.lead].state==='playing'; }).map(function(d){ return d.lead; }); if(sp.length) svc('media_player','media_pause',{entity_id:sp}); } };
     p.querySelectorAll('[data-open]').forEach(function(b){ b.onclick=function(e){ if(e.target.closest('[data-pp]')) return; try{ openPlayer(b.dataset.open); }catch(x){} }; });
     p.querySelectorAll('[data-pp]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); svc('media_player','media_play_pause',{entity_id:b.dataset.pp}); }; });
-    var lc=p.querySelector('[data-lights]'); if(lc) lc.onclick=function(e){ if(e.target.closest('[data-lightsoff]')) return; try{ _nxrCloseNx(); openLightOverlay(CONFIG.rooms.indexOf(r)); }catch(x){} };
+    var lc=p.querySelector('[data-lights]'); if(lc) lc.onclick=function(e){ if(e.target.closest('[data-lightsoff]')) return; if(typeof _nxLightSheet==='function'){ _nxLightSheet(r.id); return; } try{ _nxrCloseNx(); openLightOverlay(CONFIG.rooms.indexOf(r)); }catch(x){} };   // 1378: the room's lights card
     var lo=p.querySelector('[data-lightsoff]'); if(lo) lo.onclick=function(e){ e.stopPropagation(); var ls=lights.filter(function(d){ return d.r.on; }).map(function(d){ return d.lead; }); if(ls.length) svc('light','turn_off',{entity_id:ls}); };
     p.querySelectorAll('[data-cat]').forEach(function(b){ b.onclick=function(){ var m={Climate:'climate','Garage & Gates':'security','Locks & Access':'access'}[b.dataset.cat]; if(m){ _nxrCloseNx(); try{ showPage(m); }catch(x){} } }; });
   }
@@ -25085,7 +25086,7 @@ body.nx-on #nx-page.open{display:block}
     try{ showPage('home'); selectRoom(i); }catch(e){}   // the room is the current room underneath: its widgets, Assist's room, its activities load
     try{ _pacActs(r); }catch(e){}
     var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-home-pg'); document.body.classList.remove('nx-scr'); p.classList.add('open','nx-room-pg'); p._sig=''; p.scrollTop=0; _nxrDraw();
+    p.classList.remove('nx-home-pg','nx-lights-pg'); document.body.classList.remove('nx-scr'); p.classList.add('open','nx-room-pg'); p._sig=''; p.scrollTop=0; _nxrDraw();
     clearInterval(timer); timer=setInterval(_nxrDraw, 1000);   // live: the page follows the devices — a card arrives when something turns on, leaves when it goes off
   };
   window._nxRoomState=_nxrAvState; window._nxSceneHeld=_nxSceneHeld;
@@ -25193,7 +25194,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
   window._nxHomeModel=_nxhModel; window._nxHomeAware=_nxhAware;
 
   function _nxhCard(c){
-    if(c.t==='lights') return '<button type="button" class="nxr-live lit" data-hl="'+c.ri+'" data-ents="'+nxhEsc(c.ents.join(','))+'"><div class="nxr-row"><div class="nx-ic" style="background:rgba(255,196,107,.18)">'+nxhIc('light').replace('<svg','<svg style="stroke:#FFC46B;width:20px;height:20px;fill:none;stroke-width:1.8"')+'</div><span class="nxr-pw lit" data-hloff="1">'+nxhIc('pw')+'</span></div><div><div class="k">'+nxhEsc(c.room||'Around the House')+'</div><div class="n">Lights · '+c.n+(c.of>1?' of '+c.of:'')+' on</div></div></button>';
+    if(c.t==='lights') return '<button type="button" class="nxr-live lit" data-hl="'+nxhEsc(c.area)+'" data-ri="'+c.ri+'" data-ents="'+nxhEsc(c.ents.join(','))+'"><div class="nxr-row"><div class="nx-ic" style="background:rgba(255,196,107,.18)">'+nxhIc('light').replace('<svg','<svg style="stroke:#FFC46B;width:20px;height:20px;fill:none;stroke-width:1.8"')+'</div><span class="nxr-pw lit" data-hloff="1">'+nxhIc('pw')+'</span></div><div><div class="k">'+nxhEsc(c.room||'Around the House')+'</div><div class="n">Lights · '+c.n+(c.of>1?' of '+c.of:'')+' on</div></div></button>';
     var d=c.d, s=states[d.lead]||{}, A=s.attributes||{}, k=d.k.kind;
     if(c.t==='media'){
       var art=''; try{ var p=(typeof _artOf==='function')?_artOf(d.lead):A.entity_picture; art=p?artSrc(p):''; }catch(e){}
@@ -25266,7 +25267,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
     q('[data-hscenes]',function(){ _nxhLeave(); _nxGo('scenes'); });
     q('[data-hopen]',function(b,e){ if(e.target.closest('[data-hpp]')) return; try{ openPlayer(b.dataset.hopen); }catch(x){} });
     q('[data-hpp]',function(b,e){ e.stopPropagation(); svc('media_player','media_play_pause',{entity_id:b.dataset.hpp}); });
-    q('[data-hl]',function(b,e){ if(e.target.closest('[data-hloff]')) return; _nxhLeave(); try{ openLightOverlay(+b.dataset.hl); }catch(x){} });
+    q('[data-hl]',function(b,e){ if(e.target.closest('[data-hloff]')) return; if(typeof _nxLightSheet==='function'){ _nxLightSheet(b.dataset.hl); return; } _nxhLeave(); try{ openLightOverlay(+b.dataset.ri); }catch(x){} });   // 1378
     q('[data-hloff]',function(b,e){ e.stopPropagation(); var ents=(b.closest('[data-ents]').dataset.ents||'').split(',').filter(Boolean); if(ents.length) svc('light','turn_off',{entity_id:ents}); });
     q('[data-hcat]',function(b){ var m={Climate:'climate','Garage & Gates':'security','Locks & Access':'access',Security:'security',Shades:'lights'}[b.dataset.hcat]; if(m){ _nxhLeave(); try{ showPage(m); }catch(x){} } });
     q('[data-hscene]',function(b){ var s=(CONFIG.scenes||[])[+b.dataset.hscene]; if(!s) return; ran[s.entity]=Date.now(); try{ triggerScene(s.entity,+b.dataset.hscene); }catch(x){} p._sig=''; _nxhDraw(); });
@@ -25278,11 +25279,211 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
   window._nxHome=function(){
     try{ showPage('home'); selectRoom(-1); }catch(e){}   // Home's own widgets and Assist's "whole home" load underneath
     var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg'); p.classList.add('open','nx-home-pg'); p._sig=''; p.scrollTop=0; _nxhDraw();
+    p.classList.remove('nx-room-pg','nx-lights-pg'); p.classList.add('open','nx-home-pg'); p._sig=''; p.scrollTop=0; _nxhDraw();
     // your picture steps aside once Home scrolls, so it never sits over a card (it stays at the top, as in the mock)
     p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.classList.contains('nx-home-pg') && p.scrollTop>40); }; document.body.classList.remove('nx-scr');
     clearInterval(homeTimer); homeTimer=setInterval(_nxhDraw, 1000);   // live: a card arrives when something turns on, folds away when it goes off
   };
+})();
+</script>
+<!-- ══ REGISTER 1378 — STAGE 5a, LIGHTS (Dave 16 Nov 17:28 "go please"). In the New Look: the Lights page — every light
+     in the house, rooms as sections down the page (never sideways chips), each light by what it can do (596): a dimmer is
+     a bar you slide sideways (tap turns it on or off; an up-and-down movement is the page scrolling and sends nothing), a
+     switch-only light is a switch and never a percentage; All Off. And a room's Lights card (room page, Home) opens the
+     room's lights as a centred card (788): faders for the lights that dim, switches as switches, colour and white tones
+     only where a light reports it has them. Until a light reports back, its words say what was SENT ("Turning on…"),
+     never the outcome (235). -->
+<style>
+#nx-page.nx-lights-pg .nx-in{animation:none}
+.nxl-room{display:flex;justify-content:space-between;align-items:baseline;margin:22px 2px 10px}
+.nxl-room b{font-size:17px;font-weight:600}.nxl-room span{font-size:13px;color:rgba(255,255,255,.62)}
+.nxl-list{background:#1b1c20;border-radius:22px;padding:8px;display:grid;gap:8px}
+@media (min-width:820px){.nxl-list{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.nxl-bar{position:relative;height:58px;border-radius:16px;background:#26272d;overflow:hidden;cursor:pointer;touch-action:pan-y;user-select:none;-webkit-user-select:none}
+.nxl-bar i{position:absolute;left:0;top:0;bottom:0;width:0;background:linear-gradient(90deg,#FFB765,#FFE3B8);transition:width var(--m-tap) var(--e-standard)}
+.nxl-bar.drag i{transition:none}
+.nxl-bar span{position:absolute;top:50%;transform:translateY(-50%);font-size:15px;font-weight:600;color:#fff;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:62%}
+.nxl-bar .nm{left:16px}.nxl-bar .v{right:14px;font-size:13px;max-width:36%;text-align:right}
+.nxl-bar.on .nm,.nxl-bar.on .v{color:#2a1a05;text-shadow:0 0 1px rgba(255,255,255,.3)}
+.nxl-bar.on.low .nm,.nxl-bar.on.low .v{color:#fff}
+.nxl-bar.gone{cursor:default;opacity:.55}
+.nxl-sw{display:flex;align-items:center;justify-content:space-between;gap:12px;height:58px;padding:0 14px 0 16px;border-radius:16px;background:#26272d;cursor:pointer;user-select:none;-webkit-user-select:none}
+.nxl-sw b{display:block;font-size:15px;font-weight:600}.nxl-sw small{display:block;font-size:12px;color:rgba(255,255,255,.55);margin-top:2px}
+.nxl-tog{width:50px;height:30px;border-radius:999px;background:#3a3b42;position:relative;flex:none;transition:background var(--m-tap) var(--e-standard)}
+.nxl-tog::after{content:'';position:absolute;left:3px;top:3px;width:24px;height:24px;border-radius:50%;background:#fff;transition:transform var(--m-tap) var(--e-spring)}
+.nxl-tog.on{background:#FFB765}.nxl-tog.on::after{transform:translateX(20px)}
+#nxl-sheet{position:fixed;inset:0;z-index:9050;display:none;align-items:center;justify-content:center;padding:18px;background:rgba(0,0,0,.55);font-family:Inter,-apple-system,sans-serif;color:#fff}
+#nxl-sheet.open{display:flex;animation:nxlFade var(--m-page) var(--e-standard)}
+@keyframes nxlFade{from{opacity:0}}
+#nxl-sheet .cd{width:100%;max-width:560px;max-height:86vh;overflow-y:auto;background:#17181c;border-radius:28px;padding:20px;box-shadow:0 30px 80px rgba(0,0,0,.6);animation:nxrArrive var(--m-page) var(--e-spring)}
+#nxl-sheet .hd{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+#nxl-sheet h2{font-size:24px;font-weight:600;letter-spacing:-.01em}
+#nxl-sheet .sub{font-size:13px;color:rgba(255,255,255,.62);margin-top:4px}
+#nxl-sheet .x{width:38px;height:38px;border-radius:50%;border:0;background:#26272d;color:#fff;font-size:20px;cursor:pointer;flex:none}
+.nxl-faders{display:flex;flex-wrap:wrap;gap:16px 14px;margin-top:22px;justify-content:center}
+.nxl-fd{display:flex;flex-direction:column;align-items:center;gap:8px;width:66px}
+.nxl-fd .pc{font-size:13px;font-weight:600}
+.nxl-fd .tr{position:relative;width:58px;height:190px;border-radius:20px;background:#26272d;overflow:hidden;cursor:pointer;touch-action:none}
+.nxl-fd .tr i{position:absolute;left:0;right:0;bottom:0;height:0;background:linear-gradient(0deg,#FFB765,#FFE3B8);transition:height var(--m-tap) var(--e-standard)}
+.nxl-fd .tr.drag i{transition:none}
+.nxl-fd .nm{font-size:11.5px;font-weight:500;color:rgba(255,255,255,.7);text-align:center;line-height:1.25;max-width:66px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.nxl-sec{font-size:15px;font-weight:600;margin:22px 2px 10px}
+.nxl-sws{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.nxl-pw{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 12px 12px 14px;border-radius:18px;background:#26272d;border:0;color:#fff;font:600 14px Inter,-apple-system,sans-serif;cursor:pointer;text-align:left}
+.nxl-pw em{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:#3a3b42;flex:none;font-style:normal}
+.nxl-pw.on em{background:radial-gradient(circle at 50% 40%,#FFE6BF,#FFB765 75%);box-shadow:0 0 14px rgba(255,190,110,.5)}
+.nxl-pw svg{width:16px;height:16px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round}.nxl-pw.on svg{stroke:#5a3a10}
+.nxl-sws .nxl-pw small{display:block;font-size:12px;font-weight:500;color:rgba(255,255,255,.55);margin-top:2px}
+.nxl-cols{display:flex;gap:10px;flex-wrap:wrap}
+.nxl-cols button{width:42px;height:42px;border-radius:50%;border:0;cursor:pointer;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);transition:transform var(--m-tap) var(--e-spring)}
+.nxl-cols button.on{box-shadow:0 0 0 3px #17181c,0 0 0 5px #fff}
+.nxl-cols button:active{transform:scale(.9)}
+.nxl-wt{display:flex;gap:8px}
+.nxl-wt button{flex:1;height:44px;border-radius:14px;border:0;color:#2a1a05;font:600 13px Inter,-apple-system,sans-serif;cursor:pointer}
+.nxl-wt button.on{box-shadow:0 0 0 2px #17181c,0 0 0 4px #fff}
+@media (prefers-reduced-motion:reduce){.nxl-bar i,.nxl-fd .tr i,.nxl-tog,.nxl-tog::after{transition:none}#nxl-sheet.open,#nxl-sheet .cd{animation:none}}
+</style>
+<script>
+(function(){
+  var nxlEsc=function(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); };
+  var PW='<svg viewBox="0 0 24 24"><path d="M12 4v7M7.5 7a7 7 0 1 0 9 0"/></svg>', BACK='<svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg>';
+  var pend={}, lightsTimer=null, sheetArea=null, held=false;
+  // ── what a light can do, by what it REPORTS (596) — never guessed from its name ──
+  function _nxlCan(S){ var A=(S&&S.attributes)||{}, m=A.supported_color_modes||[];
+    var colour=m.some(function(x){ return /^(hs|xy|rgb|rgbw|rgbww)$/.test(x); }), white=m.indexOf('color_temp')>=0;
+    return {dim:m.some(function(x){ return x!=='onoff'; }), colour:colour, white:white,
+      kmin:A.min_color_temp_kelvin||2000, kmax:A.max_color_temp_kelvin||6500}; }
+  // what the light reads now, or what was SENT while it has not yet reported (235): {on, pct (null for a switch), word}
+  function _nxlRead(e, S, P, now){
+    var s=S&&S.state, A=(S&&S.attributes)||{}, can=_nxlCan(S), p=P&&P[e];
+    if(!S||s==='unavailable'||s==='unknown') return {on:false, pct:null, word:'Can’t reach it', gone:true};
+    var on=s==='on', pct=can.dim?(on?(A.brightness!=null?Math.max(1,Math.round(A.brightness/2.55)):null):0):null;
+    if(p && (now||Date.now())-p.t<6000){
+      var landed=p.on===on && (p.pct==null || pct==null || Math.abs(pct-p.pct)<=2);
+      if(!landed) return {on:p.on, pct:can.dim?(p.on?(p.pct!=null?p.pct:(pct||100)):0):null, word:p.on?(p.pct!=null&&can.dim?'Setting '+p.pct+'%…':'Turning on…'):'Turning off…', sent:true};
+    }
+    return {on:on, pct:pct, word:on?(can.dim&&pct!=null?pct+'%':'On'):'Off'};
+  }
+  function _nxlColour(S){ var A=(S&&S.attributes)||{};
+    if(A.color_mode&&/^(hs|xy|rgb|rgbw|rgbww)$/.test(A.color_mode)&&A.rgb_color) return 'rgb('+A.rgb_color.slice(0,3).join(',')+')';
+    if(A.color_temp_kelvin){ var k=A.color_temp_kelvin; return k<3200?'#FFB765':k<4500?'#FFE3B8':'#E8F0FF'; }
+    return ''; }
+  // every light in the house, by room: each light entity of each device the foundation calls a light
+  function _nxlAll(){
+    var devs=(window._nxAll?_nxAll():[]).filter(function(d){ return d.k.kind==='light'; }), rooms=CONFIG.rooms||[], out=[];
+    devs.forEach(function(d){ var ls=d.ents.filter(function(e){ return e.indexOf('light.')===0 && states[e]; }); if(!ls.length) ls=[d.lead];
+      var r=rooms.filter(function(x){ return x.id===d.area; })[0];
+      ls.forEach(function(e){ out.push({e:e, area:d.area||'', name:ls.length===1?d.name:_pxName({lead:e,devName:att(e,'friendly_name')},{kind:'light'},r,states)}); }); });
+    return out; }
+  function _nxlSend(e, on, pct){
+    pend[e]={on:on, pct:pct, t:Date.now()};
+    if(!on) svc('light','turn_off',{entity_id:e});
+    else if(pct!=null) svc('light','turn_on',{entity_id:e, brightness_pct:pct});
+    else svc('light','turn_on',{entity_id:e});
+    try{ _proosHaptic&&_proosHaptic('tick'); }catch(x){}
+  }
+  window._nxlRead=_nxlRead; window._nxlCan=_nxlCan;
+
+  // ── the Lights page ──
+  function _nxlRow(L){
+    var S=states[L.e], can=_nxlCan(S), R=_nxlRead(L.e,S,pend);
+    if(!can.dim) return '<div class="nxl-sw'+(R.gone?' gone':'')+'" data-lsw="'+nxlEsc(L.e)+'"><div><b>'+nxlEsc(L.name)+'</b><small>Switch · '+nxlEsc(R.word)+'</small></div><span class="nxl-tog'+(R.on?' on':'')+'"></span></div>';
+    var c=R.on?_nxlColour(S):'', pct=R.pct||0;
+    return '<div class="nxl-bar'+(R.on?' on':'')+(R.on&&pct<38?' low':'')+(R.gone?' gone':'')+'" data-lbar="'+nxlEsc(L.e)+'"><i style="width:'+(R.on?Math.max(pct,4):0)+'%'+(c?';background:'+c:'')+'"></i><span class="nm">'+nxlEsc(L.name)+'</span><span class="v">'+nxlEsc(R.word)+'</span></div>';
+  }
+  function _nxlDraw(){
+    var p=document.getElementById('nx-page'); if(!p||!p.classList.contains('open')||!p.classList.contains('nx-lights-pg')||held) return;
+    var all=_nxlAll(), rooms=(CONFIG.rooms||[]).concat([{id:'',name:'Around the House'}]);
+    var onN=all.filter(function(L){ return _nxlRead(L.e,states[L.e],pend).on; }).length;
+    var body=rooms.map(function(r){ var Ls=all.filter(function(L){ return L.area===r.id; }); if(!Ls.length) return '';
+      var n=Ls.filter(function(L){ return _nxlRead(L.e,states[L.e],pend).on; }).length;
+      return '<div class="nxl-room"><b>'+nxlEsc(r.name)+'</b><span>'+(n?n+' of '+Ls.length+' on':'Off')+'</span></div><div class="nxl-list">'+Ls.map(_nxlRow).join('')+'</div>'; }).join('');
+    var html='<div class="nx-in"><button type="button" class="nx-back" data-lb>'+BACK+'</button><div class="nx-hd"><div><h1>Lights</h1><div class="nx-sub">'+(all.length?onN+' of '+all.length+' on':'')+'</div></div>'+
+      (onN?'<button type="button" class="nx-chip" data-lalloff>'+PW.replace('<svg','<svg style="width:15px;height:15px;stroke:#fff;fill:none;stroke-width:2"')+'All Off</button>':'')+'</div>'+
+      (all.length?body:'<div class="nxr-quiet">No lights yet<small>They appear here the moment your installer adds them.</small></div>')+'</div>';
+    if(p._sig===html) return; p._sig=html; var y=p.scrollTop; p.innerHTML=html; p.scrollTop=y;
+    p.querySelector('[data-lb]').onclick=function(){ _nxlStop(); _nxGo('devices'); };
+    var ao=p.querySelector('[data-lalloff]'); if(ao) ao.onclick=function(){ _nxlAllOff(all); };
+  }
+  function _nxlAllOff(list){ var on=list.filter(function(L){ return states[L.e]&&states[L.e].state==='on'; }).map(function(L){ return L.e; });
+    if(!on.length) return; on.forEach(function(e){ pend[e]={on:false,pct:null,t:Date.now()}; }); svc('light','turn_off',{entity_id:on}); }
+  function _nxlStop(){ clearInterval(lightsTimer); lightsTimer=null; var p=document.getElementById('nx-page'); if(p) p.classList.remove('nx-lights-pg'); }
+  window._nxLights=function(){
+    var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
+    p.classList.remove('nx-room-pg','nx-home-pg'); p.classList.add('open','nx-lights-pg'); p._sig=''; p.scrollTop=0; _nxlDraw();
+    clearInterval(lightsTimer); lightsTimer=setInterval(_nxlDraw, 1000);
+  };
+
+  // ── a room's lights, as a centred card (788) ──
+  var SWATCH=[[32,62],[38,22],[348,58],[262,52],[198,70],[150,58]];
+  function _nxlSheetDraw(){
+    var ov=document.getElementById('nxl-sheet'); if(!ov||!ov.classList.contains('open')||held) return;
+    var a=sheetArea, all=_nxlAll().filter(function(L){ return L.area===a; }), r=(CONFIG.rooms||[]).filter(function(x){ return x.id===a; })[0];
+    var dims=all.filter(function(L){ return _nxlCan(states[L.e]).dim; }), sws=all.filter(function(L){ return !_nxlCan(states[L.e]).dim; });
+    var n=all.filter(function(L){ return _nxlRead(L.e,states[L.e],pend).on; }).length;
+    var h='<div class="cd" onclick="event.stopPropagation()"><div class="hd"><div><h2>'+nxlEsc(r?r.name+' Lights':'Lights Around the House')+'</h2><div class="sub">'+(n?n+' of '+all.length+' on':'All off')+'</div></div>'+
+      '<div style="display:flex;gap:8px">'+(n?'<button type="button" class="nx-chip" data-salloff style="background:#26272d">'+PW.replace('<svg','<svg style="width:15px;height:15px;stroke:#fff;fill:none;stroke-width:2"')+'All Off</button>':'')+'<button type="button" class="x" data-sx aria-label="Close">×</button></div></div>';
+    if(dims.length) h+='<div class="nxl-faders">'+dims.map(function(L){ var S=states[L.e], R=_nxlRead(L.e,S,pend), c=R.on?_nxlColour(S):'';
+      return '<div class="nxl-fd"><div class="pc">'+nxlEsc(R.gone?'—':R.on?(R.pct!=null?R.pct+'%':'On'):'Off')+'</div><div class="tr" data-lfd="'+nxlEsc(L.e)+'"><i style="height:'+(R.on?Math.max(R.pct||0,4):0)+'%'+(c?';background:'+c:'')+'"></i></div><div class="nm">'+nxlEsc(L.name)+'</div></div>'; }).join('')+'</div>';
+    if(sws.length) h+='<div class="nxl-sec">Switches</div><div class="nxl-sws">'+sws.map(function(L){ var R=_nxlRead(L.e,states[L.e],pend);
+      return '<button type="button" class="nxl-pw'+(R.on?' on':'')+'" data-lsw="'+nxlEsc(L.e)+'"><span>'+nxlEsc(L.name)+'<small>'+nxlEsc(R.word)+'</small></span><em>'+PW+'</em></button>'; }).join('')+'</div>';
+    all.forEach(function(L){ var S=states[L.e], can=_nxlCan(S), A=(S&&S.attributes)||{};
+      if(can.colour){ var hs=A.hs_color||null;
+        h+='<div class="nxl-sec">Colour · '+nxlEsc(L.name)+'</div><div class="nxl-cols">'+SWATCH.map(function(w){ var on=S.state==='on'&&hs&&A.color_mode!=='color_temp'&&Math.min(Math.abs(hs[0]-w[0]),360-Math.abs(hs[0]-w[0]))<14&&Math.abs(hs[1]-w[1])<18;
+          return '<button type="button" class="'+(on?'on':'')+'" data-lhs="'+nxlEsc(L.e)+'" data-h="'+w[0]+'" data-s="'+w[1]+'" style="background:hsl('+w[0]+','+Math.min(100,w[1]+30)+'%,'+(78-w[1]/4)+'%)" aria-label="Colour"></button>'; }).join('')+'</div>'; }
+      if(can.white){ var K=[['Warm',2700,'#FFC98A'],['Neutral',4000,'#FFF0D6'],['Cool',5500,'#E8F0FF']].map(function(t){ return [t[0],Math.max(can.kmin,Math.min(can.kmax,t[1])),t[2]]; });
+        var cur=S.state==='on'&&A.color_mode==='color_temp'?A.color_temp_kelvin:null;
+        h+='<div class="nxl-sec">White · '+nxlEsc(L.name)+'</div><div class="nxl-wt">'+K.map(function(t){ return '<button type="button" class="'+(cur!=null&&Math.abs(cur-t[1])<350?'on':'')+'" data-lk="'+nxlEsc(L.e)+'" data-k="'+t[1]+'" style="background:'+t[2]+'">'+t[0]+'</button>'; }).join('')+'</div>'; }
+    });
+    if(!all.length) h+='<div class="nxr-quiet" style="margin-top:16px">No lights here<small>They appear the moment your installer adds them.</small></div>';
+    h+='</div>';
+    if(ov._sig===h) return; ov._sig=h; var y=(ov.querySelector('.cd')||{}).scrollTop||0; ov.innerHTML=h; var cd=ov.querySelector('.cd'); if(cd) cd.scrollTop=y;
+    ov.querySelector('[data-sx]').onclick=_nxlSheetClose;
+    var ao=ov.querySelector('[data-salloff]'); if(ao) ao.onclick=function(){ _nxlAllOff(all); _nxlSheetDraw(); };
+    ov.querySelectorAll('[data-lhs]').forEach(function(b){ b.onclick=function(){ svc('light','turn_on',{entity_id:b.dataset.lhs, hs_color:[+b.dataset.h,+b.dataset.s]}); pend[b.dataset.lhs]={on:true,pct:null,t:Date.now()}; }; });
+    ov.querySelectorAll('[data-lk]').forEach(function(b){ b.onclick=function(){ svc('light','turn_on',{entity_id:b.dataset.lk, color_temp_kelvin:+b.dataset.k}); pend[b.dataset.lk]={on:true,pct:null,t:Date.now()}; }; });
+  }
+  function _nxlSheetClose(){ var ov=document.getElementById('nxl-sheet'); if(ov){ ov.classList.remove('open'); ov._sig=''; } clearInterval(_nxlSheetClose.t); }
+  window._nxLightSheet=function(area){
+    var ov=document.getElementById('nxl-sheet'); if(!ov){ ov=document.createElement('div'); ov.id='nxl-sheet'; ov.onclick=_nxlSheetClose; document.body.appendChild(ov); }
+    sheetArea=area||''; ov._sig=''; ov.classList.add('open'); _nxlSheetDraw();
+    clearInterval(_nxlSheetClose.t); _nxlSheetClose.t=setInterval(_nxlSheetDraw, 1000);
+  };
+
+  // ── the gestures, for the page's bars and the card's faders and switches ──
+  // a bar: slide sideways to set; tap to turn on or off; an up-and-down movement is the page scrolling — nothing is sent.
+  // a fader: up and down sets it; a tap turns it on or off.
+  var G=null;
+  document.addEventListener('pointerdown', function(ev){
+    var t=ev.target.closest&&ev.target.closest('[data-lbar],[data-lfd]'); if(!t) return;
+    var e=t.dataset.lbar||t.dataset.lfd, can=_nxlCan(states[e]); if(!states[e]||/unavailable|unknown/.test(states[e].state)) return;
+    G={el:t, e:e, vert:!!t.dataset.lfd, x:ev.clientX, y:ev.clientY, axis:t.dataset.lfd?'v':null, id:ev.pointerId, moved:false, can:can};
+    if(G.vert){ ev.preventDefault(); try{ t.setPointerCapture(ev.pointerId); }catch(x){} held=true; t.classList.add('drag'); }
+  }, true);
+  function _nxlPct(ev){ var r=G.el.getBoundingClientRect(); var f=G.vert?1-(ev.clientY-r.top)/r.height:(ev.clientX-r.left)/r.width; return Math.max(0,Math.min(100,Math.round(f*100))); }
+  function _nxlShow(pct){ var i=G.el.querySelector('i'); if(!i) return; if(G.vert){ i.style.height=pct+'%'; var pc=G.el.parentNode.querySelector('.pc'); if(pc) pc.textContent=pct?pct+'%':'Off'; }
+    else { i.style.width=pct+'%'; var v=G.el.querySelector('.v'); if(v) v.textContent=pct?pct+'%':'Off'; G.el.classList.toggle('on',pct>0); G.el.classList.toggle('low',pct<38); } }
+  document.addEventListener('pointermove', function(ev){
+    if(!G||ev.pointerId!==G.id) return; var dx=ev.clientX-G.x, dy=ev.clientY-G.y;
+    if(!G.axis){ if(Math.abs(dx)<8&&Math.abs(dy)<8) return; G.axis=Math.abs(dx)>Math.abs(dy)?'h':'scroll';
+      if(G.axis==='scroll'){ G=null; return; }
+      held=true; G.el.classList.add('drag'); try{ G.el.setPointerCapture(ev.pointerId); }catch(x){} }
+    if(Math.abs(dx)>3||Math.abs(dy)>3) G.moved=true;
+    if(!G.can.dim) return; ev.preventDefault(); G.pct=_nxlPct(ev); _nxlShow(G.pct);
+  }, {capture:true, passive:false});
+  function _nxlUp(ev){
+    if(!G||(ev&&ev.pointerId!==G.id)) return; var g=G; G=null; g.el.classList.remove('drag'); held=false;
+    if(!g.moved){ var on=states[g.e]&&states[g.e].state==='on'; _nxlSend(g.e,!on,null); }
+    else if(g.can.dim&&g.pct!=null){ _nxlSend(g.e, g.pct>0, g.pct>0?g.pct:null); }
+    var p=document.getElementById('nx-page'); if(p) p._sig=''; var ov=document.getElementById('nxl-sheet'); if(ov) ov._sig='';
+    setTimeout(function(){ _nxlDraw(); _nxlSheetDraw(); },30);
+  }
+  document.addEventListener('pointerup', _nxlUp, true);
+  document.addEventListener('pointercancel', function(ev){ if(G&&ev.pointerId===G.id){ G.el.classList.remove('drag'); G=null; held=false; } }, true);
+  // a switch-only light: a tap turns it on or off
+  document.addEventListener('click', function(ev){ var b=ev.target.closest&&ev.target.closest('[data-lsw]'); if(!b) return; var e=b.dataset.lsw;
+    if(!states[e]||/unavailable|unknown/.test(states[e].state)) return; _nxlSend(e, states[e].state!=='on', null);
+    var p=document.getElementById('nx-page'); if(p) p._sig=''; _nxlDraw(); var ov=document.getElementById('nxl-sheet'); if(ov) ov._sig=''; _nxlSheetDraw(); }, true);   // capture: the card stops clicks bubbling past it
 })();
 </script>
 <!-- REGISTER 1365 motion styles (the type scale stays the last stylesheet) -->
