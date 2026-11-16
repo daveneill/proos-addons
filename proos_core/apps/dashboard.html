@@ -3296,7 +3296,7 @@ html[data-link="remote"]{--m-tap:90ms;--m-move:200ms;--m-page:300ms}
 #widget-picker,#music-act-sheet,#music-queue-overlay,#scene-edit,.appc-ov,#setup,#pin-overlay,
 #assist-overlay,#all-lights-overlay,#loading,#proos-reboot,#proos-dashupd,#light-overlay,
 #climate-all-overlay,#climate-overlay,#rotate-overlay,#svc-sheet,#proos-sheet,#proos-tv-wait,#pp,#jv,.sg-pop,#proos-acard,#mus-ask,
-#px-page,#pv-card,#mx-sweep,#device-chooser{padding-top:var(--proos-sat)}
+#nx-page,#px-page,#pv-card,#mx-sweep,#device-chooser{padding-top:var(--proos-sat)}
 /* THE CLEARANCE IS A FLOOR, NOT AN ADDITION (7 Sep 2026, register 362).
    Dave: "Mobile needs to be looked at every page on the dashboard for layout
    these pages are all too low just looks all wrong". Measured at 393x852 with
@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111609';
+const PROOS_BUILD='2026111610';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -24237,8 +24237,10 @@ html.proos-panel #widget-pv-btn{display:none!important}
   // asked where the switch goes: "if its only for previewing then does not matter"): the switch is a Preview button in
   // the editing row, beside + Add Widget, on any screen — reached by holding the page's background or any widget
   window._pvToggleBtn=function(){ var b=document.createElement('button'); b.id='widget-pv-btn'; b.type='button';
-    b.textContent=on()?'Preview: On':'Preview: Off'; if(on()) b.classList.add('on');
-    b.addEventListener('click', function(e){ e.stopPropagation(); window._pvSet(!on()); try{ if(typeof _widgetEditMode!=='undefined'&&_widgetEditMode) enterWidgetEditMode(); }catch(x){} }); return b; };
+    // 1375: the switch now turns on the NEW LOOK (the rebuild's frame); the 1370 widget preview it used to switch is retired
+    // with the widgets Dave turned down (16 Nov 11:31) — its code is removed at the switch-over (stage 9)
+    var nx=(typeof _nxOn==='function'&&_nxOn()); b.textContent=nx?'New Look: On':'New Look: Off'; if(nx) b.classList.add('on');
+    b.addEventListener('click', function(e){ e.stopPropagation(); if(typeof _nxSet==='function'){ try{ exitWidgetEditMode(); }catch(x){} window._nxSet(!_nxOn()); } }); return b; };
 
   function _pvEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
   var IC={bulb:'<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z"/>',
@@ -24676,6 +24678,251 @@ html.proos-panel #widget-px-btn{display:none!important}
   window._pxOpen=function(){ var pg=document.getElementById('px-page'); if(!pg){ pg=document.createElement('div'); pg.id='px-page'; document.body.appendChild(pg); } pg.classList.add('open'); _pxDraw(); };
   window._pxBtn=function(){ var b=document.createElement('button'); b.id='widget-px-btn'; b.type='button'; b.textContent='Foundation'; b.addEventListener('click', function(e){ e.stopPropagation(); window._pxOpen(); }); return b; };
   setInterval(_pxDraw, 2000);   // live: the readings redraw every two seconds while the page is open
+})();
+</script>
+<!-- ══ REGISTER 1375 — STAGE 2, THE FRAME (Dave 16 Nov 15:51 "yes"). Behind the editing row's "New Look" switch, on this
+     screen only. The bar becomes Home · Devices · the raised blue mic · Scenes · Rooms on every page; your picture opens
+     the new Settings (the G-Flip's look); Rooms and Devices are new pages built on the foundation (1374). Home, a room,
+     Scenes and each category's full page are still today's until their own stages — the frame carries you to them.
+     Off, nothing changes. -->
+<style>
+body.nx-on #bottom-nav,body.nx-on .proos-dock,body.nx-on #proos-dock{display:none!important}
+body.nx-on #page-home .top-bar .pi-btn{visibility:hidden!important}
+#nx-bar{position:fixed;left:0;right:0;bottom:0;z-index:9000;display:none;align-items:flex-end;justify-content:space-between;height:calc(84px + env(safe-area-inset-bottom,0px));padding:0 14px env(safe-area-inset-bottom,0px);
+  background:#151518;box-shadow:0 -1px 0 rgba(255,255,255,.05),0 -18px 30px rgba(14,14,16,.85);font-family:Inter,-apple-system,sans-serif}
+body.nx-on #nx-bar{display:flex}
+#nx-bar .nb{flex:1;max-width:84px;display:flex;flex-direction:column;align-items:center;gap:5px;padding-bottom:14px;background:none;border:0;color:rgba(255,255,255,.55);font:600 10.5px Inter,-apple-system,sans-serif;cursor:pointer;-webkit-tap-highlight-color:transparent}
+#nx-bar .nb svg{width:23px;height:23px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+#nx-bar .nb.on{color:#fff}#nx-bar .nb.on svg{stroke:#8A98FF}
+#nx-bar .nmic{width:66px;height:66px;flex:none;border-radius:50%;border:0;cursor:pointer;display:grid;place-items:center;position:relative;top:-22px;margin:0 6px;
+  background:radial-gradient(circle at 50% 30%,#5C70FF,#2139F0 70%);box-shadow:0 0 0 7px #151518,0 12px 30px rgba(33,57,240,.55);transition:transform var(--m-tap) var(--e-spring)}
+#nx-bar .nmic:active{transform:scale(.92)}
+#nx-bar .nmic svg{width:28px;height:28px;stroke:#fff;fill:none;stroke-width:1.9;stroke-linecap:round}
+@media (min-width:820px){
+  #nx-bar{left:50%;right:auto;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:520px;height:68px;padding:0 14px;border-radius:999px;align-items:center;
+    background:rgba(21,21,24,.88);-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px);box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 20px 40px rgba(0,0,0,.5)}
+  #nx-bar .nb{padding-bottom:0}
+  #nx-bar .nmic{top:-16px;box-shadow:0 0 0 7px rgba(21,21,24,.88),0 12px 30px rgba(33,57,240,.55)}
+}
+#nx-avatar{position:fixed;top:calc(12px + var(--proos-sat,0px));right:16px;z-index:9001;width:44px;height:44px;border-radius:50%;border:0;cursor:pointer;display:none;place-items:center;
+  font:600 17px Inter,-apple-system,sans-serif;color:#fff;background:linear-gradient(135deg,#6f86ff,#2139F0) center/cover;box-shadow:0 0 0 2px rgba(255,255,255,.08)}
+body.nx-on.nx-av #nx-avatar{display:grid}
+#nx-page{position:fixed;inset:0;z-index:8990;background:#0e0e10;color:#fff;overflow-y:auto;display:none;font-family:Inter,-apple-system,sans-serif;
+  padding-left:18px;padding-right:18px;padding-bottom:calc(130px + env(safe-area-inset-bottom,0px));-webkit-overflow-scrolling:touch}
+body.nx-on #nx-page.open{display:block}
+#nx-page .nx-in{max-width:1180px;margin:0 auto;animation:nxIn var(--m-page) var(--e-spring)}
+@keyframes nxIn{from{opacity:0;transform:translateY(14px)}}
+#nx-page h1{font-size:34px;font-weight:300;letter-spacing:-.025em;line-height:1.05;margin-top:14px}
+#nx-page .nx-sub{font-size:13px;font-weight:500;color:rgba(255,255,255,.62);margin-top:6px}
+#nx-page .nx-hd{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;padding-right:56px;margin-bottom:18px}
+#nx-page .nx-chip{display:inline-flex;align-items:center;gap:8px;padding:9px 14px;border-radius:999px;background:#1b1c20;border:0;color:#fff;font:500 13px Inter,-apple-system,sans-serif;cursor:pointer}
+#nx-page .nx-chip svg{width:16px;height:16px;stroke:#fff;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+/* Rooms */
+.nx-rooms{display:grid;grid-template-columns:1fr;gap:12px}
+@media (min-width:820px){.nx-rooms{grid-template-columns:repeat(3,1fr)}}
+@media (min-width:560px) and (max-width:819px){.nx-rooms{grid-template-columns:repeat(2,1fr)}}
+.nx-room{position:relative;height:150px;border-radius:24px;overflow:hidden;border:0;padding:0;cursor:pointer;background:#1b1c20 center/cover;text-align:left;color:#fff;transition:filter var(--m-door) var(--e-standard),transform var(--m-tap) var(--e-spring)}
+.nx-room:active{transform:scale(.98)}
+.nx-room.off{filter:brightness(.75)}
+.nx-room::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,transparent 30%,rgba(0,0,0,.78))}
+.nx-room .nx-rt{position:absolute;left:16px;right:16px;bottom:13px;z-index:1;display:flex;justify-content:space-between;align-items:flex-end;gap:10px}
+.nx-room b{display:block;font-size:17px;font-weight:600}.nx-room span{font-size:13px;font-weight:500;color:rgba(255,255,255,.75)}
+.nx-room .nx-ics{display:flex;gap:7px}.nx-room .nx-ics svg{width:16px;height:16px;stroke:rgba(255,255,255,.85);fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+/* Devices */
+.nx-cats{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+@media (min-width:820px){.nx-cats{grid-template-columns:repeat(4,1fr)}}
+.nx-cat{min-height:132px;border-radius:24px;background:#1b1c20;border:0;padding:16px;display:flex;flex-direction:column;justify-content:space-between;text-align:left;color:#fff;cursor:pointer;transition:transform var(--m-tap) var(--e-spring)}
+.nx-cat:active{transform:scale(.97)}
+.nx-cat b{font-size:15px;font-weight:600}.nx-cat span{font-size:13px;font-weight:500;color:rgba(255,255,255,.62);display:block;margin-top:3px}
+.nx-ic{width:40px;height:40px;border-radius:13px;background:#2c2d33;display:grid;place-items:center}
+.nx-ic svg{width:20px;height:20px;stroke:#fff;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.nx-cat.lit .nx-ic{background:rgba(255,196,107,.18)}.nx-cat.lit .nx-ic svg{stroke:#FFC46B}
+.nx-cat.blue .nx-ic{background:rgba(77,99,255,.2)}.nx-cat.blue .nx-ic svg{stroke:#8A98FF}
+.nx-cat.warn .nx-ic{background:rgba(255,181,71,.18)}.nx-cat.warn .nx-ic svg{stroke:#FFB547}.nx-cat.warn span{color:#FFB547}
+.nx-aware{display:inline-flex;align-items:center;gap:8px;padding:9px 14px;border-radius:999px;background:#1b1c20;font-size:13px;font-weight:500;margin-bottom:16px}
+.nx-dot{width:7px;height:7px;border-radius:50%;background:#5FD39A;box-shadow:0 0 8px #5FD39A}
+.nx-back{width:42px;height:42px;border-radius:50%;background:#1b1c20;border:0;display:grid;place-items:center;cursor:pointer;margin-top:12px}
+.nx-back svg{width:18px;height:18px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+/* Settings — the G-Flip's look: big cards, choices you can see */
+.nx-set{display:grid;grid-template-columns:1fr;gap:12px;margin-top:16px}
+@media (min-width:820px){.nx-set{grid-template-columns:minmax(0,1fr) minmax(0,1.5fr);align-items:start}.nx-set .nx-col{display:flex;flex-direction:column;gap:12px}}
+.nx-col{display:flex;flex-direction:column;gap:12px}
+.nx-card{background:#1b1c20;border-radius:24px;padding:16px}
+.nx-card h3{font-size:17px;font-weight:600;margin-bottom:4px}
+.nx-lab{font-size:13px;font-weight:500;color:rgba(255,255,255,.62);margin:14px 0 8px}
+.nx-seg{display:flex;flex-wrap:wrap;gap:6px;background:#232429;border-radius:14px;padding:4px}
+.nx-seg button{flex:1 1 auto;min-width:64px;height:38px;border-radius:11px;border:0;background:none;color:rgba(255,255,255,.66);font:600 13px Inter,-apple-system,sans-serif;cursor:pointer;padding:0 10px}
+.nx-seg button.on{background:#fff;color:#111}
+.nx-tr{display:flex;align-items:center;gap:12px;margin-top:14px}
+.nx-tr .t{flex:1;min-width:0}.nx-tr b{display:block;font-size:15px;font-weight:600}.nx-tr span{display:block;font-size:13px;color:rgba(255,255,255,.55);margin-top:2px;line-height:1.35}
+.nx-tog{width:51px;height:31px;border-radius:16px;background:#2c2d33;position:relative;flex:none;border:0;cursor:pointer;transition:background var(--m-move) var(--e-standard)}
+.nx-tog::after{content:'';position:absolute;left:2px;top:2px;width:27px;height:27px;border-radius:50%;background:#fff;transition:transform var(--m-page) var(--e-spring)}
+.nx-tog.on{background:#2139F0}.nx-tog.on::after{transform:translateX(20px)}
+.nx-tog.unk{opacity:.55}
+.nx-big{width:104px;height:104px;border-radius:50%;margin:4px auto 0;display:grid;place-items:center;font-size:40px;font-weight:600;background:linear-gradient(135deg,#6f86ff,#2139F0) center/cover;color:#fff}
+.nx-btns{display:flex;justify-content:center;gap:10px;margin-top:14px}
+.nx-btn{height:40px;padding:0 16px;border-radius:14px;border:0;background:#232429;color:#fff;font:600 14px Inter,-apple-system,sans-serif;cursor:pointer}
+.nx-btn.red{color:#FF6B5E}
+.nx-li{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 2px;border-top:1px solid rgba(255,255,255,.07);font-size:15px}
+.nx-li:first-child{border-top:0}.nx-li span{font-size:13px;color:rgba(255,255,255,.62);text-align:right}
+.nx-pill{display:inline-block;padding:5px 10px;border-radius:999px;font-size:12px;font-weight:600;background:rgba(255,255,255,.08);margin:0 3px}
+.nx-pill.g{background:rgba(95,211,154,.15);color:#5FD39A}
+@media (prefers-reduced-motion:reduce){#nx-page .nx-in{animation:none}.nx-room,.nx-cat,.nx-tog,.nx-tog::after,#nx-bar .nmic{transition:none}}
+</style>
+<script>
+(function(){
+  var KEY='proos_new_ui';
+  function _nxIsOn(){ try{ return localStorage.getItem(KEY)==='1'; }catch(e){ return false; } }
+  window._nxOn=_nxIsOn;
+  var I={home:'<path d="M3.5 10.5 12 3.8l8.5 6.7V20a1 1 0 0 1-1 1h-4.8v-6.2H9.3V21H4.5a1 1 0 0 1-1-1z"/>',devices:'<rect x="3" y="4" width="11" height="8" rx="1.5"/><rect x="16" y="4" width="5" height="16" rx="1.5"/><path d="M6 16h5M8.5 12v4"/>',
+    mic:'<rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3.5"/>',spark:'<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>',
+    grid:'<rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/>',
+    back:'<path d="m15 6-6 6 6 6"/>',light:'<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z"/>',tv:'<rect x="2.5" y="4.5" width="19" height="13" rx="2"/><path d="M8 21h8"/>',
+    speaker:'<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>',camera:'<rect x="3" y="6.5" width="13" height="11" rx="2"/><path d="m16 10.5 5-3v9l-5-3z"/>',
+    shade:'<rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M4 8h16M4 12h16M4 16h16"/>',climate:'<path d="M14 14.8V5a2 2 0 0 0-4 0v9.8a4 4 0 1 0 4 0z"/>',lock:'<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+    garage:'<path d="M3 20V9l9-5 9 5v11M6 20v-8h12v8M6 15h12"/>',alarm:'<path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.4 7.5 9.5 4.3-1.1 7.5-4.9 7.5-9.5V6z"/>',plug:'<path d="M9 3v5M15 3v5M6 8h12v4a6 6 0 0 1-12 0zM12 18v3"/>',
+    fan:'<path d="M12 12c0-4 1-8 4-8s2 5-4 8zM12 12c4 0 8 1 8 4s-5 2-8-4zM12 12c0 4-1 8-4 8s-2-5 4-8zM12 12c-4 0-8-1-8-4s5-2 8 4z"/>',irrigation:'<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/>',
+    appliance:'<rect x="4" y="3" width="16" height="18" rx="2"/><circle cx="12" cy="13" r="4.5"/>',voice:'<rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3.5"/>',
+    other:'<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5h.01"/>',sensor:'<circle cx="12" cy="12" r="3"/><path d="M6.3 6.3a8 8 0 0 0 0 11.4M17.7 6.3a8 8 0 0 1 0 11.4"/>'};
+  var svgOf=function(k,st){ return '<svg viewBox="0 0 24 24"'+(st?' style="'+st+'"':'')+'>'+(I[k]||I.other)+'</svg>'; };
+  var nxEsc=function(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); };
+  // the foundation, for the whole home: every device with its kind, name and reading
+  function nxAll(){
+    var roles={}, avRooms={}; Object.keys(labelledEntities||{}).forEach(function(l){ if(!/^proos_/.test(l)) return; (labelledEntities[l]||[]).forEach(function(e){ (roles[e]=roles[e]||[]).push(l); if(l==='proos_av'&&entityAreaMap[e]) avRooms[entityAreaMap[e]]=1; }); });
+    var ents=Object.keys(states||{}).map(function(e){ return {entity_id:e, device_id:entityDeviceMap[e]||null, area_id:entityAreaMap[e]||null, category:(entityCategoryMap||{})[e]||null, hidden:hiddenEntities.has(e), disabled:entityDisabled.has(e)}; });
+    var rooms=(CONFIG.rooms||[]), devs=_pxDevices({ents:ents, states:states, devNames:deviceNameById||{}, rooms:rooms, roles:roles, avRooms:avRooms});
+    devs.forEach(function(d){ d.k=_pxKind(d,states); d.r=_pxReading(d,d.k,states); var room=rooms.find(function(r){ return r.id===d.area; }); d.name=_pxName(d,d.k,room,states); d.cat=_pxCat(d.k.kind); });
+    return devs;
+  }
+  window._nxAll=nxAll;
+  // ── the frame ──
+  var cur='home';
+  function bar(){
+    var b=document.getElementById('nx-bar'); if(!b){ b=document.createElement('nav'); b.id='nx-bar'; document.body.appendChild(b); }
+    var btn=function(id,lab,ic){ return '<button type="button" class="nb'+(cur===id?' on':'')+'" data-nx="'+id+'">'+svgOf(ic)+lab+'</button>'; };
+    b.innerHTML=btn('home','Home','home')+btn('devices','Devices','devices')+'<button type="button" class="nmic" data-nx="assist" aria-label="Assist">'+svgOf('mic')+'</button>'+btn('scenes','Scenes','spark')+btn('rooms','Rooms','grid');
+    b.querySelectorAll('[data-nx]').forEach(function(x){ x.onclick=function(e){ e.stopPropagation(); _nxGoTo(x.dataset.nx); }; });
+    var av=document.getElementById('nx-avatar'); if(!av){ av=document.createElement('button'); av.id='nx-avatar'; av.type='button'; av.setAttribute('aria-label','Settings'); av.onclick=function(){ _nxGoTo('settings'); }; document.body.appendChild(av); }
+    var a=window._proosAvatar||{}; if(a.url){ av.style.backgroundImage="url('"+a.url+"')"; av.textContent=''; } else { av.style.backgroundImage=''; av.textContent=a.initial||'D'; }
+  }
+  function _nxPage(html){ var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
+    p.innerHTML='<div class="nx-in">'+html+'</div>'; p.classList.add('open'); p.scrollTop=0; return p; }
+  function closePage(){ var p=document.getElementById('nx-page'); if(p) p.classList.remove('open'); }
+  function _nxGoTo(id){
+    cur=id; document.body.classList.toggle('nx-av', id==='home'||id==='rooms'||id==='devices');
+    if(id==='assist'){ cur=cur; try{ openAssist(); }catch(e){} bar(); return; }
+    if(id==='home'){ closePage(); try{ showPage('home'); selectRoom(-1); }catch(e){} }
+    else if(id==='scenes'){ closePage(); try{ showPage('scenes'); }catch(e){} }
+    else if(id==='rooms') drawRooms();
+    else if(id==='devices') drawDevices();
+    else if(id==='settings') drawSettings();
+    bar();
+  }
+  window._nxGo=_nxGoTo;
+  // ── Rooms ──
+  function drawRooms(){
+    var devs=nxAll(), rooms=CONFIG.rooms||[];
+    var html='<div class="nx-hd"><div><h1>Rooms</h1><div class="nx-sub">'+rooms.filter(function(r){ return devs.some(function(d){ return d.area===r.id&&d.r.now; }); }).length+' in use · '+rooms.length+' rooms</div></div>'+
+      '<button type="button" class="nx-chip" data-whole>'+svgOf('home')+'Whole Home</button></div><div class="nx-rooms">';
+    rooms.forEach(function(r,i){ var L=devs.filter(function(d){ return d.area===r.id; }), live=L.filter(function(d){ return d.r.now; });
+      var kinds=[]; L.forEach(function(d){ var k=d.k.kind; if(k==='source'||k==='receiver') k='tv'; if(['tv','light','speaker','shade','climate','camera','lock','garage','fan'].indexOf(k)>=0&&kinds.indexOf(k)<0) kinds.push(k); });
+      var line=live.length?live.slice(0,2).map(function(d){ return d.name; }).join(' · ')+(live.length>2?' +'+(live.length-2):''):(L.length?'Off':'Nothing here yet');
+      html+='<button type="button" class="nx-room'+(live.length?'':' off')+'" data-ri="'+i+'" style="'+(r.photo?"background-image:url('"+String(r.photo).replace(/'/g,'%27')+"')":'')+'"><div class="nx-rt"><div><b>'+nxEsc(r.name)+'</b><span>'+nxEsc(line)+'</span></div><div class="nx-ics">'+kinds.slice(0,5).map(function(k){ return svgOf(k==='speaker'?'speaker':k); }).join('')+'</div></div></button>'; });
+    var p=_nxPage(html+'</div>');
+    p.querySelector('[data-whole]').onclick=function(){ closePage(); try{ showPage('home'); selectRoom(-1); }catch(e){} cur='home'; bar(); };
+    p.querySelectorAll('[data-ri]').forEach(function(b){ b.onclick=function(){ closePage(); try{ showPage('home'); selectRoom(+b.dataset.ri); }catch(e){} cur='rooms'; bar(); }; });
+  }
+  // ── Devices ── the categories this home has, each with a live reading
+  var OLD={Lights:'lights',Climate:'climate',Cameras:'cameras',Security:'security','Security & Sensors':'security','Garage & Gates':'security','Locks & Access':'access',Music:'music','TVs & Media':'media',Irrigation:'irrigation'};
+  var CAT_IC={Lights:'light',Climate:'climate',Cameras:'camera',Security:'alarm','Security & Sensors':'sensor','Garage & Gates':'garage','Locks & Access':'lock',Music:'speaker','TVs & Media':'tv',Irrigation:'irrigation',Shades:'shade','Switches & Plugs':'plug',Fans:'fan',Appliances:'appliance',Voice:'voice',Other:'other',Readings:'sensor'};
+  function catLine(c, L){
+    var on=L.filter(function(d){ return d.r.now; }), gone=L.filter(function(d){ return d.r.gone; });
+    if(c==='Lights'){ var rs={}; on.forEach(function(d){ rs[d.area||'-']=1; }); return on.length?on.length+' on in '+Object.keys(rs).length+(Object.keys(rs).length===1?' room':' rooms'):'All off'; }
+    if(c==='Garage & Gates'&&on.length) return {w:on.map(function(d){ return d.name+' '+d.r.word.toLowerCase(); }).join(' · '), warn:true};
+    if(c==='Locks & Access'&&on.length) return {w:on.length+' unlocked', warn:true};
+    if(c==='Music'||c==='TVs & Media') return on.length?on.length+(on.length===1?' playing':' on'):L.length+' · all off';
+    if(c==='Security'){ var a=L[0]; return a?a.r.word:''; }
+    if(c==='Cameras') return L.length+(L.length===1?' camera':' cameras');
+    if(c==='Shades'){ var open=L.filter(function(d){ return /Open|open/.test(d.r.word); }).length; return open?open+' of '+L.length+' open':'All closed'; }
+    if(gone.length===L.length) return 'Can’t reach '+(L.length===1?'it':'them');
+    return on.length?on.length+' on':L.length+(L.length===1?' device':' devices');
+  }
+  window._nxCatLine=catLine;
+  function drawDevices(){
+    var devs=nxAll().filter(function(d){ return d.cat!=='Readings'; }), cats={};
+    devs.forEach(function(d){ (cats[d.cat]=cats[d.cat]||[]).push(d); });
+    var order=['Lights','Climate','Shades','Cameras','Security','Garage & Gates','Locks & Access','Music','TVs & Media','Irrigation','Fans','Switches & Plugs','Appliances','Security & Sensors','Voice','Other'];
+    var keys=Object.keys(cats).sort(function(a,b){ return (order.indexOf(a)<0?99:order.indexOf(a))-(order.indexOf(b)<0?99:order.indexOf(b)); });
+    var html='<div class="nx-hd"><div><h1>Devices</h1><div class="nx-sub">Everything in the house, by kind</div></div></div>';
+    if(!keys.length) html+='<div class="nx-card" style="text-align:center;padding:26px"><h3>Nothing yet</h3><div class="nx-sub">Lights, cameras, music and everything else appear here the moment they are added to your home.</div></div>';
+    html+='<div class="nx-cats">'+keys.map(function(c){ var L=cats[c], x=catLine(c,L), w=typeof x==='object'?x.w:x, warn=typeof x==='object'&&x.warn;
+      var cls=warn?'warn':(c==='Lights'&&L.some(function(d){ return d.r.now; }))?'lit':((c==='Music'||c==='TVs & Media'||c==='Climate')&&L.some(function(d){ return d.r.now; }))?'blue':'';
+      return '<button type="button" class="nx-cat '+cls+'" data-cat="'+nxEsc(c)+'"><div class="nx-ic">'+svgOf(CAT_IC[c]||'other')+'</div><div><b>'+nxEsc(c)+'</b><span>'+nxEsc(w)+'</span></div></button>'; }).join('')+'</div>';
+    var p=_nxPage(html);
+    p.querySelectorAll('[data-cat]').forEach(function(b){ b.onclick=function(){ drawCategory(b.dataset.cat); }; });
+  }
+  // a category: its devices by room (read-only for now — each kind's controls come with stage 5); the full page where one exists
+  function drawCategory(c){
+    var all=nxAll().filter(function(d){ return d.cat===c; }), rooms=CONFIG.rooms||[], by={};
+    all.forEach(function(d){ (by[d.area||'']=by[d.area||'']||[]).push(d); });
+    var html='<button type="button" class="nx-back" data-b>'+svgOf('back')+'</button><div class="nx-hd"><div><h1>'+nxEsc(c)+'</h1><div class="nx-sub">'+nxEsc((function(){ var x=catLine(c,all); return typeof x==='object'?x.w:x; })())+'</div></div>'+
+      (OLD[c]?'<button type="button" class="nx-chip" data-full>Open Full Page</button>':'')+'</div>';
+    rooms.concat([{id:'',name:'Around the House'}]).forEach(function(r){ var L=by[r.id]; if(!L||!L.length) return;
+      html+='<div style="font-size:17px;font-weight:600;margin:20px 2px 10px">'+nxEsc(r.name)+'</div><div class="nx-card" style="padding:4px 16px">'+L.map(function(d){
+        return '<div class="nx-li"><div style="display:flex;align-items:center;gap:12px;min-width:0"><div class="nx-ic">'+svgOf(CAT_IC[c]||'other')+'</div><div style="min-width:0"><div style="font-weight:600">'+nxEsc(d.name)+'</div></div></div><span style="'+(d.r.gone?'color:#FFB547':d.r.now?'color:#fff':'')+'">'+nxEsc(d.r.word)+'</span></div>'; }).join('')+'</div>'; });
+    var p=_nxPage(html);
+    p.querySelector('[data-b]').onclick=drawDevices;
+    var f=p.querySelector('[data-full]'); if(f) f.onclick=function(){ closePage(); try{ showPage(OLD[c]); }catch(e){} };
+  }
+  // ── Settings ── every row today's Settings has, in the G-Flip's look, wired to the same doors
+  function drawSettings(){
+    try{ renderSettings(); }catch(e){}   // today's page keeps its machinery (installer access, avatar, memory) underneath
+    var u=window._haUser||(typeof _haUser!=='undefined'?_haUser:null), inApp=(typeof _proosInApp==='function'&&_proosInApp());
+    var seg=function(id,cur,opts){ return '<div class="nx-seg" data-seg="'+id+'">'+opts.map(function(o){ return '<button type="button" data-v="'+nxEsc(o[0])+'" class="'+(String(o[0])===String(cur)?'on':'')+'">'+nxEsc(o[1])+'</button>'; }).join('')+'</div>'; };
+    var tog=function(id,onv,title,sub){ return '<div class="nx-tr"><div class="t"><b>'+title+'</b><span>'+sub+'</span></div><button type="button" class="nx-tog'+(onv===null?' unk':onv?' on':'')+'" data-tog="'+id+'" aria-label="'+title+'"></button></div>'; };
+    var rooms=CONFIG.rooms||[], dr=(localStorage.getItem('dash_default_room')||'');
+    var times=[[0,'Off'],[30,'30 Sec'],[60,'1 Min'],[120,'2 Min'],[300,'5 Min']];
+    var instBtn=document.getElementById('set-installer-btn'), inst=instBtn?(instBtn.dataset.on===''?null:instBtn.dataset.on==='1'):null;
+    var conn=(function(){ try{ var s=!!(localStorage.getItem('ha_url')&&localStorage.getItem('ha_token')); var c=s&&typeof ws!=='undefined'&&ws&&ws.readyState===WebSocket.OPEN; return !s?'Not set up':c?(_onHome()?'Connected · at home':'Connected · away'):'Not connected — trying again'; }catch(e){ return '—'; } })();
+    var left='<div class="nx-card" style="text-align:center;padding:24px 16px"><div class="nx-big" id="nx-big-av"></div><div style="font-size:24px;font-weight:600;margin-top:12px">'+nxEsc(u&&u.name||'')+'</div>'+
+      '<div style="margin-top:8px"><span class="nx-pill g">'+(u?(u.is_owner?'Developer':u.is_admin?'Installer':'Homeowner'):'')+'</span><span class="nx-pill">'+nxEsc((typeof _haLocationName!=='undefined'&&_haLocationName)||'Home')+'</span></div>'+
+      '<div class="nx-btns"><button type="button" class="nx-btn" data-act="pic">Change Photo</button><button type="button" class="nx-btn red" data-act="unpic">Remove</button></div></div>'+
+      '<div class="nx-card" style="padding:4px 16px"><div class="nx-li">Version<span>1.0 · build '+nxEsc(typeof PROOS_BUILD!=='undefined'?PROOS_BUILD:'')+'</span></div>'+(inApp?'':'<div class="nx-li">Connection<span>'+nxEsc(conn)+'</span></div>')+'</div>'+
+      (inApp?'':'<button type="button" class="nx-btn red" data-act="out" style="width:100%;height:48px">Sign Out</button>');
+    var right='<div class="nx-card"><h3>This Device</h3><div class="nx-lab">Open App To</div>'+seg('room',dr,[['','Home']].concat(rooms.map(function(r){ return [r.name,r.name]; })))+
+      (typeof ssAllowed==='function'&&ssAllowed()?'<div class="nx-lab">Screensaver After</div>'+seg('ss',ssSecs(),times):'')+
+      '<div class="nx-lab">Return To Start After</div>'+seg('ret',retSecs(),times)+tog('newui',true,'New Look','This new dashboard on this screen. Off goes back to the one you know.')+'</div>'+
+      '<div class="nx-card"><h3>Assist</h3>'+tog('voice',voiceConsentGiven(),'Talk To ProOS','Your voice goes to your home’s transcription service to be turned into words. Nothing is kept.')+
+      tog('speak',speakAnswersOn(),'Speak Answers','Answers out loud on this screen in your home’s ProOS voice.')+
+      '<button type="button" class="nx-li" data-act="mem" style="width:100%;background:none;border:0;color:#fff;font:inherit;cursor:pointer;margin-top:10px;border-top:1px solid rgba(255,255,255,.07)">What It Remembers<span>›</span></button></div>'+
+      '<div class="nx-card"><h3>Your Installer</h3>'+tog('inst',inst,'Allow Installer Access','Your installer can manage this home. Off revokes their access — and any tech support they enabled.')+
+      (inApp?'':tog('loc',locationSharingOn(),'Share My Location','So the home knows when you’re coming and going. Off by default.'))+'</div>';
+    var html='<button type="button" class="nx-back" data-b>'+svgOf('back')+'</button><div class="nx-set"><div class="nx-col">'+left+'</div><div class="nx-col">'+right+'</div></div>';
+    var p=_nxPage(html);
+    var big=document.getElementById('nx-big-av'), a=window._proosAvatar||{}; if(a.url){ big.style.backgroundImage="url('"+a.url+"')"; } else big.textContent=a.initial||'D';
+    p.querySelector('[data-b]').onclick=function(){ _nxGoTo('home'); };
+    p.querySelectorAll('[data-seg]').forEach(function(sg){ sg.querySelectorAll('button').forEach(function(b){ b.onclick=function(){ var v=b.dataset.v, k=sg.dataset.seg;
+      if(k==='room') setDefaultRoom(v); else if(k==='ss') setScreensaver(v); else if(k==='ret') setReturnAfter(v);
+      sg.querySelectorAll('button').forEach(function(x){ x.classList.toggle('on',x===b); }); }; }); });
+    p.querySelectorAll('[data-tog]').forEach(function(t){ t.onclick=async function(){ var k=t.dataset.tog;
+      if(k==='newui'){ window._nxSet(false); return; }
+      if(k==='voice') setVoiceConsent(!voiceConsentGiven()); else if(k==='speak') setSpeakAnswers(!speakAnswersOn()); else if(k==='loc') setLocationSharing(!locationSharingOn());
+      else if(k==='inst'){ await toggleInstallerAccess(); }
+      setTimeout(drawSettings, 400); }; });
+    var act=function(n,f){ var b=p.querySelector('[data-act="'+n+'"]'); if(b) b.onclick=f; };
+    act('pic',function(){ dashAvatarUpload(); }); act('unpic',function(){ dashAvatarRemove(); setTimeout(drawSettings,800); });
+    act('out',function(){ dashSignOut(); });
+    act('mem',function(){ var pop=document.getElementById('set-assist-mem-pop'); if(pop&&pop.parentElement!==document.body) document.body.appendChild(pop); if(pop) pop.style.zIndex='10080'; openAssistMem(); });
+    if(inst===null){ try{ loadConsentUI().then(function(){ var b2=document.getElementById('set-installer-btn'); if(b2&&b2.dataset.on!==''&&cur==='settings') drawSettings(); }); }catch(e){} }
+  }
+  // ── the switch ──
+  window._nxSet=function(v){ try{ if(v) localStorage.setItem(KEY,'1'); else localStorage.removeItem(KEY); }catch(e){}
+    document.body.classList.toggle('nx-on', !!v); if(v){ cur='home'; bar(); _nxGoTo('home'); } else { closePage(); document.body.classList.remove('nx-av'); try{ showPage('home'); }catch(e){} }
+    try{ renderWidgetGrid(); }catch(e){} };
+  function start(){ if(!_nxIsOn()) return; document.body.classList.add('nx-on','nx-av'); bar(); }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',start); else start();
+  // your picture arrives after sign-in; paint it once it does
+  setInterval(function(){ if(!_nxIsOn()) return; var av=document.getElementById('nx-avatar'), a=window._proosAvatar||{}; if(av&&a.url&&!av.style.backgroundImage) bar(); }, 3000);
 })();
 </script>
 <!-- REGISTER 1365 motion styles (the type scale stays the last stylesheet) -->
