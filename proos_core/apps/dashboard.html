@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111607';
+const PROOS_BUILD='2026111608';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -24519,7 +24519,7 @@ html.proos-panel #widget-px-btn{display:none!important}
   // ── 1 · THE DEVICE ── entities grouped by their device; config/diagnostic, hidden and disabled entries are parts, never cards
   var NEVER_LEAD={number:1,select:1,button:1,event:1,remote:1,update:1,text:1,image:1,tts:1,notify:1,stt:1,wake_word:1,conversation:1,
     assist_satellite:1,device_tracker:1,automation:1,weather:1,sun:1,zone:1,person:1,input_boolean:1,input_number:1,input_select:1,input_text:1,input_datetime:1,input_button:1,counter:1,timer:1,group:1,todo:1,calendar:1,ai_task:1,siren:1,date:1,time:1,datetime:1,lawn_mower:0};
-  var ORDER=['media_player','climate','cover','light','fan','lock','alarm_control_panel','camera','vacuum','lawn_mower','valve','water_heater','humidifier','switch','binary_sensor','sensor'];
+  var ORDER=['camera','media_player','climate','cover','light','fan','lock','alarm_control_panel','vacuum','lawn_mower','valve','water_heater','humidifier','switch','binary_sensor','sensor'];
   function _pxDom(e){ return String(e).split('.')[0]; }
   function _pxRank(e){ var i=ORDER.indexOf(_pxDom(e)); return i<0?99:i; }
   // inp: {ents:[{entity_id, device_id, area_id(resolved), category, hidden, disabled}], states, devNames:{id:name}, rooms:[{id,name}]}
@@ -24536,8 +24536,16 @@ html.proos-panel #widget-px-btn{display:none!important}
       if(!leads.length) return;   // a device made only of parts (a firmware update, a button) is not a card
       leads.sort(function(a,b){ return _pxRank(a)-_pxRank(b) || a.localeCompare(b); });
       // a device's room is its LEAD entity's room (the platform lets one entity of a device sit elsewhere)
-      var lead=leads[0], leadRow=(inp.ents||[]).find(function(x){ return x.entity_id===lead; });
-      out.push({id:k, device_id:g.device_id, lead:lead, ents:g.ents.slice().sort(), area:(leadRow&&leadRow.area_id)||null,
+      var lead=leads[0], leadRow=(inp.ents||[]).find(function(x){ return x.entity_id===lead; }), area=(leadRow&&leadRow.area_id)||null;
+      var roles={}; g.ents.forEach(function(e){ ((inp.roles||{})[e]||[]).forEach(function(l){ roles[l]=1; }); });
+      var voice=g.ents.some(function(e){ return _pxDom(e)==='assist_satellite'; });
+      // 1374b (Dave 16 Nov 14:5x "Hide; Pro lists it"): a player with no role in a room whose AV the installer has set up
+      // (the Shield's Cast twin beside its committed Android TV one) is not the homeowner's — Pro lists it under that room
+      if(!voice && _pxDom(lead)==='media_player' && area && (inp.avRooms||{})[area] && !Object.keys(roles).some(function(l){ return /^proos_(display|source|speaker|tvaudio|avswitch)$/.test(l); })) return;
+      // 1374b (Dave: "There will be devices that will never get a room"): a device with no room is never a fault; one
+      // made only of readings with no room is left out, the rule the live feed already uses (697)
+      if(!area && /^(binary_sensor|sensor)$/.test(_pxDom(lead))) return;
+      out.push({id:k, device_id:g.device_id, lead:lead, ents:g.ents.slice().sort(), area:area, roles:roles, voice:voice,
         devName:(g.device_id&&inp.devNames&&inp.devNames[g.device_id])||null});
     });
     return out;
@@ -24547,7 +24555,12 @@ html.proos-panel #widget-px-btn{display:none!important}
   function _pxKindOf(dev, states){
     var e=dev.lead, d=_pxDom(e), st=states[e]||{}, dc=_pxA(st,'device_class')||'';
     var has=function(pred){ return dev.ents.some(function(x){ return pred(x, states[x]||{}); }); };
+    if(dev.voice) return {kind:'voice'};
+    var R=dev.roles||{};
     if(d==='media_player'){
+      // the record is the truth about roles: what the installer set in Pro decides; the platform's own class is the fallback
+      if(R.proos_display) return {kind:'tv'}; if(R.proos_source) return {kind:'source'}; if(R.proos_avswitch) return {kind:'receiver'};
+      if(R.proos_speaker||R.proos_tvaudio) return {kind:'speaker'};
       if(dc==='tv') return {kind:'tv'}; if(dc==='receiver') return {kind:'receiver'}; if(dc==='speaker') return {kind:'speaker'};
       return {kind:'source'};
     }
@@ -24570,7 +24583,7 @@ html.proos-panel #widget-px-btn{display:none!important}
   }
   // ── 3 · THE NAME ── the device's own name; the room's name off the front; a device named after its room is called by its kind
   var KIND_WORD={light:'Light',plug:'Switch',fan:'Fan',shade:'Shade',garage:'Garage Door',climate:'Climate',tv:'TV',receiver:'Receiver',source:'Player',
-    speaker:'Speaker',camera:'Camera',doorbell:'Doorbell',lock:'Lock',alarm:'Alarm',sensor:'Sensor',reading:'Sensor',irrigation:'Irrigation',vacuum:'Vacuum',appliance:'Appliance',other:'Device'};
+    speaker:'Speaker',camera:'Camera',doorbell:'Doorbell',lock:'Lock',alarm:'Alarm',sensor:'Sensor',reading:'Sensor',irrigation:'Irrigation',vacuum:'Vacuum',appliance:'Appliance',other:'Device',voice:'Voice'};
   function _pxNameOf(dev, k, room, states){
     var n=String(dev.devName||_pxA(states[dev.lead],'friendly_name')||dev.lead.split('.')[1].replace(/_/g,' ')).trim();
     var rn=room&&room.name?String(room.name).trim():'';
@@ -24588,6 +24601,7 @@ html.proos-panel #widget-px-btn{display:none!important}
     var st=states[dev.lead]||{}, s=String(st.state||''), A=function(x){ return _pxA(st,x); };
     if(!st.state || s==='unavailable' || s==='unknown') return {on:false, gone:true, word:'Can’t reach it', now:false};
     switch(k.kind){
+      case 'voice': return {on:false, word:s==='listening'?'Listening':s==='responding'?'Answering':'Ready'};
       case 'light': { if(s!=='on') return {on:false, word:'Off'}; var b=A('brightness'); return {on:true, now:true, word:(k.sub!=='switch'&&b!=null)?Math.max(1,Math.round(b/2.55))+'%':'On'}; }
       case 'plug': case 'fan': return s==='on'?{on:true, now:true, word:'On'}:{on:false, word:'Off'};
       case 'speaker': return s==='playing'?{on:true, now:true, blue:true, word:(A('media_title')?'Playing · '+A('media_title'):'Playing')}:s==='paused'?{on:true, now:true, blue:true, word:'Paused'}:{on:false, word:(s==='idle'||s==='on')?'Not playing':'Off'};
@@ -24613,7 +24627,7 @@ html.proos-panel #widget-px-btn{display:none!important}
   }
   // the Devices categories, from the kinds a home actually has
   var CAT={light:'Lights',plug:'Switches & Plugs',fan:'Fans',shade:'Shades',garage:'Garage & Gates',climate:'Climate',tv:'TVs & Media',receiver:'TVs & Media',source:'TVs & Media',
-    speaker:'Music',camera:'Cameras',doorbell:'Cameras',lock:'Locks & Access',alarm:'Security',sensor:'Security & Sensors',reading:'Readings',irrigation:'Irrigation',vacuum:'Appliances',appliance:'Appliances',other:'Other'};
+    speaker:'Music',camera:'Cameras',doorbell:'Cameras',lock:'Locks & Access',alarm:'Security',sensor:'Security & Sensors',reading:'Readings',irrigation:'Irrigation',vacuum:'Appliances',appliance:'Appliances',voice:'Voice',other:'Other'};
   window._pxDevices=_pxDevicesOf; window._pxKind=_pxKindOf; window._pxName=_pxNameOf; window._pxReading=_pxReadingOf; window._pxCat=function(k){ return CAT[k]||'Other'; };
 
   // ── THE TEST PAGE ── every device in every room, live, as its new card
@@ -24624,12 +24638,13 @@ html.proos-panel #widget-px-btn{display:none!important}
     doorbell:'<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4zM10 21h4"/>',lock:'<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',alarm:'<path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.4 7.5 9.5 4.3-1.1 7.5-4.9 7.5-9.5V6z"/>',
     sensor:'<circle cx="12" cy="12" r="3"/><path d="M6.3 6.3a8 8 0 0 0 0 11.4M17.7 6.3a8 8 0 0 1 0 11.4"/>',reading:'<path d="M4 19h16M7 16V9M12 16V5M17 16v-4"/>',irrigation:'<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/>',
     vacuum:'<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="2.5"/>',appliance:'<rect x="4" y="3" width="16" height="18" rx="2"/><circle cx="12" cy="13" r="4.5"/>',other:'<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5h.01"/>'};
-  IC.receiver=IC.tv; IC.source=IC.tv;
-  var ORDER_KIND=['tv','source','receiver','speaker','light','climate','fan','plug','shade','garage','lock','alarm','camera','doorbell','irrigation','vacuum','appliance','sensor','reading','other'];
+  IC.receiver=IC.tv; IC.source=IC.tv; IC.voice='<rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3.5"/>';
+  var ORDER_KIND=['tv','source','receiver','speaker','voice','light','climate','fan','plug','shade','garage','lock','alarm','camera','doorbell','irrigation','vacuum','appliance','sensor','reading','other'];
   function _pxEsc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
   function _pxInput(){
     var ents=Object.keys(entityDeviceMap||{}).concat(Object.keys(states||{})).filter(function(e,i,arr){ return arr.indexOf(e)===i; });
-    return {states:states, devNames:deviceNameById||{}, rooms:(CONFIG.rooms||[]).map(function(r){ return {id:r.id, name:r.name}; }),
+    var roles={}, avRooms={}; Object.keys(labelledEntities||{}).forEach(function(l){ if(!/^proos_/.test(l)) return; (labelledEntities[l]||[]).forEach(function(e){ (roles[e]=roles[e]||[]).push(l); if(l==='proos_av'&&entityAreaMap[e]) avRooms[entityAreaMap[e]]=1; }); });
+    return {roles:roles, avRooms:avRooms, states:states, devNames:deviceNameById||{}, rooms:(CONFIG.rooms||[]).map(function(r){ return {id:r.id, name:r.name}; }),
       ents:ents.map(function(e){ return {entity_id:e, device_id:entityDeviceMap[e]||null, area_id:(typeof entityAreaMap!=='undefined'&&entityAreaMap[e])||null,
         category:(entityCategoryMap||{})[e]||null, hidden:hiddenEntities&&hiddenEntities.has(e), disabled:entityDisabled&&entityDisabled.has(e)}; })};
   }
@@ -24638,17 +24653,17 @@ html.proos-panel #widget-px-btn{display:none!important}
     var inp=_pxInput(), devs=_pxDevicesOf(inp), byRoom={}, cats={}, rooms=inp.rooms, noRoom=[];
     devs.forEach(function(d){ var k=_pxKindOf(d,inp.states); d.k=k; d.r=_pxReadingOf(d,k,inp.states); var room=rooms.find(function(r){ return r.id===d.area; });
       d.name=_pxNameOf(d,k,room,inp.states); var c=CAT[k.kind]||'Other'; (cats[c]=cats[c]||{n:0,on:0,noroom:0}).n++; if(d.r.now) cats[c].on++;
-      if(room) (byRoom[room.id]=byRoom[room.id]||[]).push(d); else { noRoom.push(d); cats[c].noroom++; } });
+      if(room) (byRoom[room.id]=byRoom[room.id]||[]).push(d); else noRoom.push(d); });
     var card=function(d){ var cls='px-card'+(d.r.gone?' gone':d.r.on?' on'+(d.r.blue?' blue':''):'');
       return '<div class="'+cls+'" data-px="'+_pxEsc(d.id)+'"><div class="px-row"><div class="px-ic"><svg viewBox="0 0 24 24">'+(IC[d.k.kind]||IC.other)+'</svg></div><button class="px-parts" type="button">'+d.ents.length+(d.ents.length>1?' parts':' part')+'</button></div>'+
         '<div><div class="px-k">'+_pxEsc(KIND_WORD[d.k.kind]+(d.k.sub&&d.k.kind==='light'?' · '+({dimmer:'Dimmer',colour:'Colour',white:'White Tones',switch:'Switch'}[d.k.sub]):''))+(d.r.now?' · On Now':'')+'</div><div class="px-n">'+_pxEsc(d.name)+'</div><div class="px-w">'+_pxEsc(d.r.word)+'</div>'+
         '<div class="px-list">'+d.ents.map(function(e){ return _pxEsc(e)+(e===d.lead?' ← leads':''); }).join('<br>')+'</div></div></div>'; };
     var sortK=function(x,y){ return ORDER_KIND.indexOf(x.k.kind)-ORDER_KIND.indexOf(y.k.kind) || x.name.localeCompare(y.name); };
-    var html='<div class="px-top"><div><h1>Every Device</h1><div class="px-sub">'+devs.length+' devices in '+Object.keys(byRoom).length+' rooms'+(noRoom.length?' · '+noRoom.length+' not in a room':'')+' — read live from the platform</div></div><button class="px-x" type="button" aria-label="Close">×</button></div>';
-    html+='<h2>Devices Page <small>the categories this home has</small></h2><div class="px-cats">'+Object.keys(cats).sort().map(function(c){ var x=cats[c]; return '<div class="px-cat"><b>'+_pxEsc(c)+'</b><span>'+x.n+(x.on?' · '+x.on+' on':'')+(x.noroom?' · '+x.noroom+' no room':'')+'</span></div>'; }).join('')+'</div>';
+    var html='<div class="px-top"><div><h1>Every Device</h1><div class="px-sub">'+devs.length+' devices in '+Object.keys(byRoom).length+' rooms'+(noRoom.length?' · '+noRoom.length+' around the house':'')+' — read live from the platform</div></div><button class="px-x" type="button" aria-label="Close">×</button></div>';
+    html+='<h2>Devices Page <small>the categories this home has</small></h2><div class="px-cats">'+Object.keys(cats).sort().map(function(c){ var x=cats[c]; return '<div class="px-cat"><b>'+_pxEsc(c)+'</b><span>'+x.n+(x.on?' · '+x.on+' on':'')+'</span></div>'; }).join('')+'</div>';
     rooms.forEach(function(r){ var L=(byRoom[r.id]||[]).sort(sortK); var on=L.filter(function(d){ return d.r.now; }).length;
-      html+='<h2>'+_pxEsc(r.name)+'<small>'+(L.length?L.length+' devices'+(on?' · '+on+' on now':''):'Nothing here yet')+'</small></h2>'+(L.length?'<div class="px-grid">'+L.map(card).join('')+'</div>':''); });
-    if(noRoom.length) html+='<h2>Not in a Room<small>'+noRoom.length+' — Pro’s Health lists these with the fix</small></h2><div class="px-grid">'+noRoom.sort(sortK).map(card).join('')+'</div>';
+      html+='<h2>'+_pxEsc(r.name)+'<small>'+(L.length?L.length+(L.length===1?' device':' devices')+(on?' · '+on+' on now':''):'Nothing here yet')+'</small></h2>'+(L.length?'<div class="px-grid">'+L.map(card).join('')+'</div>':''); });
+    if(noRoom.length) html+='<h2>Around the House<small>'+noRoom.length+(noRoom.length===1?' device':' devices')+' with no room — that is fine</small></h2><div class="px-grid">'+noRoom.sort(sortK).map(card).join('')+'</div>';
     var y=pg.scrollTop, open={}; pg.querySelectorAll('.px-card.show').forEach(function(c){ open[c.dataset.px]=1; });
     pg.innerHTML=html; pg.scrollTop=y;
     pg.querySelectorAll('.px-card').forEach(function(c){ if(open[c.dataset.px]) c.classList.add('show'); });
