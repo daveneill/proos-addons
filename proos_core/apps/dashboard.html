@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111628';
+const PROOS_BUILD='2026111630';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -22510,6 +22510,7 @@ async function submitAssist() {
         clearInterval(_slowNudge); thinking.remove();
         assistAddSources(addMsg('assistant', d.reply), d.sources); window._assistLast=d.reply;
         _assistReplied(d.reply, _spoken, d.speak_lead, d.speak_suppress).then(function(){ _cvNext(_spoken); });   // 1288
+        try{ if(typeof _nxScreenOps==='function') _nxScreenOps(d); }catch(e){}   // 1388: a widget Assist put on THIS screen's page
         // AND THE HOME MAY HAVE MOVED (19 Aug 2026, register 243). This
         // branch refreshed NOTHING: a scene created through the gateway
         // never appeared on this app until the client reloaded it. The
@@ -25065,8 +25066,7 @@ body.nx-on #nx-page.open{display:block}
       '<div class="nxr-top"><button type="button" data-back aria-label="Rooms">'+gi('back')+'</button><span></span></div><div class="nxr-body">'+
       '<div class="nxr-name">'+nxrEsc(r.name)+'</div><div class="nxr-line">'+nxrEsc(line)+'</div>'+aware+
       '<div class="nxr-cols"><div><div class="nxr-sec"><b>Scenes</b></div>'+(tiles.length?'<div class="nxr-grid">'+tiles.join('')+'</div>':'<div class="nxr-quiet">No scenes in the '+nxrEsc(r.name)+' yet<small>Your installer adds them, or ask Assist to save what’s on as a scene.</small></div>')+
-      wids+
-      '</div><div><div class="nxr-sec"><b>On Now</b></div>'+(cards.length?'<div class="nxr-grid" style="grid-template-columns:repeat(2,minmax(0,1fr))">'+cards.join('')+'</div>':'<div class="nxr-quiet">Nothing on in the '+nxrEsc(r.name)+'<small>Everything in here is in Devices, or just ask.</small></div>')+'</div></div></div>';
+      '</div><div><div class="nxr-sec"><b>On Now</b></div>'+(cards.length?'<div class="nxr-grid" style="grid-template-columns:repeat(2,minmax(0,1fr))">'+cards.join('')+'</div>':'<div class="nxr-quiet">Nothing on in the '+nxrEsc(r.name)+'<small>Everything in here is in Devices, or just ask.</small></div>')+'</div></div>'+wids+'</div>';   // 1387a: widgets full width
     var y=p.scrollTop; p.innerHTML=html; p.scrollTop=y; _nxrWire(p,r,lights);
   }
   function _nxrWire(p,r,lights){
@@ -25263,7 +25263,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
     if(M.hasLights||M.players.length) tiles.push('<button type="button" class="nxr-scn" data-halloff>'+nxhIc('pw','g')+'<b>All Off</b></button>');
     var sc='<div class="nxr-sec"><b>Scenes</b><button type="button" class="nxh-more" data-hscenes>All Scenes ›</button></div>'+
       (tiles.length?'<div class="nxr-grid">'+tiles.join('')+'</div>':'<div class="nxr-quiet">No scenes yet<small>Your installer adds them, or ask Assist to save what’s on as a scene.</small></div>');
-    html+='<div class="nxh-cols"><div>'+onNow+'</div><div>'+sc+yw+'</div></div></div>';
+    html+='<div class="nxh-cols"><div>'+onNow+'</div><div>'+sc+'</div></div>'+yw+'</div>';   // 1387a: widgets full width under both columns
     var y=p.scrollTop; p.innerHTML=html; p.scrollTop=y; _nxhWire(p,M);
   }
   function _nxhLeave(){ clearInterval(homeTimer); homeTimer=null; document.body.classList.remove('nx-scr'); var p=document.getElementById('nx-page'); if(p){ p.classList.remove('open','nx-home-pg'); } }
@@ -26276,7 +26276,6 @@ body.nx-on #device-chooser{z-index:9380}
 <style>
 .nxw-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;grid-auto-rows:minmax(132px,auto)}
 @media (min-width:820px){.nxw-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.nxw.w3{grid-column:span 3}}
-.nxh-cols .nxw-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.nxh-cols .nxw.w3{grid-column:span 2}
 .nxw{position:relative;border-radius:24px;padding:16px;background:#1b1c20 center/cover;color:#fff;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden;cursor:pointer;
   text-align:left;border:0;font-family:inherit;-webkit-user-select:none;user-select:none;animation:nxrArrive var(--m-page) var(--e-spring);transition:transform var(--m-tap) var(--e-spring)}
 .nxw:active{transform:scale(.98)}
@@ -26387,7 +26386,7 @@ body.nx-on #device-chooser{z-index:9380}
           go:w.id==='camera'?function(){ try{ openProtectCamera(Math.max(0,ci)); }catch(x){} }:(words.go||function(){ leave(); try{ showPage('cameras'); }catch(x){} })}); }
       case 'assist': return _nxwCard(w,{ic:'mic', cls:'blue', k:'Assist', n:'Ask anything', s:'“Turn off the kitchen lights”', go:function(){ try{ openAssist(); }catch(x){} }});
       default: { var W=_nxwWords(w); var icx={energy:'bolt',activities:'tv',device:'dot'}[w.id]||'other';
-        return _nxwCard(w,{ic:icx, k:W.label||lib.name||w.id, n:W.value||'', s:W.sub||'', go:W.go?function(){ leave(); W.go(); }:null}); }
+        return _nxwCard(w,{ic:icx, k:W.label||lib.name||w.id, n:W.value||'', s:W.sub||(W.value?'':'No reading yet'), go:W.go?function(){ leave(); W.go(); }:null}); }   // 1387a: never a bare title
     }
   }
   // the page's widgets: the saved layout for this page and this screen, every one drawn
@@ -26420,6 +26419,31 @@ body.nx-on #device-chooser{z-index:9380}
     ov.querySelector('[data-rmno]').onclick=function(){ ov.classList.remove('open'); };
     ov.querySelector('[data-rmyes]').onclick=function(){ try{ removeWidget(uid); }catch(x){} ov.classList.remove('open'); var p=document.getElementById('nx-page'); if(p) p._sig=''; };
   }
+})();
+</script>
+<!-- ══ REGISTER 1388 — STAGE 7, ASSIST ARRANGES A PAGE ON THIS SCREEN (Dave 16 Nov: "asking assist to put a widget on a
+     page for the homeowner"). Core's page_widget tool records the act; this screen — the one that asked — applies it to
+     its own page with its own add and remove (a layout lives on each screen). The page is the room the person was on, or
+     Home, or the room they named. A widget that needs a choice (which door, which thermostat on Home) asks on the screen,
+     as adding by hand does. -->
+<script>
+(function(){
+  function _nxScreenOps(d){
+    var acts=(d&&Array.isArray(d.actions))?d.actions:[]; var did=[];
+    acts.filter(function(a){ return a&&a.tool==='page_widget'&&a.screen&&!a.error; }).forEach(function(a){
+      var prev=(typeof curRoom==='number')?curRoom:-1, idx=a.area_id?(CONFIG.rooms||[]).findIndex(function(r){ return r.id===a.area_id; }):prev;
+      if(idx<-1) idx=prev;
+      try{ if(idx!==prev) selectRoom(idx); }catch(x){}
+      try{
+        if(a.op==='add'){ addWidget(a.widget); did.push(a); }
+        else { (loadWidgetLayout()||[]).filter(function(w){ return w&&w.id===a.widget; }).forEach(function(w){ removeWidget(w.uid); }); did.push(a); }
+      }catch(x){}
+      try{ if(idx!==prev) selectRoom(prev); }catch(x){}
+    });
+    if(did.length){ var p=document.getElementById('nx-page'); if(p) p._sig=''; try{ renderWidgetGrid(); }catch(x){} }
+    return did.length;
+  }
+  window._nxScreenOps=_nxScreenOps;
 })();
 </script>
 <!-- REGISTER 1365 motion styles (the type scale stays the last stylesheet) -->

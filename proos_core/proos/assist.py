@@ -1435,6 +1435,20 @@ TOOLS = [
          "scene_entity_id": {"type": "string"},
          "show": {"type": "boolean", "description": "true to add to the dashboard, false to remove"}},
          "required": ["scene_entity_id", "show"]}},
+    {"name": "page_widget",
+     "description": "Add or remove a widget on the homeowner's own page ON THE SCREEN THEY ARE ASKING FROM (each "
+                    "screen keeps its own layout — say 'on this screen'). The page is the room they are on, or "
+                    "Home; pass area_id only when they name another room. Widgets: lights, climate, weather, sun, "
+                    "people, security, garage, covers, media (now playing), energy, irrigation, awareness, assist, "
+                    "scene, camera. Remove takes every widget of that kind off the page. Tell them it is done on "
+                    "this screen; nothing changes on their other screens.",
+     "input_schema": {"type": "object", "properties": {
+         "op": {"type": "string", "enum": ["add", "remove"]},
+         "widget": {"type": "string", "enum": ["lights", "climate", "weather", "sun", "people", "security", "garage",
+                                               "covers", "media", "energy", "irrigation", "awareness", "assist",
+                                               "scene", "camera"]},
+         "area_id": {"type": "string", "description": "a room's id, only when they name a room other than the one they are on"}},
+         "required": ["op", "widget"]}},
     {"name": "scene_phrases",
      "description": "Set the TRIGGER PHRASES of a scene or an activity — the words that start it on their own "
                     "(\"movie time\", \"goodnight\"), from every voice door, instantly. Pass the WHOLE list "
@@ -1886,6 +1900,10 @@ _TOOL_GROUPS = {
     "knowledge": {
         "what": "the installer's own written knowledge about this site",
         "tools": {"knowledge_read", "knowledge_search", "knowledge_write"},
+    },
+    "pages": {
+        "what": "the homeowner's own pages on the screen they are asking from — add or remove a widget (register 1388)",
+        "tools": {"page_widget"},
     },
     "scene_extras": {
         "what": "scene pictures, dashboards, music/activity companions and trigger phrases "
@@ -2552,6 +2570,8 @@ def _is_home(user: dict) -> bool:
 _PLATFORM_FIRST_KEEP = {"scene_dashboard", "rooms_overview", "room_activity", "room_off",
                         "room_activities", "activity_rewrite", "activity_test",
                         "app_launch", "app_shortcut_create"}
+# REGISTER 1388: page_widget (a widget on the asking screen's page) is NOT in this set — the set is Dave's ruling
+# (1267/1273/1279, pinned in three benches); adding it waits for his yes. Until then a platform-first login is not offered it.
 # REGISTER 1339 (Dave 14 Nov 08:01/08:07): opening an app in a room — the room's activity first, then the app the way
 # its shortcut would, on the device the room uses — and saving it as a favourite only when asked. The platform's own
 # select_source/play_media knows neither the room's activity nor ProOS's launch methods, nor where a favourite shows.
@@ -5920,6 +5940,25 @@ class ToolRunner:
             self._audit("scene_apply", entity=eid, music=bool(out.get("music")))
             out.setdefault("next", "verify the target entities now match the scene")
         return out
+
+    # REGISTER 1388 — STAGE 7, ASSIST ARRANGES A PAGE (Dave 16 Nov: "maybe even the ability eventually of asking assist to
+    # put a widget on a page for the homeowner"). A homeowner's layout lives ON EACH SCREEN (the dashboard keeps it per
+    # page and per screen size), so Core does not write it: the act is recorded for the screen that asked, which applies
+    # it to its own page through its own add and remove. Nothing is written on the box, nothing on other screens.
+    PAGE_WIDGETS = ("lights", "climate", "weather", "sun", "people", "security", "garage", "covers", "media", "energy",
+                    "irrigation", "awareness", "assist", "scene", "camera")
+
+    def t_page_widget(self, args):
+        op = (args.get("op") or "").strip()
+        widget = (args.get("widget") or "").strip()
+        area = (args.get("area_id") or "").strip() or None
+        if op not in ("add", "remove"):
+            return {"error": "op must be add or remove"}
+        if widget not in self.PAGE_WIDGETS:
+            return {"error": "no widget called %s — one of: %s" % (widget, ", ".join(self.PAGE_WIDGETS))}
+        self._audit("page_widget", kind="act", op=op, widget=widget, area_id=area, screen=True)
+        return {"ok": True, "done_on": "this screen", "op": op, "widget": widget, "area_id": area,
+                "note": "the screen the person is asking from applies this to its own page; other screens are unchanged"}
 
     def t_scene_dashboard(self, args):
         eid = (args.get("scene_entity_id") or "").strip()
