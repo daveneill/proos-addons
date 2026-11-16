@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111610';
+const PROOS_BUILD='2026111611';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -24876,7 +24876,9 @@ body.nx-on #nx-page.open{display:block}
   }
   // ── Settings ── every row today's Settings has, in the G-Flip's look, wired to the same doors
   function drawSettings(){
-    try{ renderSettings(); }catch(e){}   // today's page keeps its machinery (installer access, avatar, memory) underneath
+    // today's page keeps its machinery (installer access, avatar, memory) underneath — drawn once, never on every redraw:
+    // a fresh draw resets the installer switch to unknown, and asking again redrew forever (read on the box, 1375a)
+    if(!document.getElementById('set-installer-btn')){ try{ renderSettings(); }catch(e){} }
     var u=window._haUser||(typeof _haUser!=='undefined'?_haUser:null), inApp=(typeof _proosInApp==='function'&&_proosInApp());
     var seg=function(id,cur,opts){ return '<div class="nx-seg" data-seg="'+id+'">'+opts.map(function(o){ return '<button type="button" data-v="'+nxEsc(o[0])+'" class="'+(String(o[0])===String(cur)?'on':'')+'">'+nxEsc(o[1])+'</button>'; }).join('')+'</div>'; };
     var tog=function(id,onv,title,sub){ return '<div class="nx-tr"><div class="t"><b>'+title+'</b><span>'+sub+'</span></div><button type="button" class="nx-tog'+(onv===null?' unk':onv?' on':'')+'" data-tog="'+id+'" aria-label="'+title+'"></button></div>'; };
@@ -24913,7 +24915,7 @@ body.nx-on #nx-page.open{display:block}
     act('pic',function(){ dashAvatarUpload(); }); act('unpic',function(){ dashAvatarRemove(); setTimeout(drawSettings,800); });
     act('out',function(){ dashSignOut(); });
     act('mem',function(){ var pop=document.getElementById('set-assist-mem-pop'); if(pop&&pop.parentElement!==document.body) document.body.appendChild(pop); if(pop) pop.style.zIndex='10080'; openAssistMem(); });
-    if(inst===null){ try{ loadConsentUI().then(function(){ var b2=document.getElementById('set-installer-btn'); if(b2&&b2.dataset.on!==''&&cur==='settings') drawSettings(); }); }catch(e){} }
+    if(inst===null && !drawSettings._asked){ drawSettings._asked=true; try{ loadConsentUI().then(function(){ var b2=document.getElementById('set-installer-btn'); if(b2&&b2.dataset.on!==''&&cur==='settings') drawSettings(); }); }catch(e){} }
   }
   // ── the switch ──
   window._nxSet=function(v){ try{ if(v) localStorage.setItem(KEY,'1'); else localStorage.removeItem(KEY); }catch(e){}
