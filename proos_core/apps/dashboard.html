@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111621';
+const PROOS_BUILD='2026111622';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -24806,7 +24806,7 @@ body.nx-on #nx-page.open{display:block}
     var a=window._proosAvatar||{}; if(a.url){ av.style.backgroundImage="url('"+a.url+"')"; av.textContent=''; } else { av.style.backgroundImage=''; av.textContent=a.initial||'D'; }
   }
   function _nxPage(html){ var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg'); document.body.classList.remove('nx-scr');   // 1376–1380: leaving a room page, Home or Lights
+    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg'); document.body.classList.remove('nx-scr');   // 1376–1380: leaving a room page, Home or Lights
     p.innerHTML='<div class="nx-in">'+html+'</div>'; p.classList.add('open'); p.scrollTop=0; return p; }
   function closePage(){ var p=document.getElementById('nx-page'); if(p) p.classList.remove('open'); }
   function _nxGoTo(id){
@@ -24867,6 +24867,7 @@ body.nx-on #nx-page.open{display:block}
     if(c==='Lights'&&typeof _nxLights==='function') return _nxLights();   // 1378: the Lights page
     if(c==='Climate'&&typeof _nxClimateList==='function') return _nxClimateList();   // 1379: the Climate page
     if(c==='Shades'&&typeof _nxShades==='function') return _nxShades(null);   // 1380: the Shades page
+    if(c==='Locks & Access'&&typeof _nxLocks==='function') return _nxLocks(null);   // 1382: the Locks page
     if(typeof _nxSecurity==='function'&&({Security:1,'Garage & Gates':1,'Security & Sensors':1})[c]) return _nxSecurity(c==='Security'?'alarm':c==='Garage & Gates'?'garage':'sensors');   // 1381
     var all=nxAll().filter(function(d){ return d.cat===c; }), rooms=CONFIG.rooms||[], by={};
     all.forEach(function(d){ (by[d.area||'']=by[d.area||'']||[]).push(d); });
@@ -25082,6 +25083,7 @@ body.nx-on #nx-page.open{display:block}
     var lo=p.querySelector('[data-lightsoff]'); if(lo) lo.onclick=function(e){ e.stopPropagation(); var ls=lights.filter(function(d){ return d.r.on; }).map(function(d){ return d.lead; }); if(ls.length) svc('light','turn_off',{entity_id:ls}); };
     p.querySelectorAll('[data-cat]').forEach(function(b){ b.onclick=function(){ if(b.dataset.cat==='Climate'&&typeof _nxClimate==='function'){ _nxrStop(); _nxClimate(b.dataset.lead, function(){ _nxRoom(CONFIG.rooms.indexOf(r)); }); return; }   // 1379
       if(b.dataset.cat==='Shades'&&typeof _nxShades==='function'){ _nxrStop(); _nxShades(function(){ _nxRoom(CONFIG.rooms.indexOf(r)); }, r.id); return; }   // 1380
+      if(b.dataset.cat==='Locks & Access'&&typeof _nxLocks==='function'){ _nxrStop(); _nxLocks(function(){ _nxRoom(CONFIG.rooms.indexOf(r)); }); return; }   // 1382
       if(b.dataset.cat==='Garage & Gates'&&typeof _nxSecurity==='function'){ _nxrStop(); _nxSecurity('garage', function(){ _nxRoom(CONFIG.rooms.indexOf(r)); }); return; }   // 1381
       var m={Climate:'climate','Garage & Gates':'security','Locks & Access':'access'}[b.dataset.cat]; if(m){ _nxrCloseNx(); try{ showPage(m); }catch(x){} } }; });
   }
@@ -25092,7 +25094,7 @@ body.nx-on #nx-page.open{display:block}
     try{ showPage('home'); selectRoom(i); }catch(e){}   // the room is the current room underneath: its widgets, Assist's room, its activities load
     try{ _pacActs(r); }catch(e){}
     var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg'); document.body.classList.remove('nx-scr'); p.classList.add('open','nx-room-pg'); p._sig=''; p.scrollTop=0; _nxrDraw();
+    p.classList.remove('nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg'); document.body.classList.remove('nx-scr'); p.classList.add('open','nx-room-pg'); p._sig=''; p.scrollTop=0; _nxrDraw();
     clearInterval(timer); timer=setInterval(_nxrDraw, 1000);   // live: the page follows the devices — a card arrives when something turns on, leaves when it goes off
   };
   window._nxRoomState=_nxrAvState; window._nxSceneHeld=_nxSceneHeld;
@@ -25278,6 +25280,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
     q('[data-hloff]',function(b,e){ e.stopPropagation(); var ents=(b.closest('[data-ents]').dataset.ents||'').split(',').filter(Boolean); if(ents.length) svc('light','turn_off',{entity_id:ents}); });
     q('[data-hcat]',function(b){ if(b.dataset.hcat==='Climate'&&typeof _nxClimate==='function'){ _nxhStop(); _nxClimate(b.dataset.hlead, function(){ _nxHome(); }); return; }   // 1379
       if(b.dataset.hcat==='Shades'&&typeof _nxShades==='function'){ _nxhStop(); _nxShades(function(){ _nxHome(); }); return; }   // 1380 (it opened the old Lights page)
+      if(b.dataset.hcat==='Locks & Access'&&typeof _nxLocks==='function'){ _nxhStop(); _nxLocks(function(){ _nxHome(); }); return; }   // 1382
       if((b.dataset.hcat==='Garage & Gates'||b.dataset.hcat==='Security')&&typeof _nxSecurity==='function'){ _nxhStop(); _nxSecurity(b.dataset.hcat==='Security'?'alarm':'garage', function(){ _nxHome(); }); return; }   // 1381
       var m={Climate:'climate','Garage & Gates':'security','Locks & Access':'access',Security:'security',Shades:'lights'}[b.dataset.hcat]; if(m){ _nxhLeave(); try{ showPage(m); }catch(x){} } });
     q('[data-hscene]',function(b){ var s=(CONFIG.scenes||[])[+b.dataset.hscene]; if(!s) return; ran[s.entity]=Date.now(); try{ triggerScene(s.entity,+b.dataset.hscene); }catch(x){} p._sig=''; _nxhDraw(); });
@@ -25289,7 +25292,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
   window._nxHome=function(){
     try{ showPage('home'); selectRoom(-1); }catch(e){}   // Home's own widgets and Assist's "whole home" load underneath
     var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg'); p.classList.add('open','nx-home-pg'); p._sig=''; p.scrollTop=0; _nxhDraw();
+    p.classList.remove('nx-room-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg'); p.classList.add('open','nx-home-pg'); p._sig=''; p.scrollTop=0; _nxhDraw();
     // your picture steps aside once Home scrolls, so it never sits over a card (it stays at the top, as in the mock)
     p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; document.body.classList.remove('nx-scr');   // 1378b: every New Look page, not Home only
     clearInterval(homeTimer); homeTimer=setInterval(_nxhDraw, 1000);   // live: a card arrives when something turns on, folds away when it goes off
@@ -25426,7 +25429,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
   function _nxlStop(){ clearInterval(lightsTimer); lightsTimer=null; var p=document.getElementById('nx-page'); if(p) p.classList.remove('nx-lights-pg'); }
   window._nxLights=function(){
     var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-home-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg'); p.classList.add('open','nx-lights-pg'); p._sig=''; p.scrollTop=0; _nxlDraw();
+    p.classList.remove('nx-room-pg','nx-home-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg'); p.classList.add('open','nx-lights-pg'); p._sig=''; p.scrollTop=0; _nxlDraw();
     p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; document.body.classList.remove('nx-scr');   // 1378b: your picture steps aside here too
     clearInterval(lightsTimer); lightsTimer=setInterval(_nxlDraw, 1000);
   };
@@ -25589,7 +25592,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
   function _nxcLine(e, M){ if(M.dead) return 'Can’t reach it'; if(M.sent) return 'Setting '+fmt(M.t)+'°…'; try{ return _cpLine(e); }catch(x){ return word(M.mode); } }
   function _nxcCls(m){ return m==='cool'?'cool':m==='heat'?'heat':(m==='heat_cool'||m==='auto')?'auto':''; }
   function _nxcPage(cls){ var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg'); p.classList.add('open',cls); p._sig=''; p.scrollTop=0;
+    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg'); p.classList.add('open',cls); p._sig=''; p.scrollTop=0;
     p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; document.body.classList.remove('nx-scr'); return p; }
 
   // ── the list ──
@@ -25716,7 +25719,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
     else svc('cover', cmd==='open'?'open_cover':cmd==='close'?'close_cover':'stop_cover', {entity_id:e});
     try{ _proosHaptic&&_proosHaptic('tick'); }catch(x){}
   }
-  window._nxsSend=_nxsSend; window._nxsPend=pend;   // 1381: the garage rows share the shades' sent-not-yet-reported words
+  window._nxsSend=_nxsSend;
   function _nxsAll(){ return (window._nxAll?_nxAll():[]).filter(function(d){ return d.k.kind==='shade'; }).map(function(d){ return {e:d.lead, area:d.area||'', name:d.name}; }); }
   function _nxsSections(all){ var rs=(CONFIG.rooms||[]).slice(), seen={}; rs.forEach(function(r){ seen[r.id]=1; });
     all.forEach(function(L){ if(L.area&&!seen[L.area]){ seen[L.area]=1; rs.push({id:L.area, name:(typeof areaNameById!=='undefined'&&areaNameById[L.area])||L.area}); } });
@@ -25748,7 +25751,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
   function _nxsStop(){ clearInterval(timer); timer=null; from=null; var p=document.getElementById('nx-page'); if(p) p.classList.remove('nx-shade-pg'); }
   window._nxShades=function(back, area){
     var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-sec-pg'); p.classList.add('open','nx-shade-pg'); p._sig=''; p.scrollTop=0;
+    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-sec-pg','nx-lock-pg'); p.classList.add('open','nx-shade-pg'); p._sig=''; p.scrollTop=0;
     p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; document.body.classList.remove('nx-scr');
     from=back||null; focus=area==null?null:area; _nxsDraw(); clearInterval(timer); timer=setInterval(_nxsDraw, 1000);
   };
@@ -25821,7 +25824,7 @@ body.nx-on #pin-overlay{z-index:9060}
     water:'<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/>',smoke:'<path d="M5 17a4 4 0 0 1 1-8 5 5 0 0 1 9.6-1.6A4 4 0 1 1 18 17z"/>',sensor:'<circle cx="12" cy="12" r="3"/><path d="M5 12a7 7 0 0 1 14 0M2 12a10 10 0 0 1 20 0"/>'};
   var svgOfQ=function(k){ return '<svg viewBox="0 0 24 24">'+(IC[k]||IC.sensor)+'</svg>'; };
   var SEC_CLASSES={door:'door',window:'door',garage_door:'garage',opening:'door',motion:'motion',occupancy:'motion',moisture:'water',smoke:'smoke',carbon_monoxide:'smoke',gas:'smoke',tamper:'sensor',safety:'sensor',vibration:'sensor'};
-  var timer=null, from=null, focus=null;
+  var timer=null, from=null, focus=null, _nxqPressed={};
   var mins=function(e){ var o=states[e]; var t=o&&Date.parse(o.last_changed||''); if(!t||isNaN(t)) return ''; var m=Math.round((Date.now()-t)/60000);
     return m<1?'just now':m<60?m+' min':m<1440?Math.round(m/60)+' h':Math.round(m/1440)+' d'; };
   // ── the sensors: each one READ. An alarm's own zones (698/703) first; then every door, window, motion, leak and smoke
@@ -25858,11 +25861,14 @@ body.nx-on #pin-overlay{z-index:9060}
       (zl&&!/^All /.test(zl)?'<div class="zl warn">'+nxqEsc(zl)+'</div>':'')   /* 1381a: the all-clear is said once, at the top */+(btns?'<div class="nxq-modes">'+btns+'</div>':'')+'</div>';
   }
   function _nxqGarage(d){
-    var S=states[d.lead]||{}, s=S.state, can=window._nxsCan?_nxsCan(S):{open:true,close:true}, R=window._nxsRead?_nxsRead(d.lead,S,window._nxsPend||{}):{word:s};
+    // 974e (Dave, 24 Oct): a garage door's word is its SENSOR'S, never the tap's — a one-button opener goes up, stops,
+    // goes down on successive presses, so "Closing…" after a press can be a lie. 1381 broke this (it borrowed the shades'
+    // sent-words); 1382 restores it: the sensor's word, and "Pressed" for a moment after a press.
+    var S=states[d.lead]||{}, s=S.state, can=window._nxsCan?_nxsCan(S):{open:true,close:true}, R=window._nxsRead?_nxsRead(d.lead,S,{}):{word:s}, pr=_nxqPressed[d.lead]&&Date.now()-_nxqPressed[d.lead]<8000;
     var open=s==='open'||s==='opening'||s==='closing', moving=s==='opening'||s==='closing', dead=R.gone;
     var r=(CONFIG.rooms||[]).filter(function(x){ return x.id===d.area; })[0], where=r?r.name:(d.area&&typeof areaNameById!=='undefined'&&areaNameById[d.area])||'';
     var act=dead?'':moving&&can.stop?['stop','Stop']:open&&can.close?['close','Close']:!open&&can.open?['open','Open']:null;
-    return '<div class="nxq-li'+(open&&!dead?' warn':'')+'"><div class="nx-ic">'+svgOfQ('garage')+'</div><div class="gr"><b>'+nxqEsc(d.name)+'</b><small class="'+(R.sent?'act':open?'warn':'')+'">'+nxqEsc(R.word+(open&&!R.sent&&s==='open'&&mins(d.lead)?' · '+mins(d.lead):''))+(where?' · '+nxqEsc(where):'')+'</small></div>'+
+    return '<div class="nxq-li'+(open&&!dead?' warn':'')+'"><div class="nx-ic">'+svgOfQ('garage')+'</div><div class="gr"><b>'+nxqEsc(d.name)+'</b><small class="'+(pr?'act':open?'warn':'')+'">'+nxqEsc(R.word+(open&&s==='open'&&mins(d.lead)?' · '+mins(d.lead):''))+(where?' · '+nxqEsc(where):'')+(pr?' · Pressed':'')+'</small></div>'+
       (act?'<button type="button" class="act'+(act[0]==='close'?' pri':'')+'" data-qg="'+nxqEsc(d.lead)+'" data-qc="'+act[0]+'">'+act[1]+'</button>':'')+'</div>';
   }
   function _nxqDraw(){
@@ -25881,14 +25887,77 @@ body.nx-on #pin-overlay{z-index:9060}
     if(focus){ var t=p.querySelector('[data-qsec="'+focus+'"]'); if(t&&window.innerWidth<820) p.scrollTop=Math.max(0,t.offsetTop-80); focus=null; }
     p.querySelector('[data-qb]').onclick=function(){ var f=from; _nxqStop(); if(f) f(); else _nxGo('devices'); };
     p.querySelectorAll('[data-qarm]').forEach(function(b){ b.onclick=function(){ try{ openPinOverlay(b.dataset.qarm, b.dataset.ql, b.dataset.qe); }catch(x){} }; });   // the alarm's own step (698)
-    p.querySelectorAll('[data-qg]').forEach(function(b){ b.onclick=function(){ if(window._nxsSend) _nxsSend(b.dataset.qg, b.dataset.qc); else svc('cover',b.dataset.qc==='open'?'open_cover':b.dataset.qc==='close'?'close_cover':'stop_cover',{entity_id:b.dataset.qg}); p._sig=''; _nxqDraw(); }; });
+    p.querySelectorAll('[data-qg]').forEach(function(b){ b.onclick=function(){ _nxqPressed[b.dataset.qg]=Date.now(); svc('cover',b.dataset.qc==='open'?'open_cover':b.dataset.qc==='close'?'close_cover':'stop_cover',{entity_id:b.dataset.qg}); p._sig=''; _nxqDraw(); }; });   // one press (974e)
   }
   function _nxqStop(){ clearInterval(timer); timer=null; from=null; var p=document.getElementById('nx-page'); if(p) p.classList.remove('nx-sec-pg'); }
   window._nxSecurity=function(section, back){
     var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg'); p.classList.add('open','nx-sec-pg'); p._sig=''; p.scrollTop=0;
+    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg'); p.classList.add('open','nx-sec-pg'); p._sig=''; p.scrollTop=0;
     p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; document.body.classList.remove('nx-scr');
     from=back||null; focus=section||null; _nxqDraw(); clearInterval(timer); timer=setInterval(_nxqDraw, 1000);
+  };
+})();
+</script>
+<!-- ══ REGISTER 1382 — STAGE 5e, LOCKS (Dave 16 Nov 20:10 "Yes"). In the New Look: Devices › Locks & Access — every
+     lock by room, its own word (Locked, Unlocked · 3 min, Jammed, Can't reach it) and who last changed it where the lock
+     says. ONE action, and only the one the app has always allowed: Lock (and Lock All). Unlocking from the app stays OFF,
+     exactly as today's page (the product's tier law on the glass; register 266's consent door is Assist's) — not changed
+     without Dave. A lock press is sent as a call whose answer is READ: a lock that refuses says so (698's way). -->
+<style>
+#nx-page.nx-lock-pg .nx-in{animation:none}
+.nxk-note{font-size:13px;color:rgba(255,255,255,.55);margin:14px 4px 0;line-height:1.45}
+.nxk-err{color:#FF8A80}
+</style>
+<script>
+(function(){
+  var nxkEsc=function(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); };
+  var BACK='<svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg>', LOCK='<svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>',
+      OPEN='<svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.5-2"/></svg>';
+  var timer=null, from=null, pend={}, err={};
+  var since=function(e){ var o=states[e], t=o&&Date.parse(o.last_changed||''); if(!t||isNaN(t)) return ''; var m=Math.round((Date.now()-t)/60000); return m<1?'just now':m<60?m+' min':m<1440?Math.round(m/60)+' h':Math.round(m/1440)+' d'; };
+  // a lock's own word, or what was SENT while it has not yet reported (235)
+  function _nxkRead(e, S, P, now){
+    var s=S&&S.state, A=(S&&S.attributes)||{};
+    if(!S||s==='unavailable'||s==='unknown') return {gone:true, word:'Can’t reach it'};
+    var p=P&&P[e]; if(p&&(now||Date.now())-p.t<20000&&s!=='locked'&&s!=='locking') return {word:'Locking…', sent:true};
+    var W={locked:'Locked',unlocked:'Unlocked',locking:'Locking…',unlocking:'Unlocking…',jammed:'Jammed',open:'Open',opening:'Opening…'}[s]||(s.charAt(0).toUpperCase()+s.slice(1));
+    return {word:W, open:s==='unlocked'||s==='open', jam:s==='jammed', by:A.changed_by||''};
+  }
+  window._nxkRead=_nxkRead;
+  function _nxkAll(){ return (window._nxAll?_nxAll():[]).filter(function(d){ return d.k.kind==='lock'; }).map(function(d){
+    var r=(CONFIG.rooms||[]).filter(function(x){ return x.id===d.area; })[0]; return {e:d.lead, name:d.name, room:r?r.name:(d.area&&typeof areaNameById!=='undefined'&&areaNameById[d.area])||''}; }); }
+  // Lock: a call whose answer is read — a refusal is said on the row, never swallowed
+  async function _nxkLock(e){
+    pend[e]={t:Date.now()}; delete err[e]; _nxkDraw(true);
+    try{ var r=await snd({type:'call_service',domain:'lock',service:'lock',service_data:{entity_id:e}});
+      if(r&&r.success===false){ delete pend[e]; err[e]=(r.error&&r.error.message)||'The lock refused it'; } }
+    catch(x){ delete pend[e]; err[e]='The lock didn’t answer — try again'; }
+    _nxkDraw(true);
+  }
+  window._nxkLock=_nxkLock;
+  function _nxkDraw(force){
+    var p=document.getElementById('nx-page'); if(!p||!p.classList.contains('open')||!p.classList.contains('nx-lock-pg')) return;
+    var L=_nxkAll(), open=L.filter(function(x){ var R=_nxkRead(x.e,states[x.e],pend); return R.open||R.jam; });
+    var h='<div class="nx-in"><button type="button" class="nx-back" data-kb>'+BACK+'</button><div class="nx-hd"><div><h1>Locks &amp; Access</h1><div class="nx-sub">'+(L.length?(open.length?open.length+' of '+L.length+' not locked':'All '+L.length+' locked'):'')+'</div></div>'+
+      (open.length>1?'<button type="button" class="nx-chip" data-kall>Lock All</button>':'')+'</div>';
+    if(!L.length) h+='<div class="nxr-quiet">No locks yet<small>Door locks and access doors appear here the moment your installer adds them.</small></div>';
+    else h+='<div class="nxq-list">'+L.map(function(x){ var R=_nxkRead(x.e,states[x.e],pend), warn=R.open||R.jam;
+      var sub=R.gone?R.word:R.word+(R.open&&!R.sent&&since(x.e)?' · '+since(x.e):'')+(R.by&&!R.sent?' · by '+R.by:'')+(x.room?' · '+x.room:'');
+      return '<div class="nxq-li'+(warn?' warn':'')+'"><div class="nx-ic">'+(R.open?OPEN:LOCK)+'</div><div class="gr"><b>'+nxkEsc(x.name)+'</b><small class="'+(err[x.e]?'nxk-err':R.sent?'act':warn?'warn':'')+'">'+nxkEsc(err[x.e]||sub)+'</small></div>'+
+        ((R.open||R.jam)&&!R.sent?'<button type="button" class="act pri" data-klock="'+nxkEsc(x.e)+'">Lock</button>':'')+'</div>'; }).join('')+'</div>'+
+      '<div class="nxk-note">Unlocking from the app is off — your installer can enable it.</div>';
+    h+='</div>';
+    if(!force&&p._sig===h) return; p._sig=h; var y=p.scrollTop; p.innerHTML=h; p.scrollTop=y;
+    p.querySelector('[data-kb]').onclick=function(){ var f=from; _nxkStop(); if(f) f(); else _nxGo('devices'); };
+    p.querySelectorAll('[data-klock]').forEach(function(b){ b.onclick=function(){ _nxkLock(b.dataset.klock); }; });
+    var all=p.querySelector('[data-kall]'); if(all) all.onclick=function(){ open.forEach(function(x){ _nxkLock(x.e); }); };
+  }
+  function _nxkStop(){ clearInterval(timer); timer=null; from=null; var p=document.getElementById('nx-page'); if(p) p.classList.remove('nx-lock-pg'); }
+  window._nxLocks=function(back){
+    var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
+    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg'); p.classList.add('open','nx-lock-pg'); p._sig=''; p.scrollTop=0;
+    p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; document.body.classList.remove('nx-scr');
+    from=back||null; _nxkDraw(); clearInterval(timer); timer=setInterval(function(){ _nxkDraw(); }, 1000);
   };
 })();
 </script>
