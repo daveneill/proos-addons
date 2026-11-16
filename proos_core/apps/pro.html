@@ -3438,7 +3438,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111602';
+const PROOS_BUILD='2026111603';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -23361,15 +23361,18 @@ async function v3Software(){
     if(hasDisplay && !(_avActivities||[]).length) out.push({t:name+' AV not committed', s:'It has a TV but no AV scenes yet — commit them in AV Setup.'});
     if(avSet) mp.filter(function(e){ return !(e.labels||[]).some(function(l){ return /^proos_(display|source|speaker|tvaudio|avswitch)$/.test(l); }); }).forEach(function(e){
       out.push({t:hvName(e.entity_id)+' isn’t in the '+name+'’s AV setup', s:'A player with no role here — hidden from the homeowner. Give it a role in AV Setup, or leave it hidden.'}); });
-    return {items:out, n:E.length};
+    var devs={}; E.forEach(function(e){ devs[e.device_id||('e:'+e.entity_id)]=1; });   // 1389a: devices, not the platform's entities
+    return {items:out, n:Object.keys(devs).length};
   }
   window.hvChecks=hvChecks;
   function hvDraw(){
     var ov=document.getElementById('hv-ov'); if(!ov) return; var area=_roomHubArea, a=(_areas||[]).find(function(x){ return x.area_id===area; }), name=(a&&a.name)||'Room';
-    var C=hvChecks(area,name), sw=hvEnts(area).filter(function(e){ return e.entity_id.indexOf('switch.')===0; });
+    // a TV's own power and Art Mode switches are activities only (1 Nov) — a switch on a device that has a player is never offered
+    var ER=hvEnts(area), mpDev={}; (_ents||[]).forEach(function(e){ if(e.device_id&&e.entity_id.indexOf('media_player.')===0) mpDev[e.device_id]=1; });
+    var C=hvChecks(area,name), sw=ER.filter(function(e){ return e.entity_id.indexOf('switch.')===0 && !(e.device_id&&mpDev[e.device_id]); });
     var side='<h2>'+esc(name)+'</h2><div class="hv-sub">Exactly what the homeowner’s '+esc(name)+' page shows — live, and it fills itself from what is in the room. Nothing can be sent from this preview.</div>'+
       '<div class="hv-sec">Setting Up</div>'+(C.items.length?C.items.map(function(c){ return '<div class="hv-row"><span class="hv-dot"></span><div class="gr"><b>'+esc(c.t)+'</b><small>'+esc(c.s)+'</small></div></div>'; }).join(''):'')+
-      '<div class="hv-row"><span class="hv-dot ok"></span><div class="gr"><b>'+(C.items.length?'Everything else here is set up':'Everything here is set up')+'</b><small>'+C.n+(C.n===1?' thing':' things')+' in the room · '+(_avActivities||[]).length+' AV scenes</small></div></div>'+
+      '<div class="hv-row"><span class="hv-dot ok"></span><div class="gr"><b>'+(C.items.length?'Everything else here is set up':'Everything here is set up')+'</b><small>'+C.n+(C.n===1?' device':' devices')+' in the room · '+(_avActivities||[]).length+' AV scenes</small></div></div>'+
       (sw.length?'<div class="hv-sec">On Now</div><div class="hv-sub" style="margin:-4px 0 10px">Switches and plugs stay out of On Now unless you put them in (a power board, an always-on outlet would sit there forever).</div>'+
         sw.map(function(e){ var on=(e.labels||[]).indexOf(ON_NOW)>=0; return '<div class="hv-row"><div class="gr"><b>'+esc(hvName(e.entity_id))+'</b><small>'+(on?'Shows in On Now when it is on':'Not in On Now')+'</small></div><button type="button" class="hv-tog'+(on?' on':'')+'" data-hvon="'+esc(e.entity_id)+'" aria-label="Show in On Now"></button></div>'; }).join(''):'');
     ov.querySelector('.hv-side').innerHTML=side;
