@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111619';
+const PROOS_BUILD='2026111620';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -24806,7 +24806,7 @@ body.nx-on #nx-page.open{display:block}
     var a=window._proosAvatar||{}; if(a.url){ av.style.backgroundImage="url('"+a.url+"')"; av.textContent=''; } else { av.style.backgroundImage=''; av.textContent=a.initial||'D'; }
   }
   function _nxPage(html){ var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg'); document.body.classList.remove('nx-scr');   // 1376–1380: leaving a room page, Home or Lights
+    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg'); document.body.classList.remove('nx-scr');   // 1376–1380: leaving a room page, Home or Lights
     p.innerHTML='<div class="nx-in">'+html+'</div>'; p.classList.add('open'); p.scrollTop=0; return p; }
   function closePage(){ var p=document.getElementById('nx-page'); if(p) p.classList.remove('open'); }
   function _nxGoTo(id){
@@ -24867,6 +24867,7 @@ body.nx-on #nx-page.open{display:block}
     if(c==='Lights'&&typeof _nxLights==='function') return _nxLights();   // 1378: the Lights page
     if(c==='Climate'&&typeof _nxClimateList==='function') return _nxClimateList();   // 1379: the Climate page
     if(c==='Shades'&&typeof _nxShades==='function') return _nxShades(null);   // 1380: the Shades page
+    if(typeof _nxSecurity==='function'&&({Security:1,'Garage & Gates':1,'Security & Sensors':1})[c]) return _nxSecurity(c==='Security'?'alarm':c==='Garage & Gates'?'garage':'sensors');   // 1381
     var all=nxAll().filter(function(d){ return d.cat===c; }), rooms=CONFIG.rooms||[], by={};
     all.forEach(function(d){ (by[d.area||'']=by[d.area||'']||[]).push(d); });
     var html='<button type="button" class="nx-back" data-b>'+svgOf('back')+'</button><div class="nx-hd"><div><h1>'+nxEsc(c)+'</h1><div class="nx-sub">'+nxEsc((function(){ var x=catLine(c,all); return typeof x==='object'?x.w:x; })())+'</div></div>'+
@@ -25081,6 +25082,7 @@ body.nx-on #nx-page.open{display:block}
     var lo=p.querySelector('[data-lightsoff]'); if(lo) lo.onclick=function(e){ e.stopPropagation(); var ls=lights.filter(function(d){ return d.r.on; }).map(function(d){ return d.lead; }); if(ls.length) svc('light','turn_off',{entity_id:ls}); };
     p.querySelectorAll('[data-cat]').forEach(function(b){ b.onclick=function(){ if(b.dataset.cat==='Climate'&&typeof _nxClimate==='function'){ _nxrStop(); _nxClimate(b.dataset.lead, function(){ _nxRoom(CONFIG.rooms.indexOf(r)); }); return; }   // 1379
       if(b.dataset.cat==='Shades'&&typeof _nxShades==='function'){ _nxrStop(); _nxShades(function(){ _nxRoom(CONFIG.rooms.indexOf(r)); }, r.id); return; }   // 1380
+      if(b.dataset.cat==='Garage & Gates'&&typeof _nxSecurity==='function'){ _nxrStop(); _nxSecurity('garage', function(){ _nxRoom(CONFIG.rooms.indexOf(r)); }); return; }   // 1381
       var m={Climate:'climate','Garage & Gates':'security','Locks & Access':'access'}[b.dataset.cat]; if(m){ _nxrCloseNx(); try{ showPage(m); }catch(x){} } }; });
   }
   function _nxrCloseNx(){ var p=document.getElementById('nx-page'); if(p) p.classList.remove('open'); _nxrStop(); }
@@ -25090,7 +25092,7 @@ body.nx-on #nx-page.open{display:block}
     try{ showPage('home'); selectRoom(i); }catch(e){}   // the room is the current room underneath: its widgets, Assist's room, its activities load
     try{ _pacActs(r); }catch(e){}
     var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg'); document.body.classList.remove('nx-scr'); p.classList.add('open','nx-room-pg'); p._sig=''; p.scrollTop=0; _nxrDraw();
+    p.classList.remove('nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg'); document.body.classList.remove('nx-scr'); p.classList.add('open','nx-room-pg'); p._sig=''; p.scrollTop=0; _nxrDraw();
     clearInterval(timer); timer=setInterval(_nxrDraw, 1000);   // live: the page follows the devices — a card arrives when something turns on, leaves when it goes off
   };
   window._nxRoomState=_nxrAvState; window._nxSceneHeld=_nxSceneHeld;
@@ -25276,6 +25278,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
     q('[data-hloff]',function(b,e){ e.stopPropagation(); var ents=(b.closest('[data-ents]').dataset.ents||'').split(',').filter(Boolean); if(ents.length) svc('light','turn_off',{entity_id:ents}); });
     q('[data-hcat]',function(b){ if(b.dataset.hcat==='Climate'&&typeof _nxClimate==='function'){ _nxhStop(); _nxClimate(b.dataset.hlead, function(){ _nxHome(); }); return; }   // 1379
       if(b.dataset.hcat==='Shades'&&typeof _nxShades==='function'){ _nxhStop(); _nxShades(function(){ _nxHome(); }); return; }   // 1380 (it opened the old Lights page)
+      if((b.dataset.hcat==='Garage & Gates'||b.dataset.hcat==='Security')&&typeof _nxSecurity==='function'){ _nxhStop(); _nxSecurity(b.dataset.hcat==='Security'?'alarm':'garage', function(){ _nxHome(); }); return; }   // 1381
       var m={Climate:'climate','Garage & Gates':'security','Locks & Access':'access',Security:'security',Shades:'lights'}[b.dataset.hcat]; if(m){ _nxhLeave(); try{ showPage(m); }catch(x){} } });
     q('[data-hscene]',function(b){ var s=(CONFIG.scenes||[])[+b.dataset.hscene]; if(!s) return; ran[s.entity]=Date.now(); try{ triggerScene(s.entity,+b.dataset.hscene); }catch(x){} p._sig=''; _nxhDraw(); });
     q('[data-halloff]',function(){   // All Off: every light that is on, and every player that is playing paused — never a switch, never a TV's own power (1 Nov)
@@ -25286,7 +25289,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
   window._nxHome=function(){
     try{ showPage('home'); selectRoom(-1); }catch(e){}   // Home's own widgets and Assist's "whole home" load underneath
     var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg'); p.classList.add('open','nx-home-pg'); p._sig=''; p.scrollTop=0; _nxhDraw();
+    p.classList.remove('nx-room-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg'); p.classList.add('open','nx-home-pg'); p._sig=''; p.scrollTop=0; _nxhDraw();
     // your picture steps aside once Home scrolls, so it never sits over a card (it stays at the top, as in the mock)
     p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; document.body.classList.remove('nx-scr');   // 1378b: every New Look page, not Home only
     clearInterval(homeTimer); homeTimer=setInterval(_nxhDraw, 1000);   // live: a card arrives when something turns on, folds away when it goes off
@@ -25423,7 +25426,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
   function _nxlStop(){ clearInterval(lightsTimer); lightsTimer=null; var p=document.getElementById('nx-page'); if(p) p.classList.remove('nx-lights-pg'); }
   window._nxLights=function(){
     var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-home-pg','nx-clim-pg','nx-shade-pg'); p.classList.add('open','nx-lights-pg'); p._sig=''; p.scrollTop=0; _nxlDraw();
+    p.classList.remove('nx-room-pg','nx-home-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg'); p.classList.add('open','nx-lights-pg'); p._sig=''; p.scrollTop=0; _nxlDraw();
     p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; document.body.classList.remove('nx-scr');   // 1378b: your picture steps aside here too
     clearInterval(lightsTimer); lightsTimer=setInterval(_nxlDraw, 1000);
   };
@@ -25586,7 +25589,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
   function _nxcLine(e, M){ if(M.dead) return 'Can’t reach it'; if(M.sent) return 'Setting '+fmt(M.t)+'°…'; try{ return _cpLine(e); }catch(x){ return word(M.mode); } }
   function _nxcCls(m){ return m==='cool'?'cool':m==='heat'?'heat':(m==='heat_cool'||m==='auto')?'auto':''; }
   function _nxcPage(cls){ var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg'); p.classList.add('open',cls); p._sig=''; p.scrollTop=0;
+    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg'); p.classList.add('open',cls); p._sig=''; p.scrollTop=0;
     p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; document.body.classList.remove('nx-scr'); return p; }
 
   // ── the list ──
@@ -25713,7 +25716,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
     else svc('cover', cmd==='open'?'open_cover':cmd==='close'?'close_cover':'stop_cover', {entity_id:e});
     try{ _proosHaptic&&_proosHaptic('tick'); }catch(x){}
   }
-  window._nxsSend=_nxsSend;
+  window._nxsSend=_nxsSend; window._nxsPend=pend;   // 1381: the garage rows share the shades' sent-not-yet-reported words
   function _nxsAll(){ return (window._nxAll?_nxAll():[]).filter(function(d){ return d.k.kind==='shade'; }).map(function(d){ return {e:d.lead, area:d.area||'', name:d.name}; }); }
   function _nxsSections(all){ var rs=(CONFIG.rooms||[]).slice(), seen={}; rs.forEach(function(r){ seen[r.id]=1; });
     all.forEach(function(L){ if(L.area&&!seen[L.area]){ seen[L.area]=1; rs.push({id:L.area, name:(typeof areaNameById!=='undefined'&&areaNameById[L.area])||L.area}); } });
@@ -25745,7 +25748,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
   function _nxsStop(){ clearInterval(timer); timer=null; from=null; var p=document.getElementById('nx-page'); if(p) p.classList.remove('nx-shade-pg'); }
   window._nxShades=function(back, area){
     var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg'); p.classList.add('open','nx-shade-pg'); p._sig=''; p.scrollTop=0;
+    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-sec-pg'); p.classList.add('open','nx-shade-pg'); p._sig=''; p.scrollTop=0;
     p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; document.body.classList.remove('nx-scr');
     from=back||null; focus=area==null?null:area; _nxsDraw(); clearInterval(timer); timer=setInterval(_nxsDraw, 1000);
   };
@@ -25765,6 +25768,128 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
     else if(g.pct!=null) _nxsSend(g.e,'pos',g.pct);
     var p=document.getElementById('nx-page'); if(p) p._sig=''; setTimeout(_nxsDraw,30); }, true);
   document.addEventListener('pointercancel', function(ev){ if(G&&ev.pointerId===G.id){ G.el.classList.remove('drag'); G=null; held=false; } }, true);
+})();
+</script>
+<!-- ══ REGISTER 1381 — STAGE 5d, SECURITY & GARAGE (Dave 16 Nov 19:24 "Go"). In the New Look: one Security page —
+     each alarm panel (its own name, state, who changed it, ONLY the modes it supports, Disarm while armed — through the
+     alarm's own step, 698: a keypad only when the panel needs a code, the panel's answer read), Garage & Gates (one clear
+     action each, only what it reports it can do; how long it has been open), and Sensors (each one READ — the count of
+     normal ones is earned, never a bare all-clear; tenet 13). Devices › Security, Garage & Gates and Security & Sensors
+     all open it at their own section; a room's or Home's garage card opens it at Garage & Gates. -->
+<style>
+#nx-page.nx-sec-pg .nx-in{animation:none}
+body.nx-on #pin-overlay{z-index:9060}
+.nxq-alarm{background:#1b1c20;border-radius:24px;padding:18px;margin-bottom:12px}
+.nxq-alarm .tp{display:flex;align-items:center;gap:14px}
+.nxq-alarm .ic{width:54px;height:54px;border-radius:17px;display:grid;place-items:center;background:rgba(95,211,154,.15);flex:none}
+.nxq-alarm .ic svg{width:26px;height:26px;stroke:#5FD39A;fill:none;stroke-width:1.7;stroke-linejoin:round}
+.nxq-alarm.armed .ic{background:rgba(77,99,255,.18)}.nxq-alarm.armed .ic svg{stroke:#8A98FF}
+.nxq-alarm.busy .ic{background:rgba(255,181,71,.16)}.nxq-alarm.busy .ic svg{stroke:#FFB547}
+.nxq-alarm.trig{background:linear-gradient(180deg,rgba(255,77,77,.18),rgba(255,77,77,.05)),#1b1c20}.nxq-alarm.trig .ic{background:rgba(255,77,77,.2)}.nxq-alarm.trig .ic svg{stroke:#FF6B6B}
+.nxq-alarm.dead{opacity:.6}
+.nxq-alarm .st{font-size:26px;font-weight:300;letter-spacing:-.02em}
+.nxq-alarm .nm{font-size:13px;color:rgba(255,255,255,.62);margin-top:2px}
+.nxq-alarm .zl{font-size:13px;color:rgba(255,255,255,.75);margin-top:12px}
+.nxq-alarm .zl.warn{color:#FFB547}
+.nxq-modes{display:grid;grid-template-columns:repeat(auto-fit,minmax(74px,1fr));gap:8px;margin-top:16px}
+.nxq-modes button{height:72px;border-radius:16px;border:0;background:#26272d;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font:500 13px Inter,-apple-system,sans-serif;cursor:pointer;
+  transition:transform var(--m-tap) var(--e-spring)}
+.nxq-modes button:active{transform:scale(.95)}
+.nxq-modes button svg{width:20px;height:20px;stroke:#fff;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.nxq-modes button.dis{background:#4D63FF;grid-column:1/-1;flex-direction:row;height:56px;font-size:15px;font-weight:600}
+.nxq-list{background:#1b1c20;border-radius:22px;padding:6px 8px}
+.nxq-li{display:flex;align-items:center;gap:12px;min-height:58px;padding:8px}
+.nxq-li+.nxq-li{border-top:1px solid rgba(255,255,255,.06)}
+.nxq-li .gr{flex:1;min-width:0}
+.nxq-li b{display:block;font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nxq-li small{display:block;font-size:12.5px;color:rgba(255,255,255,.6);margin-top:2px}
+.nxq-li small.warn{color:#FFB547}.nxq-li small.act{color:#8A98FF}
+.nxq-li .nx-ic svg{width:20px;height:20px;stroke:#fff;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.nxq-li.warn .nx-ic{background:rgba(255,181,71,.18)}.nxq-li.warn .nx-ic svg{stroke:#FFB547}
+.nxq-li .w{font-size:13px;color:rgba(255,255,255,.62);flex:none}
+.nxq-li .w.on{color:#FFB547;font-weight:600}
+.nxq-li button.act{height:40px;padding:0 16px;border-radius:12px;border:0;background:#33343b;color:#fff;font:600 13px Inter,-apple-system,sans-serif;cursor:pointer;flex:none}
+.nxq-li button.act.pri{background:#4D63FF}
+@media (min-width:820px){.nxq-cols{display:grid;grid-template-columns:1fr 1fr;gap:28px;align-items:start}}
+@media (prefers-reduced-motion:reduce){.nxq-modes button{transition:none}}
+</style>
+<script>
+(function(){
+  var nxqEsc=function(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); };
+  var BACK='<svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg>', SHIELD='<svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>';
+  var IC={garage:'<path d="M3 20V9l9-5 9 5v11M6 20v-8h12v8M6 15h12"/>',door:'<path d="M6 21V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v17M4 21h16M14 12h.01"/>',motion:'<circle cx="12" cy="5" r="2"/><path d="m9 22 2-6-2-3 1-4h4l2 4M14 13l2 3v6"/>',
+    water:'<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/>',smoke:'<path d="M5 17a4 4 0 0 1 1-8 5 5 0 0 1 9.6-1.6A4 4 0 1 1 18 17z"/>',sensor:'<circle cx="12" cy="12" r="3"/><path d="M5 12a7 7 0 0 1 14 0M2 12a10 10 0 0 1 20 0"/>'};
+  var svgOfQ=function(k){ return '<svg viewBox="0 0 24 24">'+(IC[k]||IC.sensor)+'</svg>'; };
+  var SEC_CLASSES={door:'door',window:'door',garage_door:'garage',opening:'door',motion:'motion',occupancy:'motion',moisture:'water',smoke:'smoke',carbon_monoxide:'smoke',gas:'smoke',tamper:'sensor',safety:'sensor',vibration:'sensor'};
+  var timer=null, from=null, focus=null;
+  var mins=function(e){ var o=states[e]; var t=o&&Date.parse(o.last_changed||''); if(!t||isNaN(t)) return ''; var m=Math.round((Date.now()-t)/60000);
+    return m<1?'just now':m<60?m+' min':m<1440?Math.round(m/60)+' h':Math.round(m/1440)+' d'; };
+  // ── the sensors: each one READ. An alarm's own zones (698/703) first; then every door, window, motion, leak and smoke
+  // sensor the foundation finds in a room that is not already one of them. Normal is a count of readings, never assumed.
+  function _nxqSensors(){
+    var out=[], seen={};
+    try{ _alarmPanels().forEach(function(p){ (_alarmZones(p)||[]).forEach(function(z){ if(seen[z]) return; seen[z]=1; var i=_zoneInfo(z);
+      out.push({e:z, name:i.name, word:i.word, active:i.active||i.cls==='alarm', dead:i.cls==='dead', kind:(i.kind==='motion'?'motion':i.kind==='leak'||i.kind==='moisture'?'water':i.kind==='smoke'?'smoke':'door'), room:''}); }); }); }catch(x){}
+    (window._nxAll?_nxAll():[]).filter(function(d){ return d.k.kind==='sensor' && SEC_CLASSES[d.k.sub]; }).forEach(function(d){
+      if(d.ents.some(function(e){ return seen[e]; })) return; seen[d.lead]=1; var s=(states[d.lead]||{}).state;
+      var r=(CONFIG.rooms||[]).filter(function(x){ return x.id===d.area; })[0];
+      out.push({e:d.lead, name:d.name, word:d.r.word, active:s==='on', dead:!s||s==='unavailable'||s==='unknown', kind:SEC_CLASSES[d.k.sub], room:r?r.name:(d.area&&typeof areaNameById!=='undefined'&&areaNameById[d.area])||''}); });
+    out.sort(function(a,b){ return (b.active-a.active)||(b.dead-a.dead)||a.name.localeCompare(b.name); });
+    return out;
+  }
+  // the earned line: how many were read and are normal; anything open, wet or unreachable named by count
+  function _nxqLine(list){
+    if(!list.length) return '';
+    var act=list.filter(function(x){ return x.active; }), dead=list.filter(function(x){ return x.dead; }), ok=list.length-act.length-dead.length;
+    var parts=[]; if(act.length) parts.push(act.length===1?act[0].name+' '+String(act[0].word).toLowerCase():act.length+' not normal');
+    if(dead.length) parts.push(dead.length+' can’t be reached');
+    if(!act.length&&!dead.length) return 'All '+list.length+(list.length===1?' sensor':' sensors')+' normal';
+    return parts.join(' · ')+(ok?' · '+ok+' normal':'');
+  }
+  window._nxqLine=_nxqLine;
+  function _nxqAlarm(eid){
+    var v=st(eid), dead=_alarmDead(v), armed=!dead&&String(v).indexOf('armed')===0, trig=v==='triggered', busy=v==='arming'||v==='disarming'||v==='pending';
+    var by=att(eid,'changed_by'), modes=_alarmModes(eid), zones=[]; try{ zones=(_alarmZones(eid)||[]).map(_zoneInfo); }catch(x){}
+    var zl=zones.length?_nxqLine(zones.map(function(i){ return {name:i.name, word:i.word, active:i.active||i.cls==='alarm', dead:i.cls==='dead'}; })):'';
+    var btns='';
+    if(!dead){ if(armed||trig||busy) btns='<button type="button" class="dis" data-qarm="alarm_disarm" data-ql="Disarm" data-qe="'+nxqEsc(eid)+'">'+SHIELD+'Disarm</button>';
+      else btns=modes.map(function(m){ return '<button type="button" data-qarm="'+m.service+'" data-ql="'+nxqEsc(m.label)+'" data-qe="'+nxqEsc(eid)+'">'+m.icon+nxqEsc(m.label)+'</button>'; }).join(''); }
+    return '<div class="nxq-alarm'+(trig?' trig':armed?' armed':busy?' busy':'')+(dead?' dead':'')+'"><div class="tp"><div class="ic">'+SHIELD+'</div><div><div class="st">'+nxqEsc(_alarmWord(eid))+'</div><div class="nm">'+nxqEsc(_alarmName(eid))+(by&&!dead?' · by '+nxqEsc(by):'')+'</div></div></div>'+
+      (zl?'<div class="zl'+(/not normal|can’t|open|motion|wet/i.test(zl)&&!/^All/.test(zl)?' warn':'')+'">'+nxqEsc(zl)+'</div>':'')+(btns?'<div class="nxq-modes">'+btns+'</div>':'')+'</div>';
+  }
+  function _nxqGarage(d){
+    var S=states[d.lead]||{}, s=S.state, can=window._nxsCan?_nxsCan(S):{open:true,close:true}, R=window._nxsRead?_nxsRead(d.lead,S,window._nxsPend||{}):{word:s};
+    var open=s==='open'||s==='opening'||s==='closing', moving=s==='opening'||s==='closing', dead=R.gone;
+    var r=(CONFIG.rooms||[]).filter(function(x){ return x.id===d.area; })[0], where=r?r.name:(d.area&&typeof areaNameById!=='undefined'&&areaNameById[d.area])||'';
+    var act=dead?'':moving&&can.stop?['stop','Stop']:open&&can.close?['close','Close']:!open&&can.open?['open','Open']:null;
+    return '<div class="nxq-li'+(open&&!dead?' warn':'')+'"><div class="nx-ic">'+svgOfQ('garage')+'</div><div class="gr"><b>'+nxqEsc(d.name)+'</b><small class="'+(R.sent?'act':open?'warn':'')+'">'+nxqEsc(R.word+(open&&!R.sent&&s==='open'&&mins(d.lead)?' · '+mins(d.lead):''))+(where?' · '+nxqEsc(where):'')+'</small></div>'+
+      (act?'<button type="button" class="act'+(act[0]==='close'?' pri':'')+'" data-qg="'+nxqEsc(d.lead)+'" data-qc="'+act[0]+'">'+act[1]+'</button>':'')+'</div>';
+  }
+  function _nxqDraw(){
+    var p=document.getElementById('nx-page'); if(!p||!p.classList.contains('open')||!p.classList.contains('nx-sec-pg')) return;
+    var panels=[]; try{ panels=_alarmPanels(); }catch(x){}
+    var gar=(window._nxAll?_nxAll():[]).filter(function(d){ return d.k.kind==='garage'; }), sens=_nxqSensors();
+    var h='<div class="nx-in"><button type="button" class="nx-back" data-qb>'+BACK+'</button><div class="nx-hd"><div><h1>Security</h1><div class="nx-sub">'+nxqEsc(_nxqLine(sens)||'')+'</div></div></div>';
+    var left=(panels.length?'<div data-qsec="alarm">'+panels.map(_nxqAlarm).join('')+'</div>':'')+
+      (gar.length?'<div class="nxl-room" data-qsec="garage"><b>Garage &amp; Gates</b><span></span></div><div class="nxq-list">'+gar.map(_nxqGarage).join('')+'</div>':'');
+    var right=sens.length?'<div class="nxl-room" data-qsec="sensors" style="margin-top:'+(panels.length||gar.length?'':'0')+'"><b>Sensors</b><span>'+nxqEsc(_nxqLine(sens))+'</span></div><div class="nxq-list">'+sens.map(function(x){
+        return '<div class="nxq-li'+(x.active?' warn':'')+'"><div class="nx-ic">'+svgOfQ(x.kind)+'</div><div class="gr"><b>'+nxqEsc(x.name)+'</b>'+(x.room?'<small>'+nxqEsc(x.room)+'</small>':'')+'</div><span class="w'+(x.active?' on':'')+'">'+nxqEsc(x.dead?'Can’t reach it':x.word)+'</span></div>'; }).join('')+'</div>':'';
+    if(!panels.length&&!gar.length&&!sens.length) h+='<div class="nxr-quiet">No alarm, garage or sensors yet<small>They appear here the moment your installer adds them.</small></div>';
+    else h+='<div class="nxq-cols"><div>'+left+'</div><div>'+right+'</div></div>';
+    h+='</div>';
+    if(p._sig===h) return; p._sig=h; var y=p.scrollTop; p.innerHTML=h; p.scrollTop=y;
+    if(focus){ var t=p.querySelector('[data-qsec="'+focus+'"]'); if(t&&window.innerWidth<820) p.scrollTop=Math.max(0,t.offsetTop-80); focus=null; }
+    p.querySelector('[data-qb]').onclick=function(){ var f=from; _nxqStop(); if(f) f(); else _nxGo('devices'); };
+    p.querySelectorAll('[data-qarm]').forEach(function(b){ b.onclick=function(){ try{ openPinOverlay(b.dataset.qarm, b.dataset.ql, b.dataset.qe); }catch(x){} }; });   // the alarm's own step (698)
+    p.querySelectorAll('[data-qg]').forEach(function(b){ b.onclick=function(){ if(window._nxsSend) _nxsSend(b.dataset.qg, b.dataset.qc); else svc('cover',b.dataset.qc==='open'?'open_cover':b.dataset.qc==='close'?'close_cover':'stop_cover',{entity_id:b.dataset.qg}); p._sig=''; _nxqDraw(); }; });
+  }
+  function _nxqStop(){ clearInterval(timer); timer=null; from=null; var p=document.getElementById('nx-page'); if(p) p.classList.remove('nx-sec-pg'); }
+  window._nxSecurity=function(section, back){
+    var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
+    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg'); p.classList.add('open','nx-sec-pg'); p._sig=''; p.scrollTop=0;
+    p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; document.body.classList.remove('nx-scr');
+    from=back||null; focus=section||null; _nxqDraw(); clearInterval(timer); timer=setInterval(_nxqDraw, 1000);
+  };
 })();
 </script>
 <!-- REGISTER 1365 motion styles (the type scale stays the last stylesheet) -->
