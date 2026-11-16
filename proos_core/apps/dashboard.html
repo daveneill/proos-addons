@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111705';
+const PROOS_BUILD='2026111706';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -27024,7 +27024,7 @@ body.nx-on #page-music .page-title{display:none}
 body.nx-on #page-music .page-heading{font-size:34px;font-weight:700;letter-spacing:-.02em}
 body.nx-on #page-music #music-speakers,body.nx-on #page-music #music-cats-row{display:none!important}
 body.nx-on #page-music #nxm-pick{display:flex}
-#nxm-pick{display:none;gap:10px;padding:4px 16px 12px}
+#nxm-pick{display:none;gap:10px;padding:8px 16px 6px;flex-shrink:0}
 #nxm-pick button{flex:1;min-width:0;height:44px;border-radius:15px;border:0;padding:0 14px;display:flex;align-items:center;justify-content:space-between;gap:8px;background:#1b1c20;color:#fff;font:600 14px Inter,-apple-system,sans-serif;cursor:pointer}
 #nxm-pick button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #nxm-pick button svg{width:14px;height:14px;flex:none;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
@@ -27070,11 +27070,11 @@ body.nx-on #mus-ask .ma-row .ma-on{color:#8A98FF;font-weight:600}
   }
   window._nxmuWords=_nxmuWords;
   function _nxmuEnsure(){
-    var head=document.getElementById('music-head'); if(!head) return null;
+    var row=document.getElementById('music-search-row'); if(!row||!row.parentNode) return null;   // 1397a: above the search — #music-head is hidden since 9 Nov
     var p=document.getElementById('nxm-pick');
     if(!p){ p=document.createElement('div'); p.id='nxm-pick';
       p.innerHTML='<button type="button" data-nxm="room"><span></span>'+DOWN+'</button><button type="button" data-nxm="page"><span></span>'+DOWN+'</button>';
-      head.insertBefore(p, head.firstChild);
+      row.parentNode.insertBefore(p, row);
       p.querySelector('[data-nxm="room"]').onclick=_nxmuRooms; p.querySelector('[data-nxm="page"]').onclick=_nxmuPages; }
     var s=document.getElementById('music-search'); if(s&&s.placeholder!=='Search songs, artists, stations') s.placeholder='Search songs, artists, stations';
     return p;
