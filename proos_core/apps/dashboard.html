@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111624';
+const PROOS_BUILD='2026111625';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -26145,6 +26145,37 @@ body.nx-on #pa-detail{z-index:9070}
     if(g.v!=null){ pend[g.e]={v:g.v, t:Date.now()}; svc('media_player','volume_set',{entity_id:g.e, volume_level:g.v/100}); }
     var p=document.getElementById('nx-page'); if(p) p._sig=''; setTimeout(_nxmDraw,30); }, true);
   document.addEventListener('pointercancel', function(ev){ if(G&&ev.pointerId===G.id){ G.el.classList.remove('drag'); G=null; held=false; } }, true);
+})();
+</script>
+<!-- ══ REGISTER 1385 — STAGE 5h, THE PLAYER AND THE CONTROL PAGES ABOVE THE NEW LOOK (Dave 16 Nov 21:35 "Go"). Today's
+     player already IS the agreed mock (970m: the artwork's own light behind, the big artwork, title, the controls, Group
+     Speakers, the Music doorway, the room's one volume) — it is kept, not rebuilt: its queue owner, the room volume (556),
+     grouping and the TV routing (1035/1053/1058) are rulings. FOUND WHILE READING FOR IT: with New Look on, the player
+     (layer 500), the Apple TV / TV / Shield control pages (55), the player's sheets, the queue and "What's happening"
+     opened BEHIND the New Look's pages (8990) — a running AV scene's control page, the Home hero's player, a speaker's
+     player were all out of sight. Now they open above it, in their own order; and a page of today's reached from inside
+     one of them (the Music doorway, the weather) shows instead of sitting under the New Look. -->
+<style>
+body.nx-on #atv-page{z-index:9100}
+body.nx-on #player-overlay{z-index:9110}
+body.nx-on #proos-tv-wait{z-index:9150}
+body.nx-on #player-apps-sheet,body.nx-on #player-group-sheet,body.nx-on #music-queue-overlay{z-index:9200}
+body.nx-on #awareness-overlay,body.nx-on #proos-inst-overlay,body.nx-on #proos-req-overlay{z-index:9300}
+body.nx-on .pe-ov{z-index:9350}
+body.nx-on #people-map-ov{z-index:9360}
+body.nx-on #device-chooser{z-index:9380}
+</style>
+<script>
+(function(){
+  // a page of today's opened from inside the New Look (any page but Home, which the New Look keeps underneath on purpose)
+  // shows: the New Look's page steps aside, and the bar brings it back
+  var _nxShowPage=window.showPage;
+  if(typeof _nxShowPage!=='function') return;
+  window.showPage=function(p){
+    try{ if(document.body.classList.contains('nx-on') && p!=='home'){ var pg=document.getElementById('nx-page'); if(pg) pg.classList.remove('open'); } }catch(e){}
+    return _nxShowPage.apply(this, arguments);
+  };
+  window._nxShowPageWrapped=true;
 })();
 </script>
 <!-- REGISTER 1365 motion styles (the type scale stays the last stylesheet) -->
