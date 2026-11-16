@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111626';
+const PROOS_BUILD='2026111627';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -24806,7 +24806,7 @@ body.nx-on #nx-page.open{display:block}
     var a=window._proosAvatar||{}; if(a.url){ av.style.backgroundImage="url('"+a.url+"')"; av.textContent=''; } else { av.style.backgroundImage=''; av.textContent=a.initial||'D'; }
   }
   function _nxPage(html){ var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg'); document.body.classList.remove('nx-scr');   // 1376–1380: leaving a room page, Home or Lights
+    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg'); document.body.classList.remove('nx-scr');   // 1376–1380: leaving a room page, Home or Lights
     p.innerHTML='<div class="nx-in">'+html+'</div>'; p.classList.add('open'); p.scrollTop=0; return p; }
   function closePage(){ var p=document.getElementById('nx-page'); if(p) p.classList.remove('open'); }
   function _nxGoTo(id){
@@ -24870,6 +24870,8 @@ body.nx-on #nx-page.open{display:block}
     if(c==='Locks & Access'&&typeof _nxLocks==='function') return _nxLocks(null);   // 1382: the Locks page
     if(c==='Cameras'&&typeof _nxCameras==='function') return _nxCameras(null);   // 1383: the Cameras page
     if(c==='Music'&&typeof _nxMusic==='function') return _nxMusic(null);   // 1384: the Speakers page
+    if(c==='TVs & Media'&&typeof _nxMedia==='function') return _nxMedia(null);   // 1386
+    if(c==='Irrigation'&&typeof _nxIrrigation==='function') return _nxIrrigation(null);   // 1386
     if(typeof _nxSecurity==='function'&&({Security:1,'Garage & Gates':1,'Security & Sensors':1})[c]) return _nxSecurity(c==='Security'?'alarm':c==='Garage & Gates'?'garage':'sensors');   // 1381
     var all=nxAll().filter(function(d){ return d.cat===c; }), rooms=CONFIG.rooms||[], by={};
     all.forEach(function(d){ (by[d.area||'']=by[d.area||'']||[]).push(d); });
@@ -25085,6 +25087,7 @@ body.nx-on #nx-page.open{display:block}
     var lo=p.querySelector('[data-lightsoff]'); if(lo) lo.onclick=function(e){ e.stopPropagation(); var ls=lights.filter(function(d){ return d.r.on; }).map(function(d){ return d.lead; }); if(ls.length) svc('light','turn_off',{entity_id:ls}); };
     p.querySelectorAll('[data-cat]').forEach(function(b){ b.onclick=function(){ if(b.dataset.cat==='Climate'&&typeof _nxClimate==='function'){ _nxrStop(); _nxClimate(b.dataset.lead, function(){ _nxRoom(CONFIG.rooms.indexOf(r)); }); return; }   // 1379
       if(b.dataset.cat==='Shades'&&typeof _nxShades==='function'){ _nxrStop(); _nxShades(function(){ _nxRoom(CONFIG.rooms.indexOf(r)); }, r.id); return; }   // 1380
+      if(b.dataset.cat==='Irrigation'&&typeof _nxIrrigation==='function'){ _nxrStop(); _nxIrrigation(function(){ _nxRoom(CONFIG.rooms.indexOf(r)); }); return; }   // 1386
       if(b.dataset.cat==='Locks & Access'&&typeof _nxLocks==='function'){ _nxrStop(); _nxLocks(function(){ _nxRoom(CONFIG.rooms.indexOf(r)); }); return; }   // 1382
       if(b.dataset.cat==='Garage & Gates'&&typeof _nxSecurity==='function'){ _nxrStop(); _nxSecurity('garage', function(){ _nxRoom(CONFIG.rooms.indexOf(r)); }); return; }   // 1381
       var m={Climate:'climate','Garage & Gates':'security','Locks & Access':'access'}[b.dataset.cat]; if(m){ _nxrCloseNx(); try{ showPage(m); }catch(x){} } }; });
@@ -25096,7 +25099,7 @@ body.nx-on #nx-page.open{display:block}
     try{ showPage('home'); selectRoom(i); }catch(e){}   // the room is the current room underneath: its widgets, Assist's room, its activities load
     try{ _pacActs(r); }catch(e){}
     var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg'); document.body.classList.remove('nx-scr'); p.classList.add('open','nx-room-pg'); p._sig=''; p.scrollTop=0; _nxrDraw();
+    p.classList.remove('nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg'); document.body.classList.remove('nx-scr'); p.classList.add('open','nx-room-pg'); p._sig=''; p.scrollTop=0; _nxrDraw();
     clearInterval(timer); timer=setInterval(_nxrDraw, 1000);   // live: the page follows the devices — a card arrives when something turns on, leaves when it goes off
   };
   window._nxRoomState=_nxrAvState; window._nxSceneHeld=_nxSceneHeld;
@@ -25282,6 +25285,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
     q('[data-hloff]',function(b,e){ e.stopPropagation(); var ents=(b.closest('[data-ents]').dataset.ents||'').split(',').filter(Boolean); if(ents.length) svc('light','turn_off',{entity_id:ents}); });
     q('[data-hcat]',function(b){ if(b.dataset.hcat==='Climate'&&typeof _nxClimate==='function'){ _nxhStop(); _nxClimate(b.dataset.hlead, function(){ _nxHome(); }); return; }   // 1379
       if(b.dataset.hcat==='Shades'&&typeof _nxShades==='function'){ _nxhStop(); _nxShades(function(){ _nxHome(); }); return; }   // 1380 (it opened the old Lights page)
+      if(b.dataset.hcat==='Irrigation'&&typeof _nxIrrigation==='function'){ _nxhStop(); _nxIrrigation(function(){ _nxHome(); }); return; }   // 1386
       if(b.dataset.hcat==='Locks & Access'&&typeof _nxLocks==='function'){ _nxhStop(); _nxLocks(function(){ _nxHome(); }); return; }   // 1382
       if((b.dataset.hcat==='Garage & Gates'||b.dataset.hcat==='Security')&&typeof _nxSecurity==='function'){ _nxhStop(); _nxSecurity(b.dataset.hcat==='Security'?'alarm':'garage', function(){ _nxHome(); }); return; }   // 1381
       var m={Climate:'climate','Garage & Gates':'security','Locks & Access':'access',Security:'security',Shades:'lights'}[b.dataset.hcat]; if(m){ _nxhLeave(); try{ showPage(m); }catch(x){} } });
@@ -25294,7 +25298,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
   window._nxHome=function(){
     try{ showPage('home'); selectRoom(-1); }catch(e){}   // Home's own widgets and Assist's "whole home" load underneath
     var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg'); p.classList.add('open','nx-home-pg'); p._sig=''; p.scrollTop=0; _nxhDraw();
+    p.classList.remove('nx-room-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg'); p.classList.add('open','nx-home-pg'); p._sig=''; p.scrollTop=0; _nxhDraw();
     // your picture steps aside once Home scrolls, so it never sits over a card (it stays at the top, as in the mock)
     p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; document.body.classList.remove('nx-scr');   // 1378b: every New Look page, not Home only
     clearInterval(homeTimer); homeTimer=setInterval(_nxhDraw, 1000);   // live: a card arrives when something turns on, folds away when it goes off
@@ -25431,7 +25435,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
   function _nxlStop(){ clearInterval(lightsTimer); lightsTimer=null; var p=document.getElementById('nx-page'); if(p) p.classList.remove('nx-lights-pg'); }
   window._nxLights=function(){
     var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-home-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg'); p.classList.add('open','nx-lights-pg'); p._sig=''; p.scrollTop=0; _nxlDraw();
+    p.classList.remove('nx-room-pg','nx-home-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg'); p.classList.add('open','nx-lights-pg'); p._sig=''; p.scrollTop=0; _nxlDraw();
     p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; document.body.classList.remove('nx-scr');   // 1378b: your picture steps aside here too
     clearInterval(lightsTimer); lightsTimer=setInterval(_nxlDraw, 1000);
   };
@@ -25594,7 +25598,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
   function _nxcLine(e, M){ if(M.dead) return 'Can’t reach it'; if(M.sent) return 'Setting '+fmt(M.t)+'°…'; try{ return _cpLine(e); }catch(x){ return word(M.mode); } }
   function _nxcCls(m){ return m==='cool'?'cool':m==='heat'?'heat':(m==='heat_cool'||m==='auto')?'auto':''; }
   function _nxcPage(cls){ var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg'); p.classList.add('open',cls); p._sig=''; p.scrollTop=0;
+    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg'); p.classList.add('open',cls); p._sig=''; p.scrollTop=0;
     p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; document.body.classList.remove('nx-scr'); return p; }
 
   // ── the list ──
@@ -25753,7 +25757,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
   function _nxsStop(){ clearInterval(timer); timer=null; from=null; var p=document.getElementById('nx-page'); if(p) p.classList.remove('nx-shade-pg'); }
   window._nxShades=function(back, area){
     var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg'); p.classList.add('open','nx-shade-pg'); p._sig=''; p.scrollTop=0;
+    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg'); p.classList.add('open','nx-shade-pg'); p._sig=''; p.scrollTop=0;
     p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; document.body.classList.remove('nx-scr');
     from=back||null; focus=area==null?null:area; _nxsDraw(); clearInterval(timer); timer=setInterval(_nxsDraw, 1000);
   };
@@ -25894,7 +25898,7 @@ body.nx-on #pin-overlay{z-index:9060}
   function _nxqStop(){ clearInterval(timer); timer=null; from=null; var p=document.getElementById('nx-page'); if(p) p.classList.remove('nx-sec-pg'); }
   window._nxSecurity=function(section, back){
     var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg'); p.classList.add('open','nx-sec-pg'); p._sig=''; p.scrollTop=0;
+    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg'); p.classList.add('open','nx-sec-pg'); p._sig=''; p.scrollTop=0;
     p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; document.body.classList.remove('nx-scr');
     from=back||null; focus=section||null; _nxqDraw(); clearInterval(timer); timer=setInterval(_nxqDraw, 1000);
   };
@@ -25957,7 +25961,7 @@ body.nx-on #pin-overlay{z-index:9060}
   function _nxkStop(){ clearInterval(timer); timer=null; from=null; var p=document.getElementById('nx-page'); if(p) p.classList.remove('nx-lock-pg'); }
   window._nxLocks=function(back){
     var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg'); p.classList.add('open','nx-lock-pg'); p._sig=''; p.scrollTop=0;
+    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg'); p.classList.add('open','nx-lock-pg'); p._sig=''; p.scrollTop=0;
     p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; document.body.classList.remove('nx-scr');
     from=back||null; _nxkDraw(); clearInterval(timer); timer=setInterval(function(){ _nxkDraw(); }, 1000);
   };
@@ -26032,7 +26036,7 @@ body.nx-on #pa-detail{z-index:9070}
   function _nxvStop(){ clearInterval(timer); clearInterval(roll); timer=roll=null; from=null; var p=document.getElementById('nx-page'); if(p){ p.classList.remove('nx-cam-pg'); p._n=null; } }
   window._nxCameras=function(back){
     var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg'); p.classList.add('open','nx-cam-pg'); p._sig=''; p._n=null; p.scrollTop=0;
+    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg'); p.classList.add('open','nx-cam-pg'); p._sig=''; p._n=null; p.scrollTop=0;
     p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; document.body.classList.remove('nx-scr');
     from=back||null; _nxvDraw(); var L=_nxvList(); L.forEach(function(){ _nxvRoll(); });   // every picture once at the start
     clearInterval(timer); clearInterval(roll); timer=setInterval(_nxvDraw, 1000); roll=setInterval(_nxvRoll, Math.max(500, Math.round(5000/Math.max(1,L.length))));
@@ -26128,7 +26132,7 @@ body.nx-on #pa-detail{z-index:9070}
   function _nxmStop(){ clearInterval(timer); timer=null; from=null; var p=document.getElementById('nx-page'); if(p) p.classList.remove('nx-mus-pg'); }
   window._nxMusic=function(back){
     var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg'); p.classList.add('open','nx-mus-pg'); p._sig=''; p.scrollTop=0;
+    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg'); p.classList.add('open','nx-mus-pg'); p._sig=''; p.scrollTop=0;
     p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; document.body.classList.remove('nx-scr');
     from=back||null; _nxmDraw(); clearInterval(timer); timer=setInterval(_nxmDraw, 1000);
   };
@@ -26185,6 +26189,83 @@ body.nx-on #device-chooser{z-index:9380}
   var _nxSetPrev=window._nxSet; if(typeof _nxSetPrev==='function') window._nxSet=function(v){ var r=_nxSetPrev.apply(this,arguments); _nxHoist(); return r; };
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',_nxHoist); else _nxHoist();
   setTimeout(_nxHoist, 1500);
+})();
+</script>
+<!-- ══ REGISTER 1386 — STAGE 5i, TVs & MEDIA AND IRRIGATION (Dave 16 Nov 21:57 "keep going for all stages"). Two small
+     pages, one build. TVs & MEDIA: every TV, player and receiver by room with what it reports; one that is on opens its
+     control page (today's — the Apple TV, Samsung and Shield pages, through openPlayer's routing); one that is off is
+     NEVER switched from here — a TV goes on only through its room's AV scenes (1 Nov: a TV's power is "activities only"),
+     so a tap takes you to the room page where they are. IRRIGATION: the installer's zones (CONFIG.irrigation) with what
+     each reports and one action — Run or Stop, the same command today's page sends (valve open/close, else on/off); the
+     controller's own controls stay on today's page ("Controller"). -->
+<style>
+#nx-page.nx-tv-pg .nx-in,#nx-page.nx-irr-pg .nx-in{animation:none}
+.nxt-li{cursor:pointer}
+.nxt-li .nx-ic svg{width:20px;height:20px;stroke:#fff;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.nxt-li.on .nx-ic{background:rgba(77,99,255,.2)}.nxt-li.on .nx-ic svg{stroke:#8A98FF}
+.nxt-li .go{font-size:20px;color:rgba(255,255,255,.5);flex:none}
+.nxi-li.on .nx-ic{background:rgba(77,170,255,.2)}.nxi-li.on .nx-ic svg{stroke:#7FC4FF}
+</style>
+<script>
+(function(){
+  var esc6=function(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); };
+  var BACK='<svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg>', TV='<svg viewBox="0 0 24 24"><rect x="2.5" y="4.5" width="19" height="13" rx="2"/><path d="M8 21h8"/></svg>',
+      DROP='<svg viewBox="0 0 24 24"><path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/></svg>';
+  var timer=null, from=null, pressed={};
+  var roomOf=function(a){ var r=(CONFIG.rooms||[]).filter(function(x){ return x.id===a; })[0]; return r?r.name:(a&&typeof areaNameById!=='undefined'&&areaNameById[a])||''; };
+  function _nx6Page(cls){ var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
+    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg'); p.classList.add('open',cls); p._sig=''; p.scrollTop=0;
+    p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; document.body.classList.remove('nx-scr'); return p; }
+  // ── a TV, player or receiver: what it reports (a TV that does not report what it plays shows nothing more — 31 Oct)
+  function _nxtRead(S){ var s=S&&S.state, A=(S&&S.attributes)||{};
+    if(!S||s==='unavailable'||s==='unknown') return {gone:true, word:'Can’t reach it'};
+    var on=!(s==='off'||s==='standby'), art=false; try{ art=(typeof _inArtMode==='function')&&_inArtMode(S.entity_id); }catch(x){}
+    if(art) return {on:false, word:'Off'};   // Art Mode is off (30 Oct)
+    var t=(s==='playing'||s==='paused')?(A.media_title||A.media_channel||''):'';
+    return {on:on, word:on?(t?t+(A.app_name?' · '+A.app_name:''):(A.app_name||A.source||'On')):'Off'}; }
+  window._nxtRead=_nxtRead;
+  function _nxtDraw(){
+    var p=document.getElementById('nx-page'); if(!p||!p.classList.contains('open')||!p.classList.contains('nx-tv-pg')) return;
+    var L=(window._nxAll?_nxAll():[]).filter(function(d){ return d.cat==='TVs & Media'; });
+    L.sort(function(a,b){ var ra=_nxtRead(states[a.lead]), rb=_nxtRead(states[b.lead]); return (rb.on-ra.on)||roomOf(a.area).localeCompare(roomOf(b.area)); });
+    var onN=L.filter(function(d){ return _nxtRead(states[d.lead]).on; }).length;
+    var h='<div class="nx-in"><button type="button" class="nx-back" data-tb>'+BACK+'</button><div class="nx-hd"><div><h1>TVs &amp; Media</h1><div class="nx-sub">'+(L.length?(onN?onN+' on · ':'')+L.length+(L.length===1?' device':' devices'):'')+'</div></div></div>';
+    if(!L.length) h+='<div class="nxr-quiet">No TVs or players yet<small>They appear here the moment your installer adds them.</small></div>';
+    else h+='<div class="nxq-list">'+L.map(function(d){ var R=_nxtRead(states[d.lead]), rm=roomOf(d.area), lab=rm&&rm!==d.name?rm+' · '+d.name:(rm||d.name);
+      return '<div class="nxq-li nxt-li'+(R.on?' on':'')+'" data-tl="'+esc6(d.lead)+'" data-ta="'+esc6(d.area||'')+'"><div class="nx-ic">'+TV+'</div><div class="gr"><b>'+esc6(lab)+'</b><small class="'+(R.on?'act':'')+'">'+esc6(R.word)+(R.on||R.gone||!d.area?'':' · its scenes are on the room page')+'</small></div><span class="go">›</span></div>'; }).join('')+'</div>';
+    h+='</div>';
+    if(p._sig===h) return; p._sig=h; var y=p.scrollTop; p.innerHTML=h; p.scrollTop=y;
+    p.querySelector('[data-tb]').onclick=function(){ var f=from; _nx6Stop(); if(f) f(); else _nxGo('devices'); };
+    p.querySelectorAll('[data-tl]').forEach(function(b){ b.onclick=function(){ var R=_nxtRead(states[b.dataset.tl]);
+      if(R.on){ try{ openPlayer(b.dataset.tl); }catch(x){} return; }   // on: its control page (today's routing)
+      var i=(CONFIG.rooms||[]).findIndex(function(r){ return r.id===b.dataset.ta; }); if(i>=0&&typeof _nxRoom==='function'){ _nx6Stop(); _nxRoom(i); } }; });   // off: never switched here — its room's scenes
+  }
+  // ── irrigation: the installer's zones, each with one action
+  function _nxiRead(S){ var s=S&&S.state; if(!S||s==='unavailable'||s==='unknown') return {gone:true, word:'Can’t reach it'};
+    var on=s==='on'||s==='open'||s==='opening'; return {on:on, word:on?'Watering':'Off'}; }
+  window._nxiRead=_nxiRead;
+  function _nxiRun(e){ var S=states[e], d=String(e).split('.')[0], on=_nxiRead(S).on; pressed[e]=Date.now();   // the same command today's page sends (togIrr)
+    if(d==='valve') svc('valve',on?'close_valve':'open_valve',{entity_id:e}); else svc(d,on?'turn_off':'turn_on',{entity_id:e}); }
+  window._nxiRun=_nxiRun;
+  function _nxiDraw(){
+    var p=document.getElementById('nx-page'); if(!p||!p.classList.contains('open')||!p.classList.contains('nx-irr-pg')) return;
+    var Z=(CONFIG.irrigation||[]).filter(function(z){ return z&&z.entity; }), run=Z.filter(function(z){ return _nxiRead(states[z.entity]).on; });
+    var h='<div class="nx-in"><button type="button" class="nx-back" data-ib>'+BACK+'</button><div class="nx-hd"><div><h1>Irrigation</h1><div class="nx-sub">'+(Z.length?(run.length?run.length+' watering · ':'')+Z.length+(Z.length===1?' zone':' zones'):'')+'</div></div>'+
+      (Z.length?'<button type="button" class="nx-chip" data-ifull>Controller</button>':'')+'</div>';
+    if(!Z.length) h+='<div class="nxr-quiet">No irrigation yet<small>Zones appear here once your installer sets them up.</small></div>';
+    else h+='<div class="nxq-list">'+Z.map(function(z){ var R=_nxiRead(states[z.entity]), pr=pressed[z.entity]&&Date.now()-pressed[z.entity]<6000&&!R.gone;
+      var sub=R.word+(pr?' · Sent':'');
+      return '<div class="nxq-li nxi-li'+(R.on?' on':'')+'"><div class="nx-ic">'+DROP+'</div><div class="gr"><b>'+esc6(z.name||z.entity)+'</b><small class="'+(R.on||pr?'act':'')+'">'+esc6(sub)+'</small></div>'+
+        (R.gone?'':'<button type="button" class="act'+(R.on?'':' pri')+'" data-irun="'+esc6(z.entity)+'">'+(R.on?'Stop':'Run')+'</button>')+'</div>'; }).join('')+'</div>';
+    h+='</div>';
+    if(p._sig===h) return; p._sig=h; var y=p.scrollTop; p.innerHTML=h; p.scrollTop=y;
+    p.querySelector('[data-ib]').onclick=function(){ var f=from; _nx6Stop(); if(f) f(); else _nxGo('devices'); };
+    var fu=p.querySelector('[data-ifull]'); if(fu) fu.onclick=function(){ _nx6Stop(); p.classList.remove('open'); try{ showPage('irrigation'); }catch(x){} };
+    p.querySelectorAll('[data-irun]').forEach(function(b){ b.onclick=function(){ _nxiRun(b.dataset.irun); p._sig=''; _nxiDraw(); }; });
+  }
+  function _nx6Stop(){ clearInterval(timer); timer=null; from=null; var p=document.getElementById('nx-page'); if(p){ p.classList.remove('nx-tv-pg','nx-irr-pg'); } }
+  window._nxMedia=function(back){ _nx6Page('nx-tv-pg'); from=back||null; _nxtDraw(); clearInterval(timer); timer=setInterval(_nxtDraw,1000); };
+  window._nxIrrigation=function(back){ _nx6Page('nx-irr-pg'); from=back||null; _nxiDraw(); clearInterval(timer); timer=setInterval(_nxiDraw,1000); };
 })();
 </script>
 <!-- REGISTER 1365 motion styles (the type scale stays the last stylesheet) -->
