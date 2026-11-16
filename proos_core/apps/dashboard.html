@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111630';
+const PROOS_BUILD='2026111631';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -24792,7 +24792,7 @@ body.nx-on #nx-page.open{display:block}
     var roles={}, avRooms={}; Object.keys(labelledEntities||{}).forEach(function(l){ if(!/^proos_/.test(l)) return; (labelledEntities[l]||[]).forEach(function(e){ (roles[e]=roles[e]||[]).push(l); if(l==='proos_av'&&entityAreaMap[e]) avRooms[entityAreaMap[e]]=1; }); });
     var ents=Object.keys(states||{}).map(function(e){ return {entity_id:e, device_id:entityDeviceMap[e]||null, area_id:entityAreaMap[e]||null, category:(entityCategoryMap||{})[e]||null, hidden:hiddenEntities.has(e), disabled:entityDisabled.has(e)}; });
     var rooms=(CONFIG.rooms||[]), devs=_pxDevices({ents:ents, states:states, devNames:deviceNameById||{}, rooms:rooms, roles:roles, avRooms:avRooms});
-    devs.forEach(function(d){ d.k=_pxKind(d,states); d.r=_pxReading(d,d.k,states); var room=rooms.find(function(r){ return r.id===d.area; }); d.name=_pxName(d,d.k,room,states); d.cat=_pxCat(d.k.kind); });
+    devs.forEach(function(d){ d.onNow=!!(d.roles&&d.roles.proos_on_now); d.k=_pxKind(d,states);   /* 1389: a switch the installer put in On Now (Pro) */ d.r=_pxReading(d,d.k,states); var room=rooms.find(function(r){ return r.id===d.area; }); d.name=_pxName(d,d.k,room,states); d.cat=_pxCat(d.k.kind); });
     return devs;
   }
   window._nxAll=nxAll;
@@ -26446,6 +26446,31 @@ body.nx-on #device-chooser{z-index:9380}
   window._nxScreenOps=_nxScreenOps;
 })();
 </script>
+<!-- ══ REGISTER 1389 — STAGE 8, PRO'S HOMEOWNER VIEW: THE PREVIEW (Dave 16 Nov: "Pro instead shows What the homeowner will
+     see — each room page exactly as it will fill itself"). dashboard.html?nxview=<room id> is the homeowner's own New Look
+     page for that room — the real page, live, not a drawing of it — opened inside Pro, IN PREVIEW: nothing is sent (the
+     platform's services, activities, scenes, the player, the alarm and Assist are held, and say so), New Look is shown
+     without being saved on this screen. -->
+<script>
+(function(){
+  var m=/[?&]nxview=([^&]+)/.exec(location.search||''); if(!m) return;
+  var room=decodeURIComponent(m[1]); window._nxPreview=true;
+  var held=function(){ try{ showToast('Preview — nothing is sent from Pro'); }catch(e){} return Promise.resolve(); };
+  // held, so a tap in the preview never reaches the house
+  window.svc=held; window.proosFireActivity=held; window.triggerScene=held; window.openPinOverlay=held; window.openAssist=held;
+  var _snd=window.snd; window.snd=function(msg){ if(msg&&msg.type==='call_service') return held(); return _snd.apply(this,arguments); };
+  try{ window.localStorage.setItem=(function(orig){ return function(k,v){ if(k==='proos_new_ui') return; return orig.call(this,k,v); }; })(window.localStorage.setItem); }catch(e){}
+  var go=function(){
+    document.body.classList.add('nx-on','nx-av','nx-preview');
+    var i=(CONFIG.rooms||[]).findIndex(function(r){ return r.id===room; });
+    if(i<0||typeof window._nxRoom!=='function') return false;
+    try{ if(typeof _nxHoist==='function') _nxHoist(); }catch(e){}
+    window._nxRoom(i); return true;
+  };
+  var tries=0, t=setInterval(function(){ tries++; if(go()||tries>40) clearInterval(t); }, 500);
+})();
+</script>
+<style>body.nx-preview #nx-bar,body.nx-preview #nx-avatar{display:none!important}</style>
 <!-- REGISTER 1365 motion styles (the type scale stays the last stylesheet) -->
 <style>
 /* 1367 (Dave 16 Nov 06:42): the room page takes the All Rooms tile's on/off look and follows the room live; 1369: off is a

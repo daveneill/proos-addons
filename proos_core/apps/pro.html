@@ -1972,7 +1972,7 @@ body.aws-open .v2tabs{display:none!important}
 :root{--proos-sat:env(safe-area-inset-top,0px)}
 #landing,#app,#room-picker,#icon-picker,#flow-sheet,#addint-sheet,#svc-sheet,#device-sheet,#guide,#scene-edit,
 #cfg-edit,#item-edit,#pick,#choice,#entinfo,#room-edit,#scene-art,#reset-confirm,#factory-confirm,#bk-create,#danger-confirm,#bk-auto-edit,
-#assist-overlay,#proos-reboot,.rd-edit-ov,.act-sheet,.aw-screen,.aw-inc{padding-top:var(--proos-sat)}
+#hv-ov,#assist-overlay,#proos-reboot,.rd-edit-ov,.act-sheet,.aw-screen,.aw-inc{padding-top:var(--proos-sat)}
 .who-menu{top:calc(16px + var(--proos-sat))}
 
 /* IRRIGATION commissioning (register 608) */
@@ -2781,6 +2781,28 @@ body.v3.railmin .aw-screen{left:108px!important}
       </div>
     </div>
 
+<style>/* REGISTER 1389 — the Homeowner View (its script is at the end of the page) */
+.hv-btn{margin-left:auto;height:38px;padding:0 16px;border-radius:999px;border:0;background:#4D63FF;color:#fff;font:600 13px Inter,-apple-system,sans-serif;cursor:pointer}
+#hv-ov{position:fixed;inset:0;z-index:9500;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.6);padding:18px}
+#hv-ov.open{display:flex}
+#hv-ov .hv-cd{background:#17181c;border-radius:28px;padding:22px;width:100%;max-width:1000px;max-height:92vh;overflow:auto;display:flex;gap:26px;flex-wrap:wrap;color:#fff;font-family:Inter,-apple-system,sans-serif;position:relative}
+#hv-ov iframe{width:390px;height:760px;max-width:100%;border:0;border-radius:34px;box-shadow:0 0 0 9px #000,0 30px 80px rgba(0,0,0,.6);background:#0e0e10;flex:none}
+#hv-ov .hv-side{flex:1;min-width:280px}
+#hv-ov h2{font-size:26px;font-weight:600;letter-spacing:-.01em}
+#hv-ov .hv-sub{font-size:13px;color:rgba(255,255,255,.62);margin-top:4px;line-height:1.45}
+#hv-ov .hv-sec{font-size:15px;font-weight:600;margin:22px 0 10px}
+#hv-ov .hv-row{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:16px;background:#1f2026;margin-bottom:8px}
+#hv-ov .hv-row b{display:block;font-size:14px;font-weight:600}
+#hv-ov .hv-row small{display:block;font-size:12.5px;color:rgba(255,255,255,.62);margin-top:2px}
+#hv-ov .hv-row .gr{flex:1;min-width:0}
+#hv-ov .hv-dot{width:9px;height:9px;border-radius:50%;background:#FFB547;flex:none}
+#hv-ov .hv-dot.ok{background:#5FD39A}
+#hv-ov .hv-tog{width:50px;height:30px;border-radius:999px;background:#3a3b42;position:relative;border:0;cursor:pointer;flex:none}
+#hv-ov .hv-tog::after{content:'';position:absolute;left:3px;top:3px;width:24px;height:24px;border-radius:50%;background:#fff;transition:transform var(--m-move,.18s) var(--e-standard,ease)}
+#hv-ov .hv-tog.on{background:#4D63FF}#hv-ov .hv-tog.on::after{transform:translateX(20px)}
+#hv-ov .hv-x{position:absolute;right:16px;top:16px;width:38px;height:38px;border-radius:50%;border:0;background:#26272d;color:#fff;font-size:20px;cursor:pointer}
+</style>
+
     <style>
     .rh-card{background:var(--card);border:0.5px solid var(--line);border-radius:16px;padding:16px 18px;margin-bottom:14px}
     .rh-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
@@ -3065,6 +3087,7 @@ body.v3.railmin .aw-screen{left:108px!important}
       <div class="panel-head">
         <button class="back" onclick="roomHubBack()">‹ Rooms</button>
         <div class="panel-title" id="room-title">Room</div>
+        <button class="hv-btn" type="button" onclick="hvOpen()">Homeowner View</button>
       </div>
       <div id="room-devices"></div>
     </div>
@@ -3415,7 +3438,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111601';
+const PROOS_BUILD='2026111602';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -23313,6 +23336,59 @@ async function v3Software(){
   // On a phone, Pro does not connect at all — it says where Pro lives (register 723).
   if(_proOnPhone()){ document.getElementById('app').style.display='none'; document.getElementById('landing').style.display='flex'; renderGate('phone'); return; }
   connect();
+})();
+</script>
+<!-- ══ REGISTER 1389 — STAGE 8, WHAT THE HOMEOWNER WILL SEE (Dave 16 Nov: Pro "instead shows What the homeowner will see —
+     each room page exactly as it will fill itself"; "Health gains the fill-in checks"; "the installer can choose to put one
+     in On Now from Pro"). A room's Homeowner View: the homeowner's own room page, LIVE, at phone size (the dashboard's
+     own page in preview — nothing can be sent from it); beside it, SETTING UP — what stops this room filling itself, each
+     with its own fix (a room with nothing in it; a TV with no AV scenes committed; a player with no role in a room whose
+     AV is set up — hidden from the homeowner), never a device just for having no room; and ON NOW — the switches and plugs
+     in the room, each one the installer may put in On Now (the platform label proos_on_now; off by default, 16 Nov). -->
+<script>
+(function(){
+  var ON_NOW='proos_on_now';
+  function hvEnts(area){
+    var devArea={}; (_devices||[]).forEach(function(d){ devArea[d.id]=d.area_id; });
+    return (_ents||[]).filter(function(e){ var a=e.area_id||(e.device_id?devArea[e.device_id]:null); return a===area && !e.hidden_by && !e.disabled_by && !e.entity_category; }); }
+  function hvName(eid){ var s=(_states||[]).find(function(x){ return x.entity_id===eid; }); return (s&&s.attributes&&s.attributes.friendly_name)||eid; }
+  // what stops this room filling itself — facts read from the room, never a device for having no room (16 Nov)
+  function hvChecks(area, name){
+    var E=hvEnts(area), out=[], lab=function(e,l){ return (e.labels||[]).indexOf(l)>=0; };
+    var mp=E.filter(function(e){ return e.entity_id.indexOf('media_player.')===0; });
+    var hasDisplay=E.some(function(e){ return lab(e,'proos_display'); }), avSet=E.some(function(e){ return lab(e,'proos_av')||lab(e,'proos_display')||lab(e,'proos_source'); });
+    if(!E.length) out.push({t:'The '+name+' has nothing in it yet', s:'Add its devices, or remove the room — it shows as “Nothing here yet”.'});
+    if(hasDisplay && !(_avActivities||[]).length) out.push({t:name+' AV not committed', s:'It has a TV but no AV scenes yet — commit them in AV Setup.'});
+    if(avSet) mp.filter(function(e){ return !(e.labels||[]).some(function(l){ return /^proos_(display|source|speaker|tvaudio|avswitch)$/.test(l); }); }).forEach(function(e){
+      out.push({t:hvName(e.entity_id)+' isn’t in the '+name+'’s AV setup', s:'A player with no role here — hidden from the homeowner. Give it a role in AV Setup, or leave it hidden.'}); });
+    return {items:out, n:E.length};
+  }
+  window.hvChecks=hvChecks;
+  function hvDraw(){
+    var ov=document.getElementById('hv-ov'); if(!ov) return; var area=_roomHubArea, a=(_areas||[]).find(function(x){ return x.area_id===area; }), name=(a&&a.name)||'Room';
+    var C=hvChecks(area,name), sw=hvEnts(area).filter(function(e){ return e.entity_id.indexOf('switch.')===0; });
+    var side='<h2>'+esc(name)+'</h2><div class="hv-sub">Exactly what the homeowner’s '+esc(name)+' page shows — live, and it fills itself from what is in the room. Nothing can be sent from this preview.</div>'+
+      '<div class="hv-sec">Setting Up</div>'+(C.items.length?C.items.map(function(c){ return '<div class="hv-row"><span class="hv-dot"></span><div class="gr"><b>'+esc(c.t)+'</b><small>'+esc(c.s)+'</small></div></div>'; }).join(''):'')+
+      '<div class="hv-row"><span class="hv-dot ok"></span><div class="gr"><b>'+(C.items.length?'Everything else here is set up':'Everything here is set up')+'</b><small>'+C.n+(C.n===1?' thing':' things')+' in the room · '+(_avActivities||[]).length+' AV scenes</small></div></div>'+
+      (sw.length?'<div class="hv-sec">On Now</div><div class="hv-sub" style="margin:-4px 0 10px">Switches and plugs stay out of On Now unless you put them in (a power board, an always-on outlet would sit there forever).</div>'+
+        sw.map(function(e){ var on=(e.labels||[]).indexOf(ON_NOW)>=0; return '<div class="hv-row"><div class="gr"><b>'+esc(hvName(e.entity_id))+'</b><small>'+(on?'Shows in On Now when it is on':'Not in On Now')+'</small></div><button type="button" class="hv-tog'+(on?' on':'')+'" data-hvon="'+esc(e.entity_id)+'" aria-label="Show in On Now"></button></div>'; }).join(''):'');
+    ov.querySelector('.hv-side').innerHTML=side;
+    ov.querySelectorAll('[data-hvon]').forEach(function(b){ b.onclick=function(){ hvToggle(b.dataset.hvon); }; });
+  }
+  async function hvToggle(eid){
+    var e=(_ents||[]).find(function(x){ return x.entity_id===eid; }); if(!e) return;
+    var cur=Array.isArray(e.labels)?e.labels.slice():[], on=cur.indexOf(ON_NOW)>=0, next=on?cur.filter(function(l){ return l!==ON_NOW; }):cur.concat([ON_NOW]);
+    try{ if(!on) await ensureProLabel(ON_NOW, ON_NOW); await snd({type:'config/entity_registry/update', entity_id:eid, labels:next}); e.labels=next; toast(on?'Out of On Now':'In On Now'); try{ _pushDashReload(); }catch(x){} }
+    catch(x){ toast('Couldn’t save'); }
+    hvDraw(); var f=document.querySelector('#hv-ov iframe'); if(f) f.src=f.src;
+  }
+  window.hvOpen=function(){
+    var area=_roomHubArea; if(!area) return;
+    var ov=document.getElementById('hv-ov'); if(!ov){ ov=document.createElement('div'); ov.id='hv-ov'; ov.onclick=function(ev){ if(ev.target===ov) hvClose(); }; document.body.appendChild(ov); }
+    ov.innerHTML='<div class="hv-cd"><button type="button" class="hv-x" onclick="hvClose()" aria-label="Close">×</button><iframe title="Homeowner View" src="/local/dashboard.html?nxview='+encodeURIComponent(area)+'&t='+Date.now()+'"></iframe><div class="hv-side"></div></div>';
+    ov.classList.add('open'); hvDraw();
+  };
+  window.hvClose=function(){ var ov=document.getElementById('hv-ov'); if(ov){ ov.classList.remove('open'); ov.innerHTML=''; } };
 })();
 </script>
 </body>
