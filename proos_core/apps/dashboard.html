@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111617';
+const PROOS_BUILD='2026111618';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -24806,7 +24806,7 @@ body.nx-on #nx-page.open{display:block}
     var a=window._proosAvatar||{}; if(a.url){ av.style.backgroundImage="url('"+a.url+"')"; av.textContent=''; } else { av.style.backgroundImage=''; av.textContent=a.initial||'D'; }
   }
   function _nxPage(html){ var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg'); document.body.classList.remove('nx-scr');   // 1376/1377/1378: leaving a room page, Home or Lights
+    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg'); document.body.classList.remove('nx-scr');   // 1376/1377/1378/1379: leaving a room page, Home or Lights
     p.innerHTML='<div class="nx-in">'+html+'</div>'; p.classList.add('open'); p.scrollTop=0; return p; }
   function closePage(){ var p=document.getElementById('nx-page'); if(p) p.classList.remove('open'); }
   function _nxGoTo(id){
@@ -24865,6 +24865,7 @@ body.nx-on #nx-page.open{display:block}
   // a category: its devices by room (read-only for now — each kind's controls come with stage 5); the full page where one exists
   function drawCategory(c){
     if(c==='Lights'&&typeof _nxLights==='function') return _nxLights();   // 1378: the Lights page
+    if(c==='Climate'&&typeof _nxClimateList==='function') return _nxClimateList();   // 1379: the Climate page
     var all=nxAll().filter(function(d){ return d.cat===c; }), rooms=CONFIG.rooms||[], by={};
     all.forEach(function(d){ (by[d.area||'']=by[d.area||'']||[]).push(d); });
     var html='<button type="button" class="nx-back" data-b>'+svgOf('back')+'</button><div class="nx-hd"><div><h1>'+nxEsc(c)+'</h1><div class="nx-sub">'+nxEsc((function(){ var x=catLine(c,all); return typeof x==='object'?x.w:x; })())+'</div></div>'+
@@ -25025,7 +25026,7 @@ body.nx-on #nx-page.open{display:block}
         ((k==='speaker'||A.media_title)?'<span class="nxr-pw play" data-pp="'+nxrEsc(d.lead)+'">'+gi(playing?'pause':'play')+'</span>':'')+'</div></button>';
     }
     var cls=d.r.warn?' warn':'', ic={shade:'shade',garage:'garage',lock:'lock',climate:'climate',fan:'fan'}[k]||'other';
-    return '<button type="button" class="nxr-live'+cls+'" data-cat="'+nxrEsc(d.cat)+'"><div class="nxr-row"><div class="nx-ic">'+gi(ic)+'</div></div><div><div class="k">'+nxrEsc(d.name)+'</div><div class="n">'+nxrEsc(d.r.word)+'</div></div></button>';
+    return '<button type="button" class="nxr-live'+cls+'" data-cat="'+nxrEsc(d.cat)+'" data-lead="'+nxrEsc(d.lead)+'"><div class="nxr-row"><div class="nx-ic">'+gi(ic)+'</div></div><div><div class="k">'+nxrEsc(d.name)+'</div><div class="n">'+nxrEsc(d.r.word)+'</div></div></button>';
   }
   function _nxrDraw(){
     var r=ROOM; if(!r) return; var p=document.getElementById('nx-page'); if(!p||!p.classList.contains('open')||!p.classList.contains('nx-room-pg')) return;
@@ -25077,7 +25078,8 @@ body.nx-on #nx-page.open{display:block}
     p.querySelectorAll('[data-pp]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); svc('media_player','media_play_pause',{entity_id:b.dataset.pp}); }; });
     var lc=p.querySelector('[data-lights]'); if(lc) lc.onclick=function(e){ if(e.target.closest('[data-lightsoff]')) return; if(typeof _nxLightSheet==='function'){ _nxLightSheet(r.id); return; } try{ _nxrCloseNx(); openLightOverlay(CONFIG.rooms.indexOf(r)); }catch(x){} };   // 1378: the room's lights card
     var lo=p.querySelector('[data-lightsoff]'); if(lo) lo.onclick=function(e){ e.stopPropagation(); var ls=lights.filter(function(d){ return d.r.on; }).map(function(d){ return d.lead; }); if(ls.length) svc('light','turn_off',{entity_id:ls}); };
-    p.querySelectorAll('[data-cat]').forEach(function(b){ b.onclick=function(){ var m={Climate:'climate','Garage & Gates':'security','Locks & Access':'access'}[b.dataset.cat]; if(m){ _nxrCloseNx(); try{ showPage(m); }catch(x){} } }; });
+    p.querySelectorAll('[data-cat]').forEach(function(b){ b.onclick=function(){ if(b.dataset.cat==='Climate'&&typeof _nxClimate==='function'){ _nxrStop(); _nxClimate(b.dataset.lead, function(){ _nxRoom(CONFIG.rooms.indexOf(r)); }); return; }   // 1379
+      var m={Climate:'climate','Garage & Gates':'security','Locks & Access':'access'}[b.dataset.cat]; if(m){ _nxrCloseNx(); try{ showPage(m); }catch(x){} } }; });
   }
   function _nxrCloseNx(){ var p=document.getElementById('nx-page'); if(p) p.classList.remove('open'); _nxrStop(); }
   function _nxrStop(){ clearInterval(timer); timer=null; var p=document.getElementById('nx-page'); if(p) p.classList.remove('nx-room-pg'); }
@@ -25086,7 +25088,7 @@ body.nx-on #nx-page.open{display:block}
     try{ showPage('home'); selectRoom(i); }catch(e){}   // the room is the current room underneath: its widgets, Assist's room, its activities load
     try{ _pacActs(r); }catch(e){}
     var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-home-pg','nx-lights-pg'); document.body.classList.remove('nx-scr'); p.classList.add('open','nx-room-pg'); p._sig=''; p.scrollTop=0; _nxrDraw();
+    p.classList.remove('nx-home-pg','nx-lights-pg','nx-clim-pg'); document.body.classList.remove('nx-scr'); p.classList.add('open','nx-room-pg'); p._sig=''; p.scrollTop=0; _nxrDraw();
     clearInterval(timer); timer=setInterval(_nxrDraw, 1000);   // live: the page follows the devices — a card arrives when something turns on, leaves when it goes off
   };
   window._nxRoomState=_nxrAvState; window._nxSceneHeld=_nxSceneHeld;
@@ -25205,7 +25207,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
         '<div><div class="n" style="font-size:16px">'+nxhEsc(title||d.name)+'</div><div class="k">'+nxhEsc(title?d.name:d.r.word)+'</div></div></button>';
     }
     var ic={shade:'shade',garage:'garage',lock:'lock',climate:'climate',fan:'fan'}[k]||'other';
-    return '<button type="button" class="nxr-live'+(d.r.warn?' warn':'')+'" data-hcat="'+nxhEsc(d.cat)+'"><div class="nxr-row"><div class="nx-ic"'+(d.r.warn?' style="background:rgba(255,181,71,.18)"':'')+'>'+nxhIc(ic).replace('<svg','<svg style="stroke:'+(d.r.warn?'#FFB547':'#fff')+';width:20px;height:20px;fill:none;stroke-width:1.8"')+'</div>'+
+    return '<button type="button" class="nxr-live'+(d.r.warn?' warn':'')+'" data-hcat="'+nxhEsc(d.cat)+'" data-hlead="'+nxhEsc(d.lead)+'"><div class="nxr-row"><div class="nx-ic"'+(d.r.warn?' style="background:rgba(255,181,71,.18)"':'')+'>'+nxhIc(ic).replace('<svg','<svg style="stroke:'+(d.r.warn?'#FFB547':'#fff')+';width:20px;height:20px;fill:none;stroke-width:1.8"')+'</div>'+
       (d.r.warn?'<span style="font-size:13px;font-weight:600;color:#FFB547">'+nxhEsc(d.r.word)+'</span>':'')+'</div><div><div class="k">'+nxhEsc(c.room||'Around the House')+'</div><div class="n">'+nxhEsc(d.name)+(d.r.warn?'':' · '+nxhEsc(d.r.word))+'</div></div></button>';
   }
   function _nxhWeather(){
@@ -25270,7 +25272,8 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
     q('[data-hpp]',function(b,e){ e.stopPropagation(); svc('media_player','media_play_pause',{entity_id:b.dataset.hpp}); });
     q('[data-hl]',function(b,e){ if(e.target.closest('[data-hloff]')) return; if(typeof _nxLightSheet==='function'){ _nxLightSheet(b.dataset.hl); return; } _nxhLeave(); try{ openLightOverlay(+b.dataset.ri); }catch(x){} });   // 1378
     q('[data-hloff]',function(b,e){ e.stopPropagation(); var ents=(b.closest('[data-ents]').dataset.ents||'').split(',').filter(Boolean); if(ents.length) svc('light','turn_off',{entity_id:ents}); });
-    q('[data-hcat]',function(b){ var m={Climate:'climate','Garage & Gates':'security','Locks & Access':'access',Security:'security',Shades:'lights'}[b.dataset.hcat]; if(m){ _nxhLeave(); try{ showPage(m); }catch(x){} } });
+    q('[data-hcat]',function(b){ if(b.dataset.hcat==='Climate'&&typeof _nxClimate==='function'){ _nxhStop(); _nxClimate(b.dataset.hlead, function(){ _nxHome(); }); return; }   // 1379
+      var m={Climate:'climate','Garage & Gates':'security','Locks & Access':'access',Security:'security',Shades:'lights'}[b.dataset.hcat]; if(m){ _nxhLeave(); try{ showPage(m); }catch(x){} } });
     q('[data-hscene]',function(b){ var s=(CONFIG.scenes||[])[+b.dataset.hscene]; if(!s) return; ran[s.entity]=Date.now(); try{ triggerScene(s.entity,+b.dataset.hscene); }catch(x){} p._sig=''; _nxhDraw(); });
     q('[data-halloff]',function(){   // All Off: every light that is on, and every player that is playing paused — never a switch, never a TV's own power (1 Nov)
       var ls=(window._nxAll?_nxAll():[]).filter(function(d){ return d.k.kind==='light'&&d.r.now; }).map(function(d){ return d.lead; }); if(ls.length) svc('light','turn_off',{entity_id:ls});
@@ -25280,7 +25283,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
   window._nxHome=function(){
     try{ showPage('home'); selectRoom(-1); }catch(e){}   // Home's own widgets and Assist's "whole home" load underneath
     var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-lights-pg'); p.classList.add('open','nx-home-pg'); p._sig=''; p.scrollTop=0; _nxhDraw();
+    p.classList.remove('nx-room-pg','nx-lights-pg','nx-clim-pg'); p.classList.add('open','nx-home-pg'); p._sig=''; p.scrollTop=0; _nxhDraw();
     // your picture steps aside once Home scrolls, so it never sits over a card (it stays at the top, as in the mock)
     p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; document.body.classList.remove('nx-scr');   // 1378b: every New Look page, not Home only
     clearInterval(homeTimer); homeTimer=setInterval(_nxhDraw, 1000);   // live: a card arrives when something turns on, folds away when it goes off
@@ -25417,7 +25420,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
   function _nxlStop(){ clearInterval(lightsTimer); lightsTimer=null; var p=document.getElementById('nx-page'); if(p) p.classList.remove('nx-lights-pg'); }
   window._nxLights=function(){
     var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-home-pg'); p.classList.add('open','nx-lights-pg'); p._sig=''; p.scrollTop=0; _nxlDraw();
+    p.classList.remove('nx-room-pg','nx-home-pg','nx-clim-pg'); p.classList.add('open','nx-lights-pg'); p._sig=''; p.scrollTop=0; _nxlDraw();
     p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; document.body.classList.remove('nx-scr');   // 1378b: your picture steps aside here too
     clearInterval(lightsTimer); lightsTimer=setInterval(_nxlDraw, 1000);
   };
@@ -25492,6 +25495,164 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
   document.addEventListener('click', function(ev){ var b=ev.target.closest&&ev.target.closest('[data-lsw]'); if(!b) return; var e=b.dataset.lsw;
     if(!states[e]||/unavailable|unknown/.test(states[e].state)) return; _nxlSend(e, states[e].state!=='on', null);
     var p=document.getElementById('nx-page'); if(p) p._sig=''; _nxlDraw(); var ov=document.getElementById('nxl-sheet'); if(ov) ov._sig=''; _nxlSheetDraw(); }, true);   // capture: the card stops clicks bubbling past it
+})();
+</script>
+<!-- ══ REGISTER 1379 — STAGE 5b, CLIMATE (Dave 16 Nov 18:33 "Go"). In the New Look: Devices › Climate lists every
+     thermostat and air conditioner, by room, each with its own words and its setpoint; one opened is Pic 1's air-con
+     screen in ProOS blue — the dial (drag it, or − and +), the room's own reading under it, and ONLY what the unit says it
+     can do: its modes (hvac_modes), its fan speeds, its swing, its presets, a power button only if it lists Off. The
+     setpoint moves at once; ONE command goes when the finger lifts or the presses stop (968q); until the unit reports it,
+     the words say what was sent (235). A room's climate card (room page, Home) opens its unit. -->
+<style>
+#nx-page.nx-clim-pg .nx-in{animation:none}
+.nxc-list{display:grid;gap:12px}
+@media (min-width:820px){.nxc-list{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.nxc-card{position:relative;display:flex;justify-content:space-between;align-items:center;gap:14px;padding:18px;border-radius:24px;border:0;background:#1b1c20;color:#fff;cursor:pointer;text-align:left;font-family:inherit;overflow:hidden;
+  transition:transform var(--m-tap) var(--e-spring)}
+.nxc-card:active{transform:scale(.98)}
+.nxc-card.cool{background:linear-gradient(135deg,rgba(77,99,255,.22),rgba(143,214,255,.06)),#1b1c20}
+.nxc-card.heat{background:linear-gradient(135deg,rgba(255,140,80,.22),rgba(255,196,107,.06)),#1b1c20}
+.nxc-card.auto{background:linear-gradient(135deg,rgba(160,120,255,.2),rgba(143,214,255,.06)),#1b1c20}
+.nxc-card .k{font-size:12px;font-weight:500;color:rgba(255,255,255,.62)}
+.nxc-card .n{font-size:17px;font-weight:600;margin-top:2px}
+.nxc-card .w{font-size:13px;color:rgba(255,255,255,.75);margin-top:6px}
+.nxc-card .t{font-size:40px;font-weight:300;letter-spacing:-.03em;line-height:1}
+.nxc-card.dead{opacity:.6}
+.nxc-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding-right:56px}
+.nxc-pw{width:46px;height:46px;border-radius:50%;border:0;display:grid;place-items:center;background:#2c2d33;cursor:pointer;flex:none;margin-top:14px}
+.nxc-pw svg{width:20px;height:20px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round}
+.nxc-pw.on{background:#4D63FF;box-shadow:0 8px 22px rgba(77,99,255,.45)}
+.nxc-dial{position:relative;width:280px;height:280px;margin:14px auto 0;touch-action:none;user-select:none;-webkit-user-select:none}
+.nxc-dial svg{position:absolute;inset:0;width:100%;height:100%}
+.nxc-dial .c{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none}
+.nxc-dial .c b{font-size:64px;font-weight:200;letter-spacing:-.04em;line-height:1}
+.nxc-dial .c span{font-size:13px;color:rgba(255,255,255,.62);margin-top:8px}
+.nxc-dial .arc{transition:stroke-dasharray var(--m-tap) var(--e-standard)}
+.nxc-dial.drag .arc{transition:none}
+.nxc-step{display:flex;justify-content:center;gap:56px;margin-top:-6px}
+.nxc-step button{width:58px;height:58px;border-radius:50%;border:0;background:#26272d;color:#fff;font-size:28px;font-weight:300;cursor:pointer;transition:transform var(--m-tap) var(--e-spring)}
+.nxc-step button:active{transform:scale(.9)}
+.nxc-panel{background:#1b1c20;border-radius:24px;padding:12px;margin-top:22px;max-width:560px;margin-left:auto;margin-right:auto}
+.nxc-modes{display:grid;grid-template-columns:repeat(auto-fit,minmax(78px,1fr));gap:8px}
+.nxc-modes button{height:76px;border-radius:16px;border:0;background:#26272d;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font:500 13px Inter,-apple-system,sans-serif;cursor:pointer;
+  transition:background var(--m-tap) var(--e-standard),box-shadow var(--m-tap) var(--e-standard)}
+.nxc-modes button svg{width:20px;height:20px;stroke:#fff;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.nxc-modes button.on{background:rgba(77,99,255,.16);box-shadow:inset 0 0 0 1.5px #4D63FF}
+.nxc-modes button.on svg{stroke:#8A98FF}
+.nxc-row{display:flex;justify-content:space-between;align-items:center;padding:12px 8px 6px;font-size:15px}
+.nxc-row .cy{display:flex;align-items:center;gap:6px}
+.nxc-row .cy button{width:34px;height:34px;border-radius:50%;border:0;background:none;color:rgba(255,255,255,.55);font-size:20px;cursor:pointer}
+.nxc-row .cy b{min-width:84px;text-align:center;color:#8A98FF;font-weight:600}
+.nxc-pre{display:flex;flex-wrap:wrap;gap:8px;padding:8px}
+.nxc-pre button{padding:9px 14px;border-radius:999px;border:0;background:#26272d;color:#fff;font:500 13px Inter,-apple-system,sans-serif;cursor:pointer}
+.nxc-pre button.on{background:#4D63FF}
+@media (prefers-reduced-motion:reduce){.nxc-dial .arc,.nxc-modes button,.nxc-card,.nxc-step button{transition:none}}
+</style>
+<script>
+(function(){
+  var nxcEsc=function(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); };
+  var IC={cool:'<path d="M12 2v20M4.9 6l14.2 12M19.1 6 4.9 18M9 3.5l3 2.5 3-2.5M9 20.5l3-2.5 3 2.5"/>',heat:'<path d="M12 3c2 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2.5 1.5-4 2.5-5.5.5 2 1.5 3 2.5 3 0-3-1-5 0-7.5z"/>',
+    heat_cool:'<path d="M7 7h10l-3-3M17 17H7l3 3"/>',auto:'<path d="M7 7h10l-3-3M17 17H7l3 3"/>',dry:'<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/>',
+    fan_only:'<path d="M12 12c0-4 1-8 4-8s2 5-4 8zM12 12c4 0 8 1 8 4s-5 2-8-4zM12 12c0 4-1 8-4 8s-2-5 4-8zM12 12c-4 0-8-1-8-4s5-2 8 4z"/>',off:'<path d="M12 4v7M7.5 7a7 7 0 1 0 9 0"/>'};
+  var ic=function(k){ return '<svg viewBox="0 0 24 24">'+(IC[k]||IC.auto)+'</svg>'; };
+  var BACK='<svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg>';
+  var cur=null, from=null, timer=null, pend={}, dragging=false;
+  var word=function(m){ try{ return _cpWord(m); }catch(e){ return m; } };
+  var fmt=function(t){ try{ return _cpFmt(t); }catch(e){ return String(t); } };
+  // ── what a unit can do and where its setpoint is, by what it REPORTS ──
+  function _nxcModel(S, P, now){
+    var A=(S&&S.attributes)||{}, m=String((S&&S.state)||''), dead=!m||m==='unavailable'||m==='unknown';
+    var step=parseFloat(A.target_temp_step)||(String(A.temperature_unit||'').indexOf('F')>=0?1:0.5);
+    var lo=parseFloat(A.min_temp), hi=parseFloat(A.max_temp); if(!isFinite(lo)) lo=7; if(!isFinite(hi)) hi=35;
+    var rep=A.temperature!=null&&A.temperature!==''?parseFloat(A.temperature):null;
+    var t=rep, sent=false;
+    if(P&&(now||Date.now())-P.at<8000&&(rep==null||Math.abs(rep-P.t)>0.05)){ t=P.t; sent=true; }
+    var curT=A.current_temperature!=null&&A.current_temperature!==''?parseFloat(A.current_temperature):null;
+    return {dead:dead, mode:m, off:m==='off', step:step, lo:lo, hi:hi, t:(m==='off'?null:t), sent:sent&&m!=='off', now:curT,
+      modes:(A.hvac_modes||[]).filter(function(x){ return typeof x==='string'; }), canOff:(A.hvac_modes||[]).indexOf('off')>=0,
+      canOn:!!((parseInt(A.supported_features||0,10))&128),
+      fans:A.fan_modes||[], fan:A.fan_mode, swings:A.swing_modes||[], swing:A.swing_mode, presets:(A.preset_modes||[]).filter(function(x){ return x&&x!=='none'; }), preset:A.preset_mode,
+      range:rep==null&&A.target_temp_low!=null&&A.target_temp_high!=null?[parseFloat(A.target_temp_low),parseFloat(A.target_temp_high)]:null};
+  }
+  // a new setpoint from a press or a drag: snapped to the unit's step, inside its own limits
+  function _nxcClamp(M, t){ var s=Math.max(M.step,0.1); t=Math.round(t/s)*s; t=Math.round(t*10)/10; return Math.max(M.lo, Math.min(M.hi, t)); }
+  window._nxcModel=_nxcModel; window._nxcClamp=_nxcClamp;
+  function _nxcSend(e, t){ pend[e]={t:t, at:Date.now()}; svc('climate','set_temperature',{entity_id:e, temperature:t}); }
+  function _nxcUnits(){ return (window._nxAll?_nxAll():[]).filter(function(d){ return d.k.kind==='climate'; }).map(function(d){
+      var r=(CONFIG.rooms||[]).filter(function(x){ return x.id===d.area; })[0]; return {e:d.lead, name:d.name, room:r?r.name:(d.area&&typeof areaNameById!=='undefined'&&areaNameById[d.area])||''}; }); }
+  function _nxcLine(e, M){ if(M.dead) return 'Can’t reach it'; if(M.sent) return 'Setting '+fmt(M.t)+'°…'; try{ return _cpLine(e); }catch(x){ return word(M.mode); } }
+  function _nxcCls(m){ return m==='cool'?'cool':m==='heat'?'heat':(m==='heat_cool'||m==='auto')?'auto':''; }
+  function _nxcPage(cls){ var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
+    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg'); p.classList.add('open',cls); p._sig=''; p.scrollTop=0;
+    p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; document.body.classList.remove('nx-scr'); return p; }
+
+  // ── the list ──
+  function _nxcListDraw(){
+    var p=document.getElementById('nx-page'); if(!p||!p.classList.contains('open')||!p.classList.contains('nx-clim-pg')||cur) return;
+    var U=_nxcUnits();
+    var h='<div class="nx-in"><button type="button" class="nx-back" data-cb>'+BACK+'</button><div class="nx-hd"><div><h1>Climate</h1><div class="nx-sub">'+(U.length?U.length+(U.length===1?' unit':' units'):'')+'</div></div></div>'+
+      (U.length?'<div class="nxc-list">'+U.map(function(u){ var S=states[u.e], M=_nxcModel(S,pend[u.e]);
+        var big=M.t!=null?fmt(M.t)+'°':(M.now!=null?Math.round(M.now)+'°':'–');
+        return '<button type="button" class="nxc-card '+_nxcCls(M.mode)+(M.dead?' dead':'')+'" data-cu="'+nxcEsc(u.e)+'"><div><div class="k">'+nxcEsc(u.room||'Around the House')+'</div><div class="n">'+nxcEsc(u.name)+'</div><div class="w">'+nxcEsc(_nxcLine(u.e,M))+(M.t!=null&&M.now!=null?' · '+Math.round(M.now)+'° now':'')+'</div></div><div class="t">'+big+'</div></button>'; }).join('')+'</div>'
+        :'<div class="nxr-quiet">No air con or heating yet<small>Thermostats and air conditioners appear here the moment your installer adds them.</small></div>')+'</div>';
+    if(p._sig===h) return; p._sig=h; var y=p.scrollTop; p.innerHTML=h; p.scrollTop=y;
+    p.querySelector('[data-cb]').onclick=function(){ _nxcStop(); _nxGo('devices'); };
+    p.querySelectorAll('[data-cu]').forEach(function(b){ b.onclick=function(){ _nxClimate(b.dataset.cu, _nxClimateList); }; });
+  }
+  window._nxClimateList=function(){ cur=null; _nxcPage('nx-clim-pg'); _nxcListDraw(); clearInterval(timer); timer=setInterval(function(){ cur?_nxcDraw():_nxcListDraw(); },1000); };
+
+  // ── one unit opened ──
+  var R=118, C=2*Math.PI*R, SWEEP=0.75;   // the dial: three-quarters of a circle, opening at the bottom
+  function _nxcArc(M, t){ var f=(t==null)?0:Math.max(0,Math.min(1,(t-M.lo)/(M.hi-M.lo||1))); return f; }
+  function _nxcDialSvg(M, t){
+    var f=_nxcArc(M,t), a=(135+270*f)*Math.PI/180, kx=140+R*Math.cos(a), ky=140+R*Math.sin(a);
+    var col=M.mode==='heat'?['#FFC46B','#FF8A50']:(M.mode==='heat_cool'||M.mode==='auto')?['#8fd6ff','#A078FF']:['#8fd6ff','#4D63FF'];
+    return '<svg viewBox="0 0 280 280"><defs><linearGradient id="nxcg" x1="0" x2="1"><stop offset="0" stop-color="'+col[0]+'"/><stop offset="1" stop-color="'+col[1]+'"/></linearGradient></defs>'+
+      '<circle cx="140" cy="140" r="'+R+'" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="14" stroke-linecap="round" stroke-dasharray="'+(C*SWEEP).toFixed(1)+' '+C.toFixed(1)+'" transform="rotate(135 140 140)"/>'+
+      (t!=null&&!M.off?'<circle class="arc" cx="140" cy="140" r="'+R+'" fill="none" stroke="url(#nxcg)" stroke-width="14" stroke-linecap="round" stroke-dasharray="'+(C*SWEEP*f).toFixed(1)+' '+C.toFixed(1)+'" transform="rotate(135 140 140)"/>'+
+        '<circle cx="'+kx.toFixed(1)+'" cy="'+ky.toFixed(1)+'" r="13" fill="#fff" style="filter:drop-shadow(0 2px 6px rgba(0,0,0,.5))"/>':'')+'</svg>';
+  }
+  function _nxcDraw(){
+    var p=document.getElementById('nx-page'); if(!p||!p.classList.contains('open')||!p.classList.contains('nx-clim-pg')||!cur||dragging) return;
+    var u=_nxcUnits().filter(function(x){ return x.e===cur; })[0]||{e:cur,name:att(cur,'friendly_name')||cur,room:''};
+    var S=states[cur], M=_nxcModel(S,pend[cur]), big=M.t!=null?fmt(M.t):(M.now!=null?String(Math.round(M.now)):'–');
+    var h='<div class="nx-in"><button type="button" class="nx-back" data-cb>'+BACK+'</button><div class="nxc-top"><div class="nx-hd" style="padding-right:0;margin-bottom:0"><div><h1>'+nxcEsc(u.name)+'</h1><div class="nx-sub">'+nxcEsc([u.room,_nxcLine(cur,M)].filter(Boolean).join(' · '))+'</div></div></div>'+
+      (M.canOff&&!M.dead&&(M.off?M.canOn:true)?'<button type="button" class="nxc-pw'+(M.off?'':' on')+'" data-cpw aria-label="Power">'+ic('off')+'</button>':'')+'</div>';
+    if(M.range){ h+='<div class="nxc-dial"><div class="c"><b style="font-size:48px">'+fmt(M.range[0])+'–'+fmt(M.range[1])+'°</b><span>'+(M.now!=null?Math.round(M.now)+'° inside now':'')+'</span></div></div>'; }
+    else h+='<div class="nxc-dial'+(M.t!=null&&!M.dead?'':' still')+'" data-cdial>'+_nxcDialSvg(M,M.t)+'<div class="c"><b data-ct>'+big+'°</b><span>'+(M.off?'Off · inside now':M.now!=null?Math.round(M.now)+'° inside now':'')+'</span></div></div>'+
+      (M.t!=null&&!M.dead?'<div class="nxc-step"><button type="button" data-cs="-1" aria-label="Lower">−</button><button type="button" data-cs="1" aria-label="Raise">+</button></div>':'');
+    var pan='';
+    if(M.modes.length&&!M.dead) pan+='<div class="nxc-modes">'+M.modes.map(function(x){ return '<button type="button" class="'+(x===M.mode?'on':'')+'" data-cm="'+nxcEsc(x)+'">'+ic(x)+nxcEsc(word(x))+'</button>'; }).join('')+'</div>';
+    if(M.fans.length>1&&!M.dead&&!M.off) pan+='<div class="nxc-row"><span>Fan Speed</span><div class="cy"><button type="button" data-cy="fan" data-d="-1">‹</button><b>'+nxcEsc(_nxcCap(M.fan))+'</b><button type="button" data-cy="fan" data-d="1">›</button></div></div>';
+    if(M.swings.length>1&&!M.dead&&!M.off) pan+='<div class="nxc-row"><span>Swing</span><div class="cy"><button type="button" data-cy="swing" data-d="-1">‹</button><b>'+nxcEsc(_nxcCap(M.swing))+'</b><button type="button" data-cy="swing" data-d="1">›</button></div></div>';
+    if(M.presets.length&&!M.dead) pan+='<div class="nxc-pre">'+M.presets.map(function(x){ return '<button type="button" class="'+(x===M.preset?'on':'')+'" data-cp="'+nxcEsc(x)+'">'+nxcEsc(_nxcCap(x))+'</button>'; }).join('')+'</div>';
+    if(pan) h+='<div class="nxc-panel">'+pan+'</div>';
+    h+='</div>';
+    if(p._sig===h) return; p._sig=h; var y=p.scrollTop; p.innerHTML=h; p.scrollTop=y; _nxcWire(p,M);
+  }
+  function _nxcCap(s){ s=String(s==null?'':s).replace(/_/g,' '); return s?s.replace(/\b\w/g,function(c){ return c.toUpperCase(); }):'—'; }
+  function _nxcWire(p,M){
+    p.querySelector('[data-cb]').onclick=function(){ var f=from; cur=null; if(f) f(); else { _nxcStop(); _nxGo('devices'); } };
+    var pw=p.querySelector('[data-cpw]'); if(pw) pw.onclick=function(){ if(M.off) svc('climate','turn_on',{entity_id:cur}); else svc('climate','set_hvac_mode',{entity_id:cur,hvac_mode:'off'}); };
+    p.querySelectorAll('[data-cm]').forEach(function(b){ b.onclick=function(){ svc('climate','set_hvac_mode',{entity_id:cur,hvac_mode:b.dataset.cm}); }; });
+    p.querySelectorAll('[data-cp]').forEach(function(b){ b.onclick=function(){ svc('climate','set_preset_mode',{entity_id:cur,preset_mode:b.dataset.cp}); }; });
+    p.querySelectorAll('[data-cy]').forEach(function(b){ b.onclick=function(){ var k=b.dataset.cy, L=k==='fan'?M.fans:M.swings, c=L.indexOf(k==='fan'?M.fan:M.swing), n=L[(c+(+b.dataset.d)+L.length)%L.length];
+      if(k==='fan') svc('climate','set_fan_mode',{entity_id:cur,fan_mode:n}); else svc('climate','set_swing_mode',{entity_id:cur,swing_mode:n}); }; });
+    // − / +: shown at once; one command when the presses stop (968q)
+    p.querySelectorAll('[data-cs]').forEach(function(b){ b.onclick=function(){ var e=cur, base=(_nxcStep.t!=null&&_nxcStep.e===e)?_nxcStep.t:M.t; if(base==null) return;
+      var t=_nxcClamp(M, base+(+b.dataset.cs)*Math.max(M.step,0.5)); _nxcStep.e=e; _nxcStep.t=t; _nxcShow(p,M,t); dragging=true;
+      clearTimeout(_nxcStep.tm); _nxcStep.tm=setTimeout(function(){ dragging=false; _nxcStep.t=null; _nxcSend(e,t); p._sig=''; _nxcDraw(); },700); }; });
+    var d=p.querySelector('[data-cdial]'); if(d&&M.t!=null&&!M.dead) d.onpointerdown=function(ev){ ev.preventDefault(); var e=cur; dragging=true; d.classList.add('drag'); try{ d.setPointerCapture(ev.pointerId); }catch(x){}
+      var at=function(ev2){ var r=d.getBoundingClientRect(), x=ev2.clientX-r.left-r.width/2, y=ev2.clientY-r.top-r.height/2;
+        var deg=Math.atan2(y,x)*180/Math.PI; deg=(deg-135+360)%360; if(deg>270) deg=deg>315?0:270; return _nxcClamp(M, M.lo+(deg/270)*(M.hi-M.lo)); };
+      var t=at(ev); _nxcShow(p,M,t);
+      d.onpointermove=function(ev2){ t=at(ev2); _nxcShow(p,M,t); };
+      d.onpointerup=d.onpointercancel=function(ev2){ d.onpointermove=d.onpointerup=d.onpointercancel=null; d.classList.remove('drag'); dragging=false; if(ev2.type==='pointerup') _nxcSend(e,t); p._sig=''; _nxcDraw(); }; };
+  }
+  function _nxcStep(){}   // holds the − / + run in progress (its .e, .t, .tm)
+  function _nxcShow(p,M,t){ var d=p.querySelector('[data-cdial]'); if(!d) return; var c=d.querySelector('.c'); d.innerHTML=_nxcDialSvg(M,t); d.appendChild(c); var b=d.querySelector('[data-ct]'); if(b) b.textContent=fmt(t)+'°'; }
+  function _nxcStop(){ clearInterval(timer); timer=null; cur=null; var p=document.getElementById('nx-page'); if(p) p.classList.remove('nx-clim-pg'); }
+  window._nxClimate=function(e, back){ cur=e; from=back||null; _nxcPage('nx-clim-pg'); _nxcDraw(); clearInterval(timer); timer=setInterval(function(){ cur?_nxcDraw():_nxcListDraw(); },1000); };
 })();
 </script>
 <!-- REGISTER 1365 motion styles (the type scale stays the last stylesheet) -->
