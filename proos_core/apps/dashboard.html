@@ -3296,7 +3296,7 @@ html[data-link="remote"]{--m-tap:90ms;--m-move:200ms;--m-page:300ms}
 #widget-picker,#music-act-sheet,#music-queue-overlay,#scene-edit,.appc-ov,#setup,#pin-overlay,
 #assist-overlay,#all-lights-overlay,#loading,#proos-reboot,#proos-dashupd,#light-overlay,
 #climate-all-overlay,#climate-overlay,#rotate-overlay,#svc-sheet,#proos-sheet,#proos-tv-wait,#pp,#jv,.sg-pop,#proos-acard,#mus-ask,
-#nxl-sheet,#nx-page,#px-page,#pv-card,#mx-sweep,#device-chooser{padding-top:var(--proos-sat)}
+#nxp,#nxp-sheet,#nxl-sheet,#nx-page,#px-page,#pv-card,#mx-sweep,#device-chooser{padding-top:var(--proos-sat)}
 /* THE CLEARANCE IS A FLOOR, NOT AN ADDITION (7 Sep 2026, register 362).
    Dave: "Mobile needs to be looked at every page on the dashboard for layout
    these pages are all too low just looks all wrong". Measured at 393x852 with
@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111631';
+const PROOS_BUILD='2026111701';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -26471,6 +26471,244 @@ body.nx-on #device-chooser{z-index:9380}
 })();
 </script>
 <style>body.nx-preview #nx-bar,body.nx-preview #nx-avatar{display:none!important}</style>
+<!-- ══ REGISTER 1391 — THE NEW PLAYER (Dave 17 Nov 05:50 "yes" — after "you say done and you have reused all the old
+     widgets, control pages, audio popups"). In the New Look a speaker opens THIS player, drawn new to the mock: the
+     artwork's light filling the screen, the room it plays in at the top (tap: play to another speaker), the artwork, the
+     title and who, the progress (drag to seek), previous / play / next, the room's volume, and Rooms · Sources · Queue ·
+     Search — each a NEW sheet (centred, 788). Every command is today's own, never re-thought: play/pause and seek and
+     shuffle/repeat at the QUEUE OWNER (the music engine's twin, 10 Aug), the ROOM'S ONE VOLUME (556), Sonos/HEOS
+     grouping by join/unjoin, the queue's own play / move / remove. Only what a speaker reports it can do is offered.
+     Search opens today's Music page until the Music page is rebuilt (said, not hidden). TVs keep their remotes until the
+     remotes are rebuilt (next). -->
+<style>
+#nxp{position:fixed;inset:0;z-index:9110;display:none;color:#fff;font-family:Inter,-apple-system,sans-serif;overflow:hidden;background:#0e0e10}
+#nxp.open{display:block;animation:nxlFade var(--m-page) var(--e-standard)}
+#nxp .bg{position:absolute;inset:-60px;background:#1b1c20 center/cover;filter:blur(60px) brightness(.45) saturate(1.3);transform:scale(1.2);transition:background-image var(--m-page) var(--e-standard)}
+#nxp .bg::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.15),rgba(0,0,0,.55))}
+#nxp .in{position:relative;height:100%;overflow-y:auto;padding:14px 22px calc(env(safe-area-inset-bottom,0px) + 28px);max-width:520px;margin:0 auto;display:flex;flex-direction:column}
+#nxp .hd{display:flex;align-items:center;justify-content:space-between;gap:10px}
+#nxp .rnd{width:42px;height:42px;border-radius:50%;border:0;background:rgba(0,0,0,.3);display:grid;place-items:center;cursor:pointer;flex:none}
+#nxp .rnd svg{width:20px;height:20px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+#nxp .room{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 16px;border-radius:999px;border:0;background:rgba(0,0,0,.3);color:#fff;font:600 13px Inter,-apple-system,sans-serif;cursor:pointer;max-width:70%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#nxp .room svg{width:14px;height:14px;stroke:#fff;fill:none;stroke-width:2;flex:none}
+#nxp .art{width:min(320px,74vw);aspect-ratio:1;margin:22px auto 0;border-radius:24px;background:#26272d center/cover;box-shadow:0 30px 60px rgba(0,0,0,.5);display:grid;place-items:center;flex:none;transition:transform var(--m-page) var(--e-spring)}
+#nxp .art.paused{transform:scale(.94)}
+#nxp .art svg{width:56px;height:56px;stroke:rgba(255,255,255,.5);fill:none;stroke-width:1.4}
+#nxp .tt{margin-top:26px;font-size:24px;font-weight:600;letter-spacing:-.01em;line-height:1.2;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+#nxp .wh{font-size:15px;color:rgba(255,255,255,.7);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#nxp .prog{position:relative;height:22px;margin-top:16px;cursor:pointer;touch-action:none}
+#nxp .prog .tr{position:absolute;left:0;right:0;top:9px;height:5px;border-radius:3px;background:rgba(255,255,255,.22);overflow:hidden}
+#nxp .prog .tr i{position:absolute;left:0;top:0;bottom:0;background:#fff;border-radius:3px}
+#nxp .times{display:flex;justify-content:space-between;font-size:11.5px;color:rgba(255,255,255,.6);font-variant-numeric:tabular-nums}
+#nxp .ctl{display:flex;align-items:center;justify-content:center;gap:34px;margin-top:14px}
+#nxp .ctl button{border:0;background:none;cursor:pointer;display:grid;place-items:center;transition:transform var(--m-tap) var(--e-spring)}
+#nxp .ctl button:active{transform:scale(.9)}
+#nxp .ctl button:disabled{opacity:.3;cursor:default}
+#nxp .ctl .sk svg{width:32px;height:32px;fill:#fff}
+#nxp .ctl .pp{width:76px;height:76px;border-radius:50%;background:#fff;box-shadow:0 12px 30px rgba(0,0,0,.35)}
+#nxp .ctl .pp svg{width:28px;height:28px;fill:#000}
+#nxp .vol{display:flex;align-items:center;gap:12px;margin-top:22px}
+#nxp .vol svg{width:20px;height:20px;stroke:#fff;fill:none;stroke-width:1.8;flex:none}
+#nxp .vol .bar{position:relative;flex:1;height:30px;cursor:pointer;touch-action:none}
+#nxp .vol .bar .tr{position:absolute;left:0;right:0;top:11px;height:8px;border-radius:4px;background:rgba(255,255,255,.22);overflow:hidden}
+#nxp .vol .bar .tr i{position:absolute;left:0;top:0;bottom:0;background:#fff}
+#nxp .vol b{width:30px;text-align:right;font-size:13px;font-weight:600;font-variant-numeric:tabular-nums}
+#nxp .row4{display:flex;justify-content:space-around;margin-top:24px}
+#nxp .row4 button{display:flex;flex-direction:column;align-items:center;gap:6px;border:0;background:none;color:#fff;font:500 11.5px Inter,-apple-system,sans-serif;cursor:pointer;min-width:64px}
+#nxp .row4 button svg{width:24px;height:24px;stroke:#fff;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+#nxp .row4 button.on svg{stroke:#8A98FF}#nxp .row4 button.on{color:#8A98FF}
+@media (min-width:900px) and (orientation:landscape){
+  #nxp .in{max-width:1080px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-rows:auto 1fr;column-gap:56px;align-items:center}
+  #nxp .hd{grid-column:1/-1}
+  #nxp .art{width:min(440px,40vw);margin:0 auto}
+  #nxp .side{align-self:center}
+}
+#nxp-sheet{position:fixed;inset:0;z-index:9200;display:none;align-items:center;justify-content:center;padding:18px;background:rgba(0,0,0,.55);font-family:Inter,-apple-system,sans-serif;color:#fff}
+#nxp-sheet.open{display:flex;animation:nxlFade var(--m-page) var(--e-standard)}
+#nxp-sheet .cd{width:100%;max-width:480px;max-height:82vh;overflow-y:auto;background:#17181c;border-radius:28px;padding:20px;box-shadow:0 30px 80px rgba(0,0,0,.6);animation:nxrArrive var(--m-page) var(--e-spring)}
+#nxp-sheet .sh{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:14px}
+#nxp-sheet h2{font-size:22px;font-weight:600}
+#nxp-sheet .sub{font-size:13px;color:rgba(255,255,255,.62);margin-top:3px}
+#nxp-sheet .x{width:38px;height:38px;border-radius:50%;border:0;background:#26272d;color:#fff;font-size:20px;cursor:pointer;flex:none}
+#nxp-sheet .li{display:flex;align-items:center;gap:12px;padding:10px;border-radius:16px;cursor:pointer}
+#nxp-sheet .li+.li{margin-top:4px}
+#nxp-sheet .li:hover{background:#1f2026}
+#nxp-sheet .li.cur{background:rgba(77,99,255,.16)}
+#nxp-sheet .li .a{width:44px;height:44px;border-radius:10px;background:#26272d center/cover;flex:none;display:grid;place-items:center}
+#nxp-sheet .li .a svg{width:18px;height:18px;stroke:rgba(255,255,255,.55);fill:none;stroke-width:1.7}
+#nxp-sheet .li .g{flex:1;min-width:0}
+#nxp-sheet .li b{display:block;font-size:14.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#nxp-sheet .li small{display:block;font-size:12px;color:rgba(255,255,255,.6);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#nxp-sheet .ck{width:24px;height:24px;border-radius:50%;border:1.5px solid rgba(255,255,255,.3);flex:none;display:grid;place-items:center}
+#nxp-sheet .ck.on{background:#4D63FF;border-color:#4D63FF}
+#nxp-sheet .ck svg{width:14px;height:14px;stroke:#fff;fill:none;stroke-width:3}
+#nxp-sheet .ib{width:34px;height:34px;border-radius:50%;border:0;background:#26272d;color:#fff;cursor:pointer;flex:none;font-size:15px}
+#nxp-sheet .chips{display:flex;gap:8px;margin-bottom:12px}
+#nxp-sheet .chips button{height:36px;padding:0 14px;border-radius:999px;border:0;background:#26272d;color:#fff;font:600 13px Inter,-apple-system,sans-serif;cursor:pointer}
+#nxp-sheet .chips button.on{background:#4D63FF}
+#nxp-sheet .empty{padding:24px 6px;text-align:center;color:rgba(255,255,255,.62);font-size:14px}
+@media (prefers-reduced-motion:reduce){#nxp.open,#nxp-sheet.open,#nxp-sheet .cd{animation:none}#nxp .art,#nxp .ctl button,#nxp .bg{transition:none}}
+</style>
+<script>
+(function(){
+  var pe=function(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); };
+  var SV={back:'<path d="m15 6-6 6 6 6"/>',down:'<path d="m6 9 6 6 6-6"/>',note:'<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>',
+    vol:'<path d="M11 5 6 9H2v6h4l5 4zM15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/>',rooms:'<circle cx="7" cy="7" r="3"/><circle cx="17" cy="11" r="3"/><circle cx="9" cy="17" r="3"/>',
+    src:'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+    queue:'<path d="M4 6h16M4 12h10M4 18h10M17 15l4 3-4 3z"/>',search:'<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',check:'<path d="M20 6 9 17l-5-5"/>',
+    shuf:'<path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/>',rep:'<path d="M17 1l4 4-4 4M3 11V9a4 4 0 0 1 4-4h14M7 23l-4-4 4-4M21 13v2a4 4 0 0 1-4 4H3"/>'};
+  var sv=function(k){ return '<svg viewBox="0 0 24 24">'+(SV[k]||'')+'</svg>'; };
+  var PLAY='<svg viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></svg>', PAUSE='<svg viewBox="0 0 24 24"><path d="M6 4.5h4v15H6zM14 4.5h4v15h-4z"/></svg>',
+      PREV='<svg viewBox="0 0 24 24"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg>', NEXT='<svg viewBox="0 0 24 24"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg>';
+  var F={PAUSE:1,SEEK:2,VOLUME:4,PREV:16,NEXT:32,SOURCE:2048,PLAY:16384,SHUFFLE:32768,REPEAT:262144,GROUP:524288};
+  var timer=null, drag=null, volPend=null, seekPend=null, sheet=null, prevSpeaker=undefined;
+  var feat=function(e){ return parseInt(att(e,'supported_features')||0,10); };
+  // what the player shows, worked out from the platform (driven by the bench)
+  function _nxpModel(e, now){
+    var S=states[e]; if(!S) return null;
+    var q=(typeof _queueOwner==='function')?_queueOwner(e):e, m=(typeof _mediaFrom==='function')?_mediaFrom(e):e, M=(states[m]||S).attributes||{}, A=S.attributes||{};
+    var s=(states[m]||S).state, live=s==='playing'||s==='paused';
+    var dur=+M.media_duration||0, pos=+M.media_position||0;
+    if(s==='playing'&&M.media_position_updated_at){ var t=Date.parse(M.media_position_updated_at); if(!isNaN(t)) pos+=((now||Date.now())-t)/1000; }
+    if(dur&&pos>dur) pos=dur;
+    var fq=feat(q), fe=feat(e);
+    return {e:e, q:q, m:m, state:s, playing:s==='playing', live:live, gone:!s||s==='unavailable'||s==='unknown',
+      title:live?(M.media_title||M.media_channel||''):'', who:live?[M.media_artist||M.media_album_name||'', M.app_name||A.source||''].filter(Boolean).join(' · '):'',
+      dur:dur, pos:pos, canSeek:!!(fq&F.SEEK)&&dur>0, canPrev:!!(fq&F.PREV), canNext:!!(fq&F.NEXT), canPP:!!(fq&(F.PAUSE|F.PLAY)),
+      shuffle:att(q,'shuffle'), repeat:att(q,'repeat'), canShuf:!!(fq&F.SHUFFLE), canRep:!!(fq&F.REPEAT),
+      sources:(A.source_list||[]).filter(function(x){ return typeof x==='string'; }), source:A.source||'', canGroup:!!(fe&F.GROUP)};
+  }
+  window._nxpModel=_nxpModel;
+  var fmt=function(s){ s=Math.max(0,Math.floor(s||0)); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); };
+  var roomLabel=function(e){ var r=''; try{ r=playerRoomName(e); }catch(x){} var n=''; try{ n=speakerLabel(e); }catch(x){} n=n||att(e,'friendly_name')||e;
+    return r&&n.toLowerCase().indexOf(r.toLowerCase())<0?r+' · '+n:n; };
+  var volEnt=function(){ return (typeof _playerVolEntity!=='undefined'&&_playerVolEntity)||_playerEntity; };
+  var canQueue=function(q){ try{ return isMaPlayer(q)||(typeof _spmCan==='function'&&_spmCan(q)); }catch(x){ return false; } };
+  var siblings=function(e){ try{ var s=groupSiblings(e)||[]; return s.indexOf(e)<0?[e].concat(s):s; }catch(x){ return [e]; } };
+  function _nxpDraw(){
+    var p=document.getElementById('nxp'); if(!p||!p.classList.contains('open')) return;
+    var e=_playerEntity; if(!e||!states[e]){ return; }
+    var M=_nxpModel(e); if(!M) return;
+    var art=''; try{ var a=(typeof _artOf==='function')?_artOf(M.m):att(M.m,'entity_picture'); art=a&&M.live?artSrc(a):''; }catch(x){}
+    var v=volEnt(), vl=volPend!=null?volPend:Math.round((+att(v,'volume_level')||0)*100);
+    var pos=seekPend!=null?seekPend:M.pos, pct=M.dur?Math.min(100,pos/M.dur*100):0;
+    var g=M.canGroup&&siblings(e).length>1, gm=(att(e,'group_members')||[]).length;
+    var sig=JSON.stringify([e,art,M.title,M.who,M.playing,M.canPrev,M.canNext,vl,g,gm,M.sources.length,canQueue(M.q),M.gone]);
+    if(p._sig!==sig){ p._sig=sig;
+      p.querySelector('.bg').style.backgroundImage=art?"url('"+String(art).replace(/'/g,'%27')+"')":'';
+      p.querySelector('.room span').textContent=roomLabel(e);
+      var ar=p.querySelector('.art'); ar.style.backgroundImage=art?"url('"+String(art).replace(/'/g,'%27')+"')":''; ar.innerHTML=art?'':sv('note'); ar.classList.toggle('paused',!M.playing);
+      p.querySelector('.tt').textContent=M.gone?'Can’t reach it':(M.title||'Not playing');
+      p.querySelector('.wh').textContent=M.gone?'':(M.who||(M.live?'':'Pick something in Search'));
+      var c=p.querySelector('.ctl');
+      c.innerHTML='<button type="button" class="sk" data-pc="prev"'+(M.canPrev&&M.live?'':' disabled')+' aria-label="Previous">'+PREV+'</button>'+
+        '<button type="button" class="pp" data-pc="pp"'+(M.canPP?'':' disabled')+' aria-label="'+(M.playing?'Pause':'Play')+'">'+(M.playing?PAUSE:PLAY)+'</button>'+
+        '<button type="button" class="sk" data-pc="next"'+(M.canNext&&M.live?'':' disabled')+' aria-label="Next">'+NEXT+'</button>';
+      p.querySelector('.vol').style.display=states[v]&&att(v,'volume_level')!=null?'':'none';
+      var r4=[];
+      if(g) r4.push('<button type="button" data-ps="rooms" class="'+(gm>1?'on':'')+'">'+sv('rooms')+(gm>1?gm+' Rooms':'Rooms')+'</button>');
+      if(M.sources.length) r4.push('<button type="button" data-ps="sources">'+sv('src')+'Sources</button>');
+      if(canQueue(M.q)) r4.push('<button type="button" data-ps="queue">'+sv('queue')+'Queue</button>');
+      try{ if(isMaPlayer(e)||isSonos(e)||isHeos(e)||isHomePod(e)) r4.push('<button type="button" data-ps="search">'+sv('search')+'Search</button>'); }catch(x){}
+      p.querySelector('.row4').innerHTML=r4.join('');
+      p.querySelectorAll('[data-pc]').forEach(function(b){ b.onclick=function(){ _nxpCmd(b.dataset.pc); }; });
+      p.querySelectorAll('[data-ps]').forEach(function(b){ b.onclick=function(){ _nxpSheet(b.dataset.ps); }; });
+    }
+    p.querySelector('.prog').style.visibility=M.canSeek&&M.live?'visible':'hidden';
+    p.querySelector('.times').style.visibility=M.canSeek&&M.live?'visible':'hidden';
+    p.querySelector('.prog i').style.width=pct+'%';
+    p.querySelector('.times span').textContent=fmt(pos); p.querySelector('.times span+span').textContent='-'+fmt(Math.max(0,M.dur-pos));
+    if(drag!=='vol'){ p.querySelector('.vol .tr i').style.width=vl+'%'; p.querySelector('.vol b').textContent=vl; }
+    if(sheet) _nxpSheetDraw();
+  }
+  // the commands — today's, at the queue owner (10 Aug) and the room's one volume (556)
+  function _nxpCmd(k){ var e=_playerEntity; if(!e) return; var q=(typeof _playerQueue==='function')?_playerQueue():e;
+    if(k==='pp'){ try{ togglePlayPause(e); }catch(x){} }
+    else if(k==='prev') svc('media_player','media_previous_track',{entity_id:q});
+    else if(k==='next') svc('media_player','media_next_track',{entity_id:q});
+    try{ _proosHaptic&&_proosHaptic('tick'); }catch(x){} }
+  window._nxpCmd=_nxpCmd;
+  // drags: the progress (seek, sent once on lift) and the volume (sent as it moves, like today's 150 ms, and on lift)
+  function _nxpBind(p){
+    var at=function(el,ev){ var r=el.getBoundingClientRect(); return Math.max(0,Math.min(1,(ev.clientX-r.left)/r.width)); };
+    var pr=p.querySelector('.prog'), vb=p.querySelector('.vol .bar'), vt=null;
+    pr.onpointerdown=function(ev){ var M=_nxpModel(_playerEntity); if(!M||!M.canSeek) return; drag='seek'; try{ pr.setPointerCapture(ev.pointerId); }catch(x){} seekPend=at(pr,ev)*M.dur; _nxpDraw();
+      pr.onpointermove=function(e2){ seekPend=at(pr,e2)*M.dur; _nxpDraw(); };
+      pr.onpointerup=function(){ pr.onpointermove=pr.onpointerup=null; drag=null; var q=(typeof _playerQueue==='function')?_playerQueue():_playerEntity;
+        svc('media_player','media_seek',{entity_id:q, seek_position:seekPend}); var sp=seekPend; setTimeout(function(){ if(seekPend===sp) seekPend=null; },2500); }; };
+    vb.onpointerdown=function(ev){ var v=volEnt(); if(!v) return; drag='vol'; try{ vb.setPointerCapture(ev.pointerId); }catch(x){}
+      var set=function(e2){ volPend=Math.round(at(vb,e2)*100); p.querySelector('.vol .tr i').style.width=volPend+'%'; p.querySelector('.vol b').textContent=volPend;
+        clearTimeout(vt); vt=setTimeout(function(){ svc('media_player','volume_set',{entity_id:v, volume_level:volPend/100}); },150); };
+      set(ev); vb.onpointermove=set;
+      vb.onpointerup=function(){ vb.onpointermove=vb.onpointerup=null; drag=null; clearTimeout(vt); svc('media_player','volume_set',{entity_id:v, volume_level:volPend/100}); var vp=volPend; setTimeout(function(){ if(volPend===vp) volPend=null; },2500); }; };
+  }
+  // ── the sheets ──
+  var QS={items:[], cur:null, err:''};
+  function _nxpSheet(k){
+    if(k==='search'){ var e=_playerEntity; _nxpClose(true); try{ openMusicForPlayer(e); }catch(x){} return; }   // today's Music page until it is rebuilt
+    sheet=k; var ov=document.getElementById('nxp-sheet'); ov.classList.add('open'); ov._sig='';
+    if(k==='queue'){ if(prevSpeaker===undefined) prevSpeaker=(typeof _musicSpeaker!=='undefined')?_musicSpeaker:null; try{ _musicSpeaker=_nxpModel(_playerEntity).q; }catch(x){} _nxpQueueLoad(); }
+    _nxpSheetDraw();
+  }
+  async function _nxpQueueLoad(){ QS.err=''; try{ var r=await fetch(_mqUrl()); var d=await r.json(); QS.items=(d&&d.items)||[]; QS.cur=d&&d.current_index; }catch(x){ QS.items=[]; QS.err='The queue didn’t answer'; } var ov=document.getElementById('nxp-sheet'); if(ov) ov._sig=''; _nxpSheetDraw(); }
+  function _nxpSheetDraw(){
+    var ov=document.getElementById('nxp-sheet'); if(!ov||!ov.classList.contains('open')||!sheet) return;
+    var e=_playerEntity, M=_nxpModel(e)||{}, h='';
+    var head=function(t,sub){ return '<div class="sh"><div><h2>'+pe(t)+'</h2>'+(sub?'<div class="sub">'+pe(sub)+'</div>':'')+'</div><button type="button" class="x" data-px aria-label="Close">×</button></div>'; };
+    if(sheet==='rooms'){ var gm=new Set(att(e,'group_members')||[e]); if(_nxpSheetDraw.opt&&_nxpSheetDraw.opt.host===e&&Date.now()-_nxpSheetDraw.opt.t<6000) gm=_nxpSheetDraw.opt.m;
+      h=head('Rooms','Playing from '+roomLabel(e))+siblings(e).sort(function(a,b){ return a===e?-1:b===e?1:roomLabel(a).localeCompare(roomLabel(b)); }).map(function(x){ var on=x===e||gm.has(x);
+        return '<div class="li" data-pg="'+pe(x)+'"><div class="a">'+sv('note')+'</div><div class="g"><b>'+pe(roomLabel(x))+'</b><small>'+(x===e?'This room':on?'Playing the same':'Tap to add')+'</small></div><span class="ck'+(on?' on':'')+'">'+(on?sv('check'):'')+'</span></div>'; }).join(''); }
+    else if(sheet==='sources'){ h=head('Sources',roomLabel(e))+(M.sources||[]).map(function(s){ return '<div class="li'+(s===M.source?' cur':'')+'" data-psrc="'+pe(s)+'"><div class="a">'+sv('src')+'</div><div class="g"><b>'+pe(s)+'</b>'+(s===M.source?'<small>Playing now</small>':'')+'</div></div>'; }).join(''); }
+    else if(sheet==='play_to'){ var L=(window._nxAll?_nxAll():[]).filter(function(d){ return d.cat==='Music'; });
+      h=head('Play To','Choose the speaker this player controls')+L.map(function(d){ var R=_nxpModel(d.lead)||{}; return '<div class="li'+(d.lead===e?' cur':'')+'" data-pto="'+pe(d.lead)+'"><div class="a">'+sv('note')+'</div><div class="g"><b>'+pe(roomLabel(d.lead))+'</b><small>'+pe(R.title?R.title+(R.playing?'':' · Paused'):'Not playing')+'</small></div></div>'; }).join(''); }
+    else if(sheet==='queue'){ var tools='<div class="chips">'+(M.canShuf?'<button type="button" data-pq="shuffle" class="'+(M.shuffle?'on':'')+'">Shuffle</button>':'')+(M.canRep?'<button type="button" data-pq="repeat" class="'+(M.repeat&&M.repeat!=='off'?'on':'')+'">'+(M.repeat==='one'?'Repeat One':'Repeat')+'</button>':'')+'</div>';
+      h=head('Queue',roomLabel(e))+tools+(QS.err?'<div class="empty">'+pe(QS.err)+'</div>':!QS.items.length?'<div class="empty">Nothing queued</div>':QS.items.map(function(it,i){
+        var mi=it.media_item||it, nm=mi.name||it.name||'–', ar=(mi.artists&&mi.artists[0]&&mi.artists[0].name)||mi.artist||'', id=it.queue_item_id||it.item_id||'';
+        var raw=mi.image; if(raw&&typeof raw==='object') raw=raw.path||raw.url||''; if(!raw) raw=it.image||it.thumbnail||''; var im=''; try{ im=raw&&!(typeof _maImageProxy==='function'&&_maImageProxy(raw))?artSrc(raw):''; }catch(x){}
+        return '<div class="li'+(i===QS.cur?' cur':'')+'"><div class="a" style="'+(im?"background-image:url('"+String(im).replace(/'/g,'%27')+"')":'')+'" data-pqp="'+pe(id)+'">'+(im?'':sv('note'))+'</div><div class="g" data-pqp="'+pe(id)+'"><b>'+pe(nm)+'</b><small>'+pe(ar)+'</small></div>'+
+          (i>0?'<button type="button" class="ib" data-pqm="'+pe(id)+'" data-d="-1" aria-label="Move up">↑</button>':'')+'<button type="button" class="ib" data-pqr="'+pe(id)+'" aria-label="Remove">×</button></div>'; }).join('')); }
+    if(ov._sig===h) return; ov._sig=h; var y=(ov.querySelector('.cd')||{}).scrollTop||0;
+    ov.innerHTML='<div class="cd" onclick="event.stopPropagation()">'+h+'</div>'; ov.querySelector('.cd').scrollTop=y;
+    ov.querySelector('[data-px]').onclick=_nxpSheetClose;
+    ov.querySelectorAll('[data-pg]').forEach(function(b){ b.onclick=function(){ var x=b.dataset.pg; if(x===e) return; var cur=new Set(att(e,'group_members')||[e]), nx=new Set(cur); nx.add(e);
+      if(cur.has(x)){ svc('media_player','unjoin',{entity_id:x}); nx.delete(x); } else { svc('media_player','join',{entity_id:e, group_members:[x]}); nx.add(x); }
+      _nxpSheetDraw.opt={host:e, m:nx, t:Date.now()}; ov._sig=''; _nxpSheetDraw(); }; });
+    ov.querySelectorAll('[data-psrc]').forEach(function(b){ b.onclick=function(){ svc('media_player','select_source',{entity_id:e, source:b.dataset.psrc}); _nxpSheetClose(); }; });
+    ov.querySelectorAll('[data-pto]').forEach(function(b){ b.onclick=function(){ var to=b.dataset.pto; _nxpSheetClose(); if(to!==e){ try{ openPlayer(to); }catch(x){} } }; });
+    ov.querySelectorAll('[data-pq]').forEach(function(b){ b.onclick=function(){ if(b.dataset.pq==='shuffle'){ try{ playerShuffle(); }catch(x){} } else { try{ playerRepeat(); }catch(x){} } }; });
+    ov.querySelectorAll('[data-pqp]').forEach(function(b){ b.onclick=async function(){ try{ await _mqAct('play',{item:b.dataset.pqp}); }catch(x){} setTimeout(_nxpQueueLoad,400); }; });
+    ov.querySelectorAll('[data-pqr]').forEach(function(b){ b.onclick=async function(){ try{ await _mqAct('remove',{item:b.dataset.pqr}); }catch(x){} setTimeout(_nxpQueueLoad,350); }; });
+    ov.querySelectorAll('[data-pqm]').forEach(function(b){ b.onclick=async function(){ try{ await _mqAct('move',{item:b.dataset.pqm, pos_shift:-1}); }catch(x){} setTimeout(_nxpQueueLoad,350); }; });
+  }
+  function _nxpSheetClose(){ sheet=null; var ov=document.getElementById('nxp-sheet'); if(ov){ ov.classList.remove('open'); ov.innerHTML=''; }
+    if(prevSpeaker!==undefined){ try{ _musicSpeaker=prevSpeaker; }catch(x){} prevSpeaker=undefined; } }
+  function _nxpClose(keepOld){ _nxpSheetClose(); clearInterval(timer); timer=null; var p=document.getElementById('nxp'); if(p) p.classList.remove('open'); document.body.classList.remove('nxp-on');
+    if(!keepOld){ try{ closePlayer(); }catch(x){} } }
+  window._nxpClose=_nxpClose;
+  function _nxpBuild(){
+    var p=document.getElementById('nxp'); if(p) return p;
+    p=document.createElement('div'); p.id='nxp';
+    p.innerHTML='<div class="bg"></div><div class="in"><div class="hd"><button type="button" class="rnd" data-pback aria-label="Close">'+sv('down')+'</button><button type="button" class="room" data-pto-open><span></span>'+sv('down')+'</button><span style="width:42px"></span></div>'+
+      '<div class="art"></div><div class="side"><div class="tt"></div><div class="wh"></div><div class="prog"><div class="tr"><i></i></div></div><div class="times"><span>0:00</span><span>0:00</span></div>'+
+      '<div class="ctl"></div><div class="vol">'+sv('vol')+'<div class="bar"><div class="tr"><i></i></div></div><b>0</b></div><div class="row4"></div></div></div>';
+    document.body.appendChild(p);
+    var ov=document.createElement('div'); ov.id='nxp-sheet'; ov.onclick=_nxpSheetClose; document.body.appendChild(ov);
+    p.querySelector('[data-pback]').onclick=function(){ _nxpClose(); };
+    p.querySelector('[data-pto-open]').onclick=function(){ _nxpSheet('play_to'); };
+    _nxpBind(p); return p;
+  }
+  window._nxpOpen=function(){ var p=_nxpBuild(); p._sig=''; p.classList.add('open'); document.body.classList.add('nxp-on'); _nxpDraw(); clearInterval(timer); timer=setInterval(_nxpDraw,500); };
+  // in the New Look, a SPEAKER's player is this one: today's openPlayer still resolves the speaker, its queue owner and the
+  // room's volume (and routes a TV to its remote) — then this draws instead of today's player
+  var _openOld=window.openPlayer;
+  if(typeof _openOld==='function') window.openPlayer=function(e){
+    var r=_openOld.apply(this, arguments);
+    try{ var ov=document.getElementById('player-overlay'), audio=(isMaPlayer(_playerEntity)||isSonos(_playerEntity)||isHeos(_playerEntity)||isHomePod(_playerEntity));
+      if(document.body.classList.contains('nx-on') && ov && ov.classList.contains('open') && audio) window._nxpOpen(); }catch(x){}
+    return r; };
+})();
+</script>
+<style>body.nxp-on #player-overlay{visibility:hidden}</style>
 <!-- REGISTER 1365 motion styles (the type scale stays the last stylesheet) -->
 <style>
 /* 1367 (Dave 16 Nov 06:42): the room page takes the All Rooms tile's on/off look and follows the room live; 1369: off is a
