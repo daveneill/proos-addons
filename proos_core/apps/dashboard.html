@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111702';
+const PROOS_BUILD='2026111703';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -15184,7 +15184,7 @@ function _doorbellRang(eid){
     if(++tries<40) setTimeout(soundWhenLive, 250); };
   // REGISTER 1365 motion 9: a banner grows from the top first; the camera still opens itself (726) a moment later, or at once
   // when the banner is tapped — the close timer and the sound start from when the view really opens
-  const _open=()=>{ openProtectCamera(i); _doorbellArmClose(eid, v, i, t); soundWhenLive(); };
+  const _open=()=>{ openProtectCamera(i); try{ window._nxdRing&&window._nxdRing(i, t); }catch(e){} _doorbellArmClose(eid, v, i, t); soundWhenLive(); };   // 1395: the ring's own view in the New Look
   if(!already){ if(typeof window._mxRingThen==='function') window._mxRingThen((CONFIG.cameras[i]&&CONFIG.cameras[i].name)||'', _open); else _open(); return; }
   if(window._paRingSeq===window._paOpenSeq) _doorbellArmClose(eid, v, i, t);   // rang again on the ring's own view: a new minute
   soundWhenLive();
@@ -26842,6 +26842,91 @@ body.nx-on #atv-page .tvp-chrow button,body.nx-on #atv-page .tvp-pad button:not(
   var _ac=window.atvClose; if(typeof _ac==='function') window.atvClose=function(){ var r=_ac.apply(this,arguments); document.body.classList.remove('nxa-on'); clearInterval(tick); tick=null; return r; };
   // a tap on the New Look bar (not the microphone) closes the remote first, then the bar goes where it goes
   document.addEventListener('click',function(ev){ if(!document.body.classList.contains('nxa-on')) return; var b=ev.target&&ev.target.closest&&ev.target.closest('#nx-bar .nb'); if(b&&_atv) atvClose(); },true);
+})();
+</script>
+<!-- ══ REGISTER 1394/1395 — REBUILD STEP 3, THE PIN PAD AND THE DOORBELL RING IN THE NEW LOOK (Dave 17 Nov "keep going";
+     mocks S.pin, S.doorbell). Both keep their machinery, which is ruled: THE PIN PAD is the alarm's own step (698) — a
+     keypad only when the panel needs a code, sized to the code, NO auto-submit (six-digit codes exist), the platform's
+     answer read on the sheet, the code never kept. In the New Look it is the mock's sheet: "Arm Away" with "Enter your
+     alarm code" under it, open dots that fill, round keys with ⌫ in the corner, and OK as the one blue button. THE RING is
+     the doorbell's own event (705), the banner first and the camera opening by itself (1365 motion 9, 726), closing
+     itself after the minute unless Talk started (726). In the New Look the view the RING opened is the mock's: the live
+     picture full screen, "Someone's at the Front Door · Just now · Doorbell" across the top, and its own buttons — Talk
+     (blue), Sound, Message — large at the foot. Unlock is NOT added: unlocking from the app is off until Dave rules
+     (1382, question 3). A camera opened by hand is today's viewer (the camera rebuild is its own step). -->
+<style>
+body.nx-on #pin-bg{background:rgba(0,0,0,.55)}
+body.nx-on #pin-overlay .pin-panel{width:min(360px,calc(100% - 32px));background:#1b1c20;border:0;border-radius:28px;padding:28px 24px 18px;gap:0;box-shadow:0 30px 80px rgba(0,0,0,.6);font-family:Inter,-apple-system,sans-serif;text-align:center}
+body.nx-on #pin-overlay .pin-title{font-size:22px;font-weight:600;letter-spacing:-.02em}
+body.nx-on #pin-overlay .pin-mode{margin-top:4px;font-size:13px;letter-spacing:0;text-transform:none;color:rgba(255,255,255,.62)}
+body.nx-on #pin-overlay .pin-dots{gap:16px;margin:22px 0;justify-content:center}
+body.nx-on #pin-overlay .pin-dot{width:14px;height:14px;background:none;border:0;box-shadow:inset 0 0 0 2px rgba(255,255,255,.4)}
+body.nx-on #pin-overlay .pin-dot.filled{background:#fff;box-shadow:none}
+body.nx-on #pin-overlay .pin-dot.error{background:#E0564B;box-shadow:none}
+body.nx-on #pin-overlay .pin-msg{margin:-8px 0 12px;font-size:13px;color:#ffb0a8}
+body.nx-on #pin-overlay .pin-pad{gap:14px 10px;padding:0 6px}
+body.nx-on #pin-overlay .pin-key{width:66px;height:66px;justify-self:center;border-radius:50%;border:0;background:#2a2b31;font-size:26px;font-weight:300;font-family:inherit}
+body.nx-on #pin-overlay .pin-key:active{background:#3a3b42}
+body.nx-on #pin-overlay .pin-key:nth-child(11){grid-column:2;grid-row:4}
+body.nx-on #pin-overlay .pin-key.del{grid-column:3;grid-row:4;background:none;font-size:22px;color:rgba(255,255,255,.72)}
+body.nx-on #pin-overlay .pin-go{margin-top:20px;height:52px;border-radius:16px;background:#2139F0;font-size:16px;font-weight:600;font-family:inherit}
+body.nx-on #pin-overlay.no-code .pin-go{margin-top:22px}
+body.nx-on #pin-overlay .pin-cancel{margin-top:8px;font-size:14px;color:rgba(255,255,255,.62);font-family:inherit}
+/* the ring's own view */
+body.nx-on #pa-detail.nxd-ring .pa-fs-tl,body.nx-on #pa-detail.nxd-ring .pa-fs-name,body.nx-on #pa-detail.nxd-ring .pa-fs-livebtn{display:none}
+body.nx-on #pa-detail.nxd-ring .pa-fs-live{flex:1 1 auto;width:100%;height:100%}
+body.nx-on #pa-detail.nxd-ring .pa-fs-imgwrap video,body.nx-on #pa-detail.nxd-ring .pa-fs-imgwrap img{width:100%;height:100%;max-width:none;max-height:none;object-fit:cover}
+body.nx-on #pa-detail.nxd-ring .pa-fs-live::after{content:'';position:absolute;inset:0;z-index:2;pointer-events:none;background:linear-gradient(180deg,rgba(0,0,0,.5),transparent 30%,transparent 55%,rgba(0,0,0,.85))}
+body.nx-on #pa-detail.nxd-ring .pa-fs-back{top:16px;left:16px;width:44px;height:44px;background:rgba(0,0,0,.35);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px)}
+body.nx-on #pa-detail .nxd-card{position:absolute;top:72px;left:16px;right:16px;z-index:3;display:flex;align-items:center;gap:12px;padding:14px;border-radius:22px;background:rgba(27,28,32,.82);-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px);font-family:Inter,-apple-system,sans-serif;color:#fff;max-width:520px;margin:0 auto}
+body.nx-on #pa-detail .nxd-card .nxd-ic{width:44px;height:44px;border-radius:14px;flex:none;display:grid;place-items:center;background:rgba(77,99,255,.2)}
+body.nx-on #pa-detail .nxd-card .nxd-ic svg{width:22px;height:22px;stroke:#8A98FF;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+body.nx-on #pa-detail .nxd-card b{display:block;font-size:15px;font-weight:600}
+body.nx-on #pa-detail .nxd-card small{display:block;margin-top:2px;font-size:13px;color:rgba(255,255,255,.66)}
+body.nx-on #pa-detail.nxd-ring .pa-fs-ctrls{left:18px;right:18px;bottom:calc(28px + env(safe-area-inset-bottom,0px));display:flex;gap:10px;max-width:520px;margin:0 auto}
+body.nx-on #pa-detail.nxd-ring .pa-fs-ctrls .pa-fs-btn{flex:1;min-width:0;height:54px;padding:0 10px;border-radius:18px;font-size:15px;font-weight:600;font-family:Inter,-apple-system,sans-serif;background:rgba(255,255,255,.2);border:0;-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px)}
+body.nx-on #pa-detail.nxd-ring .pa-fs-ctrls .pa-fs-talk{order:-1;background:#2139F0}
+body.nx-on #pa-detail.nxd-ring .pa-fs-ctrls .pa-fs-talk.talking.live{background:#d64a3f}
+body.nx-on #pa-detail.nxd-ring .pa-fs-ctrls .pa-fs-listen.on{background:rgba(77,99,255,.55)}
+body.nx-on #pa-detail.nxd-ring .pa-fs-pip{top:156px;right:16px;left:auto;bottom:auto;width:min(32%,180px)}
+</style>
+<script>
+(function(){
+  var esc=function(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); };
+  var BELL='<svg viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 21h4"/></svg>';
+  function _nxdOn(){ return document.body.classList.contains('nx-on'); }
+  // ── the PIN pad's words (the mock): what the button does as the title, what to do under it
+  function _nxPinWords(service, mode, needsCode, name, many){
+    var m=String(mode||'').toLowerCase().replace(/(^|\s)\S/g,function(c){ return c.toUpperCase(); });
+    var t=service==='alarm_disarm'?'Disarm':('Arm '+m).trim();
+    var s=needsCode?('Enter your alarm code'+(many&&name?' · '+name:'')):(name||'');
+    return {t:t, s:s};
+  }
+  window._nxPinWords=_nxPinWords;
+  var _op=window.openPinOverlay;
+  if(typeof _op==='function') window.openPinOverlay=function(service, modeLabel, eid){ var r=_op.apply(this,arguments);
+    try{ if(_nxdOn() && typeof pinEntity!=='undefined' && pinEntity){ var many=Object.keys(states||{}).filter(function(e){ return e.indexOf('alarm_control_panel.')===0; }).length>1;
+      var w=_nxPinWords(service, modeLabel, pinNeedsCode, _alarmName(pinEntity), many);
+      document.getElementById('pin-title').textContent=w.t; document.getElementById('pin-mode-label').textContent=w.s; } }catch(x){}
+    return r; };
+  // ── the ring's own view
+  function _nxdTitle(name){ name=String(name||'').trim(); return /door|gate|entry|porch/i.test(name)?'Someone’s at the '+name:'Someone’s at the Door'; }
+  function _nxdAge(ms){ var m=Math.floor(Math.max(0,ms)/60000); return m<1?'Just now':(m===1?'1 min ago':m+' min ago'); }
+  window._nxdTitle=_nxdTitle; window._nxdAge=_nxdAge;
+  var tick=null;
+  function _nxdStop(){ clearInterval(tick); tick=null; var ov=document.getElementById('pa-detail'); if(ov){ ov.classList.remove('nxd-ring'); var c=ov.querySelector('.nxd-card'); if(c) c.remove(); } }
+  window._nxdRing=function(i, ringAt){
+    if(!_nxdOn()) return; var ov=document.getElementById('pa-detail'), cam=(CONFIG.cameras||[])[i]; if(!ov||!cam) return;
+    var live=ov.querySelector('.pa-fs-live'); if(!live) return;
+    ov.classList.add('nxd-ring'); var old=ov.querySelector('.nxd-card'); if(old) old.remove();
+    live.insertAdjacentHTML('beforeend','<div class="nxd-card" role="status"><div class="nxd-ic">'+BELL+'</div><div><b>'+esc(_nxdTitle(cam.name))+'</b><small class="nxd-age">'+esc(_nxdAge(Date.now()-ringAt))+' · Doorbell</small></div></div>');
+    clearInterval(tick); tick=setInterval(function(){ var o=document.getElementById('pa-detail');
+      if(!o||o.style.display==='none'||!o.classList.contains('nxd-ring')){ _nxdStop(); return; }
+      var a=o.querySelector('.nxd-age'), w=_nxdAge(Date.now()-ringAt)+' · Doorbell'; if(a&&a.textContent!==w) a.textContent=w; },5000);
+  };
+  // a camera opened afresh (by hand, or the next ring) starts as today's viewer; the ring marks its own view after
+  var _opc=window.openProtectCamera; if(typeof _opc==='function') window.openProtectCamera=function(){ _nxdStop(); return _opc.apply(this,arguments); };
+  var _cpc=window.closeProtectCamera; if(typeof _cpc==='function') window.closeProtectCamera=function(){ var r=_cpc.apply(this,arguments); _nxdStop(); return r; };
 })();
 </script>
 <!-- REGISTER 1365 motion styles (the type scale stays the last stylesheet) -->
