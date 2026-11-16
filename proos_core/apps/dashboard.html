@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111701';
+const PROOS_BUILD='2026111702';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -25006,8 +25006,26 @@ body.nx-on #nx-page.open{display:block}
   function _nxrAvScenes(r){ var acts=(typeof _pacActs==='function'&&_pacActs(r))||[]; return acts.filter(function(a){ return a&&a.script&&!_pacIsOffAct(a); }); }
   function _nxrOffAct(r){ var acts=(typeof _pacActs==='function'&&_pacActs(r))||[]; return acts.filter(function(a){ return a&&a.script&&_pacIsOffAct(a); })[0]||null; }
   function _nxrAvState(r, key){ var v='sensor.proos_activity_'+r.id, s=String(st(v)||''), ver=att(v,'verified')===true, ext=att(v,'external')===true;
-    if(firing[r.id]&&firing[r.id].key===key&&Date.now()-firing[r.id].t<90000&&!(s===key&&ver)) return 'starting';
+    var f=firing[r.id];   // 1393: starting until Core confirms AND every device has read back (the "Ready" moment included)
+    if(f&&f.key===key&&(s===key&&ver?f.hold:Date.now()-f.t<_PAC_WAIT_MS+8000)) return 'starting';
     return (s===key && ver && !ext)?'on':'off'; }
+  // 1393 (mock S.starting; 1368): the tapped tile's ring fills one piece per device as each reads back, its words say who
+  // it is waiting on; Core confirms and every device has answered → that activity's control page opens by itself. Past
+  // Core's start window a device that never answered is named in red, and the tile lets go.
+  function _nxrRing(r){ var P=null; try{ P=window._mxProofNow&&_mxProofNow(r.id); }catch(e){}
+    if(!P||!P.rows.length) return {svg:'<svg class="ring" viewBox="0 0 36 36"><circle cx="18" cy="18" r="15" fill="none" stroke="rgba(255,255,255,.25)" stroke-width="3"/><circle cx="18" cy="18" r="15" fill="none" stroke="#fff" stroke-width="3" stroke-dasharray="30 95" stroke-linecap="round"/></svg>', cap:''};
+    var n=P.rows.length, C=94.25, per=C/n, gap=n>1?3:0, done=P.ok.filter(Boolean).length, out='';
+    P.rows.forEach(function(row,i){ out+='<circle cx="18" cy="18" r="15" fill="none" stroke="'+(P.ok[i]?'#5FB98C':(P.timedOut?'#E0564B':'rgba(255,255,255,.25)'))+'" stroke-width="3" stroke-linecap="round" stroke-dasharray="'+Math.max(per-gap,1).toFixed(2)+' '+C+'" stroke-dashoffset="'+(-(i*per)).toFixed(2)+'" transform="rotate(-90 18 18)"/>'; });
+    var w=P.rows[P.ok.indexOf(false)], cap=done===n?'Ready':P.timedOut?((w&&w.name)||'A device')+' didn’t answer':'Waiting on '+((w&&w.name)||'…');
+    return {svg:'<svg class="ring prog" viewBox="0 0 36 36">'+out+'</svg>', cap:cap, bad:P.timedOut&&done<n}; }
+  function _nxrSettle(r){ var f=firing[r.id]; if(!f) return; var v='sensor.proos_activity_'+r.id, done=String(st(v)||'')===f.key&&att(v,'verified')===true;
+    if(Date.now()-f.t>_PAC_WAIT_MS){ try{ window._mxProofTimedOut&&_mxProofTimedOut(r.id); }catch(e){} }
+    if(!done){ f.hold=false; if(Date.now()-f.t>_PAC_WAIT_MS+8000) firing[r.id]=null; return; }
+    var hold=false; try{ hold=!!(window._mxProofHold&&_mxProofHold(r.id)); }catch(e){}
+    f.hold=hold; if(hold) return;
+    firing[r.id]=null; try{ window._mxProofClear&&_mxProofClear(); }catch(e){}
+    try{ _pacGoControl(r,f.key); }catch(e){} }   // the remote opens by itself (today's card does the same, 1090)
+  window._nxrRing=_nxrRing;
   // a platform scene in this room: lit only while every device in it still reads what the scene set (Core /scenes/expect, 1365)
   function _nxrRoomScenes(r){ return Object.keys(states||{}).filter(function(e){ return e.indexOf('scene.')===0 && entityAreaMap[e]===r.id && !hiddenEntities.has(e); }); }
   // 1377 — the 1373 rule in full: lit only when the scene WAS RUN (the platform stamps a scene with when it last ran) and every
@@ -25038,6 +25056,7 @@ body.nx-on #nx-page.open{display:block}
   }
   function _nxrDraw(){
     var r=ROOM; if(!r) return; var p=document.getElementById('nx-page'); if(!p||!p.classList.contains('open')||!p.classList.contains('nx-room-pg')) return;
+    _nxrSettle(r);   // 1393
     var L=_nxrDevicesIn(r), on=L.filter(function(d){ return d.r.now; }), lights=L.filter(function(d){ return d.k.kind==='light'; }), litN=lights.filter(function(d){ return d.r.on; }).length;
     var av=_nxrAvScenes(r), sc=_nxrRoomScenes(r), off=_nxrOffAct(r); _nxrLoadSceneChecks(sc);
     var lv=_nxrLightLevel(L);
@@ -25049,9 +25068,9 @@ body.nx-on #nx-page.open{display:block}
     var aware=sensors.length?('<span class="nx-aware" style="margin:0'+(open.length?';background:rgba(255,181,71,.12)':'')+'"><span class="nx-dot" style="'+(open.length?'background:#FFB547;box-shadow:none':'')+'"></span>'+
       (open.length?open.map(function(d){ return d.name+' '+d.r.word.toLowerCase(); }).join(' · '):'All normal · '+sensors.length+(sensors.length===1?' sensor':' sensors')+' checked')+'</span>'):'';
     // scenes row
-    var tiles=av.map(function(a){ var s=_nxrAvState(r,a.key); return '<button type="button" class="nxr-scn'+(s==='on'?' on':'')+'" data-av="'+nxrEsc(a.key)+'" data-script="'+nxrEsc(a.script)+'">'+gi('tv','g')+
-        (s==='starting'?'<svg class="ring" viewBox="0 0 36 36"><circle cx="18" cy="18" r="15" fill="none" stroke="rgba(255,255,255,.25)" stroke-width="3"/><circle cx="18" cy="18" r="15" fill="none" stroke="#fff" stroke-width="3" stroke-dasharray="30 95" stroke-linecap="round"/></svg>':'<span class="tag">AV</span>')+
-        '<b>'+nxrEsc(String(a.label||a.key).replace(/^Watch\s+/i,'Watch '))+'</b></button>'; })
+    var tiles=av.map(function(a){ var s=_nxrAvState(r,a.key), R=s==='starting'?_nxrRing(r):null; return '<button type="button" class="nxr-scn'+(s==='on'?' on':'')+(R?' go':'')+'" data-av="'+nxrEsc(a.key)+'" data-script="'+nxrEsc(a.script)+'">'+gi('tv','g')+
+        (R?R.svg:'<span class="tag">AV</span>')+
+        '<b>'+nxrEsc(String(a.label||a.key).replace(/^Watch\s+/i,'Watch '))+(R&&R.cap?'<small class="nxr-cap'+(R.bad?' bad':R.cap==='Ready'?' ok':'')+'">'+nxrEsc(R.cap)+'</small>':'')+'</b></button>'; })
       .concat(sc.map(function(e){ return '<button type="button" class="nxr-scn'+(_nxrSceneOn(e)?' on':'')+'" data-scene="'+nxrEsc(e)+'">'+gi('spark','g')+'<b>'+nxrEsc(_pxName({lead:e,devName:att(e,'friendly_name')},{kind:'other'},r,states))+'</b></button>'; }))
       .concat((off||lights.length||L.some(function(d){ return d.k.kind==='speaker'; }))?['<button type="button" class="nxr-scn" data-off="1">'+gi('pw','g')+'<b>Room Off</b></button>']:[]);
     // on now: the lights as one _nxrCard, every other device that is on as its own
@@ -25073,7 +25092,8 @@ body.nx-on #nx-page.open{display:block}
     p.querySelector('[data-back]').onclick=function(){ _nxrStop(); _nxGo('rooms'); };
     p.querySelectorAll('[data-av]').forEach(function(b){ b.onclick=function(){ var key=b.dataset.av;
       if(_nxrAvState(r,key)==='on'){ try{ _pacGoControl(r,key); }catch(e){} return; }   // already on → its control page
-      firing[r.id]={key:key,t:Date.now()}; try{ window.proosFireActivity&&window.proosFireActivity(r.id,b.dataset.script); }catch(e){} p._sig=''; _nxrDraw(); }; });
+      firing[r.id]={key:key,t:Date.now()}; try{ window._mxProofStart&&window._mxProofStart(r.id,b.dataset.script); }catch(e){}   // 1393: each device's own reading
+      try{ window.proosFireActivity&&window.proosFireActivity(r.id,b.dataset.script); }catch(e){} p._sig=''; _nxrDraw(); }; });
     p.querySelectorAll('[data-scene]').forEach(function(b){ b.onclick=function(){ try{ svc('scene','turn_on',{entity_id:b.dataset.scene}); }catch(e){} sceneCheck[b.dataset.scene]=null; setTimeout(function(){ p._sig=''; _nxrDraw(); },1500); }; });
     var off=p.querySelector('[data-off]'); if(off) off.onclick=function(){ var oa=_nxrOffAct(r);
       if(oa){ firing[r.id]=null; try{ window.proosFireActivity&&window.proosFireActivity(r.id,oa.script); }catch(e){} }
@@ -26709,6 +26729,121 @@ body.nx-on #device-chooser{z-index:9380}
 })();
 </script>
 <style>body.nxp-on #player-overlay{visibility:hidden}</style>
+<!-- ══ REGISTER 1392/1393 — REBUILD STEP 2a, THE REMOTES IN THE NEW LOOK (Dave 17 Nov "keep going"; mock S.remote). The Apple
+     TV, TV and Shield pages keep everything Dave has ruled on — the tabs, the touch surface and D-pad switch, the edge row,
+     Back · TV · Play/Pause, Channel only on live TV, Room Off, the volume at the foot of every tab, pairing in Pro — and are
+     redrawn to the mock under the New Look: the playing picture frosted behind (1366), a round back button and the TITLE
+     IS WHAT IS PLAYING with "Apple TV · room · app" under it, Room Off as a frosted chip, a large frosted touch surface,
+     round frosted keys, the mock's + / − volume pill beside them (the same volume_set the bar sends, on the same endpoint),
+     and the volume bar naming where the sound goes (the room's committed endpoint, 556). The New Look bar stays at the
+     foot; a tap on it closes the remote first. Off, nothing changes. -->
+<style>
+body.nx-on.nxa-on #nx-bar{z-index:9105}
+body.nx-on #atv-page{--atv-glass:rgba(255,255,255,.08);--atv-glass2:rgba(255,255,255,.12);--atv-ink2:rgba(255,255,255,.72);--atv-ink3:rgba(255,255,255,.55);--proos-dock-h:84px;background:#0e0e10;font-family:Inter,-apple-system,sans-serif}
+@media (min-width:820px){body.nx-on #atv-page{--proos-dock-h:92px}}
+body.nx-on #atv-page .atv-bg.photo.art{filter:blur(40px) brightness(.55) saturate(1.2)}
+body.nx-on #atv-page .atv-bg.photo.art::after{background:linear-gradient(180deg,rgba(0,0,0,.18),rgba(0,0,0,.42))}
+body.nx-on #atv-page .atv-hl.nxa-hl{flex-direction:row;align-items:center;gap:12px;min-width:0}
+body.nx-on #atv-page .nxa-bk{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;flex:none;background:rgba(255,255,255,.12)!important;-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px)}
+body.nx-on #atv-page .nxa-bk svg{width:20px;height:20px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+body.nx-on #atv-page .nxa-tt{min-width:0;display:flex;flex-direction:column;gap:2px}
+body.nx-on #atv-page .nxa-tt b{font-size:24px;font-weight:600;letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+body.nx-on #atv-page .nxa-tt small{font-size:13px;color:rgba(255,255,255,.72);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+body.nx-on #atv-page .nxa-tt .nxa-st{display:none}
+body.nx-on #atv-page .atv-segs{background:rgba(255,255,255,.08);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px)}
+body.nx-on #atv-page .atv-segs button.on{background:rgba(255,255,255,.2)}
+body.nx-on #atv-page .atv-chip{background:rgba(0,0,0,.3);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px)}
+body.nx-on #atv-page .atv-roff{background:rgba(0,0,0,.3)!important;color:#fff!important;height:38px;padding:0 14px;-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);box-shadow:inset 0 0 0 1px rgba(255,255,255,.1)}
+body.nx-on #atv-page .atv-roff svg{width:15px;height:15px}
+body.nx-on #atv-page .atv-pad{border-radius:30px;background:rgba(255,255,255,.08);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}
+body.nx-on #atv-page .atv-pad.touching{background:rgba(255,255,255,.13)}
+body.nx-on #atv-page .atv-tog{background:rgba(0,0,0,.3)}
+body.nx-on #atv-page .atv-dpad .ok{background:rgba(255,255,255,.12);box-shadow:inset 0 0 0 1px rgba(255,255,255,.1)}
+body.nx-on #atv-page .atv-rk{justify-content:space-between;gap:12px}
+body.nx-on #atv-page .atv-rk>button{width:64px;height:64px;background:rgba(255,255,255,.12)!important;-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px)}
+body.nx-on #atv-page .atv-rk>button.c{width:76px;height:76px}
+body.nx-on #atv-page .atv-rk>button svg{width:24px;height:24px}body.nx-on #atv-page .atv-rk>button.c svg{width:30px;height:30px}
+body.nx-on #atv-page .nxa-vp{display:flex;flex-direction:column;gap:4px;padding:5px;border-radius:32px;background:rgba(255,255,255,.12);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px)}
+body.nx-on #atv-page .nxa-vp button{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;background:none!important}
+body.nx-on #atv-page .nxa-vp svg{width:20px;height:20px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round}
+body.nx-on #atv-page .atv-key,body.nx-on #atv-page .atv-trans button:not(.big){background:rgba(255,255,255,.12)!important;-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px)}
+body.nx-on #atv-page .atv-np,body.nx-on #atv-page .atv-mini,body.nx-on #atv-page .tvp-now{background:rgba(255,255,255,.08);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);box-shadow:inset 0 0 0 1px rgba(255,255,255,.06);border:0}
+body.nx-on #atv-page .atv-np .tvp-now{background:none;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none}
+body.nx-on #atv-page .atv-app .awt{border-radius:18px}
+body.nx-on #atv-page .atv-sfield,body.nx-on #atv-page .atv-filter{background:rgba(255,255,255,.1);border-radius:15px}
+body.nx-on #atv-page .pl-vol{height:48px;border-radius:15px;background:rgba(255,255,255,.12);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px)}
+body.nx-on #atv-page .tvp-chrow button,body.nx-on #atv-page .tvp-pad button:not(.ok){background:rgba(255,255,255,.1);border:0}
+/* 1393 — an AV scene starting on the room page: the ring fills one piece per device (no spin once the devices are known) */
+.nxr-scn .ring.prog{animation:none}
+.nxr-scn.go{box-shadow:inset 0 0 0 1px rgba(255,255,255,.14)}
+.nxr-scn b .nxr-cap{display:block;margin-top:3px;font-size:12px;font-weight:500;color:rgba(255,255,255,.72);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nxr-scn b .nxr-cap.ok{color:#9fe0bf}.nxr-scn b .nxr-cap.bad{color:#ffb0a8}
+@media (orientation:portrait) and (max-width:600px){
+  body.nx-on #atv-page .atv-hdr{flex-wrap:wrap}
+  body.nx-on #atv-page .atv-hl.nxa-hl{flex:1 1 0}
+  body.nx-on #atv-page .atv-chip{display:none}
+  body.nx-on #atv-page .nxa-tt .nxa-st{display:inline}
+  body.nx-on #atv-page .nxa-tt b{font-size:21px}
+  body.nx-on #atv-page .atv-roff{width:auto;padding:0 12px}body.nx-on #atv-page .atv-roff em{display:inline}
+}
+@media (orientation:landscape) and (max-height:520px){
+  body.nx-on #atv-page .nxa-tt b{font-size:17px}body.nx-on #atv-page .nxa-tt small{display:none}
+  body.nx-on #atv-page .atv-rk>button{width:54px;height:54px}body.nx-on #atv-page .atv-rk>button.c{width:64px;height:64px}
+  body.nx-on #atv-page .nxa-vp button{width:38px;height:38px}
+}
+</style>
+<script>
+(function(){
+  var esc=function(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); };
+  var BACK='<svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg>', PLUS='<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>', MINUS='<svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg>';
+  var tick=null;
+  function _nxaOn(){ return document.body.classList.contains('nx-on'); }
+  function kindWord(){ return !_atv?'':_atv.kind==='tv'?'TV':_atv.kind==='shield'?'Shield':'Apple TV'; }
+  function devName(e){ return (typeof deviceNameById!=='undefined'&&deviceNameById[entityDeviceMap[e]])||att(e,'friendly_name')||''; }
+  // the title is what is playing (what the device reports); nothing reported → the device's own name
+  function _nxaModel(){
+    var e=_atv.e, t=''; try{ t=_npName(e); }catch(x){}
+    var k=kindWord(), room=_atv.room?(_atv.room.name||_atv.room.id):'', app=att(e,'app_name')||'';
+    if(!t) return {t:devName(e)||k, s:[room].filter(Boolean).join(' · ')};
+    return {t:t, s:[k,room,app].filter(Boolean).join(' · ')};
+  }
+  window._nxaModel=function(){ return _atv?_nxaModel():null; };
+  function _nxaHead(){
+    var p=document.getElementById('atv-page'); if(!p||!_atv||!_nxaOn()) return;
+    document.body.classList.add('nxa-on');
+    var hl=p.querySelector('.atv-hl'); if(!hl) return;
+    if(!hl.classList.contains('nxa-hl')){ hl.classList.add('nxa-hl');
+      hl.innerHTML='<button type="button" class="nxa-bk" data-act="close" aria-label="Back">'+BACK+'</button><div class="nxa-tt"><b></b><small><span class="nxa-s1"></span><span class="nxa-st"></span></small></div>';
+      hl.querySelector('.nxa-bk').onclick=function(){ atvClose(); }; }
+    var m=_nxaModel(), b=hl.querySelector('.nxa-tt b'), s1=hl.querySelector('.nxa-s1'), sw=hl.querySelector('.nxa-st');
+    if(b.textContent!==m.t) b.textContent=m.t; if(s1.textContent!==m.s) s1.textContent=m.s;
+    var ch=document.querySelector('#atv-chip em'), w=ch?ch.textContent:''; w=w?((m.s?' · ':'')+w):''; if(sw.textContent!==w) sw.textContent=w;   // the phone shows the status chip's own word here
+  }
+  // the + / − pill (the mock): beside the round keys, on the endpoint the bar moves, only when that endpoint reports a level
+  function _nxaPill(){
+    var p=document.getElementById('atv-page'); if(!p||!_atv||!_nxaOn()) return;
+    var rk=p.querySelector('.atv-rk'); if(!rk) return; var v=_atv.vol, lvl=att(v,'volume_level'), have=rk.querySelector('.nxa-vp');
+    if(lvl==null){ if(have) have.remove(); return; } if(have) return;
+    rk.insertAdjacentHTML('beforeend','<div class="nxa-vp"><button type="button" data-nxv="1" aria-label="Volume up">'+PLUS+'</button><button type="button" data-nxv="-1" aria-label="Volume down">'+MINUS+'</button></div>');
+    rk.querySelectorAll('[data-nxv]').forEach(function(x){ x.onclick=function(){ _nxaStep(+x.dataset.nxv); }; });
+  }
+  function _nxaStep(dir){ if(!_atv) return; var v=_atv.vol, l=att(v,'volume_level'); if(l==null) return;
+    var n=Math.max(0,Math.min(1,Math.round((l+dir*0.02)*50)/50)); if(n===l) return;
+    svc('media_player','volume_set',{entity_id:v,volume_level:n}); }
+  window._nxaStep=_nxaStep;
+  function _nxaDeco(){ try{ _nxaHead(); _nxaPill(); }catch(x){}
+    clearInterval(tick); tick=setInterval(function(){ var p=document.getElementById('atv-page');
+      if(!_atv||!p||!p.classList.contains('open')||!_nxaOn()){ clearInterval(tick); tick=null; document.body.classList.remove('nxa-on'); return; } try{ _nxaHead(); _nxaPill(); }catch(x){} },1000); }
+  ['_atvRender','_tvRender','_shRender','_atvRenderBody','_tvRenderBody','_shRenderBody'].forEach(function(n){ var f=window[n]; if(typeof f!=='function') return;
+    window[n]=function(){ var r=f.apply(this,arguments); if(_nxaOn()) _nxaDeco(); return r; }; });
+  // the volume bar names where the sound goes (556: the room's committed endpoint)
+  var _vh=window._atvVolHTML; if(typeof _vh==='function') window._atvVolHTML=function(){ var h=_vh.apply(this,arguments);
+    if(!h||!_nxaOn()||!_atv) return h; var n=devName(_atv.vol); return n?h.replace('</svg>Volume</span>','</svg>Volume · '+esc(n)+'</span>'):h; };
+  var _ac=window.atvClose; if(typeof _ac==='function') window.atvClose=function(){ var r=_ac.apply(this,arguments); document.body.classList.remove('nxa-on'); clearInterval(tick); tick=null; return r; };
+  // a tap on the New Look bar (not the microphone) closes the remote first, then the bar goes where it goes
+  document.addEventListener('click',function(ev){ if(!document.body.classList.contains('nxa-on')) return; var b=ev.target&&ev.target.closest&&ev.target.closest('#nx-bar .nb'); if(b&&_atv) atvClose(); },true);
+})();
+</script>
 <!-- REGISTER 1365 motion styles (the type scale stays the last stylesheet) -->
 <style>
 /* 1367 (Dave 16 Nov 06:42): the room page takes the All Rooms tile's on/off look and follows the room live; 1369: off is a
@@ -30742,6 +30877,9 @@ try{ setInterval(_outcomesRead, LV_OUTCOME_EVERY_MS); }catch(e){}
   };
   window._mxProofTimedOut=function(roomId){ if(_proof && _proof.room===roomId) _proof.timedOut=true; };
   window._mxRowState=rowState;   // the bench drives the one rule a row is ticked by
+  // 1393: the New Look room page's AV tile draws the same proof — each device, read the same way, by the same rule
+  window._mxProofNow=function(roomId){ var p=_proof; if(!p || p.room!==roomId || !p.rows) return null;
+    return {rows:p.rows, ok:p.rows.map(function(r){ return rowState(r).ok; }), timedOut:p.timedOut, script:p.script}; };
   // 1368: the ring on the tile normally; the signal path only when a device is slow or fails
   var SLOW_MS=25000;     // plumbing: past this with a device still not reported, the path opens (Display On alone waits 20 s)
   var ICN={tv:'<rect x="9" y="11" width="18" height="12" rx="2"/><path d="M15 26h6"/>',inp:'<path d="M10 18h12M18 13l5 5-5 5"/><path d="M26 11v14"/>',
