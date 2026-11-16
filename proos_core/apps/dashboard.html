@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111618';
+const PROOS_BUILD='2026111619';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -24806,7 +24806,7 @@ body.nx-on #nx-page.open{display:block}
     var a=window._proosAvatar||{}; if(a.url){ av.style.backgroundImage="url('"+a.url+"')"; av.textContent=''; } else { av.style.backgroundImage=''; av.textContent=a.initial||'D'; }
   }
   function _nxPage(html){ var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg'); document.body.classList.remove('nx-scr');   // 1376/1377/1378/1379: leaving a room page, Home or Lights
+    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg'); document.body.classList.remove('nx-scr');   // 1376–1380: leaving a room page, Home or Lights
     p.innerHTML='<div class="nx-in">'+html+'</div>'; p.classList.add('open'); p.scrollTop=0; return p; }
   function closePage(){ var p=document.getElementById('nx-page'); if(p) p.classList.remove('open'); }
   function _nxGoTo(id){
@@ -24866,6 +24866,7 @@ body.nx-on #nx-page.open{display:block}
   function drawCategory(c){
     if(c==='Lights'&&typeof _nxLights==='function') return _nxLights();   // 1378: the Lights page
     if(c==='Climate'&&typeof _nxClimateList==='function') return _nxClimateList();   // 1379: the Climate page
+    if(c==='Shades'&&typeof _nxShades==='function') return _nxShades(null);   // 1380: the Shades page
     var all=nxAll().filter(function(d){ return d.cat===c; }), rooms=CONFIG.rooms||[], by={};
     all.forEach(function(d){ (by[d.area||'']=by[d.area||'']||[]).push(d); });
     var html='<button type="button" class="nx-back" data-b>'+svgOf('back')+'</button><div class="nx-hd"><div><h1>'+nxEsc(c)+'</h1><div class="nx-sub">'+nxEsc((function(){ var x=catLine(c,all); return typeof x==='object'?x.w:x; })())+'</div></div>'+
@@ -25079,6 +25080,7 @@ body.nx-on #nx-page.open{display:block}
     var lc=p.querySelector('[data-lights]'); if(lc) lc.onclick=function(e){ if(e.target.closest('[data-lightsoff]')) return; if(typeof _nxLightSheet==='function'){ _nxLightSheet(r.id); return; } try{ _nxrCloseNx(); openLightOverlay(CONFIG.rooms.indexOf(r)); }catch(x){} };   // 1378: the room's lights card
     var lo=p.querySelector('[data-lightsoff]'); if(lo) lo.onclick=function(e){ e.stopPropagation(); var ls=lights.filter(function(d){ return d.r.on; }).map(function(d){ return d.lead; }); if(ls.length) svc('light','turn_off',{entity_id:ls}); };
     p.querySelectorAll('[data-cat]').forEach(function(b){ b.onclick=function(){ if(b.dataset.cat==='Climate'&&typeof _nxClimate==='function'){ _nxrStop(); _nxClimate(b.dataset.lead, function(){ _nxRoom(CONFIG.rooms.indexOf(r)); }); return; }   // 1379
+      if(b.dataset.cat==='Shades'&&typeof _nxShades==='function'){ _nxrStop(); _nxShades(function(){ _nxRoom(CONFIG.rooms.indexOf(r)); }, r.id); return; }   // 1380
       var m={Climate:'climate','Garage & Gates':'security','Locks & Access':'access'}[b.dataset.cat]; if(m){ _nxrCloseNx(); try{ showPage(m); }catch(x){} } }; });
   }
   function _nxrCloseNx(){ var p=document.getElementById('nx-page'); if(p) p.classList.remove('open'); _nxrStop(); }
@@ -25088,7 +25090,7 @@ body.nx-on #nx-page.open{display:block}
     try{ showPage('home'); selectRoom(i); }catch(e){}   // the room is the current room underneath: its widgets, Assist's room, its activities load
     try{ _pacActs(r); }catch(e){}
     var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-home-pg','nx-lights-pg','nx-clim-pg'); document.body.classList.remove('nx-scr'); p.classList.add('open','nx-room-pg'); p._sig=''; p.scrollTop=0; _nxrDraw();
+    p.classList.remove('nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg'); document.body.classList.remove('nx-scr'); p.classList.add('open','nx-room-pg'); p._sig=''; p.scrollTop=0; _nxrDraw();
     clearInterval(timer); timer=setInterval(_nxrDraw, 1000);   // live: the page follows the devices — a card arrives when something turns on, leaves when it goes off
   };
   window._nxRoomState=_nxrAvState; window._nxSceneHeld=_nxSceneHeld;
@@ -25273,6 +25275,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
     q('[data-hl]',function(b,e){ if(e.target.closest('[data-hloff]')) return; if(typeof _nxLightSheet==='function'){ _nxLightSheet(b.dataset.hl); return; } _nxhLeave(); try{ openLightOverlay(+b.dataset.ri); }catch(x){} });   // 1378
     q('[data-hloff]',function(b,e){ e.stopPropagation(); var ents=(b.closest('[data-ents]').dataset.ents||'').split(',').filter(Boolean); if(ents.length) svc('light','turn_off',{entity_id:ents}); });
     q('[data-hcat]',function(b){ if(b.dataset.hcat==='Climate'&&typeof _nxClimate==='function'){ _nxhStop(); _nxClimate(b.dataset.hlead, function(){ _nxHome(); }); return; }   // 1379
+      if(b.dataset.hcat==='Shades'&&typeof _nxShades==='function'){ _nxhStop(); _nxShades(function(){ _nxHome(); }); return; }   // 1380 (it opened the old Lights page)
       var m={Climate:'climate','Garage & Gates':'security','Locks & Access':'access',Security:'security',Shades:'lights'}[b.dataset.hcat]; if(m){ _nxhLeave(); try{ showPage(m); }catch(x){} } });
     q('[data-hscene]',function(b){ var s=(CONFIG.scenes||[])[+b.dataset.hscene]; if(!s) return; ran[s.entity]=Date.now(); try{ triggerScene(s.entity,+b.dataset.hscene); }catch(x){} p._sig=''; _nxhDraw(); });
     q('[data-halloff]',function(){   // All Off: every light that is on, and every player that is playing paused — never a switch, never a TV's own power (1 Nov)
@@ -25283,7 +25286,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
   window._nxHome=function(){
     try{ showPage('home'); selectRoom(-1); }catch(e){}   // Home's own widgets and Assist's "whole home" load underneath
     var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-lights-pg','nx-clim-pg'); p.classList.add('open','nx-home-pg'); p._sig=''; p.scrollTop=0; _nxhDraw();
+    p.classList.remove('nx-room-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg'); p.classList.add('open','nx-home-pg'); p._sig=''; p.scrollTop=0; _nxhDraw();
     // your picture steps aside once Home scrolls, so it never sits over a card (it stays at the top, as in the mock)
     p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; document.body.classList.remove('nx-scr');   // 1378b: every New Look page, not Home only
     clearInterval(homeTimer); homeTimer=setInterval(_nxhDraw, 1000);   // live: a card arrives when something turns on, folds away when it goes off
@@ -25420,7 +25423,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
   function _nxlStop(){ clearInterval(lightsTimer); lightsTimer=null; var p=document.getElementById('nx-page'); if(p) p.classList.remove('nx-lights-pg'); }
   window._nxLights=function(){
     var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-home-pg','nx-clim-pg'); p.classList.add('open','nx-lights-pg'); p._sig=''; p.scrollTop=0; _nxlDraw();
+    p.classList.remove('nx-room-pg','nx-home-pg','nx-clim-pg','nx-shade-pg'); p.classList.add('open','nx-lights-pg'); p._sig=''; p.scrollTop=0; _nxlDraw();
     p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; document.body.classList.remove('nx-scr');   // 1378b: your picture steps aside here too
     clearInterval(lightsTimer); lightsTimer=setInterval(_nxlDraw, 1000);
   };
@@ -25583,7 +25586,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
   function _nxcLine(e, M){ if(M.dead) return 'Can’t reach it'; if(M.sent) return 'Setting '+fmt(M.t)+'°…'; try{ return _cpLine(e); }catch(x){ return word(M.mode); } }
   function _nxcCls(m){ return m==='cool'?'cool':m==='heat'?'heat':(m==='heat_cool'||m==='auto')?'auto':''; }
   function _nxcPage(cls){ var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg'); p.classList.add('open',cls); p._sig=''; p.scrollTop=0;
+    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg'); p.classList.add('open',cls); p._sig=''; p.scrollTop=0;
     p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; document.body.classList.remove('nx-scr'); return p; }
 
   // ── the list ──
@@ -25653,6 +25656,115 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
   function _nxcShow(p,M,t){ var d=p.querySelector('[data-cdial]'); if(!d) return; var c=d.querySelector('.c'); d.innerHTML=_nxcDialSvg(M,t); d.appendChild(c); var b=d.querySelector('[data-ct]'); if(b) b.textContent=fmt(t)+'°'; }
   function _nxcStop(){ clearInterval(timer); timer=null; cur=null; var p=document.getElementById('nx-page'); if(p) p.classList.remove('nx-clim-pg'); }
   window._nxClimate=function(e, back){ cur=e; from=back||null; _nxcPage('nx-clim-pg'); _nxcDraw(); clearInterval(timer); timer=setInterval(function(){ cur?_nxcDraw():_nxcListDraw(); },1000); };
+})();
+</script>
+<!-- ══ REGISTER 1380 — STAGE 5c, SHADES (Dave 16 Nov 19:00 "Yes"). In the New Look: Devices › Shades — every blind,
+     shade and curtain by room. A shade that reports a position is a bar you slide sideways (a tap while it moves stops it;
+     an up-and-down movement is the page scrolling and sends nothing); one that cannot gets only the buttons it reports —
+     Open, Stop, Close — and is never sent a position it cannot take (1370). Tilt only where it reports tilt. Close All.
+     Until the shade reports, its words say what was sent (235). A room's or Home's shade card opens this page. -->
+<style>
+#nx-page.nx-shade-pg .nx-in{animation:none}
+.nxs-list{background:#1b1c20;border-radius:22px;padding:8px;display:grid;gap:8px}
+@media (min-width:820px){.nxs-list{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.nxs-bar{position:relative;height:58px;border-radius:16px;background:#26272d;overflow:hidden;cursor:pointer;touch-action:pan-y;user-select:none;-webkit-user-select:none}
+.nxs-bar i{position:absolute;left:0;top:0;bottom:0;width:0;background:linear-gradient(90deg,rgba(220,212,198,.55),rgba(236,228,214,.9));transition:width var(--m-tap) var(--e-standard)}
+.nxs-bar.drag i{transition:none}
+.nxs-bar span{position:absolute;top:50%;transform:translateY(-50%);font-size:15px;font-weight:600;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60%}
+.nxs-bar .nm{left:16px}.nxs-bar .v{right:14px;font-size:13px;max-width:38%;text-align:right}
+.nxs-bar.hi .nm,.nxs-bar.hi .v{color:#2a2418}
+.nxs-row{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:58px;padding:8px 8px 8px 16px;border-radius:16px;background:#26272d}
+.nxs-row b{display:block;font-size:15px;font-weight:600}.nxs-row small{display:block;font-size:12px;color:rgba(255,255,255,.6);margin-top:2px}
+.nxs-row small.mv{color:#8A98FF}
+.nxs-bt{display:flex;gap:6px;flex:none}
+.nxs-bt button{height:40px;padding:0 13px;border-radius:12px;border:0;background:#33343b;color:#fff;font:600 13px Inter,-apple-system,sans-serif;cursor:pointer;transition:transform var(--m-tap) var(--e-spring),background var(--m-tap) var(--e-standard)}
+.nxs-bt button:active{transform:scale(.94)}
+.nxs-bt button.on{background:#4D63FF}
+.nxs-gone{opacity:.55}
+@media (prefers-reduced-motion:reduce){.nxs-bar i,.nxs-bt button{transition:none}}
+</style>
+<script>
+(function(){
+  var nxsEsc=function(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); };
+  var BACK='<svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg>';
+  var pend={}, timer=null, held=false, from=null, focus=null;
+  // what a shade can do, by its supported_features (OPEN 1 · CLOSE 2 · SET_POSITION 4 · STOP 8 · OPEN_TILT 16 ·
+  // CLOSE_TILT 32 · STOP_TILT 64 · SET_TILT_POSITION 128) — never by its name
+  function _nxsCan(S){ var f=parseInt(((S&&S.attributes)||{}).supported_features||0,10);
+    return {open:!!(f&1), close:!!(f&2), pos:!!(f&4), stop:!!(f&8), topen:!!(f&16), tclose:!!(f&32)}; }
+  // what it reads, or what was SENT while it has not yet reported (235)
+  function _nxsRead(e, S, P, now){
+    var s=S&&S.state, A=(S&&S.attributes)||{}, can=_nxsCan(S);
+    if(!S||s==='unavailable'||s==='unknown') return {gone:true, word:'Can’t reach it', pos:null};
+    var pos=can.pos&&A.current_position!=null?Math.round(+A.current_position):null;
+    var moving=s==='opening'||s==='closing';
+    var p=P&&P[e];
+    if(p&&(now||Date.now())-p.t<8000){
+      var landed=p.cmd==='stop'?!moving:p.cmd==='open'?(s==='opening'||s==='open'):p.cmd==='close'?(s==='closing'||s==='closed'):(pos!=null&&Math.abs(pos-p.pos)<=2)||moving;
+      if(!landed) return {pos:p.cmd==='pos'?p.pos:pos, word:p.cmd==='stop'?'Stopping…':p.cmd==='open'?'Opening…':p.cmd==='close'?'Closing…':'Moving to '+p.pos+'%…', sent:true, moving:p.cmd!=='stop'};
+    }
+    var word=s==='opening'?'Opening':s==='closing'?'Closing':pos!=null?(pos>=99?'Open':pos<=1?'Closed':pos+'% open'):s==='open'?'Open':s==='closed'?'Closed':s;
+    return {pos:pos, word:word, moving:moving, open:s==='open'||(pos!=null&&pos>1)};
+  }
+  window._nxsCan=_nxsCan; window._nxsRead=_nxsRead;
+  function _nxsSend(e, cmd, pos){
+    pend[e]={cmd:cmd, pos:pos, t:Date.now()};
+    if(cmd==='pos') svc('cover','set_cover_position',{entity_id:e, position:pos});
+    else svc('cover', cmd==='open'?'open_cover':cmd==='close'?'close_cover':'stop_cover', {entity_id:e});
+    try{ _proosHaptic&&_proosHaptic('tick'); }catch(x){}
+  }
+  window._nxsSend=_nxsSend;
+  function _nxsAll(){ return (window._nxAll?_nxAll():[]).filter(function(d){ return d.k.kind==='shade'; }).map(function(d){ return {e:d.lead, area:d.area||'', name:d.name}; }); }
+  function _nxsSections(all){ var rs=(CONFIG.rooms||[]).slice(), seen={}; rs.forEach(function(r){ seen[r.id]=1; });
+    all.forEach(function(L){ if(L.area&&!seen[L.area]){ seen[L.area]=1; rs.push({id:L.area, name:(typeof areaNameById!=='undefined'&&areaNameById[L.area])||L.area}); } });
+    return rs.concat([{id:'',name:'Around the House'}]); }
+  function _nxsItem(L){
+    var S=states[L.e], can=_nxsCan(S), R=_nxsRead(L.e,S,pend);
+    if(R.gone) return '<div class="nxs-row nxs-gone"><div><b>'+nxsEsc(L.name)+'</b><small>'+R.word+'</small></div></div>';
+    if(can.pos){ var p=R.pos==null?0:R.pos;
+      return '<div class="nxs-bar'+(p>55?' hi':'')+'" data-sbar="'+nxsEsc(L.e)+'"><i style="width:'+p+'%"></i><span class="nm">'+nxsEsc(L.name)+'</span><span class="v">'+nxsEsc(R.word)+'</span></div>'; }
+    var b=[]; if(can.open) b.push(['open','Open']); if(can.stop) b.push(['stop','Stop']); if(can.close) b.push(['close','Close']);
+    return '<div class="nxs-row"><div style="min-width:0"><b>'+nxsEsc(L.name)+'</b><small class="'+(R.moving?'mv':'')+'">'+nxsEsc(R.word)+'</small></div><div class="nxs-bt">'+
+      b.map(function(x){ return '<button type="button" data-scmd="'+x[0]+'" data-se="'+nxsEsc(L.e)+'">'+x[1]+'</button>'; }).join('')+'</div></div>';
+  }
+  function _nxsDraw(){
+    var p=document.getElementById('nx-page'); if(!p||!p.classList.contains('open')||!p.classList.contains('nx-shade-pg')||held) return;
+    var all=_nxsAll(), secs=_nxsSections(all), open=all.filter(function(L){ return _nxsRead(L.e,states[L.e],pend).open; });
+    var closable=all.filter(function(L){ var S=states[L.e]; return S&&_nxsCan(S).close&&(S.state==='open'||S.state==='opening'||(S.attributes&&S.attributes.current_position>1)); });
+    var h='<div class="nx-in"><button type="button" class="nx-back" data-sb>'+BACK+'</button><div class="nx-hd"><div><h1>Shades</h1><div class="nx-sub">'+(all.length?(open.length?open.length+' of '+all.length+' open':'All closed'):'')+'</div></div>'+
+      (closable.length?'<button type="button" class="nx-chip" data-sclose>Close All</button>':'')+'</div>'+
+      (all.length?secs.map(function(r){ var Ls=all.filter(function(L){ return L.area===r.id; }); if(!Ls.length) return '';
+        return '<div class="nxl-room" data-sroom="'+nxsEsc(r.id)+'"><b>'+nxsEsc(r.name)+'</b><span></span></div><div class="nxs-list">'+Ls.map(_nxsItem).join('')+'</div>'; }).join('')
+        :'<div class="nxr-quiet">No shades yet<small>Blinds, shades and curtains appear here the moment your installer adds them.</small></div>')+'</div>';
+    if(p._sig===h) return; p._sig=h; var y=p.scrollTop; p.innerHTML=h; p.scrollTop=y;
+    if(focus!=null){ var t=p.querySelector('[data-sroom="'+focus+'"]'); if(t) p.scrollTop=Math.max(0,t.offsetTop-80); focus=null; }
+    p.querySelector('[data-sb]').onclick=function(){ var f=from; _nxsStop(); if(f) f(); else _nxGo('devices'); };
+    var ca=p.querySelector('[data-sclose]'); if(ca) ca.onclick=function(){ closable.forEach(function(L){ pend[L.e]={cmd:'close',t:Date.now()}; }); svc('cover','close_cover',{entity_id:closable.map(function(L){ return L.e; })}); p._sig=''; _nxsDraw(); };
+    p.querySelectorAll('[data-scmd]').forEach(function(b){ b.onclick=function(){ _nxsSend(b.dataset.se, b.dataset.scmd); p._sig=''; _nxsDraw(); }; });
+  }
+  function _nxsStop(){ clearInterval(timer); timer=null; from=null; var p=document.getElementById('nx-page'); if(p) p.classList.remove('nx-shade-pg'); }
+  window._nxShades=function(back, area){
+    var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
+    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg'); p.classList.add('open','nx-shade-pg'); p._sig=''; p.scrollTop=0;
+    p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; document.body.classList.remove('nx-scr');
+    from=back||null; focus=area==null?null:area; _nxsDraw(); clearInterval(timer); timer=setInterval(_nxsDraw, 1000);
+  };
+  // a positioned shade: slide sideways to set; tap stops it while it moves, else opens or closes it; up and down is a scroll
+  var G=null;
+  document.addEventListener('pointerdown', function(ev){ var t=ev.target.closest&&ev.target.closest('[data-sbar]'); if(!t) return;
+    var e=t.dataset.sbar; if(!states[e]||/unavailable|unknown/.test(states[e].state)) return;
+    G={el:t, e:e, x:ev.clientX, y:ev.clientY, axis:null, id:ev.pointerId, moved:false, pct:null}; }, true);
+  document.addEventListener('pointermove', function(ev){ if(!G||ev.pointerId!==G.id) return; var dx=ev.clientX-G.x, dy=ev.clientY-G.y;
+    if(!G.axis){ if(Math.abs(dx)<8&&Math.abs(dy)<8) return; G.axis=Math.abs(dx)>Math.abs(dy)?'h':'scroll'; if(G.axis==='scroll'){ G=null; return; }
+      held=true; G.el.classList.add('drag'); try{ G.el.setPointerCapture(ev.pointerId); }catch(x){} }
+    G.moved=true; ev.preventDefault(); var r=G.el.getBoundingClientRect(); G.pct=Math.max(0,Math.min(100,Math.round((ev.clientX-r.left)/r.width*100)));
+    var i=G.el.querySelector('i'); if(i) i.style.width=G.pct+'%'; var v=G.el.querySelector('.v'); if(v) v.textContent=G.pct>=99?'Open':G.pct<=1?'Closed':G.pct+'% open'; }, {capture:true, passive:false});
+  document.addEventListener('pointerup', function(ev){ if(!G||ev.pointerId!==G.id) return; var g=G; G=null; g.el.classList.remove('drag'); held=false;
+    var S=states[g.e], can=_nxsCan(S);
+    if(!g.moved){ var s=S.state; if((s==='opening'||s==='closing')&&can.stop) _nxsSend(g.e,'stop'); else _nxsSend(g.e, (s==='open'||(S.attributes&&S.attributes.current_position>1))?'close':'open'); }
+    else if(g.pct!=null) _nxsSend(g.e,'pos',g.pct);
+    var p=document.getElementById('nx-page'); if(p) p._sig=''; setTimeout(_nxsDraw,30); }, true);
+  document.addEventListener('pointercancel', function(ev){ if(G&&ev.pointerId===G.id){ G.el.classList.remove('drag'); G=null; held=false; } }, true);
 })();
 </script>
 <!-- REGISTER 1365 motion styles (the type scale stays the last stylesheet) -->
