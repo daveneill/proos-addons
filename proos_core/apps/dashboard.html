@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111605';
+const PROOS_BUILD='2026111606';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -12968,7 +12968,7 @@ function renderWidgetGrid(){
   addBtn.style.cssText=doneBtn.style.cssText+';color:rgba(255,255,255,0.9)';
   actionRow.style.justifyContent='flex-end';   // 1011b: + Add Widget and Done side by side at the right (they sat at opposite edges)
   addBtn.addEventListener('click', openWidgetPicker);
-  if(typeof _pvEditBtn==='function' && !(typeof _isPanel==='function' && _isPanel()) && _pvMayShow()) actionRow.appendChild(_pvEditBtn());   // 1370: Edit, shown while not editing
+  if(typeof _pvEditBtn==='function' && !(typeof _isPanel==='function' && _isPanel())){ actionRow.appendChild(_pvEditBtn()); actionRow.appendChild(_pvToggleBtn()); }   // 1370/1371: Edit (preview on, not editing) · Preview (while editing)
   actionRow.appendChild(addBtn);
   _ensureAddPill();   // the wall panel's own + (shown only in its edit mode)
   actionRow.appendChild(doneBtn);
@@ -24183,6 +24183,10 @@ async function saveService(){
 #widget-edit-btn{display:none;background:rgba(255,255,255,0.08);border:0.5px solid rgba(255,255,255,0.2);border-radius:20px;color:rgba(255,255,255,0.9);font-size:11px;letter-spacing:0.06em;padding:6px 20px;cursor:pointer;font-family:inherit}
 body.pv-on #widget-edit-btn{display:inline-block}
 body.proos-editing #widget-edit-btn{display:none!important}
+#widget-pv-btn{display:none;background:rgba(255,255,255,0.08);border:0.5px solid rgba(255,255,255,0.2);border-radius:20px;color:rgba(255,255,255,0.9);font-size:11px;letter-spacing:0.06em;padding:6px 16px;cursor:pointer;font-family:inherit}
+#widget-pv-btn.on{color:#7CF0C5;border-color:rgba(124,240,197,0.45)}
+body.proos-editing #widget-pv-btn{display:inline-block}
+html.proos-panel #widget-pv-btn{display:none!important}
 /* the full control, grown out of the held widget — a centred card in the widgets' frosting */
 #pv-card{position:fixed;inset:0;z-index:10070;display:flex;align-items:center;justify-content:center;padding-left:16px;padding-right:16px;padding-bottom:16px}
 #pv-card .pv-scrim{position:absolute;inset:0;background:rgba(0,0,0,.35);-webkit-backdrop-filter:blur(18px) saturate(120%);backdrop-filter:blur(18px) saturate(120%)}
@@ -24223,6 +24227,12 @@ body.proos-editing #widget-edit-btn{display:none!important}
   // the Edit button: editing now starts here, because holding one of these widgets opens its full control
   window._pvEditBtn=function(){ var b=document.createElement('button'); b.id='widget-edit-btn'; b.type='button'; b.textContent='Edit';
     b.addEventListener('click', function(){ try{ enterWidgetEditMode(); }catch(e){} }); return b; };
+  // 1371 (Dave 16 Nov 11:15: "there is no settings/this device ?? and we dont have a pro mode on the dashboard anymore";
+  // asked where the switch goes: "if its only for previewing then does not matter"): the switch is a Preview button in
+  // the editing row, beside + Add Widget, on any screen — reached by holding the page's background or any widget
+  window._pvToggleBtn=function(){ var b=document.createElement('button'); b.id='widget-pv-btn'; b.type='button';
+    b.textContent=on()?'Preview: On':'Preview: Off'; if(on()) b.classList.add('on');
+    b.addEventListener('click', function(e){ e.stopPropagation(); window._pvSet(!on()); try{ if(typeof _widgetEditMode!=='undefined'&&_widgetEditMode) enterWidgetEditMode(); }catch(x){} }); return b; };
 
   function _pvEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
   var IC={bulb:'<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z"/>',
