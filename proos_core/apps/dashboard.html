@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111608';
+const PROOS_BUILD='2026111609';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -24603,7 +24603,10 @@ html.proos-panel #widget-px-btn{display:none!important}
     switch(k.kind){
       case 'voice': return {on:false, word:s==='listening'?'Listening':s==='responding'?'Answering':'Ready'};
       case 'light': { if(s!=='on') return {on:false, word:'Off'}; var b=A('brightness'); return {on:true, now:true, word:(k.sub!=='switch'&&b!=null)?Math.max(1,Math.round(b/2.55))+'%':'On'}; }
-      case 'plug': case 'fan': return s==='on'?{on:true, now:true, word:'On'}:{on:false, word:'Off'};
+      // 1374c (Dave 16 Nov "yes"): a switch or plug is on, but not On Now — a power controller or an always-on outlet (the
+      // WattBox) would sit there forever; the installer will be able to put one in On Now from Pro (stage 8)
+      case 'plug': return s==='on'?{on:true, now:!!(dev.onNow), word:'On'}:{on:false, word:'Off'};
+      case 'fan': return s==='on'?{on:true, now:true, word:'On'}:{on:false, word:'Off'};
       case 'speaker': return s==='playing'?{on:true, now:true, blue:true, word:(A('media_title')?'Playing · '+A('media_title'):'Playing')}:s==='paused'?{on:true, now:true, blue:true, word:'Paused'}:{on:false, word:(s==='idle'||s==='on')?'Not playing':'Off'};
       case 'tv': case 'receiver': case 'source':
         if(s==='off'||s==='standby') return {on:false, word:'Off'};
