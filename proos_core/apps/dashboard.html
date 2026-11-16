@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111706';
+const PROOS_BUILD='2026111707';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -24807,7 +24807,7 @@ body.nx-on #nx-page.open{display:block}
     var a=window._proosAvatar||{}; if(a.url){ av.style.backgroundImage="url('"+a.url+"')"; av.textContent=''; } else { av.style.backgroundImage=''; av.textContent=a.initial||'D'; }
   }
   function _nxPage(html){ var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg','nx-scn-pg'); document.body.classList.remove('nx-scr');   // 1376–1380: leaving a room page, Home or Lights
+    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg','nx-scn-pg','nx-wx-pg','nx-en-pg'); document.body.classList.remove('nx-scr');   // 1376–1380: leaving a room page, Home or Lights
     p.innerHTML='<div class="nx-in">'+html+'</div>'; p.classList.add('open'); p.scrollTop=0; return p; }
   function closePage(){ var p=document.getElementById('nx-page'); if(p) p.classList.remove('open'); }
   function _nxGoTo(id){
@@ -24860,8 +24860,13 @@ body.nx-on #nx-page.open{display:block}
     html+='<div class="nx-cats">'+keys.map(function(c){ var L=cats[c], x=catLine(c,L), w=typeof x==='object'?x.w:x, warn=typeof x==='object'&&x.warn;
       var cls=warn?'warn':(c==='Lights'&&L.some(function(d){ return d.r.now; }))?'lit':((c==='Music'||c==='TVs & Media'||c==='Climate')&&L.some(function(d){ return d.r.now; }))?'blue':'';
       return '<button type="button" class="nx-cat '+cls+'" data-cat="'+nxEsc(c)+'"><div class="nx-ic">'+svgOf(CAT_IC[c]||'other')+'</div><div><b>'+nxEsc(c)+'</b><span>'+nxEsc(w)+'</span></div></button>'; }).join('')+'</div>';
+    // 1399: Energy — only when the home has the platform's Energy set up (620); the tile reads what the house uses now
+    try{ _energyLoad(); }catch(e){}
+    var E=window._energy; if(E&&E.ok&&typeof _nxEnergy==='function'){ var sun=E.rate&&E.rate.solar?_kwv(E.rate.solar):null, eline=E.hasSun&&sun!=null?'Solar '+_kwt(sun):'Today '+_kwh(E.used);
+      html=html.replace(/<\/div>$/, '<button type="button" class="nx-cat" data-energy><div class="nx-ic">'+'<svg viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>'+'</div><div><b>Energy</b><span>'+nxEsc(eline)+'</span></div></button></div>'); }
     var p=_nxPage(html);
     p.querySelectorAll('[data-cat]').forEach(function(b){ b.onclick=function(){ drawCategory(b.dataset.cat); }; });
+    var en=p.querySelector('[data-energy]'); if(en) en.onclick=function(){ _nxEnergy(function(){ _nxGo('devices'); }); };
   }
   // a category: its devices by room (read-only for now — each kind's controls come with stage 5); the full page where one exists
   function drawCategory(c){
@@ -25121,7 +25126,7 @@ body.nx-on #nx-page.open{display:block}
     try{ showPage('home'); selectRoom(i); }catch(e){}   // the room is the current room underneath: its widgets, Assist's room, its activities load
     try{ _pacActs(r); }catch(e){}
     var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg','nx-scn-pg'); document.body.classList.remove('nx-scr'); p.classList.add('open','nx-room-pg'); p._sig=''; p.scrollTop=0; _nxrDraw();
+    p.classList.remove('nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg','nx-scn-pg','nx-wx-pg','nx-en-pg'); document.body.classList.remove('nx-scr'); p.classList.add('open','nx-room-pg'); p._sig=''; p.scrollTop=0; _nxrDraw();
     clearInterval(timer); timer=setInterval(_nxrDraw, 1000);   // live: the page follows the devices — a card arrives when something turns on, leaves when it goes off
   };
   window._nxRoomState=_nxrAvState; window._nxSceneHeld=_nxSceneHeld;
@@ -25295,7 +25300,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
   function _nxhLeave(){ clearInterval(homeTimer); homeTimer=null; document.body.classList.remove('nx-scr'); var p=document.getElementById('nx-page'); if(p){ p.classList.remove('open','nx-home-pg'); } }
   function _nxhWire(p,M){
     var q=function(s,f){ p.querySelectorAll(s).forEach(function(b){ b.onclick=function(e){ f(b,e); }; }); };
-    q('[data-hwx]',function(){ _nxhLeave(); try{ showPage('weather'); }catch(x){} });
+    q('[data-hwx]',function(){ _nxhLeave(); if(typeof _nxWeather==='function'){ _nxWeather(function(){ _nxGo('home'); }); return; } try{ showPage('weather'); }catch(x){} });   // 1399
     q('[data-haware]',function(){ try{ openAwareness(); }catch(x){} });
     q('[data-hask]',function(){ try{ openAssist(); }catch(x){} });
     q('[data-hdev]',function(){ _nxhStop(); _nxGo('devices'); });
@@ -25319,7 +25324,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
   window._nxHome=function(){
     try{ showPage('home'); selectRoom(-1); }catch(e){}   // Home's own widgets and Assist's "whole home" load underneath
     var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg','nx-scn-pg'); p.classList.add('open','nx-home-pg'); p._sig=''; p.scrollTop=0; _nxhDraw();
+    p.classList.remove('nx-room-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg','nx-scn-pg','nx-wx-pg','nx-en-pg'); p.classList.add('open','nx-home-pg'); p._sig=''; p.scrollTop=0; _nxhDraw();
     // your picture steps aside once Home scrolls, so it never sits over a card (it stays at the top, as in the mock)
     p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; document.body.classList.remove('nx-scr');   // 1378b: every New Look page, not Home only
     clearInterval(homeTimer); homeTimer=setInterval(_nxhDraw, 1000);   // live: a card arrives when something turns on, folds away when it goes off
@@ -25456,7 +25461,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
   function _nxlStop(){ clearInterval(lightsTimer); lightsTimer=null; var p=document.getElementById('nx-page'); if(p) p.classList.remove('nx-lights-pg'); }
   window._nxLights=function(){
     var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-home-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg','nx-scn-pg'); p.classList.add('open','nx-lights-pg'); p._sig=''; p.scrollTop=0; _nxlDraw();
+    p.classList.remove('nx-room-pg','nx-home-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg','nx-scn-pg','nx-wx-pg','nx-en-pg'); p.classList.add('open','nx-lights-pg'); p._sig=''; p.scrollTop=0; _nxlDraw();
     p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; document.body.classList.remove('nx-scr');   // 1378b: your picture steps aside here too
     clearInterval(lightsTimer); lightsTimer=setInterval(_nxlDraw, 1000);
   };
@@ -25619,7 +25624,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
   function _nxcLine(e, M){ if(M.dead) return 'Can’t reach it'; if(M.sent) return 'Setting '+fmt(M.t)+'°…'; try{ return _cpLine(e); }catch(x){ return word(M.mode); } }
   function _nxcCls(m){ return m==='cool'?'cool':m==='heat'?'heat':(m==='heat_cool'||m==='auto')?'auto':''; }
   function _nxcPage(cls){ var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg','nx-scn-pg'); p.classList.add('open',cls); p._sig=''; p.scrollTop=0;
+    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg','nx-scn-pg','nx-wx-pg','nx-en-pg'); p.classList.add('open',cls); p._sig=''; p.scrollTop=0;
     p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; document.body.classList.remove('nx-scr'); return p; }
 
   // ── the list ──
@@ -25778,7 +25783,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
   function _nxsStop(){ clearInterval(timer); timer=null; from=null; var p=document.getElementById('nx-page'); if(p) p.classList.remove('nx-shade-pg'); }
   window._nxShades=function(back, area){
     var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg','nx-scn-pg'); p.classList.add('open','nx-shade-pg'); p._sig=''; p.scrollTop=0;
+    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg','nx-scn-pg','nx-wx-pg','nx-en-pg'); p.classList.add('open','nx-shade-pg'); p._sig=''; p.scrollTop=0;
     p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; document.body.classList.remove('nx-scr');
     from=back||null; focus=area==null?null:area; _nxsDraw(); clearInterval(timer); timer=setInterval(_nxsDraw, 1000);
   };
@@ -25919,7 +25924,7 @@ body.nx-on #pin-overlay{z-index:9060}
   function _nxqStop(){ clearInterval(timer); timer=null; from=null; var p=document.getElementById('nx-page'); if(p) p.classList.remove('nx-sec-pg'); }
   window._nxSecurity=function(section, back){
     var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg','nx-scn-pg'); p.classList.add('open','nx-sec-pg'); p._sig=''; p.scrollTop=0;
+    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg','nx-scn-pg','nx-wx-pg','nx-en-pg'); p.classList.add('open','nx-sec-pg'); p._sig=''; p.scrollTop=0;
     p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; document.body.classList.remove('nx-scr');
     from=back||null; focus=section||null; _nxqDraw(); clearInterval(timer); timer=setInterval(_nxqDraw, 1000);
   };
@@ -25982,7 +25987,7 @@ body.nx-on #pin-overlay{z-index:9060}
   function _nxkStop(){ clearInterval(timer); timer=null; from=null; var p=document.getElementById('nx-page'); if(p) p.classList.remove('nx-lock-pg'); }
   window._nxLocks=function(back){
     var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg','nx-scn-pg'); p.classList.add('open','nx-lock-pg'); p._sig=''; p.scrollTop=0;
+    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg','nx-scn-pg','nx-wx-pg','nx-en-pg'); p.classList.add('open','nx-lock-pg'); p._sig=''; p.scrollTop=0;
     p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; document.body.classList.remove('nx-scr');
     from=back||null; _nxkDraw(); clearInterval(timer); timer=setInterval(function(){ _nxkDraw(); }, 1000);
   };
@@ -26057,7 +26062,7 @@ body.nx-on #pa-detail{z-index:9070}
   function _nxvStop(){ clearInterval(timer); clearInterval(roll); timer=roll=null; from=null; var p=document.getElementById('nx-page'); if(p){ p.classList.remove('nx-cam-pg'); p._n=null; } }
   window._nxCameras=function(back){
     var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg','nx-scn-pg'); p.classList.add('open','nx-cam-pg'); p._sig=''; p._n=null; p.scrollTop=0;
+    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg','nx-scn-pg','nx-wx-pg','nx-en-pg'); p.classList.add('open','nx-cam-pg'); p._sig=''; p._n=null; p.scrollTop=0;
     p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; document.body.classList.remove('nx-scr');
     from=back||null; _nxvDraw(); var L=_nxvList(); L.forEach(function(){ _nxvRoll(); });   // every picture once at the start
     clearInterval(timer); clearInterval(roll); timer=setInterval(_nxvDraw, 1000); roll=setInterval(_nxvRoll, Math.max(500, Math.round(5000/Math.max(1,L.length))));
@@ -26153,7 +26158,7 @@ body.nx-on #pa-detail{z-index:9070}
   function _nxmStop(){ clearInterval(timer); timer=null; from=null; var p=document.getElementById('nx-page'); if(p) p.classList.remove('nx-mus-pg'); }
   window._nxMusic=function(back){
     var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg','nx-scn-pg'); p.classList.add('open','nx-mus-pg'); p._sig=''; p.scrollTop=0;
+    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg','nx-scn-pg','nx-wx-pg','nx-en-pg'); p.classList.add('open','nx-mus-pg'); p._sig=''; p.scrollTop=0;
     p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; document.body.classList.remove('nx-scr');
     from=back||null; _nxmDraw(); clearInterval(timer); timer=setInterval(_nxmDraw, 1000);
   };
@@ -26235,7 +26240,7 @@ body.nx-on #device-chooser{z-index:9380}
   var timer=null, from=null, pressed={};
   var roomOf=function(a){ var r=(CONFIG.rooms||[]).filter(function(x){ return x.id===a; })[0]; return r?r.name:(a&&typeof areaNameById!=='undefined'&&areaNameById[a])||''; };
   function _nx6Page(cls){ var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg','nx-scn-pg'); p.classList.add('open',cls); p._sig=''; p.scrollTop=0;
+    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg','nx-scn-pg','nx-wx-pg','nx-en-pg'); p.classList.add('open',cls); p._sig=''; p.scrollTop=0;
     p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; document.body.classList.remove('nx-scr'); return p; }
   // ── a TV, player or receiver: what it reports (a TV that does not report what it plays shows nothing more — 31 Oct)
   function _nxtRead(S){ var s=S&&S.state, A=(S&&S.attributes)||{};
@@ -26959,7 +26964,7 @@ body.nx-on #pa-detail.nxd-ring .pa-fs-pip{top:156px;right:16px;left:auto;bottom:
   var G=function(d){ return '<svg class="g" viewBox="0 0 24 24">'+d+'</svg>'; };
   var TV=G('<rect x="2.5" y="4.5" width="19" height="13" rx="2"/><path d="M8 21h8"/>'), SPARK=G('<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"/>'),
       PW=G('<path d="M12 3v9"/><path d="M6.3 7.3a8 8 0 1 0 11.4 0"/>'), MIC='<svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>';
-  var timer=null, OTHER=['nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg'];
+  var timer=null, OTHER=['nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg','nx-wx-pg','nx-en-pg'];
   function areaOf(e){ return (typeof entityAreaMap!=='undefined'&&entityAreaMap[e])||''; }
   // the page's model: whole-home scenes (no room), then each room with its AV scenes, its scenes, its Off
   function _nxScModel(){
@@ -27152,6 +27157,96 @@ body.nx-on.nxbg-on #nx-page .nxr-hero::after{background:linear-gradient(180deg,r
   document.addEventListener('click',function(ev){ var b=ev.target&&ev.target.closest&&ev.target.closest('#nx-bar [data-nx],#nx-avatar'); if(!b) return;
     var id=b.id==='nx-avatar'?'settings':b.dataset.nx; if(/^(home|rooms|devices|scenes|settings)$/.test(id)) ctx=null; },true);
   setInterval(_nxbgPaint, 1000);   // follows the page and the room's on/off live (16 Nov: at once, not on a refresh)
+})();
+</script>
+<!-- ══ REGISTER 1399 — REBUILD STEP 6, WEATHER AND ENERGY IN THE NEW LOOK (Dave 17 Nov 07:17 "okay go" — the agreed order;
+     mocks S.weather, S.energy). WEATHER: Home's "Outside" chip opened today's Weather page. Now the mock's page — the
+     place as the title and the condition under it, the big temperature with High · Low · Wind, the next six hours, and the
+     days ahead each with its range bar. Every number is the platform's own weather entity and its own forecast service
+     (weather.get_forecasts — the call today's page makes); an hour or a day it does not give is not drawn. ENERGY: a tile on
+     Devices (only when the home has the platform's Energy set up — 620) opens the mock's page: Solar, House and Grid as
+     they read NOW, and today's totals, from today's reader (_energyLoad: the platform's Energy settings and its
+     statistics). A meter the home does not have is not drawn. Battery is NOT drawn: today's reader does not read one, and
+     a battery is not guessed (named open). -->
+<style>
+#nx-page.nx-wx-pg .nx-in,#nx-page.nx-en-pg .nx-in{animation:none}
+.nxw-now{display:flex;align-items:center;gap:18px;margin:18px 0 6px}
+.nxw-now svg{width:70px;height:70px;stroke:#ffd27a;fill:rgba(255,210,122,.12);stroke-width:1.2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.nxw-now b{display:block;font-size:64px;font-weight:200;letter-spacing:-.04em;line-height:1}
+.nxw-now small{display:block;margin-top:4px;font-size:13px;color:rgba(255,255,255,.62)}
+.nxw-hrs{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:4px;padding:14px;margin-top:14px;border-radius:22px;background:#1b1c20;text-align:center}
+.nxw-hrs span{display:block;font-size:11px;color:rgba(255,255,255,.55)}
+.nxw-hrs svg{width:20px;height:20px;margin:8px auto;display:block;stroke:#fff;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.nxw-hrs b{font-size:15px;font-weight:600}
+.nxw-days{margin-top:12px;border-radius:22px;background:#1b1c20;padding:4px 16px}
+.nxw-day{display:flex;align-items:center;gap:12px;min-height:52px;border-top:1px solid rgba(255,255,255,.06)}
+.nxw-day:first-child{border-top:0}
+.nxw-day .d{width:46px;font-size:15px;font-weight:600}.nxw-day .c{flex:1;min-width:0;font-size:13px;color:rgba(255,255,255,.62);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nxw-day .lo{font-size:13px;color:rgba(255,255,255,.55);width:30px;text-align:right}.nxw-day .hi{font-size:15px;font-weight:600;width:32px}
+.nxw-bar{position:relative;width:76px;height:4px;border-radius:2px;background:rgba(255,255,255,.1)}
+.nxw-bar i{position:absolute;top:0;bottom:0;border-radius:2px;background:linear-gradient(90deg,#8fd6ff,#ffd27a)}
+.nxe-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:14px}
+.nxe-t{min-height:132px;border-radius:24px;background:#1b1c20;padding:16px;display:flex;flex-direction:column;justify-content:space-between}
+.nxe-t svg{width:20px;height:20px;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.nxe-t .k{font-size:13px;color:rgba(255,255,255,.62)}.nxe-t .n{font-size:24px;font-weight:300;margin-top:2px}.nxe-t small{display:block;font-size:12px;color:rgba(255,255,255,.55);margin-top:4px}
+</style>
+<script>
+(function(){
+  var esc=function(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); };
+  var BACK='<svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg>', timer=null, from=null, fc={t:0, daily:[], hourly:[]};
+  var OTHER=['nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg','nx-scn-pg'];
+  var R=function(v){ return v==null||v===''||isNaN(+v)?'—':Math.round(+v); };
+  function _nxwPage(cls){ var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
+    p.classList.remove.apply(p.classList, OTHER.concat(['nx-wx-pg','nx-en-pg'])); p.classList.add('open',cls); p._sig=''; p.scrollTop=0; document.body.classList.remove('nx-scr');
+    p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; return p; }
+  function _nxwStop(){ clearInterval(timer); timer=null; from=null; var p=document.getElementById('nx-page'); if(p) p.classList.remove('nx-wx-pg','nx-en-pg'); }
+  function mine(cls){ var p=document.getElementById('nx-page'); if(!p||!p.classList.contains('open')||!p.classList.contains(cls)) return null;
+    if(OTHER.some(function(c){ return p.classList.contains(c); })){ _nxwStop(); return null; } return p; }
+  function back(p,sel,def){ var b=p.querySelector(sel); if(b) b.onclick=function(){ var f=from; _nxwStop(); if(f) f(); else def(); }; }
+  // ── WEATHER: the platform's forecast, asked as today's page asks it (at most every ten minutes)
+  async function _nxwLoad(){ var w=CONFIG.weather; if(!w||Date.now()-fc.t<600000) return; fc.t=Date.now();
+    var get=async function(type){ try{ var r=await snd({type:'call_service',domain:'weather',service:'get_forecasts',service_data:{type:type},target:{entity_id:w},return_response:true});
+      return (r&&r.result&&r.result.response&&r.result.response[w]&&r.result.response[w].forecast)||[]; }catch(e){ return []; } };
+    fc.daily=await get('daily'); fc.hourly=await get('hourly'); var p=mine('nx-wx-pg'); if(p){ p._sig=''; _nxwDraw(); } }
+  // the page's model — every figure the entity or its forecast gives; nothing it does not
+  function _nxwModel(){ var w=CONFIG.weather; if(!w||!states[w]) return null;
+    var c=st(w), A=states[w].attributes||{}, d0=fc.daily[0]||{}, hi=d0.temperature, lo=d0.templow;
+    if((hi==null||lo==null)&&fc.hourly.length){ var t=fc.hourly.slice(0,24).map(function(x){ return x.temperature; }).filter(function(v){ return v!=null; }); if(t.length){ hi=Math.max.apply(null,t); lo=Math.min.apply(null,t); } }
+    var facts=[]; if(hi!=null) facts.push('H '+R(hi)+'°'); if(lo!=null) facts.push('L '+R(lo)+'°'); if(A.wind_speed!=null) facts.push('Wind '+R(A.wind_speed)+' '+(A.wind_speed_unit||'km/h'));
+    var days=fc.daily.slice(1,8), all=days.concat([]).reduce(function(a,d){ if(d.templow!=null) a.push(+d.templow); if(d.temperature!=null) a.push(+d.temperature); return a; },[]);
+    var mn=all.length?Math.min.apply(null,all):0, mx=all.length?Math.max.apply(null,all):1, span=Math.max(1,mx-mn);
+    return {place:A.friendly_name||'Home', cond:(typeof _wxCondLabel==='function')?_wxCondLabel(c):c, c:c, temp:A.temperature, facts:facts.join(' · '),
+      hours:fc.hourly.slice(0,6).map(function(x,i){ return {t:(typeof _wxHour==='function')?_wxHour(x.datetime,i):'', c:x.condition, day:(typeof _wxHourIsDay==='function')?_wxHourIsDay(x.datetime):true, v:x.temperature}; }),
+      days:days.map(function(d){ var dt=new Date(d.datetime); return {d:isNaN(dt)?'':dt.toLocaleDateString('en-AU',{weekday:'short'}), c:(typeof _wxCondLabel==='function')?_wxCondLabel(d.condition):d.condition, lo:d.templow, hi:d.temperature,
+        a:d.templow!=null?((+d.templow-mn)/span*100):0, b:d.temperature!=null?((+d.temperature-mn)/span*100):100}; })};
+  }
+  window._nxwModel=_nxwModel; window._nxwFc=fc;
+  function ic(c,day){ return '<svg viewBox="0 0 24 24">'+((typeof _wxIcon==='function')?_wxIcon(c,day):'')+'</svg>'; }
+  function _nxwDraw(){ var p=mine('nx-wx-pg'); if(!p) return; var M=_nxwModel();
+    var h='<div class="nx-in"><button type="button" class="nx-back" data-wb>'+BACK+'</button>';
+    if(!M) h+='<div class="nx-hd"><div><h1>Weather</h1></div></div><div class="nxr-quiet">No weather yet<small>Your installer adds the home’s weather in Pro.</small></div>';
+    else { h+='<div class="nx-hd"><div><h1>'+esc(M.place)+'</h1><div class="nx-sub">'+esc(M.cond)+'</div></div></div>'+
+      '<div class="nxw-now">'+ic(M.c,(typeof _wxIsDay==='function')?_wxIsDay():true)+'<div><b>'+R(M.temp)+'°</b><small>'+esc(M.facts)+'</small></div></div>';
+      if(M.hours.length) h+='<div class="nxw-hrs">'+M.hours.map(function(x){ return '<div><span>'+esc(x.t)+'</span>'+ic(x.c,x.day)+'<b>'+R(x.v)+'°</b></div>'; }).join('')+'</div>';
+      if(M.days.length) h+='<div class="nxw-days">'+M.days.map(function(d){ return '<div class="nxw-day"><span class="d">'+esc(d.d)+'</span><span class="c">'+esc(d.c)+'</span><span class="lo">'+(d.lo!=null?R(d.lo)+'°':'')+'</span><div class="nxw-bar"><i style="left:'+d.a.toFixed(0)+'%;right:'+(100-d.b).toFixed(0)+'%"></i></div><span class="hi">'+(d.hi!=null?R(d.hi)+'°':'')+'</span></div>'; }).join('')+'</div>';
+      else if(!fc.t||Date.now()-fc.t<4000) h+='<div class="nxr-quiet" style="margin-top:12px">Asking for the forecast…</div>'; }
+    h+='</div>'; if(p._sig===h) return; p._sig=h; var y=p.scrollTop; p.innerHTML=h; p.scrollTop=y; back(p,'[data-wb]',function(){ _nxGo('home'); }); }
+  window._nxWeather=function(b){ _nxwPage('nx-wx-pg'); from=b||null; _nxwDraw(); _nxwLoad(); clearInterval(timer); timer=setInterval(function(){ _nxwDraw(); _nxwLoad(); },1000); };
+  // ── ENERGY: today's reader, drawn as the mock
+  function _nxeModel(){ var E=window._energy; if(!E||!E.ok) return null; var T=[];
+    var sun=E.rate&&E.rate.solar?_kwv(E.rate.solar):null, grid=E.rate&&E.rate.grid?_kwv(E.rate.grid):null, use=grid!=null?Math.max(0,(sun||0)+grid):null;
+    if(E.hasSun) T.push({k:'Solar', n:sun!=null?_kwt(sun):'—', s:_kwh(E.sun)+' made today', ic:'sun', c:'#ffd27a'});
+    T.push({k:'House', n:use!=null?_kwt(use):_kwh(E.used), s:use!=null?_kwh(E.used)+' used today':'used today', ic:'home', c:'#fff'});
+    if(grid!=null||E.gin||E.gout) T.push({k:'Grid', n:grid==null?'—':(Math.abs(grid)<0.02?'Idle':(grid<0?'Exporting ':'Importing ')+_kwt(grid)), s:_kwh(E.gin)+' in · '+_kwh(E.gout)+' out today', ic:'grid', c:'#8fd6ff'});
+    return {tiles:T, now:sun!=null||grid!=null}; }
+  window._nxeModel=_nxeModel;
+  var EI={sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',home:'<path d="M3 11l9-7 9 7M5 9.5V21h14V9.5"/>',grid:'<path d="M12 2v20M5 7h14M7 7l-3 15M17 7l3 15"/>'};
+  function _nxeDraw(){ var p=mine('nx-en-pg'); if(!p) return; var M=_nxeModel();
+    var h='<div class="nx-in"><button type="button" class="nx-back" data-eb>'+BACK+'</button><div class="nx-hd"><div><h1>Energy</h1><div class="nx-sub">'+(M?(M.now?'Now':'Today'):'')+'</div></div></div>';
+    h+=M?'<div class="nxe-grid">'+M.tiles.map(function(t){ return '<div class="nxe-t"><svg viewBox="0 0 24 24" style="stroke:'+t.c+'">'+EI[t.ic]+'</svg><div><div class="k">'+esc(t.k)+'</div><div class="n">'+esc(t.n)+'</div><small>'+esc(t.s)+'</small></div></div>'; }).join('')+'</div>'
+      :'<div class="nxr-quiet">No energy readings yet<small>They appear here once your installer sets up the home’s energy meters.</small></div>';
+    h+='</div>'; if(p._sig===h) return; p._sig=h; var y=p.scrollTop; p.innerHTML=h; p.scrollTop=y; back(p,'[data-eb]',function(){ _nxGo('devices'); }); }
+  window._nxEnergy=function(b){ _nxwPage('nx-en-pg'); from=b||null; try{ _energyLoad(); }catch(e){} _nxeDraw(); clearInterval(timer); timer=setInterval(function(){ try{ _energyLoad(); }catch(e){} _nxeDraw(); },1000); };
 })();
 </script>
 <!-- REGISTER 1365 motion styles (the type scale stays the last stylesheet) -->
