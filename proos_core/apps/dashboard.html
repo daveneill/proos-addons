@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111620';
+const PROOS_BUILD='2026111621';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -25855,7 +25855,7 @@ body.nx-on #pin-overlay{z-index:9060}
     if(!dead){ if(armed||trig||busy) btns='<button type="button" class="dis" data-qarm="alarm_disarm" data-ql="Disarm" data-qe="'+nxqEsc(eid)+'">'+SHIELD+'Disarm</button>';
       else btns=modes.map(function(m){ return '<button type="button" data-qarm="'+m.service+'" data-ql="'+nxqEsc(m.label)+'" data-qe="'+nxqEsc(eid)+'">'+m.icon+nxqEsc(m.label)+'</button>'; }).join(''); }
     return '<div class="nxq-alarm'+(trig?' trig':armed?' armed':busy?' busy':'')+(dead?' dead':'')+'"><div class="tp"><div class="ic">'+SHIELD+'</div><div><div class="st">'+nxqEsc(_alarmWord(eid))+'</div><div class="nm">'+nxqEsc(_alarmName(eid))+(by&&!dead?' · by '+nxqEsc(by):'')+'</div></div></div>'+
-      (zl?'<div class="zl'+(/not normal|can’t|open|motion|wet/i.test(zl)&&!/^All/.test(zl)?' warn':'')+'">'+nxqEsc(zl)+'</div>':'')+(btns?'<div class="nxq-modes">'+btns+'</div>':'')+'</div>';
+      (zl&&!/^All /.test(zl)?'<div class="zl warn">'+nxqEsc(zl)+'</div>':'')   /* 1381a: the all-clear is said once, at the top */+(btns?'<div class="nxq-modes">'+btns+'</div>':'')+'</div>';
   }
   function _nxqGarage(d){
     var S=states[d.lead]||{}, s=S.state, can=window._nxsCan?_nxsCan(S):{open:true,close:true}, R=window._nxsRead?_nxsRead(d.lead,S,window._nxsPend||{}):{word:s};
@@ -25872,7 +25872,7 @@ body.nx-on #pin-overlay{z-index:9060}
     var h='<div class="nx-in"><button type="button" class="nx-back" data-qb>'+BACK+'</button><div class="nx-hd"><div><h1>Security</h1><div class="nx-sub">'+nxqEsc(_nxqLine(sens)||'')+'</div></div></div>';
     var left=(panels.length?'<div data-qsec="alarm">'+panels.map(_nxqAlarm).join('')+'</div>':'')+
       (gar.length?'<div class="nxl-room" data-qsec="garage"><b>Garage &amp; Gates</b><span></span></div><div class="nxq-list">'+gar.map(_nxqGarage).join('')+'</div>':'');
-    var right=sens.length?'<div class="nxl-room" data-qsec="sensors" style="margin-top:'+(panels.length||gar.length?'':'0')+'"><b>Sensors</b><span>'+nxqEsc(_nxqLine(sens))+'</span></div><div class="nxq-list">'+sens.map(function(x){
+    var right=sens.length?'<div class="nxl-room" data-qsec="sensors" style="margin-top:'+(panels.length||gar.length?'':'0')+'"><b>Sensors</b><span>'+(/^All /.test(_nxqLine(sens))?'':nxqEsc(_nxqLine(sens)))+'</span></div><div class="nxq-list">'+sens.map(function(x){
         return '<div class="nxq-li'+(x.active?' warn':'')+'"><div class="nx-ic">'+svgOfQ(x.kind)+'</div><div class="gr"><b>'+nxqEsc(x.name)+'</b>'+(x.room?'<small>'+nxqEsc(x.room)+'</small>':'')+'</div><span class="w'+(x.active?' on':'')+'">'+nxqEsc(x.dead?'Can’t reach it':x.word)+'</span></div>'; }).join('')+'</div>':'';
     if(!panels.length&&!gar.length&&!sens.length) h+='<div class="nxr-quiet">No alarm, garage or sensors yet<small>They appear here the moment your installer adds them.</small></div>';
     else h+='<div class="nxq-cols"><div>'+left+'</div><div>'+right+'</div></div>';
