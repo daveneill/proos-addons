@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111703';
+const PROOS_BUILD='2026111704';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -24807,14 +24807,14 @@ body.nx-on #nx-page.open{display:block}
     var a=window._proosAvatar||{}; if(a.url){ av.style.backgroundImage="url('"+a.url+"')"; av.textContent=''; } else { av.style.backgroundImage=''; av.textContent=a.initial||'D'; }
   }
   function _nxPage(html){ var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg'); document.body.classList.remove('nx-scr');   // 1376–1380: leaving a room page, Home or Lights
+    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg','nx-scn-pg'); document.body.classList.remove('nx-scr');   // 1376–1380: leaving a room page, Home or Lights
     p.innerHTML='<div class="nx-in">'+html+'</div>'; p.classList.add('open'); p.scrollTop=0; return p; }
   function closePage(){ var p=document.getElementById('nx-page'); if(p) p.classList.remove('open'); }
   function _nxGoTo(id){
     cur=id; document.body.classList.toggle('nx-av', id==='home'||id==='rooms'||id==='devices');
     if(id==='assist'){ cur=cur; try{ openAssist(); }catch(e){} bar(); return; }
     if(id==='home'){ if(typeof _nxHome==='function') _nxHome(); else { closePage(); try{ showPage('home'); selectRoom(-1); }catch(e){} } }   // 1377: the new Home
-    else if(id==='scenes'){ closePage(); try{ showPage('scenes'); }catch(e){} }
+    else if(id==='scenes'){ if(typeof _nxScenes==='function') _nxScenes(); else { closePage(); try{ showPage('scenes'); }catch(e){} } }   // 1396: the new Scenes
     else if(id==='rooms') drawRooms();
     else if(id==='devices') drawDevices();
     else if(id==='settings') drawSettings();
@@ -25091,14 +25091,9 @@ body.nx-on #nx-page.open{display:block}
   function _nxrWire(p,r,lights){
     p.querySelector('[data-back]').onclick=function(){ _nxrStop(); _nxGo('rooms'); };
     p.querySelectorAll('[data-av]').forEach(function(b){ b.onclick=function(){ var key=b.dataset.av;
-      if(_nxrAvState(r,key)==='on'){ try{ _pacGoControl(r,key); }catch(e){} return; }   // already on → its control page
-      firing[r.id]={key:key,t:Date.now()}; try{ window._mxProofStart&&window._mxProofStart(r.id,b.dataset.script); }catch(e){}   // 1393: each device's own reading
-      try{ window.proosFireActivity&&window.proosFireActivity(r.id,b.dataset.script); }catch(e){} p._sig=''; _nxrDraw(); }; });
+      _nxrFire(r,key,b.dataset.script); p._sig=''; _nxrDraw(); }; });
     p.querySelectorAll('[data-scene]').forEach(function(b){ b.onclick=function(){ try{ svc('scene','turn_on',{entity_id:b.dataset.scene}); }catch(e){} sceneCheck[b.dataset.scene]=null; setTimeout(function(){ p._sig=''; _nxrDraw(); },1500); }; });
-    var off=p.querySelector('[data-off]'); if(off) off.onclick=function(){ var oa=_nxrOffAct(r);
-      if(oa){ firing[r.id]=null; try{ window.proosFireActivity&&window.proosFireActivity(r.id,oa.script); }catch(e){} }
-      else { var ls=lights.filter(function(d){ return d.r.on; }).map(function(d){ return d.lead; }); if(ls.length) svc('light','turn_off',{entity_id:ls});
-        var sp=_nxrDevicesIn(r).filter(function(d){ return d.k.kind==='speaker'&&states[d.lead]&&states[d.lead].state==='playing'; }).map(function(d){ return d.lead; }); if(sp.length) svc('media_player','media_pause',{entity_id:sp}); } };
+    var off=p.querySelector('[data-off]'); if(off) off.onclick=function(){ _nxrOff(r); };
     p.querySelectorAll('[data-open]').forEach(function(b){ b.onclick=function(e){ if(e.target.closest('[data-pp]')) return; try{ openPlayer(b.dataset.open); }catch(x){} }; });
     p.querySelectorAll('[data-pp]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); svc('media_player','media_play_pause',{entity_id:b.dataset.pp}); }; });
     var lc=p.querySelector('[data-lights]'); if(lc) lc.onclick=function(e){ if(e.target.closest('[data-lightsoff]')) return; if(typeof _nxLightSheet==='function'){ _nxLightSheet(r.id); return; } try{ _nxrCloseNx(); openLightOverlay(CONFIG.rooms.indexOf(r)); }catch(x){} };   // 1378: the room's lights card
@@ -25110,6 +25105,15 @@ body.nx-on #nx-page.open{display:block}
       if(b.dataset.cat==='Garage & Gates'&&typeof _nxSecurity==='function'){ _nxrStop(); _nxSecurity('garage', function(){ _nxRoom(CONFIG.rooms.indexOf(r)); }); return; }   // 1381
       var m={Climate:'climate','Garage & Gates':'security','Locks & Access':'access'}[b.dataset.cat]; if(m){ _nxrCloseNx(); try{ showPage(m); }catch(x){} } }; });
   }
+  // 1396: the ONE fire path and the ONE Off for an AV scene — the room page's tiles and the Scenes page both call these
+  function _nxrFire(r,key,script){
+    if(_nxrAvState(r,key)==='on'){ try{ _pacGoControl(r,key); }catch(e){} return; }   // already on → its control page
+    firing[r.id]={key:key,t:Date.now()}; try{ window._mxProofStart&&window._mxProofStart(r.id,script); }catch(e){}   // 1393: each device's own reading
+    try{ window.proosFireActivity&&window.proosFireActivity(r.id,script); }catch(e){} }
+  function _nxrOff(r){ var oa=_nxrOffAct(r);
+    if(oa){ firing[r.id]=null; try{ window.proosFireActivity&&window.proosFireActivity(r.id,oa.script); }catch(e){} return; }
+    var L=_nxrDevicesIn(r), ls=L.filter(function(d){ return d.k.kind==='light'&&d.r.on; }).map(function(d){ return d.lead; }); if(ls.length) svc('light','turn_off',{entity_id:ls});
+    var sp=L.filter(function(d){ return d.k.kind==='speaker'&&states[d.lead]&&states[d.lead].state==='playing'; }).map(function(d){ return d.lead; }); if(sp.length) svc('media_player','media_pause',{entity_id:sp}); }
   function _nxrCloseNx(){ var p=document.getElementById('nx-page'); if(p) p.classList.remove('open'); _nxrStop(); }
   function _nxrStop(){ clearInterval(timer); timer=null; var p=document.getElementById('nx-page'); if(p) p.classList.remove('nx-room-pg'); }
   window._nxRoom=function(i){
@@ -25117,10 +25121,12 @@ body.nx-on #nx-page.open{display:block}
     try{ showPage('home'); selectRoom(i); }catch(e){}   // the room is the current room underneath: its widgets, Assist's room, its activities load
     try{ _pacActs(r); }catch(e){}
     var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg'); document.body.classList.remove('nx-scr'); p.classList.add('open','nx-room-pg'); p._sig=''; p.scrollTop=0; _nxrDraw();
+    p.classList.remove('nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg','nx-scn-pg'); document.body.classList.remove('nx-scr'); p.classList.add('open','nx-room-pg'); p._sig=''; p.scrollTop=0; _nxrDraw();
     clearInterval(timer); timer=setInterval(_nxrDraw, 1000);   // live: the page follows the devices — a card arrives when something turns on, leaves when it goes off
   };
   window._nxRoomState=_nxrAvState; window._nxSceneHeld=_nxSceneHeld;
+  window._nxAvScenesOf=_nxrAvScenes; window._nxOffActOf=_nxrOffAct; window._nxRoomScenesOf=_nxrRoomScenes; window._nxRoomOffOf=_nxrOff;   // 1396
+  window._nxRoomFire=function(i,key,script){ var r=(CONFIG.rooms||[])[i]; if(!r) return; window._nxRoom(i); _nxrFire(r,key,script); var p=document.getElementById('nx-page'); if(p) p._sig=''; _nxrDraw(); };
   window._nxSceneOn=function(e){ _nxrLoadSceneChecks([e]); return _nxrSceneOn(e); };   // 1377: Home's scenes use the same rule
 })();
 </script>
@@ -25313,7 +25319,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
   window._nxHome=function(){
     try{ showPage('home'); selectRoom(-1); }catch(e){}   // Home's own widgets and Assist's "whole home" load underneath
     var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg'); p.classList.add('open','nx-home-pg'); p._sig=''; p.scrollTop=0; _nxhDraw();
+    p.classList.remove('nx-room-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg','nx-scn-pg'); p.classList.add('open','nx-home-pg'); p._sig=''; p.scrollTop=0; _nxhDraw();
     // your picture steps aside once Home scrolls, so it never sits over a card (it stays at the top, as in the mock)
     p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; document.body.classList.remove('nx-scr');   // 1378b: every New Look page, not Home only
     clearInterval(homeTimer); homeTimer=setInterval(_nxhDraw, 1000);   // live: a card arrives when something turns on, folds away when it goes off
@@ -25450,7 +25456,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
   function _nxlStop(){ clearInterval(lightsTimer); lightsTimer=null; var p=document.getElementById('nx-page'); if(p) p.classList.remove('nx-lights-pg'); }
   window._nxLights=function(){
     var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-home-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg'); p.classList.add('open','nx-lights-pg'); p._sig=''; p.scrollTop=0; _nxlDraw();
+    p.classList.remove('nx-room-pg','nx-home-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg','nx-scn-pg'); p.classList.add('open','nx-lights-pg'); p._sig=''; p.scrollTop=0; _nxlDraw();
     p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; document.body.classList.remove('nx-scr');   // 1378b: your picture steps aside here too
     clearInterval(lightsTimer); lightsTimer=setInterval(_nxlDraw, 1000);
   };
@@ -25613,7 +25619,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
   function _nxcLine(e, M){ if(M.dead) return 'Can’t reach it'; if(M.sent) return 'Setting '+fmt(M.t)+'°…'; try{ return _cpLine(e); }catch(x){ return word(M.mode); } }
   function _nxcCls(m){ return m==='cool'?'cool':m==='heat'?'heat':(m==='heat_cool'||m==='auto')?'auto':''; }
   function _nxcPage(cls){ var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg'); p.classList.add('open',cls); p._sig=''; p.scrollTop=0;
+    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg','nx-scn-pg'); p.classList.add('open',cls); p._sig=''; p.scrollTop=0;
     p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; document.body.classList.remove('nx-scr'); return p; }
 
   // ── the list ──
@@ -25772,7 +25778,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
   function _nxsStop(){ clearInterval(timer); timer=null; from=null; var p=document.getElementById('nx-page'); if(p) p.classList.remove('nx-shade-pg'); }
   window._nxShades=function(back, area){
     var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg'); p.classList.add('open','nx-shade-pg'); p._sig=''; p.scrollTop=0;
+    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg','nx-scn-pg'); p.classList.add('open','nx-shade-pg'); p._sig=''; p.scrollTop=0;
     p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; document.body.classList.remove('nx-scr');
     from=back||null; focus=area==null?null:area; _nxsDraw(); clearInterval(timer); timer=setInterval(_nxsDraw, 1000);
   };
@@ -25913,7 +25919,7 @@ body.nx-on #pin-overlay{z-index:9060}
   function _nxqStop(){ clearInterval(timer); timer=null; from=null; var p=document.getElementById('nx-page'); if(p) p.classList.remove('nx-sec-pg'); }
   window._nxSecurity=function(section, back){
     var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg'); p.classList.add('open','nx-sec-pg'); p._sig=''; p.scrollTop=0;
+    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg','nx-scn-pg'); p.classList.add('open','nx-sec-pg'); p._sig=''; p.scrollTop=0;
     p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; document.body.classList.remove('nx-scr');
     from=back||null; focus=section||null; _nxqDraw(); clearInterval(timer); timer=setInterval(_nxqDraw, 1000);
   };
@@ -25976,7 +25982,7 @@ body.nx-on #pin-overlay{z-index:9060}
   function _nxkStop(){ clearInterval(timer); timer=null; from=null; var p=document.getElementById('nx-page'); if(p) p.classList.remove('nx-lock-pg'); }
   window._nxLocks=function(back){
     var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg'); p.classList.add('open','nx-lock-pg'); p._sig=''; p.scrollTop=0;
+    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg','nx-scn-pg'); p.classList.add('open','nx-lock-pg'); p._sig=''; p.scrollTop=0;
     p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; document.body.classList.remove('nx-scr');
     from=back||null; _nxkDraw(); clearInterval(timer); timer=setInterval(function(){ _nxkDraw(); }, 1000);
   };
@@ -26051,7 +26057,7 @@ body.nx-on #pa-detail{z-index:9070}
   function _nxvStop(){ clearInterval(timer); clearInterval(roll); timer=roll=null; from=null; var p=document.getElementById('nx-page'); if(p){ p.classList.remove('nx-cam-pg'); p._n=null; } }
   window._nxCameras=function(back){
     var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg'); p.classList.add('open','nx-cam-pg'); p._sig=''; p._n=null; p.scrollTop=0;
+    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg','nx-scn-pg'); p.classList.add('open','nx-cam-pg'); p._sig=''; p._n=null; p.scrollTop=0;
     p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; document.body.classList.remove('nx-scr');
     from=back||null; _nxvDraw(); var L=_nxvList(); L.forEach(function(){ _nxvRoll(); });   // every picture once at the start
     clearInterval(timer); clearInterval(roll); timer=setInterval(_nxvDraw, 1000); roll=setInterval(_nxvRoll, Math.max(500, Math.round(5000/Math.max(1,L.length))));
@@ -26147,7 +26153,7 @@ body.nx-on #pa-detail{z-index:9070}
   function _nxmStop(){ clearInterval(timer); timer=null; from=null; var p=document.getElementById('nx-page'); if(p) p.classList.remove('nx-mus-pg'); }
   window._nxMusic=function(back){
     var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg'); p.classList.add('open','nx-mus-pg'); p._sig=''; p.scrollTop=0;
+    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg','nx-scn-pg'); p.classList.add('open','nx-mus-pg'); p._sig=''; p.scrollTop=0;
     p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; document.body.classList.remove('nx-scr');
     from=back||null; _nxmDraw(); clearInterval(timer); timer=setInterval(_nxmDraw, 1000);
   };
@@ -26229,7 +26235,7 @@ body.nx-on #device-chooser{z-index:9380}
   var timer=null, from=null, pressed={};
   var roomOf=function(a){ var r=(CONFIG.rooms||[]).filter(function(x){ return x.id===a; })[0]; return r?r.name:(a&&typeof areaNameById!=='undefined'&&areaNameById[a])||''; };
   function _nx6Page(cls){ var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
-    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg'); p.classList.add('open',cls); p._sig=''; p.scrollTop=0;
+    p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg','nx-scn-pg'); p.classList.add('open',cls); p._sig=''; p.scrollTop=0;
     p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; document.body.classList.remove('nx-scr'); return p; }
   // ── a TV, player or receiver: what it reports (a TV that does not report what it plays shows nothing more — 31 Oct)
   function _nxtRead(S){ var s=S&&S.state, A=(S&&S.attributes)||{};
@@ -26927,6 +26933,80 @@ body.nx-on #pa-detail.nxd-ring .pa-fs-pip{top:156px;right:16px;left:auto;bottom:
   // a camera opened afresh (by hand, or the next ring) starts as today's viewer; the ring marks its own view after
   var _opc=window.openProtectCamera; if(typeof _opc==='function') window.openProtectCamera=function(){ _nxdStop(); return _opc.apply(this,arguments); };
   var _cpc=window.closeProtectCamera; if(typeof _cpc==='function') window.closeProtectCamera=function(){ var r=_cpc.apply(this,arguments); _nxdStop(); return r; };
+})();
+</script>
+<!-- ══ REGISTER 1396 — REBUILD STEP 4, SCENES IN THE NEW LOOK (Dave 17 Nov "keep going"; mock S.scenes). The bar's Scenes
+     opened today's Scenes page. Now ONE page for everything one press does: WHOLE HOME (the installer's scenes that belong
+     to no room), then each room that has any — its AV scenes (the old Activities, marked AV), its own scenes and Room
+     Off — then "Ask Assist to make a scene". Every rule is the room page's, called, not copied (1376/1377): a scene is lit
+     only while it WAS RUN and every device still reads what it set (Dave 16 Nov); an AV scene is on only when Core says so,
+     verified; a tap on an AV scene opens its room and starts it there, so the ring, the words and the remote opening by
+     itself (1393) are seen; Room Off is the room page's own Off. A scene runs through today's triggerScene (Core first, so
+     a scene's music comes with it; the sweep card follows, 1365). HOLD a scene to rename it or change its picture — today's
+     editor (openSceneEdit). -->
+<style>
+#nx-page.nx-scn-pg .nx-in{animation:none}
+.nxs-sec{display:flex;align-items:baseline;justify-content:space-between;margin:22px 2px 10px}
+.nxs-sec b{font-size:17px;font-weight:600}.nxs-sec span{font-size:13px;color:rgba(255,255,255,.62)}
+.nxs-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+@media (min-width:700px){.nxs-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.nxs-ask{width:100%;margin-top:24px;height:52px;border-radius:16px;border:0;display:flex;align-items:center;justify-content:center;gap:8px;background:#1b1c20;color:#fff;font:600 15px Inter,-apple-system,sans-serif;cursor:pointer}
+.nxs-ask svg{width:18px;height:18px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round}
+</style>
+<script>
+(function(){
+  var esc=function(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); };
+  var G=function(d){ return '<svg class="g" viewBox="0 0 24 24">'+d+'</svg>'; };
+  var TV=G('<rect x="2.5" y="4.5" width="19" height="13" rx="2"/><path d="M8 21h8"/>'), SPARK=G('<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"/>'),
+      PW=G('<path d="M12 3v9"/><path d="M6.3 7.3a8 8 0 1 0 11.4 0"/>'), MIC='<svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>';
+  var timer=null, OTHER=['nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg'];
+  function areaOf(e){ return (typeof entityAreaMap!=='undefined'&&entityAreaMap[e])||''; }
+  // the page's model: whole-home scenes (no room), then each room with its AV scenes, its scenes, its Off
+  function _nxScModel(){
+    var all=(CONFIG.scenes||[]), rooms=(CONFIG.rooms||[]), ids=rooms.map(function(r){ return r.id; });
+    var whole=all.map(function(s,i){ return {e:s.entity, n:s.name||att(s.entity,'friendly_name')||s.entity, i:i}; }).filter(function(s){ return ids.indexOf(areaOf(s.e))<0; });
+    var R=[]; rooms.forEach(function(r,ri){
+      var av=(window._nxAvScenesOf&&_nxAvScenesOf(r))||[], off=(window._nxOffActOf&&_nxOffActOf(r))||null, seen={};
+      var sc=all.map(function(s,i){ return {e:s.entity, n:s.name||att(s.entity,'friendly_name')||s.entity, i:i}; }).filter(function(s){ return areaOf(s.e)===r.id; });
+      sc.forEach(function(s){ seen[s.e]=1; });
+      ((window._nxRoomScenesOf&&_nxRoomScenesOf(r))||[]).forEach(function(e){ if(!seen[e]){ seen[e]=1; sc.push({e:e, n:att(e,'friendly_name')||e, i:-1}); } });
+      if(av.length||sc.length) R.push({r:r, ri:ri, av:av, sc:sc, off:off}); });
+    return {whole:whole, rooms:R};
+  }
+  window._nxScModel=_nxScModel;
+  function lit(e){ return !!(window._nxSceneOn&&_nxSceneOn(e)); }
+  function sceneTile(s, ri){ return '<button type="button" class="nxr-scn'+(lit(s.e)?' on':'')+'" data-sc="'+esc(s.e)+'" data-si="'+s.i+'">'+SPARK+'<b>'+esc(s.n)+'</b></button>'; }
+  function _nxScDraw(){
+    var p=document.getElementById('nx-page'); if(!p||!p.classList.contains('open')||!p.classList.contains('nx-scn-pg')) return;
+    if(OTHER.some(function(c){ return p.classList.contains(c); })){ _nxScStop(); return; }   // another page took the frame
+    var M=_nxScModel(), h='<div class="nx-in"><div class="nx-hd"><div><h1>Scenes</h1><div class="nx-sub">'+(M.whole.length||M.rooms.length?'Hold a scene to edit it':'')+'</div></div></div>';
+    if(!M.whole.length&&!M.rooms.length) h+='<div class="nxr-quiet">No scenes yet<small>Your installer adds them, or ask Assist to save what’s on as a scene.</small></div>';
+    if(M.whole.length) h+='<div class="nxs-sec"><b>Whole Home</b></div><div class="nxs-grid">'+M.whole.map(function(s){ return sceneTile(s); }).join('')+'</div>';
+    M.rooms.forEach(function(x){ var r=x.r, onA=null;
+      var tiles=x.av.map(function(a){ var s=window._nxRoomState?_nxRoomState(r,a.key):'off', g=s==='starting'&&window._nxrRing?_nxrRing(r):null; if(s==='on') onA=a;
+        return '<button type="button" class="nxr-scn'+(s==='on'?' on':'')+(g?' go':'')+'" data-av="'+esc(a.key)+'" data-ri="'+x.ri+'" data-script="'+esc(a.script)+'">'+TV+(g?g.svg:'<span class="tag">AV</span>')+
+          '<b>'+esc(String(a.label||a.key))+(g&&g.cap?'<small class="nxr-cap'+(g.bad?' bad':g.cap==='Ready'?' ok':'')+'">'+esc(g.cap)+'</small>':'')+'</b></button>'; })
+        .concat(x.sc.map(function(s){ return sceneTile(s); }))
+        .concat(x.off?['<button type="button" class="nxr-scn" data-off="'+x.ri+'">'+PW+'<b>Room Off</b></button>']:[]);
+      h+='<div class="nxs-sec"><b>'+esc(r.name)+'</b>'+(onA?'<span>'+esc(String(onA.label||onA.key).replace(/^Watch\s+/i,''))+'</span>':'')+'</div><div class="nxs-grid">'+tiles.join('')+'</div>'; });
+    h+='<button type="button" class="nxs-ask" data-ask>'+MIC+'Ask Assist to make a scene</button></div>';
+    if(p._sig===h) return; p._sig=h; var y=p.scrollTop; p.innerHTML=h; p.scrollTop=y; _nxScWire(p);
+  }
+  var held=false;
+  function _nxScWire(p){
+    p.querySelectorAll('[data-sc]').forEach(function(b){ var t=null;
+      b.onpointerdown=function(){ held=false; t=setTimeout(function(){ t=null; held=true; try{ openSceneEdit(b.dataset.sc); _proosHaptic&&_proosHaptic('lift'); }catch(e){} },550); };   // hold: today's editor
+      b.onpointermove=b.onpointerup=b.onpointercancel=function(ev){ if(ev.type==='pointermove'&&!t) return; if(t){ clearTimeout(t); t=null; } };
+      b.onclick=function(){ if(held){ held=false; return; } try{ triggerScene(b.dataset.sc, +b.dataset.si); }catch(e){} p._sig=''; setTimeout(_nxScDraw,1500); }; });
+    p.querySelectorAll('[data-av]').forEach(function(b){ b.onclick=function(){ try{ _nxScStop(); window._nxRoomFire&&_nxRoomFire(+b.dataset.ri, b.dataset.av, b.dataset.script); }catch(e){} }; });   // starts in its room (1393)
+    p.querySelectorAll('[data-off]').forEach(function(b){ b.onclick=function(){ var r=(CONFIG.rooms||[])[+b.dataset.off]; try{ r&&window._nxRoomOffOf&&_nxRoomOffOf(r); }catch(e){} p._sig=''; }; });
+    var a=p.querySelector('[data-ask]'); if(a) a.onclick=function(){ try{ openAssist(); }catch(e){} };
+  }
+  function _nxScStop(){ clearInterval(timer); timer=null; var p=document.getElementById('nx-page'); if(p) p.classList.remove('nx-scn-pg'); }
+  window._nxScenes=function(){ var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
+    p.classList.remove.apply(p.classList, OTHER); p.classList.add('open','nx-scn-pg'); p._sig=''; p.scrollTop=0; document.body.classList.remove('nx-scr');
+    p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); };
+    _nxScDraw(); clearInterval(timer); timer=setInterval(_nxScDraw,1000); };
 })();
 </script>
 <!-- REGISTER 1365 motion styles (the type scale stays the last stylesheet) -->
