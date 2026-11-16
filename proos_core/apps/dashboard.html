@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111615';
+const PROOS_BUILD='2026111616';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -25176,7 +25176,8 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
     devs.filter(function(d){ return d.k.kind==='light'; }).forEach(function(d){ var a=d.area||''; if(!byRoom[a]){ byRoom[a]={area:a,all:0,on:[]}; order.push(a); } byRoom[a].all++; if(d.r.now) byRoom[a].on.push(d.lead); });
     order.forEach(function(a){ var g=byRoom[a]; if(g.on.length) cards.push({t:'lights',area:a,room:(roomOf[a]||{}).name||'',ri:roomOf[a]?roomOf[a].i:-1,n:g.on.length,of:g.all,ents:g.on}); });
     on.filter(function(d){ return !d.r.warn && !MEDIA[d.k.kind] && d.k.kind!=='light'; }).forEach(function(d){ cards.push({t:'dev',d:d}); });
-    cards.forEach(function(c){ if(c.d) c.room=(roomOf[c.d.area]||{}).name||''; });
+    var an=function(a){ return (roomOf[a]||{}).name||(a&&typeof areaNameById!=='undefined'&&areaNameById[a])||''; };   // 1378a: an area that is not a room keeps its name
+    cards.forEach(function(c){ if(c.d) c.room=an(c.d.area); else if(c.t==='lights') c.room=an(c.area); });
     return {hero:hero, heroRoom:hero?((roomOf[hero.area]||{}).name||''):'', cards:cards, rooms:(rooms||[]).length, devices:devs.length,
             hasLights:order.length>0, players:devs.filter(function(d){ return d.k.kind==='speaker'||d.k.kind==='tv'; }).map(function(d){ return d.lead; })};
   }
@@ -25382,7 +25383,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
     else svc('light','turn_on',{entity_id:e});
     try{ _proosHaptic&&_proosHaptic('tick'); }catch(x){}
   }
-  window._nxlRead=_nxlRead; window._nxlCan=_nxlCan;
+  window._nxlRead=_nxlRead; window._nxlCan=_nxlCan; window._nxlSections=_nxlSections; window._nxlAllLights=_nxlAll;
 
   // ── the Lights page ──
   function _nxlRow(L){
@@ -25393,7 +25394,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
   }
   function _nxlDraw(){
     var p=document.getElementById('nx-page'); if(!p||!p.classList.contains('open')||!p.classList.contains('nx-lights-pg')||held) return;
-    var all=_nxlAll(), rooms=(CONFIG.rooms||[]).concat([{id:'',name:'Around the House'}]);
+    var all=_nxlAll(), rooms=_nxlSections(all);
     var onN=all.filter(function(L){ return _nxlRead(L.e,states[L.e],pend).on; }).length;
     var body=rooms.map(function(r){ var Ls=all.filter(function(L){ return L.area===r.id; }); if(!Ls.length) return '';
       var n=Ls.filter(function(L){ return _nxlRead(L.e,states[L.e],pend).on; }).length;
@@ -25407,6 +25408,11 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
   }
   function _nxlAllOff(list){ var on=list.filter(function(L){ return states[L.e]&&states[L.e].state==='on'; }).map(function(L){ return L.e; });
     if(!on.length) return; on.forEach(function(e){ pend[e]={on:false,pct:null,t:Date.now()}; }); svc('light','turn_off',{entity_id:on}); }
+  // the sections: the dashboard's rooms, then any platform area that is not one of them (read on the box, 1378a: the
+  // floodlights sit in an area called "Home" and vanished), by its own platform name, then Around the House
+  function _nxlSections(all){ var rs=(CONFIG.rooms||[]).slice(), seen={}; rs.forEach(function(r){ seen[r.id]=1; });
+    all.forEach(function(L){ if(L.area&&!seen[L.area]){ seen[L.area]=1; rs.push({id:L.area, name:(typeof areaNameById!=='undefined'&&areaNameById[L.area])||L.area}); } });
+    return rs.concat([{id:'',name:'Around the House'}]); }
   function _nxlStop(){ clearInterval(lightsTimer); lightsTimer=null; var p=document.getElementById('nx-page'); if(p) p.classList.remove('nx-lights-pg'); }
   window._nxLights=function(){
     var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
@@ -25418,7 +25424,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
   var SWATCH=[[32,62],[38,22],[348,58],[262,52],[198,70],[150,58]];
   function _nxlSheetDraw(){
     var ov=document.getElementById('nxl-sheet'); if(!ov||!ov.classList.contains('open')||held) return;
-    var a=sheetArea, all=_nxlAll().filter(function(L){ return L.area===a; }), r=(CONFIG.rooms||[]).filter(function(x){ return x.id===a; })[0];
+    var a=sheetArea, all=_nxlAll().filter(function(L){ return L.area===a; }), r=_nxlSections(all).filter(function(x){ return x.id===a&&a; })[0];
     var dims=all.filter(function(L){ return _nxlCan(states[L.e]).dim; }), sws=all.filter(function(L){ return !_nxlCan(states[L.e]).dim; });
     var n=all.filter(function(L){ return _nxlRead(L.e,states[L.e],pend).on; }).length;
     var h='<div class="cd" onclick="event.stopPropagation()"><div class="hd"><div><h2>'+nxlEsc(r?r.name+' Lights':'Lights Around the House')+'</h2><div class="sub">'+(n?n+' of '+all.length+' on':'All off')+'</div></div>'+
