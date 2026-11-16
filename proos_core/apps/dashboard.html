@@ -3296,7 +3296,7 @@ html[data-link="remote"]{--m-tap:90ms;--m-move:200ms;--m-page:300ms}
 #widget-picker,#music-act-sheet,#music-queue-overlay,#scene-edit,.appc-ov,#setup,#pin-overlay,
 #assist-overlay,#all-lights-overlay,#loading,#proos-reboot,#proos-dashupd,#light-overlay,
 #climate-all-overlay,#climate-overlay,#rotate-overlay,#svc-sheet,#proos-sheet,#proos-tv-wait,#pp,#jv,.sg-pop,#proos-acard,#mus-ask,
-#pv-card,#mx-sweep,#device-chooser{padding-top:var(--proos-sat)}
+#px-page,#pv-card,#mx-sweep,#device-chooser{padding-top:var(--proos-sat)}
 /* THE CLEARANCE IS A FLOOR, NOT AN ADDITION (7 Sep 2026, register 362).
    Dave: "Mobile needs to be looked at every page on the dashboard for layout
    these pages are all too low just looks all wrong". Measured at 393x852 with
@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111606';
+const PROOS_BUILD='2026111607';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -7409,6 +7409,8 @@ let labelledEntities = {}; // label -> [entity_id]
 let definedLabels = new Set(); // labels that exist in HA
 let entityNames = {}; // entity_id -> custom display name
 let entityDeviceMap = {}; // entity_id -> device_id
+let entityCategoryMap = {}; // entity_id -> 'config' | 'diagnostic' (register 1374: parts of a device, never a card of their own)
+let entityDisabled = new Set(); // 1374: disabled entries in the full list
 let deviceNameById = {};  // device_id -> device display name
 let deviceMakerById = {}; // device_id -> maker as its integration reports it (register 1089: the TV tile's brand)
 let deviceModelById = {}; // device_id -> hardware model (e.g. "HomePod Mini") — splits HomePods from Apple TVs when device_class is absent
@@ -7439,7 +7441,8 @@ async function fetchEntityRegistry() {
       const ents = d && d.success!==false && d.result && d.result.entities;
       if(Array.isArray(ents)){
         const list = ents.map(x=>({entity_id:x.ei, hidden:!!x.hb, hidden_by:x.hb?'hidden':null, name:x.en||null, original_name:null,
-          device_id:x.di||null, area_id:x.ai||null, platform:x.pl||null, labels:x.lb||[]}));
+          device_id:x.di||null, area_id:x.ai||null, platform:x.pl||null, labels:x.lb||[],
+          entity_category:(x.ec===0?'config':x.ec===1?'diagnostic':(typeof x.ec==='string'?x.ec:null))}));   // 1374: the platform's compact form carries the category as 0/1
         // read on the G-Flip: asking for every sensor of an alarm platform fetched 264 entries (201 KB) — UniFi Protect
         // and Elk carry far more than their zones. A zone is known by its own state (_isLinkedZone: an alarm area and a
         // logical status), which is already read, so only players and zones are asked for.
@@ -7465,6 +7468,7 @@ async function fetchEntityRegistry() {
       entityAreaMap = {};
       entityPlatformMap = {};
       entityDeviceMap = {};
+      entityCategoryMap = {}; entityDisabled = new Set();
       for(const k in entityConfigEntry) delete entityConfigEntry[k];
       deviceNameById = {};
       deviceModelById = {}; deviceMakerById = {};
@@ -7477,6 +7481,8 @@ async function fetchEntityRegistry() {
       r.result.forEach(e => {
         if(e.name || e.original_name) entityNames[e.entity_id] = e.name || e.original_name;
         if(e.device_id) entityDeviceMap[e.entity_id] = e.device_id;
+        if(e.entity_category) entityCategoryMap[e.entity_id] = e.entity_category;   // 1374
+        if(e.disabled_by) entityDisabled.add(e.entity_id);
         // Area from entity directly, or inherited from device
         const areaId = e.area_id || (e.device_id && deviceAreaMap[e.device_id]);
         if(areaId) entityAreaMap[e.entity_id] = areaId;
@@ -12968,7 +12974,7 @@ function renderWidgetGrid(){
   addBtn.style.cssText=doneBtn.style.cssText+';color:rgba(255,255,255,0.9)';
   actionRow.style.justifyContent='flex-end';   // 1011b: + Add Widget and Done side by side at the right (they sat at opposite edges)
   addBtn.addEventListener('click', openWidgetPicker);
-  if(typeof _pvEditBtn==='function' && !(typeof _isPanel==='function' && _isPanel())){ actionRow.appendChild(_pvEditBtn()); actionRow.appendChild(_pvToggleBtn()); }   // 1370/1371: Edit (preview on, not editing) · Preview (while editing)
+  if(typeof _pvEditBtn==='function' && !(typeof _isPanel==='function' && _isPanel())){ actionRow.appendChild(_pvEditBtn()); actionRow.appendChild(_pvToggleBtn()); if(typeof _pxBtn==='function') actionRow.appendChild(_pxBtn()); }   // 1370/1371: Edit (preview on, not editing) · Preview (while editing)
   actionRow.appendChild(addBtn);
   _ensureAddPill();   // the wall panel's own + (shown only in its edit mode)
   actionRow.appendChild(doneBtn);
@@ -24465,6 +24471,193 @@ html.proos-panel #widget-pv-btn{display:none!important}
     box.addEventListener('pointerup',function(){ if(!drag) return; drag=false; held=Date.now(); send(val); });
     requestAnimationFrame(draw);
   }
+})();
+</script>
+<!-- ══ REGISTER 1374 — THE FOUNDATION: ONE DEVICE, ONE KIND, ONE NAME, ITS OWN READING (stage 1 of the rebuild,
+     docs/ProOS_Dashboard_Rebuild_Plan_2026-11-16.md). Everything the new dashboard draws stands on four answers, each
+     read from the platform's own registries and states and nothing ProOS keeps: which entities make one DEVICE, what
+     KIND of device it is, what to CALL it in a room, and whether it is ON by its own reading. A test page shows every
+     device in every room as its new card, live (open it from the editing row: Foundation). Nothing else changes. -->
+<style>
+#px-page{position:fixed;inset:0;z-index:10060;background:#0e0e10;color:#fff;overflow-y:auto;display:none;padding-left:22px;padding-right:22px;padding-bottom:60px;font-family:Inter,-apple-system,sans-serif}
+#px-page.open{display:block;animation:pxIn var(--m-page) var(--e-sheet)}
+@keyframes pxIn{from{opacity:0;transform:translateY(16px)}}
+#px-page .px-top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:14px 0 6px}
+#px-page h1{font-size:34px;font-weight:300;letter-spacing:-.025em}
+#px-page .px-sub{font-size:13px;font-weight:500;color:rgba(255,255,255,.62)}
+#px-page .px-x{width:42px;height:42px;border-radius:50%;background:#1b1c20;border:0;color:#fff;font-size:20px;cursor:pointer}
+#px-page h2{font-size:20px;font-weight:600;letter-spacing:-.01em;margin:26px 2px 12px;display:flex;justify-content:space-between;align-items:baseline}
+#px-page h2 small{font-size:13px;font-weight:500;color:rgba(255,255,255,.62)}
+.px-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:12px}
+.px-card{position:relative;background:#1b1c20;border-radius:24px;padding:16px;min-height:150px;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden;transition:box-shadow var(--m-page) var(--e-standard),background var(--m-page) var(--e-standard)}
+.px-card.on{box-shadow:0 16px 40px -14px rgba(255,190,110,.45)}
+.px-card.on.blue{box-shadow:0 16px 40px -14px rgba(77,99,255,.55)}
+.px-card.gone{background:linear-gradient(180deg,rgba(255,181,71,.10),rgba(255,181,71,.03)),#1b1c20}
+.px-card .px-row{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.px-ic{width:40px;height:40px;border-radius:13px;background:#2c2d33;display:grid;place-items:center;flex:none}
+.px-ic svg{width:20px;height:20px;stroke:#fff;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.px-card.on .px-ic{background:rgba(255,196,107,.18)}.px-card.on .px-ic svg{stroke:#FFC46B}
+.px-card.on.blue .px-ic{background:rgba(77,99,255,.2)}.px-card.on.blue .px-ic svg{stroke:#8A98FF}
+.px-card.gone .px-ic{background:rgba(255,181,71,.18)}.px-card.gone .px-ic svg{stroke:#FFB547}
+.px-k{font-size:12px;font-weight:500;color:rgba(255,255,255,.55)}
+.px-n{font-size:15px;font-weight:600;margin-top:3px;line-height:1.25;word-break:break-word}
+.px-w{font-size:13px;font-weight:500;color:rgba(255,255,255,.66);margin-top:2px}
+.px-card.on .px-w{color:#fff}.px-card.gone .px-w{color:#FFB547}
+.px-parts{font-size:11px;font-weight:600;letter-spacing:.04em;color:rgba(255,255,255,.55);background:rgba(255,255,255,.07);border-radius:7px;padding:3px 7px;border:0;cursor:pointer;font-family:inherit}
+.px-list{font-size:11px;color:rgba(255,255,255,.62);margin-top:8px;line-height:1.5;display:none;word-break:break-all}
+.px-card.show .px-list{display:block}
+.px-cats{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.px-cat{background:#1b1c20;border-radius:18px;padding:12px 14px}
+.px-cat b{display:block;font-size:15px;font-weight:600}.px-cat span{font-size:13px;font-weight:500;color:rgba(255,255,255,.62)}
+#widget-px-btn{display:none;background:rgba(255,255,255,0.08);border:0.5px solid rgba(255,255,255,0.2);border-radius:20px;color:rgba(255,255,255,0.9);font-size:11px;letter-spacing:0.06em;padding:6px 16px;cursor:pointer;font-family:inherit}
+body.proos-editing #widget-px-btn{display:inline-block}
+html.proos-panel #widget-px-btn{display:none!important}
+@media (prefers-reduced-motion:reduce){#px-page.open{animation:none}.px-card{transition:none}}
+</style>
+<script>
+(function(){
+  // ── 1 · THE DEVICE ── entities grouped by their device; config/diagnostic, hidden and disabled entries are parts, never cards
+  var NEVER_LEAD={number:1,select:1,button:1,event:1,remote:1,update:1,text:1,image:1,tts:1,notify:1,stt:1,wake_word:1,conversation:1,
+    assist_satellite:1,device_tracker:1,automation:1,weather:1,sun:1,zone:1,person:1,input_boolean:1,input_number:1,input_select:1,input_text:1,input_datetime:1,input_button:1,counter:1,timer:1,group:1,todo:1,calendar:1,ai_task:1,siren:1,date:1,time:1,datetime:1,lawn_mower:0};
+  var ORDER=['media_player','climate','cover','light','fan','lock','alarm_control_panel','camera','vacuum','lawn_mower','valve','water_heater','humidifier','switch','binary_sensor','sensor'];
+  function _pxDom(e){ return String(e).split('.')[0]; }
+  function _pxRank(e){ var i=ORDER.indexOf(_pxDom(e)); return i<0?99:i; }
+  // inp: {ents:[{entity_id, device_id, area_id(resolved), category, hidden, disabled}], states, devNames:{id:name}, rooms:[{id,name}]}
+  function _pxDevicesOf(inp){
+    var by={}, out=[];
+    (inp.ents||[]).forEach(function(x){
+      var e=x.entity_id, d=_pxDom(e); if(x.category||x.hidden||x.disabled) return; if(!inp.states[e]) return;
+      if(d==='scene'||d==='script') return;   // scenes are the scenes row's, not devices
+      var key=x.device_id||('e:'+e); (by[key]=by[key]||{id:key, device_id:x.device_id||null, ents:[], areas:{}}).ents.push(e);
+      if(x.area_id) by[key].areas[x.area_id]=(by[key].areas[x.area_id]||0)+1;
+    });
+    Object.keys(by).forEach(function(k){
+      var g=by[k], leads=g.ents.filter(function(e){ return !NEVER_LEAD[_pxDom(e)] && _pxRank(e)<99; });
+      if(!leads.length) return;   // a device made only of parts (a firmware update, a button) is not a card
+      leads.sort(function(a,b){ return _pxRank(a)-_pxRank(b) || a.localeCompare(b); });
+      // a device's room is its LEAD entity's room (the platform lets one entity of a device sit elsewhere)
+      var lead=leads[0], leadRow=(inp.ents||[]).find(function(x){ return x.entity_id===lead; });
+      out.push({id:k, device_id:g.device_id, lead:lead, ents:g.ents.slice().sort(), area:(leadRow&&leadRow.area_id)||null,
+        devName:(g.device_id&&inp.devNames&&inp.devNames[g.device_id])||null});
+    });
+    return out;
+  }
+  // ── 2 · THE KIND ── from the lead entity's domain and class, and what it reports it can do
+  function _pxA(st,k){ return st&&st.attributes?st.attributes[k]:undefined; }
+  function _pxKindOf(dev, states){
+    var e=dev.lead, d=_pxDom(e), st=states[e]||{}, dc=_pxA(st,'device_class')||'';
+    var has=function(pred){ return dev.ents.some(function(x){ return pred(x, states[x]||{}); }); };
+    if(d==='media_player'){
+      if(dc==='tv') return {kind:'tv'}; if(dc==='receiver') return {kind:'receiver'}; if(dc==='speaker') return {kind:'speaker'};
+      return {kind:'source'};
+    }
+    if(d==='cover'){ if(dc==='garage'||dc==='gate') return {kind:'garage', sub:dc}; var f=parseInt(_pxA(st,'supported_features')||0,10); return {kind:'shade', sub:(f&4)?'position':'openclose'}; }
+    if(d==='light'){ var m=_pxA(st,'supported_color_modes')||[]; var col=m.some(function(x){ return /^(hs|xy|rgb|rgbw|rgbww)$/.test(x); });
+      var wt=m.indexOf('color_temp')>=0, dim=m.some(function(x){ return x!=='onoff'; });
+      return {kind:'light', sub:col?'colour':wt?'white':dim?'dimmer':'switch'}; }
+    if(d==='switch') return {kind:'plug', sub:dc==='outlet'?'outlet':'switch'};
+    if(d==='fan') return {kind:'fan'};
+    if(d==='lock') return {kind:'lock'};
+    if(d==='alarm_control_panel') return {kind:'alarm'};
+    if(d==='camera') return {kind:has(function(x,s){ return _pxDom(x)==='event' && _pxA(s,'device_class')==='doorbell'; })?'doorbell':'camera'};
+    if(d==='climate') return {kind:'climate'};
+    if(d==='vacuum'||d==='lawn_mower') return {kind:'vacuum'};
+    if(d==='valve') return {kind:'irrigation'};
+    if(d==='water_heater'||d==='humidifier') return {kind:'appliance'};
+    if(d==='binary_sensor') return {kind:'sensor', sub:dc||'sensor'};
+    if(d==='sensor') return {kind:'reading', sub:dc||'reading'};
+    return {kind:'other'};
+  }
+  // ── 3 · THE NAME ── the device's own name; the room's name off the front; a device named after its room is called by its kind
+  var KIND_WORD={light:'Light',plug:'Switch',fan:'Fan',shade:'Shade',garage:'Garage Door',climate:'Climate',tv:'TV',receiver:'Receiver',source:'Player',
+    speaker:'Speaker',camera:'Camera',doorbell:'Doorbell',lock:'Lock',alarm:'Alarm',sensor:'Sensor',reading:'Sensor',irrigation:'Irrigation',vacuum:'Vacuum',appliance:'Appliance',other:'Device'};
+  function _pxNameOf(dev, k, room, states){
+    var n=String(dev.devName||_pxA(states[dev.lead],'friendly_name')||dev.lead.split('.')[1].replace(/_/g,' ')).trim();
+    var rn=room&&room.name?String(room.name).trim():'';
+    if(rn){
+      var low=n.toLowerCase(), rl=rn.toLowerCase();
+      if(low===rl) return k.kind==='garage'&&k.sub==='gate'?'Gate':(KIND_WORD[k.kind]||'Device');
+      // "Office Office", "Office · Office", "Office - Office"
+      var parts=n.split(/\s*[·\-–|]\s*|\s+/); if(parts.length>1 && parts.every(function(p){ return p.toLowerCase()===rl; })) return KIND_WORD[k.kind]||'Device';
+      if(low.indexOf(rl+' ')===0 && n.length>rn.length+1){ n=n.slice(rn.length+1).replace(/^[·\-–|]\s*/,''); }
+    }
+    return n.charAt(0).toUpperCase()+n.slice(1);
+  }
+  // ── 4 · ITS OWN READING ── on, the word for it, and whether On Now shows it; "unavailable" is never "off"
+  function _pxReadingOf(dev, k, states){
+    var st=states[dev.lead]||{}, s=String(st.state||''), A=function(x){ return _pxA(st,x); };
+    if(!st.state || s==='unavailable' || s==='unknown') return {on:false, gone:true, word:'Can’t reach it', now:false};
+    switch(k.kind){
+      case 'light': { if(s!=='on') return {on:false, word:'Off'}; var b=A('brightness'); return {on:true, now:true, word:(k.sub!=='switch'&&b!=null)?Math.max(1,Math.round(b/2.55))+'%':'On'}; }
+      case 'plug': case 'fan': return s==='on'?{on:true, now:true, word:'On'}:{on:false, word:'Off'};
+      case 'speaker': return s==='playing'?{on:true, now:true, blue:true, word:(A('media_title')?'Playing · '+A('media_title'):'Playing')}:s==='paused'?{on:true, now:true, blue:true, word:'Paused'}:{on:false, word:(s==='idle'||s==='on')?'Not playing':'Off'};
+      case 'tv': case 'receiver': case 'source':
+        if(s==='off'||s==='standby') return {on:false, word:'Off'};
+        return {on:true, now:true, blue:true, word:s==='playing'?(A('media_title')?'Playing · '+A('media_title'):'Playing'):s==='paused'?'Paused':(A('source')?'On · '+A('source'):'On')};
+      case 'climate': { var act=A('hvac_action'); var on=s!=='off'; var t=A('current_temperature');
+        return {on:on, now:on&&act&&act!=='idle'&&act!=='off', blue:true, word:on?((act?act.charAt(0).toUpperCase()+act.slice(1):s.charAt(0).toUpperCase()+s.slice(1))+(A('temperature')!=null?' to '+A('temperature')+'°':'')):'Off'+(t!=null?' · '+t+'° inside':'')}; }
+      case 'shade': if(s==='opening'||s==='closing') return {on:true, now:true, word:s.charAt(0).toUpperCase()+s.slice(1)};
+        var p=A('current_position'); return {on:false, word:p!=null?(p>=99?'Open':p<=1?'Closed':p+'% open'):(s==='open'?'Open':s==='closed'?'Closed':s)};
+      case 'garage': return (s==='open'||s==='opening'||s==='closing')?{on:true, now:true, warn:true, word:s.charAt(0).toUpperCase()+s.slice(1)}:{on:false, word:'Closed'};
+      case 'lock': return s==='unlocked'||s==='open'?{on:true, now:true, warn:true, word:'Unlocked'}:{on:false, word:s==='locked'?'Locked':s.charAt(0).toUpperCase()+s.slice(1)};
+      case 'alarm': return {on:s.indexOf('armed')===0, word:s.replace(/_/g,' ').replace(/^\w/,function(c){ return c.toUpperCase(); })};
+      case 'camera': case 'doorbell': return {on:false, word:s==='recording'||s==='streaming'||s==='idle'?'Live':s.charAt(0).toUpperCase()+s.slice(1)};
+      case 'vacuum': return s==='cleaning'||s==='mowing'?{on:true, now:true, word:'Cleaning'}:{on:false, word:s.charAt(0).toUpperCase()+s.slice(1)};
+      case 'irrigation': return s==='open'||s==='opening'?{on:true, now:true, blue:true, word:'Watering'}:{on:false, word:'Off'};
+      case 'sensor': { var dc=k.sub, on=s==='on';
+        var W={door:['Closed','Open'],window:['Closed','Open'],garage_door:['Closed','Open'],opening:['Closed','Open'],motion:['Clear','Motion'],occupancy:['Clear','Occupied'],presence:['Away','Home'],moisture:['Dry','Wet'],smoke:['Clear','Smoke'],carbon_monoxide:['Clear','CO detected'],gas:['Clear','Gas'],connectivity:['Disconnected','Connected'],plug:['Unplugged','Plugged in'],battery:['Normal','Low']}[dc]||['Off','On'];
+        return {on:false, word:W[on?1:0]}; }
+      case 'reading': { var u=A('unit_of_measurement'); return {on:false, word:s+(u?' '+u:'')}; }
+      default: return {on:s==='on', word:s.charAt(0).toUpperCase()+s.slice(1)};
+    }
+  }
+  // the Devices categories, from the kinds a home actually has
+  var CAT={light:'Lights',plug:'Switches & Plugs',fan:'Fans',shade:'Shades',garage:'Garage & Gates',climate:'Climate',tv:'TVs & Media',receiver:'TVs & Media',source:'TVs & Media',
+    speaker:'Music',camera:'Cameras',doorbell:'Cameras',lock:'Locks & Access',alarm:'Security',sensor:'Security & Sensors',reading:'Readings',irrigation:'Irrigation',vacuum:'Appliances',appliance:'Appliances',other:'Other'};
+  window._pxDevices=_pxDevicesOf; window._pxKind=_pxKindOf; window._pxName=_pxNameOf; window._pxReading=_pxReadingOf; window._pxCat=function(k){ return CAT[k]||'Other'; };
+
+  // ── THE TEST PAGE ── every device in every room, live, as its new card
+  var IC={light:'<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z"/>',plug:'<path d="M9 3v5M15 3v5M6 8h12v4a6 6 0 0 1-12 0zM12 18v3"/>',
+    fan:'<path d="M12 12c0-4 1-8 4-8s2 5-4 8zM12 12c4 0 8 1 8 4s-5 2-8-4zM12 12c0 4-1 8-4 8s-2-5 4-8zM12 12c-4 0-8-1-8-4s5-2 8 4z"/>',shade:'<rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M4 8h16M4 12h16M4 16h16"/>',
+    garage:'<path d="M3 20V9l9-5 9 5v11M6 20v-8h12v8M6 15h12"/>',climate:'<path d="M14 14.8V5a2 2 0 0 0-4 0v9.8a4 4 0 1 0 4 0z"/>',tv:'<rect x="2.5" y="4.5" width="19" height="13" rx="2"/><path d="M8 21h8"/>',
+    speaker:'<rect x="6" y="2.5" width="12" height="19" rx="3"/><circle cx="12" cy="14" r="3.5"/><path d="M12 6.5h.01"/>',camera:'<rect x="3" y="6.5" width="13" height="11" rx="2"/><path d="m16 10.5 5-3v9l-5-3z"/>',
+    doorbell:'<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4zM10 21h4"/>',lock:'<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',alarm:'<path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.4 7.5 9.5 4.3-1.1 7.5-4.9 7.5-9.5V6z"/>',
+    sensor:'<circle cx="12" cy="12" r="3"/><path d="M6.3 6.3a8 8 0 0 0 0 11.4M17.7 6.3a8 8 0 0 1 0 11.4"/>',reading:'<path d="M4 19h16M7 16V9M12 16V5M17 16v-4"/>',irrigation:'<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/>',
+    vacuum:'<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="2.5"/>',appliance:'<rect x="4" y="3" width="16" height="18" rx="2"/><circle cx="12" cy="13" r="4.5"/>',other:'<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5h.01"/>'};
+  IC.receiver=IC.tv; IC.source=IC.tv;
+  var ORDER_KIND=['tv','source','receiver','speaker','light','climate','fan','plug','shade','garage','lock','alarm','camera','doorbell','irrigation','vacuum','appliance','sensor','reading','other'];
+  function _pxEsc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function _pxInput(){
+    var ents=Object.keys(entityDeviceMap||{}).concat(Object.keys(states||{})).filter(function(e,i,arr){ return arr.indexOf(e)===i; });
+    return {states:states, devNames:deviceNameById||{}, rooms:(CONFIG.rooms||[]).map(function(r){ return {id:r.id, name:r.name}; }),
+      ents:ents.map(function(e){ return {entity_id:e, device_id:entityDeviceMap[e]||null, area_id:(typeof entityAreaMap!=='undefined'&&entityAreaMap[e])||null,
+        category:(entityCategoryMap||{})[e]||null, hidden:hiddenEntities&&hiddenEntities.has(e), disabled:entityDisabled&&entityDisabled.has(e)}; })};
+  }
+  function _pxDraw(){
+    var pg=document.getElementById('px-page'); if(!pg||!pg.classList.contains('open')) return;
+    var inp=_pxInput(), devs=_pxDevicesOf(inp), byRoom={}, cats={}, rooms=inp.rooms, noRoom=[];
+    devs.forEach(function(d){ var k=_pxKindOf(d,inp.states); d.k=k; d.r=_pxReadingOf(d,k,inp.states); var room=rooms.find(function(r){ return r.id===d.area; });
+      d.name=_pxNameOf(d,k,room,inp.states); var c=CAT[k.kind]||'Other'; (cats[c]=cats[c]||{n:0,on:0,noroom:0}).n++; if(d.r.now) cats[c].on++;
+      if(room) (byRoom[room.id]=byRoom[room.id]||[]).push(d); else { noRoom.push(d); cats[c].noroom++; } });
+    var card=function(d){ var cls='px-card'+(d.r.gone?' gone':d.r.on?' on'+(d.r.blue?' blue':''):'');
+      return '<div class="'+cls+'" data-px="'+_pxEsc(d.id)+'"><div class="px-row"><div class="px-ic"><svg viewBox="0 0 24 24">'+(IC[d.k.kind]||IC.other)+'</svg></div><button class="px-parts" type="button">'+d.ents.length+(d.ents.length>1?' parts':' part')+'</button></div>'+
+        '<div><div class="px-k">'+_pxEsc(KIND_WORD[d.k.kind]+(d.k.sub&&d.k.kind==='light'?' · '+({dimmer:'Dimmer',colour:'Colour',white:'White Tones',switch:'Switch'}[d.k.sub]):''))+(d.r.now?' · On Now':'')+'</div><div class="px-n">'+_pxEsc(d.name)+'</div><div class="px-w">'+_pxEsc(d.r.word)+'</div>'+
+        '<div class="px-list">'+d.ents.map(function(e){ return _pxEsc(e)+(e===d.lead?' ← leads':''); }).join('<br>')+'</div></div></div>'; };
+    var sortK=function(x,y){ return ORDER_KIND.indexOf(x.k.kind)-ORDER_KIND.indexOf(y.k.kind) || x.name.localeCompare(y.name); };
+    var html='<div class="px-top"><div><h1>Every Device</h1><div class="px-sub">'+devs.length+' devices in '+Object.keys(byRoom).length+' rooms'+(noRoom.length?' · '+noRoom.length+' not in a room':'')+' — read live from the platform</div></div><button class="px-x" type="button" aria-label="Close">×</button></div>';
+    html+='<h2>Devices Page <small>the categories this home has</small></h2><div class="px-cats">'+Object.keys(cats).sort().map(function(c){ var x=cats[c]; return '<div class="px-cat"><b>'+_pxEsc(c)+'</b><span>'+x.n+(x.on?' · '+x.on+' on':'')+(x.noroom?' · '+x.noroom+' no room':'')+'</span></div>'; }).join('')+'</div>';
+    rooms.forEach(function(r){ var L=(byRoom[r.id]||[]).sort(sortK); var on=L.filter(function(d){ return d.r.now; }).length;
+      html+='<h2>'+_pxEsc(r.name)+'<small>'+(L.length?L.length+' devices'+(on?' · '+on+' on now':''):'Nothing here yet')+'</small></h2>'+(L.length?'<div class="px-grid">'+L.map(card).join('')+'</div>':''); });
+    if(noRoom.length) html+='<h2>Not in a Room<small>'+noRoom.length+' — Pro’s Health lists these with the fix</small></h2><div class="px-grid">'+noRoom.sort(sortK).map(card).join('')+'</div>';
+    var y=pg.scrollTop, open={}; pg.querySelectorAll('.px-card.show').forEach(function(c){ open[c.dataset.px]=1; });
+    pg.innerHTML=html; pg.scrollTop=y;
+    pg.querySelectorAll('.px-card').forEach(function(c){ if(open[c.dataset.px]) c.classList.add('show'); });
+    pg.querySelector('.px-x').onclick=function(){ pg.classList.remove('open'); };
+    pg.querySelectorAll('.px-parts').forEach(function(b){ b.onclick=function(){ b.closest('.px-card').classList.toggle('show'); }; });
+  }
+  window._pxOpen=function(){ var pg=document.getElementById('px-page'); if(!pg){ pg=document.createElement('div'); pg.id='px-page'; document.body.appendChild(pg); } pg.classList.add('open'); _pxDraw(); };
+  window._pxBtn=function(){ var b=document.createElement('button'); b.id='widget-px-btn'; b.type='button'; b.textContent='Foundation'; b.addEventListener('click', function(e){ e.stopPropagation(); window._pxOpen(); }); return b; };
+  setInterval(_pxDraw, 2000);   // live: the readings redraw every two seconds while the page is open
 })();
 </script>
 <!-- REGISTER 1365 motion styles (the type scale stays the last stylesheet) -->
