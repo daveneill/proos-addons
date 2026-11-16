@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111625';
+const PROOS_BUILD='2026111626';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -26176,6 +26176,15 @@ body.nx-on #device-chooser{z-index:9380}
     return _nxShowPage.apply(this, arguments);
   };
   window._nxShowPageWrapped=true;
+  // 1385a — READ ON THE BOX: the player and the alarm's step live INSIDE the main view (#view, its own layer 1), so no layer
+  // set on them can rise above the New Look; the player opened at layer 9110 and was still out of sight. The way 788 hoists
+  // the sheets: with New Look on they are moved to the top of the page (body), where their layers count.
+  function _nxHoist(){ if(!document.body.classList.contains('nx-on')) return;
+    ['player-overlay','pin-overlay'].forEach(function(id){ var el=document.getElementById(id); if(el&&el.parentElement!==document.body){ try{ document.body.appendChild(el); }catch(e){} } }); }
+  window._nxHoist=_nxHoist;
+  var _nxSetPrev=window._nxSet; if(typeof _nxSetPrev==='function') window._nxSet=function(v){ var r=_nxSetPrev.apply(this,arguments); _nxHoist(); return r; };
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',_nxHoist); else _nxHoist();
+  setTimeout(_nxHoist, 1500);
 })();
 </script>
 <!-- REGISTER 1365 motion styles (the type scale stays the last stylesheet) -->
