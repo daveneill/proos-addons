@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111616';
+const PROOS_BUILD='2026111617';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -25282,7 +25282,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
     var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
     p.classList.remove('nx-room-pg','nx-lights-pg'); p.classList.add('open','nx-home-pg'); p._sig=''; p.scrollTop=0; _nxhDraw();
     // your picture steps aside once Home scrolls, so it never sits over a card (it stays at the top, as in the mock)
-    p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.classList.contains('nx-home-pg') && p.scrollTop>40); }; document.body.classList.remove('nx-scr');
+    p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; document.body.classList.remove('nx-scr');   // 1378b: every New Look page, not Home only
     clearInterval(homeTimer); homeTimer=setInterval(_nxhDraw, 1000);   // live: a card arrives when something turns on, folds away when it goes off
   };
 })();
@@ -25321,6 +25321,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
 #nxl-sheet h2{font-size:24px;font-weight:600;letter-spacing:-.01em}
 #nxl-sheet .sub{font-size:13px;color:rgba(255,255,255,.62);margin-top:4px}
 #nxl-sheet .x{width:38px;height:38px;border-radius:50%;border:0;background:#26272d;color:#fff;font-size:20px;cursor:pointer;flex:none}
+#nxl-sheet .nx-chip{display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 14px;border-radius:999px;background:#26272d;border:0;color:#fff;font:500 13px Inter,-apple-system,sans-serif;cursor:pointer;white-space:nowrap}
 .nxl-faders{display:flex;flex-wrap:wrap;gap:16px 14px;margin-top:22px;justify-content:center}
 .nxl-fd{display:flex;flex-direction:column;align-items:center;gap:8px;width:66px}
 .nxl-fd .pc{font-size:13px;font-weight:600}
@@ -25417,6 +25418,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
   window._nxLights=function(){
     var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
     p.classList.remove('nx-room-pg','nx-home-pg'); p.classList.add('open','nx-lights-pg'); p._sig=''; p.scrollTop=0; _nxlDraw();
+    p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); }; document.body.classList.remove('nx-scr');   // 1378b: your picture steps aside here too
     clearInterval(lightsTimer); lightsTimer=setInterval(_nxlDraw, 1000);
   };
 
