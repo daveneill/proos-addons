@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111611';
+const PROOS_BUILD='2026111612';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -24806,6 +24806,7 @@ body.nx-on #nx-page.open{display:block}
     var a=window._proosAvatar||{}; if(a.url){ av.style.backgroundImage="url('"+a.url+"')"; av.textContent=''; } else { av.style.backgroundImage=''; av.textContent=a.initial||'D'; }
   }
   function _nxPage(html){ var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
+    p.classList.remove('nx-room-pg');   // 1376: leaving a room page
     p.innerHTML='<div class="nx-in">'+html+'</div>'; p.classList.add('open'); p.scrollTop=0; return p; }
   function closePage(){ var p=document.getElementById('nx-page'); if(p) p.classList.remove('open'); }
   function _nxGoTo(id){
@@ -24830,7 +24831,7 @@ body.nx-on #nx-page.open{display:block}
       html+='<button type="button" class="nx-room'+(live.length?'':' off')+'" data-ri="'+i+'" style="'+(r.photo?"background-image:url('"+String(r.photo).replace(/'/g,'%27')+"')":'')+'"><div class="nx-rt"><div><b>'+nxEsc(r.name)+'</b><span>'+nxEsc(line)+'</span></div><div class="nx-ics">'+kinds.slice(0,5).map(function(k){ return svgOf(k==='speaker'?'speaker':k); }).join('')+'</div></div></button>'; });
     var p=_nxPage(html+'</div>');
     p.querySelector('[data-whole]').onclick=function(){ closePage(); try{ showPage('home'); selectRoom(-1); }catch(e){} cur='home'; bar(); };
-    p.querySelectorAll('[data-ri]').forEach(function(b){ b.onclick=function(){ closePage(); try{ showPage('home'); selectRoom(+b.dataset.ri); }catch(e){} cur='rooms'; bar(); }; });
+    p.querySelectorAll('[data-ri]').forEach(function(b){ b.onclick=function(){ cur='rooms'; bar(); if(typeof _nxRoom==='function') _nxRoom(+b.dataset.ri); else { closePage(); try{ showPage('home'); selectRoom(+b.dataset.ri); }catch(e){} } }; });   // 1376: the new room page
   }
   // ── Devices ── the categories this home has, each with a live reading
   var OLD={Lights:'lights',Climate:'climate',Cameras:'cameras',Security:'security','Security & Sensors':'security','Garage & Gates':'security','Locks & Access':'access',Music:'music','TVs & Media':'media',Irrigation:'irrigation'};
@@ -24925,6 +24926,165 @@ body.nx-on #nx-page.open{display:block}
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',start); else start();
   // your picture arrives after sign-in; paint it once it does
   setInterval(function(){ if(!_nxIsOn()) return; var av=document.getElementById('nx-avatar'), a=window._proosAvatar||{}; if(av&&a.url&&!av.style.backgroundImage) bar(); }, 3000);
+})();
+</script>
+<!-- ══ REGISTER 1376 — STAGE 3, THE ROOM PAGE (Dave 16 Nov 16:23 "Go"). In the New Look a room opens as: its photo, warmed
+     or dimmed by its own lights; its name and what is on; its awareness line; its SCENES — the AV scenes the installer
+     committed (proved by Core, the 1373 rule: lit only when ProOS ran it and Core verified it), its own scenes (lit only
+     while every device still reads what the scene set), and Room Off; ON NOW — a card for each device that is on by its
+     own reading, each the door to its control; and YOUR WIDGETS — the favourites pinned to this room. Nothing on the
+     room page is hand-placed except those. -->
+<style>
+#nx-page.nx-room-pg{padding-left:0;padding-right:0}
+.nxr-hero{position:relative;height:340px;margin-bottom:-120px;background:#1b1c20 center/cover;transition:filter var(--m-hold) var(--e-standard)}
+.nxr-hero::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(14,14,16,.15),rgba(14,14,16,.45) 45%,#0e0e10 96%)}
+.nxr-body{position:relative;padding:0 18px;max-width:1180px;margin:0 auto}
+.nxr-top{position:absolute;top:calc(12px + var(--proos-sat,0px));left:18px;right:18px;z-index:2;display:flex;justify-content:space-between}
+.nxr-top button{width:42px;height:42px;border-radius:50%;border:0;background:rgba(0,0,0,.38);display:grid;place-items:center;cursor:pointer}
+.nxr-top svg{width:18px;height:18px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.nxr-name{font-size:44px;font-weight:300;letter-spacing:-.03em;line-height:1.05}
+.nxr-line{font-size:15px;font-weight:500;color:rgba(255,255,255,.8);margin:8px 0 12px;min-height:20px}
+.nxr-sec{display:flex;justify-content:space-between;align-items:baseline;margin:24px 2px 12px}
+.nxr-sec b{font-size:20px;font-weight:600;letter-spacing:-.01em}
+.nxr-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+@media (min-width:820px){.nxr-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.nxr-cols{display:grid;grid-template-columns:1.4fr 1fr;gap:28px;align-items:start}}
+.nxr-scn{position:relative;height:96px;border-radius:22px;border:0;padding:14px;display:flex;flex-direction:column;justify-content:space-between;text-align:left;color:#fff;cursor:pointer;background:#1b1c20;overflow:hidden;
+  transition:background var(--m-page) var(--e-standard),box-shadow var(--m-page) var(--e-standard),transform var(--m-tap) var(--e-spring)}
+.nxr-scn:active{transform:scale(.96)}
+.nxr-scn b{font-size:15px;font-weight:600}
+.nxr-scn svg.g{width:22px;height:22px;stroke:#fff;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.nxr-scn .tag{position:absolute;right:12px;top:12px;font-size:10.5px;font-weight:700;letter-spacing:.06em;padding:4px 7px;border-radius:7px;background:rgba(255,255,255,.1);color:rgba(255,255,255,.7)}
+.nxr-scn.on{background:linear-gradient(135deg,#3248ff,#2139F0);box-shadow:0 10px 26px rgba(33,57,240,.4)}
+.nxr-scn.on .tag{background:rgba(255,255,255,.2);color:#fff}
+.nxr-scn .ring{position:absolute;right:10px;top:10px;width:30px;height:30px;animation:nxrSpin var(--m-hold) linear infinite}
+@keyframes nxrSpin{to{transform:rotate(360deg)}}
+.nxr-live{position:relative;min-height:150px;border-radius:24px;border:0;padding:16px;display:flex;flex-direction:column;justify-content:space-between;text-align:left;color:#fff;cursor:pointer;background:#1b1c20 center/cover;overflow:hidden;
+  animation:nxrArrive var(--m-page) var(--e-spring);transition:box-shadow var(--m-page) var(--e-standard)}
+@keyframes nxrArrive{from{opacity:0;transform:translateY(18px) scale(.95)}}
+.nxr-live.wide{grid-column:span 2;min-height:170px}
+.nxr-live.art::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.05),rgba(0,0,0,.78))}
+.nxr-live>*{position:relative}
+.nxr-live .k{font-size:12px;font-weight:500;color:rgba(255,255,255,.62)}
+.nxr-live .n{font-size:15px;font-weight:600;margin-top:3px;line-height:1.25}
+.nxr-live.lit{box-shadow:0 16px 40px -14px rgba(255,190,110,.45)}
+.nxr-live.warn{background:linear-gradient(180deg,rgba(255,181,71,.10),rgba(255,181,71,.03)),#1b1c20}
+.nxr-pill{display:inline-flex;gap:6px;align-items:center;padding:7px 11px;border-radius:999px;background:rgba(0,0,0,.4);font-size:12px;font-weight:500;width:max-content}
+.nxr-pill b{color:#8A98FF;font-weight:600;letter-spacing:.04em}
+.nxr-row{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.nxr-pw{width:42px;height:42px;border-radius:50%;border:0;display:grid;place-items:center;background:#2c2d33;cursor:pointer;flex:none}
+.nxr-pw svg{width:18px;height:18px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round}
+.nxr-pw.lit{background:radial-gradient(circle at 50% 40%,#FFE6BF,#FFB765 75%);box-shadow:0 0 18px rgba(255,190,110,.5)}.nxr-pw.lit svg{stroke:#5a3a10}
+.nxr-pw.play{background:#fff}.nxr-pw.play svg{fill:#000;stroke:none}
+.nxr-quiet{background:#1b1c20;border-radius:20px;padding:16px;font-size:15px;color:rgba(255,255,255,.62)}
+.nxr-quiet small{display:block;font-size:13px;color:rgba(255,255,255,.55);margin-top:3px}
+.nxr-wid{border-radius:22px;overflow:hidden;background:#1b1c20;min-height:96px;position:relative;cursor:pointer}
+.nxr-wid>*{height:100%}
+@media (prefers-reduced-motion:reduce){.nxr-live{animation:none}.nxr-scn .ring{animation:none}.nxr-hero,.nxr-scn{transition:none}}
+</style>
+<script>
+(function(){
+  var G={back:'<path d="m15 6-6 6 6 6"/>',pw:'<path d="M12 4v7M7.5 7a7 7 0 1 0 9 0"/>',tv:'<rect x="2.5" y="4.5" width="19" height="13" rx="2"/><path d="M8 21h8"/>',spark:'<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/>',
+    light:'<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z"/>',play:'<path d="M7 4.5v15l13-7.5z"/>',pause:'<path d="M6 4.5h4v15H6zM14 4.5h4v15h-4z"/>',
+    climate:'<path d="M14 14.8V5a2 2 0 0 0-4 0v9.8a4 4 0 1 0 4 0z"/>',speaker:'<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>',
+    shade:'<rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M4 8h16M4 12h16M4 16h16"/>',garage:'<path d="M3 20V9l9-5 9 5v11M6 20v-8h12v8M6 15h12"/>',lock:'<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+    fan:'<path d="M12 12c0-4 1-8 4-8s2 5-4 8zM12 12c4 0 8 1 8 4s-5 2-8-4zM12 12c0 4-1 8-4 8s-2-5 4-8zM12 12c-4 0-8-1-8-4s5-2 8 4z"/>',other:'<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5h.01"/>'};
+  var gi=function(k,c){ return '<svg viewBox="0 0 24 24"'+(c?' class="'+c+'"':'')+'>'+(G[k]||G.other)+'</svg>'; };
+  var nxrEsc=function(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); };
+  var ROOM=null, timer=null, sceneCheck={}, firing={};
+  // ── the room's scenes ──
+  // AV scenes: the installer's committed activities; ON only when Core's room state is that activity AND verified (1373)
+  function _nxrAvScenes(r){ var acts=(typeof _pacActs==='function'&&_pacActs(r))||[]; return acts.filter(function(a){ return a&&a.script&&!_pacIsOffAct(a); }); }
+  function _nxrOffAct(r){ var acts=(typeof _pacActs==='function'&&_pacActs(r))||[]; return acts.filter(function(a){ return a&&a.script&&_pacIsOffAct(a); })[0]||null; }
+  function _nxrAvState(r, key){ var v='sensor.proos_activity_'+r.id, s=String(st(v)||''), ver=att(v,'verified')===true, ext=att(v,'external')===true;
+    if(firing[r.id]&&firing[r.id].key===key&&Date.now()-firing[r.id].t<90000&&!(s===key&&ver)) return 'starting';
+    return (s===key && ver && !ext)?'on':'off'; }
+  // a platform scene in this room: lit only while every device in it still reads what the scene set (Core /scenes/expect, 1365)
+  function _nxrRoomScenes(r){ return Object.keys(states||{}).filter(function(e){ return e.indexOf('scene.')===0 && entityAreaMap[e]===r.id && !hiddenEntities.has(e); }); }
+  function _nxrSceneOn(e){ var c=sceneCheck[e]; if(!c||!c.entities||!c.entities.length) return false;
+    return c.entities.every(function(x){ var s=st(x.entity_id); return s!=null && String(s)===String(x.state); }); }
+  function _nxrLoadSceneChecks(list){ list.forEach(function(e){ if(sceneCheck[e]&&Date.now()-sceneCheck[e].t<60000) return; sceneCheck[e]={t:Date.now(), entities:null};
+    fetch(proosCoreBase()+'/scenes/expect?entity='+encodeURIComponent(e)).then(function(r){ return r.json(); }).then(function(j){ sceneCheck[e]={t:Date.now(), entities:(j&&j.entities)||[]}; }).catch(function(){}); }); }
+  // ── the room's devices, by the foundation ──
+  function _nxrDevicesIn(r){ return (window._nxAll?_nxAll():[]).filter(function(d){ return d.area===r.id; }); }
+  function _nxrLightLevel(L){ var ls=L.filter(function(d){ return d.k.kind==='light'; }); if(!ls.length) return null;
+    var sum=0; ls.forEach(function(d){ var s=states[d.lead]||{}; if(s.state!=='on') return; var b=s.attributes&&s.attributes.brightness; sum+=(b!=null&&d.k.sub!=='switch')?b/255:1; }); return sum/ls.length; }
+  function _nxrCard(d, r){
+    var s=states[d.lead]||{}, A=s.attributes||{}, k=d.k.kind;
+    if(k==='tv'||k==='source'||k==='receiver'||k==='speaker'){
+      var art=''; try{ var p=(typeof _artOf==='function')?_artOf(d.lead):A.entity_picture; art=p?artSrc(p):''; }catch(e){}
+      var title=A.media_title||A.media_channel||'', sub=[A.media_artist||A.app_name||'', d.name].filter(Boolean).join(' · ');
+      var playing=s.state==='playing';
+      return '<button type="button" class="nxr-live wide'+(art?' art':'')+'" data-open="'+nxrEsc(d.lead)+'" style="'+(art?"background-image:url('"+String(art).replace(/'/g,'%27')+"')":'')+'">'+
+        '<span class="nxr-pill">'+nxrEsc(d.name)+(playing?' <b>PLAYING</b>':s.state==='paused'?' <b>PAUSED</b>':'')+'</span>'+
+        '<div class="nxr-row" style="align-items:flex-end"><div style="min-width:0"><div style="font-size:20px;font-weight:600">'+nxrEsc(title||d.r.word)+'</div><div class="k">'+nxrEsc(title?sub:d.name)+'</div></div>'+
+        ((k==='speaker'||A.media_title)?'<span class="nxr-pw play" data-pp="'+nxrEsc(d.lead)+'">'+gi(playing?'pause':'play')+'</span>':'')+'</div></button>';
+    }
+    var cls=d.r.warn?' warn':'', ic={shade:'shade',garage:'garage',lock:'lock',climate:'climate',fan:'fan'}[k]||'other';
+    return '<button type="button" class="nxr-live'+cls+'" data-cat="'+nxrEsc(d.cat)+'"><div class="nxr-row"><div class="nx-ic">'+gi(ic)+'</div></div><div><div class="k">'+nxrEsc(d.name)+'</div><div class="n">'+nxrEsc(d.r.word)+'</div></div></button>';
+  }
+  function _nxrDraw(){
+    var r=ROOM; if(!r) return; var p=document.getElementById('nx-page'); if(!p||!p.classList.contains('open')||!p.classList.contains('nx-room-pg')) return;
+    var L=_nxrDevicesIn(r), on=L.filter(function(d){ return d.r.now; }), lights=L.filter(function(d){ return d.k.kind==='light'; }), litN=lights.filter(function(d){ return d.r.on; }).length;
+    var av=_nxrAvScenes(r), sc=_nxrRoomScenes(r), off=_nxrOffAct(r); _nxrLoadSceneChecks(sc);
+    var lv=_nxrLightLevel(L);
+    // the line under the name: where the room IS (30 Oct) — what is on, by name; else Off
+    var named=on.filter(function(d){ return d.k.kind!=='light'; }).map(function(d){ return d.name; });
+    if(litN) named.push(litN+' of '+lights.length+' lights');
+    var line=on.length||litN?named.join(' · '):(L.length?'Off':'Nothing here yet');
+    var sensors=L.filter(function(d){ return d.k.kind==='sensor'; }), open=sensors.filter(function(d){ return /Open|Motion|Wet|Smoke|CO detected|Gas/.test(d.r.word); });
+    var aware=sensors.length?('<span class="nx-aware" style="margin:0'+(open.length?';background:rgba(255,181,71,.12)':'')+'"><span class="nx-dot" style="'+(open.length?'background:#FFB547;box-shadow:none':'')+'"></span>'+
+      (open.length?open.map(function(d){ return d.name+' '+d.r.word.toLowerCase(); }).join(' · '):'All normal · '+sensors.length+(sensors.length===1?' sensor':' sensors')+' checked')+'</span>'):'';
+    // scenes row
+    var tiles=av.map(function(a){ var s=_nxrAvState(r,a.key); return '<button type="button" class="nxr-scn'+(s==='on'?' on':'')+'" data-av="'+nxrEsc(a.key)+'" data-script="'+nxrEsc(a.script)+'">'+gi('tv','g')+
+        (s==='starting'?'<svg class="ring" viewBox="0 0 36 36"><circle cx="18" cy="18" r="15" fill="none" stroke="rgba(255,255,255,.25)" stroke-width="3"/><circle cx="18" cy="18" r="15" fill="none" stroke="#fff" stroke-width="3" stroke-dasharray="30 95" stroke-linecap="round"/></svg>':'<span class="tag">AV</span>')+
+        '<b>'+nxrEsc(String(a.label||a.key).replace(/^Watch\s+/i,'Watch '))+'</b></button>'; })
+      .concat(sc.map(function(e){ return '<button type="button" class="nxr-scn'+(_nxrSceneOn(e)?' on':'')+'" data-scene="'+nxrEsc(e)+'">'+gi('spark','g')+'<b>'+nxrEsc(_pxName({lead:e,devName:att(e,'friendly_name')},{kind:'other'},r,states))+'</b></button>'; }))
+      .concat((off||lights.length||L.some(function(d){ return d.k.kind==='speaker'; }))?['<button type="button" class="nxr-scn" data-off="1">'+gi('pw','g')+'<b>Room Off</b></button>']:[]);
+    // on now: the lights as one _nxrCard, every other device that is on as its own
+    var cards=[];
+    on.filter(function(d){ return d.k.kind!=='light'; }).forEach(function(d){ cards.push(_nxrCard(d,r)); });
+    if(litN) cards.splice(cards.length&&/wide/.test(cards[0])?1:0,0,'<button type="button" class="nxr-live lit" data-lights="1"><div class="nxr-row"><div class="nx-ic" style="background:rgba(255,196,107,.18)">'+gi('light').replace('<svg','<svg style="stroke:#FFC46B"')+'</div><span class="nxr-pw lit" data-lightsoff="1">'+gi('pw')+'</span></div><div><div class="k">'+litN+' of '+lights.length+' on</div><div class="n">Lights</div></div></button>');
+    // your widgets: the favourites pinned to this room
+    var wl=[]; try{ wl=(typeof loadWidgetLayout==='function'?loadWidgetLayout():[])||[]; }catch(e){}
+    var favs=wl.filter(function(w){ return w&&(w.id==='apps'||w.id==='musicfav'||w.id==='chfav'||w.id==='actfav'); }), rest=wl.length-favs.length;
+    var wids=favs.map(function(w){ var h=''; try{ h=(renderWidgetContent(w)||{}).html||''; }catch(e){} return h?'<div class="nxr-wid">'+h+'</div>':''; }).join('');
+    var sig=JSON.stringify([line,aware,tiles,cards,wids.length,rest,lv]); if(p._sig===sig) return; p._sig=sig;
+    var hero=document.querySelector('#nx-page .nxr-hero');
+    var html='<div class="nxr-hero" style="'+(r.photo?"background-image:url('"+String(r.photo).replace(/'/g,'%27')+"');":'')+'filter:'+(lv==null?(on.length?'none':'brightness(.75)'):'brightness('+(0.75+0.35*lv).toFixed(2)+') saturate('+(0.9+0.2*lv).toFixed(2)+')')+'"></div>'+
+      '<div class="nxr-top"><button type="button" data-back aria-label="Rooms">'+gi('back')+'</button><span></span></div><div class="nxr-body">'+
+      '<div class="nxr-name">'+nxrEsc(r.name)+'</div><div class="nxr-line">'+nxrEsc(line)+'</div>'+aware+
+      '<div class="nxr-cols"><div><div class="nxr-sec"><b>Scenes</b></div>'+(tiles.length?'<div class="nxr-grid">'+tiles.join('')+'</div>':'<div class="nxr-quiet">No scenes in the '+nxrEsc(r.name)+' yet<small>Your installer adds them, or ask Assist to save what’s on as a scene.</small></div>')+
+      (wids||rest?'<div class="nxr-sec"><b>Your Widgets</b></div>'+(wids?'<div class="nxr-grid">'+wids+'</div>':'')+(rest?'<div class="nxr-quiet" style="margin-top:12px">'+rest+(rest===1?' more widget':' more widgets')+' on this page move to the new look in stage 6<small>Turn New Look off to see them as they are today.</small></div>':''):'')+
+      '</div><div><div class="nxr-sec"><b>On Now</b></div>'+(cards.length?'<div class="nxr-grid" style="grid-template-columns:repeat(2,minmax(0,1fr))">'+cards.join('')+'</div>':'<div class="nxr-quiet">Nothing on in the '+nxrEsc(r.name)+'<small>Everything in here is in Devices, or just ask.</small></div>')+'</div></div></div>';
+    var y=p.scrollTop; p.innerHTML=html; p.scrollTop=y; _nxrWire(p,r,lights);
+  }
+  function _nxrWire(p,r,lights){
+    p.querySelector('[data-back]').onclick=function(){ _nxrStop(); _nxGo('rooms'); };
+    p.querySelectorAll('[data-av]').forEach(function(b){ b.onclick=function(){ var key=b.dataset.av;
+      if(_nxrAvState(r,key)==='on'){ try{ _pacGoControl(r,key); }catch(e){} return; }   // already on → its control page
+      firing[r.id]={key:key,t:Date.now()}; try{ window.proosFireActivity&&window.proosFireActivity(r.id,b.dataset.script); }catch(e){} p._sig=''; _nxrDraw(); }; });
+    p.querySelectorAll('[data-scene]').forEach(function(b){ b.onclick=function(){ try{ svc('scene','turn_on',{entity_id:b.dataset.scene}); }catch(e){} sceneCheck[b.dataset.scene]=null; setTimeout(function(){ p._sig=''; _nxrDraw(); },1500); }; });
+    var off=p.querySelector('[data-off]'); if(off) off.onclick=function(){ var oa=_nxrOffAct(r);
+      if(oa){ firing[r.id]=null; try{ window.proosFireActivity&&window.proosFireActivity(r.id,oa.script); }catch(e){} }
+      else { var ls=lights.filter(function(d){ return d.r.on; }).map(function(d){ return d.lead; }); if(ls.length) svc('light','turn_off',{entity_id:ls});
+        var sp=_nxrDevicesIn(r).filter(function(d){ return d.k.kind==='speaker'&&states[d.lead]&&states[d.lead].state==='playing'; }).map(function(d){ return d.lead; }); if(sp.length) svc('media_player','media_pause',{entity_id:sp}); } };
+    p.querySelectorAll('[data-open]').forEach(function(b){ b.onclick=function(e){ if(e.target.closest('[data-pp]')) return; try{ openPlayer(b.dataset.open); }catch(x){} }; });
+    p.querySelectorAll('[data-pp]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); svc('media_player','media_play_pause',{entity_id:b.dataset.pp}); }; });
+    var lc=p.querySelector('[data-lights]'); if(lc) lc.onclick=function(e){ if(e.target.closest('[data-lightsoff]')) return; try{ _nxrCloseNx(); openLightOverlay(CONFIG.rooms.indexOf(r)); }catch(x){} };
+    var lo=p.querySelector('[data-lightsoff]'); if(lo) lo.onclick=function(e){ e.stopPropagation(); var ls=lights.filter(function(d){ return d.r.on; }).map(function(d){ return d.lead; }); if(ls.length) svc('light','turn_off',{entity_id:ls}); };
+    p.querySelectorAll('[data-cat]').forEach(function(b){ b.onclick=function(){ var m={Climate:'climate','Garage & Gates':'security','Locks & Access':'access'}[b.dataset.cat]; if(m){ _nxrCloseNx(); try{ showPage(m); }catch(x){} } }; });
+  }
+  function _nxrCloseNx(){ var p=document.getElementById('nx-page'); if(p) p.classList.remove('open'); _nxrStop(); }
+  function _nxrStop(){ clearInterval(timer); timer=null; var p=document.getElementById('nx-page'); if(p) p.classList.remove('nx-room-pg'); }
+  window._nxRoom=function(i){
+    var r=(CONFIG.rooms||[])[i]; if(!r) return; ROOM=r;
+    try{ showPage('home'); selectRoom(i); }catch(e){}   // the room is the current room underneath: its widgets, Assist's room, its activities load
+    try{ _pacActs(r); }catch(e){}
+    var p=document.getElementById('nx-page'); if(!p){ p=document.createElement('div'); p.id='nx-page'; document.body.appendChild(p); }
+    p.classList.add('open','nx-room-pg'); p._sig=''; p.scrollTop=0; _nxrDraw();
+    clearInterval(timer); timer=setInterval(_nxrDraw, 1000);   // live: the page follows the devices — a card arrives when something turns on, leaves when it goes off
+  };
+  window._nxRoomState=_nxrAvState;
 })();
 </script>
 <!-- REGISTER 1365 motion styles (the type scale stays the last stylesheet) -->
