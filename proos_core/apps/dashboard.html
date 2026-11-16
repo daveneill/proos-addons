@@ -3296,7 +3296,7 @@ html[data-link="remote"]{--m-tap:90ms;--m-move:200ms;--m-page:300ms}
 #widget-picker,#music-act-sheet,#music-queue-overlay,#scene-edit,.appc-ov,#setup,#pin-overlay,
 #assist-overlay,#all-lights-overlay,#loading,#proos-reboot,#proos-dashupd,#light-overlay,
 #climate-all-overlay,#climate-overlay,#rotate-overlay,#svc-sheet,#proos-sheet,#proos-tv-wait,#pp,#jv,.sg-pop,#proos-acard,#mus-ask,
-#nxp,#nxp-sheet,#nxl-sheet,#nx-page,#px-page,#pv-card,#mx-sweep,#device-chooser{padding-top:var(--proos-sat)}
+#nxp,#nxp-sheet,#nxl-sheet,#nxm-sheet,#nx-page,#px-page,#pv-card,#mx-sweep,#device-chooser{padding-top:var(--proos-sat)}
 /* THE CLEARANCE IS A FLOOR, NOT AN ADDITION (7 Sep 2026, register 362).
    Dave: "Mobile needs to be looked at every page on the dashboard for layout
    these pages are all too low just looks all wrong". Measured at 393x852 with
@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111704';
+const PROOS_BUILD='2026111705';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -27007,6 +27007,151 @@ body.nx-on #pa-detail.nxd-ring .pa-fs-pip{top:156px;right:16px;left:auto;bottom:
     p.classList.remove.apply(p.classList, OTHER); p.classList.add('open','nx-scn-pg'); p._sig=''; p.scrollTop=0; document.body.classList.remove('nx-scr');
     p.onscroll=function(){ document.body.classList.toggle('nx-scr', p.scrollTop>40); };
     _nxScDraw(); clearInterval(timer); timer=setInterval(_nxScDraw,1000); };
+})();
+</script>
+<!-- ══ REGISTER 1397 — REBUILD STEP 5, THE MUSIC PAGE IN THE NEW LOOK (Dave 17 Nov 07:17 "okay go"; mock S.music). The
+     page's machinery stays — the mock keeps it ("Favourites, search and results as today"): Discover, Favourites, the
+     library pages, Radio, Podcasts, a Sonos's own services, search, browse, hold for Play Now / Next / Add to Queue, the
+     engine per speaker (MA or native). What is new is the page: "Music" as its title; at the top the mock's two pickers —
+     "Play to · <room> ▾" (the rooms with a music player, the playing one marked; the choice is today's _musicRoomChoices
+     and musicSelectSpeaker) and ONE "<page> ▾" picker in place of the row of chips that scrolled sideways (each row in it
+     IS today's chip, pressed for you; Connect a Service is today's Music Sources button); the mock's search field;
+     artwork tiles large and rounded, two across on a phone; "Music for Which Room?" as the New Look sheet. The player's
+     Search lands here. Off, nothing changes. -->
+<style>
+body.nx-on #page-music{font-family:Inter,-apple-system,sans-serif}
+body.nx-on #page-music .page-title{display:none}
+body.nx-on #page-music .page-heading{font-size:34px;font-weight:700;letter-spacing:-.02em}
+body.nx-on #page-music #music-speakers,body.nx-on #page-music #music-cats-row{display:none!important}
+body.nx-on #page-music #nxm-pick{display:flex}
+#nxm-pick{display:none;gap:10px;padding:4px 16px 12px}
+#nxm-pick button{flex:1;min-width:0;height:44px;border-radius:15px;border:0;padding:0 14px;display:flex;align-items:center;justify-content:space-between;gap:8px;background:#1b1c20;color:#fff;font:600 14px Inter,-apple-system,sans-serif;cursor:pointer}
+#nxm-pick button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#nxm-pick button svg{width:14px;height:14px;flex:none;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+#nxm-pick button[hidden]{display:none}
+body.nx-on #page-music #music-search{height:46px;border-radius:15px;border:0;background:#1b1c20 no-repeat 14px center/18px url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E");padding:0 16px 0 42px;font-size:15px;font-family:inherit}
+body.nx-on #page-music #music-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:18px 14px!important}
+@media (min-width:700px){body.nx-on #page-music #music-grid{grid-template-columns:repeat(auto-fill,minmax(170px,1fr))!important}}
+body.nx-on #page-music #music-grid>div[onclick]>div:first-child:not([style*="50%"]){border-radius:20px!important}
+body.nx-on #page-music #music-grid>div[onclick]>div:nth-child(2){font-size:15px!important;font-weight:600;margin-top:2px}
+body.nx-on #page-music #music-grid>div[onclick]>div:nth-child(3){font-size:13px!important;color:rgba(255,255,255,.55)!important}
+body.nx-on #page-music .mus-tlist{grid-column:1/-1;background:#1b1c20;border-radius:20px;padding:6px}
+body.nx-on #page-music .mus-trow{border-radius:14px}
+body.nx-on #page-music .mus-shelf-t{font-size:17px}
+body.nx-on #page-music .mus-shelf-more{font-size:13px;color:#8A98FF}
+body.nx-on #mus-ask{background:rgba(0,0,0,.55)}
+body.nx-on #mus-ask .ma-card{background:#1b1c20;border:0;border-radius:28px;padding:24px 16px 14px;font-family:Inter,-apple-system,sans-serif}
+body.nx-on #mus-ask .ma-h{font-size:20px;font-weight:600}
+body.nx-on #mus-ask .ma-list{background:none;display:flex;flex-direction:column;gap:6px}
+body.nx-on #mus-ask .ma-row,body.nx-on #mus-ask .ma-row:nth-child(even){min-height:52px;border-radius:14px;background:#26272c;font-weight:600}
+body.nx-on #mus-ask .ma-row .ma-on{color:#8A98FF;font-weight:600}
+#nxm-sheet{position:fixed;inset:0;z-index:9200;display:none;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.55);font-family:Inter,-apple-system,sans-serif;color:#fff}
+#nxm-sheet.open{display:flex}
+#nxm-sheet .nxm-card{width:min(520px,100%);max-height:80vh;overflow-y:auto;background:#1b1c20;border-radius:28px 28px 0 0;padding:22px 16px calc(18px + env(safe-area-inset-bottom,0px))}
+@media (min-width:700px){#nxm-sheet{align-items:center}#nxm-sheet .nxm-card{border-radius:28px}}
+#nxm-sheet h3{margin:0 4px 14px;font-size:20px;font-weight:600}
+#nxm-sheet .nxm-row{width:100%;min-height:52px;margin-top:6px;border:0;border-radius:14px;padding:0 16px;display:flex;align-items:center;justify-content:space-between;background:#26272c;color:#fff;font:600 15px Inter,-apple-system,sans-serif;cursor:pointer;text-align:left}
+#nxm-sheet .nxm-row.on{background:#2139F0}
+#nxm-sheet .nxm-row small{font-size:12px;color:#8A98FF;font-weight:600}
+#nxm-sheet .nxm-row.on small{color:#fff}
+#nxm-sheet .nxm-row.add{background:none;box-shadow:inset 0 0 0 1px rgba(255,255,255,.14);color:rgba(255,255,255,.8)}
+</style>
+<script>
+(function(){
+  var esc=function(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); };
+  var DOWN='<svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>', tick=null;
+  function _nxmuOn(){ return document.body.classList.contains('nx-on'); }
+  // what the two pickers say: the room the music plays to, and the page of music on show (today's lit chip)
+  function _nxmuWords(){
+    var e=(typeof _musicSpeaker!=='undefined')?_musicSpeaker:null, a=e&&typeof entityAreaMap!=='undefined'?entityAreaMap[e]:'';
+    var r=(CONFIG.rooms||[]).filter(function(x){ return x.id===a; })[0];
+    var chips=[].slice.call(document.querySelectorAll('#music-cats .mus-libchip')), lit=chips.filter(function(b){ return b.classList.contains('on'); })[0];
+    return {room:r?r.name:(e?'Choose':'Choose a Room'), page:lit?lit.textContent.trim():(chips.length?'Browse':''), chips:chips};
+  }
+  window._nxmuWords=_nxmuWords;
+  function _nxmuEnsure(){
+    var head=document.getElementById('music-head'); if(!head) return null;
+    var p=document.getElementById('nxm-pick');
+    if(!p){ p=document.createElement('div'); p.id='nxm-pick';
+      p.innerHTML='<button type="button" data-nxm="room"><span></span>'+DOWN+'</button><button type="button" data-nxm="page"><span></span>'+DOWN+'</button>';
+      head.insertBefore(p, head.firstChild);
+      p.querySelector('[data-nxm="room"]').onclick=_nxmuRooms; p.querySelector('[data-nxm="page"]').onclick=_nxmuPages; }
+    var s=document.getElementById('music-search'); if(s&&s.placeholder!=='Search songs, artists, stations') s.placeholder='Search songs, artists, stations';
+    return p;
+  }
+  function _nxmuPaint(){ var p=_nxmuEnsure(); if(!p) return; var w=_nxmuWords();
+    var a=p.querySelector('[data-nxm="room"] span'), b=p.querySelector('[data-nxm="page"]'), t='Play to · '+w.room;
+    if(a.textContent!==t) a.textContent=t; b.hidden=!w.page; var bs=b.querySelector('span'); if(bs.textContent!==w.page) bs.textContent=w.page; }
+  function sheet(title, rows){
+    var el=document.getElementById('nxm-sheet'); if(!el){ el=document.createElement('div'); el.id='nxm-sheet'; document.body.appendChild(el); }
+    el.innerHTML='<div class="nxm-card" role="dialog" aria-label="'+esc(title)+'"><h3>'+esc(title)+'</h3>'+rows.map(function(r,i){ return '<button type="button" class="nxm-row'+(r.on?' on':'')+(r.add?' add':'')+'" data-i="'+i+'"><span>'+esc(r.t)+'</span>'+(r.k?'<small>'+esc(r.k)+'</small>':'')+'</button>'; }).join('')+'</div>';
+    el.onclick=function(ev){ if(ev.target===el) el.classList.remove('open'); };
+    el.querySelectorAll('[data-i]').forEach(function(b){ b.onclick=function(){ el.classList.remove('open'); try{ rows[+b.dataset.i].go(); }catch(e){} setTimeout(_nxmuPaint,50); }; });
+    el.classList.add('open');
+  }
+  // Play to: today's room choices (the rooms with a music player; each opens on the player 1264 picks)
+  function _nxmuRooms(){ var ch=(typeof _musicRoomChoices==='function')?_musicRoomChoices():[], cur=(typeof _musicSpeaker!=='undefined')?_musicSpeaker:null;
+    sheet('Play To', ch.map(function(c){ return {t:c.room.name, k:c.playing?'Playing':'', on:!!cur&&entityAreaMap[cur]===c.room.id, go:function(){ _musicRoomLabel(c.room); musicSelectSpeaker(c.eid); }}; })); }
+  // the page picker: each row is today's chip, pressed; Connect a Service is today's Music Sources button
+  function _nxmuPages(){ var w=_nxmuWords(), rows=w.chips.map(function(b){ return {t:b.textContent.trim(), on:b.classList.contains('on'), go:function(){ b.click(); }}; });
+    var src=document.getElementById('music-services-btn'); if(src&&src.style.display!=='none'&&document.getElementById('music-sources-row').style.display!=='none') rows.push({t:'+ Connect a Service', add:true, go:function(){ src.click(); }});
+    sheet('Music', rows); }
+  window._nxmuRooms=_nxmuRooms; window._nxmuPages=_nxmuPages;
+  function _nxmuStart(){ _nxmuPaint(); clearInterval(tick); tick=setInterval(function(){ if(!_nxmuOn()||document.body.dataset.page!=='music'){ clearInterval(tick); tick=null; var s=document.getElementById('nxm-sheet'); if(s) s.classList.remove('open'); return; } _nxmuPaint(); },700); }
+  var _sp=window.showPage; if(typeof _sp==='function') window.showPage=function(p){ var r=_sp.apply(this,arguments); try{ if(p==='music'&&_nxmuOn()) _nxmuStart(); }catch(e){} return r; };
+})();
+</script>
+<!-- ══ REGISTER 1398 — THE NEW LOOK'S PAGES SIT ON THE HOME'S OWN PHOTOS (Dave 17 Nov 07:18 "whats happening with the black
+     background everywhere?"; chose "Room photo, else Home"). My fault: the mocks draw every page on plain near-black
+     (--bg #0e0e10) because a mock has no home of its own, and I copied that onto every new page — Home, Devices, Rooms,
+     Lights, Climate, Shades, Security, Locks, Cameras, Music, TVs, Irrigation, Scenes, Settings — while the dashboard has
+     always put the home's photos behind its pages (proos-backgrounds; 1072 "the background like every other page … rather
+     than the black"). Now ONE backdrop stands behind the New Look frame: inside a room (its page, or a page opened from
+     it) that room's photo, frosted and darkened, with the soft dim when the room is off (16 Nov: a quarter darker, its
+     colour kept — the room page's own hero rule, read from the hero itself); everywhere else the Home photo, frosted. No
+     photo → today's dark. The room page's photo now dissolves into its own frosted copy instead of into black. The Music
+     page keeps the dashboard's own background (its New Look styling no longer paints black over it). -->
+<style>
+#nx-bgx{position:fixed;inset:0;z-index:8989;display:none;pointer-events:none;background:#0e0e10;overflow:hidden}
+#nx-bgx i{position:absolute;inset:-80px;background:#0e0e10 center/cover no-repeat;transform:translateZ(0);transition:filter var(--m-hold) var(--e-standard)}
+#nx-bgx::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(14,14,16,.50),rgba(14,14,16,.62))}
+@media (min-width:700px){#nx-bgx::after{background:linear-gradient(180deg,rgba(14,14,16,.55),rgba(14,14,16,.68))}}
+body.nx-on.nxbg-on #nx-bgx{display:block}
+body.nx-on.nxbg-on #nx-page{background:transparent}
+body.nx-on.nxbg-on #nx-page .nxr-hero{-webkit-mask-image:linear-gradient(180deg,#000 50%,transparent 98%);mask-image:linear-gradient(180deg,#000 50%,transparent 98%)}
+body.nx-on.nxbg-on #nx-page .nxr-hero::after{background:linear-gradient(180deg,rgba(14,14,16,.15),rgba(14,14,16,.4) 60%,rgba(14,14,16,0))}
+@media (prefers-reduced-motion:reduce){#nx-bgx i{transition:none}}
+</style>
+<script>
+(function(){
+  var ctx=null, last='';
+  function _nxbgOn(){ return document.body.classList.contains('nx-on'); }
+  // which photo, and how dim: the room in hand (its page, or a page opened from it), else the Home
+  function _nxbgPick(){
+    var p=document.getElementById('nx-page'), open=!!(p&&p.classList.contains('open'));
+    if(!open) return null;
+    var r=ctx, ph=r&&r.photo?r.photo:(CONFIG&&CONFIG._homeAreaPhoto)||'', f='none';
+    if(r&&r.photo){ var hero=p.querySelector('.nxr-hero');
+      if(hero&&p.classList.contains('nx-room-pg')) f=hero.style.filter||'none';   // the room page's own rule (1376/1377)
+      else { var on=false; try{ on=(window._nxAll?_nxAll():[]).some(function(d){ return d.area===r.id&&d.r&&d.r.now; }); }catch(e){} f=on?'none':'brightness(.75)'; } }
+    return ph?{ph:ph, f:f}:null;
+  }
+  window._nxbgPick=_nxbgPick; window._nxbgCtx=function(r){ if(arguments.length) ctx=r||null; return ctx; };
+  function _nxbgPaint(){
+    var want=_nxbgOn()?_nxbgPick():null, b=document.getElementById('nx-bgx');
+    document.body.classList.toggle('nxbg-on', !!want); if(!want){ last=''; return; }
+    if(!b){ b=document.createElement('div'); b.id='nx-bgx'; b.setAttribute('aria-hidden','true'); b.innerHTML='<i></i>'; document.body.appendChild(b); }
+    var i=b.firstChild, u="url('"+String(want.ph).replace(/['"\\]/g,encodeURIComponent)+"')", f='blur(30px) saturate(1.15)'+(want.f&&want.f!=='none'?' '+want.f:'');
+    if(last!==u){ last=u; i.style.backgroundImage=u; } if(i.style.filter!==f) i.style.filter=f;
+  }
+  window._nxbgPaint=_nxbgPaint;
+  var _r=window._nxRoom; if(typeof _r==='function') window._nxRoom=function(i){ ctx=(CONFIG.rooms||[])[i]||null; var x=_r.apply(this,arguments); _nxbgPaint(); return x; };
+  var _h=window._nxHome; if(typeof _h==='function') window._nxHome=function(){ ctx=null; var x=_h.apply(this,arguments); _nxbgPaint(); return x; };
+  var _g=window._nxGo; if(typeof _g==='function') window._nxGo=function(id){ if(/^(home|rooms|devices|scenes|settings)$/.test(id)) ctx=null; var x=_g.apply(this,arguments); _nxbgPaint(); return x; };
+  // the bar's own buttons and the avatar go straight to the frame's router, so they reset the room here too
+  document.addEventListener('click',function(ev){ var b=ev.target&&ev.target.closest&&ev.target.closest('#nx-bar [data-nx],#nx-avatar'); if(!b) return;
+    var id=b.id==='nx-avatar'?'settings':b.dataset.nx; if(/^(home|rooms|devices|scenes|settings)$/.test(id)) ctx=null; },true);
+  setInterval(_nxbgPaint, 1000);   // follows the page and the room's on/off live (16 Nov: at once, not on a refresh)
 })();
 </script>
 <!-- REGISTER 1365 motion styles (the type scale stays the last stylesheet) -->
