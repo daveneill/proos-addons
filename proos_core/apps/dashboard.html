@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111627';
+const PROOS_BUILD='2026111628';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -25058,16 +25058,14 @@ body.nx-on #nx-page.open{display:block}
     on.filter(function(d){ return d.k.kind!=='light'; }).forEach(function(d){ cards.push(_nxrCard(d,r)); });
     if(litN) cards.splice(cards.length&&/wide/.test(cards[0])?1:0,0,'<button type="button" class="nxr-live lit" data-lights="1"><div class="nxr-row"><div class="nx-ic" style="background:rgba(255,196,107,.18)">'+gi('light').replace('<svg','<svg style="stroke:#FFC46B"')+'</div><span class="nxr-pw lit" data-lightsoff="1">'+gi('pw')+'</span></div><div><div class="k">'+litN+' of '+lights.length+' on</div><div class="n">Lights</div></div></button>');
     // your widgets: the favourites pinned to this room
-    var wl=[]; try{ wl=(typeof loadWidgetLayout==='function'?loadWidgetLayout():[])||[]; }catch(e){}
-    var favs=wl.filter(function(w){ return w&&(w.id==='apps'||w.id==='musicfav'||w.id==='chfav'||w.id==='actfav'); }), rest=wl.length-favs.length;
-    var wids=favs.map(function(w){ var h=''; try{ h=(renderWidgetContent(w)||{}).html||''; }catch(e){} return h?'<div class="nxr-wid">'+h+'</div>':''; }).join('');
-    var sig=JSON.stringify([line,aware,tiles,cards,wids.length,rest,lv]); if(p._sig===sig) return; p._sig=sig;
+    var wids=window._nxWidgets?_nxWidgets(r):'';   // 1387: every widget this room has, in the New Look
+    var sig=JSON.stringify([line,aware,tiles,cards,wids,lv]); if(p._sig===sig) return; p._sig=sig;
     var hero=document.querySelector('#nx-page .nxr-hero');
     var html='<div class="nxr-hero" style="'+(r.photo?"background-image:url('"+String(r.photo).replace(/'/g,'%27')+"');":'')+'filter:'+(lv==null?(on.length?'none':'brightness(.75)'):'brightness('+(0.75+0.35*lv).toFixed(2)+') saturate('+(0.9+0.2*lv).toFixed(2)+')')+'"></div>'+
       '<div class="nxr-top"><button type="button" data-back aria-label="Rooms">'+gi('back')+'</button><span></span></div><div class="nxr-body">'+
       '<div class="nxr-name">'+nxrEsc(r.name)+'</div><div class="nxr-line">'+nxrEsc(line)+'</div>'+aware+
       '<div class="nxr-cols"><div><div class="nxr-sec"><b>Scenes</b></div>'+(tiles.length?'<div class="nxr-grid">'+tiles.join('')+'</div>':'<div class="nxr-quiet">No scenes in the '+nxrEsc(r.name)+' yet<small>Your installer adds them, or ask Assist to save what’s on as a scene.</small></div>')+
-      (wids||rest?'<div class="nxr-sec"><b>Your Widgets</b></div>'+(wids?'<div class="nxr-grid">'+wids+'</div>':'')+(rest?'<div class="nxr-quiet" style="margin-top:12px">'+rest+(rest===1?' more widget':' more widgets')+' on this page move to the new look in stage 6<small>Turn New Look off to see them as they are today.</small></div>':''):'')+
+      wids+
       '</div><div><div class="nxr-sec"><b>On Now</b></div>'+(cards.length?'<div class="nxr-grid" style="grid-template-columns:repeat(2,minmax(0,1fr))">'+cards.join('')+'</div>':'<div class="nxr-quiet">Nothing on in the '+nxrEsc(r.name)+'<small>Everything in here is in Devices, or just ask.</small></div>')+'</div></div></div>';
     var y=p.scrollTop; p.innerHTML=html; p.scrollTop=y; _nxrWire(p,r,lights);
   }
@@ -25239,10 +25237,9 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
     var empty=!M.rooms&&!M.devices;
     var scenes=(CONFIG.scenes||[]).slice(0,7), lit={};
     scenes.forEach(function(s){ lit[s.entity]=(typeof _nxSceneOn==='function')&&_nxSceneOn(s.entity); });
-    var wl=[]; try{ wl=(typeof loadWidgetLayout==='function'?loadWidgetLayout():[])||[]; }catch(e){}
-    var favs=wl.filter(function(w){ return w&&(w.id==='apps'||w.id==='musicfav'||w.id==='chfav'||w.id==='actfav'); }), rest=wl.length-favs.length;
+    var yw=window._nxWidgets?_nxWidgets(null):'';   // 1387: every widget Home has, in the New Look
     var hs=M.hero?states[M.hero.lead]||{}:null;
-    var sig=JSON.stringify([greet,A,_nxhWeather(),empty,M.hero&&[M.hero.lead,hs.state,hs.attributes.media_title,hs.attributes.media_artist],M.cards.map(function(c){ return c.t==='lights'?['l',c.area,c.n]:[c.t,c.d.lead,c.d.r.word,(states[c.d.lead]||{}).state,((states[c.d.lead]||{}).attributes||{}).media_title]; }),scenes.map(function(s){ return [s.entity,s.name,s.photo,lit[s.entity],ran[s.entity]]; }),wl.length,M.hasLights]);
+    var sig=JSON.stringify([greet,A,_nxhWeather(),empty,M.hero&&[M.hero.lead,hs.state,hs.attributes.media_title,hs.attributes.media_artist],M.cards.map(function(c){ return c.t==='lights'?['l',c.area,c.n]:[c.t,c.d.lead,c.d.r.word,(states[c.d.lead]||{}).state,((states[c.d.lead]||{}).attributes||{}).media_title]; }),scenes.map(function(s){ return [s.entity,s.name,s.photo,lit[s.entity],ran[s.entity]]; }),yw,M.hasLights]);
     if(p._sig===sig) return; p._sig=sig;
     var html='<div class="nx-in"><div class="nxh-top">'+_nxhWeather()+'<span></span></div><div class="nxh-greet">'+(empty?'Welcome':nxhEsc(greet))+'</div><div class="nxh-h1">Home</div>';
     if(empty){
@@ -25266,8 +25263,6 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
     if(M.hasLights||M.players.length) tiles.push('<button type="button" class="nxr-scn" data-halloff>'+nxhIc('pw','g')+'<b>All Off</b></button>');
     var sc='<div class="nxr-sec"><b>Scenes</b><button type="button" class="nxh-more" data-hscenes>All Scenes ›</button></div>'+
       (tiles.length?'<div class="nxr-grid">'+tiles.join('')+'</div>':'<div class="nxr-quiet">No scenes yet<small>Your installer adds them, or ask Assist to save what’s on as a scene.</small></div>');
-    var wids=favs.map(function(w){ var x=''; try{ x=(renderWidgetContent(w)||{}).html||''; }catch(e){} return x?'<div class="nxr-wid">'+x+'</div>':''; }).join('');
-    var yw=(wids||rest)?'<div class="nxr-sec"><b>Your Widgets</b></div>'+(wids?'<div class="nxr-grid">'+wids+'</div>':'')+(rest?'<div class="nxr-quiet" style="margin-top:12px">'+rest+(rest===1?' more widget':' more widgets')+' on Home move to the new look in stage 6<small>Turn New Look off to see them as they are today.</small></div>':''):'';
     html+='<div class="nxh-cols"><div>'+onNow+'</div><div>'+sc+yw+'</div></div></div>';
     var y=p.scrollTop; p.innerHTML=html; p.scrollTop=y; _nxhWire(p,M);
   }
@@ -26232,7 +26227,7 @@ body.nx-on #device-chooser{z-index:9380}
     var h='<div class="nx-in"><button type="button" class="nx-back" data-tb>'+BACK+'</button><div class="nx-hd"><div><h1>TVs &amp; Media</h1><div class="nx-sub">'+(L.length?(onN?onN+' on · ':'')+L.length+(L.length===1?' device':' devices'):'')+'</div></div></div>';
     if(!L.length) h+='<div class="nxr-quiet">No TVs or players yet<small>They appear here the moment your installer adds them.</small></div>';
     else h+='<div class="nxq-list">'+L.map(function(d){ var R=_nxtRead(states[d.lead]), rm=roomOf(d.area), lab=rm&&rm!==d.name?rm+' · '+d.name:(rm||d.name);
-      return '<div class="nxq-li nxt-li'+(R.on?' on':'')+'" data-tl="'+esc6(d.lead)+'" data-ta="'+esc6(d.area||'')+'"><div class="nx-ic">'+TV+'</div><div class="gr"><b>'+esc6(lab)+'</b><small class="'+(R.on?'act':'')+'">'+esc6(R.word)+(R.on||R.gone||!d.area?'':' · its scenes are on the room page')+'</small></div><span class="go">›</span></div>'; }).join('')+'</div>';
+      return '<div class="nxq-li nxt-li'+(R.on?' on':'')+'" data-tl="'+esc6(d.lead)+'" data-ta="'+esc6(d.area||'')+'"><div class="nx-ic">'+TV+'</div><div class="gr"><b>'+esc6(lab)+'</b><small class="'+(R.on?'act':'')+'">'+esc6(R.word)+'</small></div><span class="go">›</span></div>'; }).join('')+'</div>';
     h+='</div>';
     if(p._sig===h) return; p._sig=h; var y=p.scrollTop; p.innerHTML=h; p.scrollTop=y;
     p.querySelector('[data-tb]').onclick=function(){ var f=from; _nx6Stop(); if(f) f(); else _nxGo('devices'); };
@@ -26266,6 +26261,165 @@ body.nx-on #device-chooser{z-index:9380}
   function _nx6Stop(){ clearInterval(timer); timer=null; from=null; var p=document.getElementById('nx-page'); if(p){ p.classList.remove('nx-tv-pg','nx-irr-pg'); } }
   window._nxMedia=function(back){ _nx6Page('nx-tv-pg'); from=back||null; _nxtDraw(); clearInterval(timer); timer=setInterval(_nxtDraw,1000); };
   window._nxIrrigation=function(back){ _nx6Page('nx-irr-pg'); from=back||null; _nxiDraw(); clearInterval(timer); timer=setInterval(_nxiDraw,1000); };
+})();
+</script>
+<!-- ══ REGISTER 1387 — STAGE 6, YOUR WIDGETS IN THE NEW LOOK (Dave 16 Nov 21:57 "keep going for all stages"). Every widget a
+     page has — the SAME saved layout on this screen (loadWidgetLayout: per page, per screen size), so nothing is lost —
+     drawn as a New Look card, each the door to its New Look page: Lights → the room's lights card, Climate → the unit,
+     Security / Garage → Security, Covers → Shades, Irrigation → Irrigation, Now Playing → the player, a Camera → its
+     viewer, Scenes → the scene itself (lit by the 1373 rule), Weather → the weather page, Assistant → Assist. Readings come
+     from the foundation and the platform; where today's widget already works a reading out (Energy, the latest
+     detection, the doorbell, Activities, a chosen Device), its WORDS are reused and drawn in the new card — never its old
+     picture. The app, music, channel and activity favourites keep their own artwork tiles (their brand art is the design).
+     A widget's saved size is kept (2 or 3 across, 2 high). "Add Widget" opens today's picker for this page; hold a card to
+     remove it, with a confirm. -->
+<style>
+.nxw-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;grid-auto-rows:minmax(132px,auto)}
+@media (min-width:820px){.nxw-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.nxw.w3{grid-column:span 3}}
+.nxh-cols .nxw-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.nxh-cols .nxw.w3{grid-column:span 2}
+.nxw{position:relative;border-radius:24px;padding:16px;background:#1b1c20 center/cover;color:#fff;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden;cursor:pointer;
+  text-align:left;border:0;font-family:inherit;-webkit-user-select:none;user-select:none;animation:nxrArrive var(--m-page) var(--e-spring);transition:transform var(--m-tap) var(--e-spring)}
+.nxw:active{transform:scale(.98)}
+.nxw.w2{grid-column:span 2}.nxw.w3{grid-column:span 2}.nxw.h2{grid-row:span 2}
+.nxw.art::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.1),rgba(0,0,0,.78))}
+.nxw>*{position:relative}
+.nxw .k{font-size:12px;font-weight:500;color:rgba(255,255,255,.62)}
+.nxw .v{font-size:28px;font-weight:300;letter-spacing:-.02em;line-height:1.1;margin-top:2px}
+.nxw .n{font-size:15px;font-weight:600;line-height:1.25}
+.nxw .s{font-size:12.5px;color:rgba(255,255,255,.62);margin-top:3px}
+.nxw .row{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.nxw .nx-ic svg{width:20px;height:20px;stroke:#fff;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.nxw.lit{box-shadow:0 16px 40px -14px rgba(255,190,110,.45)}.nxw.lit .nx-ic{background:rgba(255,196,107,.18)}.nxw.lit .nx-ic svg{stroke:#FFC46B}
+.nxw.blue .nx-ic{background:rgba(77,99,255,.2)}.nxw.blue .nx-ic svg{stroke:#8A98FF}
+.nxw.warn{background:linear-gradient(180deg,rgba(255,181,71,.10),rgba(255,181,71,.03)),#1b1c20}.nxw.warn .nx-ic{background:rgba(255,181,71,.18)}.nxw.warn .nx-ic svg{stroke:#FFB547}
+.nxw.ok .nx-ic svg{stroke:#5FD39A}
+.nxw .faces{display:flex;gap:12px}
+.nxw .face{display:flex;flex-direction:column;align-items:center;gap:5px;font-size:11.5px;color:rgba(255,255,255,.7)}
+.nxw .face i{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#6f86ff,#2139F0) center/cover;display:grid;place-items:center;font-style:normal;font-weight:600;font-size:16px;color:#fff;box-shadow:0 0 0 2px #5FD39A}
+.nxw .face.away i{box-shadow:none;filter:grayscale(1) brightness(.7)}
+.nxw .scs{display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:8px;margin-top:10px}
+.nxw .scs button{height:56px;border-radius:14px;border:0;background:#26272d center/cover;color:#fff;font:600 13px Inter,-apple-system,sans-serif;text-align:left;padding:0 12px;cursor:pointer;position:relative;overflow:hidden}
+.nxw .scs button::before{content:'';position:absolute;inset:0;background:rgba(14,14,16,.45)}
+.nxw .scs button span{position:relative}
+.nxw .scs button.on::before{background:linear-gradient(135deg,rgba(50,72,255,.85),rgba(33,57,240,.9))}
+.nxw-fav{border-radius:22px;overflow:hidden;background:#1b1c20;min-height:132px;position:relative;cursor:pointer}
+.nxw-fav>*{height:100%}
+.nxw-add{display:flex;align-items:center;justify-content:center;gap:8px;min-height:64px;border-radius:20px;border:1.5px dashed rgba(255,255,255,.22);background:none;color:rgba(255,255,255,.7);font:600 14px Inter,-apple-system,sans-serif;cursor:pointer;margin-top:12px;width:100%}
+@media (prefers-reduced-motion:reduce){.nxw{animation:none;transition:none}}
+</style>
+<script>
+(function(){
+  var e7=function(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); };
+  var IC={light:'<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z"/>',pw:'<path d="M12 4v7M7.5 7a7 7 0 1 0 9 0"/>',
+    climate:'<path d="M14 14.8V5a2 2 0 0 0-4 0v9.8a4 4 0 1 0 4 0z"/>',shield:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',garage:'<path d="M3 20V9l9-5 9 5v11M6 20v-8h12v8M6 15h12"/>',
+    shade:'<rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M4 8h16M4 12h16M4 16h16"/>',drop:'<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/>',
+    sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+    bolt:'<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',mic:'<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/>',
+    cam:'<path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/>',tv:'<rect x="2.5" y="4.5" width="19" height="13" rx="2"/><path d="M8 21h8"/>',
+    dot:'<circle cx="12" cy="12" r="4"/>',other:'<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5h.01"/>'};
+  var ic=function(k){ return '<div class="nx-ic"><svg viewBox="0 0 24 24">'+(IC[k]||IC.other)+'</svg></div>'; };
+  var ACT={}, camStill={};
+  // a tap's name is fixed for its widget (its uid and what it is), so a page that did not change keeps working taps
+  var act=function(fn, key){ ACT[key]=fn; return key; };
+  var leave=function(){ var p=document.getElementById('nx-page'); if(p) p.classList.remove('open'); };
+  var roomById=function(id){ return (CONFIG.rooms||[]).filter(function(r){ return r.id===id; })[0]||null; };
+  // the size a widget was saved at — kept
+  function _nxwSize(w){ var d={w:1,h:1}; try{ d=_widgetDims(w); }catch(x){} return ' w'+Math.min(3,d.w||1)+(d.h===2?' h2':''); }
+  // a card from words: the shape every widget without its own card is drawn in
+  function _nxwCard(w, o){ var id=o.go?act(o.go,'c:'+(w.uid||w.id)):'';
+    return '<div class="nxw'+_nxwSize(w)+(o.cls?' '+o.cls:'')+(o.bg?' art':'')+'" data-nwu="'+id+'" data-nwuid="'+e7(w.uid||'')+'"'+(o.bg?' style="background-image:url(\''+String(o.bg).replace(/'/g,'%27')+'\')"':'')+'>'+
+      '<div class="row">'+(o.ic?ic(o.ic):'<span></span>')+(o.right||'')+'</div><div>'+(o.k?'<div class="k">'+e7(o.k)+'</div>':'')+(o.v?'<div class="v">'+e7(o.v)+'</div>':'')+(o.n?'<div class="n">'+e7(o.n)+'</div>':'')+(o.s?'<div class="s">'+e7(o.s)+'</div>':'')+(o.extra||'')+'</div></div>'; }
+  // a widget's own words, where today's widget already works them out (Energy, detection, doorbell, Activities, Device)
+  function _nxwWords(w){ try{ var c=renderWidgetContent(w)||{}; return {label:c.label||'', value:c.value||'', sub:c.sub||'', go:c.onclickFn||null}; }catch(x){ return {}; } }
+  function _nxwOne(w, room){
+    var D=(window._nxAll?_nxAll():[]), r=room||null, lib=(typeof WIDGET_LIBRARY!=='undefined'?WIDGET_LIBRARY:[]).filter(function(x){ return x.id===w.id; })[0]||{};
+    var areaLights=function(a){ return D.filter(function(d){ return d.k.kind==='light'&&(a==null||d.area===a); }); };
+    switch(w.id){
+      case 'apps': case 'musicfav': case 'chfav': case 'actfav': {   // their own artwork tiles
+        var h=''; try{ h=(renderWidgetContent(w)||{}).html||''; }catch(x){} return h?'<div class="nxw-fav'+_nxwSize(w)+'" data-nwuid="'+e7(w.uid||'')+'">'+h+'</div>':''; }
+      case 'lights': { var L=areaLights(r?r.id:null), on=L.filter(function(d){ return d.r.now; });
+        var off=on.length?act(function(){ svc('light','turn_off',{entity_id:on.map(function(d){ return d.lead; })}); },'o:'+(w.uid||w.id)):'';
+        return _nxwCard(w,{ic:'light', cls:on.length?'lit':'', k:r?r.name:'Whole Home', n:'Lights', s:on.length?on.length+' of '+L.length+' on':'All off',
+          right:on.length?'<span class="nxr-pw lit" data-nwu="'+off+'">'+'<svg viewBox="0 0 24 24">'+IC.pw+'</svg></span>':'',
+          go:function(){ if(r&&window._nxLightSheet) _nxLightSheet(r.id); else if(window._nxLights) _nxLights(); }}); }
+      case 'climate': { var cr=r||(w.room?roomById(w.room):null), c=(cr&&cr.climate)||((CONFIG.rooms||[]).filter(function(x){ return x.climate; })[0]||{}).climate;
+        if(!c||!states[c]) return _nxwCard(w,{ic:'climate', n:'Climate', s:'No thermostat'});
+        var M=window._nxcModel?_nxcModel(states[c],null):{}; var big=M.t!=null?(_cpFmt?_cpFmt(M.t):M.t)+'°':(M.now!=null?Math.round(M.now)+'°':'–');
+        return _nxwCard(w,{ic:'climate', cls:M.mode==='cool'||M.mode==='heat'||M.mode==='heat_cool'?'blue':'', k:(cr?cr.name:'')||att(c,'friendly_name'), v:big, s:(function(){ try{ return _cpLine(c); }catch(x){ return ''; } })()+(M.t!=null&&M.now!=null?' · '+Math.round(M.now)+'° now':''),
+          go:function(){ window._nxClimate&&_nxClimate(c, function(){ window._nxBack&&_nxBack(); }); }}); }
+      case 'awareness': { var A=window._nxHomeAware?_nxHomeAware(typeof _awareOk!=='undefined'?_awareOk:null, typeof _awareItems!=='undefined'?_awareItems:[], document.body.dataset.homeState):{t:''};
+        return _nxwCard(w,{ic:'dot', cls:A.c==='warn'?'warn':A.c===''?'ok':'', k:'The House', n:A.t, go:function(){ try{ openAwareness(); }catch(x){} }}); }
+      case 'weather': { var wx=CONFIG.weather, s=st(wx), t=att(wx,'temperature');
+        if(!s||s==='unavailable') return _nxwCard(w,{ic:'sun', n:'Weather', s:'No reading'});
+        var word=''; try{ word=wxLabel(s); }catch(x){ word=s; } var icn=''; try{ icn='<div class="nx-ic" style="background:none"><svg viewBox="0 0 24 24" style="width:34px;height:34px">'+_wxIcon(s,st('sun.sun')!=='below_horizon')+'</svg></div>'; }catch(x){}
+        return _nxwCard(w,{k:'Outside', v:(t!=null?Math.round(+t)+'°':'–'), s:word, right:'', extra:'', ic:'', go:function(){ leave(); try{ showPage('weather'); }catch(x){} }}).replace('<div class="row"><span></span>','<div class="row">'+icn); }
+      case 'sun': { var nr=att('sun.sun','next_rising'), ns=att('sun.sun','next_setting'), f=function(t){ try{ return new Date(t).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}); }catch(x){ return ''; } };
+        return _nxwCard(w,{ic:'sun', k:'Sun', n:(st('sun.sun')==='above_horizon'?'Sets '+f(ns):'Rises '+f(nr)), s:(st('sun.sun')==='above_horizon'?'Rises '+f(nr):'Sets '+f(ns))}); }
+      case 'people': { var P=[]; try{ P=_peopleList(); }catch(x){}
+        var faces='<div class="faces">'+P.slice(0,4).map(function(p){ var home=p.zone==='Home', pic=p.pic||p.picture||p.entity_picture||'';
+          return '<div class="face'+(home?'':' away')+'"><i'+(pic?' style="background-image:url(\''+String(pic).replace(/'/g,'%27')+'\')"':'')+'>'+(pic?'':e7(String(p.name||'?').charAt(0)))+'</i>'+e7(p.zone||'')+'</div>'; }).join('')+'</div>';
+        return _nxwCard(w,{k:'People', n:P.filter(function(p){ return p.zone==='Home'; }).length+' home', extra:'<div style="margin-top:10px">'+faces+'</div>'}); }
+      case 'security': { var pn=[]; try{ pn=_alarmPanels(); }catch(x){} var a=pn[0];
+        var word=a?_alarmWord(a):'No alarm', armed=a&&String(st(a)).indexOf('armed')===0;
+        return _nxwCard(w,{ic:'shield', cls:armed?'blue':'ok', k:'Security', n:word, s:(window._nxqLine?'':''), go:function(){ window._nxSecurity&&_nxSecurity('alarm', function(){ window._nxBack&&_nxBack(); }); }}); }
+      case 'garage': { var G=D.filter(function(d){ return d.k.kind==='garage'&&(!w.entity||d.ents.indexOf(w.entity)>=0); }), op=G.filter(function(d){ return d.r.now; });
+        return _nxwCard(w,{ic:'garage', cls:op.length?'warn':'', k:'Garage & Gates', n:op.length?op.map(function(d){ return d.name; }).join(', ')+' open':(G.length?'All closed':'None'), go:function(){ window._nxSecurity&&_nxSecurity('garage', function(){ window._nxBack&&_nxBack(); }); }}); }
+      case 'covers': { var S=D.filter(function(d){ return d.k.kind==='shade'&&(!r||d.area===r.id); }), o=S.filter(function(d){ return /open/i.test(d.r.word); });
+        return _nxwCard(w,{ic:'shade', k:r?r.name:'Shades', n:'Shades', s:S.length?(o.length?o.length+' of '+S.length+' open':'All closed'):'None here', go:function(){ window._nxShades&&_nxShades(function(){ window._nxBack&&_nxBack(); }, r?r.id:null); }}); }
+      case 'irrigation': { var Z=(CONFIG.irrigation||[]), run=Z.filter(function(z){ return st(z.entity||z)==='on'||st(z.entity||z)==='open'; });
+        return _nxwCard(w,{ic:'drop', cls:run.length?'blue':'', k:'Irrigation', n:run.length?run.length+' watering':'Off', s:Z.length+(Z.length===1?' zone':' zones'), go:function(){ window._nxIrrigation&&_nxIrrigation(function(){ window._nxBack&&_nxBack(); }); }}); }
+      case 'scene': { var all=CONFIG.scenes||[], pick=(w.scenes&&w.scenes.length)?all.filter(function(s){ return w.scenes.indexOf(s.entity)>=0; }):all.slice(0,4);
+        return _nxwCard(w,{k:'Scenes', extra:'<div class="scs">'+pick.map(function(s){ var i=all.indexOf(s), on=window._nxSceneOn&&_nxSceneOn(s.entity);
+          return '<button type="button" class="'+(on?'on':'')+'" data-nwu="'+act(function(){ try{ triggerScene(s.entity,i); }catch(x){} },'s:'+(w.uid||w.id)+':'+s.entity)+'" style="'+(s.photo?"background-image:url('"+String(s.photo).replace(/'/g,'%27')+"')":'')+'"><span>'+e7(s.name)+'</span></button>'; }).join('')+'</div>'}); }
+      case 'media': { var M2=D.filter(function(d){ return /tv|source|receiver|speaker/.test(d.k.kind)&&states[d.lead]&&(states[d.lead].state==='playing'||states[d.lead].state==='paused')&&(states[d.lead].attributes||{}).media_title; });
+        if(r) M2.sort(function(a,b){ return (b.area===r.id)-(a.area===r.id); }); var m=M2[0];
+        if(!m) return _nxwCard(w,{ic:'tv', k:'Now Playing', n:'Nothing playing'});
+        var A2=states[m.lead].attributes, art=''; try{ var pth=(typeof _artOf==='function')?_artOf(m.lead):A2.entity_picture; art=pth?artSrc(pth):''; }catch(x){}
+        var rm=(roomById(m.area)||{}).name||'';
+        return _nxwCard(w,{bg:art, k:[rm,m.name].filter(function(x,i,a){ return x&&a.indexOf(x)===i; }).join(' · ')+(states[m.lead].state==='playing'?' · Playing':' · Paused'), n:A2.media_title, s:A2.media_artist||A2.app_name||'', go:function(){ try{ openPlayer(m.lead); }catch(x){} }}); }
+      case 'camera': case 'protect_doorbell': case 'protect_detect': {
+        var ci=Math.min(parseInt(w.cam)||0,(CONFIG.cameras||[]).length-1), cam=(CONFIG.cameras||[])[Math.max(0,ci)];
+        var words=w.id==='camera'?{}:_nxwWords(w);
+        if(w.id!=='camera'&&!cam) return _nxwCard(w,{ic:'cam', k:words.label||lib.name, n:words.value||'', s:words.sub||'', go:words.go});
+        if(!cam) return _nxwCard(w,{ic:'cam', n:'Camera', s:'No camera'});
+        var still=camStill[cam.entity]; if(!still||Date.now()-still.t>10000){ camStill[cam.entity]={u:(still&&still.u)||'', t:Date.now()}; try{ Promise.resolve(fetchCamWS(cam.entity)).then(function(u){ if(u) camStill[cam.entity]={u:u,t:Date.now()}; }); }catch(x){} }
+        return _nxwCard(w,{bg:(camStill[cam.entity]||{}).u, k:w.id==='camera'?cam.name:(words.label||lib.name), n:w.id==='camera'?'':(words.value||cam.name), s:w.id==='camera'?'':(words.sub||''),
+          go:w.id==='camera'?function(){ try{ openProtectCamera(Math.max(0,ci)); }catch(x){} }:(words.go||function(){ leave(); try{ showPage('cameras'); }catch(x){} })}); }
+      case 'assist': return _nxwCard(w,{ic:'mic', cls:'blue', k:'Assist', n:'Ask anything', s:'“Turn off the kitchen lights”', go:function(){ try{ openAssist(); }catch(x){} }});
+      default: { var W=_nxwWords(w); var icx={energy:'bolt',activities:'tv',device:'dot'}[w.id]||'other';
+        return _nxwCard(w,{ic:icx, k:W.label||lib.name||w.id, n:W.value||'', s:W.sub||'', go:W.go?function(){ leave(); W.go(); }:null}); }
+    }
+  }
+  // the page's widgets: the saved layout for this page and this screen, every one drawn
+  window._nxWidgets=function(room){
+    var wl=[]; try{ wl=(typeof loadWidgetLayout==='function'?loadWidgetLayout():[])||[]; }catch(x){}
+    window._nxBack=room?function(){ _nxRoom((CONFIG.rooms||[]).indexOf(room)); }:function(){ _nxHome(); };   // where a widget's page returns to
+    var html=wl.map(function(w){ try{ return _nxwOne(w, room); }catch(x){ return ''; } }).join('');
+    return '<div class="nxr-sec"><b>Your Widgets</b></div>'+(html?'<div class="nxw-grid">'+html+'</div>':'')+'<button type="button" class="nxw-add" data-nwadd>+ Add Widget</button>';
+  };
+  window._nxwOne=_nxwOne;
+  // taps (delegated, so a redraw never loses them); hold a card to remove it, with a confirm
+  var holdT=null, held=false;
+  document.addEventListener('click', function(ev){
+    if(!document.body.classList.contains('nx-on')) return;
+    var add=ev.target.closest&&ev.target.closest('[data-nwadd]'); if(add){ try{ openWidgetPicker(); }catch(x){} return; }
+    if(held){ held=false; ev.preventDefault(); ev.stopPropagation(); return; }
+    var b=ev.target.closest&&ev.target.closest('[data-nwu]'); if(!b||!b.dataset.nwu) return; var f=ACT[b.dataset.nwu]; if(f){ ev.stopPropagation(); f(); }
+  }, true);
+  document.addEventListener('pointerdown', function(ev){ if(!document.body.classList.contains('nx-on')) return; var c=ev.target.closest&&ev.target.closest('[data-nwuid]'); if(!c||!c.dataset.nwuid) return;
+    clearTimeout(holdT); var uid=c.dataset.nwuid, x0=ev.clientX, y0=ev.clientY;
+    var cancel=function(e2){ if(!e2||Math.abs(e2.clientX-x0)>8||Math.abs(e2.clientY-y0)>8||e2.type!=='pointermove'){ clearTimeout(holdT); document.removeEventListener('pointermove',cancel,true); document.removeEventListener('pointerup',cancel,true); } };
+    document.addEventListener('pointermove',cancel,true); document.addEventListener('pointerup',cancel,true);
+    holdT=setTimeout(function(){ held=true; document.removeEventListener('pointermove',cancel,true); document.removeEventListener('pointerup',cancel,true);
+      _nxwAskRemove(uid); }, 600); }, true);
+  function _nxwAskRemove(uid){
+    var ov=document.getElementById('nxl-sheet'); if(!ov){ ov=document.createElement('div'); ov.id='nxl-sheet'; document.body.appendChild(ov); }
+    ov.onclick=function(){ ov.classList.remove('open'); }; ov._sig='rm'; ov.classList.add('open');
+    ov.innerHTML='<div class="cd" onclick="event.stopPropagation()" style="max-width:380px;text-align:center"><h2>Remove This Widget?</h2><div class="sub" style="margin:8px 0 18px">It comes back from + Add Widget at any time.</div>'+
+      '<div style="display:flex;gap:10px"><button type="button" class="nx-chip" data-rmno style="flex:1;justify-content:center;height:46px">Keep</button><button type="button" class="nx-chip" data-rmyes style="flex:1;justify-content:center;height:46px;background:#FF5A5A">Remove</button></div></div>';
+    ov.querySelector('[data-rmno]').onclick=function(){ ov.classList.remove('open'); };
+    ov.querySelector('[data-rmyes]').onclick=function(){ try{ removeWidget(uid); }catch(x){} ov.classList.remove('open'); var p=document.getElementById('nx-page'); if(p) p._sig=''; };
+  }
 })();
 </script>
 <!-- REGISTER 1365 motion styles (the type scale stays the last stylesheet) -->
