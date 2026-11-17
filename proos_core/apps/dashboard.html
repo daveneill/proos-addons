@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111711';
+const PROOS_BUILD='2026111712';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -27526,13 +27526,13 @@ body.nx-on #jv .nxa-ty button{height:48px;padding:0 18px;border-radius:16px;bord
     inp.value=text; try{ submitAssist(); }catch(x){ return false; } return true; }
   window._nxaSend=_nxaSend;
   // the wave shows while it listens or thinks (the orb's own state, read)
-  setInterval(function(){ var d=document.getElementById('jv'); if(!d||!d.classList.contains('on')) return; var o=document.getElementById('jv-orb');
+  // 1402a: the full screen's script loads AFTER this block, so it is dressed here (and on every open by any road — the
+  // mic, the wake word, a suggestion), not by wrapping jvOpen, which did not exist yet when this ran
+  setInterval(function(){ var d=document.getElementById('jv'); if(!d) return; if(!d.classList.contains('on')){ d.classList.remove('nxa-typing','nxa-live'); return; } try{ _nxaDress(); }catch(x){} var o=document.getElementById('jv-orb');
     var live=!!(o&&!o.classList.contains('idle'))||document.body.classList.contains('proos-listening'); d.classList.toggle('nxa-live', live); },250);
-  var _jo=window.jvOpen; if(typeof _jo==='function') window.jvOpen=function(){ var r=_jo.apply(this,arguments); try{ _nxaDress(); }catch(x){} return r; };
   // one screen everywhere under the New Look: a browser's mic opens it too (the app already does — 1001)
   var _oa=window.openAssist; if(typeof _oa==='function') window.openAssist=function(){ if(_nxaOn2()&&!window._jvTyping&&typeof jvOpen==='function'&&!/[?&]nxview=/.test(location.search)){   // the Pro preview (1389) keeps Assist held
- jvOpen(); return; } return _oa.apply(this,arguments); };
-  var _jc=window.jvClose; if(typeof _jc==='function') window.jvClose=function(){ var d=document.getElementById('jv'); if(d) d.classList.remove('nxa-typing','nxa-live'); return _jc.apply(this,arguments); };
+ jvOpen(); try{ _nxaDress(); }catch(x){} return; } return _oa.apply(this,arguments); };
 })();
 </script>
 <!-- REGISTER 1365 motion styles (the type scale stays the last stylesheet) -->
