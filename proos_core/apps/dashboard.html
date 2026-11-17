@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111717';
+const PROOS_BUILD='2026111718';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -26041,13 +26041,14 @@ body.nx-on #pa-detail{z-index:9070}
     var L=_nxvList();
     if(p._n!==L.length){ p._n=L.length;
       var h='<div class="nx-in"><button type="button" class="nx-back" data-vb>'+BACK+'</button><div class="nx-hd"><div><h1>Cameras</h1><div class="nx-sub">'+(L.length?L.length+(L.length===1?' camera':' cameras'):'')+'</div></div>'+
-        (L.length?'<button type="button" class="nx-chip" data-vev>Events</button>':'')+'</div>'+
+        '</div>'+(L.length?'<div class="nxv-seg" hidden><button type="button" class="on" data-vt="live">Cameras</button><button type="button" data-vt="events">Events</button></div><div class="nxv-counts"></div><div class="nxv-events" hidden></div>':'')+   // 1407
         (L.length?'<div class="nxv-grid">'+L.map(function(x,n){ var room=entityAreaMap[x.c.entity]; room=room?((CONFIG.rooms||[]).filter(function(r){ return r.id===room; })[0]||{}).name||(typeof areaNameById!=='undefined'&&areaNameById[room])||'':'';
           return '<button type="button" class="nxv-cam'+(n===0?' hero':'')+'" data-vi="'+x.i+'" data-ve="'+nxvEsc(x.c.entity)+'"><div class="ph">'+CAM+'</div><img alt=""/><span class="age"></span><span class="nm">'+nxvEsc(x.c.name)+(room&&room!==x.c.name?'<small>'+nxvEsc(room)+'</small>':'')+'</span></button>'; }).join('')+'</div>'
           :'<div class="nxr-quiet">No cameras yet<small>They appear here the moment your installer adds them.</small></div>')+'</div>';
       p.innerHTML=h;
       p.querySelector('[data-vb]').onclick=function(){ var f=from; _nxvStop(); if(f) f(); else _nxGo('devices'); };
-      var ev=p.querySelector('[data-vev]'); if(ev) ev.onclick=function(){ _nxvStop(); p.classList.remove('open'); try{ showPage('cameras'); }catch(x){} };
+      p.querySelectorAll('[data-vt]').forEach(function(b){ b.onclick=function(){ window._nxvTab&&_nxvTab(p, b.dataset.vt); }; });   // 1407: Live / Events on this page
+      try{ window._nxvEvents&&_nxvEvents(p); }catch(x){}
       p.querySelectorAll('[data-vi]').forEach(function(b){ b.onclick=function(){ try{ openProtectCamera(+b.dataset.vi); }catch(x){} }; });   // today's viewer: live, talkback, events
     }
     var now=Date.now(); p.querySelectorAll('[data-ve]').forEach(function(b){ var g=got[b.dataset.ve]; var a=b.querySelector('.age'); if(a) a.textContent=g?_nxvAge(g.t,now):'';
@@ -27664,6 +27665,71 @@ body.nx-on #scene-edit .scene-edit-btn{min-height:44px;border-radius:14px}
   window.addEventListener('pointerup',function(){ if(!drag) return; var d=drag; drag=null; d.row.classList.remove('nxq-drag'); d.row.style.transform=''; if(d.over) d.over.classList.remove('nxq-over');
     var to=d.over?+d.over.querySelector('[data-pqd]').dataset.i:d.from, s=_nxqShift(d.from,to); if(!s) return;
     Promise.resolve().then(function(){ return _mqAct('move',{item:d.id, pos_shift:s}); }).catch(function(){}).then(function(){ setTimeout(function(){ try{ window._nxpQueueReload&&_nxpQueueReload(); }catch(x){} },350); }); },true);
+})();
+</script>
+<!-- ══ REGISTER 1407 — "DO THE SIX" (5/6): CAMERAS — LIVE / EVENTS AND THE DETECTION COUNTS ON THE NEW PAGE (Dave 17 Nov 19:35;
+     mock S.cameras "Live / Events as today; the detection counts stay"). 1383's page had the pictures only; its "Events"
+     chip opened today's full Cameras page. Now, where the home has UniFi Protect (the only camera system that reports
+     detections here — pcProtectStatus, as today's page decides), the page carries the mock's switch — named "Cameras /
+     Events", NOT "Live": these tiles are stills (1383: a still is never called live) — and,
+     on Live, today's detection counts for the last day ("Motion 54 · People 5 · Animal 1"); Events lists the recent
+     detections — what was seen, on which camera, how long ago — newest first, and a tap plays that clip in today's
+     player (playProtectClip). Both come from today's loader (_loadProtectEventsPC: Core's /protect/events). No Protect →
+     no switch and no counts (the pictures, as before). Events' thumbnails are not drawn on this page (today's page draws
+     them; named, not copied). (6/6) THE VIEWER a camera opens by hand keeps all its machinery (live, talk, its events)
+     and wears the New Look's buttons and type. -->
+<style>
+.nxv-seg{display:flex;gap:4px;padding:4px;border-radius:14px;background:#1b1c20;margin:4px 0 14px;max-width:320px}
+.nxv-seg[hidden]{display:none}
+.nxv-seg button{flex:1;height:36px;border-radius:11px;border:0;background:none;color:rgba(255,255,255,.7);font:600 14px Inter,-apple-system,sans-serif;cursor:pointer}
+.nxv-seg button.on{background:#fff;color:#111}
+.nxv-counts{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.nxv-counts:empty{display:none}
+.nxv-counts span{height:32px;padding:0 12px;border-radius:16px;background:#1b1c20;display:flex;align-items:center;gap:6px;font-size:13px;color:rgba(255,255,255,.75)}
+.nxv-counts b{color:#fff}
+.nxv-events[hidden]{display:none}
+.nxv-ev{display:flex;align-items:center;gap:12px;width:100%;min-height:58px;padding:10px 14px;margin-bottom:6px;border:0;border-radius:16px;background:#1b1c20;color:#fff;text-align:left;cursor:pointer;font-family:Inter,-apple-system,sans-serif}
+.nxv-ev:nth-child(even){background:#202126}
+.nxv-ev .i{width:36px;height:36px;border-radius:11px;background:rgba(77,99,255,.18);display:grid;place-items:center;flex:none}
+.nxv-ev .i svg{width:18px;height:18px;stroke:#8A98FF}
+.nxv-ev b{display:block;font-size:15px;font-weight:600}.nxv-ev small{display:block;font-size:12.5px;color:rgba(255,255,255,.62)}
+.nxv-ev .t{margin-left:auto;font-size:12.5px;color:rgba(255,255,255,.62);flex:none}
+.nxv-empty{padding:24px 6px;color:rgba(255,255,255,.62);font-size:14px}
+body.nx-cam-events .nxv-grid{display:none}
+/* the viewer a camera opens by hand, in the New Look (the ring's own view is 1395's): today's viewer, its controls as the
+   New Look's frosted round buttons and pills, its name in the page's type, its event list on the page's dark */
+body.nx-on #pa-detail .pa-fs-back{top:16px;left:16px;width:44px;height:44px;background:rgba(0,0,0,.35);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px)}
+body.nx-on #pa-detail .pa-fs-name{top:26px;left:72px;font:600 17px Inter,-apple-system,sans-serif}
+body.nx-on #pa-detail .pa-fs-btn{height:44px;padding:0 18px;border-radius:16px;border:0;background:rgba(255,255,255,.14);font:600 14px Inter,-apple-system,sans-serif;-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px)}
+body.nx-on #pa-detail .pa-fs-talk.talking.live{background:#d64a3f}
+body.nx-on #pa-detail .pa-fs-tl{background:#0e0e10}
+</style>
+<script>
+(function(){
+  var esc=function(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); };
+  var cache={t:0, ev:null, has:null}, ORDER=['Motion','Person','Vehicle','Animal','Face','Package'];
+  // the counts, in today's order and today's words ("People" for Person)
+  function _nxvCounts(evs){ var c={}; (evs||[]).forEach(function(e){ if(e&&e.kind) c[e.kind]=(c[e.kind]||0)+1; });
+    return ORDER.filter(function(k){ return c[k]; }).map(function(k){ return {k:k==='Person'?'People':k, n:c[k]}; }); }
+  window._nxvCounts=_nxvCounts;
+  function ago(t){ try{ return _agoStr(t); }catch(x){ return ''; } }
+  function _nxvPaint(p){ if(!p) return; var c=p.querySelector('.nxv-counts'), E=p.querySelector('.nxv-events'), seg=p.querySelector('.nxv-seg'); if(!c||!E||!seg) return;
+    seg.hidden=!cache.has; if(!cache.has){ c.innerHTML=''; E.innerHTML=''; return; }
+    var evs=cache.ev||[], C=_nxvCounts(evs), ch=C.map(function(x){ return '<span>'+esc(x.k)+' <b>'+x.n+'</b></span>'; }).join('');
+    if(c.innerHTML!==ch) c.innerHTML=ch;
+    var h=evs.length?evs.slice(0,40).map(function(e,i){ var ic=''; try{ ic=_paTypeIcon(e.kind); }catch(x){}
+      return '<button type="button" class="nxv-ev" data-evi="'+i+'"><span class="i">'+ic+'</span><span><b>'+esc(e.kind==='Person'?'Person':e.kind)+'</b><small>'+esc(e.cam||'')+'</small></span><span class="t">'+esc(ago(e.when))+'</span></button>'; }).join('')
+      :'<div class="nxv-empty">'+esc(window._peLoadErr?'Events unavailable — '+window._peLoadErr:'No detections in the last day')+'</div>';
+    if(E._h!==h){ E._h=h; E.innerHTML=h; E.querySelectorAll('[data-evi]').forEach(function(b){ b.onclick=function(){ var e=evs[+b.dataset.evi]; try{ playProtectClip(_peKey(e),''); }catch(x){} }; }); } }
+  window._nxvEvents=function(p){ _nxvPaint(p); if(Date.now()-cache.t<30000) return; cache.t=Date.now();
+    Promise.resolve(typeof pcProtectStatus==='function'?pcProtectStatus():null).then(function(s){ cache.has=!!(s&&s.reachable); if(!cache.has) return null;
+      return _loadProtectEventsPC(24,60); }).then(function(evs){ if(cache.has) cache.ev=Array.isArray(evs)?evs.slice().sort(function(a,b){ return new Date(b.when||0)-new Date(a.when||0); }):[];
+      var q=document.getElementById('nx-page'); if(q&&q.classList.contains('nx-cam-pg')) _nxvPaint(q); }).catch(function(){}); };
+  window._nxvTab=function(p, t){ p.querySelectorAll('[data-vt]').forEach(function(b){ b.classList.toggle('on', b.dataset.vt===t); });
+    var E=p.querySelector('.nxv-events'), c=p.querySelector('.nxv-counts'); if(E) E.hidden=t!=='events'; if(c) c.style.display=t==='events'?'none':'';
+    document.body.classList.toggle('nx-cam-events', t==='events'); };
+  // leaving the page leaves Events
+  setInterval(function(){ var q=document.getElementById('nx-page'); if(!q||!q.classList.contains('open')||!q.classList.contains('nx-cam-pg')){ document.body.classList.remove('nx-cam-events'); return; } window._nxvEvents(q); }, 5000);
 })();
 </script>
 <!-- REGISTER 1365 motion styles (the type scale stays the last stylesheet) -->
