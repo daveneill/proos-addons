@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111716';
+const PROOS_BUILD='2026111717';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -26703,7 +26703,7 @@ body.nx-on #device-chooser{z-index:9380}
         var mi=it.media_item||it, nm=mi.name||it.name||'–', ar=(mi.artists&&mi.artists[0]&&mi.artists[0].name)||mi.artist||'', id=it.queue_item_id||it.item_id||'';
         var raw=mi.image; if(raw&&typeof raw==='object') raw=raw.path||raw.url||''; if(!raw) raw=it.image||it.thumbnail||''; var im=''; try{ im=raw&&!(typeof _maImageProxy==='function'&&_maImageProxy(raw))?artSrc(raw):''; }catch(x){}
         return '<div class="li'+(i===QS.cur?' cur':'')+'"><div class="a" style="'+(im?"background-image:url('"+String(im).replace(/'/g,'%27')+"')":'')+'" data-pqp="'+pe(id)+'">'+(im?'':sv('note'))+'</div><div class="g" data-pqp="'+pe(id)+'"><b>'+pe(nm)+'</b><small>'+pe(ar)+'</small></div>'+
-          (i>0?'<button type="button" class="ib" data-pqm="'+pe(id)+'" data-d="-1" aria-label="Move up">↑</button>':'')+'<button type="button" class="ib" data-pqr="'+pe(id)+'" aria-label="Remove">×</button></div>'; }).join('')); }
+          (i>0?'<button type="button" class="ib" data-pqm="'+pe(id)+'" data-d="-1" aria-label="Move up">↑</button>':'')+'<button type="button" class="ib dh" data-pqd="'+pe(id)+'" data-i="'+i+'" aria-label="Drag to move">≡</button><button type="button" class="ib" data-pqr="'+pe(id)+'" aria-label="Remove">×</button></div>'; }).join('')); }   // 1406: ≡ drags
     if(ov._sig===h) return; ov._sig=h; var y=(ov.querySelector('.cd')||{}).scrollTop||0;
     ov.innerHTML='<div class="cd" onclick="event.stopPropagation()">'+h+'</div>'; ov.querySelector('.cd').scrollTop=y;
     ov.querySelector('[data-px]').onclick=_nxpSheetClose;
@@ -26717,6 +26717,7 @@ body.nx-on #device-chooser{z-index:9380}
     ov.querySelectorAll('[data-pqr]').forEach(function(b){ b.onclick=async function(){ try{ await _mqAct('remove',{item:b.dataset.pqr}); }catch(x){} setTimeout(_nxpQueueLoad,350); }; });
     ov.querySelectorAll('[data-pqm]').forEach(function(b){ b.onclick=async function(){ try{ await _mqAct('move',{item:b.dataset.pqm, pos_shift:-1}); }catch(x){} setTimeout(_nxpQueueLoad,350); }; });
   }
+  window._nxpQueueReload=function(){ try{ _nxpQueueLoad(); }catch(x){} };   // 1406: the drag reads the queue back
   function _nxpSheetClose(){ sheet=null; var ov=document.getElementById('nxp-sheet'); if(ov){ ov.classList.remove('open'); ov.innerHTML=''; }
     if(prevSpeaker!==undefined){ try{ _musicSpeaker=prevSpeaker; }catch(x){} prevSpeaker=undefined; } }
   function _nxpClose(keepOld){ _nxpSheetClose(); clearInterval(timer); timer=null; var p=document.getElementById('nxp'); if(p) p.classList.remove('open'); document.body.classList.remove('nxp-on');
@@ -27623,6 +27624,48 @@ body.nx-on #atv-page .tvp-in[data-act="art"].on{background:#1b1c20;box-shadow:no
 body.nx-on #atv-page .tvp-in[data-act="art"].on::after{width:44px;height:26px;border-radius:13px;background:#2139F0}
 body.nx-on #atv-page .tvp-in[data-act="art"]:not(.on)::after{content:'';width:44px;height:26px;border-radius:13px;background:rgba(255,255,255,.18);flex:none}
 </style>
+<!-- ══ REGISTER 1406 — "DO THE SIX" (2–4/6): THE MUSIC HOLD SHEET, THE SCENE EDITOR, AND DRAGGING THE QUEUE (Dave 17 Nov 19:35).
+     THE MUSIC HOLD SHEET (Play Now, Play Next, Add to Queue, Start Radio, Favourite, Add to Playlist, to a page, Info) and
+     THE SCENE EDITOR (hold a scene: its name and picture) were today's sheets. Under the New Look both are the New Look's
+     sheet — the same one as Play To and the page picker (1397): a dark card, its title large, each choice a rounded row,
+     rising from the foot on a phone and centred on an iPad (12 Oct: a centred card). Every button is today's, doing what it
+     does today. THE QUEUE: the new player's queue (1391) could only move a song up one place. Each song now has a handle
+     (≡): drag it to its place — the move is today's (_mqAct 'move' with the shift, the call today's queue page makes),
+     and the list is read back from the speaker after. -->
+<style>
+body.nx-on #music-act-sheet{z-index:9200;justify-content:flex-end;align-items:center;font-family:Inter,-apple-system,sans-serif}
+@media (min-width:700px){body.nx-on #music-act-sheet{justify-content:center}body.nx-on #music-act-sheet .sheet{border-radius:28px}}
+body.nx-on #music-act-sheet .sheet{width:min(520px,100%);background:#1b1c20;border:0;border-radius:28px 28px 0 0;padding:22px 16px calc(18px + env(safe-area-inset-bottom,0px))}
+body.nx-on #music-act-title{font-size:20px;font-weight:600;text-align:left;margin:0 4px 2px}
+body.nx-on #music-act-sub{font-size:13px;color:rgba(255,255,255,.62);text-align:left;margin:0 4px 14px}
+body.nx-on #music-act-sheet .mus-act-btn{min-height:52px;margin-top:6px;border-radius:14px;background:#26272c;border:0;font-weight:600;font-size:15px}
+body.nx-on #scene-edit .scene-edit-sheet{width:min(560px,100%);margin:0 auto;background:#1b1c20;border:0;border-radius:28px 28px 0 0;font-family:Inter,-apple-system,sans-serif}
+@media (min-width:700px){body.nx-on #scene-edit{justify-content:center}body.nx-on #scene-edit .scene-edit-sheet{border-radius:28px}}
+body.nx-on #scene-edit .scene-edit-h{font-size:20px;font-weight:600}
+body.nx-on #scene-edit .scene-edit-lbl{font-size:13px;font-weight:600;letter-spacing:0;text-transform:none;color:rgba(255,255,255,.62)}
+body.nx-on #scene-edit .scene-edit-in{height:46px;border-radius:14px;background:#26272c;border:0}
+body.nx-on #scene-edit .scene-edit-prev{border-radius:18px;overflow:hidden}
+body.nx-on #scene-edit .scene-edit-btn{min-height:44px;border-radius:14px}
+#nxp-sheet .ib.dh{cursor:grab;touch-action:none;font-size:18px}
+#nxp-sheet .li.nxq-drag{opacity:.92;z-index:5;position:relative;box-shadow:0 14px 40px rgba(0,0,0,.55);background:#2a2b31}
+#nxp-sheet .li.nxq-over{box-shadow:inset 0 2px 0 #8A98FF}
+</style>
+<script>
+(function(){
+  // the shift a dragged song needs: from its place to the place it was dropped on (today's move takes a shift)
+  function _nxqShift(from, to){ from=+from; to=+to; if(!isFinite(from)||!isFinite(to)||from===to) return 0; return to-from; }
+  window._nxqShift=_nxqShift;
+  var drag=null;
+  window.addEventListener('pointerdown',function(ev){ var h=ev.target.closest&&ev.target.closest('#nxp-sheet [data-pqd]'); if(!h) return; ev.preventDefault();
+    var row=h.closest('.li'); drag={row:row, id:h.dataset.pqd, from:+h.dataset.i, y:ev.clientY, over:null}; row.classList.add('nxq-drag'); },true);
+  window.addEventListener('pointermove',function(ev){ if(!drag) return; ev.preventDefault(); drag.row.style.transform='translateY('+(ev.clientY-drag.y)+'px)';
+    drag.row.style.pointerEvents='none'; var u=document.elementFromPoint(ev.clientX,ev.clientY), o=u&&u.closest&&u.closest('#nxp-sheet .li'); drag.row.style.pointerEvents='';
+    if(drag.over&&drag.over!==o) drag.over.classList.remove('nxq-over'); drag.over=o&&o!==drag.row&&o.querySelector('[data-pqd]')?o:null; if(drag.over) drag.over.classList.add('nxq-over'); },true);
+  window.addEventListener('pointerup',function(){ if(!drag) return; var d=drag; drag=null; d.row.classList.remove('nxq-drag'); d.row.style.transform=''; if(d.over) d.over.classList.remove('nxq-over');
+    var to=d.over?+d.over.querySelector('[data-pqd]').dataset.i:d.from, s=_nxqShift(d.from,to); if(!s) return;
+    Promise.resolve().then(function(){ return _mqAct('move',{item:d.id, pos_shift:s}); }).catch(function(){}).then(function(){ setTimeout(function(){ try{ window._nxpQueueReload&&_nxpQueueReload(); }catch(x){} },350); }); },true);
+})();
+</script>
 <!-- REGISTER 1365 motion styles (the type scale stays the last stylesheet) -->
 <style>
 /* 1367 (Dave 16 Nov 06:42): the room page takes the All Rooms tile's on/off look and follows the room live; 1369: off is a
