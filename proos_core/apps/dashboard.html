@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111712';
+const PROOS_BUILD='2026111713';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -27533,6 +27533,56 @@ body.nx-on #jv .nxa-ty button{height:48px;padding:0 18px;border-radius:16px;bord
   // one screen everywhere under the New Look: a browser's mic opens it too (the app already does — 1001)
   var _oa=window.openAssist; if(typeof _oa==='function') window.openAssist=function(){ if(_nxaOn2()&&!window._jvTyping&&typeof jvOpen==='function'&&!/[?&]nxview=/.test(location.search)){   // the Pro preview (1389) keeps Assist held
  jvOpen(); try{ _nxaDress(); }catch(x){} return; } return _oa.apply(this,arguments); };
+})();
+</script>
+<!-- ══ REGISTER 1403 — REBUILD STEP 9a, THE SCREENSAVER IN THE NEW LOOK (Dave 17 Nov 18:58 "Go"; mock S.screensaver). Today's
+     screensaver (the idle time set in Settings, tap to wake, the clock, the weather, what the room plays) is drawn as the
+     mock: the room's photo — or the Home photo — dimmed and softened behind; the time large and light in the middle; one
+     line under it, "Tuesday 17 November · 18° partly cloudy"; what is playing as a frosted card along the bottom (its art,
+     its title, "room · artist") with its play/pause. The card's previous / next and its volume slider (today's) are not on
+     the mock and are hidden in the New Look — a behaviour change, recorded: the room's own control page keeps all of them
+     (9 Nov: volume on the control page). Off, nothing changes. -->
+<style>
+body.nx-on #screensaver{justify-content:flex-start!important}
+body.nx-on #screensaver .nxs-ph{position:absolute;inset:-24px;background:#000 center/cover no-repeat;filter:brightness(.45) blur(2px);transform:scale(1.05);z-index:0;pointer-events:none}
+body.nx-on #screensaver>*:not(.nxs-ph){position:relative;z-index:1}
+body.nx-on #screensaver .ss-top{flex-direction:column;gap:8px;margin-top:max(18vh,120px);font-family:Inter,-apple-system,sans-serif}
+body.nx-on #screensaver .ss-dt{display:none}
+body.nx-on #screensaver .ss-time{font-size:clamp(84px,24vw,180px);font-weight:200;letter-spacing:-.04em}
+body.nx-on #screensaver .ss-wx{font-size:15px;font-weight:400;color:rgba(255,255,255,.75);text-align:center}
+body.nx-on #screensaver #ss-media{position:absolute;left:18px;right:18px;bottom:calc(env(safe-area-inset-bottom,0px) + 40px);display:flex;justify-content:center}
+body.nx-on #screensaver .ss-card{flex-direction:row;align-items:center;gap:12px;margin:0;width:100%;max-width:520px;padding:12px;border-radius:22px;background:rgba(20,20,24,.55);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);font-family:Inter,-apple-system,sans-serif}
+body.nx-on #screensaver .ss-vol-col,body.nx-on #screensaver .ss-card .mpb:not(.play){display:none}
+body.nx-on #screensaver .ss-card-top{flex:1;min-width:0;justify-content:flex-start;gap:12px}
+body.nx-on #screensaver .ss-art{width:52px;height:52px;border-radius:var(--proos-art-r);box-shadow:none;flex:none}
+body.nx-on #screensaver .ss-mt{font-size:15px;font-weight:600}
+body.nx-on #screensaver .ss-ma{font-size:13px;margin-top:2px;color:rgba(255,255,255,.66)}
+body.nx-on #screensaver .ss-card .mpb.play{width:44px;height:44px;background:#fff;color:#111}
+body.nx-on #screensaver .ss-card .mpb.play svg{width:18px;height:18px;fill:#111;stroke:#111}
+</style>
+<script>
+(function(){
+  function _nxsvOn(){ return document.body.classList.contains('nx-on'); }
+  // the one line under the time: the date, then the weather the home's entity reports (nothing when it reports none)
+  function _nxsvLine(now, temp, cond){ var d=now.toLocaleDateString('en-AU',{weekday:'long', day:'numeric', month:'long'}).replace(/,/g,'');
+    var w=(temp!=null&&temp!==''&&isFinite(+temp))?(Math.round(+temp)+'°'+(cond&&cond!=='unavailable'&&cond!=='unknown'?' '+String(typeof wxLabel==='function'?wxLabel(cond):cond).toLowerCase():'')):'';
+    return d+(w?' · '+w:''); }
+  window._nxsvLine=_nxsvLine;
+  // the photo behind: the room's own, else the Home photo (1398's rule)
+  function _nxsvPhoto(){ try{ var r=(typeof curRoom==='number'&&curRoom>=0)?CONFIG.rooms[curRoom]:null; return (r&&r.photo)||(CONFIG&&CONFIG._homeAreaPhoto)||''; }catch(x){ return ''; } }
+  window._nxsvPhoto=_nxsvPhoto;
+  var _top=window.ssRenderTop; if(typeof _top==='function') window.ssRenderTop=function(){ var r=_top.apply(this,arguments); if(!_nxsvOn()) return r;
+    var w=document.getElementById('ss-weather'); if(w){ var t=CONFIG.weather?att(CONFIG.weather,'temperature'):null, c=CONFIG.weather?st(CONFIG.weather):'';
+      var s=_nxsvLine(new Date(), t, c); if(w.textContent!==s) w.textContent=s; w.style.display=''; } return r; };
+  var _med=window.ssRenderMedia; if(typeof _med==='function') window.ssRenderMedia=function(){ var r=_med.apply(this,arguments); if(!_nxsvOn()) return r;
+    try{ var a=document.querySelector('#screensaver .ss-ma'), rm=(typeof curRoom==='number'&&curRoom>=0&&CONFIG.rooms[curRoom])?CONFIG.rooms[curRoom].name:'';
+      if(rm){ if(!a){ var info=document.querySelector('#screensaver .mp-info'); if(info){ info.insertAdjacentHTML('beforeend','<div class="mp-artist ss-ma"></div>'); a=info.querySelector('.ss-ma'); } }
+        if(a&&a.textContent.indexOf(rm+' · ')!==0&&a.textContent!==rm) a.textContent=a.textContent?rm+' · '+a.textContent:rm; } }catch(x){}
+    return r; };
+  var _sh=window.ssShow; if(typeof _sh==='function') window.ssShow=function(){ var r=_sh.apply(this,arguments); try{ var ov=document.getElementById('screensaver'); if(!ov) return r;
+    var ph=ov.querySelector('.nxs-ph'), u=_nxsvOn()?_nxsvPhoto():''; if(!u){ if(ph) ph.remove(); return r; }
+    if(!ph){ ov.insertAdjacentHTML('afterbegin','<div class="nxs-ph" aria-hidden="true"></div>'); ph=ov.querySelector('.nxs-ph'); }
+    ph.style.backgroundImage="url('"+String(u).replace(/'/g,'%27')+"')"; }catch(x){} return r; };
 })();
 </script>
 <!-- REGISTER 1365 motion styles (the type scale stays the last stylesheet) -->
