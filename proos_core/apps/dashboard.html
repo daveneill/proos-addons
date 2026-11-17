@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111708';
+const PROOS_BUILD='2026111709';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -27300,7 +27300,9 @@ body.nx-on #widget-picker .wl-chip{height:34px;border-radius:17px;padding:0 14px
 body.nx-on #widget-picker .wl-chip.on{background:#fff;color:#111}
 body.nx-on #widget-picker .widget-picker-grid{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px!important}
 @media (min-width:820px){body.nx-on #widget-picker .widget-picker-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
-body.nx-on #widget-picker .wl-it{background:#26272d!important;box-shadow:none!important;border-radius:22px;padding:14px;gap:6px;min-height:120px}
+body.nx-on #widget-picker .widget-picker-grid{grid-auto-rows:max-content!important;align-items:stretch}
+body.nx-on #widget-picker .wl-it{background:#26272d!important;box-shadow:none!important;border-radius:22px;padding:14px;gap:6px;min-height:120px;height:auto!important}
+body.nx-on #widget-picker .wl-it>*{flex-shrink:0}   /* 1400a: the sizes sat half outside the card on an iPad */
 body.nx-on #widget-picker .wl-pv{display:none}
 body.nx-on #widget-picker .wl-tn{order:-1;display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
 body.nx-on #widget-picker .nxe-ic{width:40px;height:40px;border-radius:13px;background:rgba(255,255,255,.08);display:grid;place-items:center;flex:none}
@@ -27317,6 +27319,12 @@ body.nx-on #widget-picker .wl-tz button{border-radius:10px;font-size:12px;paddin
 <script>
 (function(){
   var esc=function(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); };
+  // 1400a: the library entries W_SVG has no icon for (seen on Dave's iPad as bare circles)
+  var NXE_IC={people:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14.5a5 5 0 0 1 5.5 5"/>',
+    act1:'<rect x="2.5" y="4.5" width="19" height="13" rx="2"/><path d="M10 8.5v5l4-2.5z"/>',device:'<rect x="5" y="3" width="14" height="18" rx="3"/><circle cx="12" cy="14" r="3"/><path d="M12 7h.01"/>',
+    energy:'<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',apps:'<rect x="3" y="3" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="2"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2"/>',
+    musicfav:'<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>',chfav:'<rect x="2.5" y="6.5" width="19" height="13" rx="2"/><path d="m8 2 4 4.5L16 2"/>',
+    actfav:'<path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/>'};
   var TV='<svg class="g" viewBox="0 0 24 24"><rect x="2.5" y="4.5" width="19" height="13" rx="2"/><path d="M8 21h8"/></svg>', PLUS='<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>';
   function _nxeOn(){ return document.body.classList.contains('nx-on'); }
   function _nxeNameOf(e){ return (typeof deviceNameById!=='undefined'&&deviceNameById[entityDeviceMap[e]])||att(e,'friendly_name')||''; }
@@ -27379,7 +27387,7 @@ body.nx-on #widget-picker .wl-tz button{border-radius:10px;font-size:12px;paddin
   // the picker: each choice wears its icon and name as the mock draws it (today's tile underneath)
   var _ow=window.openWidgetPicker; if(typeof _ow==='function') window.openWidgetPicker=function(){ var r=_ow.apply(this,arguments);
     try{ if(_nxeOn()) document.querySelectorAll('#widget-picker-grid .wl-it').forEach(function(it){ if(it.querySelector('.nxe-ic')) return; var tn=it.querySelector('.wl-tn'), nm=it.querySelector('.wl-nm'); if(!tn) return;
-      tn.insertAdjacentHTML('afterbegin','<div class="nxe-ic">'+((typeof W_SVG!=='undefined'&&W_SVG[it.dataset.id])||'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg>')+'</div>');
+      tn.insertAdjacentHTML('afterbegin','<div class="nxe-ic">'+((typeof W_SVG!=='undefined'&&W_SVG[it.dataset.id])||(NXE_IC[it.dataset.id]?'<svg viewBox="0 0 24 24">'+NXE_IC[it.dataset.id]+'</svg>':'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg>'))+'</div>');
       if(nm) tn.insertAdjacentHTML('afterend','<div class="nxe-nm">'+esc(nm.textContent)+'</div>'); }); }catch(x){}
     return r; };
 })();
