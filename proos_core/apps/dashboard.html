@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111707';
+const PROOS_BUILD='2026111708';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -26365,7 +26365,8 @@ body.nx-on #device-chooser{z-index:9380}
     var D=(window._nxAll?_nxAll():[]), r=room||null, lib=(typeof WIDGET_LIBRARY!=='undefined'?WIDGET_LIBRARY:[]).filter(function(x){ return x.id===w.id; })[0]||{};
     var areaLights=function(a){ return D.filter(function(d){ return d.k.kind==='light'&&(a==null||d.area===a); }); };
     switch(w.id){
-      case 'apps': case 'musicfav': case 'chfav': case 'actfav': {   // their own artwork tiles
+      case 'apps': case 'musicfav': case 'chfav': case 'actfav': {   // 1400: the New Look favourite cards (brand art on top, name and where under it)
+        if(typeof _nxFavCard==='function'){ var fv=_nxFavCard(w,_nxwSize(w)); if(fv) return fv; }
         var h=''; try{ h=(renderWidgetContent(w)||{}).html||''; }catch(x){} return h?'<div class="nxw-fav'+_nxwSize(w)+'" data-nwuid="'+e7(w.uid||'')+'">'+h+'</div>':''; }
       case 'lights': { var L=areaLights(r?r.id:null), on=L.filter(function(d){ return d.r.now; });
         var off=on.length?act(function(){ svc('light','turn_off',{entity_id:on.map(function(d){ return d.lead; })}); },'o:'+(w.uid||w.id)):'';
@@ -26425,7 +26426,7 @@ body.nx-on #device-chooser{z-index:9380}
     var wl=[]; try{ wl=(typeof loadWidgetLayout==='function'?loadWidgetLayout():[])||[]; }catch(x){}
     window._nxBack=room?function(){ _nxRoom((CONFIG.rooms||[]).indexOf(room)); }:function(){ _nxHome(); };   // where a widget's page returns to
     var html=wl.map(function(w){ try{ return _nxwOne(w, room); }catch(x){ return ''; } }).join('');
-    return '<div class="nxr-sec"><b>Your Widgets</b></div>'+(html?'<div class="nxw-grid">'+html+'</div>':'')+'<button type="button" class="nxw-add" data-nwadd>+ Add Widget</button>';
+    return '<div class="nxr-sec"><b>Your Widgets</b>'+(html?'<button type="button" class="nxe-btn" data-nxe="on">Edit</button>':'')+'</div>'+(html?'<div class="nxw-grid">'+html+'</div>':'')+'<button type="button" class="nxw-add" data-nwadd>+ Add Widget</button>';
   };
   window._nxwOne=_nxwOne;
   // taps (delegated, so a redraw never loses them); hold a card to remove it, with a confirm
@@ -26441,7 +26442,8 @@ body.nx-on #device-chooser{z-index:9380}
     var cancel=function(e2){ if(!e2||Math.abs(e2.clientX-x0)>8||Math.abs(e2.clientY-y0)>8||e2.type!=='pointermove'){ clearTimeout(holdT); document.removeEventListener('pointermove',cancel,true); document.removeEventListener('pointerup',cancel,true); } };
     document.addEventListener('pointermove',cancel,true); document.addEventListener('pointerup',cancel,true);
     holdT=setTimeout(function(){ held=true; document.removeEventListener('pointermove',cancel,true); document.removeEventListener('pointerup',cancel,true);
-      _nxwAskRemove(uid); }, 600); }, true);
+      if(typeof _nxEditOn==='function'){ if(!document.body.classList.contains('nxe-edit')) _nxEditOn(); } else _nxwAskRemove(uid); }, 600); }, true);   // 1400: hold starts editing (1011); × asks
+  window._nxwAskRemove=function(u){ _nxwAskRemove(u); };   // 1400: the × asks the same question
   function _nxwAskRemove(uid){
     var ov=document.getElementById('nxl-sheet'); if(!ov){ ov=document.createElement('div'); ov.id='nxl-sheet'; document.body.appendChild(ov); }
     ov.onclick=function(){ ov.classList.remove('open'); }; ov._sig='rm'; ov.classList.add('open');
@@ -27216,7 +27218,7 @@ body.nx-on.nxbg-on #nx-page .nxr-hero::after{background:linear-gradient(180deg,r
     var days=fc.daily.slice(1,8), all=days.concat([]).reduce(function(a,d){ if(d.templow!=null) a.push(+d.templow); if(d.temperature!=null) a.push(+d.temperature); return a; },[]);
     var mn=all.length?Math.min.apply(null,all):0, mx=all.length?Math.max.apply(null,all):1, span=Math.max(1,mx-mn);
     return {place:A.friendly_name||'Home', cond:(typeof _wxCondLabel==='function')?_wxCondLabel(c):c, c:c, temp:A.temperature, facts:facts.join(' · '),
-      hours:fc.hourly.slice(0,6).map(function(x,i){ return {t:(typeof _wxHour==='function')?_wxHour(x.datetime,i):'', c:x.condition, day:(typeof _wxHourIsDay==='function')?_wxHourIsDay(x.datetime):true, v:x.temperature}; }),
+      hours:fc.hourly.slice(0,6).map(function(x,i){ return {t:(typeof _wxHour==='function')?_wxHour(x.datetime,i+1):'', c:x.condition, day:(typeof _wxHourIsDay==='function')?_wxHourIsDay(x.datetime):true, v:x.temperature}; }),
       days:days.map(function(d){ var dt=new Date(d.datetime); return {d:isNaN(dt)?'':dt.toLocaleDateString('en-AU',{weekday:'short'}), c:(typeof _wxCondLabel==='function')?_wxCondLabel(d.condition):d.condition, lo:d.templow, hi:d.temperature,
         a:d.templow!=null?((+d.templow-mn)/span*100):0, b:d.temperature!=null?((+d.temperature-mn)/span*100):100}; })};
   }
@@ -27247,6 +27249,139 @@ body.nx-on.nxbg-on #nx-page .nxr-hero::after{background:linear-gradient(180deg,r
       :'<div class="nxr-quiet">No energy readings yet<small>They appear here once your installer sets up the home’s energy meters.</small></div>';
     h+='</div>'; if(p._sig===h) return; p._sig=h; var y=p.scrollTop; p.innerHTML=h; p.scrollTop=y; back(p,'[data-eb]',function(){ _nxGo('devices'); }); }
   window._nxEnergy=function(b){ _nxwPage('nx-en-pg'); from=b||null; try{ _energyLoad(); }catch(e){} _nxeDraw(); clearInterval(timer); timer=setInterval(function(){ try{ _energyLoad(); }catch(e){} _nxeDraw(); },1000); };
+})();
+</script>
+<!-- ══ REGISTER 1400 — REBUILD STEP 7, EDIT A PAGE · ADD A WIDGET · THE FAVOURITE TILES (Dave 17 Nov 17:39 "go step 7"; mocks
+     S.edit, S.picker, S.widgets). EDIT: "Edit" beside Your Widgets (or holding a widget, the iPhone's way — 1011) starts
+     editing: the widgets wiggle, each wears a ×, a widget dragged onto another swaps places with it, and + Add Widget and
+     Done stand side by side above the bar (1011). × asks first ("Remove This Widget?", 1387). Scenes and On Now are the
+     room's own and are never edited. The order is saved to the SAME layout (saveWidgetLayout: this page, this screen —
+     and so to the box as this screen's own, 960). ADD A WIDGET: today's picker — its library, filters, search, sizes and
+     add road — drawn as the mock's sheet: filters wrapped (never sideways), each choice a card with its icon, name, one
+     line and a blue +, its sizes kept. FAVOURITES: the app, music, channel and activity favourites were today's tiles
+     drawn into the new grid (Dave 17 Nov 05:48: "reused all the old widgets"). Now New Look cards — the brand art (the
+     app's own tile, the cover, the channel's logo) on top, its name and where it plays under it; an activity favourite
+     is an AV-scene tile, started in its room through the room page's one fire path (1396) so the ring is seen. Every tap
+     still goes through today's road (_awTap, _mfTap, _cfTap) — the launch, the play and the channel send are unchanged. -->
+<style>
+.nxw-fv{position:relative;border-radius:24px;padding:12px;background:#1b1c20;color:#fff;display:flex;flex-direction:column;gap:10px;cursor:pointer;overflow:hidden;-webkit-user-select:none;user-select:none;min-height:132px;animation:nxrArrive var(--m-page) var(--e-spring);transition:transform var(--m-tap) var(--e-spring)}
+.nxw-fv:active{transform:scale(.98)}
+.nxw-fv.w2,.nxw-fv.w3{grid-column:span 2}
+.nxw-fv .fa{position:relative;aspect-ratio:2/1;border-radius:14px;overflow:hidden;background:#26272d;display:grid;place-items:center}
+.nxw-fv .fa img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.nxw-fv .fa .awt,.nxw-fv .fa .aw-full{position:absolute;inset:0;width:100%!important;height:100%!important;border-radius:0!important;pointer-events:none}
+.nxw-fv .fa .wm{font-size:17px;font-weight:600;padding:0 10px;text-align:center}
+.nxw-fv b{display:block;font-size:15px;font-weight:600;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nxw-fv small{display:block;margin-top:2px;font-size:12.5px;color:rgba(255,255,255,.62);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nxe-btn{border:0;background:none;color:#8A98FF;font:600 14px Inter,-apple-system,sans-serif;cursor:pointer;padding:4px 2px}
+@keyframes nxeWig{0%{transform:rotate(-.6deg)}50%{transform:rotate(.6deg)}100%{transform:rotate(-.6deg)}}
+body.nxe-edit #nx-page [data-nwuid]{animation:nxeWig var(--m-hold) var(--e-standard) infinite;overflow:visible}
+body.nxe-edit #nx-page [data-nwuid].nxe-drag{animation:none;z-index:5;opacity:.9;box-shadow:0 20px 50px rgba(0,0,0,.6)}
+body.nxe-edit #nx-page [data-nwuid].nxe-over{box-shadow:inset 0 0 0 2px #8A98FF}
+.nxe-x{position:absolute;top:-7px;left:-7px;z-index:6;width:28px;height:28px;border-radius:50%;border:0;display:none;place-items:center;background:#3a3b42;color:#fff;font:600 17px/1 Inter,-apple-system,sans-serif;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.5)}
+body.nxe-edit .nxe-x{display:grid}
+body.nxe-edit #nx-page .nxw-add{display:none}
+#nxe-bar{position:fixed;left:18px;right:18px;bottom:calc(var(--proos-dock-h,84px) + env(safe-area-inset-bottom,0px) + 14px);z-index:9050;display:none;gap:10px;max-width:520px;margin:0 auto}
+body.nxe-edit #nxe-bar{display:flex}
+#nxe-bar button{height:52px;border-radius:16px;border:0;font:600 15px Inter,-apple-system,sans-serif;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
+#nxe-bar .add{flex:1;background:rgba(40,41,47,.92);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px)}
+#nxe-bar .done{width:110px;background:#2139F0}
+#nxe-bar svg{width:18px;height:18px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round}
+@media (min-width:820px){#nxe-bar{bottom:calc(var(--proos-dock-h,92px) + 18px)}}
+@media (prefers-reduced-motion:reduce){body.nxe-edit #nx-page [data-nwuid]{animation:none}.nxw-fv{animation:none;transition:none}}
+/* Add a Widget, the mock's sheet (today's picker underneath) */
+body.nx-on #widget-picker .widget-picker-scrim{background:rgba(0,0,0,.55)}
+body.nx-on #widget-picker .widget-picker-sheet{background:#1b1c20;border-radius:28px 28px 0 0;padding:20px 18px 28px;font-family:Inter,-apple-system,sans-serif}
+body.nx-on #widget-picker .widget-picker-title{font-size:22px;font-weight:600;letter-spacing:-.02em}
+body.nx-on #widget-picker .widget-picker-sub{font-size:13px;color:rgba(255,255,255,.62);margin-top:4px}
+body.nx-on #widget-picker .wl-search-w{height:44px;border-radius:14px;background:#26272d;border:0;margin-top:14px}
+body.nx-on #widget-picker .wl-chips{flex-wrap:wrap;overflow:visible;margin:12px 0 16px}
+body.nx-on #widget-picker .wl-chip{height:34px;border-radius:17px;padding:0 14px;background:#26272d;border:0;color:#fff;font-weight:600;font-size:13px}
+body.nx-on #widget-picker .wl-chip.on{background:#fff;color:#111}
+body.nx-on #widget-picker .widget-picker-grid{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px!important}
+@media (min-width:820px){body.nx-on #widget-picker .widget-picker-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
+body.nx-on #widget-picker .wl-it{background:#26272d!important;box-shadow:none!important;border-radius:22px;padding:14px;gap:6px;min-height:120px}
+body.nx-on #widget-picker .wl-pv{display:none}
+body.nx-on #widget-picker .wl-tn{order:-1;display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+body.nx-on #widget-picker .nxe-ic{width:40px;height:40px;border-radius:13px;background:rgba(255,255,255,.08);display:grid;place-items:center;flex:none}
+body.nx-on #widget-picker .nxe-ic svg{width:20px;height:20px;stroke:#fff;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+body.nx-on #widget-picker .wl-nm{display:none}
+body.nx-on #widget-picker .nxe-nm{font-size:15px;font-weight:600;margin-top:6px}
+body.nx-on #widget-picker .wl-ds{font-size:12.5px;color:rgba(255,255,255,.62);line-height:1.35}
+body.nx-on #widget-picker .wl-add{width:30px;height:30px;background:#2139F0;color:#fff}
+body.nx-on #widget-picker .wl-add svg{stroke:#fff}
+body.nx-on #widget-picker .wl-added{font-size:12px;color:rgba(255,255,255,.62)}
+body.nx-on #widget-picker .wl-tz{margin-top:auto}
+body.nx-on #widget-picker .wl-tz button{border-radius:10px;font-size:12px;padding:5px 10px}
+</style>
+<script>
+(function(){
+  var esc=function(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); };
+  var TV='<svg class="g" viewBox="0 0 24 24"><rect x="2.5" y="4.5" width="19" height="13" rx="2"/><path d="M8 21h8"/></svg>', PLUS='<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>';
+  function _nxeOn(){ return document.body.classList.contains('nx-on'); }
+  function _nxeNameOf(e){ return (typeof deviceNameById!=='undefined'&&deviceNameById[entityDeviceMap[e]])||att(e,'friendly_name')||''; }
+  function _nxeRoomName(id){ var r=(CONFIG.rooms||[]).filter(function(x){ return x.id===id; })[0]; return r?r.name:''; }
+  // ── the favourite tiles: the brand art on top, the name and where it plays under it; the tap is today's road
+  function _nxFavModel(w){
+    if(w.id==='apps'&&w.app){ var n=w.app; try{ n=_appCanon(w.app,w.appid||'').n||w.app; }catch(x){} var dv=_nxeNameOf(w.device);
+      return {kind:'app', name:n, line:['App',dv].filter(Boolean).join(' · ')}; }
+    if(w.id==='musicfav'&&w.speaker&&(w.uri||w.play)){ var rm=_nxeRoomName(typeof entityAreaMap!=='undefined'?entityAreaMap[w.speaker]:'')||_nxeNameOf(w.speaker);
+      return {kind:'music', name:w.title||'Music', line:[w.subtitle||w.media_type&&String(w.media_type).replace(/^\w/,function(c){ return c.toUpperCase(); })||'Music',rm].filter(Boolean).join(' · ')}; }
+    if(w.id==='chfav'&&w.room&&w.device&&w.channel) return {kind:'channel', name:w.name||('Channel '+w.number), line:['Channel'+(w.number?' '+w.number:''), _nxeNameOf(w.device)||_nxeRoomName(w.room)].filter(Boolean).join(' · ')};
+    if(w.id==='actfav'&&w.room&&w.key){ var r=(CONFIG.rooms||[]).filter(function(x){ return x.id===w.room; })[0]; if(!r) return null;
+      var av=((window._nxAvScenesOf&&_nxAvScenesOf(r))||[]).filter(function(a){ return a.key===w.key; })[0];
+      return {kind:'av', name:(av&&av.label)||w.label||w.key, line:r.name, room:r, key:w.key, script:av&&av.script}; }
+    return null;
+  }
+  window._nxFavModel=_nxFavModel;
+  window._nxFavCard=function(w, size){ var M=_nxFavModel(w); if(!M) return '';
+    var uid=' data-nwuid="'+esc(w.uid||'')+'"', cls='nxw-fv'+(size||'');
+    if(M.kind==='av'){ var s=window._nxRoomState?_nxRoomState(M.room,M.key):'off', ri=(CONFIG.rooms||[]).indexOf(M.room);
+      return '<button type="button" class="nxr-scn'+(s==='on'?' on':'')+'"'+uid+' data-nxav="'+ri+'" data-nxk="'+esc(M.key)+'" data-nxs="'+esc(M.script||'')+'">'+TV+'<span class="tag">AV</span><b>'+esc(M.name)+'<small class="nxr-cap">'+esc(M.line)+'</small></b></button>'; }
+    var art='', tap='';
+    if(M.kind==='app'){ try{ art=_appTileHTML(w.app,'awt-true',w.appid||''); }catch(x){} tap=' data-dev="'+esc(w.device||'')+'" data-app="'+esc(w.app)+'" data-appid="'+esc(w.appid||'')+'" onclick="event.stopPropagation();_awTap(this)"'; }
+    if(M.kind==='music'){ art=w.art?'<img '+(typeof _artAttr==='function'?_artAttr(w.art):'src="'+esc(w.art)+'"')+' alt="" onerror="this.remove()">':''; tap=' data-mfuid="'+esc(w.uid)+'" onclick="event.stopPropagation();_mfTap(this)"'; }
+    if(M.kind==='channel'){ var slug=w.logo_tile||('channel_'+String(w.name||'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,''));
+      art='<img src="'+esc(proosCoreBase()+'/apps/art/tile/'+slug+'.png')+'" alt="" onerror="this.remove()">'; tap=' data-cfroom="'+esc(w.room)+'" data-cfdev="'+esc(w.device)+'" data-cfch="'+esc(w.channel)+'" onclick="event.stopPropagation();_cfTap(this)"'; }
+    return '<div class="'+cls+'"'+uid+tap+'><div class="fa"><span class="wm">'+esc(M.name)+'</span>'+art+'</div><div><b>'+esc(M.name)+'</b><small>'+esc(M.line)+'</small></div></div>';
+  };
+  // ── editing
+  function _nxeBar(){ var b=document.getElementById('nxe-bar'); if(b) return b; b=document.createElement('div'); b.id='nxe-bar';
+    b.innerHTML='<button type="button" class="add" data-nxe="add">'+PLUS+'Add Widget</button><button type="button" class="done" data-nxe="done">Done</button>'; document.body.appendChild(b); return b; }
+  function _nxeXs(){ document.querySelectorAll('#nx-page [data-nwuid]').forEach(function(c){ if(!c.dataset.nwuid||c.querySelector(':scope > .nxe-x')) return;
+    c.insertAdjacentHTML('beforeend','<span class="nxe-x" role="button" aria-label="Remove" data-nxx="'+esc(c.dataset.nwuid)+'">×</span>'); }); }
+  var tick=null;
+  window._nxEditOn=function(){ if(!_nxeOn()) return; _nxeBar(); document.body.classList.add('nxe-edit'); _nxeXs(); clearInterval(tick);
+    tick=setInterval(function(){ var p=document.getElementById('nx-page'); if(!p||!p.classList.contains('open')||!p.querySelector('.nxw-add,[data-nwuid]')){ window._nxEditOff(); return; } _nxeXs(); },300); };
+  window._nxEditOff=function(){ clearInterval(tick); tick=null; document.body.classList.remove('nxe-edit'); document.querySelectorAll('.nxe-x').forEach(function(x){ x.remove(); }); };
+  // the new order: the dragged widget takes the place of the one it was dropped on — saved to the same layout
+  function _nxeMove(from, to){ if(!from||!to||from===to) return false; var L=(loadWidgetLayout()||[]).slice(), a=L.findIndex(function(w){ return w&&w.uid===from; }), b=L.findIndex(function(w){ return w&&w.uid===to; });
+    if(a<0||b<0) return false; var it=L.splice(a,1)[0]; L.splice(b,0,it); saveWidgetLayout(L); return true; }
+  window._nxeMove=_nxeMove;
+  // taps while editing never run a widget; × asks first; the bar's two buttons
+  window.addEventListener('click',function(ev){ var t=ev.target; if(!t||!t.closest) return;
+    var e=t.closest('[data-nxe]'); if(e){ ev.stopPropagation(); ev.preventDefault();
+      if(e.dataset.nxe==='on') window._nxEditOn(); else if(e.dataset.nxe==='done') window._nxEditOff(); else if(e.dataset.nxe==='add'){ try{ openWidgetPicker(); }catch(x){} } return; }
+    var av=!document.body.classList.contains('nxe-edit')&&t.closest('#nx-page [data-nxav]'); if(av){ ev.stopPropagation(); try{ window._nxRoomFire&&_nxRoomFire(+av.dataset.nxav, av.dataset.nxk, av.dataset.nxs); }catch(x){} return; }   // the one fire path (1396)
+    if(!document.body.classList.contains('nxe-edit')) return;
+    var x=t.closest('[data-nxx]'); if(x){ ev.stopPropagation(); ev.preventDefault(); try{ window._nxwAskRemove&&_nxwAskRemove(x.dataset.nxx); }catch(y){} return; }
+    if(t.closest('#nx-page [data-nwuid]')){ ev.stopPropagation(); ev.preventDefault(); } },true);
+  // drag to swap, while editing
+  var drag=null;
+  window.addEventListener('pointerdown',function(ev){ if(!document.body.classList.contains('nxe-edit')) return; var c=ev.target.closest&&ev.target.closest('#nx-page [data-nwuid]'); if(!c||ev.target.closest('[data-nxx]')) return;
+    drag={c:c, x:ev.clientX, y:ev.clientY, on:false, over:null}; },true);
+  window.addEventListener('pointermove',function(ev){ if(!drag) return; var dx=ev.clientX-drag.x, dy=ev.clientY-drag.y;
+    if(!drag.on&&Math.abs(dx)+Math.abs(dy)<10) return; drag.on=true; ev.preventDefault(); drag.c.classList.add('nxe-drag'); drag.c.style.transform='translate('+dx+'px,'+dy+'px)';
+    drag.c.style.pointerEvents='none'; var u=document.elementFromPoint(ev.clientX,ev.clientY), o=u&&u.closest&&u.closest('#nx-page [data-nwuid]'); drag.c.style.pointerEvents='';
+    if(drag.over&&drag.over!==o) drag.over.classList.remove('nxe-over'); drag.over=o&&o!==drag.c?o:null; if(drag.over) drag.over.classList.add('nxe-over'); },true);
+  window.addEventListener('pointerup',function(){ if(!drag) return; var d=drag; drag=null; d.c.classList.remove('nxe-drag'); d.c.style.transform=''; if(d.over) d.over.classList.remove('nxe-over');
+    if(d.on&&d.over&&_nxeMove(d.c.dataset.nwuid, d.over.dataset.nwuid)){ var p=document.getElementById('nx-page'); if(p) p._sig=''; } },true);
+  // the picker: each choice wears its icon and name as the mock draws it (today's tile underneath)
+  var _ow=window.openWidgetPicker; if(typeof _ow==='function') window.openWidgetPicker=function(){ var r=_ow.apply(this,arguments);
+    try{ if(_nxeOn()) document.querySelectorAll('#widget-picker-grid .wl-it').forEach(function(it){ if(it.querySelector('.nxe-ic')) return; var tn=it.querySelector('.wl-tn'), nm=it.querySelector('.wl-nm'); if(!tn) return;
+      tn.insertAdjacentHTML('afterbegin','<div class="nxe-ic">'+((typeof W_SVG!=='undefined'&&W_SVG[it.dataset.id])||'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg>')+'</div>');
+      if(nm) tn.insertAdjacentHTML('afterend','<div class="nxe-nm">'+esc(nm.textContent)+'</div>'); }); }catch(x){}
+    return r; };
 })();
 </script>
 <!-- REGISTER 1365 motion styles (the type scale stays the last stylesheet) -->
