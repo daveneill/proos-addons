@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111713';
+const PROOS_BUILD='2026111715';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -24830,6 +24830,7 @@ body.nx-on #nx-page.open{display:block}
       var kinds=[]; L.forEach(function(d){ var k=d.k.kind; if(k==='source'||k==='receiver') k='tv'; if(['tv','light','speaker','shade','climate','camera','lock','garage','fan'].indexOf(k)>=0&&kinds.indexOf(k)<0) kinds.push(k); });
       var line=live.length?live.slice(0,2).map(function(d){ return d.name; }).join(' · ')+(live.length>2?' +'+(live.length-2):''):(L.length?'Off':'Nothing here yet');
       html+='<button type="button" class="nx-room'+(live.length?'':' off')+'" data-ri="'+i+'" style="'+(r.photo?"background-image:url('"+String(r.photo).replace(/'/g,'%27')+"')":'')+'"><div class="nx-rt"><div><b>'+nxEsc(r.name)+'</b><span>'+nxEsc(line)+'</span></div><div class="nx-ics">'+kinds.slice(0,5).map(function(k){ return svgOf(k==='speaker'?'speaker':k); }).join('')+'</div></div></button>'; });
+    if(!rooms.length) html=html.replace(/<div class="nx-sub">[^<]*<\/div>/,'<div class="nx-sub"></div>')+'<div class="nxr-quiet" style="grid-column:1/-1">No rooms yet<small>Your home’s rooms appear here the moment your installer creates them.</small></div>';   // 1404: empty is never blank
     var p=_nxPage(html+'</div>');
     p.querySelector('[data-whole]').onclick=function(){ _nxGoTo('home'); };   // 1377: Whole Home is Home
     p.querySelectorAll('[data-ri]').forEach(function(b){ b.onclick=function(){ cur='rooms'; bar(); if(typeof _nxRoom==='function') _nxRoom(+b.dataset.ri); else { closePage(); try{ showPage('home'); selectRoom(+b.dataset.ri); }catch(e){} } }; });   // 1376: the new room page
@@ -25631,7 +25632,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
   function _nxcListDraw(){
     var p=document.getElementById('nx-page'); if(!p||!p.classList.contains('open')||!p.classList.contains('nx-clim-pg')||cur) return;
     var U=_nxcUnits();
-    var h='<div class="nx-in"><button type="button" class="nx-back" data-cb>'+BACK+'</button><div class="nx-hd"><div><h1>Climate</h1><div class="nx-sub">'+(U.length?U.length+(U.length===1?' unit':' units'):'')+'</div></div></div>'+
+    var h='<div class="nx-in"><button type="button" class="nx-back" data-cb>'+BACK+'</button><div class="nx-hd"><div><h1>Climate</h1><div class="nx-sub">'+(U.length?(function(){ var n=U.filter(function(u){ var M=_nxcModel(states[u.e],pend[u.e]); return !M.dead&&M.mode&&M.mode!=='off'; }).length; return (n?n+' running · ':'')+U.length+(U.length===1?' unit':' units'); })():'')+'</div></div></div>'+
       (U.length?'<div class="nxc-list">'+U.map(function(u){ var S=states[u.e], M=_nxcModel(S,pend[u.e]);
         var big=M.t!=null?fmt(M.t)+'°':(M.now!=null?Math.round(M.now)+'°':'–');
         return '<button type="button" class="nxc-card '+_nxcCls(M.mode)+(M.dead?' dead':'')+'" data-cu="'+nxcEsc(u.e)+'"><div><div class="k">'+nxcEsc(u.room||'Around the House')+'</div><div class="n">'+nxcEsc(u.name)+'</div><div class="w">'+nxcEsc(_nxcLine(u.e,M))+(M.t!=null&&M.now!=null?' · '+Math.round(M.now)+'° now':'')+'</div></div><div class="t">'+big+'</div></button>'; }).join('')+'</div>'
@@ -27545,6 +27546,7 @@ body.nx-on #jv .nxa-ty button{height:48px;padding:0 18px;border-radius:16px;bord
 <style>
 body.nx-on #screensaver{justify-content:flex-start!important}
 body.nx-on #screensaver .nxs-ph{position:absolute;inset:-24px;background:#000 center/cover no-repeat;filter:brightness(.45) blur(2px);transform:scale(1.05);z-index:0;pointer-events:none}
+body.nx-on #screensaver .nxs-ph img{width:100%;height:100%;object-fit:cover;display:block}
 body.nx-on #screensaver>*:not(.nxs-ph){position:relative;z-index:1}
 body.nx-on #screensaver .ss-top{flex-direction:column;gap:8px;margin-top:max(18vh,120px);font-family:Inter,-apple-system,sans-serif}
 body.nx-on #screensaver .ss-dt{display:none}
@@ -27582,7 +27584,8 @@ body.nx-on #screensaver .ss-card .mpb.play svg{width:18px;height:18px;fill:#111;
   var _sh=window.ssShow; if(typeof _sh==='function') window.ssShow=function(){ var r=_sh.apply(this,arguments); try{ var ov=document.getElementById('screensaver'); if(!ov) return r;
     var ph=ov.querySelector('.nxs-ph'), u=_nxsvOn()?_nxsvPhoto():''; if(!u){ if(ph) ph.remove(); return r; }
     if(!ph){ ov.insertAdjacentHTML('afterbegin','<div class="nxs-ph" aria-hidden="true"></div>'); ph=ov.querySelector('.nxs-ph'); }
-    ph.style.backgroundImage="url('"+String(u).replace(/'/g,'%27')+"')"; }catch(x){} return r; };
+    // 1403a: an <img> — on the box the same photo as a CSS background never painted on this layer (measured: set, loaded, topmost, black)
+    var im=ph.querySelector('img'); if(!im){ ph.innerHTML='<img alt="">'; im=ph.querySelector('img'); } if(im.getAttribute('src')!==u) im.setAttribute('src',u); }catch(x){} return r; };
 })();
 </script>
 <!-- REGISTER 1365 motion styles (the type scale stays the last stylesheet) -->
