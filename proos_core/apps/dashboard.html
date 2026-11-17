@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111710';
+const PROOS_BUILD='2026111711';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -27468,6 +27468,71 @@ body.nx-on #widget-picker .wl-tz button{border-radius:10px;font-size:12px;paddin
     return C.card(w,o); };
   // icons the widget kit lacks
   var _addIc=function(){ if(window._nxwKit&&_nxwKit.IC) Object.keys(EX).forEach(function(k){ if(!_nxwKit.IC[k]) _nxwKit.IC[k]=EX[k]; }); }; _addIc();
+})();
+</script>
+<!-- ══ REGISTER 1402 — REBUILD STEP 8, ASSIST IN THE NEW LOOK (Dave 17 Nov 18:25 "go"; mock S.assist). Seen on the box first:
+     in the app the mic opens the full-screen conversation (1170, Dave's 2 Nov ruling); in a BROWSER the New Look's mic
+     opened today's small "Type a message" box. Now ONE screen everywhere under the New Look — the same full-screen
+     conversation and all its machinery (listening, the first-use voice consent, Assist's question buttons, Live ending
+     on close, the outcomes, page arranging) — drawn as the mock: the Assist ring and word with the room chip and ×; the
+     conversation as bubbles (what was said on the right in blue, Assist's answers on the left as cards, newest at the
+     bottom); the coloured wave over the mic while it listens or thinks; the keyboard button beside the mic opening a typing
+     field ON this screen (the words go through today's submitAssist); suggestions wrapped, never sideways. The orb keeps
+     Dave's size (1196: 72). -->
+<style>
+body.nx-on #jv .jv-c{background:rgba(14,14,16,.55)}
+body.nx-on #jv .jv-ttl{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:600}
+body.nx-on #jv .jv-ttl i{width:20px;height:20px;border-radius:50%;box-shadow:inset 0 0 0 3px #6f86ff}
+body.nx-on #jv .jv-btn.t{display:none}
+body.nx-on #jv .jv-m{max-width:85%;padding:12px 16px;border-radius:20px 20px 20px 6px;background:#1b1c20;color:#fff;font-weight:400;align-self:flex-start}
+body.nx-on #jv .jv-m.u{align-self:flex-end;border-radius:20px 20px 6px 20px;background:#2139F0;box-shadow:none;color:#fff}
+body.nx-on #jv:not(.idle) .jv-q{max-width:85%;padding:12px 16px;border-radius:20px 20px 6px 20px;background:#2139F0;font-size:17px;text-align:left}
+body.nx-on #jv:not(.idle) .jv-a{align-self:flex-start;max-width:88%;padding:14px 16px;border-radius:20px 20px 20px 6px;background:#1b1c20;font-weight:400;font-size:16px}
+body.nx-on #jv .jv-side{flex-direction:row;justify-content:center;align-items:center;gap:40px;padding-top:24px;position:relative}
+body.nx-on #jv .jv-side .nxa-kb{width:56px;height:56px;border-radius:50%;border:0;background:rgba(255,255,255,.12);display:grid;place-items:center;cursor:pointer;color:#fff}
+body.nx-on #jv .jv-side .nxa-kb svg{width:22px;height:22px}
+body.nx-on #jv .jv-side .nxa-sp{width:56px}
+body.nx-on #jv .jv-st{position:absolute;left:0;right:0;bottom:-26px}
+body.nx-on #jv .jv-orb{background:radial-gradient(circle at 50% 30%,#5C70FF,#2139F0 70%);box-shadow:0 0 0 8px rgba(77,99,255,.15),0 0 0 18px rgba(77,99,255,.07)}
+body.nx-on #jv .nxa-wave{position:relative;height:90px;margin:8px auto 0;width:min(320px,80%);pointer-events:none;opacity:0;transition:opacity var(--m-move) var(--e-standard)}
+body.nx-on #jv.nxa-live .nxa-wave{opacity:1}
+body.nx-on #jv .nxa-wave i{position:absolute;top:0;width:120px;height:90px;left:calc(50% - 60px);border-radius:50%;filter:blur(18px);animation:nxaWave var(--m-hold) var(--e-standard) infinite alternate}
+body.nx-on #jv .nxa-wave i:nth-child(1){background:radial-gradient(closest-side,#4D63FF,transparent)}
+body.nx-on #jv .nxa-wave i:nth-child(2){background:radial-gradient(closest-side,#8f7bff,transparent);left:calc(50% - 110px);animation-delay:-1s}
+body.nx-on #jv .nxa-wave i:nth-child(3){background:radial-gradient(closest-side,#4dc3ff,transparent);left:calc(50% - 10px);animation-delay:-2s}
+@keyframes nxaWave{0%{transform:scale(.8) translateY(6px)}100%{transform:scale(1.15) translateY(-6px)}}
+body.nx-on #jv .jv-sg{flex-wrap:wrap;justify-content:center;overflow:hidden;max-height:96px;margin:0;padding:14px 0 2px}
+body.nx-on #jv .nxa-ty{display:none;gap:8px;margin-top:12px;width:100%;max-width:780px;align-self:center}
+body.nx-on #jv.nxa-typing .nxa-ty{display:flex}
+body.nx-on #jv .nxa-ty input{flex:1;min-width:0;height:48px;border-radius:16px;border:0;background:#1b1c20;color:#fff;padding:0 16px;font:16px Inter,-apple-system,sans-serif;outline:none}
+body.nx-on #jv .nxa-ty button{height:48px;padding:0 18px;border-radius:16px;border:0;background:#2139F0;color:#fff;font:600 15px Inter,-apple-system,sans-serif;cursor:pointer}
+@media (prefers-reduced-motion:reduce){body.nx-on #jv .nxa-wave i{animation:none}}
+</style>
+<script>
+(function(){
+  function _nxaOn2(){ return document.body.classList.contains('nx-on'); }
+  // the New Look's pieces, added once to the full screen it draws
+  function _nxaDress(){ var d=document.getElementById('jv'); if(!d||!_nxaOn2()||d.querySelector('.jv-ttl')) return; var l=d.querySelector('.jv-l'), side=d.querySelector('.jv-side'), main=d.querySelector('.jv-main'); if(!l||!side||!main) return;
+    l.insertAdjacentHTML('afterbegin','<div class="jv-ttl"><i></i>Assist</div>');
+    var ow=side.querySelector('.jv-ow'); side.insertAdjacentHTML('afterbegin','<button type="button" class="nxa-kb" aria-label="Type instead">'+(typeof _jvKb==='function'?_jvKb():'')+'</button>');
+    if(ow) ow.insertAdjacentHTML('afterend','<span class="nxa-sp"></span>');
+    side.insertAdjacentHTML('beforebegin','<div class="nxa-wave"><i></i><i></i><i></i></div>');
+    main.insertAdjacentHTML('beforeend','<form class="nxa-ty"><input type="text" placeholder="Ask anything" autocomplete="off" aria-label="Type to Assist"><button type="submit">Send</button></form>');
+    d.querySelector('.nxa-kb').onclick=function(ev){ ev.stopPropagation(); d.classList.toggle('nxa-typing'); if(d.classList.contains('nxa-typing')){ _jvHold&&_jvHold(); var i=d.querySelector('.nxa-ty input'); setTimeout(function(){ try{ i.focus(); }catch(x){} },50); } };
+    d.querySelector('.nxa-ty').onsubmit=function(ev){ ev.preventDefault(); ev.stopPropagation(); var i=d.querySelector('.nxa-ty input'); _nxaSend(i.value); i.value=''; };
+  }
+  // the typed words go through today's submitAssist (the same road the chat box uses)
+  function _nxaSend(text){ text=String(text||'').trim(); if(text.length<2) return false; var inp=document.getElementById('assist-input'); if(!inp) return false;
+    inp.value=text; try{ submitAssist(); }catch(x){ return false; } return true; }
+  window._nxaSend=_nxaSend;
+  // the wave shows while it listens or thinks (the orb's own state, read)
+  setInterval(function(){ var d=document.getElementById('jv'); if(!d||!d.classList.contains('on')) return; var o=document.getElementById('jv-orb');
+    var live=!!(o&&!o.classList.contains('idle'))||document.body.classList.contains('proos-listening'); d.classList.toggle('nxa-live', live); },250);
+  var _jo=window.jvOpen; if(typeof _jo==='function') window.jvOpen=function(){ var r=_jo.apply(this,arguments); try{ _nxaDress(); }catch(x){} return r; };
+  // one screen everywhere under the New Look: a browser's mic opens it too (the app already does — 1001)
+  var _oa=window.openAssist; if(typeof _oa==='function') window.openAssist=function(){ if(_nxaOn2()&&!window._jvTyping&&typeof jvOpen==='function'&&!/[?&]nxview=/.test(location.search)){   // the Pro preview (1389) keeps Assist held
+ jvOpen(); return; } return _oa.apply(this,arguments); };
+  var _jc=window.jvClose; if(typeof _jc==='function') window.jvClose=function(){ var d=document.getElementById('jv'); if(d) d.classList.remove('nxa-typing','nxa-live'); return _jc.apply(this,arguments); };
 })();
 </script>
 <!-- REGISTER 1365 motion styles (the type scale stays the last stylesheet) -->
