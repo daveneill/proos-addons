@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<script>/* REGISTER 1409: the Pro New Look is on unless ?oldlook (kept until Dave rules the switch-over) */try{if(!/[?&]oldlook\b/.test(location.search))document.documentElement.classList.add('pnx')}catch(e){}</script>
 <meta charset="utf-8"/>
 <!-- viewport: byte-identical to dashboard.html, which fills the screen on the
      same devices. viewport-fit=cover once boxed the standalone window (before the
@@ -2333,6 +2334,59 @@ body.v3.railmin .aw-screen{left:108px!important}
 .hlt-ack{font-size:12px;color:var(--t2,rgba(255,255,255,.55));align-self:center}
 
 </style>
+<style>
+/* REGISTER 1409 — PRO NEW LOOK, STAGE 1: THE FOUNDATION (tokens, type, cards, rows, buttons, menu, sheets) */
+html.pnx{--accent:#4D63FF;--accent-soft:rgba(77,99,255,.18);--accent-line:rgba(77,99,255,.5);--good:#5FB98C;--warn:#E0564B;
+  --line:rgba(255,255,255,.09);--line-soft:rgba(255,255,255,.07);--card:rgba(27,28,32,.74);--card-hi:rgba(38,39,44,.82);
+  --t1:#fff;--t2:rgba(255,255,255,.72);--t3:rgba(255,255,255,.55);--pnx-card2:rgba(38,39,44,.9);--pnx-r:20px}
+/* the one menu */
+html.pnx .v2rail{background:rgba(18,18,21,.82);border:0;border-radius:24px;box-shadow:0 20px 60px rgba(0,0,0,.35)}
+html.pnx .v2item{font-size:14.5px;font-weight:500;border-radius:12px;border:0;min-height:42px;padding:10px 12px;color:var(--t2)}
+html.pnx .v2item.on{background:var(--accent-soft);color:#fff;border:0}
+html.pnx .v2item:hover{background:rgba(255,255,255,.06)}
+/* page title: the crumb's last word is the page's name, large */
+html.pnx .v2crumb{font-size:15px;color:var(--t3);align-items:baseline}
+html.pnx .v2crumb b{font-size:28px;font-weight:600;letter-spacing:-.4px;color:#fff}
+/* cards and lists */
+html.pnx .v3card{background:var(--card);border:0;border-radius:22px;box-shadow:none}
+html.pnx .v3rows{background:var(--card);box-shadow:none;border-radius:var(--pnx-r)}
+html.pnx .v3rows>.v3row{min-height:58px}
+html.pnx .v3rows>.v3row+.v3row{border-top:1px solid var(--line-soft)}
+html.pnx .itile,html.pnx .sys-tile,html.pnx .sys-card{background:var(--card);border:0;border-radius:18px}
+html.pnx .itile:hover,html.pnx .sys-tile:hover{background:var(--card-hi)}
+html.pnx .v3dh2 .t{font-size:30px;font-weight:600;letter-spacing:-.5px}
+html.pnx .v3dh2 .s{color:var(--t2);font-size:15px}
+html.pnx .v3sec>.h{font-size:17px;font-weight:600;color:#fff}
+html.pnx .section-label,html.pnx .bld-sec-h{font-size:11px;font-weight:700;letter-spacing:.09em;color:var(--t3)}
+/* buttons */
+html.pnx .btn-primary{background:var(--accent);border-radius:14px;padding:0 18px;min-height:44px;font-size:15px;font-weight:600}
+html.pnx .btn-ghost{background:var(--pnx-card2);border:0;color:#fff;border-radius:14px;padding:0 18px;min-height:44px;font-size:15px;font-weight:600}
+html.pnx .btn-danger{background:var(--warn);border-radius:14px;min-height:44px;font-weight:600}
+html.pnx .v3btn{border-radius:12px;font-weight:600}
+html.pnx .back{background:var(--pnx-card2);border:0;border-radius:20px;font-weight:600;padding:9px 16px 9px 12px}
+html.pnx .rp-cancel{border-radius:14px;font-weight:600}
+/* chips, tags, segments, switches */
+html.pnx .v3chip{border-radius:8px;font-size:12px;font-weight:600;padding:4px 9px}
+html.pnx .seg button{border:0;background:var(--pnx-card2);color:var(--t2);border-radius:10px;font-weight:600;font-size:13px}
+html.pnx .seg button.on,html.pnx .seg button.active,html.pnx .seg button[aria-pressed="true"]{background:#fff;color:#111}
+html.pnx .sw{border:0;background:rgba(255,255,255,.18);width:48px;height:29px;border-radius:15px}
+html.pnx .sw.on{background:var(--accent)}
+html.pnx .sw .sw-knob{width:23px;height:23px;top:3px;left:3px}
+html.pnx .sw.on .sw-knob{transform:translateX(19px)}
+/* inputs */
+html.pnx .field input,html.pnx .set-input,html.pnx .v3in{background:var(--pnx-card2);border:0;border-radius:14px}
+html.pnx .field-label{font-size:11px;font-weight:700;letter-spacing:.09em;color:var(--t3)}
+/* sheets and popups: the New Look's card, centred (12 Oct) */
+html.pnx .rp-sheet{background:#1b1c20;border:0;border-radius:28px;box-shadow:0 30px 80px rgba(0,0,0,.6)}
+html.pnx .rp-title{font-size:22px;font-weight:600}
+/* the Assist command bar */
+html.pnx .v3cmd{background:rgba(27,28,32,.82);border:0;border-radius:22px}
+/* the page's own name, large; where it sits in Pro, small above it (mock: "Family Room" over "AV Setup") */
+html.pnx .v2crumb.pnx-deep{flex-direction:column;align-items:flex-start;line-height:1.2}
+html.pnx .v2crumb .pnx-kick{display:block;font-size:13.5px;font-weight:500;color:var(--t3)}
+html.pnx .v2crumb .pnx-kick b{font-size:13.5px!important;font-weight:600!important;color:var(--t2)!important;letter-spacing:0}
+html.pnx .v2crumb .pnx-last{display:block;font-size:28px;font-weight:600;color:#fff;letter-spacing:-.4px;line-height:1.1}
+</style>
 </head>
 <body>
 
@@ -3438,7 +3492,7 @@ body.v3.railmin .aw-screen{left:108px!important}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111603';
+const PROOS_BUILD='2026111901';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -23392,6 +23446,20 @@ async function v3Software(){
     ov.classList.add('open'); hvDraw();
   };
   window.hvClose=function(){ var ov=document.getElementById('hv-ov'); if(ov){ ov.classList.remove('open'); ov.innerHTML=''; } };
+})();
+</script>
+<script>
+/* REGISTER 1409 — the page's own name large, where it sits small above it. Reads the crumb Pro already writes; the
+   section word keeps its own tap (back to the section). Nothing else reads the crumb's markup. */
+(function(){ function _pnxCrumb(){ var c=document.getElementById('v2crumb'); if(!c||!document.documentElement.classList.contains('pnx')||c.dataset.pnxDone===c.innerHTML) return;
+  var b=c.querySelector('b.v3crumb-sec'); var parts=c.textContent.split('\u203a').map(function(x){return x.trim();}).filter(Boolean);
+  if(b&&parts.length>1){ var last=parts.pop(), mid=parts.slice(1), esc=function(x){return String(x).replace(/[&<>"]/g,function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch];});};
+    c.innerHTML='<span class="pnx-kick">'+b.outerHTML+(mid.length?'<span class="sep">\u203a</span>'+esc(mid.join(' \u203a ')):'')+'</span><b class="pnx-last">'+esc(last)+'</b>'; c.classList.add('pnx-deep'); }
+  else c.classList.remove('pnx-deep');
+  c.dataset.pnxDone=c.innerHTML; }
+  window._pnxCrumb=_pnxCrumb;
+  function arm(){ var c=document.getElementById('v2crumb'); if(!c) return setTimeout(arm,500); new MutationObserver(_pnxCrumb).observe(c,{childList:true,characterData:true,subtree:true}); _pnxCrumb(); }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',arm); else arm();
 })();
 </script>
 </body>
