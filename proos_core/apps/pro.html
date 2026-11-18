@@ -2458,6 +2458,18 @@ html.pnx .pnx-ord .v3row.drag{opacity:.92;position:relative;z-index:5;box-shadow
 html.pnx .pnx-ord .v3row.over{box-shadow:inset 0 2px 0 var(--accent)}
 html.pnx .pnx-ord .hd{color:var(--t3);font-size:17px;width:20px;text-align:center}
 </style>
+<style>
+/* REGISTER 1412 — PRO NEW LOOK, STAGE 4: DEVICES AND SCENES (mocks All Devices, A Room's Devices). One title per page;
+   integrations with their own logos; the counts as doors; a device's controls gathered under it. */
+html.pnx .v3dh2 .t.pnx-dup{display:none}
+html.pnx .v3row .ri.pnx-lg{width:38px;height:38px;border-radius:11px;overflow:hidden;background:#fff;display:grid;place-items:center}
+html.pnx .v3row .ri.pnx-lg .intg-logo{width:38px;height:38px}
+html.pnx .v3kp>.pnx-door{cursor:pointer}
+html.pnx .v3kp>.pnx-door:hover{background:var(--card-hi)}
+html.pnx .pnx-devh{display:flex;align-items:baseline;gap:10px;padding:14px 16px 6px;font-size:15px;font-weight:600;color:#fff}
+html.pnx .pnx-devh em{font-style:normal;font-size:12.5px;font-weight:500;color:var(--t3)}
+html.pnx .v3rows>.v3row.pnx-sub{padding-left:28px}
+</style>
 </head>
 <body>
 
@@ -3563,7 +3575,7 @@ html.pnx .pnx-ord .hd{color:var(--t3);font-size:17px;width:20px;text-align:cente
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111903';
+const PROOS_BUILD='2026111904';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -23621,14 +23633,14 @@ async function v3Software(){
       var off=function(a){ var k=String(a.key||''); return k==='tv_off'||/_off$/.test(k); };
       var mine='script.'+oid, shown=acts.find(function(a){ return a.script===mine; });
       var tiles=acts.filter(function(a){ return a.script&&!off(a); }).map(function(a){ return '<div class="s'+(a.script===mine?' lit':'')+'"><em>AV</em>'+E(a.label||a.key)+'</div>'; })
-        .concat(acts.filter(function(a){ return a.script&&off(a); }).slice(0,1).map(function(a){ return '<div class="s'+(a.script===mine?' lit':'')+'"><em>&nbsp;</em>Room Off</div>'; }));
+        .concat(acts.filter(function(a){ return a.script&&off(a); }).slice(0,1).map(function(a){ return '<div class="s'+(a.script===mine?' lit':'')+'"><span></span>Room Off</div>'; }));
       var words=shown?(off(shown)?'Shown to them as Room Off, at the end of the room’s scenes.':'An AV scene in the room’s scenes: a ring while it starts, then its remote.'):'Not shown to the homeowner — it runs from Pro, voice and automations.';
       setHTML(box,'<div class="k">The Homeowner Sees</div><div class="g">'+tiles.join('')+'</div><div class="w">'+E(words)+'</div>');
     }).catch(function(){ var w=box.querySelector('.w'); if(w) w.textContent='The room’s page didn’t answer just now.'; });
   }
 
   // ── 6 · AREAS: Defaults beside Add Room; "Update dashboards" lives on in System Setup › Dashboards (Update All) ──
-  if(typeof renderHub==='function'){ var _rh=renderHub; renderHub=function(){ var r=_rh.apply(this,arguments); try{ _pnxHubDress(); }catch(e){} return r; }; }
+  if(typeof renderHub==='function'){ var _rh=renderHub; renderHub=function(){ var r=_rh.apply(this,arguments); Promise.resolve(r).then(function(){ try{ _pnxHubDress(); }catch(e){} }); return r; }; }   // 1412: renderHub is async — dress it once it has drawn
   function _pnxHubDress(){
     var hub=document.getElementById('panel-hub'); if(!hub) return; if(!on()){ hub.removeAttribute('data-pnx'); return; }
     if(hub.getAttribute('data-pnx')==='defaults'&&!_dOpen) hub.removeAttribute('data-pnx');
@@ -23688,6 +23700,63 @@ async function v3Software(){
     _dOrder=next; var h=document.getElementById('pnx-defaults'); if(h) _dDraw(h);
     fetch(proCoreUrl()+'/room_order',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({device:'pro',order:next,scope:'default'})})
       .then(function(r){ toast(r.ok?'Room order saved for every screen':'Couldn’t save the order'); }).catch(function(){ toast('Couldn’t save the order'); }); },true);
+})();
+</script>
+<script>
+/* REGISTER 1412 — the stage 4 script (Devices and Scenes). Wraps today's v3Devices; nothing of its is replaced. */
+(function(){
+  var on=function(){ return document.documentElement.classList.contains('pnx'); };
+  var E=function(x){ return String(x==null?'':x).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); };
+  // the trade's words for two integrations whose platform names are code (Lexicon): everything else keeps its own name
+  var LEX={hassio:'The Box (Add-ons)'};
+  function _pnxIntgName(dom){ if(LEX[dom]) return LEX[dom]; try{ var n=integrationName(dom); if(n) return n; }catch(e){} return String(dom).replace(/_/g,' ').replace(/\b\w/g,function(c){ return c.toUpperCase(); }); }
+  window._pnxIntgName=_pnxIntgName;
+
+  // ── ONE TITLE: the page's name is the large title at the top now (1409), so the same words repeated as the page's own
+  //     first heading are folded away — only when they are the SAME words; a different heading stays ──
+  function _pnxDedupe(){
+    if(!on()) return; var c=document.getElementById('v2crumb'); if(!c) return;
+    var name=((c.querySelector('.pnx-last')||c.querySelector('b'))||{}).textContent||''; name=name.trim().toLowerCase(); if(!name) return;
+    var p=[].slice.call(document.querySelectorAll('#app [id^=panel-]')).find(function(x){ return x.offsetParent; }); if(!p) return;
+    [].slice.call(p.querySelectorAll('.v3dh2 .t')).slice(0,1).forEach(function(t){ var same=t.textContent.trim().toLowerCase()===name; t.classList.toggle('pnx-dup',same); });
+  }
+  window._pnxDedupe=_pnxDedupe;
+  var _dq=null; function _dqRun(){ if(_dq) return; _dq=setTimeout(function(){ _dq=null; try{ _pnxDedupe(); }catch(e){} },80); }
+  function _arm(){ var sc=document.querySelector('#app .scroll'), c=document.getElementById('v2crumb'); if(!sc||!c) return setTimeout(_arm,600);
+    new MutationObserver(_dqRun).observe(sc,{childList:true,subtree:true}); new MutationObserver(_dqRun).observe(c,{childList:true,subtree:true,characterData:true}); _dqRun(); }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',_arm); else _arm();
+
+  // ── ALL DEVICES (mock): each integration with its own logo and its trade name; the counts are doors ──
+  function _pnxAllDevices(){
+    var p=document.getElementById('panel-v3devices'); if(!p) return;
+    [].slice.call(p.querySelectorAll('.v3row[onclick^="openIntegration("]')).forEach(function(r){
+      var m=/openIntegration\('([^']+)'\)/.exec(r.getAttribute('onclick')||''); if(!m||r.dataset.pnx) return; r.dataset.pnx='1'; var dom=m[1];
+      var ri=r.querySelector('.ri'); if(ri){ try{ setHTML(ri,intgLogo(dom)); ri.classList.add('pnx-lg'); }catch(e){} }
+      var t1=r.querySelector('.t1'); if(t1) t1.textContent=_pnxIntgName(dom);
+    });
+    var kp=p.querySelector('.v3kp'); if(kp&&!kp.dataset.pnx){ kp.dataset.pnx='1'; var cells=kp.children;
+      if(cells[0]){ cells[0].classList.add('pnx-door'); cells[0].setAttribute('onclick',"v3Devices('__none__')"); cells[0].title='Open the devices with no room'; }
+      if(cells[2]){ cells[2].classList.add('pnx-door'); cells[2].setAttribute('onclick',"show('library')"); cells[2].title='Open Integrations'; } }
+  }
+  // ── A ROOM'S DEVICES (mock): the controls grouped under the device they belong to (a Shield's players and remote
+  //     under one Shield) — today's rows, each untouched, only gathered ──
+  function _pnxRoomDevices(){
+    var p=document.getElementById('panel-v3devices'); if(!p) return; var box=p.querySelector('.v3sec .v3rows'); if(!box||box.dataset.pnx) return;
+    var rows=[].slice.call(box.children).filter(function(r){ return r.classList&&r.classList.contains('v3row'); }); if(rows.length<2) return;
+    var key=function(r){ var rt=r.querySelector('.rt'); var o=rt?(rt.getAttribute('onclick')||''):''; var m=/openDeviceManage\('([^']+)'\)/.exec(o); return m?m[1]:''; };
+    var groups={}, order=[]; rows.forEach(function(r){ var k=key(r)||('_'+order.length); if(!groups[k]){ groups[k]=[]; order.push(k); } groups[k].push(r); });
+    if(order.length===rows.length) { box.dataset.pnx='1'; return; }   // one control per device: nothing to gather
+    box.dataset.pnx='1';
+    order.forEach(function(k){ var list=groups[k]; if(list.length<2||k.charAt(0)==='_') return;
+      var d=(_devices||[]).find(function(x){ return x.id===k; }); var h=document.createElement('div'); h.className='pnx-devh';
+      var dn=''; try{ dn=devName(d); }catch(e){ dn=(d&&(d.name_by_user||d.name))||''; }
+      setHTML(h,'<span>'+E(dn)+'</span><em>'+list.length+' controls · '+E((d&&d.model)||'')+'</em>');
+      box.insertBefore(h,list[0]); list.forEach(function(r){ r.classList.add('pnx-sub'); });
+      // keep a device's controls together, in the order they were drawn
+      var anchor=h; list.forEach(function(r){ anchor.parentNode.insertBefore(r,anchor.nextSibling); anchor=r; });
+    });
+  }
+  if(typeof v3Devices==='function'){ var _vd=v3Devices; v3Devices=async function(sel){ var r=await _vd.apply(this,arguments); try{ if(on()){ if(_v3dev==='all') _pnxAllDevices(); else if(_v3dev!=='__none__') _pnxRoomDevices(); _pnxDedupe(); } }catch(e){} return r; }; }
 })();
 </script>
 </body>
