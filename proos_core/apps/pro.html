@@ -2470,6 +2470,17 @@ html.pnx .pnx-devh{display:flex;align-items:baseline;gap:10px;padding:14px 16px 
 html.pnx .pnx-devh em{font-style:normal;font-size:12.5px;font-weight:500;color:var(--t3)}
 html.pnx .v3rows>.v3row.pnx-sub{padding-left:28px}
 </style>
+<style>
+/* REGISTER 1413 — PRO NEW LOOK, STAGE 5: DIAGNOSTICS (mock Health Sweep + Setting Up): Setting Up at the top, read when
+   the page opens; the sweep's confirmed checks folded under their count. */
+html.pnx #pnx-setup{margin:0 0 16px}
+html.pnx .v3row .ri.pnx-amb,html.pnx .v3row .ri.pnx-ok{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;font-weight:700;font-size:15px;flex:none}
+html.pnx .v3row .ri.pnx-amb{background:rgba(242,179,74,.16);color:#F2B34A}
+html.pnx .v3row .ri.pnx-ok{background:rgba(95,185,140,.16);color:#5FB98C}
+html.pnx #v3sw-items .v3row.pnx-hide{display:none}
+html.pnx #v3sw-items .pnx-fold{cursor:pointer}
+html.pnx .v3row .ri.pnx-lg{background:#26272c}
+</style>
 </head>
 <body>
 
@@ -3575,7 +3586,7 @@ html.pnx .v3rows>.v3row.pnx-sub{padding-left:28px}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111904';
+const PROOS_BUILD='2026111905';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -23757,6 +23768,50 @@ async function v3Software(){
     });
   }
   if(typeof v3Devices==='function'){ var _vd=v3Devices; v3Devices=async function(sel){ var r=await _vd.apply(this,arguments); try{ if(on()){ if(_v3dev==='all') _pnxAllDevices(); else if(_v3dev!=='__none__') _pnxRoomDevices(); _pnxDedupe(); } }catch(e){} return r; }; }
+})();
+</script>
+<script>
+/* REGISTER 1413 — the stage 5 script (Diagnostics). Wraps today's v3SweepItems; the sweep's own items are untouched. */
+(function(){
+  var on=function(){ return document.documentElement.classList.contains('pnx'); };
+  var E=function(x){ return String(x==null?'':x).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); };
+
+  // ── SETTING UP (mock "Health Sweep + Setting Up"; Dave's route left open → the recommended one: READ WHEN THE PAGE
+  //     OPENS — no new rule in Core, nothing pushed). The checks are the Homeowner View's own (1389, hvChecks) for every
+  //     room: an empty room, a player with no role. Its "AV not committed" check reads the CURRENT room's activities, so
+  //     here a room with a TV is asked of Core instead (/rooms/<id>/activities) — every room by its own answer. A device
+  //     with no room is never flagged (16 Nov). ──
+  function _rooms(){ var sys=(typeof _systemAreas!=='undefined'&&_systemAreas)?_systemAreas:new Set(); return (_areas||[]).filter(function(a){ return !sys.has(a.area_id); }); }
+  function _hasDisplay(area){ return (_ents||[]).some(function(e){ try{ return v3AreaOfEnt(e)===area && (e.labels||[]).indexOf('proos_display')>=0; }catch(x){ return false; } }); }
+  async function _pnxSettingUp(){
+    var host=document.getElementById('pnx-setup'); if(!host||typeof hvChecks!=='function') return;
+    var rooms=_rooms(), items=[], tv=0, devs=0;
+    rooms.forEach(function(a){ var c={items:[],n:0}; try{ c=hvChecks(a.area_id,a.name)||c; }catch(e){}
+      devs+=c.n||0; (c.items||[]).forEach(function(it){ if(/ AV not committed$/.test(it.t)) return; items.push({t:it.t,s:it.s,room:a.area_id,av:/AV setup$/.test(it.t)}); }); });
+    var withTv=rooms.filter(function(a){ return _hasDisplay(a.area_id); }), acts=0;
+    await Promise.all(withTv.map(function(a){ return fetch(proCoreUrl()+'/rooms/'+encodeURIComponent(a.area_id)+'/activities',{cache:'no-store'}).then(function(r){ return r.ok?r.json():null; }).then(function(d){
+      var n=(d&&Array.isArray(d.activities))?d.activities.length:null; if(n===null) return; acts+=n; tv++;
+      if(!n) items.push({t:a.name+' AV not committed',s:'It has a TV but no AV scenes yet — commit them in AV Setup.',room:a.area_id,av:true}); }).catch(function(){}); }));
+    if(!document.getElementById('pnx-setup')) return;
+    var row=function(it){ return '<div class="v3row" onclick="_pnxSetupGo(\''+E(it.room)+'\','+(it.av?'1':'0')+')"><div class="ri pnx-amb">!</div><div class="rt"><div class="t1">'+E(it.t)+'</div><div class="t2">'+E(it.s)+'</div></div><div class="rr"><span class="v3btn pri">Review</span></div></div>'; };
+    var ok='<div class="v3row static"><div class="ri pnx-ok">✓</div><div class="rt"><div class="t1">'+(items.length?'Everything else is set up':'Everything is set up')+'</div><div class="t2">'+rooms.length+' rooms checked · '+devs+' devices · '+tv+' rooms with AV committed ('+acts+' AV scenes) · devices with no room are fine</div></div></div>';
+    setHTML(host,'<div class="pnx-grp" style="margin-top:0">Setting Up'+(items.length?' · '+items.length:'')+'</div><div class="v3rows">'+items.map(row).join('')+ok+'</div>');
+  }
+  window._pnxSetupGo=function(area,av){ Promise.resolve(openRoomHub(area)).then(function(){ if(av) v3RoomView('av'); }); };
+
+  // ── THE SWEEP'S OWN ITEMS: what could not be confirmed first (as today), the confirmed folded under their count ──
+  function _pnxFold(){
+    var host=document.getElementById('v3sw-items'); if(!host) return; var rows=[].slice.call(host.querySelectorAll('.v3row'));
+    var conf=rows.filter(function(r){ var c=r.querySelector('.v3chip'); return c&&/^Confirmed$/.test(c.textContent.trim()); });
+    var open=host.dataset.pnxOpen==='1'; conf.forEach(function(r){ r.classList.toggle('pnx-hide',!open); });
+    var t=host.querySelector('.pnx-fold'); if(!conf.length){ if(t) t.remove(); return; }
+    if(!t){ t=document.createElement('div'); t.className='v3row pnx-fold'; t.setAttribute('onclick','_pnxFoldToggle()'); var box=conf[0].parentElement; box.insertBefore(t,conf[0]); }
+    setHTML(t,'<div class="ri pnx-ok">✓</div><div class="rt"><div class="t1">Confirmed · '+conf.length+'</div><div class="t2">'+(open?'Tap to fold them away':'Every check ProOS confirmed — tap to see them')+'</div></div><div class="rr"><span class="v3chip ok">'+(open?'Hide':'Show')+'</span></div>');
+  }
+  window._pnxFoldToggle=function(){ var h=document.getElementById('v3sw-items'); if(!h) return; h.dataset.pnxOpen=h.dataset.pnxOpen==='1'?'0':'1'; _pnxFold(); };
+  if(typeof v3SweepItems==='function'){ var _si=v3SweepItems; v3SweepItems=function(){ var r=_si.apply(this,arguments); try{ if(on()){ _pnxFold();
+      var sw=document.getElementById('hlt-sweep'); if(sw&&!document.getElementById('pnx-setup')){ var d=document.createElement('div'); d.id='pnx-setup'; sw.parentNode.insertBefore(d,sw); _pnxSettingUp(); } } }catch(e){} return r; }; }
+  window._pnxSettingUp=_pnxSettingUp;
 })();
 </script>
 </body>
