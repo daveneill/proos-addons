@@ -2409,6 +2409,55 @@ html.pnx .upg-body,html.pnx .unp-split{flex-direction:column!important;display:f
 html.pnx .upg-scroll{flex:none!important;height:auto!important;max-height:56vh!important;overflow:auto!important}
 }
 </style>
+<style>
+/* REGISTER 1411 — PRO NEW LOOK, STAGE 3: HOME AND AREAS (mocks: A Room, AV Setup, Activities, Room Options, Device
+   Recovery, Defaults). Today's rows, cards and buttons all stay; this groups, adds and dresses them. */
+html.pnx .pnx-grp{font-size:17px;font-weight:600;color:#fff;margin:18px 4px 10px}
+html.pnx .pnx-grp:first-child{margin-top:4px}
+html.pnx #panel-room .panel-head .hv-btn{display:none}
+/* the overlay Prove the Room and the recovery choice use: the New Look's centred card */
+html.pnx #rec-modal{background:rgba(0,0,0,.55)!important}
+html.pnx #rec-modal>div{background:#1b1c20!important;border:0!important;border-radius:28px!important;padding:24px!important;min-width:min(520px,92vw)!important;box-shadow:0 30px 80px rgba(0,0,0,.6)}
+html.pnx #rec-modal .row{min-height:52px;border-radius:12px;padding:0 12px}
+html.pnx #rec-modal .row:nth-child(even){background:rgba(255,255,255,.035)}
+/* the signal path (AV Setup) */
+html.pnx .pnx-path{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:14px 16px;margin:0 0 14px;border-radius:18px;background:rgba(255,255,255,.045)}
+html.pnx .pnx-path .k{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--t3);margin-right:4px}
+html.pnx .pnx-path .n{height:34px;padding:0 12px;border-radius:11px;background:var(--pnx-card2);font-size:13.5px;font-weight:600;display:inline-flex;align-items:center;gap:7px}
+html.pnx .pnx-path .n.d{background:#fff;color:#111}
+html.pnx .pnx-path .n i{font-style:normal;font-size:10.5px;font-weight:700;padding:2px 6px;border-radius:6px;background:rgba(255,255,255,.12);color:var(--t2)}
+html.pnx .pnx-path .a{color:var(--t3);font-size:15px}
+/* The Homeowner Sees (the activity sheet) */
+html.pnx .pnx-sees{margin-top:18px}
+html.pnx .pnx-sees .k{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--t3);margin-bottom:10px}
+html.pnx .pnx-sees .g{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+html.pnx .pnx-sees .s{height:86px;border-radius:18px;background:var(--pnx-card2);padding:12px;display:flex;flex-direction:column;justify-content:space-between;font-size:13.5px;font-weight:600}
+html.pnx .pnx-sees .s.lit{background:#fff;color:#111}
+html.pnx .pnx-sees .s em{font-style:normal;align-self:flex-start;font-size:10px;font-weight:700;letter-spacing:.06em;padding:2px 7px;border-radius:6px;background:rgba(255,255,255,.12)}
+html.pnx .pnx-sees .s.lit em{background:rgba(0,0,0,.08);color:#333}
+html.pnx .pnx-sees .w{font-size:13px;color:var(--t2);margin-top:10px;line-height:1.45}
+/* Room Options: who the room is, with its picture (Edit Room's own sheet does the change) */
+html.pnx .pnx-id{display:flex;gap:14px;align-items:center;margin:4px 0 10px}
+html.pnx .pnx-id .ph{width:150px;height:96px;border-radius:16px;background:#26272c center/cover;flex:none}
+html.pnx .pnx-id .nm{font-size:20px;font-weight:600}
+html.pnx .pnx-id .bt{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+/* Device Recovery as a page */
+#panel-room[data-v3view="recovery"] #room-devices>.rh-card[data-v3="recovery"]{display:block}
+/* Defaults (Areas) */
+html.pnx #panel-hub[data-pnx="defaults"]>*:not(#pnx-defaults){display:none!important}
+html.pnx #pnx-defaults{display:none}
+html.pnx #panel-hub[data-pnx="defaults"]>#pnx-defaults{display:block}
+html.pnx .pnx-dcols{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:700px){ html.pnx .pnx-dcols{grid-template-columns:1fr} html.pnx .pnx-sees .g{grid-template-columns:repeat(2,1fr)} html.pnx .pnx-id .ph{width:110px;height:72px} }
+html.pnx .pnx-pics{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px}
+html.pnx .pnx-pics .p{cursor:pointer}
+html.pnx .pnx-pics .p i{display:block;height:70px;border-radius:12px;background:#26272c center/cover}
+html.pnx .pnx-pics .p b{display:block;font-size:12.5px;font-weight:600;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+html.pnx .pnx-ord .v3row{cursor:grab;touch-action:none}
+html.pnx .pnx-ord .v3row.drag{opacity:.92;position:relative;z-index:5;box-shadow:0 14px 40px rgba(0,0,0,.55);background:#2a2b31}
+html.pnx .pnx-ord .v3row.over{box-shadow:inset 0 2px 0 var(--accent)}
+html.pnx .pnx-ord .hd{color:var(--t3);font-size:17px;width:20px;text-align:center}
+</style>
 </head>
 <body>
 
@@ -3514,7 +3563,7 @@ html.pnx .upg-scroll{flex:none!important;height:auto!important;max-height:56vh!i
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111902';
+const PROOS_BUILD='2026111903';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -23484,6 +23533,161 @@ async function v3Software(){
   window._pnxCrumb=_pnxCrumb;
   function arm(){ var c=document.getElementById('v2crumb'); if(!c) return setTimeout(arm,500); new MutationObserver(_pnxCrumb).observe(c,{childList:true,characterData:true,subtree:true}); _pnxCrumb(); }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',arm); else arm();
+})();
+</script>
+<script>
+/* REGISTER 1411 — the stage 3 script. Wraps today's functions; nothing of theirs is replaced or removed. */
+(function(){
+  var on=function(){ return document.documentElement.classList.contains('pnx'); };
+  var E=function(x){ return String(x==null?'':x).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); };
+  try{ V3ROOMVIEWS.push(['recovery','Device Recovery']); }catch(e){}
+
+  // ── 1 · A ROOM: today's rows in three groups — Set Up, Check, The Homeowner (mock "A Room") ──
+  var GROUP={'AV Setup':0,'Devices':0,'Activities':0,'App Shortcuts':0,'Channels':0,'Prove the Room':1,'Evidence':1,'Device Recovery':1,'Dashboard':2,'Room Options':2};
+  function _pnxRoomGroups(){
+    if(!on()) return; var ov=document.querySelector('#room-devices>.v3room-ov'); if(!ov) return;
+    var grid=ov.querySelector('.v3rows.v3rgrid'); if(!grid||grid.dataset.pnx) return;
+    var rows=[].slice.call(grid.children), g=[[],[],[]];
+    rows.forEach(function(r){ var t=((r.querySelector('.t1')||{}).firstChild||{}).textContent||''; t=t.trim(); var k=(t in GROUP)?GROUP[t]:0;
+      if(t==='Dashboard'){ var t1=r.querySelector('.t1'); if(t1&&t1.firstChild) t1.firstChild.textContent='Dashboard Icons'; var t2=r.querySelector('.t2'); if(t2) t2.textContent='Today’s bar and widgets — until the switch-over'; }
+      if(t==='Room Options'){ var s2=r.querySelector('.t2'); if(s2) s2.textContent='Name, picture, icon, voice replies'; }
+      g[k].push(r); });
+    // Homeowner View (1389) as the first row of The Homeowner — its own button in the head is folded into it
+    var hv=document.createElement('div'); hv.className='v3row'; hv.setAttribute('onclick','hvOpen()');
+    setHTML(hv,'<div class="ri">'+((window.V3ICONS&&V3ICONS.home)||'')+'</div><div class="rt"><div class="t1">Homeowner View</div><div class="t2">Their room page, live · Setting Up · On Now</div></div><div class="rr">'+(((window.V3ICONS&&V3ICONS.chev)||'').replace('<svg','<svg class="cv"'))+'</div>');
+    g[2].unshift(hv);
+    var names=['Set Up','Check','The Homeowner'], sec=grid.parentElement; var head=sec.querySelector('.h'); if(head) head.style.display='none';
+    var box=document.createElement('div'); box.className='pnx-groups';
+    g.forEach(function(list,i){ if(!list.length) return; var h=document.createElement('div'); h.className='pnx-grp'; h.textContent=names[i]; box.appendChild(h);
+      var rs=document.createElement('div'); rs.className='v3rows v3rgrid'; rs.dataset.pnx='1'; list.forEach(function(r){ rs.appendChild(r); }); box.appendChild(rs); });
+    grid.replaceWith(box);
+  }
+  window._pnxRoomGroups=_pnxRoomGroups;
+
+  // ── 2 · AV SETUP: the signal path drawn at the top (mock "AV Setup") — from the room's own record ──
+  function _pnxPath(){
+    if(!on()) return; var card=document.querySelector('#room-devices>.rh-card[data-v3="av"]'); if(!card) return;
+    var rec=(typeof _rhRec==='function')?_rhRec():null; var old=card.querySelector('.pnx-path'); if(old) old.remove();
+    if(!rec||!rec.display) return;
+    var nm=function(e){ try{ return entName(e); }catch(x){ return e; } };
+    var inp=rec.inputs||{}, srcs=(rec.sources||[]).map(function(s){ return typeof s==='string'?s:(s&&s.entity); }).filter(function(s){ return s&&s!==rec.display; });
+    var aud=rec.tvaudio||((rec.audio||[])[0]&&(typeof rec.audio[0]==='string'?rec.audio[0]:rec.audio[0].entity));
+    var h='<span class="k">Signal Path</span>'+srcs.map(function(s){ return '<span class="n">'+E(nm(s))+(inp[s]?'<i>'+E(inp[s])+'</i>':'')+'</span>'; }).join('')
+      +(srcs.length?'<span class="a">→</span>':'')+'<span class="n d">'+E(nm(rec.display))+'</span>'+(aud&&aud!==rec.display?'<span class="a">→</span><span class="n">'+E(nm(aud))+'</span>':'');
+    var d=document.createElement('div'); d.className='pnx-path'; setHTML(d,h);
+    var hd=card.querySelector('.rh-hd'); if(hd&&hd.nextSibling) card.insertBefore(d,hd.nextSibling); else card.insertBefore(d,card.firstChild);
+  }
+  window._pnxPath=_pnxPath;
+
+  // ── 3 · ROOM OPTIONS: who the room is, with its picture, merged with Edit Room (mock "Room Options") ──
+  function _pnxIdentity(){
+    if(!on()||!_roomHubArea) return; var card=document.querySelector('#room-devices>.rh-card[data-v3="id"]'); if(!card) return;
+    var old=card.querySelector('.pnx-id'); if(old) old.remove();
+    var a=(_areas||[]).find(function(x){ return x.area_id===_roomHubArea; }); if(!a) return; var u=''; try{ u=v3Photo(a)||''; }catch(e){}
+    var d=document.createElement('div'); d.className='pnx-id';
+    setHTML(d,'<div class="ph"'+(u?' style="background-image:url(\''+E(u)+'\')"':'')+'></div><div><div class="nm">'+E(a.name)+'</div><div class="bt"><button class="v3btn" type="button" onclick="openRoomEdit(\''+E(a.area_id)+'\')">Change Name and Picture</button></div></div>');
+    var hd=card.querySelector('.rh-hd'); if(hd&&hd.nextSibling) card.insertBefore(d,hd.nextSibling); else card.appendChild(d);
+  }
+
+  // after every room draw (today's renderRoomHub → v3RoomDecorate)
+  if(typeof v3RoomDecorate==='function'){ var _d=v3RoomDecorate; v3RoomDecorate=function(){ var r=_d.apply(this,arguments); try{ _pnxRoomGroups(); _pnxPath(); _pnxIdentity(); _pnxRecPaint(); }catch(e){} return r; }; }
+
+  // ── 4 · DEVICE RECOVERY AS A PAGE (mock "Device Recovery"). Same members, same /watchers/recovery reading, same
+  //     _recEnt choice (its own sheet) — only where the list is drawn changes. ──
+  var recPage=false;
+  function _pnxRecPaint(){
+    var host=document.getElementById('room-devices'); if(!host) return; var c=host.querySelector(':scope>.rh-card[data-v3="recovery"]');
+    if(!recPage||!on()){ if(c) c.remove(); return; }
+    if(!c){ c=document.createElement('div'); c.className='rh-card'; c.setAttribute('data-v3','recovery'); host.appendChild(c); }
+    var rows=(_recMembers||[]).map(function(e){ var cf=(_recCfg||{})[e]; var tag=cf?(cf.method==='poe_cycle'?'UniFi PoE':(cf.method==='power_cycle'?'Smart Plug':'Reload')):'Reload (default)';
+      return '<div class="v3row" onclick="_recEnt(\''+E(e)+'\')"><div class="rt"><div class="t1">'+E(entName(e))+'</div><div class="t2">How ProOS brings it back when it stops answering</div></div><div class="rr"><span class="v3chip">'+E(tag)+'</span>'+(((window.V3ICONS&&V3ICONS.chev)||'›').replace('<svg','<svg class="cv"'))+'</div></div>'; }).join('');
+    setHTML(c,'<div class="rh-hd"><span class="rh-hd-t">Device Recovery</span></div><div class="v3dh2" style="padding:6px 4px 12px"><div class="s">How ProOS recovers each device if it stops responding. Tap one to choose Reload, Smart Plug or UniFi PoE.</div></div><div class="v3rows">'+rows+'</div>');
+  }
+  window._pnxRecPaint=_pnxRecPaint;
+  if(typeof _recList==='function'){ var _rl=_recList; _recList=function(){ if(recPage&&on()&&_v3roomView==='recovery'){ _recClose(); _pnxRecPaint(); return; } return _rl.apply(this,arguments); }; }
+  if(typeof openRecovery==='function'){ var _or=openRecovery; openRecovery=async function(){ if(!on()) return _or.apply(this,arguments); recPage=true; v3RoomView('recovery'); var r=await _or.apply(this,arguments); _pnxRecPaint(); return r; }; }
+  if(typeof v3RoomView==='function'){ var _rv=v3RoomView; v3RoomView=function(k){ if(k!=='recovery'){ recPage=false; } var r=_rv.apply(this,arguments); if(k!=='recovery') _pnxRecPaint(); return r; }; }
+
+  // ── 5 · THE HOMEOWNER SEES, in the activity sheet (mock "Activities"): the room's AV scenes as Core gives them to the
+  //     homeowner's page (/rooms/<id>/activities — the same list, so never a guess), the one tapped lit ──
+  if(typeof openActivitySheet==='function'){ var _oa=openActivitySheet; openActivitySheet=function(oid){ var r=_oa.apply(this,arguments); try{ _pnxSees(oid); }catch(e){} return r; }; }
+  function _pnxSees(oid){
+    if(!on()||!_roomHubArea) return; var body=document.getElementById('act-body'); if(!body) return;
+    var box=document.createElement('div'); box.className='pnx-sees'; setHTML(box,'<div class="k">The Homeowner Sees</div><div class="w">Reading the room’s page…</div>'); body.appendChild(box);
+    var room=_roomHubArea;
+    fetch(proCoreUrl()+'/rooms/'+encodeURIComponent(room)+'/activities',{cache:'no-store'}).then(function(r){ return r.ok?r.json():null; }).then(function(d){
+      if(!box.isConnected||_roomHubArea!==room) return;
+      var acts=(d&&Array.isArray(d.activities))?d.activities:null; if(!acts){ box.querySelector('.w').textContent='The room’s page didn’t answer just now.'; return; }
+      var off=function(a){ var k=String(a.key||''); return k==='tv_off'||/_off$/.test(k); };
+      var mine='script.'+oid, shown=acts.find(function(a){ return a.script===mine; });
+      var tiles=acts.filter(function(a){ return a.script&&!off(a); }).map(function(a){ return '<div class="s'+(a.script===mine?' lit':'')+'"><em>AV</em>'+E(a.label||a.key)+'</div>'; })
+        .concat(acts.filter(function(a){ return a.script&&off(a); }).slice(0,1).map(function(a){ return '<div class="s'+(a.script===mine?' lit':'')+'"><em>&nbsp;</em>Room Off</div>'; }));
+      var words=shown?(off(shown)?'Shown to them as Room Off, at the end of the room’s scenes.':'An AV scene in the room’s scenes: a ring while it starts, then its remote.'):'Not shown to the homeowner — it runs from Pro, voice and automations.';
+      setHTML(box,'<div class="k">The Homeowner Sees</div><div class="g">'+tiles.join('')+'</div><div class="w">'+E(words)+'</div>');
+    }).catch(function(){ var w=box.querySelector('.w'); if(w) w.textContent='The room’s page didn’t answer just now.'; });
+  }
+
+  // ── 6 · AREAS: Defaults beside Add Room; "Update dashboards" lives on in System Setup › Dashboards (Update All) ──
+  if(typeof renderHub==='function'){ var _rh=renderHub; renderHub=function(){ var r=_rh.apply(this,arguments); try{ _pnxHubDress(); }catch(e){} return r; }; }
+  function _pnxHubDress(){
+    var hub=document.getElementById('panel-hub'); if(!hub) return; if(!on()){ hub.removeAttribute('data-pnx'); return; }
+    if(hub.getAttribute('data-pnx')==='defaults'&&!_dOpen) hub.removeAttribute('data-pnx');
+    var up=[].slice.call(hub.querySelectorAll('button')).find(function(b){ return /proPublishDashboards\(false\)/.test(b.getAttribute('onclick')||'')&&b.classList.contains('btn-ghost'); });
+    if(up&&!hub.querySelector('.pnx-dbtn')){ var b=document.createElement('button'); b.className='btn-ghost pnx-dbtn'; b.type='button'; b.textContent='Defaults'; b.setAttribute('onclick','_pnxDefaults()'); b.style.cssText=up.style.cssText; up.parentNode.insertBefore(b,up); up.style.display='none'; }
+  }
+
+  // ── 7 · DEFAULTS (mock "Defaults"): what the homeowner starts with — the three stores Pro and Core already keep:
+  //     each room's picture (Edit Room), which scenes are on Home (the dashboard_scene label, togglePublish), and the
+  //     home's room order (Core's /room_order, scope "default" — a screen the homeowner rearranged keeps its own) ──
+  var _dOpen=false, _dOrder=null;
+  window._pnxDefaults=async function(){
+    var hub=document.getElementById('panel-hub'); if(!hub) return; _dOpen=true; hub.setAttribute('data-pnx','defaults');
+    var host=document.getElementById('pnx-defaults'); if(!host){ host=document.createElement('div'); host.id='pnx-defaults'; hub.appendChild(host); }
+    var c=document.getElementById('v2crumb'); if(c){ setHTML(c,'<b class="v3crumb-sec" onclick="v2go(\'areas\')" title="Back to Areas">Areas</b><span class="sep">›</span>Defaults'); }
+    try{ v2BackSync(); }catch(e){}
+    _dDraw(host);
+    try{ var r=await fetch(proCoreUrl()+'/room_order',{cache:'no-store'}); var o=r.ok?await r.json():null; _dOrder=(o&&Array.isArray(o.default))?o.default:[]; }catch(e){ _dOrder=[]; }
+    if(_dOpen) _dDraw(host);
+  };
+  function _dRooms(){
+    var sys=(typeof _systemAreas!=='undefined'&&_systemAreas)?_systemAreas:new Set();
+    var list=(_areas||[]).filter(function(a){ return !sys.has(a.area_id); });
+    var ord=_dOrder||[], pos={}; ord.forEach(function(id,i){ pos[id]=i; });
+    return list.slice().sort(function(a,b){ var pa=(a.area_id in pos)?pos[a.area_id]:1e6, pb=(b.area_id in pos)?pos[b.area_id]:1e6; return pa-pb || String(a.name).localeCompare(String(b.name)); });
+  }
+  function _dDraw(host){
+    var rooms=_dRooms();
+    var pics=rooms.map(function(a){ var u=''; try{ u=v3Photo(a)||''; }catch(e){} return '<div class="p" onclick="openRoomEdit(\''+E(a.area_id)+'\')"><i'+(u?' style="background-image:url(\''+E(u)+'\')"':'')+'></i><b>'+E(a.name)+'</b></div>'; }).join('');
+    var scenes=(_ents||[]).filter(function(e){ return /^scene\./.test(e.entity_id)&&e.platform==='homeassistant'; });
+    var sc=scenes.length?scenes.map(function(e){ var onH=(e.labels||[]).indexOf(SCENE_LABEL)>=0; var n=(e.name||e.original_name||(_states||[]).find&&(((_states||[]).find(function(s){ return s.entity_id===e.entity_id; })||{}).attributes||{}).friendly_name)||e.entity_id;
+        return '<div class="v3row"><div class="rt"><div class="t1">'+E(n)+'</div></div><div class="rr"><button type="button" class="sw'+(onH?' on':'')+'" aria-pressed="'+onH+'" onclick="_pnxScene(\''+E(e.entity_id)+'\')"><span class="sw-knob"></span></button></div></div>'; }).join('')
+      :'<div class="v3row static"><div class="rt"><div class="t2">No scenes made here yet — make them in Scenes.</div></div></div>';
+    var ord=_dOrder===null?'<div class="v3row static"><div class="rt"><div class="t2">Reading the home’s order…</div></div></div>'
+      :rooms.map(function(a){ return '<div class="v3row" data-id="'+E(a.area_id)+'"><span class="hd">≡</span><div class="rt"><div class="t1">'+E(a.name)+'</div></div></div>'; }).join('');
+    setHTML(host,'<div class="v3dh2" style="padding:0 2px 14px"><div class="s">What the homeowner starts with. They can change their own favourites and order afterwards.</div></div>'
+      +'<div class="pnx-dcols"><div><div class="v3card" style="padding:18px"><div class="pnx-grp" style="margin:0">Room Pictures</div><div class="v3dh2" style="padding:2px 0 0"><div class="s">Tap one to change it — the same sheet as Edit Room.</div></div><div class="pnx-pics">'+pics+'</div></div>'
+      +'<div class="pnx-grp">On Home</div><div class="v3dh2" style="padding:0 2px 8px"><div class="s">Which scenes start as favourites on Home.</div></div><div class="v3rows">'+sc+'</div></div>'
+      +'<div><div class="pnx-grp" style="margin-top:4px">Room Order</div><div class="v3dh2" style="padding:0 2px 8px"><div class="s">Drag to set the order on Rooms, for every screen in the home.</div></div><div class="v3rows pnx-ord">'+ord+'</div></div></div>');
+  }
+  window._pnxScene=async function(eid){ await togglePublish(eid); var h=document.getElementById('pnx-defaults'); if(_dOpen&&h) _dDraw(h); };
+  window._pnxDefaultsClose=function(){ _dOpen=false; var hub=document.getElementById('panel-hub'); if(hub) hub.removeAttribute('data-pnx'); try{ renderHub(); v3Title('hub','areas'); }catch(e){} };
+  if(typeof v2Back==='function'){ var _vb=v2Back; v2Back=function(){ if(_dOpen&&_v2panel==='hub'){ _pnxDefaultsClose(); return; } return _vb.apply(this,arguments); }; }
+  if(typeof v2go==='function'){ var _vg=v2go; v2go=function(){ if(_dOpen){ _dOpen=false; var hub=document.getElementById('panel-hub'); if(hub) hub.removeAttribute('data-pnx'); } return _vg.apply(this,arguments); }; }
+  if(typeof v2BackSync==='function'){ var _bs=v2BackSync; v2BackSync=function(){ var r=_bs.apply(this,arguments); try{ if(_dOpen){ var b=document.getElementById('v2back'); if(b){ b.style.display=''; var s=b.querySelector('span'); if(s) s.textContent='Areas'; } } }catch(e){} return r; }; }
+  // the move a dragged room needs, and saving the home's order (Core keeps it; nothing is kept in Pro)
+  function _dMove(ids, from, to){ ids=ids.slice(); if(from===to||from<0||to<0||from>=ids.length||to>=ids.length) return ids; var x=ids.splice(from,1)[0]; ids.splice(to,0,x); return ids; }
+  window._pnxDMove=_dMove;
+  var drag=null;
+  window.addEventListener('pointerdown',function(ev){ var row=ev.target.closest&&ev.target.closest('#pnx-defaults .pnx-ord .v3row[data-id]'); if(!row) return; ev.preventDefault(); drag={row:row,y:ev.clientY,over:null}; row.classList.add('drag'); },true);
+  window.addEventListener('pointermove',function(ev){ if(!drag) return; drag.row.style.transform='translateY('+(ev.clientY-drag.y)+'px)'; drag.row.style.pointerEvents='none';
+    var u=document.elementFromPoint(ev.clientX,ev.clientY), o=u&&u.closest&&u.closest('#pnx-defaults .pnx-ord .v3row[data-id]'); drag.row.style.pointerEvents='';
+    if(drag.over&&drag.over!==o) drag.over.classList.remove('over'); drag.over=(o&&o!==drag.row)?o:null; if(drag.over) drag.over.classList.add('over'); },true);
+  window.addEventListener('pointerup',function(){ if(!drag) return; var d=drag; drag=null; d.row.classList.remove('drag'); d.row.style.transform=''; if(d.over) d.over.classList.remove('over'); if(!d.over) return;
+    var ids=[].slice.call(document.querySelectorAll('#pnx-defaults .pnx-ord .v3row[data-id]')).map(function(r){ return r.getAttribute('data-id'); });
+    var next=_dMove(ids, ids.indexOf(d.row.getAttribute('data-id')), ids.indexOf(d.over.getAttribute('data-id')));
+    _dOrder=next; var h=document.getElementById('pnx-defaults'); if(h) _dDraw(h);
+    fetch(proCoreUrl()+'/room_order',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({device:'pro',order:next,scope:'default'})})
+      .then(function(r){ toast(r.ok?'Room order saved for every screen':'Couldn’t save the order'); }).catch(function(){ toast('Couldn’t save the order'); }); },true);
 })();
 </script>
 </body>
