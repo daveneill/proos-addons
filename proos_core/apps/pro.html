@@ -2582,6 +2582,43 @@ html.pnx .pnx-wait small{font-size:12.5px;color:var(--t2)}
   html.pnx .pnx-ports>div{grid-template-columns:minmax(70px,120px) minmax(0,1fr) 56px}
 }
 </style>
+<style>
+/* REGISTER 1416 — PRO NEW LOOK, STAGE 8: SCENES, AWARENESS, A DEVICE, SIGN-IN (mocks Scenes, Activities (All),
+   Automations, Awareness, A Device, Sign In). Every tile, row, switch and button stays; they are gathered and labelled
+   as the mocks have them. */
+/* Scenes: the buttons on a scene's picture stay readable on a light picture; the switch named for what it does */
+html.pnx .scene-card .scene-card-test{background:rgba(0,0,0,.52);border:0;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+html.pnx .scene-card .scene-card-pub{background:rgba(0,0,0,.52);border-radius:999px;padding:4px 4px 4px 10px;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+html.pnx .scene-card .scene-card-pub .sw-lbl{color:#fff;font-size:12px;font-weight:600}
+/* Activities (All): each room's activities under its own heading */
+html.pnx .itile-grid>.pnx-actroom{grid-column:1/-1;font-size:17px;font-weight:600;color:#fff;margin:14px 4px 2px;display:flex;align-items:baseline;gap:8px}
+html.pnx .itile-grid>.pnx-actroom:first-child{margin-top:0}
+html.pnx .itile-grid>.pnx-actroom em{font-style:normal;font-size:13px;font-weight:500;color:var(--t3)}
+/* Automations: two across, so each name reads whole */
+html.pnx #automations-body .itile-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+/* Awareness: a card per room; amber when anything in it is not normal */
+html.pnx .pnx-awroom{background:var(--card);border-radius:20px;padding:4px 8px 8px;margin:0 0 12px}
+html.pnx .pnx-awroom.amb{box-shadow:inset 0 0 0 1px rgba(242,179,74,.5)}
+html.pnx .pnx-awroom>.awf-day{font-size:15px;letter-spacing:0;text-transform:none;font-weight:600;color:#fff;margin:10px 8px 8px;display:flex;gap:8px;align-items:baseline}
+html.pnx .pnx-awroom>.awf-day em{font-style:normal;font-size:12.5px;font-weight:500;color:var(--t2)}
+html.pnx .pnx-awroom.amb>.awf-day em{color:#F2B34A}
+html.pnx .pnx-awroom>.awl-row{background:transparent;box-shadow:none;margin:0;border-radius:12px}
+html.pnx .pnx-awroom>.awl-row:nth-of-type(even){background:rgba(255,255,255,.035)}
+/* A device: a folded section says how to open it */
+html.pnx #dev-body .dfold:not(.open)>.bld-sec-h::after{content:"Show All \203a";font-size:12px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--accent);margin-left:10px;transform:none}
+html.pnx #dev-body .dfold.open>.bld-sec-h::after{content:"Hide";font-size:12px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--t2);margin-left:10px;transform:none}
+/* Integrations: its own heading folds when it repeats the title */
+html.pnx .il-head>.pnx-dup{display:none}
+html.pnx .il-head:has(>.pnx-dup){justify-content:flex-end}
+/* Sign in: the New Look card, the box's name and version under it */
+html.pnx #landing #gate{background:#1b1c20;border-radius:28px;padding:28px 26px;box-shadow:0 30px 80px rgba(0,0,0,.5)}
+html.pnx #landing.std-loading #gate{background:transparent;box-shadow:none}
+html.pnx .pnx-boxline{margin-top:14px;font-size:12.5px;color:var(--t2);text-align:center}
+@media (max-width:700px){
+  html.pnx #automations-body .itile-grid{grid-template-columns:1fr}
+  html.pnx #landing #gate{padding:22px 18px;border-radius:24px}
+}
+</style>
 </head>
 <body>
 
@@ -3687,7 +3724,7 @@ html.pnx .pnx-wait small{font-size:12.5px;color:var(--t2)}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111907';
+const PROOS_BUILD='2026111908';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -24105,6 +24142,76 @@ async function v3Software(){
         setHTML(w,(typeof UNI_ACCESS_SECTIONS!=='undefined'?UNI_ACCESS_SECTIONS:[]).map(function(s){ return '<div><b>'+E(s[1])+'</b><small>Lights up once the Access token is saved</small></div>'; }).join(''));
         var em=el.querySelector('.empty'); if(em) em.parentNode.insertBefore(w,em.nextSibling); else el.appendChild(w);
         var es=em&&em.querySelector('.es'); if(es) es.textContent=es.textContent.replace(/^./,function(c){ return c.toUpperCase(); }); } } }catch(e){} return r; }; }
+})();
+</script>
+<script>
+/* REGISTER 1416 — the stage 8 script (Scenes, Awareness, a Device, Sign In). Wraps today's painters; every tile, row,
+   switch and button they draw stays with its own onclick — regrouped, never copied or replaced. */
+(function(){
+  var on=function(){ return document.documentElement.classList.contains('pnx'); };
+  var E=function(x){ return String(x==null?'':x).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); };
+  // a painter's HTML, regrouped as a document and handed back as HTML (read, never written with innerHTML)
+  var parse=function(h){ return new DOMParser().parseFromString('<!doctype html><body>'+h,'text/html').body; };
+
+  // ── SCENES (mock): the publish switch named for what it does — the scene is on the homeowner's Home — the same
+  //     switch (togglePublish, the dashboard_scene label) ──
+  function _pnxScenes(h){ return String(h).replace(/<span class="sw-lbl">Dashboard<\/span>/g,'<span class="sw-lbl">On Home</span>')
+    .replace('and switch Dashboard on to publish it to the homeowner.','and switch On Home on to put it on the homeowner’s Home.'); }
+  window._pnxScenes=_pnxScenes;
+  if(typeof activitiesSectionHTML==='function'){ var _ash=activitiesSectionHTML; activitiesSectionHTML=function(){ var h=_ash.apply(this,arguments); try{ if(on()) return _pnxScenes(h); }catch(e){} return h; }; }
+
+  // ── ACTIVITIES (ALL) (mock): grouped by room under headers — each room's own activities together ──
+  function _pnxActRooms(h){
+    var b=parse(h), g=b.querySelector('.itile-grid'); if(!g) return h;
+    var tiles=[].slice.call(g.children).filter(function(t){ return t.classList.contains('itile'); });
+    var room=function(t){ var s=t.querySelector('.itile-sub'); return (s&&s.textContent.trim())||'Other'; };
+    var names=[]; tiles.forEach(function(t){ var r=room(t); if(names.indexOf(r)<0) names.push(r); });
+    if(names.length<2) return h;
+    names.sort(function(a,c){ return a==='Other'?1:c==='Other'?-1:a.localeCompare(c); });
+    names.forEach(function(r){ var mine=tiles.filter(function(t){ return room(t)===r; }); var hd=b.ownerDocument.createElement('div'); hd.className='pnx-actroom';
+      hd.appendChild(b.ownerDocument.createTextNode(r)); var em=b.ownerDocument.createElement('em'); em.textContent=mine.length+' activit'+(mine.length===1?'y':'ies'); hd.appendChild(em);
+      g.appendChild(hd); mine.forEach(function(t){ g.appendChild(t); }); });
+    return b.innerHTML;
+  }
+  window._pnxActRooms=_pnxActRooms;
+  if(typeof scriptsSectionHTML==='function'){ var _ssh=scriptsSectionHTML; scriptsSectionHTML=function(){ var h=_ssh.apply(this,arguments);
+    try{ if(on()&&(typeof _actFilter==='undefined'||!_actFilter||_actFilter==='all')) return _pnxActRooms(h); }catch(e){} return h; }; }
+
+  // ── AWARENESS (mock): a card per room, amber when anything in it is not normal, saying how many ──
+  function _pnxAwRooms(h){
+    var b=parse(h), kids=[].slice.call(b.children); if(!kids.some(function(k){ return k.classList&&k.classList.contains('awf-day'); })) return h;
+    var doc=b.ownerDocument, card=null;
+    kids.forEach(function(k){
+      if(k.classList&&k.classList.contains('awf-day')){ card=doc.createElement('div'); card.className='pnx-awroom'; b.insertBefore(card,k); card.appendChild(k); return; }
+      if(card&&k.classList&&k.classList.contains('awl-row')) card.appendChild(k);
+    });
+    [].slice.call(b.querySelectorAll('.pnx-awroom')).forEach(function(c){
+      var rows=[].slice.call(c.querySelectorAll('.awl-row')), off=rows.filter(function(r){ var s=r.querySelector('.awl-st'); return s&&s.textContent.trim().toLowerCase()!=='normal'; }).length;
+      if(off) c.classList.add('amb'); var em=doc.createElement('em'); em.textContent=rows.length+' watched'+(off?' · '+off+' not normal':' · all normal'); c.querySelector('.awf-day').appendChild(em);
+    });
+    return b.innerHTML;
+  }
+  window._pnxAwRooms=_pnxAwRooms;
+  if(typeof _awRenderLive==='function'){ var _awl=_awRenderLive; _awRenderLive=function(){ var h=_awl.apply(this,arguments); try{ if(on()) return _pnxAwRooms(h); }catch(e){} return h; }; }
+
+  // ── ONE TITLE on Integrations (as 1412 did for the other pages): the page's own "Devices / Integrations" heading
+  //     repeats the large title, so it folds away when it says the same words; Add Integration stays where it is ──
+  function _pnxIlHead(){
+    if(!on()) return; var c=document.getElementById('v2crumb'); if(!c) return;
+    var name=(((c.querySelector('.pnx-last')||c.querySelector('b'))||{}).textContent||'').trim().toLowerCase();
+    [].slice.call(document.querySelectorAll('#app .il-head .ip-title')).forEach(function(t){ var box=t.parentElement; if(box) box.classList.toggle('pnx-dup',!!name&&t.textContent.trim().toLowerCase()===name); });
+  }
+  window._pnxIlHead=_pnxIlHead;
+  (function arm(){ var c=document.getElementById('v2crumb'); if(!c) return setTimeout(arm,600); new MutationObserver(function(){ setTimeout(_pnxIlHead,60); }).observe(c,{childList:true,subtree:true,characterData:true}); _pnxIlHead(); })();
+
+  // ── SIGN IN (mock): under the card, the box's ProOS Core version (its public /health answer) and this Pro's build.
+  //     No address — the standard screen shows none (686, Dave 6 Oct). The box's name needs a sign-in to read, so it
+  //     is not guessed here ──
+  if(typeof renderGate==='function'){ var _rg=renderGate; renderGate=function(view){ var r=_rg.apply(this,arguments);
+    try{ if(on()&&(view==='login'||view==='create'||view==='manual'||view==null)){ var g=document.getElementById('gate'); if(g&&!g.querySelector('.pnx-boxline')){
+      var d=document.createElement('div'); d.className='pnx-boxline'; d.textContent='Pro '+(typeof PROOS_BUILD!=='undefined'?PROOS_BUILD:''); g.appendChild(d);
+      fetch(proCoreUrl()+'/health',{cache:'no-store'}).then(function(x){ return x.ok?x.json():null; }).then(function(j){ if(j&&j.version&&d.isConnected) d.textContent='ProOS Core '+j.version+' · '+d.textContent; }).catch(function(){}); } } }catch(e){}
+    return r; }; }
 })();
 </script>
 </body>
