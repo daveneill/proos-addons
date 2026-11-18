@@ -2619,6 +2619,11 @@ html.pnx .pnx-boxline{margin-top:14px;font-size:12.5px;color:var(--t2);text-alig
   html.pnx #landing #gate{padding:22px 18px;border-radius:24px}
 }
 </style>
+<style>
+/* REGISTER 1417 — the Building Settings map stays under the phone's bar (seen 19 Nov at iPhone size: the map's "+" drawn
+   over the bottom bar). The map library stacks its controls at 1000; the map's box keeps them inside itself. */
+html.pnx .site-map{position:relative;isolation:isolate;z-index:0}
+</style>
 </head>
 <body>
 
@@ -3724,7 +3729,7 @@ html.pnx .pnx-boxline{margin-top:14px;font-size:12.5px;color:var(--t2);text-alig
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111908';
+const PROOS_BUILD='2026111909';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
