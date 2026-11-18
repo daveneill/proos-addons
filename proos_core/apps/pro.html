@@ -2550,6 +2550,38 @@ html.pnx #danger-confirm .rp-sheet>div:last-child>button{flex:1;margin:0}
   html.pnx .pnx-tiles.two{grid-template-columns:1fr}
 }
 </style>
+<style>
+/* REGISTER 1415 — PRO NEW LOOK, STAGE 7: UNIFI (mocks Internet, Power, Sensors, Relays & Sirens, Viewports, Lights &
+   Chimes, Access Not Set Up). Every reading, switch and button of today's pages stays; readings become tiles, power
+   becomes bars, the small cards sit side by side. */
+html.pnx .pnx-read .unifi-status,html.pnx .unifi-status.pnx-read{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;padding-top:4px}
+html.pnx .pnx-read .unifi-status>.unifi-row,html.pnx .unifi-status.pnx-read>.unifi-row{display:flex;flex-direction:column-reverse;align-items:flex-start;justify-content:flex-end;gap:4px;min-height:72px;padding:12px 14px;border-radius:14px;background:var(--pnx-card2);border:0}
+html.pnx .pnx-read .unifi-row .unifi-row-d,html.pnx .unifi-status.pnx-read .unifi-row-d{font-size:17px;font-weight:600;color:#fff;text-align:left;margin:0}
+html.pnx .pnx-read .unifi-row .unifi-row-l,html.pnx .unifi-status.pnx-read .unifi-row-l{font-size:12px;color:var(--t2)}
+html.pnx .pnx-pw{margin:6px 0 4px}
+html.pnx .pnx-pw .bud{display:flex;justify-content:space-between;font-size:13px;color:var(--t2);margin-bottom:6px}
+html.pnx .pnx-pw .bud b{color:#fff;font-weight:600}
+html.pnx .pnx-pw .bar{height:10px;border-radius:5px;background:rgba(255,255,255,.08);overflow:hidden}
+html.pnx .pnx-pw .bar>i{display:block;height:100%;border-radius:5px;background:var(--accent)}
+html.pnx .pnx-pw .bar.hot>i{background:#F2B34A}
+html.pnx .pnx-ports{display:flex;flex-direction:column;gap:7px;margin-top:14px}
+html.pnx .pnx-ports>div{display:grid;grid-template-columns:minmax(90px,200px) minmax(0,1fr) 64px;align-items:center;gap:10px;font-size:13px;color:#fff}
+html.pnx .pnx-ports>div .bar{height:8px;border-radius:4px;background:rgba(255,255,255,.08);overflow:hidden}
+html.pnx .pnx-ports>div .bar>i{display:block;height:100%;border-radius:4px;background:#5FB98C}
+html.pnx .pnx-ports>div em{font-style:normal;text-align:right;color:var(--t2)}
+html.pnx .pnx-ports>div span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+html.pnx .ual-devs.pnx-side{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;align-items:start}
+html.pnx .ual-devs.pnx-side>.unp-card{margin:0}
+html.pnx #uniaccess-body .empty .es{white-space:normal}
+html.pnx .pnx-wait{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:12px}
+html.pnx .pnx-wait>div{background:var(--card);border-radius:18px;padding:14px 16px;min-height:86px;display:flex;flex-direction:column;justify-content:space-between}
+html.pnx .pnx-wait b{font-size:15px;font-weight:600;color:#fff}
+html.pnx .pnx-wait small{font-size:12.5px;color:var(--t2)}
+@media (max-width:700px){
+  html.pnx .pnx-wait{grid-template-columns:1fr 1fr}
+  html.pnx .pnx-ports>div{grid-template-columns:minmax(70px,120px) minmax(0,1fr) 56px}
+}
+</style>
 </head>
 <body>
 
@@ -3655,7 +3687,7 @@ html.pnx #danger-confirm .rp-sheet>div:last-child>button{flex:1;margin:0}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111906';
+const PROOS_BUILD='2026111907';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -23996,6 +24028,83 @@ async function v3Software(){
   }
   window._pnxRack=_pnxRack;
   if(typeof renderRackPanel==='function'){ var _rr=renderRackPanel; renderRackPanel=function(){ var r=_rr.apply(this,arguments); try{ if(on()) _pnxRack(); }catch(e){} return r; }; }
+})();
+</script>
+<script>
+/* REGISTER 1415 — the stage 7 script (UniFi). Wraps today's UniFi painters; every reading, switch and button they draw
+   stays. Nothing here asks the console anything new — it draws what today's pages already read. */
+(function(){
+  var on=function(){ return document.documentElement.classList.contains('pnx'); };
+  var E=function(x){ return String(x==null?'':x).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); };
+
+  // ── THE TITLE: each UniFi section is a page of its own in the menu, so it is the page's title — "Lights & Chimes"
+  //     under Devices › UniFi Protect — not the app's name on every section ──
+  var APPS={'unifi':['UniFi Protect',function(){ return typeof UNI_PROTECT_SECTIONS!=='undefined'?UNI_PROTECT_SECTIONS:[]; }],
+    'unifi-net':['UniFi Network',function(){ return typeof UNI_NET_SECTIONS!=='undefined'?UNI_NET_SECTIONS:[]; }],
+    'unifi-access':['UniFi Access',function(){ return typeof UNI_ACCESS_SECTIONS!=='undefined'?UNI_ACCESS_SECTIONS:[]; }]};
+  function _pnxUniTitle(k){
+    if(!on()) return; var p=[].slice.call(document.querySelectorAll('#app .panel.active')).map(function(x){ return x.id.replace(/^panel-/,''); }).find(function(x){ return APPS[x]; });
+    if(!p) return; var s=APPS[p][1]().find(function(x){ return x[0]===k; }); if(!s) return;
+    var c=document.getElementById('v2crumb'); if(c) setHTML(c,'<b class="v3crumb-sec" onclick="v2go(\'devices\')" title="Back to Devices">Devices</b><span class="sep">›</span>'+E(APPS[p][0])+'<span class="sep">›</span>'+E(s[1]));
+  }
+  window._pnxUniTitle=_pnxUniTitle;
+  if(typeof _uniMenuMark==='function'){ var _umm=_uniMenuMark; _uniMenuMark=function(k){ var r=_umm.apply(this,arguments); try{ _pnxUniTitle(k); }catch(e){} return r; }; }
+  // opening an app names the page after the section is marked (seen 19 Nov: Power read "UniFi Network"), so the
+  // page's own title is put back whenever the title is drawn on a UniFi app
+  if(typeof v3Title==='function'){ var _v3t=v3Title; v3Title=function(panel){ var r=_v3t.apply(this,arguments);
+    try{ var k=panel==='unifi'?(typeof _uniProtectSection!=='undefined'&&_uniProtectSection):panel==='unifi-net'?(typeof _uniNetSection!=='undefined'&&_uniNetSection)
+      :panel==='unifi-access'?(typeof _uniAccSection!=='undefined'&&_uniAccSection):null; if(k) _pnxUniTitle(k); }catch(e){} return r; }; }
+
+  // ── THE TRADE'S WORDS FOR THE CONSOLE'S CODES (Lexicon): a choice the platform offers as "motion_dark" reads
+  //     "On Motion, When Dark". The value sent back is the console's own, unchanged ──
+  var CODES={motion_dark:'On Motion, When Dark',motion:'On Motion',dark:'When Dark',always:'Always',off:'Off',on:'On',manual:'Manual',
+    auto:'Automatic',none:'None',high:'High',medium:'Medium',low:'Low',disabled:'Off',enabled:'On'};
+  function _pnxWords(code){ var c=String(code||''); if(!/^[a-z0-9]+(_[a-z0-9]+)*$/.test(c)) return null;
+    return CODES[c]||c.split('_').map(function(w){ return w.charAt(0).toUpperCase()+w.slice(1); }).join(' '); }
+  window._pnxWords=_pnxWords;
+  function _pnxOptions(root){ if(!root) return; [].slice.call(root.querySelectorAll('select.ucc-sel option')).forEach(function(o){
+    if(o.hasAttribute('value')) return; var t=o.textContent, w=_pnxWords(t); if(!w) return; o.value=t; o.textContent=w; }); }
+
+  // ── SENSORS (mock): what a sensor reads now, as tiles ──
+  function _pnxUniDV(){ var el=document.getElementById('unifi-live'); if(!el) return; _pnxOptions(el);
+    if(typeof _uniProtectSection!=='undefined'&&_uniProtectSection==='sensors'){ var st=el.querySelector('.ual-devs>.unp-card .unifi-status'); if(st) st.classList.add('pnx-read'); } }
+  if(typeof renderUniDV==='function'){ var _rdv=renderUniDV; renderUniDV=function(){ var r=_rdv.apply(this,arguments); try{ if(on()) _pnxUniDV(); }catch(e){} return r; }; }
+  if(typeof renderUniCC==='function'){ var _rcc=renderUniCC; renderUniCC=function(){ var r=_rcc.apply(this,arguments); try{ if(on()) _pnxOptions(document.getElementById('unifi-live')); }catch(e){} return r; }; }
+
+  // ── RELAYS & SIRENS, VIEWPORTS (mock): the small cards side by side ──
+  function _pnxSide(){ var el=document.getElementById('unifi-live'); var d=el&&el.querySelector(':scope>.ual-devs'); if(d) d.classList.add('pnx-side'); }
+  if(typeof renderUniRS==='function'){ var _rrs=renderUniRS; renderUniRS=function(){ var r=_rrs.apply(this,arguments); try{ if(on()) _pnxSide(); }catch(e){} return r; }; }
+  if(typeof renderUniVP==='function'){ var _rvp=renderUniVP; renderUniVP=function(){ var r=_rvp.apply(this,arguments); try{ if(on()) _pnxSide(); }catch(e){} return r; }; }
+
+  // ── INTERNET (mock): the readings as tiles. POWER (mock): each switch's PoE budget as a bar, and every port it
+  //     reports as a bar of its own — the same numbers today's rows show (used, budget, ports powered, each port, outlets) ──
+  function _pnxPowerHTML(L){
+    var card=function(t,inner,note){ return '<div class="unp-card"><div class="unp-head"><b>'+t+'</b>'+(note?'<span class="es" style="margin-left:auto">'+note+'</span>':'')+'</div>'+inner+'</div>'; };
+    return L.map(function(sw){
+      var used=Number(sw.used_w)||0, bud=Number(sw.budget_w)||0, pc=bud?Math.min(100,Math.round(100*used/bud)):0, top=sw.top||[];
+      var max=Math.max.apply(null,[1].concat(top.map(function(p){ return Number(p.watts)||0; })));
+      var h='<div class="pnx-pw"><div class="bud"><span>PoE In Use · <b>'+E(sw.used_w)+' W</b>'+(bud?' of '+E(sw.budget_w)+' W':'')+'</span><span>'+E(sw.ports_powered)+' Ports Powered</span></div>'
+        +(bud?'<div class="bar'+(pc>=85?' hot':'')+'"><i style="width:'+pc+'%"></i></div>':'')+'</div>';
+      if(top.length) h+='<div class="pnx-ports">'+top.map(function(p){ var w=Number(p.watts)||0;
+        return '<div><span>Port '+E(p.port)+(p.name&&!/^Port \d+$/.test(p.name)?' · '+E(p.name):'')+'</span><div class="bar"><i style="width:'+Math.round(100*w/max)+'%"></i></div><em>'+E(p.watts)+' W</em></div>'; }).join('')+'</div>';
+      if((sw.outlets||[]).length) h+='<div class="unifi-status" style="margin-top:12px">'+sw.outlets.map(function(o){ return '<div class="unifi-row"><span class="unifi-row-l">'+E(o.name||'Outlet')+'</span><span class="unifi-row-d">'+(o.on?'On':'Off')+'</span></div>'; }).join('')+'</div>';
+      return card(E(sw.name),h,E(sw.model||''));
+    }).join('');
+  }
+  window._pnxPowerHTML=_pnxPowerHTML;
+  if(typeof _uniNSHTML==='function'){ var _nsh=_uniNSHTML; _uniNSHTML=function(sec){ var h=_nsh.apply(this,arguments);
+    try{ if(!on()) return h; var d=(typeof _uniNS!=='undefined')?_uniNS[sec]:null; if(!d||!d.ok) return h;
+      if(sec==='internet') return h.replace('<div class="unifi-status">','<div class="unifi-status pnx-read">');
+      if(sec==='power'&&(d.power||[]).length){ var i=h.indexOf('<div class="unp-card">'); if(i>=0) return h.slice(0,i)+_pnxPowerHTML(d.power); }
+    }catch(e){} return h; }; }
+
+  // ── ACCESS NOT SET UP (mock): the reason and its one step, with the four sections shown waiting ──
+  if(typeof renderUniAccess==='function'){ var _rua=renderUniAccess; renderUniAccess=function(){ var r=_rua.apply(this,arguments);
+    try{ if(on()){ var d=(typeof _uniAcc!=='undefined')?_uniAcc[_uniAccSection]:null, el=document.getElementById('uniaccess-body');
+      if(el&&d&&!d.ok&&!el.querySelector('.pnx-wait')){ var w=document.createElement('div'); w.className='pnx-wait';
+        setHTML(w,(typeof UNI_ACCESS_SECTIONS!=='undefined'?UNI_ACCESS_SECTIONS:[]).map(function(s){ return '<div><b>'+E(s[1])+'</b><small>Lights up once the Access token is saved</small></div>'; }).join(''));
+        var em=el.querySelector('.empty'); if(em) em.parentNode.insertBefore(w,em.nextSibling); else el.appendChild(w);
+        var es=em&&em.querySelector('.es'); if(es) es.textContent=es.textContent.replace(/^./,function(c){ return c.toUpperCase(); }); } } }catch(e){} return r; }; }
 })();
 </script>
 </body>
