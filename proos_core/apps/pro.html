@@ -2481,6 +2481,75 @@ html.pnx #v3sw-items .v3row.pnx-hide{display:none}
 html.pnx #v3sw-items .pnx-fold{cursor:pointer}
 html.pnx .v3row .ri.pnx-lg{background:#26272c}
 </style>
+<style>
+/* REGISTER 1414 — PRO NEW LOOK, STAGE 6: SYSTEM SETUP (mocks Building Settings, Manage Users, Maintenance, Channel
+   Lists, ProOS Connect, The Rack, Confirmations). Every field, switch and button of today's pages stays; they are
+   gathered into the mocks' cards. */
+html.pnx .pnx-cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:16px;align-items:start}
+html.pnx .pnx-card{background:var(--card);border-radius:22px;padding:18px 18px 16px}
+html.pnx .pnx-card>.pnx-ct{font-size:17px;font-weight:600;color:#fff;margin:0 0 12px}
+html.pnx .pnx-card .pnx-cs{font-size:13px;color:var(--t2);margin:-6px 0 12px;line-height:1.45}
+html.pnx .pnx-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:0 0 12px}
+html.pnx .pnx-tiles.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+html.pnx .pnx-tile{background:var(--card);border-radius:18px;padding:14px 16px;min-height:78px;display:flex;flex-direction:column;justify-content:space-between;gap:6px;cursor:pointer}
+html.pnx .pnx-tile.static{cursor:default}
+html.pnx .pnx-tile b{font-size:15px;font-weight:600;color:#fff}
+html.pnx .pnx-tile b.big{font-size:22px}
+html.pnx .pnx-tile small{font-size:12.5px;color:var(--t2);line-height:1.4}
+html.pnx .pnx-tile small.ok{color:#5FB98C}
+html.pnx .pnx-tile small.amb{color:#F2B34A}
+html.pnx .pnx-tile:not(.static):active{transform:scale(.985)}
+/* Manage Users: a person card per user, their role tag, the actions in a ⋯ menu */
+html.pnx #users-body .usr-card{overflow:visible}
+html.pnx #users-body .usr-acts{position:relative}
+html.pnx .pnx-more{width:38px;height:34px;border-radius:11px;border:0;background:var(--pnx-card2);color:#fff;font-size:18px;line-height:1;cursor:pointer}
+html.pnx .pnx-menu{display:none;position:absolute;right:0;top:40px;z-index:30;min-width:200px;background:#26272c;border-radius:16px;padding:6px;box-shadow:0 18px 50px rgba(0,0,0,.55)}
+html.pnx .pnx-menu.open{display:flex;flex-direction:column}
+html.pnx .pnx-menu>button{all:unset;box-sizing:border-box;display:block;width:100%;padding:10px 12px;border-radius:10px;font-size:14px;color:#fff;cursor:pointer}
+html.pnx .pnx-menu>button:hover{background:rgba(255,255,255,.07)}
+html.pnx .pnx-menu>button.pnx-red{color:#E0564B}
+html.pnx .pnx-ppl{font-size:17px;font-weight:600;color:#fff;margin:18px 4px 10px}
+/* Maintenance: the restarts as two cards, the danger zone set apart in red */
+html.pnx #panel-maintenance .pnx-tiles .row.tappable{all:unset;box-sizing:border-box;background:var(--card);border-radius:18px;padding:16px;min-height:86px;cursor:pointer;display:flex;align-items:center}
+html.pnx #panel-maintenance .pnx-tiles .row.tappable .rl{font-size:15px;font-weight:600;color:#fff}
+html.pnx #panel-maintenance .pnx-tiles .row.tappable .rr{margin-left:auto;color:var(--t3)}
+html.pnx #panel-maintenance .section-label.pnx-red{color:#E0564B}
+html.pnx #panel-maintenance .danger-card{border-radius:18px}
+/* Channel Lists: each list's progress */
+html.pnx .pnx-bar{height:8px;border-radius:4px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:12px}
+html.pnx .pnx-bar>i{display:block;height:100%;border-radius:4px;background:#5FB98C}
+html.pnx .pnx-barl{font-size:12.5px;color:var(--t2);margin-top:6px}
+/* ProOS Connect: the link as a status card, the month as counts, the services as ticks */
+html.pnx .pnx-st{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:18px;background:rgba(95,185,140,.10);margin:0 0 12px}
+html.pnx .pnx-st.amb{background:rgba(242,179,74,.10)}
+html.pnx .pnx-st.red{background:rgba(224,86,75,.10)}
+html.pnx .pnx-st .ic{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;font-weight:700;background:rgba(95,185,140,.18);color:#5FB98C;flex:none}
+html.pnx .pnx-st.amb .ic{background:rgba(242,179,74,.18);color:#F2B34A}
+html.pnx .pnx-st.red .ic{background:rgba(224,86,75,.18);color:#E0564B}
+html.pnx .pnx-st b{display:block;font-size:15px;color:#fff;font-weight:600}
+html.pnx .pnx-st small{display:block;font-size:12.5px;color:var(--t2);margin-top:2px}
+html.pnx .pnx-ticks{display:flex;flex-direction:column;border-radius:18px;overflow:hidden}
+html.pnx .pnx-ticks>div{display:flex;align-items:center;gap:12px;min-height:50px;padding:0 14px;background:var(--card);font-size:14.5px;color:#fff}
+html.pnx .pnx-ticks>div:nth-child(even){background:var(--pnx-card2)}
+html.pnx .pnx-ticks>div i{font-style:normal;width:26px;height:26px;border-radius:9px;display:grid;place-items:center;font-size:13px;font-weight:700;background:rgba(95,185,140,.18);color:#5FB98C}
+html.pnx .pnx-ticks>div.off{color:var(--t2)}
+html.pnx .pnx-ticks>div.off i{background:rgba(255,255,255,.07);color:var(--t3)}
+html.pnx .pnx-ticks>div em{font-style:normal;margin-left:auto;font-size:12.5px;color:var(--t3)}
+html.pnx .pnx-boxid{font-size:12.5px;color:var(--t3);margin-top:10px}
+/* The Rack: the adapters as three cards */
+html.pnx .v3rows.pnx-adapt{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;background:none;border-radius:0;overflow:visible}
+html.pnx .v3rows.pnx-adapt>.v3row{background:var(--pnx-card2)!important;border-radius:18px;min-height:86px;align-items:flex-start;flex-direction:column;justify-content:space-between;padding:14px 16px;gap:10px}
+html.pnx .v3rows.pnx-adapt>.v3row .rr{margin-left:0}
+html.pnx .v3rows.pnx-adapt>.v3row .t2{white-space:normal;line-height:1.4}
+/* Confirmations: the safe choice first */
+html.pnx #danger-confirm .rp-sheet>div:last-child{display:flex;flex-direction:row-reverse;gap:10px}
+html.pnx #danger-confirm .rp-sheet>div:last-child>button{flex:1;margin:0}
+@media (max-width:700px){
+  html.pnx .pnx-cols{grid-template-columns:1fr}
+  html.pnx .pnx-tiles,html.pnx .v3rows.pnx-adapt{grid-template-columns:1fr 1fr}
+  html.pnx .pnx-tiles.two{grid-template-columns:1fr}
+}
+</style>
 </head>
 <body>
 
@@ -3586,7 +3655,7 @@ html.pnx .v3row .ri.pnx-lg{background:#26272c}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111905';
+const PROOS_BUILD='2026111906';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -23812,6 +23881,121 @@ async function v3Software(){
   if(typeof v3SweepItems==='function'){ var _si=v3SweepItems; v3SweepItems=function(){ var r=_si.apply(this,arguments); try{ if(on()){ _pnxFold();
       var sw=document.getElementById('hlt-sweep'); if(sw&&!document.getElementById('pnx-setup')){ var d=document.createElement('div'); d.id='pnx-setup'; sw.parentNode.insertBefore(d,sw); _pnxSettingUp(); } } }catch(e){} return r; }; }
   window._pnxSettingUp=_pnxSettingUp;
+})();
+</script>
+<script>
+/* REGISTER 1414 — the stage 6 script (System Setup). Wraps today's functions; every field, switch and button they draw
+   stays, with its own onclick — moved into the mocks' cards, never copied. */
+(function(){
+  var on=function(){ return document.documentElement.classList.contains('pnx'); };
+  var E=function(x){ return String(x==null?'':x).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); };
+  var el=function(t,c,h){ var d=document.createElement(t); if(c) d.className=c; if(h!=null) setHTML(d,h); return d; };
+
+  // ── THE TITLE: Building Settings is System Setup's first page, so the crumb named only the section (seen 19 Nov:
+  //     "System Setup" as the page's title). The page is called by its own name, as the menu calls it ──
+  if(typeof v3Title==='function'){ var _vt=v3Title; v3Title=function(panel,sec){ var r=_vt.apply(this,arguments);
+    try{ if(on()&&panel==='site'){ var c=document.getElementById('v2crumb'); if(c) setHTML(c,'<b class="v3crumb-sec" onclick="v2go(\'setup\')" title="Back to System Setup">System Setup</b><span class="sep">›</span>Building Settings'); } }catch(e){}
+    return r; }; }
+
+  // ── BUILDING SETTINGS (mock): two cards — The Home (name, units, time zone, country) and Location (the address
+  //     search, the map, latitude, longitude, elevation, Save Location). Moved before the map is drawn into its card ──
+  function _pnxSite(){
+    var b=document.getElementById('site-body'); if(!b||b.querySelector('.pnx-cols')) return;
+    var q=function(id){ var x=document.getElementById(id); return x; }, fld=function(id){ var x=q(id); return x?(x.closest('.field')||x):null; };
+    var name=fld('site-name'), units=fld('site-units'), tz=q('site-tz'), map=q('site-map'); if(!name||!map) return;
+    var tzRow=tz?tz.closest('.field').parentNode:null;
+    var cols=el('div','pnx-cols'), home=el('div','pnx-card','<div class="pnx-ct">The Home</div>'), loc=el('div','pnx-card','<div class="pnx-ct">Location</div>');
+    cols.appendChild(home); cols.appendChild(loc); b.insertBefore(cols,name);
+    [name,units,tzRow].forEach(function(x){ if(x) home.appendChild(x); });
+    home.appendChild(el('div','field-hint','Saved with Save Location.'));
+    var lbl=[].slice.call(b.children).find(function(x){ return x.classList&&x.classList.contains('section-label')&&/^Location$/i.test(x.textContent.trim()); });
+    if(lbl) lbl.remove();
+    var search=fld('site-geo-q'), res=q('site-geo-results'), foot=b.querySelector('.site-map-foot'), lat=q('site-lat'), elev=fld('site-elev'), save=q('site-save'), ver=q('site-verify');
+    var latRow=lat?lat.closest('.field').parentNode:null;
+    [search,res,map,foot,latRow,elev,save,ver].forEach(function(x){ if(x) loc.appendChild(x); });
+  }
+  window._pnxSite=_pnxSite;
+  if(typeof _siteInitMap==='function'){ var _sim=_siteInitMap; _siteInitMap=function(){ try{ if(on()) _pnxSite(); }catch(e){} return _sim.apply(this,arguments); }; }
+
+  // ── MANAGE USERS (mock): a person card per user with their role tag; the actions in a ⋯ menu. The buttons are
+  //     today's own, moved into the menu — Memory, Conversations, Edit, Password, Role, Remove ──
+  function _pnxUsers(){
+    var b=document.getElementById('users-body'); if(!b) return;
+    [].slice.call(b.querySelectorAll('.usr-acts')).forEach(function(a){
+      if(a.dataset.pnx) return; var btns=[].slice.call(a.querySelectorAll(':scope>button.usr-iconbtn')); if(btns.length<2) return; a.dataset.pnx='1';
+      var more=el('button','pnx-more','⋯'); more.type='button'; more.title='More for this person'; more.setAttribute('aria-label','More');
+      var menu=el('div','pnx-menu');
+      btns.forEach(function(x){ if(x.classList.contains('danger')) x.classList.add('pnx-red'); menu.appendChild(x); x.addEventListener('click',function(){ menu.classList.remove('open'); }); });
+      more.addEventListener('click',function(ev){ ev.stopPropagation(); var was=menu.classList.contains('open'); _pnxMenusShut(); if(!was) menu.classList.add('open'); });
+      a.appendChild(more); a.appendChild(menu);
+    });
+    var first=b.querySelectorAll('.usr-card')[1]; if(first&&!b.querySelector('.pnx-ppl')) b.insertBefore(el('div','pnx-ppl','People'),first);
+  }
+  function _pnxMenusShut(){ [].slice.call(document.querySelectorAll('.pnx-menu.open')).forEach(function(m){ m.classList.remove('open'); }); }
+  document.addEventListener('click',function(ev){ if(!ev.target.closest||!ev.target.closest('.pnx-menu')) _pnxMenusShut(); });
+  window._pnxUsers=_pnxUsers;
+  if(typeof renderUsers==='function'){ var _ru=renderUsers; renderUsers=async function(){ var r=await _ru.apply(this,arguments); try{ if(on()) _pnxUsers(); }catch(e){} return r; }; }
+
+  // ── MAINTENANCE (mock): the two restarts as two cards; the danger zone named as a title and set apart in red ──
+  function _pnxMaint(){
+    var p=document.getElementById('panel-maintenance'); if(!p||p.dataset.pnx) return; p.dataset.pnx='1';
+    var rows=[].slice.call(p.querySelectorAll(':scope>.row.tappable')); if(rows.length){ var g=el('div','pnx-tiles two'); p.insertBefore(g,rows[0]); rows.forEach(function(r){ g.appendChild(r); }); }
+    [].slice.call(p.querySelectorAll('.section-label')).forEach(function(s){ if(/^danger zone$/i.test(s.textContent.trim())){ s.textContent='Danger Zone'; s.classList.add('pnx-red'); } });
+    var fb=p.querySelector('#danger-factory .danger-btn'); if(fb&&/^Factory reset/.test(fb.textContent)) fb.textContent='Factory Reset…';
+  }
+  window._pnxMaint=_pnxMaint;
+  if(typeof openMaintenance==='function'){ var _om=openMaintenance; openMaintenance=function(){ var r=_om.apply(this,arguments); try{ if(on()) _pnxMaint(); }catch(e){} return r; }; }
+
+  // ── CHANNEL LISTS (mock): each list with its progress — confirmed on a TV out of its channels ──
+  function _pnxChBars(){
+    var lists=((typeof _chv!=='undefined'&&_chv.data)||{}).lists||[];
+    [].slice.call(document.querySelectorAll('#panel-channels .chl-card[onclick^="chOpenList("]')).forEach(function(c){
+      if(c.querySelector('.pnx-bar')) return; var m=/chOpenList\('([^']+)'\)/.exec(c.getAttribute('onclick')||''); if(!m) return;
+      var l=lists.find(function(x){ return String(x.id)===m[1]; }); if(!l||!l.count) return;
+      var pc=Math.round(100*(l.confirmed||0)/l.count);
+      c.appendChild(el('div','pnx-bar','<i style="width:'+pc+'%"></i>')); c.appendChild(el('div','pnx-barl',(l.confirmed||0)+' of '+l.count+' confirmed on a TV'));
+    });
+  }
+  window._pnxChBars=_pnxChBars;
+  if(typeof renderChannels==='function'){ var _rc=renderChannels; renderChannels=function(){ var r=_rc.apply(this,arguments); try{ if(on()) _pnxChBars(); }catch(e){} return r; }; }
+
+  // ── PROOS CONNECT (mock): the link as a status card, this month as counts, every service as a tick. Drawn from the
+  //     same answer today's line reads (GET /assist/connect) — never a key ──
+  function _pnxConnectHTML(d,st){
+    d=d||{}; st=st||{}; var rd=d.ready||{}, bx=d.box||{}, names=(typeof _AI_NAMES!=='undefined')?_AI_NAMES:{};
+    var s;
+    if(d.error) s=['red','!','ProOS Connect Couldn’t Be Read',d.error];
+    else if(bx.status==='approved') s=['','✓','Connected'+(d.plan?' · Plan '+d.plan:''),'Linked automatically when this box was approved'];
+    else if(bx.status==='pending') s=['amb','…','Waiting for Approval on ProOS Connect','Approve this box on the Connect admin page'];
+    else if(bx.status==='unreachable') s=['red','!','ProOS Connect Not Reached',bx.why||''];
+    else s=['red','!','Not Linked to ProOS Connect',bx.status||''];
+    var h='<div class="pnx-st'+(s[0]?' '+s[0]:'')+'"><div class="ic">'+s[1]+'</div><div><b>'+E(s[2])+'</b>'+(s[3]?'<small>'+E(s[3])+'</small>':'')+'</div></div>';
+    if(d.error) return h;
+    var u=d.usage||{}, m=u.usage||{};
+    if(u.ok) h+='<div class="pnx-tiles"><div class="pnx-tile static"><b class="big">$'+Number(m.usd||0).toFixed(2)+'</b><small>This Month</small></div>'
+      +'<div class="pnx-tile static"><b class="big">'+(m.calls||0)+'</b><small>AI Calls</small></div>'
+      +'<div class="pnx-tile static"><b class="big">'+(m.pushes||0)+'</b><small>Alerts · '+(m.photos||0)+' Photo Search'+((m.photos||0)===1?'':'es')+'</small></div></div>';
+    var svc=[[rd.anthropic||rd.openai,'Pro Assist',st.model?(names[st.model]||st.model):''],[rd.openai,'Scene Pictures · Talk Live',''],[rd.photos,'Photo Search',''],[rd.push,'iPhone Alerts',''],[rd.music,'Apple Music','']];
+    h+='<div class="pnx-ticks">'+svc.map(function(x){ return '<div class="'+(x[0]?'':'off')+'"><i>'+(x[0]?'✓':'–')+'</i>'+E(x[1])+'<em>'+E(x[2]||(x[0]?'':'Not on this plan'))+'</em></div>'; }).join('')+'</div>';
+    if(bx.box_id) h+='<div class="pnx-boxid">This box on Connect: '+E(bx.box_id)+'</div>';
+    return h;
+  }
+  window._pnxConnectHTML=_pnxConnectHTML;
+  if(typeof assistConnectLoad==='function'){ var _acl=assistConnectLoad; assistConnectLoad=async function(st){ var r=await _acl.apply(this,arguments);
+    try{ if(on()){ var x=document.getElementById('as-connect'); if(x){ var d={}; try{ var q=await fetch(proCoreUrl()+'/assist/connect'); d=await q.json(); if(!q.ok) d={error:d.error||('HTTP '+q.status)}; }catch(e){ d={error:'ProOS Core unreachable'}; }
+      setHTML(x,_pnxConnectHTML(d,st)); } } }catch(e){} return r; }; }
+
+  // ── THE RACK (mock): the adapters as three cards — Infrared, 433 MHz radio and RS-232 ──
+  function _pnxRack(){
+    var host=document.getElementById('rack-body'); if(!host) return;
+    var sec=[].slice.call(host.querySelectorAll('.v3sec')).find(function(s){ var h=s.querySelector('.h'); return h&&/Adapters on This Box/.test(h.textContent); }); if(!sec) return;
+    var rows=sec.querySelector('.v3rows'); if(!rows||rows.classList.contains('pnx-adapt')) return; rows.classList.add('pnx-adapt');
+    var hint=sec.querySelector(':scope>.v3hint');
+    rows.appendChild(el('div','v3row static','<div class="rt"><div class="t1">RS-232</div><div class="t2">'+(hint?E(hint.textContent.replace(/^RS-232 and serial:\s*/,'').replace(/^./,function(c){ return c.toUpperCase(); })):'Each setup lists the ports this box can see.')+'</div></div><div class="rr"><span class="v3chip">Ports Listed per Setup</span></div>'));
+    if(hint) hint.style.display='none';
+  }
+  window._pnxRack=_pnxRack;
+  if(typeof renderRackPanel==='function'){ var _rr=renderRackPanel; renderRackPanel=function(){ var r=_rr.apply(this,arguments); try{ if(on()) _pnxRack(); }catch(e){} return r; }; }
 })();
 </script>
 </body>
