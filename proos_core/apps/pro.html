@@ -2387,6 +2387,28 @@ html.pnx .v2crumb .pnx-kick{display:block;font-size:13.5px;font-weight:500;color
 html.pnx .v2crumb .pnx-kick b{font-size:13.5px!important;font-weight:600!important;color:var(--t2)!important;letter-spacing:0}
 html.pnx .v2crumb .pnx-last{display:block;font-size:28px;font-weight:600;color:#fff;letter-spacing:-.4px;line-height:1.1}
 </style>
+<style>
+/* REGISTER 1410 — PRO NEW LOOK, STAGE 2: PRO ON THE iPHONE (Dave 19 Nov). Pro's narrow layout already carried its own
+   bottom bar (Home · Areas · Devices · Scenes · Diagnostics · System Setup · Toolbox); under 700 points the page now takes
+   the whole width (the rail's room was still reserved), the page's name shows, the command bar sits above the bar, and
+   the fitted pages (UniFi's camera wall, port table) flow and scroll instead of fitting a screen they can't fit. */
+@media (max-width:700px){   /* 700: Pro's standard narrow line (pro_widths_bench) */
+html.pnx #app.v3{padding-left:0!important}
+html.pnx #app.v3 .scroll{padding-left:16px!important;padding-right:16px!important;padding-bottom:calc(170px + env(safe-area-inset-bottom,0px))!important}
+html.pnx #app.v3 .v2crumb{display:flex!important;min-width:0;overflow:hidden}
+html.pnx #app.v3 .v2crumb .pnx-last{font-size:24px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+html.pnx #app.v3 .topbar .right{display:none!important}
+html.pnx #app.v3 .topbar .left{flex:1;flex-wrap:nowrap!important;min-width:0}
+html.pnx #app.v3 .who-avw{order:9;margin-left:auto}
+html.pnx #app.v3 .v3cmd{left:12px!important;right:12px!important;bottom:calc(env(safe-area-inset-bottom,0px) + 96px)!important;height:48px;font-size:14.5px}
+html.pnx .v3cmd .v3cp{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+html.pnx #app.v2 .v2tabs{background:rgba(18,18,21,.92)}
+html.pnx .uni-split{grid-template-columns:1fr!important;grid-template-rows:auto!important;height:auto!important}
+html.pnx .uni-main,html.pnx .upg,html.pnx .upg-body,html.pnx .upg-main,html.pnx .upg-det,html.pnx .unp-split,html.pnx .unp-fit,html.pnx .uni-fit{height:auto!important;max-height:none!important;overflow:visible!important;flex:none!important}
+html.pnx .upg-body,html.pnx .unp-split{flex-direction:column!important;display:flex!important}
+html.pnx .upg-scroll{flex:none!important;height:auto!important;max-height:56vh!important;overflow:auto!important}
+}
+</style>
 </head>
 <body>
 
@@ -3492,7 +3514,7 @@ html.pnx .v2crumb .pnx-last{display:block;font-size:28px;font-weight:600;color:#
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111901';
+const PROOS_BUILD='2026111902';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -3770,7 +3792,8 @@ setInterval(async ()=>{
 async function connect(){
   // 969w: Pro on a phone never connects, by EVERY road here, not only the first load (Dave, 21 Oct 13:09: the phone
   // message showed, then Pro connected on the phone anyway). The ?gate= preview is the installer's own page check.
-  try{ if(_proOnPhone() && !new URLSearchParams(location.search).get('gate')){ document.getElementById('app').style.display='none';
+  // REGISTER 1410 (Dave 19 Nov 06:38): Pro is for the iPhone too now — the 723 gate stays as code, opened only by ?gate=phone
+  try{ if(new URLSearchParams(location.search).get('gate')==='phone'){ document.getElementById('app').style.display='none';
     document.getElementById('landing').style.display='flex'; renderGate('phone'); return; } }catch(e){}
   if(!_token() || !homeCandidates().length){ showLanding(); return; }
   await _proosDoorReady;                                   // the door first (register 352)
@@ -23388,7 +23411,8 @@ async function v3Software(){
   const gp=new URLSearchParams(location.search).get('gate');
   if(gp){ document.getElementById('app').style.display='none'; document.getElementById('landing').style.display='flex'; if(gp==='auto') gateDetect(); else renderGate(gp); return; }
   // On a phone, Pro does not connect at all — it says where Pro lives (register 723).
-  if(_proOnPhone()){ document.getElementById('app').style.display='none'; document.getElementById('landing').style.display='flex'; renderGate('phone'); return; }
+  if(new URLSearchParams(location.search).get('gate')==='phone'){ document.getElementById('app').style.display='none'; document.getElementById('landing').style.display='flex'; renderGate('phone'); return; }   // 1410: no longer for every phone
+  try{ if(_proOnPhone()) document.documentElement.classList.add('pnx-phone'); }catch(e){}   // 1410: the device is a phone (screen, not window) — for what only a phone needs
   connect();
 })();
 </script>
