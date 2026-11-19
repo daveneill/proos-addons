@@ -2794,6 +2794,12 @@ html.pnx body.railmin #app.v3{--v3r:76px;padding-left:76px!important}
 html.pnx body.railmin #app.v3 .v2rail{width:76px}
 html.pnx body.railmin #app.v3 .v2rail .px-me .px-mt,html.pnx body.railmin #app.v3 #v2rail .v3acc{display:none}
 html.pnx body.railmin #px-pg,html.pnx body.railmin #hv-ov.open{left:76px!important}
+/* the menu opened from the icons (iPad portrait, a narrow Mac window — v2RailToggle → v3MenuOpen) is today's full menu OVER the
+   page: it takes its own width and sits above everything, with its sections and who you are showing (it opened at icon
+   width, behind the page — Dave, 20 Nov) */
+html.pnx body.v3menu-open #app.v3 .v2rail{width:290px;z-index:1100}
+html.pnx body.v3menu-open #app.v3 .v2rail .px-me .px-mt{display:block}
+html.pnx body.v3menu-open #app.v3 #v2rail .v3acc{display:flex}
 @media (max-width:700px){
   html.pnx #app.v3{padding-left:0!important}
   html.pnx #app.v3 .topbar{padding:14px 18px 0 18px!important;min-height:54px}
@@ -4408,7 +4414,7 @@ html.pnx #panel-tech[data-pxin] #tech-view>.wiz-hint:first-child{display:none}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111910';
+const PROOS_BUILD='2026111911';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
