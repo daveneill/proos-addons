@@ -2806,6 +2806,11 @@ html.pnx body.v3menu-open #app.v3 #v2rail .v3acc{display:flex}
   html.pnx #app.v3 .topbar .right{padding-right:0}
   /* REGISTER 1421: the iPhone's own top (--proos-sat) comes first, as today's page does — a flat 72px put the title under the top bar (Dave, 20 Nov) */
   html.pnx #app.v3 .scroll{padding:calc(var(--proos-sat,0px) + 72px) 18px 170px 18px!important}
+  /* REGISTER 1423: that room, and today's frosted band (#app.v2::before, inset + 92px), are for the back pill — a page with
+     none (Home, Areas, Devices, Scenes) left an empty band under the clock ("All pages just seem really low" — Dave, 20 Nov).
+     With no back pill the page starts just under the clock and the band only covers the clock. */
+  html.pnx #app.v3:not(:has(#v2back:not([hidden]))) .scroll{padding-top:calc(var(--proos-sat,0px) + 16px)!important}
+  html.pnx #app.v3.v2:not(:has(#v2back:not([hidden])))::before{height:calc(max(10px,var(--proos-sat)) + 14px)}
   html.pnx #app.v3 .v3cmd{top:auto!important;width:auto!important;border-radius:22px}
   html.pnx .px-head h1{font-size:30px}
   html.pnx .px-cols,html.pnx .px-cols.even{grid-template-columns:minmax(0,1fr)}
@@ -4432,7 +4437,7 @@ html.pnx #px-more .px-row.on b{color:var(--px-blue2)}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111915';
+const PROOS_BUILD='2026111916';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
