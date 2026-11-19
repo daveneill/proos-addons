@@ -2804,11 +2804,14 @@ html.pnx body.v3menu-open #app.v3 #v2rail .v3acc{display:flex}
   html.pnx #app.v3{padding-left:0!important}
   html.pnx #app.v3 .topbar{padding:14px 18px 0 18px!important;min-height:54px}
   html.pnx #app.v3 .topbar .right{padding-right:0}
-  html.pnx #app.v3 .scroll{padding:72px 18px 170px 18px!important}
+  /* REGISTER 1421: the iPhone's own top (--proos-sat) comes first, as today's page does — a flat 72px put the title under the top bar (Dave, 20 Nov) */
+  html.pnx #app.v3 .scroll{padding:calc(var(--proos-sat,0px) + 72px) 18px 170px 18px!important}
   html.pnx #app.v3 .v3cmd{top:auto!important;width:auto!important;border-radius:22px}
   html.pnx .px-head h1{font-size:30px}
   html.pnx .px-cols,html.pnx .px-cols.even{grid-template-columns:minmax(0,1fr)}
-  html.pnx .px-g3,html.pnx .px-g4{grid-template-columns:repeat(2,minmax(0,1fr))}
+  /* three figures stay three across, as the phone mock draws them (they broke 2+1 — Dave, 20 Nov); four go two by two */
+  html.pnx .px-g4{grid-template-columns:repeat(2,minmax(0,1fr))}
+  html.pnx .px-g3{gap:8px}
   html.pnx .px-stat b{font-size:22px}
   html.pnx .px-v{display:none}
   html.pnx .px-hide-ph{display:none!important}
@@ -4413,7 +4416,7 @@ html.pnx #panel-tech[data-pxin] #tech-view>.wiz-hint:first-child{display:none}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111913';
+const PROOS_BUILD='2026111914';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -25307,7 +25310,10 @@ clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',plus:'<path d="M1
     var item=function(r,good){ var t=PX.t(r,'.t1'), i=t.indexOf(': '), title=i>0&&i<80?t.slice(0,i):t, rest=i>0&&i<80?t.slice(i+2):PX.t(r,'.t2'), chip=PX.t(r,'.rr .v3chip');
       var tn=/problem|fail/i.test(chip)?'r':good?'gr':'a';
       return PX.row(good?['check','gr']:['warn',tn],title,rest,chip?PX.tag(chip,tn):'',PX.oc(r),{cls:'px-long',wrap:true}); };
-    if(bad.length) h+=PX.sec('Could Not Confirm · '+bad.length)+'<div class="px-rows">'+bad.map(function(r){ return item(r,false); }).join('')+'</div>';
+    // REGISTER 1421: a Problem is not a could-not-confirm — each has its own heading, and each count matches its tile (it read 9 against a tile of 8)
+    var prob=bad.filter(function(r){ return /^Problem$/.test(PX.t(r,'.rr .v3chip')); }), unk=bad.filter(function(r){ return prob.indexOf(r)<0; });
+    if(prob.length) h+=PX.sec('On Health · '+prob.length)+'<div class="px-rows">'+prob.map(function(r){ return item(r,false); }).join('')+'</div>';
+    if(unk.length) h+=PX.sec('Could Not Confirm · '+unk.length)+'<div class="px-rows">'+unk.map(function(r){ return item(r,false); }).join('')+'</div>';
     if(ok.length) h+=PX.sec('Confirmed · '+ok.length,open?'Fold Them Away':'Show Them','_pnxFoldToggle()')+(open?'<div class="px-rows">'+ok.map(function(r){ return item(r,true); }).join('')+'</div>':'<div class="px-rows"><div class="px-row" onclick="_pnxFoldToggle()"><div class="px-ic gr">'+I('check')+'</div><div class="px-g"><b>Every check ProOS confirmed</b><small>Tap to see them</small></div>'+PX.cv()+'</div></div>');
     PX.paint(p,h,{sub:'Every check ProOS Core runs on the house, and its own answer to each. '+when,
       act:(rep?'<button class="px-btn sm" onclick="'+E(PX.oc(rep))+'">View Report</button>':'')+(run?'<button class="px-btn sm blue" onclick="'+E(PX.oc(run))+'">Run Sweep Now</button>':'')});
