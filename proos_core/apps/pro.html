@@ -2974,7 +2974,8 @@ html.pnx #v3devices-body .v3row .rr>.v3chip:not(.btn){font-size:10.5px;font-weig
 </style>
 <style>
 /* REGISTER 1418 — INTEGRATIONS, to its mock: Add Integration at the top; the search; then three sections as tiles —
-   what the box found on the network, what is certified and ready, what is set up — each tile opening its page.
+   what the box found on the network, what is certified and ready, what is set up — each tile opening its page. The tiles
+   stay three across, as today's (Dave, 20 Nov: "back with the old rule of 3 tiles wide").
    Today's tiles, filters, fold and Publish (developer) in place. */
 html.pnx #panel-library.active{display:flex;flex-direction:column}
 html.pnx #panel-library>.il-head{display:none}
@@ -2986,12 +2987,8 @@ html.pnx #panel-library>.section-label.il-sec:not(#il-disc-h){order:3}
 html.pnx #panel-library>#lib-certified{order:4}
 html.pnx #panel-library>#lib-configured{order:5}
 html.pnx #panel-library :is(.section-label,.il-gh){font-size:17px;font-weight:600;color:#fff;text-transform:none;letter-spacing:0;margin:20px 2px 10px}
-html.pnx #panel-library .itile-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
-html.pnx #panel-library .il-shut .itile-grid{display:none}
-html.pnx #panel-library .itile{padding:14px 16px!important;min-height:96px}
 html.pnx #panel-library .itile-nm{font-size:15px;font-weight:600;color:#fff}
 html.pnx #panel-library .itile-sub{font-size:13px;color:var(--px-t3)}
-html.pnx #panel-library .itile-act .btn-ghost{width:auto;height:32px;padding:0 12px;border-radius:10px;font-size:12.5px;font-weight:600;background:var(--px-card2);border:0;margin-top:8px}
 </style>
 <style>
 /* REGISTER 1418 — ADD INTEGRATION, the New Look's sheet: the search, the certified ones first with Add as the
@@ -4414,7 +4411,7 @@ html.pnx #panel-tech[data-pxin] #tech-view>.wiz-hint:first-child{display:none}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111911';
+const PROOS_BUILD='2026111912';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -17201,7 +17198,7 @@ async function renderUnifiSuite(quick){
     +tile('talk','Talk','rgba(255,255,255,0.04)',{later:true,p:()=>'Phones and call routing. Built the day Ubiquiti opens a way in for other systems.',foot:'Waiting on Ubiquiti'})
     +'</div>';
   // Console Settings: the connection itself. Shown until ProOS is signed in and holds its key; folded after that.
-  h+=`<div id="uni-settings"${ready&&!_uniSettingsOpen?' hidden':''}><div class="bld-sec-h">${ready?'Console Settings':'Connect the Console'}</div>`;
+  h+=`<div id="uni-settings"${(ready||quick)&&!_uniSettingsOpen?' hidden':''}><div class="bld-sec-h">${ready?'Console Settings':'Connect the Console'}</div>`;
   h+='<div class="wiz-hint">One connection for every UniFi app on the console. ProOS signs in with its own local user and creates its own API key from it — the same way the Control4 UniFi drivers work. Where the platform already does something, ProOS uses it; ProOS adds the rest.</div>';
   h+=`<div class="cred-card"><div class="cred-top">${dot(quick?null:signed)}<span class="cred-name">Console</span><span class="cert-pill" style="margin-left:auto">CERTIFIED</span></div><div class="unifi-status">`
     +`<div class="unifi-row"><span class="unifi-row-l">Address</span><span class="unifi-row-d">${st.host?esc(st.host)+(st.host_from?' · from '+esc(st.host_from):''):'not known yet'}</span></div>`
