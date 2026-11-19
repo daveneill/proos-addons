@@ -2987,8 +2987,10 @@ html.pnx #panel-library>.section-label.il-sec:not(#il-disc-h){order:3}
 html.pnx #panel-library>#lib-certified{order:4}
 html.pnx #panel-library>#lib-configured{order:5}
 html.pnx #panel-library :is(.section-label,.il-gh){font-size:17px;font-weight:600;color:#fff;text-transform:none;letter-spacing:0;margin:20px 2px 10px}
+html.pnx #panel-library .itile-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
 html.pnx #panel-library .itile-nm{font-size:15px;font-weight:600;color:#fff}
 html.pnx #panel-library .itile-sub{font-size:13px;color:var(--px-t3)}
+@media (max-width:700px){ html.pnx #panel-library .itile-grid{grid-template-columns:minmax(0,1fr)} }
 </style>
 <style>
 /* REGISTER 1418 — ADD INTEGRATION, the New Look's sheet: the search, the certified ones first with Add as the
@@ -4411,7 +4413,7 @@ html.pnx #panel-tech[data-pxin] #tech-view>.wiz-hint:first-child{display:none}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111912';
+const PROOS_BUILD='2026111913';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
