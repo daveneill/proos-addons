@@ -1973,7 +1973,7 @@ body.aws-open .v2tabs{display:none!important}
 :root{--proos-sat:env(safe-area-inset-top,0px)}
 #landing,#app,#room-picker,#icon-picker,#flow-sheet,#addint-sheet,#svc-sheet,#device-sheet,#guide,#scene-edit,
 #cfg-edit,#item-edit,#pick,#choice,#entinfo,#room-edit,#scene-art,#reset-confirm,#factory-confirm,#bk-create,#danger-confirm,#bk-auto-edit,
-#hv-ov,#assist-overlay,#proos-reboot,.rd-edit-ov,.act-sheet,.aw-screen,.aw-inc{padding-top:var(--proos-sat)}
+#hv-ov,#assist-overlay,#proos-reboot,.rd-edit-ov,.act-sheet,.aw-screen,.aw-inc,html.pnx #hv-ov.open,html.pnx #px-pg{padding-top:var(--proos-sat)}
 .who-menu{top:calc(16px + var(--proos-sat))}
 
 /* IRRIGATION commissioning (register 608) */
@@ -2623,6 +2623,685 @@ html.pnx .pnx-boxline{margin-top:14px;font-size:12.5px;color:var(--t2);text-alig
 /* REGISTER 1417 — the Building Settings map stays under the phone's bar (seen 19 Nov at iPhone size: the map's "+" drawn
    over the bottom bar). The map library stacks its controls at 1000; the map's box keeps them inside itself. */
 html.pnx .site-map{position:relative;isolation:isolate;z-index:0}
+</style>
+<!-- REGISTER 1418 — THE PRO REDRAW (all 93 pages to their mocks). ?oldlook keeps today's Pro. -->
+<style>
+/* REGISTER 1418 — THE REDRAW, PART 0: THE SHELL AND THE DESIGN SYSTEM (the 93 mocks, 17 Nov). The mocks' own sizes:
+   rail 236 · page 30 px in from it · a top row of back + Local + Ask Assist · the page head (kicker · title · line).
+   Everything new is html.pnx and px-; ?oldlook keeps today's Pro. */
+html.pnx{--px-bg:#0e0e10;--px-rail:#121215;--px-card:#1b1c20;--px-card2:#26272c;--px-card3:#303137;--px-line:rgba(255,255,255,.08);
+  --px-t2:rgba(255,255,255,.72);--px-t3:rgba(255,255,255,.55);--px-blue:#4D63FF;--px-blue2:#8A98FF;--px-green:#5FB98C;--px-red:#E0564B;--px-amber:#F2B34A;
+  --card:#1b1c20;--pnx-card2:#26272c}
+html.pnx body{background:var(--px-bg)}
+html.pnx #app.v3 .bg,html.pnx #pro-glass{display:none!important}
+/* ── the rail ── */
+html.pnx #app.v3{--v3r:236px;padding-left:236px!important}
+html.pnx #app.v3 .v2rail{left:0;top:0;bottom:0;width:236px;border-radius:0;border:0;border-right:1px solid var(--px-line);background:var(--px-rail);
+  -webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:none;padding:20px 12px;gap:2px}
+html.pnx #app.v3 .v2rail .v2logo{display:none}
+html.pnx #app.v3 .v2item{height:38px;border-radius:12px;padding:0 12px;gap:12px;font-size:14.5px;font-weight:500;color:var(--px-t2);margin:0;box-shadow:none}
+html.pnx #app.v3 .v2item svg{width:20px;height:20px;stroke-width:1.7}
+html.pnx #app.v3 .v2item.on{background:rgba(77,99,255,.18);color:#fff;box-shadow:none}
+html.pnx #app.v3 .v2item>svg:last-child:not(:first-child){display:none}
+html.pnx #app.v3 .v3acc{margin:2px 0 8px 22px;padding-left:10px;border-left:1px solid var(--px-line)}
+html.pnx #app.v3 .v3acc .v3si{padding:5px 8px;min-height:0;font-size:13.5px;gap:9px;border-radius:9px;color:var(--px-t2);margin:0}
+html.pnx #app.v3 .v3acc .v3si.on{background:var(--px-card2);color:#fff;box-shadow:none}
+html.pnx #app.v3 .v3acc .v3th,html.pnx #app.v3 .v3acc .v3ic{width:24px;height:24px;border-radius:7px}
+html.pnx #app.v3 .v3acc .v3ic svg{width:14px;height:14px}
+html.pnx #app.v3 .v3acc .v3ct{display:none}
+html.pnx #app.v3 .v2rail .v2foot{padding:0 12px;font-size:11.5px;color:var(--px-t3)}
+html.pnx #app.v3 .v2item.v2collapse{color:var(--px-t3);margin-top:auto}
+/* who is signed in, and the home — at the top of the rail (the mocks' "ProOS Developer · Dave's Home") */
+html.pnx .px-me{display:flex;align-items:center;gap:10px;margin:0 8px 18px;cursor:pointer;min-width:0}
+html.pnx #app.v3 .px-me .who-avw{order:-1;margin:0}
+html.pnx .px-me .who-av{width:34px!important;height:34px!important;font-size:13px!important;background:var(--px-blue)!important;border:0!important}
+html.pnx .px-me .px-mt{min-width:0}
+html.pnx .px-me b{display:block;font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+html.pnx .px-me small{display:block;font-size:12px;color:var(--px-t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+html.pnx body.railmin .px-me .px-mt{display:none}
+/* ── the top row: back · (presence · Local) · Ask Assist ── */
+html.pnx #app.v3 .topbar{padding:22px 30px 0 30px!important;min-height:62px}
+html.pnx #app.v3 .topbar .left{gap:10px}
+html.pnx #app.v3 .v2crumb{display:none!important}
+html.pnx #app.v3 .v2back,html.pnx #app.v3 .v2back.lab{height:40px;width:auto;padding:0 16px 0 10px;border-radius:20px;background:var(--px-card2);border:0;gap:4px}
+html.pnx #app.v3 .v2back span{display:inline;font-size:14.5px;font-weight:600;color:#fff;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+html.pnx #app.v3 .v2back svg{width:18px;height:18px}
+html.pnx #app.v3 .topbar .right{margin-left:auto;padding-right:310px;gap:8px;align-items:center}
+html.pnx #app.v3 .status-chip{height:28px;padding:0 12px;border-radius:14px;background:var(--px-card);font-size:12.5px;font-weight:600;color:var(--px-t2)}
+html.pnx #app.v3 .v3cmd{top:22px;right:30px;left:auto;bottom:auto;width:300px;height:40px;border-radius:20px;background:var(--px-card);box-shadow:none;
+  font-size:14px;color:var(--px-t3);padding:0 14px;gap:8px}
+html.pnx #app.v3 .v3cmd svg{color:var(--px-blue2);stroke:var(--px-blue2)}
+html.pnx #app.v3 .v3cmd .v3cp{font-size:14px;color:var(--px-t3)}
+/* ── the page ── */
+html.pnx #app.v3 .scroll{padding:0 30px 40px 30px!important}
+html.pnx .px-head{margin:0 0 20px}
+html.pnx .px-head .px-k{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--px-t3);margin-bottom:2px}
+html.pnx .px-head .px-k b{font-weight:700;cursor:pointer}
+html.pnx .px-head h1{font-size:34px;font-weight:600;letter-spacing:-.015em;line-height:1.1;margin:0;color:#fff}
+html.pnx .px-head .px-sub{font-size:15px;color:var(--px-t2);margin-top:6px;line-height:1.45}
+html.pnx #app[data-pxhero] .px-head{display:none}
+html.pnx .px-act{display:flex;gap:8px;align-items:center}
+html.pnx .px-actph{display:none}
+/* ── the design system (the mocks' own parts, px- so nothing of today's pages changes) ── */
+html.pnx .px-sec{display:flex;justify-content:space-between;align-items:baseline;margin:22px 2px 10px}
+html.pnx .px-sec>b{font-size:17px;font-weight:600;color:#fff}
+html.pnx .px-sec>a{font-size:13.5px;color:var(--px-blue2);font-weight:600;cursor:pointer}
+html.pnx .px-card{background:var(--px-card);border-radius:20px;padding:18px}
+html.pnx .px-card+.px-card{margin-top:12px}
+html.pnx .px-ct{font-size:17px;font-weight:600;color:#fff}
+html.pnx .px-cs{font-size:13.5px;color:var(--px-t3);margin-top:3px;line-height:1.45}
+html.pnx .px-rows{background:var(--px-card);border-radius:20px;overflow:hidden}
+html.pnx .px-row{display:flex;align-items:center;gap:12px;padding:13px 16px;min-height:60px;color:#fff}
+html.pnx .px-row+.px-row{border-top:1px solid var(--px-line)}
+html.pnx .px-row[onclick]{cursor:pointer}
+html.pnx .px-row[onclick]:hover{background:rgba(255,255,255,.025)}
+html.pnx .px-ic{width:38px;height:38px;border-radius:12px;background:var(--px-card2);display:grid;place-items:center;flex:none;background-size:cover;background-position:center}
+html.pnx .px-ic svg{width:19px;height:19px;stroke:#fff;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+html.pnx .px-ic.lit{background-color:rgba(255,210,122,.16)}html.pnx .px-ic.lit svg{stroke:#ffd27a}
+html.pnx .px-ic.b{background-color:rgba(77,99,255,.18)}html.pnx .px-ic.b svg{stroke:var(--px-blue2)}
+html.pnx .px-ic.gr{background-color:rgba(95,185,140,.16)}html.pnx .px-ic.gr svg{stroke:var(--px-green)}
+html.pnx .px-ic.a{background-color:rgba(242,179,74,.16)}html.pnx .px-ic.a svg{stroke:var(--px-amber)}
+html.pnx .px-ic.r{background-color:rgba(224,86,75,.16)}html.pnx .px-ic.r svg{stroke:var(--px-red)}
+html.pnx .px-g{flex:1;min-width:0}
+html.pnx .px-g>b{display:block;font-size:15px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+html.pnx .px-g>small{display:block;font-size:13px;color:var(--px-t3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+html.pnx .px-g>small.wrap{white-space:normal}
+html.pnx .px-v{font-size:13.5px;color:var(--px-t2);white-space:nowrap}
+html.pnx .px-cv{width:16px;height:16px;stroke:var(--px-t3);fill:none;stroke-width:2;flex:none}
+html.pnx .px-tag{font-size:10.5px;font-weight:700;letter-spacing:.06em;padding:3px 8px;border-radius:7px;background:var(--px-card2);color:var(--px-t2);white-space:nowrap;text-transform:uppercase}
+html.pnx .px-tag.gr{background:rgba(95,185,140,.16);color:var(--px-green)}
+html.pnx .px-tag.a{background:rgba(242,179,74,.16);color:var(--px-amber)}
+html.pnx .px-tag.r{background:rgba(224,86,75,.16);color:var(--px-red)}
+html.pnx .px-tag.b{background:rgba(77,99,255,.2);color:var(--px-blue2)}
+html.pnx .px-btn{height:44px;padding:0 18px;border-radius:14px;background:var(--px-card2);font:inherit;font-size:15px;font-weight:600;color:#fff;border:0;display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap;cursor:pointer}
+html.pnx .px-btn.blue{background:var(--px-blue)}
+html.pnx .px-btn.red{background:rgba(224,86,75,.16);color:var(--px-red)}
+html.pnx .px-btn.sm{height:36px;padding:0 14px;font-size:13.5px;border-radius:11px}
+html.pnx .px-btn.w{width:100%}
+html.pnx .px-btn svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:2}
+html.pnx .px-btn:disabled{opacity:.55;cursor:default}
+html.pnx .px-pill{height:28px;padding:0 12px;border-radius:14px;background:var(--px-card);font-size:12.5px;font-weight:600;display:inline-flex;align-items:center;gap:6px;color:var(--px-t2);white-space:nowrap}
+html.pnx .px-dot{width:7px;height:7px;border-radius:50%;background:var(--px-green);flex:none;display:inline-block}
+html.pnx .px-dot.a{background:var(--px-amber)}html.pnx .px-dot.r{background:var(--px-red)}html.pnx .px-dot.b{background:var(--px-blue2)}html.pnx .px-dot.o{background:rgba(255,255,255,.5)}
+html.pnx .px-k11{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--px-t3)}
+html.pnx .px-g2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+html.pnx .px-g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+html.pnx .px-g4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+html.pnx .px-cols{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:16px;align-items:start}
+html.pnx .px-cols.even{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+html.pnx .px-photo{background:#222 center/cover;position:relative;overflow:hidden}
+html.pnx .px-rt{border-radius:20px;height:150px;padding:14px;display:flex;flex-direction:column;justify-content:flex-end;cursor:pointer;color:#fff}
+html.pnx .px-rt:before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.05),rgba(0,0,0,.65))}
+html.pnx .px-rt>*{position:relative}
+html.pnx .px-rt b{font-size:17px;font-weight:600}
+html.pnx .px-rt small{font-size:13px;color:rgba(255,255,255,.75)}
+html.pnx .px-rt .px-pill{position:absolute;top:12px;left:12px;background:rgba(0,0,0,.4);color:#fff}
+html.pnx .px-rt.off{filter:saturate(.6) brightness(.75)}
+html.pnx .px-page .hub-room{min-height:0}
+html.pnx .px-hero{border-radius:26px;height:230px;padding:24px;display:flex;flex-direction:column;justify-content:flex-end;color:#fff}
+html.pnx .px-hero:before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(14,14,16,.1),rgba(14,14,16,.85))}
+html.pnx .px-hero>*{position:relative}
+html.pnx .px-hero .px-pill{background:rgba(0,0,0,.4);color:#fff}
+html.pnx .px-chip{height:36px;padding:0 14px;border-radius:12px;background:var(--px-card2);font-size:13.5px;font-weight:600;display:inline-flex;align-items:center;gap:8px;margin:0 6px 8px 0;color:#fff;border:0;cursor:pointer;font-family:inherit}
+html.pnx .px-chip.on{background:#fff;color:#111}
+html.pnx .px-aw{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:18px;background:rgba(242,179,74,.10);box-shadow:inset 0 0 0 1px rgba(242,179,74,.25)}
+html.pnx .px-aw.ok{background:rgba(95,185,140,.08);box-shadow:inset 0 0 0 1px rgba(95,185,140,.22)}
+html.pnx .px-aw.r{background:rgba(224,86,75,.10);box-shadow:inset 0 0 0 1px rgba(224,86,75,.28)}
+html.pnx .px-stat{background:var(--px-card);border-radius:18px;padding:14px 16px;color:#fff}
+html.pnx .px-stat[onclick]{cursor:pointer}
+html.pnx .px-stat b{font-size:28px;font-weight:600;display:block}
+html.pnx .px-stat small{font-size:13px;color:var(--px-t3)}
+html.pnx .px-tile{background:var(--px-card);border-radius:18px;padding:14px;min-height:96px;display:flex;flex-direction:column;justify-content:space-between;color:#fff}
+html.pnx .px-tile[onclick]{cursor:pointer}
+html.pnx .px-tile b{font-size:15px;font-weight:600}
+html.pnx .px-tile small{font-size:12.5px;color:var(--px-t3)}
+html.pnx .px-scn{height:104px;border-radius:20px;background:var(--px-card2);padding:14px;display:flex;flex-direction:column;justify-content:space-between;color:#fff}
+html.pnx .px-scn b{font-size:15px;font-weight:600}
+html.pnx .px-scn.lit{background:#fff;color:#111}
+html.pnx .px-scn.lit .px-tag{background:rgba(0,0,0,.08);color:#333}
+html.pnx .px-kv>div{display:flex;justify-content:space-between;gap:10px;padding:6px 0;font-size:13.5px}
+html.pnx .px-kv>div+div{border-top:1px solid var(--px-line)}
+html.pnx .px-kv span{color:var(--px-t3)}
+html.pnx .px-kv b{font-weight:600;text-align:right;color:#fff}
+html.pnx .px-tl{display:flex;gap:12px;padding:10px 0}
+html.pnx .px-tl+.px-tl{border-top:1px solid var(--px-line)}
+html.pnx .px-tl .t{font-size:13px;color:var(--px-t3);width:46px;flex:none;font-variant-numeric:tabular-nums}
+html.pnx .px-tl b{font-size:14px;font-weight:600;color:#fff}
+html.pnx .px-tl small{display:block;font-size:13px;color:var(--px-t2);margin-top:1px}
+html.pnx .px-seg{display:flex;gap:4px;padding:4px;border-radius:14px;background:var(--px-card);width:max-content;max-width:100%;flex-wrap:wrap}
+html.pnx .px-seg>button{height:34px;padding:0 14px;border-radius:10px;font:inherit;font-size:13.5px;font-weight:600;color:var(--px-t2);background:none;border:0;cursor:pointer}
+html.pnx .px-seg>button.on{background:#fff;color:#111}
+html.pnx .px-tog{width:48px;height:29px;border-radius:15px;background:var(--px-card3);position:relative;flex:none;border:0;cursor:pointer;padding:0}
+html.pnx .px-tog:after{content:"";position:absolute;top:3px;left:3px;width:23px;height:23px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:left .15s}
+html.pnx .px-tog.on{background:var(--px-blue)}
+html.pnx .px-tog.on:after{left:22px}
+html.pnx .px-drag{color:var(--px-t3);font-size:17px;width:18px;text-align:center;flex:none}
+html.pnx .px-empty{padding:22px 16px;text-align:center;font-size:14px;color:var(--px-t3)}
+html.pnx .px-art{aspect-ratio:16/10;border-radius:14px;background:#222 center/cover}
+/* a panel drawn by the redraw: its own page, today's parts kept in the DOM (their functions write to them) */
+html.pnx [data-px]>:not(.px-page){display:none!important}
+html.pnx .px-page{display:block}
+/* ── iPad portrait: the icon rail (the mocks' 76) ── */
+/* ── iPhone: no rail; the bar at the foot; Assist stays above it (1410) ── */
+/* the rail at iPad portrait (today's own 1023 breakpoint) and when slid back: icons only, the page takes the room */
+@media (max-width:1023px){
+  html.pnx #app.v3{--v3r:76px;padding-left:76px!important}
+  html.pnx #app.v3 .v2rail{width:76px}
+  html.pnx #app.v3 .v2rail .px-me .px-mt,html.pnx #app.v3 #v2rail .v3acc{display:none}
+  html.pnx #px-pg,html.pnx #hv-ov.open{left:76px!important}
+}
+html.pnx body.railmin #app.v3{--v3r:76px;padding-left:76px!important}
+html.pnx body.railmin #app.v3 .v2rail{width:76px}
+html.pnx body.railmin #app.v3 .v2rail .px-me .px-mt,html.pnx body.railmin #app.v3 #v2rail .v3acc{display:none}
+html.pnx body.railmin #px-pg,html.pnx body.railmin #hv-ov.open{left:76px!important}
+@media (max-width:700px){
+  html.pnx #app.v3{padding-left:0!important}
+  html.pnx #app.v3 .topbar{padding:14px 18px 0 18px!important;min-height:54px}
+  html.pnx #app.v3 .topbar .right{padding-right:0}
+  html.pnx #app.v3 .scroll{padding:72px 18px 170px 18px!important}
+  html.pnx #app.v3 .v3cmd{top:auto!important;width:auto!important;border-radius:22px}
+  html.pnx .px-head h1{font-size:30px}
+  html.pnx .px-cols,html.pnx .px-cols.even{grid-template-columns:minmax(0,1fr)}
+  html.pnx .px-g3,html.pnx .px-g4{grid-template-columns:repeat(2,minmax(0,1fr))}
+  html.pnx .px-stat b{font-size:22px}
+  html.pnx .px-v{display:none}
+  html.pnx .px-hide-ph{display:none!important}
+  html.pnx .px-hero{height:200px}
+  html.pnx .px-actph{display:flex;gap:8px;flex-wrap:wrap;margin:-8px 0 16px}
+}
+</style>
+<style>
+/* REGISTER 1418 — AV SETUP, drawn to its mock: the signal path across the top; each device a card (name · make and
+   driver · Compatible · its roles as a segmented control · its input); the room's own speaker, TV audio and Commit
+   below. Today's controls in place — every role, input, link, unlink, remove and drag is today's own. */
+html.pnx #panel-room[data-v3view="av"] .rh-card[data-v3="av"]{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;background:none!important;padding:0!important;border:0!important;box-shadow:none!important;align-items:start}
+html.pnx #panel-room[data-v3view="av"] .rh-card[data-v3="av"]>*{grid-column:1/-1}
+html.pnx #panel-room[data-v3view="av"] .rh-card[data-v3="av"]>.rh-dev{grid-column:auto}
+html.pnx #panel-room[data-v3view="av"] .rh-card[data-v3="av"]>.rh-hd{display:none}
+html.pnx #panel-room[data-v3view="av"] .pnx-path{background:var(--px-card);border-radius:20px;padding:14px 16px;margin:0}
+html.pnx #panel-room[data-v3view="av"] .rh-sec-lbl{font-size:17px;font-weight:600;color:#fff;letter-spacing:0;text-transform:none;margin:10px 2px 0}
+html.pnx #panel-room[data-v3view="av"] .rh-dev{background:var(--px-card);border:0!important;border-radius:20px;padding:16px 18px!important;margin:0!important}
+html.pnx #panel-room[data-v3view="av"] .rh-dev-nm{font-size:15px;font-weight:600;color:#fff}
+html.pnx #panel-room[data-v3view="av"] .rh-dev-info{font-size:13px;color:var(--px-t3)}
+html.pnx #panel-room[data-v3view="av"] .rh-tierdot{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:7px;background:rgba(95,185,140,.16);color:var(--px-green)}
+html.pnx #panel-room[data-v3view="av"] .rh-chips{display:flex;gap:4px;padding:0;margin:12px 0 8px;flex-wrap:wrap}
+html.pnx #panel-room[data-v3view="av"] .rh-chip{height:34px;padding:0 14px;border-radius:10px;border:0;background:none;font-size:13.5px;font-weight:600;color:var(--px-t2)}
+html.pnx #panel-room[data-v3view="av"] .rh-chip.on{background:#fff;color:#111}
+html.pnx #panel-room[data-v3view="av"] .rh-input{background:var(--px-card2);border-radius:12px;padding:10px 14px;margin-top:8px;font-size:13.5px;color:var(--px-t2);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+html.pnx #panel-room[data-v3view="av"] .rh-input b{color:#fff}
+html.pnx #panel-room[data-v3view="av"] .rh-input select,html.pnx #panel-room[data-v3view="av"] .rh-input input{margin-left:auto;background:var(--px-card3);border:0;border-radius:10px;color:#fff;height:34px;padding:0 10px;font:inherit}
+html.pnx #panel-room[data-v3view="av"] .rh-note{font-size:12.5px;color:var(--px-t3);margin-top:6px}
+html.pnx #panel-room[data-v3view="av"] .rh-tva{background:var(--px-card);border-radius:16px;padding:12px 16px;margin:0}
+html.pnx #panel-room[data-v3view="av"] .rh-commit{background:var(--px-card);border-radius:20px;padding:16px 18px;margin:0}
+html.pnx #panel-room[data-v3view="av"] .rh-commit button,html.pnx #panel-room[data-v3view="av"] .rh-commit .btn-primary{height:44px;border-radius:14px;background:var(--px-blue);border:0;font-size:15px;font-weight:600}
+@media (max-width:700px){ html.pnx #panel-room[data-v3view="av"] .rh-card[data-v3="av"]{grid-template-columns:minmax(0,1fr)} }
+</style>
+<style>
+/* REGISTER 1418 — a room's other pages, drawn to their mocks. App Shortcuts and Channels keep today's tiles in place,
+   laid out as the mocks' tile grids; Activities, Evidence, Room Options and Device Recovery are drawn as pages. */
+html.pnx #panel-room[data-v3view="shortcuts"] .rh-card[data-v3="shortcuts"],html.pnx #panel-room[data-v3view="channels"] .rh-card[data-v3="channels"]{background:none!important;border:0!important;box-shadow:none!important;padding:0!important}
+html.pnx #panel-room[data-v3view="shortcuts"] .rh-hd,html.pnx #panel-room[data-v3view="channels"] .rh-hd .rh-hd-t{display:none}
+html.pnx #panel-room[data-v3view="shortcuts"] .rh-card[data-v3="shortcuts"]>.wiz-hint{font-size:0!important;margin:0!important;padding:0!important;background:none!important}
+html.pnx #panel-room[data-v3view="shortcuts"] .rh-card[data-v3="shortcuts"]>.wiz-hint::before{content:"In This Room";display:block;font-size:17px;font-weight:600;color:#fff;margin:0 2px 10px}
+html.pnx #panel-room[data-v3view="channels"] .wiz-hint:first-of-type{display:none}
+html.pnx #panel-room[data-v3view="shortcuts"] .rh-sec-lbl,html.pnx #panel-room[data-v3view="channels"] .rh-sec-lbl{font-size:17px;font-weight:600;color:#fff;letter-spacing:0;text-transform:none;margin:22px 2px 10px}
+html.pnx #panel-room[data-v3view="shortcuts"] .sc-grid,html.pnx #panel-room[data-v3view="channels"] .sc-grid{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:14px}
+html.pnx #panel-room[data-v3view="channels"] .sc-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+html.pnx #panel-room[data-v3view="shortcuts"] .sc-grid>*,html.pnx #panel-room[data-v3view="channels"] .sc-grid>*{background:none!important;border:0!important;padding:0!important;width:auto!important;text-align:left!important;box-shadow:none!important}
+html.pnx #panel-room[data-v3view="channels"] .sc-grid>*{background:var(--px-card)!important;border-radius:16px!important;padding:14px!important;min-height:86px}
+html.pnx #panel-room[data-v3view="channels"] .rch-dev{background:var(--px-card);border-radius:16px;padding:12px 16px}
+html.pnx #panel-room[data-v3view="channels"] .rh-empty{background:var(--px-card);border-radius:14px;padding:14px 16px;font-size:13.5px;color:var(--px-t3)}
+@media (max-width:700px){ html.pnx #panel-room[data-v3view="channels"] .sc-grid{grid-template-columns:repeat(2,minmax(0,1fr))} }
+/* activities: the list and the chosen one beside it */
+html.pnx .px-actd .px-btn{margin-top:8px}
+html.pnx .px-sees{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px}
+html.pnx .px-sees>div{height:86px;border-radius:16px;background:var(--px-card2);padding:10px 12px;display:flex;flex-direction:column;justify-content:space-between;font-size:13.5px;font-weight:600;color:#fff}
+html.pnx .px-sees>div.lit{background:#fff;color:#111}
+html.pnx .px-sees>div em{font-style:normal;align-self:flex-start;font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px;background:rgba(255,255,255,.12)}
+html.pnx .px-sees>div.lit em{background:rgba(0,0,0,.08);color:#333}
+html.pnx .px-row.sel{background:rgba(77,99,255,.12)}
+/* evidence */
+html.pnx .px-dt{display:flex;flex-direction:column;gap:6px}
+html.pnx .px-dt .px-ic{width:30px;height:30px;border-radius:9px}
+html.pnx .px-dt .px-ic svg{width:16px;height:16px}
+/* recovery's three choices */
+html.pnx .px-segsm{display:flex;gap:2px;flex:none}
+html.pnx .px-segsm>button{height:30px;padding:0 10px;border-radius:9px;border:0;background:none;font:inherit;font-size:12.5px;font-weight:600;color:var(--px-t2);cursor:pointer}
+html.pnx .px-segsm>button.on{background:#fff;color:#111}
+html.pnx .px-field{height:44px;border-radius:12px;background:var(--px-card2);display:flex;align-items:center;padding:0 14px;font-size:15px;color:#fff}
+html.pnx .px-page select{background:var(--px-card2);border:0;border-radius:10px;color:#fff;height:36px;padding:0 10px;font:inherit;font-size:13.5px}
+</style>
+<style>
+/* REGISTER 1418 — HOMEOWNER VIEW, drawn to its mock as a page of the room: the back pill and the title, the room's
+   live page in a phone on the left, Setting Up and On Now on the right. Today's view (1389) in place: its phone, its
+   checks, its On Now switches. */
+html.pnx #hv-ov.open{position:fixed;inset:0 0 0 236px;background:var(--px-bg);display:block;overflow:auto;-webkit-backdrop-filter:none;backdrop-filter:none;z-index:70}
+html.pnx #hv-ov .hv-cd{width:auto;max-width:none;height:auto;max-height:none;background:none;border:0;box-shadow:none;border-radius:0;padding:22px 30px 40px;display:grid;grid-template-columns:282px minmax(0,1fr);grid-template-rows:auto 1fr;column-gap:20px;align-items:start}
+html.pnx #hv-ov .hv-x{display:none}
+html.pnx #hv-ov .px-hvhead{grid-column:1/-1;margin-bottom:6px}
+html.pnx #hv-ov .hv-cd>div:not(.hv-side):not(.px-hvhead):not(.hv-x){transform:scale(.72);transform-origin:top left;width:390px;height:547px;border-radius:46px;overflow:hidden;box-shadow:0 0 0 8px #18181b,0 0 0 9px #2c2c31}
+html.pnx #hv-ov .hv-side{width:auto;padding:0;background:none}
+html.pnx #hv-ov .hv-side>div:first-child{display:none!important}
+html.pnx #hv-ov .hv-side>.hv-sub:first-of-type{display:none!important}
+html.pnx #hv-ov .hv-sec{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--px-t3);margin:4px 2px 8px}
+html.pnx #hv-ov .hv-sub{font-size:13px;color:var(--px-t3);margin:0 2px 8px}
+html.pnx #hv-ov .hv-row{background:var(--px-card);border:0;border-radius:0;margin:0;padding:13px 16px;min-height:60px}
+html.pnx #hv-ov .hv-sec+.hv-row,html.pnx #hv-ov .hv-sub+.hv-row{border-radius:20px 20px 0 0}
+html.pnx #hv-ov .hv-row:has(+.hv-sec),html.pnx #hv-ov .hv-row:last-child{border-radius:0 0 20px 20px;margin-bottom:18px}
+html.pnx #hv-ov .hv-sec+.hv-row:has(+.hv-sec),html.pnx #hv-ov .hv-sub+.hv-row:last-child{border-radius:20px}
+html.pnx #hv-ov .hv-row+.hv-row{border-top:1px solid var(--px-line)}
+@media (max-width:700px){
+  html.pnx #hv-ov.open{inset:0}
+  html.pnx #hv-ov .hv-cd{grid-template-columns:minmax(0,1fr);padding:14px 18px 120px}
+  html.pnx #hv-ov .hv-cd>div:not(.hv-side):not(.px-hvhead):not(.hv-x){margin:0 auto 12px}
+}
+</style>
+<style>
+/* REGISTER 1418 — UNIFI, the mocks' notes not yet drawn: the overview's tiles less tall; Console Settings as a sheet
+   from the console line; the devices list in alternating rows. Everything else of UniFi was built to these mocks
+   (1216–1246, 1415) and now sits in the redraw's shell. */
+html.pnx .uni-tile{min-height:0!important;padding:16px 18px!important;border-radius:20px!important}
+html.pnx .uni-tile .uni-tile-top{margin-bottom:8px}
+html.pnx #uni-settings:not([hidden]){position:fixed;z-index:80;left:50%;top:50%;transform:translate(-50%,-50%);width:min(620px,92vw);max-height:84vh;overflow:auto;background:var(--px-card);border-radius:28px;padding:24px;box-shadow:0 0 0 100vmax rgba(0,0,0,.55),0 30px 80px rgba(0,0,0,.6)}
+html.pnx .upg-tbl tbody tr:nth-child(even) td{background:rgba(255,255,255,.025)}
+@media (max-width:700px){ html.pnx #uni-settings:not([hidden]){left:0;right:0;top:auto;bottom:0;transform:none;width:auto;border-radius:28px 28px 0 0;padding-bottom:40px} }
+</style>
+<style>
+/* REGISTER 1418 — UNIFI, the mocks' last notes: a list with a detail beside it opens with the first one chosen (never
+   an empty "Tap a device" card beside a full list); each device's kind and model sit under its name; the kicker's
+   separator has room. */
+html.pnx .px-head .px-k .sep{margin:0 6px;opacity:.6}
+html.pnx .und-list .unp-c b{display:block}
+html.pnx .und-list .unp-c .und-sub{display:block;font-size:12.5px;color:var(--px-t3);margin-top:1px}
+html.pnx .und-list .unp-row{min-height:56px}
+html.pnx .und-wifi .unp-act[onclick^="uniWifiQR"]{background:var(--px-blue);color:#fff}
+@media (max-width:700px){ html.pnx .und-list :is(.unp-row,.und-rh)>span:nth-child(3),html.pnx .und-list :is(.unp-row,.und-rh)>span:nth-child(4){display:none} html.pnx .und-list .unp-row>.unp-c{flex:1;min-width:0} }
+</style>
+<style>
+/* REGISTER 1418 — DEVICES, drawn to their mocks: A Device (the identity card, the filters, its sections as cards two
+   across), A Single Control (Try It beside the settings), An Integration (status and counts in its header, a row per
+   device), Integrations (tiles). Today's controls in place — every switch, slider, filter and button is today's. */
+html.pnx #panel-device .dp-head .dcard{background:var(--px-card)!important;border:0!important;border-radius:20px!important;padding:16px 18px!important;box-shadow:none!important}
+html.pnx #panel-device .dinfo{background:none!important;border:0!important;padding:0!important}
+html.pnx #panel-device .ip-tools,html.pnx #panel-integration .ip-tools{margin:14px 0}
+html.pnx .ip-chip{height:34px;padding:0 14px;border-radius:10px;border:0;background:var(--px-card);font-size:13.5px;font-weight:600;color:var(--px-t2)}
+html.pnx .ip-chip.on{background:#fff;color:#111}
+html.pnx .ip-search{background:var(--px-card)!important;border:0!important;border-radius:14px!important;height:44px}
+html.pnx #panel-device #dp-cols{display:block!important;column-count:2;column-gap:16px}
+html.pnx #panel-device #dp-cols>.dp-col{display:contents!important}
+html.pnx #panel-device #dp-cols .dcard{break-inside:avoid;display:block;background:var(--px-card)!important;border:0!important;border-radius:20px!important;padding:14px 16px!important;margin:0 0 16px!important;box-shadow:none!important}
+html.pnx #panel-device #dp-cols .dcard>.bld-sec-h{font-size:17px!important;font-weight:600!important;color:#fff!important;letter-spacing:0!important;text-transform:none!important;margin:0 0 8px!important;padding:0!important}
+html.pnx #panel-device #dp-cols .dcard .row{border-radius:12px;padding:10px 4px;background:none!important;border:0!important;box-shadow:none!important;margin:0!important}
+html.pnx #panel-device #dp-cols .dcard .row+.row{border-top:1px solid var(--px-line)}
+html.pnx #panel-device #sp-cols{gap:16px}
+html.pnx #panel-device #sp-cols>*{background:var(--px-card)!important;border:0!important;border-radius:20px!important;padding:16px 18px!important;box-shadow:none!important}
+html.pnx #panel-integration .ip-headcard{background:var(--px-card)!important;border:0!important;border-radius:20px!important;padding:16px 18px!important;box-shadow:none!important}
+html.pnx #panel-integration .ip-list{background:var(--px-card);border-radius:20px;overflow:hidden;padding:0 4px}
+html.pnx #panel-integration .ip-list>*+*{border-top:1px solid var(--px-line)}
+html.pnx #panel-library .itile,html.pnx #panel-library .sys-tile{background:var(--px-card)!important;border:0!important;border-radius:18px!important;box-shadow:none!important}
+@media (max-width:700px){ html.pnx #panel-device #dp-cols{column-count:1} }
+</style>
+<style>
+/* REGISTER 1418 — DEVICES LISTS, to their mocks with today's controls in place. All Devices: the three counts as
+   tiles (amber while something waits), then By Integration. A room's Devices & Names: each device with its controls
+   under it, the name check as a coloured tag and + Alias at the end of the row. Unassigned: Assign · Whole House ·
+   Hide as buttons on each row, Assign first. The By Room chips stay — they are how a room's list is reached. */
+html.pnx #v3devices-body .v3card:first-child>.v3dh2{display:none}
+html.pnx #v3devices-body .v3rooms{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 16px;padding:0}
+html.pnx #v3devices-body .v3rooms-l{font-size:13px;color:var(--px-t3);margin-right:4px}
+html.pnx #v3devices-body .v3rooms .v3chip{height:32px;padding:0 12px;border-radius:10px;background:var(--px-card);border:0;color:#fff;font-size:13px;font-weight:600;display:inline-flex;align-items:center}
+html.pnx #v3devices-body .v3rooms .v3chip.on{background:#fff;color:#111}
+html.pnx #v3devices-body .v3rooms .v3ct{color:var(--px-t3);margin-left:5px}
+html.pnx #v3devices-body .v3rows>.v3row{background:none!important}
+html.pnx #v3devices-body .v3kp>div[data-pxamb]{box-shadow:inset 0 0 0 1px rgba(242,179,74,.5)}
+html.pnx #v3devices-body .v3kp>div[data-pxamb] b{color:var(--px-amber)}
+html.pnx #v3devices-body .v3kp+.v3sec::before{content:"By Integration";display:block;font-size:17px;font-weight:600;color:#fff;margin:6px 2px 10px}
+html.pnx #v3devices-body .v3row .rr>.v3chip.btn{height:34px;padding:0 14px;border-radius:10px;background:var(--px-card2);border:0;font-size:13.5px;font-weight:600;color:#fff;display:inline-flex;align-items:center;cursor:pointer}
+html.pnx #v3devices-body .v3row .rr>.v3chip.btn[onclick^="openRoomPicker"]{background:var(--px-blue)}
+html.pnx #v3devices-body .pnx-devh{display:flex;align-items:baseline;gap:8px;padding:14px 16px 6px;font-size:15px;font-weight:600;color:#fff}
+html.pnx #v3devices-body .pnx-devh em{font-style:normal;font-size:13px;font-weight:400;color:var(--px-t3)}
+html.pnx #v3devices-body .v3row.pnx-sub>div:not(.rt):not(.rr){order:3;flex:none!important}
+html.pnx #v3devices-body .v3row.pnx-sub .rt{flex:1;min-width:0}
+html.pnx #v3devices-body .v3row.pnx-sub .rr{margin-left:auto!important;order:2}
+html.pnx #v3devices-body .v3row.pnx-sub .v3add{height:34px;padding:0 14px;border-radius:10px;background:var(--px-card2);border:0;color:#fff;font-size:13.5px;font-weight:600;cursor:pointer}
+html.pnx #v3devices-body .v3row .rr>.v3chip:not(.btn){font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:7px}
+</style>
+<style>
+/* REGISTER 1418 — INTEGRATIONS, to its mock: Add Integration at the top; the search; then three sections as tiles —
+   what the box found on the network, what is certified and ready, what is set up — each tile opening its page.
+   Today's tiles, filters, fold and Publish (developer) in place. */
+html.pnx #panel-library.active{display:flex;flex-direction:column}
+html.pnx #panel-library>.il-head{display:none}
+html.pnx #panel-library>.ip-tools{order:0;flex-wrap:wrap;gap:10px}
+html.pnx #panel-library>.ip-tools .ip-search{flex:1 1 100%}
+html.pnx #panel-library>#il-disc-h{order:1}
+html.pnx #panel-library>#lib-flows{order:2}
+html.pnx #panel-library>.section-label.il-sec:not(#il-disc-h){order:3}
+html.pnx #panel-library>#lib-certified{order:4}
+html.pnx #panel-library>#lib-configured{order:5}
+html.pnx #panel-library :is(.section-label,.il-gh){font-size:17px;font-weight:600;color:#fff;text-transform:none;letter-spacing:0;margin:20px 2px 10px}
+html.pnx #panel-library .itile-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+html.pnx #panel-library .il-shut .itile-grid{display:none}
+html.pnx #panel-library .itile{padding:14px 16px!important;min-height:96px}
+html.pnx #panel-library .itile-nm{font-size:15px;font-weight:600;color:#fff}
+html.pnx #panel-library .itile-sub{font-size:13px;color:var(--px-t3)}
+html.pnx #panel-library .itile-act .btn-ghost{width:auto;height:32px;padding:0 12px;border-radius:10px;font-size:12.5px;font-weight:600;background:var(--px-card2);border:0;margin-top:8px}
+</style>
+<style>
+/* REGISTER 1418 — ADD INTEGRATION, the New Look's sheet: the search, the certified ones first with Add as the
+   button, then everything else from the platform; the developer's Publish (curating) stays on its rows. */
+html.pnx #addint-sheet .rp-sheet{max-width:520px;padding:24px;border-radius:28px;background:#1b1c20}
+html.pnx #addint-sheet .rp-title{font-size:24px;font-weight:600;color:#fff;text-align:left;letter-spacing:-.2px}
+html.pnx #addint-sheet .rp-head{padding:0 0 14px}
+html.pnx #addint-search{height:46px;border:0!important;border-radius:14px!important;background:var(--px-card2)!important;color:#fff;font-size:15px;padding:0 16px;margin:0 0 14px;box-shadow:none!important;outline:0}
+html.pnx #addint-results .row{background:var(--px-card2);border:0;border-radius:0;margin:0;padding:10px 14px;min-height:60px}
+html.pnx #addint-results .row+.row{border-top:1px solid var(--px-line)}
+html.pnx #addint-results .row:first-child{border-radius:16px 16px 0 0}
+html.pnx #addint-results .row:last-child{border-radius:0 0 16px 16px}
+html.pnx #addint-results .row:not(.tappable){background:none;min-height:0;padding:0 2px 12px;font-size:12.5px;color:var(--px-t3)}
+html.pnx #addint-results .row:not(.tappable)+.row{border-top:0;border-radius:16px 16px 0 0}
+html.pnx #addint-results .rl-logo{display:flex;align-items:center;gap:12px;font-size:15px;font-weight:600;color:#fff}
+html.pnx #addint-results .intg-logo{width:38px;height:38px;border-radius:10px;background:#fff;flex:none}
+html.pnx #addint-results .cert-pill{font-size:10.5px;font-weight:700;letter-spacing:.06em;padding:3px 8px;border-radius:7px;background:rgba(95,185,140,.16);color:var(--px-green);border:0}
+html.pnx #addint-results .row:has(.cert-pill)>.rr{background:var(--px-blue);color:#fff;border-radius:10px;padding:0 14px;height:34px;display:flex;align-items:center;font-size:13.5px;font-weight:600}
+html.pnx #addint-results .rr{font-size:13.5px;font-weight:600;color:#fff;gap:8px}
+html.pnx #addint-results .rr .btn-ghost{width:auto;height:30px;padding:0 10px;border-radius:9px;background:var(--px-card3);border:0;font-size:12px;font-weight:600;margin:0}
+</style>
+<style>
+/* REGISTER 1418 — AN INTEGRATION, to its mock: its logo, name and counts as the page's head with Connected beside
+   them; Options and Add Device at the top; each device a row with its live state, grouped by room. Today's filters,
+   search and Group: Room stay. */
+html.pnx #panel-integration .ip-headcard{background:none!important;padding:0!important;margin:8px 0 18px!important;display:flex;align-items:center;gap:16px}
+html.pnx #panel-integration .ip-headcard .ip-logo .intg-logo{width:60px;height:60px;border-radius:16px;background:var(--px-card2)}
+html.pnx #panel-integration .ip-headcard .ip-hbody>.rsub:first-child{display:none}
+html.pnx #panel-integration .ip-headcard .ip-title{font-size:30px;font-weight:600;color:#fff;letter-spacing:-.4px}
+html.pnx #panel-integration .ip-headcard .ip-hbody>.rsub{font-size:15px;color:var(--px-t2)}
+html.pnx #panel-integration .ip-headcard .ip-acts{display:none}
+html.pnx #panel-integration .ip-headcard .ip-state{margin-left:auto;font-size:12.5px;font-weight:600;padding:6px 12px;border-radius:14px;background:var(--px-card);color:#fff}
+html.pnx #panel-integration .ip-row.ip-head{display:none}
+html.pnx #panel-integration .ip-grp{font-size:11px;font-weight:700;letter-spacing:.09em;color:var(--px-t3);padding:14px 14px 4px}
+html.pnx #panel-integration .ip-row:not(.ip-head){min-height:60px}
+</style>
+<style>
+/* REGISTER 1418 — SCENES, ACTIVITIES (ALL), AUTOMATIONS, drawn to their mocks as rows: a scene with its picture,
+   Test · Art · ⋯ · + Phrase and the On Home switch; every activity under its room with + Phrase; automations in two
+   cards, yours and ProOS's own (locked, with why). Every button is today's own call. */
+html.pnx .px-thumb{width:52px;height:38px;border-radius:10px;background:#222 center/cover;flex:none}
+html.pnx .px-mini{height:30px;padding:0 10px;border-radius:9px;border:0;background:var(--px-card2);font:inherit;font-size:12.5px;font-weight:600;color:#fff;cursor:pointer;white-space:nowrap}
+html.pnx .px-acts{display:flex;gap:6px;align-items:center;flex:none}
+@media (max-width:700px){ html.pnx .px-acts .px-mini.px-hide-ph{display:none} }
+</style>
+<style>
+/* REGISTER 1418 — DIAGNOSTICS, drawn to their mocks. Health Sweep: its counts as tiles, Setting Up set apart, what could
+   not be confirmed with what to do, the confirmed folded under their count; View Report and Run Sweep Now at the top.
+   Report: a page of its own, a row per kind of check, each opening to its lines; the daily time under them.
+   Awareness: a card per room, two across, a tag on every device; Live / Activity at the top. Incidents: the all-clear
+   says what was watched; a fault is a row with its fix first. Heard: Today / This Week, a row per sentence with the road
+   that answered it and + Sentence. Assist Noticed: a card per offer with its evidence as chips. Master Log: its two
+   pickers and search side by side, the time down the side of every line. */
+html.pnx .px-setup{border-radius:22px;padding:2px;box-shadow:inset 0 0 0 1.5px rgba(242,179,74,.55)}
+html.pnx .px-stat b.gr{color:var(--px-green)}html.pnx .px-stat b.a{color:var(--px-amber)}html.pnx .px-stat b.r{color:var(--px-red)}
+html.pnx .px-long>small{white-space:normal}
+html.pnx .px-ok{border-radius:20px;box-shadow:inset 0 0 0 1px rgba(95,185,140,.35);background:rgba(95,185,140,.06)}
+html.pnx .px-ok .px-rows{background:none}
+html.pnx .px-masn{column-count:2;column-gap:16px}
+html.pnx .px-masn>.px-room{break-inside:avoid;display:inline-block;width:100%;margin:0 0 6px}
+html.pnx .px-room.amb .px-rows{box-shadow:inset 0 0 0 1px rgba(242,179,74,.5)}
+html.pnx .px-tag.n{background:var(--px-card3);color:var(--px-t2)}
+html.pnx .px-ic svg{width:20px;height:20px}
+html.pnx .px-say{font-weight:600}
+html.pnx .px-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+html.pnx .px-chips span{height:30px;padding:0 12px;border-radius:9px;background:var(--px-card2);font-size:12.5px;font-weight:600;color:var(--px-t2);display:inline-flex;align-items:center}
+html.pnx .px-offer{background:var(--px-card);border-radius:20px;padding:18px 20px;margin:0 0 12px}
+html.pnx .px-offer b{display:block;font-size:17px;font-weight:600;color:#fff;margin:10px 0 4px;line-height:1.3}
+html.pnx .px-offer small{display:block;font-size:13.5px;color:var(--px-t3)}
+html.pnx .px-find{display:flex;gap:10px;margin:0 0 14px;flex-wrap:wrap}
+html.pnx .px-find input{flex:1;min-width:180px;height:44px;border:0;border-radius:14px;background:var(--px-card);color:#fff;font:inherit;font-size:14.5px;padding:0 16px}
+html.pnx .px-repl{padding:8px 16px 14px 66px;display:flex;flex-direction:column;gap:8px}
+html.pnx .px-repl div{font-size:13px;line-height:1.45;color:var(--px-t2)}
+html.pnx .px-repl i{font-style:normal;font-weight:600}
+html.pnx .px-repl i.gr{color:var(--px-green)}html.pnx .px-repl i.a{color:var(--px-amber)}html.pnx .px-repl i.r{color:var(--px-red)}
+html.pnx .px-time{height:40px;border:0;border-radius:12px;background:var(--px-card2);color:#fff;font:inherit;font-size:15px;padding:0 12px;color-scheme:dark}
+/* a page of its own over the work area (Report) — the rail stays */
+html.pnx #px-pg{position:fixed;inset:0 0 0 236px;z-index:50;background:var(--px-bg);overflow:auto}
+html.pnx #px-pg .px-pgin{padding:22px 30px 60px;max-width:1180px}
+html.pnx #px-pg .px-pgtop{display:flex;align-items:center;gap:10px;min-height:40px;margin-bottom:18px}
+html.pnx .px-backp{height:40px;border:0;border-radius:20px;padding:0 16px 0 10px;background:var(--px-card);color:#fff;font:inherit;font-size:14.5px;font-weight:600;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+html.pnx .px-backp svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+/* MASTER LOG — today's pickers and lines, in place */
+html.pnx #panel-v3diag:not([data-px]) #v3diag-body>.v3card{background:none!important;border:0!important;box-shadow:none!important;padding:0!important}
+html.pnx #panel-v3diag:not([data-px]) #v3diag-body>.v3card>.v3dh2{display:none}
+html.pnx #panel-v3diag:not([data-px]) #v3log-host{padding:0!important;background:none!important}
+html.pnx #v3log-host .rh-card{background:none!important;border:0!important;box-shadow:none!important;padding:0!important}
+html.pnx #v3log-host .ml-hd{display:flex!important;gap:10px;align-items:center;padding:0!important;margin:0 0 14px!important;background:none!important;border:0!important}
+html.pnx #v3log-host .ml-hd .rh-hd-t{display:none}
+html.pnx #v3log-host .ml-hd select{height:46px;min-width:200px;border:0!important;border-radius:14px!important;background:var(--px-card) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M9 6l6 6-6 6'/%3E%3C/svg%3E") no-repeat right 14px center!important;color:#fff!important;font:inherit!important;font-size:14.5px!important;padding:0 40px 0 14px!important;-webkit-appearance:none;appearance:none}
+html.pnx #v3log-host .ml-hd input{order:3;flex:1;min-width:200px;height:46px;border:0!important;border-radius:14px!important;background:var(--px-card)!important;color:#fff!important;font:inherit!important;font-size:14.5px!important;padding:0 16px!important}
+html.pnx #v3log-host .ml-body{background:var(--px-card);border-radius:20px;padding:4px 18px;max-height:none!important;border:0!important}
+html.pnx #v3log-host .rh-jrow{display:grid!important;grid-template-columns:62px auto auto minmax(0,1fr);column-gap:0;row-gap:2px;padding:12px 0!important;border:0!important;background:none!important;align-items:baseline}
+html.pnx #v3log-host .rh-jrow+.rh-jrow{border-top:1px solid var(--px-line)!important}
+html.pnx #v3log-host .rh-jrow .jt{grid-row:1/3;grid-column:1;font-size:13px;color:var(--px-t3);font-variant-numeric:tabular-nums}
+html.pnx #v3log-host .rh-jrow .jk{grid-row:1;width:auto!important;min-width:0!important;font-size:14.5px;font-weight:600;color:#fff;background:none!important;padding:0!important;border:0!important;text-transform:none!important;letter-spacing:0!important}
+html.pnx #v3log-host .rh-jrow .jk+.jk::before{content:" · ";white-space:pre}
+html.pnx #v3log-host .rh-jrow .jd{grid-row:2;grid-column:2/-1;font-size:13px;color:var(--px-t2);white-space:normal}
+@media (max-width:700px){
+  html.pnx .px-masn{column-count:1}
+  html.pnx #px-pg{inset:0}
+  html.pnx #px-pg .px-pgin{padding:14px 18px 120px}
+  html.pnx .px-repl{padding-left:16px}
+  html.pnx #v3log-host .ml-hd{flex-wrap:wrap}
+  html.pnx #v3log-host .ml-hd select{flex:1 1 40%;min-width:0;order:1}
+  html.pnx #v3log-host .ml-hd input{flex:1 1 100%;order:3}
+}
+</style>
+<style>
+/* REGISTER 1418 — SYSTEM SETUP, drawn to its mocks. Every page's own line under its title; the cards sit on the page,
+   not inside another card. Manage Users: one list of people with their role, Add a Person at the top, Tech Support as
+   a switch. Backups: Auto-Backup on top, the restore points as rows with Download and Restore, Create Backup at the
+   top. Music Services: the status card with its next step, Service Order as a row. Channel Lists: a card per list
+   with its progress. The Rack: the adapters as three tiles, the brands two across with Set Up, a search, Read Again at
+   the top. Credentials: a row per stored login — what it is for, never its value. Maintenance: the two restarts as
+   tiles, the danger zone in red, set apart. Pages that edit in place (Building Settings, Dashboards, Network,
+   Connect, Other Control Systems) keep today's own controls, laid out by these rules. */
+/* the cards sit on the page */
+html.pnx #app .panel .v3card{background:none;border:0;border-radius:0;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;overflow:visible}
+html.pnx #app .panel .v3card>.v3dh2{padding:0 2px 8px}
+html.pnx #app .panel .v3card>.v3dh2 .t:not(.pnx-dup){font-size:22px}
+html.pnx #app .panel .v3card>.v3sec{padding:4px 0 14px}
+html.pnx #app .panel .v3sec>.h{padding:10px 2px}
+html.pnx #app .panel .v3kp{padding:0 0 14px;gap:12px}
+html.pnx #app .panel .v3kp>div{background:var(--px-card);box-shadow:none;border-radius:20px}
+html.pnx #app .panel .v3kp b{font-size:26px;font-weight:600;letter-spacing:-.3px}
+/* the page's own line goes up under its title */
+html.pnx #app .panel[data-pxin]>.panel-head+.wiz-hint,html.pnx #app .panel[data-pxin]>.wiz-hint:first-child,html.pnx #app .panel[data-pxin]>[id$="-body"]>.wiz-hint:first-child,html.pnx #app .panel[data-pxin] #music-hint{display:none}
+html.pnx #app .panel[data-pxin] [id$="-body"] .v3card:first-child>.v3dh2:has(>.t.pnx-dup){display:none}
+/* MANAGE USERS */
+html.pnx #users-body>.usr-card{background:var(--px-card)!important;border:0!important;border-radius:0!important;margin:0!important;padding:12px 16px!important;box-shadow:none!important}
+html.pnx #users-body>.usr-card+.usr-card{border-top:1px solid var(--px-line)!important}
+html.pnx #users-body>.pnx-ppl+.usr-card{border-radius:20px 20px 0 0!important}
+html.pnx #users-body>.usr-card:has(+:not(.usr-card)){border-radius:0 0 20px 20px!important}
+html.pnx #users-body>.pnx-ppl+.usr-card:has(+:not(.usr-card)){border-radius:20px!important}
+html.pnx #users-body>.usr-card:first-of-type{border-radius:20px!important;margin-bottom:6px!important}
+html.pnx #users-body>.pnx-ppl{font-size:17px;font-weight:600;color:#fff;margin:18px 2px 10px;text-transform:none;letter-spacing:0}
+html.pnx #users-body .usr-name{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:600;color:#fff}
+html.pnx #users-body .usr-sub{font-family:inherit!important;font-size:13px;color:var(--px-t3)}
+html.pnx #users-body .usr-av{width:38px;height:38px;border-radius:12px;font-size:13px}
+html.pnx #users-body .usr-chip{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:7px;background:var(--px-card3);color:var(--px-t2)}
+html.pnx #users-body>.btn-ghost[onclick^="usrAddToggle"]{display:none}
+html.pnx #users-body .usr-iconbtn[onclick^="toggleTechAccess"]{font-size:0!important;width:52px;height:32px;padding:0!important;border-radius:16px!important;border:0!important;background:var(--px-card3)!important;position:relative;flex:none}
+html.pnx #users-body .usr-iconbtn[onclick^="toggleTechAccess"]::after{content:"";position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:50%;background:#fff;transition:left .15s}
+html.pnx #users-body .usr-iconbtn[onclick^="toggleTechAccess(false"]{background:var(--px-blue)!important}
+html.pnx #users-body .usr-iconbtn[onclick^="toggleTechAccess(false"]::after{left:23px}
+html.pnx #usr-homeaway .bld-sec{background:none;border:0;padding:0;margin-top:18px}
+html.pnx #usr-homeaway .bld-sec-h{font-size:17px;font-weight:600;color:#fff;text-transform:none;letter-spacing:0;margin:0 2px 4px}
+html.pnx #usr-homeaway .wiz-hint{margin:0 2px 10px}
+html.pnx #usr-homeaway .row{background:var(--px-card);border:0;border-radius:0;margin:0;padding:12px 16px;min-height:62px}
+html.pnx #usr-homeaway .wiz-hint+.row{border-radius:20px 20px 0 0}
+html.pnx #usr-homeaway .row:last-child{border-radius:0 0 20px 20px}
+html.pnx #usr-homeaway .row+.row{border-top:1px solid var(--px-line)}
+html.pnx #usr-homeaway .rl{font-size:15px;font-weight:600;color:#fff}
+html.pnx #usr-homeaway .fsel,html.pnx #usr-homeaway input{height:38px;border:0;border-radius:12px;background:var(--px-card2);color:#fff;font:inherit;font-size:14px;padding:0 12px}
+/* MUSIC SERVICES */
+html.pnx #music-status{background:var(--px-card);border-radius:20px;padding:16px 18px;margin-bottom:12px}
+html.pnx #music-status .row{background:none;border:0;padding:0;margin:0;min-height:0}
+html.pnx #music-status .rl{font-size:17px;font-weight:600;color:#fff;display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+html.pnx #music-status .rl .es{order:3;margin:0!important;font-size:10.5px!important;font-weight:700!important;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:7px;background:rgba(242,179,74,.16);color:var(--px-amber)!important}
+html.pnx #music-status .cert-pill{font-size:10.5px;font-weight:700;letter-spacing:.06em;padding:3px 8px;border-radius:7px;background:rgba(95,185,140,.16);color:var(--px-green);border:0}
+html.pnx #music-status .wiz-hint{margin:8px 0 0;font-size:14px;color:var(--px-t2)}
+html.pnx #music-voice-tiles .hub-fl{display:none}
+html.pnx #music-voice-tiles .sys-grid,html.pnx #music-tiles .sys-grid{display:flex;flex-direction:column;gap:0;background:var(--px-card);border-radius:20px;overflow:hidden}
+html.pnx #music-voice-tiles .sys-tile,html.pnx #music-tiles .sys-tile{display:flex;align-items:center;gap:14px;background:none;border:0;border-radius:0;padding:12px 16px;min-height:62px;box-shadow:none}
+html.pnx #music-voice-tiles .sys-tile+.sys-tile,html.pnx #music-tiles .sys-tile+.sys-tile{border-top:1px solid var(--px-line)}
+html.pnx #music-voice-tiles .sys-ico,html.pnx #music-tiles .sys-ico{width:38px;height:38px;border-radius:12px;background:var(--px-card2);display:grid;place-items:center;flex:none}
+html.pnx #music-voice-tiles .sys-bd .t,html.pnx #music-tiles .sys-bd .t{font-size:15px;font-weight:600;color:#fff}
+html.pnx #music-voice-tiles .sys-bd .d{display:none}
+html.pnx #music-voice-tiles .sys-bd .s,html.pnx #music-tiles .sys-bd .s,html.pnx #music-tiles .sys-bd .d{font-size:13px;color:var(--px-t3);margin:0}
+/* DASHBOARDS — every screen, its picture and state, as cards on the page */
+html.pnx #dashremote-body>.cred-card{background:var(--px-card)!important;border:0!important;border-radius:20px!important;box-shadow:none!important;padding:16px 18px!important;margin:0 0 14px!important}
+html.pnx #dashremote-body .cred-name{font-size:17px;font-weight:600;color:#fff}
+/* THE RACK */
+html.pnx #rack-body .v3sec>.h>button{display:none}
+html.pnx #rack-body .v3card:first-child>.v3dh2{display:none}
+html.pnx #rack-body .v3sec~.v3sec .v3rows{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;background:none;overflow:visible}
+html.pnx #rack-body .v3sec~.v3sec .v3rows>.v3row{background:var(--px-card);border-radius:20px;border:0!important;min-height:64px}
+html.pnx #rack-body .v3sec~.v3sec .v3row .rr{background:var(--px-blue);color:#fff;border-radius:10px;padding:0 14px;height:34px;display:flex;align-items:center;font-size:13.5px;font-weight:600;flex:none}
+html.pnx #rack-body .v3sec~.v3sec .v3row[data-pxadd] .rr{background:var(--px-card2)}
+html.pnx #rack-body .v3sec~.v3sec .v3row .rr svg{display:none}
+html.pnx .px-rsearch{width:100%;height:44px;border:0;border-radius:14px;background:var(--px-card);color:#fff;font:inherit;font-size:14.5px;padding:0 16px;margin:0 0 12px;box-sizing:border-box}
+/* CREDENTIALS — a row per login; what it is for, never its value */
+html.pnx #credentials-body>.cred-card{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:14px;align-items:center;background:var(--px-card)!important;border:0!important;border-radius:0!important;box-shadow:none!important;padding:14px 16px!important;margin:0!important}
+html.pnx #credentials-body>.cred-card+.cred-card{border-top:1px solid var(--px-line)!important}
+html.pnx #credentials-body>.cred-card:first-of-type{border-radius:20px 20px 0 0!important}
+html.pnx #credentials-body>.cred-card:has(+:not(.cred-card)),html.pnx #credentials-body>.cred-card:last-child{border-radius:0 0 20px 20px!important}
+html.pnx #credentials-body>.cred-card:first-of-type:has(+:not(.cred-card)){border-radius:20px!important}
+html.pnx #credentials-body>.cred-card>.cred-top{grid-column:1;display:flex;align-items:center;gap:8px}
+html.pnx #credentials-body>.cred-card .cred-name{font-size:15px;font-weight:600;color:#fff}
+html.pnx #credentials-body>.cred-card .cred-badge{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:7px;background:var(--px-card3);color:var(--px-t2);margin-left:6px}
+html.pnx #credentials-body>.cred-card>.cred-meta{grid-column:1;display:flex;flex-wrap:wrap;gap:4px 12px;font-size:13px;color:var(--px-t3);margin-top:4px}
+html.pnx #credentials-body>.cred-card>.cred-meta code{font-size:12.5px;background:none;padding:0;color:var(--px-t2)}
+html.pnx #credentials-body>.cred-card>.cred-actions,html.pnx #credentials-body>.cred-card>.cred-managed{grid-column:2;grid-row:1/3;display:flex;gap:8px;margin:0}
+html.pnx #credentials-body>.cred-card>.cred-actions .btn-ghost{width:auto;height:34px;padding:0 14px;border-radius:10px;border:0;background:var(--px-card2);font-size:13.5px;font-weight:600;color:#fff;margin:0}
+html.pnx #credentials-body>.cred-card>.cred-actions .cred-revoke{color:var(--px-red)}
+html.pnx #credentials-body>.cred-card>.cred-managed{align-items:center;font-size:13.5px;font-weight:600;color:var(--px-blue2);cursor:pointer}
+html.pnx #credentials-body>.btn-ghost,html.pnx #credentials-body>.btn-primary{margin-top:14px}
+/* drawn pages' parts */
+html.pnx .px-tile{min-height:96px;display:flex;flex-direction:column;justify-content:space-between;cursor:pointer}
+html.pnx .px-tile b{font-size:15px;font-weight:600;color:#fff}
+html.pnx .px-tile small{font-size:13px;color:var(--px-t3)}
+html.pnx .px-danger .px-rows{box-shadow:inset 0 0 0 1px rgba(224,86,75,.55)}
+html.pnx .px-sec.r,html.pnx .px-sec.r *{color:var(--px-red)}
+html.pnx .px-bar{height:6px;border-radius:3px;background:var(--px-card3);overflow:hidden;margin:14px 0 8px}
+html.pnx .px-bar>i{display:block;height:100%;background:var(--px-green);border-radius:3px}
+html.pnx .px-list{background:var(--px-card);border-radius:20px;padding:16px 18px;margin:0 0 12px;cursor:pointer}
+html.pnx .px-list .px-lt{display:flex;align-items:flex-start;gap:12px}
+html.pnx .px-list b{font-size:17px;font-weight:600;color:#fff;display:block}
+html.pnx .px-list small{font-size:13.5px;color:var(--px-t3)}
+@media (max-width:700px){
+  html.pnx .px-row:has(>.px-acts>.px-btn){flex-wrap:wrap}
+  html.pnx .px-row:has(>.px-acts>.px-btn)>.px-acts{width:100%;padding-left:52px;flex-wrap:wrap}
+  html.pnx #rack-body .v3sec~.v3sec .v3rows{grid-template-columns:minmax(0,1fr)}
+  html.pnx #credentials-body>.cred-card{grid-template-columns:minmax(0,1fr)}
+  html.pnx #credentials-body>.cred-card>.cred-actions,html.pnx #credentials-body>.cred-card>.cred-managed{grid-column:1;grid-row:auto;margin-top:10px}
+}
+</style>
+<style>
+/* REGISTER 1418 — SYSTEMS, drawn to their mocks with today's controls in place. Apple Home: the two steps as ticked
+   cards, what is published under them. Savant: the switch and the line on top, then two columns — what ProOS tells
+   Savant, what Savant tells ProOS. Irrigation: a row per switch with Zone · Control · —. Wall Panel: its picture and
+   every setting as cards; it reads its own list when opened straight (it said "no longer listed" before). */
+/* steps (Apple Home, and every page built of steps) */
+html.pnx .mstep{background:var(--px-card);border:0;border-radius:20px;padding:16px 18px;margin:0 0 12px}
+html.pnx .mstep-head{gap:12px}
+html.pnx .mstep-num{width:38px;height:38px;border-radius:12px;border:0;font-size:15px;font-weight:700;background:var(--px-card2);color:var(--px-t2)}
+html.pnx .mstep.done .mstep-num{background:rgba(95,185,140,.16);color:transparent;position:relative}
+html.pnx .mstep.done .mstep-num::after{content:"";position:absolute;left:14px;top:10px;width:8px;height:14px;border:solid var(--px-green);border-width:0 2.5px 2.5px 0;transform:rotate(45deg)}
+html.pnx .mstep-name{font-size:15px;font-weight:600;color:#fff}
+html.pnx .mstep-pill{font-size:10.5px;font-weight:700;letter-spacing:.06em;padding:3px 8px;border-radius:7px;border:0;background:var(--px-card2);color:var(--px-t2)}
+html.pnx .mstep-pill.ok{background:rgba(95,185,140,.16);color:var(--px-green)}
+html.pnx .mstep-body{margin:12px 0 0 50px}
+html.pnx .mstep-body .row{background:var(--px-card2);border:0;border-radius:14px;margin:0 0 8px;padding:12px 14px}
+html.pnx .mstep-body .btn-primary{width:auto;display:inline-flex;align-items:center;height:40px;padding:0 18px;border-radius:12px;font-size:14px}
+html.pnx .mstep-body .section-label{font-size:15px;font-weight:600;color:#fff;text-transform:none;letter-spacing:0;margin:18px 0 6px}
+/* Savant */
+html.pnx #savant-body{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;align-items:start}
+html.pnx #savant-body>.sav-card{background:var(--px-card);border:0;border-radius:20px;padding:8px 18px;margin:0;box-shadow:none}
+html.pnx #savant-body>.sav-card:nth-child(-n+2){grid-column:1/-1}
+html.pnx #savant-body .sav-t{font-size:17px;font-weight:600;color:#fff;margin:8px 0 4px}
+html.pnx #savant-body>.sav-card>.sav-t{text-transform:capitalize}
+html.pnx #savant-body .sav-h{padding:8px 0}
+html.pnx #savant-body .sav-s{font-size:13px;color:var(--px-t3)}
+html.pnx #savant-body .sav-row{min-height:50px;padding:8px 0;border-top:1px solid var(--px-line);align-items:center}
+html.pnx #savant-body .sav-t+.sav-row,html.pnx #savant-body .sav-card>.sav-row:first-child{border-top:0}
+html.pnx #savant-body .sav-nm{font-size:15px;font-weight:600;color:#fff}
+html.pnx #savant-body .sav-v{font-size:13px;color:var(--px-t3)}
+/* Irrigation */
+html.pnx #irrigation-body .irr-find{height:44px;border:0;border-radius:14px;background:var(--px-card);color:#fff;font:inherit;font-size:14.5px;padding:0 16px;margin:0 0 14px;width:100%;box-sizing:border-box}
+html.pnx #irr-list .irr-dev{background:var(--px-card);border:0;border-radius:20px;padding:4px 18px;margin:0 0 14px}
+html.pnx #irr-list .irr-dev-h{font-size:17px;font-weight:600;color:#fff;padding:12px 0 6px}
+html.pnx #irr-list .irr-row{min-height:62px;border-top:1px solid var(--px-line);padding:8px 0;align-items:center}
+html.pnx #irr-list .irr-nm{font-size:15px;font-weight:600;color:#fff}
+html.pnx #irr-list .irr-st{display:block;font-size:13px;font-weight:400;color:var(--px-t3);margin:2px 0 0}
+html.pnx #irr-list .irr-segs{background:none;border:0;gap:4px}
+html.pnx #irr-list .irr-seg{height:34px;padding:0 14px;border-radius:10px;border:0;background:none;font-size:13.5px;font-weight:600;color:var(--px-t2)}
+html.pnx #irr-list .irr-seg.on{background:#fff;color:#111}
+/* Wall Panel */
+html.pnx #wallpanel-body>.cred-card{background:var(--px-card)!important;border:0!important;border-radius:20px!important;box-shadow:none!important;padding:16px 18px!important;margin:0 0 12px!important}
+html.pnx #wallpanel-body .cred-name{font-size:15px;font-weight:600;color:#fff}
+html.pnx #wallpanel-body select,html.pnx #wallpanel-body input[type=text]{height:42px;border:0!important;border-radius:12px!important;background:var(--px-card2)!important;font-size:14.5px!important}
+@media (max-width:700px){
+  html.pnx #savant-body{grid-template-columns:minmax(0,1fr)}
+  html.pnx .mstep-body{margin-left:0}
+}
+</style>
+<style>
+/* REGISTER 1418 — THROUGHOUT, drawn to their mocks. Confirmations: the New Look sheet — what will happen, in words,
+   left-aligned, with Cancel first and both buttons the same size. The command bar says "Ask Assist or type a command"
+   (the source wording is changed at integration). */
+html.pnx #danger-confirm .rp-sheet{max-width:520px;text-align:left;padding:24px 24px 22px}
+html.pnx #danger-confirm .rp-head{padding:0;margin:0}
+html.pnx #danger-confirm .rp-title{font-size:22px;font-weight:600;color:#fff;text-align:left;letter-spacing:-.2px}
+html.pnx #danger-msg{font-size:15px;color:var(--px-t2);line-height:1.45;text-align:left;margin:6px 0 18px}
+html.pnx #danger-confirm .rp-list{padding:0}
+html.pnx #danger-confirm .rp-sheet>div:last-child>button{height:46px;border-radius:14px;font-size:15px;font-weight:600;border:0}
+html.pnx #danger-confirm .rp-cancel{background:var(--px-card2);color:#fff}
+html.pnx #v3cmd .v3cp{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+html.pnx #rec-modal>div{width:min(520px,92vw);max-width:520px!important;min-width:0!important;background:#1b1c20!important;border:0!important;border-radius:28px!important;padding:24px!important;box-shadow:0 30px 80px rgba(0,0,0,.6)}
+html.pnx #rec-modal .v3dh2{padding:0 0 4px}
+html.pnx #rec-modal .v3dh2 .t{font-size:24px}
+html.pnx #rec-modal .v3dh2 .s{font-size:14.5px;line-height:1.5}
+html.pnx #rec-modal .v3foot>.v3btn{flex:1!important;height:46px;border-radius:14px;font-size:15px}
+html.pnx #rec-modal .v3foot>.v3btn:not(.pri){background:var(--px-card2)}
+</style>
+<style>
+/* REGISTER 1418 — TOOLBOX, to its mocks: "same tool, New Look type and cards". Every tool keeps its own controls;
+   they take the New Look's segmented control, buttons sized to their words, cards on the page, and the menu says
+   these are for the developer. */
+html.pnx #v2rail .v3acc:has(.v3si[onclick*="v3ToolOpen"])::before{content:"Developer Only";display:block;font-size:10.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--px-t3);margin:6px 0 6px 16px}
+html.pnx :is(#tech-view,#helpers-body,#blueprints-body,#labels-body) .usr-seg{display:inline-flex;flex-wrap:wrap;gap:2px;background:var(--px-card);border:0;border-radius:14px;padding:4px;width:auto;margin:0 0 14px}
+html.pnx :is(#tech-view,#helpers-body,#blueprints-body,#labels-body) .usr-seg>button{flex:none;width:auto;height:34px;padding:0 14px;border-radius:10px;background:none;border:0;font-size:13.5px;font-weight:600;color:var(--px-t2)}
+html.pnx :is(#tech-view,#helpers-body,#blueprints-body,#labels-body) .usr-seg>button.on{background:#fff;color:#111}
+html.pnx :is(#tech-view,#helpers-body,#blueprints-body,#labels-body) :is(.btn-primary,.btn-ghost){width:auto;display:inline-flex;align-items:center;justify-content:center;height:40px;padding:0 18px;border-radius:12px;font-size:14px;font-weight:600;margin:4px 8px 12px 0;box-shadow:none}
+html.pnx :is(#tech-view,#helpers-body,#blueprints-body,#labels-body) .btn-primary{background:var(--px-blue);border:0;color:#fff}
+html.pnx :is(#tech-view,#helpers-body,#blueprints-body,#labels-body) .btn-ghost{background:var(--px-card2);border:0;color:#fff}
+html.pnx :is(#tech-view,#helpers-body,#blueprints-body,#labels-body) .btn-ghost.cred-revoke{color:var(--px-red)}
+html.pnx :is(#tech-view,#helpers-body,#blueprints-body,#labels-body) .cred-card{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:14px;align-items:center;background:var(--px-card)!important;border:0!important;border-radius:0!important;box-shadow:none!important;padding:14px 16px!important;margin:0!important}
+html.pnx :is(#tech-view,#helpers-body,#blueprints-body,#labels-body) .cred-card+.cred-card{border-top:1px solid var(--px-line)!important}
+html.pnx :is(#tech-view,#helpers-body,#blueprints-body,#labels-body) .cred-card:not(.cred-card+.cred-card){border-radius:20px 20px 0 0!important;margin-top:4px!important}
+html.pnx :is(#tech-view,#helpers-body,#blueprints-body,#labels-body) .cred-card:not(:has(+.cred-card)){border-radius:0 0 20px 20px!important;margin-bottom:14px!important}
+html.pnx :is(#tech-view,#helpers-body,#blueprints-body,#labels-body) .cred-card:not(.cred-card+.cred-card):not(:has(+.cred-card)){border-radius:20px!important}
+html.pnx :is(#tech-view,#helpers-body,#blueprints-body,#labels-body) .cred-card>:not(.cred-actions){grid-column:1}
+html.pnx :is(#tech-view,#helpers-body,#blueprints-body,#labels-body) .cred-card>.cred-actions{grid-column:2;grid-row:1/4;display:flex;gap:8px;margin:0!important}
+html.pnx :is(#tech-view,#helpers-body,#blueprints-body,#labels-body) .cred-card>.cred-actions>button{flex:none!important;width:auto!important;margin:0!important;height:36px;padding:0 14px}
+html.pnx :is(#tech-view,#helpers-body,#blueprints-body,#labels-body) .cred-card .cred-meta{font-size:13px;color:var(--px-t3);margin-top:2px}
+html.pnx :is(#tech-view,#helpers-body,#blueprints-body,#labels-body) .cred-name{font-size:15px;font-weight:600;color:#fff}
+html.pnx :is(#tech-view,#helpers-body,#blueprints-body,#labels-body) :is(.section-label,.hub-fl,.bld-sec-h){font-size:17px;font-weight:600;color:#fff;text-transform:none;letter-spacing:0;margin:18px 2px 10px}
+html.pnx :is(#tech-view,#helpers-body,#blueprints-body,#labels-body) .bld-sec{background:none;border:0;padding:0}
+html.pnx :is(#tech-view,#helpers-body,#blueprints-body,#labels-body) .row{background:var(--px-card);border:0;border-radius:14px;margin:0 0 8px;padding:12px 16px;min-height:56px}
+html.pnx :is(#tech-view,#helpers-body,#blueprints-body,#labels-body) :is(.field input,.field select,.field textarea,.set-input,input[type=text],textarea){background:var(--px-card)!important;border:0!important;border-radius:12px!important;color:#fff;font-size:14.5px}
+html.pnx :is(#tech-view,#helpers-body,#blueprints-body,#labels-body) :is(.script-box,.sys-card){background:var(--px-card)!important;border:0!important;border-radius:20px!important;box-shadow:none!important}
+html.pnx :is(#tech-view,#helpers-body,#blueprints-body,#labels-body) .field-label{font-size:13px;font-weight:600;color:var(--px-t3);text-transform:none;letter-spacing:0}
+@media (max-width:700px){ html.pnx :is(#tech-view,#helpers-body,#blueprints-body,#labels-body) .cred-card{grid-template-columns:minmax(0,1fr)} html.pnx :is(#tech-view,#helpers-body,#blueprints-body,#labels-body) .cred-card>.cred-actions{grid-column:1;grid-row:auto;margin-top:10px!important} }
+html.pnx #panel-tech[data-pxin] #tech-view>.wiz-hint:first-child{display:none}
 </style>
 </head>
 <body>
@@ -3729,7 +4408,7 @@ html.pnx .site-map{position:relative;isolation:isolate;z-index:0}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111909';
+const PROOS_BUILD='2026111910';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -14128,7 +14807,8 @@ async function _wpCardRender(withShots){
   if(withShots) ids.forEach(function(id){ if(!_wpList[id].shot) return;
     _wpShot(id).then(function(){ const p=document.getElementById('wp-pic-'+id); if(p) p.innerHTML=_wpPic(id,150,84); }); });
 }
-function openWallPanel(id){ _wpSel=id; _wpForgetArm=null; show('wallpanel'); renderWallPanel(true); }
+// REGISTER 1418: opened straight (not from Dashboards) the list was empty and the page said "no longer listed" — it reads it first
+async function openWallPanel(id){ _wpSel=id; _wpForgetArm=null; show('wallpanel'); if(!_wpList[id]) await _wpLoad(); renderWallPanel(true); }
 function _wpSeg(key, cur, opts){
   return '<div style="display:inline-flex;flex-wrap:wrap;background:rgba(255,255,255,.07);border-radius:10px;padding:3px;gap:2px">'+opts.map(function(o){
     const on=(o[0]===cur); return '<button onclick="_wpSet(\''+key+'\','+JSON.stringify(o[0]).replace(/"/g,'&quot;')+')" style="border:0;cursor:pointer;font:inherit;font-size:12.5px;padding:6px 11px;border-radius:8px;background:'+(on?'rgba(255,255,255,.18)':'transparent')+';color:'+(on?'#fff':'var(--t2)')+';font-weight:'+(on?'600':'400')+'">'+esc(o[1])+'</button>'; }).join('')+'</div>';
@@ -18716,7 +19396,7 @@ const HELPER_FLOW_TYPES=[
   {domain:'generic_thermostat', label:'Generic thermostat'},
   {domain:'generic_hygrostat', label:'Generic hygrostat'},
   {domain:'mold_indicator', label:'Mold indicator'},
-  {domain:'switch_as_x', label:'Change a switch into another type'},
+  {domain:'switch_as_x', label:'Change a Switch Into Another Type'},
 ];
 function helperFlowLabel(domain){ const t=HELPER_FLOW_TYPES.find(x=>x.domain===domain); return t?t.label.replace(/ \(.*\)$/,''):String(domain||'').replace(/_/g,' ').replace(/^./,c=>c.toUpperCase()); }
 function startHelperFlow(domain){
@@ -22137,6 +22817,8 @@ function jrowDesc(e,_jnm){
       else if(e.type==='sweep_done'){ const c=d.counts||{};
         desc='Full sweep'+(d.trigger?' ('+d.trigger+')':'')+' \u2014 '+(c.confirmed||0)+' confirmed \u00b7 '+(c.problem||0)+' problem'+((c.problem||0)===1?'':'s')+' \u00b7 '+(c.unknown||0)+' could not confirm'; }
       else if(e.type==='device_confirm') desc=(d.answer==='normal'?'Confirmed fine':d.answer==='test'?'Tested':d.answer==='handed'?'Handed on':'Answered')+' \u2014 '+(d.entity||'')+(d.by?' \u00b7 '+d.by:'')+(typeof d.detail==='string'&&d.detail?' \u00b7 '+d.detail:'');
+      // REGISTER 1418: a repeating platform warning (autofix: title + cause) reads as words, the integration by its name
+      else if(typeof d.title==='string'&&d.title&&typeof d.cause==='string'){ const _w=d.title.replace(/^([a-z0-9_]+)(?= keeps warning)/,m=>{ try{ return integrationName(m); }catch(x){ return m; } }); desc=_w+' \u2014 '+d.cause; }
       // the fallback never prints an object as "[object Object]"
       else desc=Object.keys(d).slice(0,3).map(k=>k+'='+proosWords((d[k]&&typeof d[k]==='object')?JSON.stringify(d[k]):d[k])).join(' ');
   return proosWords(desc);
@@ -23130,7 +23812,7 @@ function v3EnsureCmd(){
   if(document.getElementById('v3cmd')) return;
   const c=document.createElement('div'); c.id='v3cmd'; c.className='v3cmd'; c.setAttribute('role','button'); c.tabIndex=0;
   c.onclick=()=>v3OpenAssist(); c.onkeydown=e=>{ if(e.key==='Enter') v3OpenAssist(); };
-  c.innerHTML=V3ICONS.assist+'<span class="v3cp">Type a command, or ask Assist</span><span class="v3cr" id="v3cmd-room"></span>';
+  c.innerHTML=V3ICONS.assist+'<span class="v3cp">Ask Assist or type a command</span><span class="v3cr" id="v3cmd-room"></span>';
   document.getElementById('app').appendChild(c);
   const dim=document.createElement('div'); dim.id='v3dim'; dim.className='v3dim'; dim.onclick=()=>v3CloseAssist(); document.body.appendChild(dim);
   const d=document.createElement('div'); d.id='v3drawer'; d.className='v3drawer';
@@ -23494,6 +24176,11 @@ let _v3awT=null;
 async function v3Diag(k){
   _v3diag=k||'sweep';
   const body=v3EnsurePanel('v3diag');
+  // REGISTER 1418: the Master Log and Assist Noticed cards are lent to this page; park them before the page is rewritten, or a
+  // second visit finds them thrown away with the old page (it came up empty)
+  { let pk=document.getElementById('v3diag-park'); if(!pk){ pk=document.createElement('div'); pk.id='v3diag-park'; pk.hidden=true; document.body.appendChild(pk); }
+    const _ml=document.getElementById('ml-health'), _mc=_ml&&_ml.closest('.rh-card'), _an=document.getElementById('as2-noticed');
+    if(_mc&&body.contains(_mc)) pk.appendChild(_mc); if(_an&&body.contains(_an)) pk.appendChild(_an); }
   show('v3diag');
   clearInterval(_v3awT); _v3awT=null;
   const card=(t,s,inner)=>'<div class="v3card"><div class="v3dh2"><div class="t">'+t+'</div>'+(s?'<div class="s">'+s+'</div>':'')+'</div>'+inner+'</div>';
@@ -24217,6 +24904,624 @@ async function v3Software(){
       var d=document.createElement('div'); d.className='pnx-boxline'; d.textContent='Pro '+(typeof PROOS_BUILD!=='undefined'?PROOS_BUILD:''); g.appendChild(d);
       fetch(proCoreUrl()+'/health',{cache:'no-store'}).then(function(x){ return x.ok?x.json():null; }).then(function(j){ if(j&&j.version&&d.isConnected) d.textContent='ProOS Core '+j.version+' · '+d.textContent; }).catch(function(){}); } } }catch(e){}
     return r; }; }
+})();
+</script>
+<!-- REGISTER 1418 — THE PRO REDRAW, its scripts -->
+<script>
+/* REGISTER 1418 — THE REDRAW, PART 0: the shell and the page kit. PX draws a page to its mock from what Pro already
+   knows; every button calls the same function today's page calls. Today's panel stays in the DOM, hidden, because its
+   functions still write to it. */
+(function(){
+  if(!/[?&]oldlook\b/.test(location.search)){}
+  var on=function(){ return document.documentElement.classList.contains('pnx'); };
+  var E=function(x){ return String(x==null?'':x).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); };
+  var SV={home:'<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/>',areas:'<rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/>',
+devices:'<rect x="4" y="3" width="16" height="12" rx="2"/><path d="M8 21h8M12 15v6"/>',scenes:'<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/>',diag:'<path d="M3 12h4l3-7 4 14 3-7h4"/>',setup:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/>',tool:'<path d="M14 7a4 4 0 0 0-5 5L3 18l3 3 6-6a4 4 0 0 0 5-5l-3 3-3-3z"/>',
+back:'<path d="M15 5l-7 7 7 7"/>',chev:'<path d="M9 5l7 7-7 7"/>',tv:'<rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8"/>',bulb:'<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z"/>',
+music:'<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',play:'<path d="M6 4l14 8-14 8z"/>',app:'<rect x="4" y="4" width="6" height="6" rx="1.5"/><rect x="14" y="4" width="6" height="6" rx="1.5"/><rect x="4" y="14" width="6" height="6" rx="1.5"/><rect x="14" y="14" width="6" height="6" rx="1.5"/>',
+list:'<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',check:'<path d="M5 12l5 5L20 7"/>',shield:'<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/>',eye:'<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+pw:'<path d="M12 3v9M6.3 7a8 8 0 1 0 11.4 0"/>',spark:'<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M6 18l2.5-2.5M15.5 8.5L18 6"/>',edit:'<path d="M4 20h4L19 9l-4-4L4 16z"/>',mic:'<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
+clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',plus:'<path d="M12 5v14M5 12h14"/>',warn:'<path d="M12 3l10 18H2z"/><path d="M12 10v4M12 17h.01"/>',swap:'<path d="M7 7h13l-4-4M17 17H4l4 4"/>',img:'<rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/>',bolt:'<path d="M13 3L4 14h7l-1 7 9-11h-7z"/>',vol:'<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M17 8a5 5 0 0 1 0 8"/>'};
+  var I=function(k,c){ return '<svg viewBox="0 0 24 24"'+(c?' class="'+c+'"':'')+'>'+(SV[k]||'')+'</svg>'; };
+  var Q=function(s){ return "'"+String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'")+"'"; };
+  var cv=function(){ return I('chev','px-cv'); };
+  // a row: icon [name, tint] or a picture, title, line, what sits on the right, and what a tap does
+  var row=function(ic,t,s,right,tap,o){ o=o||{};
+    var ico=o.pic?'<div class="px-ic" style="background-image:url('+E(o.pic)+')"></div>':o.logo?o.logo:'<div class="px-ic '+(ic&&ic[1]||'')+'">'+I(ic&&ic[0])+'</div>';
+    return '<div class="px-row'+(o.cls?' '+o.cls:'')+'"'+(tap?' onclick="'+E(tap)+'"':'')+'>'+ico+'<div class="px-g"><b>'+E(t)+'</b>'+(s?'<small'+(o.wrap?' class="wrap"':'')+'>'+E(s)+'</small>':'')+'</div>'+(right||'')+'</div>'; };
+  var sec=function(t,a,tap){ return '<div class="px-sec"><b>'+E(t)+'</b>'+(a?'<a onclick="'+E(tap||'')+'">'+E(a)+'</a>':'')+'</div>'; };
+  var tag=function(t,c){ return '<span class="px-tag'+(c?' '+c:'')+'">'+E(t)+'</span>'; };
+  var btn=function(t,tap,c,ic){ return '<button class="px-btn'+(c?' '+c:'')+'" onclick="'+E(tap||'')+'">'+(ic?I(ic):'')+E(t)+'</button>'; };
+  var v=function(t){ return '<span class="px-v">'+E(t)+'</span>'; };
+  window.PX={E:E,I:I,Q:Q,cv:cv,row:row,sec:sec,tag:tag,btn:btn,v:v,on:on,pages:{}};
+
+  // ── WHO AND WHERE: the account and the home at the top of the rail ──
+  function _me(){
+    var rail=document.getElementById('v2rail'), w=document.querySelector('#app .topbar .who-avw'); if(!rail) return;
+    var me=rail.querySelector('.px-me'); if(!me){ me=document.createElement('div'); me.className='px-me'; rail.insertBefore(me,rail.firstChild);
+      setHTML(me,'<div class="px-mt"><b id="px-who">ProOS Pro</b><small id="px-home"></small></div>'); me.addEventListener('click',function(e){ if(e.target.closest('.who-avw')) return; try{ toggleWhoMenu(e); }catch(x){} }); }
+    if(w&&w.parentNode!==me) me.insertBefore(w,me.firstChild);
+  }
+  async function _meFill(){
+    try{ var m=await snd({type:'auth/current_user'}); var u=m&&m.result; if(u&&u.name){ var b=document.getElementById('px-who'); if(b) b.textContent=u.name; } }catch(e){}
+    try{ var c=await snd({type:'get_config'}); var h=c&&c.result&&c.result.location_name; if(h){ var s=document.getElementById('px-home'); if(s) s.textContent=h; } }catch(e){}
+    try{ var r=await fetch(proCoreUrl()+'/health',{cache:'no-store'}); var j=r.ok?await r.json():null; var f=document.querySelector('#v2rail .v2foot'); if(j&&j.version&&f&&!/Core /.test(f.textContent)) f.textContent='Core '+j.version+' · Pro '+(typeof PROOS_BUILD!=='undefined'?PROOS_BUILD:''); }catch(e){}
+  }
+  // ── THE PAGE HEAD: kicker · title · line, drawn from the crumb Pro already keeps ──
+  function _head(){
+    if(!on()) return; var sc=document.querySelector('#app .scroll'), c=document.getElementById('v2crumb'); if(!sc||!c) return;
+    var h=document.getElementById('px-head'); if(!h){ h=document.createElement('div'); h.id='px-head'; h.className='px-head'; sc.insertBefore(h,sc.firstChild); }
+    var last=c.querySelector('.pnx-last')||c.querySelector('b:last-of-type'); var title=last?last.textContent.trim():c.textContent.trim();
+    var kick=c.querySelector('.pnx-kick'); var k=kick?kick.innerHTML:'';
+    var p=[].slice.call(document.querySelectorAll('#app .panel.active')).pop(); var sub=p&&p.getAttribute('data-pxsub')||'';
+    var app=document.getElementById('app'); if(app){ if(p&&p.hasAttribute('data-pxhero')) app.setAttribute('data-pxhero',''); else app.removeAttribute('data-pxhero'); }
+    setHTML(h,(k?'<div class="px-k">'+k+'</div>':'')+'<h1>'+E(title)+'</h1>'+(sub?'<div class="px-sub">'+E(sub)+'</div>':''));
+    var r=document.querySelector('#app .topbar .right'); if(r){ var a=document.getElementById('px-act'); if(!a){ a=document.createElement('div'); a.id='px-act'; a.className='px-act'; r.insertBefore(a,r.firstChild); } setHTML(a,(p&&p._pxAct)||''); }
+  }
+  window._pxHead=_head;
+  var _hq=null; var _hRun=function(){ if(_hq) return; _hq=setTimeout(function(){ _hq=null; try{ PX._me(); PX._head(); }catch(e){} },40); };
+  PX._me=_me; PX._head=_head; PX._hRun=function(){ _hRun(); };
+  // a page drawn by the redraw: its own .px-page inside today's panel; the line under the title; a hero instead of a head
+  window.PX.paint=function(panel,html,o){ if(!panel) return; o=o||{}; var pg=panel.querySelector(':scope>.px-page'); if(!pg){ pg=document.createElement('div'); pg.className='px-page'; panel.appendChild(pg); }
+    panel._pxAct=o.act||''; if(o.act) html='<div class="px-actph">'+o.act+'</div>'+html;
+    panel.setAttribute('data-px',''); if(o.sub!=null) panel.setAttribute('data-pxsub',o.sub); else panel.removeAttribute('data-pxsub');
+    if(o.hero) panel.setAttribute('data-pxhero',''); else panel.removeAttribute('data-pxhero'); setHTML(pg,html); _hRun(); return pg; };
+  window.PX.unpaint=function(panel){ if(!panel) return; panel._pxAct=''; panel.removeAttribute('data-px'); panel.removeAttribute('data-pxsub'); panel.removeAttribute('data-pxhero'); var pg=panel.querySelector(':scope>.px-page'); if(pg) pg.remove(); _hRun(); };
+  function _pxArm(){ var c=document.getElementById('v2crumb'), sc=document.querySelector('#app .scroll'); if(!c||!sc) return setTimeout(_pxArm,500);
+    new MutationObserver(_hRun).observe(c,{childList:true,subtree:true,characterData:true});
+    [].slice.call(sc.children).forEach(function(x){ if(/^panel-/.test(x.id)) new MutationObserver(_hRun).observe(x,{attributes:true,attributeFilter:['class']}); });
+    _hRun(); if(on()){ _meFill(); setTimeout(function(){ var b=document.getElementById('px-who'); if(b&&b.textContent==='ProOS Pro') _meFill(); },4000); setTimeout(_meFill,12000); } }
+  if(document.readyState==='loading') document.addEventListener("DOMContentLoaded",_pxArm); else _pxArm();
+})();
+</script>
+<script>
+/* REGISTER 1418 — the redraw's page kit. PX.reg(panel, draw): when today's page (re)paints its panel, the redrawn page
+   is drawn again from it. Today's painters stay the one source of every number and every tap; the redraw reads what
+   they drew (text and onclick) and lays it out as the mock does — so nothing can drift and nothing goes missing. */
+(function(){
+  var R={};
+  PX.reg=function(id,draw){ R[id]=draw; var p=document.getElementById(id); if(p) _watch(p); };
+  PX.redraw=function(id){ var p=document.getElementById(id), d=R[id]; if(!p||!d||!PX.on()) return; try{ d(p); }catch(e){ console.warn('PX draw '+id,e); } };
+  var q={}; function _sched(id){ if(q[id]) return; q[id]=setTimeout(function(){ q[id]=null; var p=document.getElementById(id); if(p&&p.classList.contains('active')) PX.redraw(id); },60); }
+  function _watch(p){ if(p._pxw) return; p._pxw=1;
+    new MutationObserver(function(ms){ for(var i=0;i<ms.length;i++){ var t=ms[i].target; if(t.nodeType!==1) t=t.parentNode;
+      if(ms[i].type==='attributes'&&t===p){ if(ms[i].attributeName!=='class'||p.classList.contains('active')) _sched(p.id); continue; }
+      if(t&&t.closest&&t.closest('.px-page')) continue; _sched(p.id); return; } }).observe(p,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['class','data-v3view','data-pnx']});
+    if(p.classList.contains('active')) _sched(p.id); }
+  // a page today's Pro makes on first open (v3EnsurePanel) is watched the moment it appears
+  new MutationObserver(function(ms){ for(var i=0;i<ms.length;i++){ var a=ms[i].addedNodes; for(var j=0;j<a.length;j++){ var n=a[j]; if(n.nodeType===1&&n.id&&R[n.id]) _watch(n); } } })
+    .observe(document.body,{childList:true,subtree:true});
+  // reading today's page: text, an element's onclick, a list
+  PX.t=function(root,sel){ var x=sel?root&&root.querySelector(sel):root; return x?x.textContent.replace(/\s+/g,' ').trim():''; };
+  PX.oc=function(x){ return x&&x.getAttribute('onclick')||''; };
+  PX.all=function(root,sel){ return root?[].slice.call(root.querySelectorAll(sel)):[]; };
+  // a today's-page button or element, fired from the redraw (the same element, so its own handler runs)
+  PX.fire=function(id){ var x=document.getElementById(id); if(x) x.click(); };
+  PX.chev=function(){ return PX.cv(); };
+})();
+</script>
+<script>
+/* REGISTER 1418 — HOME, drawn to its mock: the line under the title; the awareness card with Open; three counts; Happening
+   Now and Needs Attention side by side. Every word and tap is today's (#v3home-top, #aw-hero, #hlt-stats, #hlt-rooms,
+   #v3home-attn). */
+(function(){
+  var E=PX.E, I=PX.I;
+  PX.reg('panel-home',function(p){
+    var top=p.querySelector('#v3home-top'), aw=p.querySelector('#aw-hero'), st=p.querySelector('#hlt-stats'), rm=p.querySelector('#hlt-rooms'), at=p.querySelector('#v3home-attn');
+    var sub=PX.t(top,'.hs');
+    var h='';
+    if(aw){ var cls=aw.classList.contains('attention')?(/[1-9]/.test(PX.t(aw,'.awh-st:last-child .awh-sn'))&&/fault/i.test(PX.t(aw,'#awh-stats'))?'r':''):'ok';
+      var stats=PX.all(aw,'#awh-stats .awh-st').map(function(s){ return PX.t(s,'.awh-sn')+' '+PX.t(s,'.awh-sl'); }).join(' · ');
+      var pin=PX.t(aw,'#awh-ptxt');
+      h+='<div class="px-aw'+(cls?' '+cls:'')+'" onclick="'+E(PX.oc(aw))+'" style="cursor:pointer"><div class="px-row" style="padding:0;min-height:0;flex:1"><div class="px-ic '+(cls==='ok'?'gr':cls||'a')+'">'+I(cls==='ok'?'check':'warn')+'</div><div class="px-g"><b>'+E(PX.t(aw,'#awh-state'))+'</b><small class="wrap">'+E(PX.t(aw,'#awh-sub'))+(stats?' · '+E(stats):'')+(pin?' · '+E(pin):'')+'</small></div><button class="px-btn sm" onclick="event.stopPropagation();'+E(PX.oc(aw))+'">Open</button></div></div>'; }
+    if(st){ h+='<div class="px-g3" style="margin-top:14px">'+[].slice.call(st.children).map(function(c){ var num=PX.t(c,'.n'), lab=PX.t(c,'.l');
+      return '<div class="px-stat"'+(PX.oc(c)?' onclick="'+E(PX.oc(c))+'"':'')+'><b>'+E(num)+'</b><small>'+E(lab.replace(/\b\w/g,function(x){ return x.toUpperCase(); }))+'</small></div>'; }).join('')+'</div>'; }
+    var rooms=PX.all(rm,'.hlt-mirror').map(function(r){ var art=PX.t(r,'.art'); var chip=PX.t(r,'.hlt-chip');
+      return PX.row(art==='▶'?['play','b']:['bulb','lit'],PX.t(r,'.hm-room'),PX.t(r,'.hm-act'),(chip?PX.tag(chip,'gr'):'')+PX.cv(),PX.oc(r)); });
+    var attn=PX.all(at,'.v3row').map(function(r){ var chip=PX.t(r,'.rr .v3chip');
+      return PX.row(['warn','a'],PX.t(r,'.t1'),PX.t(r,'.t2'),chip?'<button class="px-btn sm blue" onclick="event.stopPropagation();'+E(PX.oc(r))+'">'+E(chip)+'</button>':PX.cv(),PX.oc(r)); });
+    var atBtn=at?at.querySelector('.h button'):null;
+    h+='<div class="px-cols" style="margin-top:4px"><div>'+PX.sec('Happening Now','All Rooms',"v2go('areas')")+(rooms.length?'<div class="px-rows">'+rooms.join('')+'</div>':'<div class="px-rows"><div class="px-empty">Nothing is on in the home right now.</div></div>')+'</div>'
+      +'<div>'+PX.sec('Needs Attention',atBtn?atBtn.textContent.trim():'',atBtn?PX.oc(atBtn):'')+(attn.length?'<div class="px-rows">'+attn.join('')+'</div>':'<div class="px-rows"><div class="px-empty">Nothing needs attention.</div></div>')+'</div></div>';
+    PX.paint(p,h,{sub:sub});
+  });
+})();
+</script>
+<script>
+/* REGISTER 1418 — AREAS, drawn to its mock: Defaults and Add Room at the top right; "N rooms · N devices"; the Home
+   tile as a wide picture; the rooms four across, each with its picture, devices, name and state (a room that is off
+   is dimmed). Every tile taps through today's hubTap; the buttons are today's (openRoomEdit, _pnxDefaults). */
+(function(){
+  var E=PX.E, I=PX.I;
+  var pic=function(t){ var im=t&&t.querySelector('img.ph-img'); return im?im.getAttribute('src'):''; };
+  var state=function(t){ return PX.t(t,'.hr-state'); };
+  PX.reg('panel-hub',function(p){
+    if(p.dataset.pnx==='defaults'){ PX.unpaint(p); return; }
+    var b=p.querySelector('#hub-body'); if(!b) return;
+    var home=b.querySelector('.hub-home .hub-room'), tiles=PX.all(b,'.hub-grid>.hub-room');
+    var devs=tiles.reduce(function(n,t){ return n+(parseInt(PX.t(t,'.hr-top'),10)||0); },0);
+    var add=b.querySelector('button[onclick^="openRoomEdit("]'), def=b.querySelector('.pnx-dbtn');
+    var act=(def?'<button class="px-btn sm" onclick="'+E(PX.oc(def))+'">Defaults</button>':'')+(add?'<button class="px-btn sm blue" onclick="'+E(PX.oc(add))+'">'+I('plus')+'Add Room</button>':'');
+    var h='';
+    if(home) h+='<div class="px-photo px-hero hub-room" data-area="'+E(home.getAttribute('data-area'))+'" style="height:150px;border-radius:22px;background-image:url('+E(pic(home))+');cursor:pointer" onclick="'+E(PX.oc(home))+'"><span class="px-pill" style="position:absolute;top:14px;left:14px">'+E(PX.t(home,'.hr-top'))+'</span><b style="font-size:22px">Home</b><small style="color:rgba(255,255,255,.75)">The whole house · '+E(state(home))+'</small></div>';
+    h+=PX.sec('Rooms')+'<div class="px-g4">'+tiles.map(function(t){ var nm=PX.t(t,'.nm');
+      return '<div class="px-photo px-rt hub-room'+(t.classList.contains('hub-off')?' off':'')+'" data-area="'+E(t.getAttribute('data-area'))+'" style="background-image:url('+E(pic(t))+')" onclick="'+E(PX.oc(t))+'"><span class="px-pill">'+E(PX.t(t,'.hr-top'))+'</span><b>'+E(nm)+'</b><small>'+E(state(t))+'</small></div>'; }).join('')+'</div>';
+    PX.paint(p,h,{sub:tiles.length+' room'+(tiles.length===1?'':'s')+' · '+devs+' device'+(devs===1?'':'s'),act:act});
+  });
+})();
+</script>
+<script>
+/* REGISTER 1418 — A ROOM, drawn to its mock: Edit at the top right; the room's picture as the hero (ROOM · its name ·
+   devices · AV committed · what it is doing); Set Up on the left, Check and The Homeowner on the right. Every row is
+   today's row (1411's groups) with its own tap. The room's other pages are drawn by PX.roomView[view]. */
+(function(){
+  var E=PX.E, I=PX.I;
+  var ICON={'AV Setup':['tv','b'],'Devices':['devices',''],'Activities':['play','b'],'App Shortcuts':['app',''],'Channels':['list',''],
+    'Prove the Room':['check','gr'],'Device Recovery':['pw',''],'Evidence':['clock',''],'Homeowner View':['eye','b'],'Dashboard Icons':['app',''],'Room Options':['edit','']};
+  PX.roomView=PX.roomView||{};
+  PX.reg('panel-room',function(p){
+    var view=p.getAttribute('data-v3view')||'overview';
+    if(view!=='overview'){ var f=PX.roomView[view]; if(f) f(p); else PX.unpaint(p); return; }
+    var ov=p.querySelector('.v3room-ov'); if(!ov) return;
+    var hero=ov.querySelector('.v3hero'), area=(typeof _roomHubArea!=='undefined')?_roomHubArea:'';
+    var bg=hero?(hero.style.backgroundImage||''):'', name=PX.t(hero,'.hn'), hs=PX.t(hero,'.hs');
+    var devs=(hs.split('·')[0]||'').trim(), committed=/committed/i.test(hs)&&!/not committed/i.test(hs);
+    var tile=area?document.querySelector('#hub-body .hub-room[data-area="'+area+'"] .hr-state'):null, now=tile?tile.textContent.trim():'';
+    var edit=hero&&hero.querySelector('.hx');
+    var grp=function(i){ var g=PX.all(ov,'.pnx-groups>.v3rows')[i]; return g?PX.all(g,'.v3row'):[]; };
+    var r=function(x){ var t1=x.querySelector('.t1'); var nm=t1?[].slice.call(t1.childNodes).filter(function(n){ return n.nodeType===3; }).map(function(n){ return n.textContent; }).join('').trim():'';
+      var rr=PX.t(x,'.rr'), right=rr?(/^\d+$/.test(rr)?PX.v(rr):PX.tag(rr,/committed|ready|ok/i.test(rr)?'gr':/not|none|needs/i.test(rr)?'a':'')):'';
+      return PX.row(ICON[nm]||['list',''],nm,PX.t(x,'.t2'),right+PX.cv(),PX.oc(x)); };
+    var sets=[grp(0),grp(1),grp(2)];
+    var h='<div class="px-photo px-hero" style="background-image:'+E(bg)+'"><div class="px-k11" style="color:rgba(255,255,255,.7)">Room</div><div style="font-size:40px;font-weight:600;letter-spacing:-.015em;line-height:1.1">'+E(name)+'</div><div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'
+      +(devs?'<span class="px-pill">'+E(devs)+'</span>':'')+(committed?'<span class="px-pill" style="background:rgba(95,185,140,.25);color:#bff0d4"><span class="px-dot"></span>AV committed</span>':'')+(now?'<span class="px-pill">'+E(now)+'</span>':'')+'</div></div>'
+      +'<div class="px-cols" style="margin-top:6px"><div>'+PX.sec('Set Up')+'<div class="px-rows">'+sets[0].map(r).join('')+'</div></div>'
+      +'<div>'+PX.sec('Check')+'<div class="px-rows">'+sets[1].map(r).join('')+'</div>'+PX.sec('The Homeowner')+'<div class="px-rows">'+sets[2].map(r).join('')+'</div></div></div>';
+    PX.paint(p,h,{hero:true,act:edit?'<button class="px-btn sm" onclick="'+E(PX.oc(edit))+'">'+I('edit')+'Edit</button>':''});
+  });
+})();
+</script>
+<script>
+/* AV Setup is today's own controls, laid out by the rules above; the redraw only gives the page its line. */
+(function(){
+  PX.roomView=PX.roomView||{};
+  PX.roomView.av=function(p){ PX.unpaint(p); p.setAttribute('data-pxsub','Give each device its role. ProOS builds the activities from these.'); PX._hRun(); };
+})();
+</script>
+<script>
+(function(){
+  var E=PX.E, I=PX.I;
+  PX.roomView=PX.roomView||{};
+  var card=function(id){ return document.querySelector('#room-devices>.rh-card[data-v3="'+id+'"]')||document.getElementById(id); };
+  var sub=function(p,s){ PX.unpaint(p); p.setAttribute('data-pxsub',s); PX._hRun(); };
+  PX.roomView.shortcuts=function(p){ sub(p,'Each opens on the device you pick. The TV turns on and switches to it.'); };
+  PX.roomView.channels=function(p){ sub(p,PX.t(card('channels'),'.rch-dev')||'The channels this room shows on its TV page.'); };
+  PX.roomView.dashboard=function(p){ PX.unpaint(p); };
+
+  // ── ACTIVITIES (mock): the room's activities as rows, the chosen one beside them — Test-Fire, Edit, Reset, and
+  //     what the homeowner sees. The same actions as today's sheet (actTest, actEdit, actReset) on the same activity ──
+  var sees={};
+  var KIND={watch_source:'play',watch_tv:'tv',tv_off:'pw',display_on:'tv'};
+  var line=function(a){ var rec={}; try{ rec=_rhRec()||{}; }catch(e){}
+    if(a.kind==='watch_source'&&a.source_eid){ var n=''; try{ n=entName(a.source_eid); }catch(e){} var inp=(rec.inputs||{})[a.source_eid]; return (n||'Its source')+(inp?' · '+inp:''); }
+    if(a.kind==='watch_tv') return 'The TV on its own tuner'; if(/off/.test(a.key||'')) return 'Turns the room’s AV off'; if(a.kind==='display_on') return 'The display on, nothing else';
+    return String(a.kind||'Activity').replace(/_/g,' '); };
+  PX.actPick=function(oid){ PX._act=oid; PX.redraw('panel-room'); };
+  PX.actDo=function(fn){ var a=(_avActivities||[]).find(function(x){ return x.object_id===PX._act; }); if(!a) return; _actCur=a; try{ window[fn](); }catch(e){} };
+  PX.roomView.activities=function(p){
+    var L=(typeof _avActivities!=='undefined'&&_avActivities)||[]; if(!L.length){ PX.unpaint(p); return; }
+    if(!L.some(function(a){ return a.object_id===PX._act; })) PX._act=L[0].object_id;
+    var cur=L.find(function(a){ return a.object_id===PX._act; }), room=_roomHubArea;
+    var rows=L.map(function(a){ return PX.row([KIND[a.kind]||'play','b'],a.label||a.key,line(a),PX.tag(a.edited?'Edited':'Generated',a.edited?'a':'')+PX.cv(),"PX.actPick('"+a.object_id+"')",{cls:a.object_id===PX._act?'sel':''}); }).join('');
+    var sv=sees[room], g='';
+    if(sv&&sv.acts){ var off=function(a){ var k=String(a.key||''); return k==='tv_off'||/_off$/.test(k); }, mine='script.'+cur.object_id;
+      g='<div class="px-sees">'+sv.acts.filter(function(a){ return a.script&&!off(a); }).map(function(a){ return '<div class="'+(a.script===mine?'lit':'')+'"><em>AV</em>'+E(a.label||a.key)+'</div>'; }).join('')
+        +sv.acts.filter(function(a){ return a.script&&off(a); }).slice(0,1).map(function(a){ return '<div class="'+(a.script===mine?'lit':'')+'"><span></span>Room Off</div>'; }).join('')+'</div>';
+      var shown=sv.acts.find(function(a){ return a.script===mine; });
+      g+='<div class="px-cs" style="margin-top:10px">'+E(shown?(off(shown)?'Shown to them as Room Off, at the end of the room’s scenes.':'In the '+((typeof _rhName==='function'&&_rhName())||'room')+'’s scenes. A ring while it starts, then its remote.'):'Not shown to the homeowner — it runs from Pro, voice and automations.')+'</div>'; }
+    else if(!sv){ sees[room]={}; fetch(proCoreUrl()+'/rooms/'+encodeURIComponent(room)+'/activities',{cache:'no-store'}).then(function(r){ return r.ok?r.json():null; }).then(function(d){ sees[room]={acts:(d&&d.activities)||[]}; PX.redraw('panel-room'); }).catch(function(){ sees[room]={acts:[]}; }); }
+    var d='<div class="px-card px-actd"><div class="px-ct">'+E(cur.label||cur.key)+'</div><div class="px-cs">'+(cur.edited?'Edited by you':'Generated by ProOS')+' · '+E(cur.kind||'activity')+'</div>'
+      +'<button class="px-btn blue w" style="margin-top:14px" onclick="PX.actDo(\'actTest\')">'+I('play')+'Test-Fire</button>'
+      +'<div class="px-g2" style="margin-top:0"><button class="px-btn w" onclick="PX.actDo(\'actEdit\')">Edit</button><button class="px-btn w" onclick="PX.actDo(\'actReset\')">Reset</button></div>'
+      +'<div class="px-k11" style="margin-top:18px">The Homeowner Sees</div>'+(g||'<div class="px-cs">Reading the room’s page…</div>')+'</div>';
+    PX.paint(p,'<div class="px-cols even"><div class="px-rows">'+rows+'</div>'+d+'</div>',{sub:'Built from AV Setup. Tap one to test, edit or reset it.'});
+  };
+
+  // ── EVIDENCE (mock): the room's devices as tiles, then the timeline with its filter as a segmented control (today's
+  //     own filter and Refresh; the rows are today's journal) ──
+  PX.jrSet=function(v){ var s=document.getElementById('rh-jr-filter'); if(!s) return; s.value=v; s.dispatchEvent(new Event('change')); };
+  PX.roomView.evidence=function(p){
+    var live=PX.all(document.getElementById('rh-mirror-body'),'*').filter(function(x){ return !x.children.length&&x.textContent.trim()&&!/^[▶◼■]$/.test(x.textContent.trim()); }).map(function(x){ return x.textContent.trim(); }).join(' · '), dt=document.getElementById('rh-devtruth'), jb=document.getElementById('rh-journal-body'), sel=document.getElementById('rh-jr-filter');
+    var tiles=dt?[].slice.call(dt.children).map(function(r){ var sp=r.querySelectorAll('span'); if(sp.length<2) return ''; var nm=sp[0].textContent.trim(), k=sp[1].textContent.trim(), st=sp[2]?sp[2].textContent.trim():'';
+      return '<div class="px-tile px-dt"><div class="px-ic">'+I(k==='session'?'play':'tv')+'</div><b>'+E(nm)+'</b><small>'+E(k.charAt(0).toUpperCase()+k.slice(1))+' · '+E(st)+'</small></div>'; }).filter(Boolean):[];
+    var seg=sel?'<div class="px-seg" style="margin-bottom:12px">'+[].slice.call(sel.options).map(function(o){ return '<button class="'+(o.value===sel.value?'on':'')+'" onclick="PX.jrSet(\''+o.value+'\')">'+E(o.text.replace(/ events$/,'').replace(/^Device activity$/,'Devices').replace(/^External control$/,'External'))+'</button>'; }).join('')+'</div>':'';
+    var rows=jb?PX.all(jb,'.rh-jrow').map(function(r){ return '<div class="px-tl"><span class="t">'+E(PX.t(r,'.jt'))+'</span><div><b>'+E(PX.t(r,'.jk'))+'</b><small>'+E(PX.t(r,'.jd'))+'</small></div></div>'; }).join(''):'';
+    PX.paint(p,(tiles.length?'<div class="px-g4">'+tiles.join('')+'</div>':'')+PX.sec('Timeline')+seg+'<div class="px-card" style="padding:4px 18px">'+(rows||'<div class="px-empty">'+E(PX.t(jb)||'Loading…')+'</div>')+'</div>',
+      {sub:live?'Live status: '+live:'',act:'<button class="px-btn sm" onclick="v2RoomJournal()">Refresh</button>'});
+  };
+
+  // ── ROOM OPTIONS (mock): Identity (picture, name, Change Picture, Icon) beside Assist Voice Replies (the switch, the
+  //     volume, Test) — today's own buttons and select ──
+  PX.roomView.options=function(p){
+    var id=card('id'), vb=document.getElementById('rh-voice-body'); if(!id) { PX.unpaint(p); return; }
+    var ph=id.querySelector('.pnx-id .ph'), pic=ph?ph.style.backgroundImage:'', nm=PX.t(id,'.pnx-id .nm');
+    var chg=id.querySelector('.pnx-id button, .pnx-id .bt *[onclick]'), idrow=id.querySelector('.rh-idrow');
+    var h='<div class="px-cols even"><div class="px-card"><div class="px-ct">Identity</div><div style="display:flex;gap:14px;margin-top:12px;align-items:center;flex-wrap:wrap">'
+      +'<div class="px-photo" style="width:150px;height:96px;border-radius:14px;flex:none;background-image:'+E(pic)+'"></div><div style="flex:1;min-width:160px"><div class="px-field">'+E(nm)+'</div><div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">'
+      +(chg?'<button class="px-btn sm" onclick="'+E(PX.oc(chg))+'">'+I('img')+'Change Name and Picture</button>':'')
+      +(idrow&&PX.oc(idrow)?'<button class="px-btn sm" onclick="'+E(PX.oc(idrow))+'">Icon</button>':'')+'</div></div></div>'
+      +(idrow?'<div class="px-cs" style="margin-top:12px">'+E(PX.all(idrow,'*').filter(function(x){ return !x.children.length&&x.textContent.trim()&&!/^edit$/i.test(x.textContent.trim()); }).map(function(x){ return x.textContent.trim(); }).join(' · '))+'</div>':'')+'</div>';
+    if(vb){ var rows=[].slice.call(vb.children), r0=rows[0], r1=rows[1];
+      var b0=r0&&r0.querySelector('button'), isOn=b0&&/turn off/i.test(b0.textContent);
+      h+='<div class="px-card"><div class="px-ct">Assist Voice Replies</div><div class="px-cs">'+E(r0?PX.t(r0.querySelector('span')):'')+'</div>'
+        +'<div class="px-row" style="padding:12px 0 0;min-height:0;border:0"><div class="px-g"><b>Speak Replies</b></div>'+(b0?'<button class="px-tog'+(isOn?' on':'')+'" aria-label="Speak Replies" onclick="'+E(PX.oc(b0))+'"></button>':'')+'</div>'
+        +(r1?'<div class="px-row" style="padding:12px 0 0;min-height:0;border:0"><div class="px-g"><b>Voice Volume</b><small class="wrap">'+E(PX.t(r1.querySelector('.rs, span small, div>div:nth-child(2)'))||'How loud spoken replies are in this room. The music stays at its own volume.')+'</small></div><span id="px-vvol"></span></div>':'')+'</div>'; }
+    h+='</div>';
+    var pg=PX.paint(p,h,{sub:''});
+    // the volume and Test are today's own controls, moved in (their handlers are inline, so they work where they sit)
+    if(vb&&vb.children[1]&&pg){ var slot=pg.querySelector('#px-vvol'); [].slice.call(vb.children[1].querySelectorAll('select,button')).forEach(function(x){ slot.appendChild(x.cloneNode(true)).value=x.value; }); slot.style.cssText='display:flex;gap:8px;align-items:center'; }
+  };
+
+  // ── DEVICE RECOVERY (mock): every device with its way back — Reload, Smart Plug, UniFi PoE — the one chosen lit.
+  //     A tap opens today's chooser (_recEnt), where a plug or PoE port is picked. Read straight from today's list ──
+  PX.roomView.recovery=function(p){
+    var M=(typeof _recMembers!=='undefined'&&_recMembers)||null;
+    if(!M){ PX.paint(p,'<div class="px-rows"><div class="px-empty">Reading the room’s devices…</div></div>',{sub:'What ProOS may power-cycle when a device stops answering.'}); if(!PX._recAsk){ PX._recAsk=1; try{ openRecovery(); }catch(e){} } return; }
+    var rows=M.map(function(e){ var cf=((typeof _recCfg!=='undefined'&&_recCfg)||{})[e], m=cf?cf.method:'reload';
+      var b=function(k,t){ return '<button class="'+(m===k||(k==='reload'&&!cf)?'on':'')+'" onclick="event.stopPropagation();_recEnt(\''+E(e)+'\')">'+t+'</button>'; };
+      var n=''; try{ n=entName(e); }catch(x){ n=e; }
+      return PX.row([/^media_player\./.test(e)?'tv':'pw',''],n,(m==='poe_cycle'?'UniFi PoE — ProOS cycles its switch port':m==='power_cycle'?'Smart Plug — ProOS cycles its plug':'Reload — ProOS asks the platform to reconnect it'),'<div class="px-segsm">'+b('reload','Reload')+b('power_cycle','Smart Plug')+b('poe_cycle','UniFi PoE')+'</div>','_recEnt(\''+E(e)+'\')'); }).join('');
+    PX.paint(p,'<div class="px-rows">'+(rows||'<div class="px-empty">No devices to recover in this room.</div>')+'</div><div class="px-cs" style="margin:10px 4px">Shown with each device on Reload, the default. A plug or PoE port is picked when that choice is tapped.</div>',{sub:'What ProOS may power-cycle when a device stops answering.'});
+  };
+})();
+</script>
+<script>
+(function(){
+  var E=PX.E, I=PX.I;
+  function head(){ var cd=document.querySelector('#hv-ov .hv-cd'); if(!cd||!PX.on()) return; var h=cd.querySelector('.px-hvhead'); if(!h){ h=document.createElement('div'); h.className='px-hvhead'; cd.insertBefore(h,cd.firstChild); }
+    var nm=(typeof _rhName==='function'&&_rhName())||PX.t(document.querySelector('#hv-ov .hv-side>div:first-child'))||'';
+    setHTML(h,'<div style="display:flex;align-items:center;min-height:40px;margin-bottom:18px"><button class="px-btn sm" style="height:40px;border-radius:20px;padding:0 16px 0 10px;font-size:14.5px" onclick="hvClose()">'+I('back')+E(nm)+'</button></div>'
+      +'<div class="px-head" style="margin:0 0 16px"><div class="px-k">'+E(nm)+'</div><h1>Homeowner View</h1><div class="px-sub">Exactly what their '+E(nm)+' page shows — it fills itself.</div></div>'); }
+  if(typeof hvDraw==='function'){ var _d=hvDraw; hvDraw=function(){ var r=_d.apply(this,arguments); try{ head(); }catch(e){} return r; }; }
+  if(typeof hvOpen==='function'){ var _o=hvOpen; hvOpen=function(){ var r=_o.apply(this,arguments); try{ setTimeout(head,50); }catch(e){} return r; }; }
+})();
+</script>
+<script>
+(function(){
+  // the sheet closes when the dark around it is tapped — the same toggle the console line uses
+  document.addEventListener('click',function(e){ if(!PX.on()) return; var s=document.getElementById('uni-settings'); if(!s||s.hidden) return;
+    if(!s.contains(e.target)&&!(e.target.closest&&e.target.closest('[onclick*="uniToggleSettings"]'))){ try{ uniToggleSettings(); }catch(x){} } },true);
+})();
+</script>
+<script>
+(function(){
+  var auto=function(p){ var es=p.querySelector('.unp-panel>.es:only-child'); if(!es||!/^Tap a/i.test(PX.t(es))) return;
+    var f=[].slice.call(p.querySelectorAll('.unp-row[onclick]')).find(function(r){ return /Pick\(/.test(PX.oc(r)); }); if(f) setTimeout(function(){ if(document.contains(f)) f.click(); },0); };
+  ['panel-unifi-net','panel-unifi'].forEach(function(id){ PX.reg(id,auto); });
+  // Talk: its own page, as the mock draws it — the apps bar, and Ubiquiti's door still shut, said plainly (it was a toast)
+  if(typeof uniLater==='function'&&!uniLater._px){ var _ul=uniLater; uniLater=function(k){
+    if(PX.on()&&k==='talk'){ var bar=''; try{ bar=uniAppBar('talk'); }catch(e){}
+      PX.page('UniFi','Devices · UniFi','Talk','',(bar?'<div style="margin:0 0 16px">'+bar+'</div>':'')+'<div class="px-rows">'+PX.row(['clock','a'],'Waiting on Ubiquiti','Phones and call routing. Ubiquiti has no way in for other systems yet — Talk is built the day there is.','','',{wrap:true})+'</div>'); return; }
+    return _ul.apply(this,arguments); }; uniLater._px=1; }
+})();
+</script>
+<script>
+(function(){
+  PX.reg('panel-v3devices',function(p){ PX.inplace(p);
+    var s=p.querySelector('#v3devices-body .v3card:first-child>.v3dh2 .s'); if(s){ p.setAttribute('data-pxsub',PX.t(s)); PX._hRun(); }
+    PX.all(p,'#v3devices-body .v3kp>div').forEach(function(d){ var n=parseInt(PX.t(d,'b'),10)||0, l=PX.t(d,'span'); if(n>0&&/not in a room|names to fix/i.test(l)) d.dataset.pxamb='1'; else delete d.dataset.pxamb; });
+  });
+})();
+</script>
+<script>
+(function(){
+  PX.reg('panel-library',function(p){ var a=p.querySelector('[onclick^="openAddIntegration"]');
+    PX.inplace(p,a?'<button class="px-btn sm blue" onclick="openAddIntegration()">'+PX.I('plus')+'Add Integration</button>':''); });
+})();
+</script>
+<script>
+(function(){
+  PX.reg('panel-integration',function(p){ var o=p.querySelector('.ip-acts .ip-btn:not(.p)'), a=p.querySelector('.ip-acts .ip-btn.p');
+    PX.inplace(p,(o?'<button class="px-btn sm" onclick="'+PX.E(PX.oc(o))+'">'+PX.E(o.textContent.trim())+'</button>':'')+(a?'<button class="px-btn sm blue" onclick="'+PX.E(PX.oc(a))+'">'+PX.I('plus')+PX.E(a.textContent.trim())+'</button>':''));
+    if(p.querySelector('.ip-headcard')){ p.setAttribute('data-pxhero',''); PX._hRun(); } });
+})();
+</script>
+<script>
+(function(){
+  var E=PX.E, I=PX.I;
+  var stop=function(oc){ return E(String(oc||'').replace(/^event\.stopPropagation\(\);/,'')); };
+  var mini=function(t,oc,cls){ return oc?'<button class="px-mini'+(cls?' '+cls:'')+'" onclick="event.stopPropagation();'+stop(oc)+'">'+E(t)+'</button>':''; };
+  var tog=function(sw){ return sw?'<button class="px-tog'+(sw.classList.contains('on')?' on':'')+'" role="switch" aria-checked="'+(sw.classList.contains('on')?'true':'false')+'" onclick="event.stopPropagation();'+stop(PX.oc(sw))+'"></button>':''; };
+  var areaOf=function(eid){ try{ var a=v3AreaOfEnt((_ents||[]).find(function(e){ return e.entity_id===eid; })); var x=(_areas||[]).find(function(z){ return z.area_id===a; }); return x?x.name:''; }catch(e){ return ''; } };
+  // ── SCENES ──
+  PX.reg('panel-activities',function(p){
+    var b=p.querySelector('#activities-body'); if(!b) return;
+    var cards=PX.all(b,'.scene-card'), nw=b.querySelector('button.btn-primary,[onclick^="newScene"]');
+    var pub=cards.filter(function(c){ var s=c.querySelector('.scene-card-pub .sw'); return s&&s.classList.contains('on'); }).length;
+    var rows=cards.map(function(c){ var eid=(/'([^']+)'/.exec(PX.oc(c))||[])[1]||'', btn=function(t){ return [].slice.call(c.querySelectorAll('.scene-card-top button')).find(function(x){ return x.textContent.trim()===t; }); };
+      var bg=c.style.backgroundImage, ph=c.querySelector('.v3add');
+      return '<div class="px-row" onclick="'+E(PX.oc(c))+'">'+(bg?'<div class="px-thumb" style="background-image:'+E(bg)+'"></div>':'<div class="px-ic">'+I('spark')+'</div>')
+        +'<div class="px-g"><b>'+E(PX.t(c,'.scene-card-name'))+'</b><small>'+E(areaOf(eid)||'Scene')+'</small></div>'
+        +'<div class="px-acts">'+mini('Test',PX.oc(btn('Test')))+mini('Art',PX.oc(btn('Art')),'px-hide-ph')+mini('⋯',PX.oc(btn('⋯')))+mini('+ Phrase',PX.oc(ph),'px-hide-ph')+tog(c.querySelector('.scene-card-pub .sw'))+'</div></div>'; }).join('');
+    PX.paint(p,'<div class="px-rows">'+(rows||'<div class="px-empty">No scenes yet.</div>')+'</div><div class="px-cs" style="margin:10px 4px">The switch puts it on the homeowner’s Home.</div>',
+      {sub:pub+' of '+cards.length+' on the homeowner’s Home.',act:nw?'<button class="px-btn sm blue" onclick="'+E(PX.oc(nw))+'">'+I('plus')+'New Scene</button>':''});
+  });
+  // ── ACTIVITIES (ALL): the filter as a segmented control, each room's activities in one card ──
+  PX.reg('panel-scripts',function(p){
+    var b=p.querySelector('#scripts-body'); if(!b) return;
+    var nw=b.querySelector('button.btn-primary'), chips=PX.all(b,'.chips .chip');
+    var tiles=PX.all(b,'.itile-grid>.itile'), groups={}, order=[];
+    tiles.forEach(function(t){ var r=PX.t(t,'.itile-sub')||'Other'; if(!groups[r]){ groups[r]=[]; order.push(r); } groups[r].push(t); });
+    order.sort(function(a,c){ return a==='Other'?1:c==='Other'?-1:a.localeCompare(c); });
+    var row=function(t){ var more=t.querySelector('.row-more'), ph=t.querySelector('.v3add');
+      return '<div class="px-row" onclick="'+E(PX.oc(t))+'"><div class="px-ic b">'+I('play')+'</div><div class="px-g"><b>'+E(PX.t(t,'.itile-nm'))+'</b><small>'+E(PX.t(t,'.itile-sub'))+'</small></div><div class="px-acts">'+mini('+ Phrase',PX.oc(ph))+mini('⋯',PX.oc(more))+'</div>'+PX.cv()+'</div>'; };
+    var h=(chips.length?'<div class="px-seg" style="margin-bottom:6px">'+chips.map(function(c){ return '<button class="'+(c.classList.contains('on')?'on':'')+'" onclick="'+E(PX.oc(c))+'">'+E(c.textContent.trim())+'</button>'; }).join('')+'</div>':'')
+      +order.map(function(r){ return PX.sec(r)+'<div class="px-rows">'+groups[r].map(row).join('')+'</div>'; }).join('');
+    PX.paint(p,h||'<div class="px-rows"><div class="px-empty">No activities yet.</div></div>',{sub:'Every room’s activities, and any you build by hand.',act:nw?'<button class="px-btn sm blue" onclick="'+E(PX.oc(nw))+'">'+I('plus')+'New Activity</button>':''});
+  });
+  // ── AUTOMATIONS: yours, then ProOS's own (locked, with why) ──
+  PX.reg('panel-automations',function(p){
+    var b=p.querySelector('#automations-body'); if(!b) return;
+    var nw=b.querySelector(':scope>button.btn-primary'), mine=PX.all(b,':scope>.itile-grid>.itile'), sec=b.querySelector(':scope>.bld-sec'), sys=sec?PX.all(sec,'.itile'):[];
+    var row=function(t,lock){ var more=t.querySelector('.row-more');
+      return '<div class="px-row" onclick="'+E(PX.oc(t))+'"><div class="px-ic">'+I(lock?'shield':'clock')+'</div><div class="px-g"><b>'+E(PX.t(t,'.itile-nm'))+'</b>'+(lock?'<small>Read-only · ProOS writes it</small>':'')+'</div><div class="px-acts">'+mini('⋯',PX.oc(more))+tog(t.querySelector('.sw'))+'</div>'+(lock?PX.cv():'')+'</div>'; };
+    var h=PX.sec('Yours')+'<div class="px-rows">'+(mine.map(function(t){ return row(t,false); }).join('')||'<div class="px-empty">None of your own yet.</div>')+'</div>';
+    if(sys.length) h+=PX.sec(PX.t(sec,'.bld-sec-h')||'Managed by ProOS')+'<div class="px-cs" style="margin:-4px 4px 10px">'+E(PX.t(sec,'.wiz-hint'))+'</div><div class="px-rows">'+sys.map(function(t){ return row(t,true); }).join('')+'</div>';
+    PX.paint(p,h,{sub:'Rules that run in the background. Build one by hand — it shows here and stays editable.',act:nw?'<button class="px-btn sm blue" onclick="'+E(PX.oc(nw))+'">'+I('plus')+'New Automation</button>':''});
+  });
+})();
+</script>
+<script>
+(function(){
+  var E=PX.E, I=PX.I;
+  PX.diag=PX.diag||{};
+  var view=function(){ try{ return _v3diag; }catch(e){ return ''; } };
+  PX.reg('panel-v3diag',function(p){
+    if(p.querySelector('#hlt-sweep')) return PX.diag.sweep(p);
+    var k=view(); if(k&&k!=='sweep'&&PX.diag[k]) return PX.diag[k](p);
+    PX.unpaint(p);
+  });
+  // a button copied from today's page: its own words and its own call
+  var cp=function(b,blue){ return '<button class="px-btn sm'+(blue?' blue':'')+'" onclick="event.stopPropagation();'+E(String(PX.oc(b)).replace(/^event\.stopPropagation\(\);/,''))+'">'+E(b.textContent.trim())+'</button>'; };
+  var focusKeep=function(id,fn){ var a=document.activeElement, had=a&&a.id===id, s=had?a.selectionStart:0; fn(); if(had){ var n=document.getElementById(id); if(n){ n.focus(); try{ n.setSelectionRange(s,s); }catch(e){} } } };
+
+  // ── HEALTH SWEEP ──
+  PX.diag.sweep=function(p){
+    var sw=p.querySelector('#hlt-sweep'), card=sw.querySelector('.sys-card'), su=p.querySelector('#pnx-setup'), it=p.querySelector('#v3sw-items');
+    var d=PX.t(card,'.d'), when=PX.t(card,'.s'), run=card&&card.querySelector('[onclick^="runSweepNow"]'), rep=card&&card.querySelector('[onclick^="openSweepReport"]');
+    var stats=d.split('·').map(function(x){ var m=/(\d+)\s+(.+)/.exec(x.trim()); return m?[m[1],m[2]]:null; }).filter(Boolean);
+    var tone=function(l){ return /^confirmed/i.test(l)?'gr':/could not/i.test(l)?'a':/health|problem/i.test(l)?'r':''; };
+    var h=stats.length?'<div class="px-g'+Math.min(4,Math.max(2,stats.length))+'">'+stats.map(function(s){ return '<div class="px-stat"><b class="'+tone(s[1])+'">'+E(s[0])+'</b><small>'+E(s[1])+'</small></div>'; }).join('')+'</div>':'';
+    var suRows=su?PX.all(su,'.v3row'):[];
+    if(suRows.length){ var head=PX.t(su,'.pnx-grp');
+      h+=PX.sec(head||'Setting Up')+'<div class="px-setup"><div class="px-rows">'+suRows.map(function(r){ var rv=r.querySelector('.rr .v3btn');
+        return PX.row(r.querySelector('.pnx-ok')?['check','gr']:['tv','a'],PX.t(r,'.t1'),PX.t(r,'.t2'),rv?'<button class="px-btn sm blue" onclick="event.stopPropagation();'+E(PX.oc(r))+'">'+E(rv.textContent.trim())+'</button>':'',r.classList.contains('static')?'':PX.oc(r),{cls:'px-long',wrap:true}); }).join('')+'</div></div>'; }
+    var rows=it?PX.all(it,'.v3row'):[], open=it&&it.dataset.pnxOpen==='1';
+    var bad=rows.filter(function(r){ return !r.classList.contains('pnx-fold')&&!r.classList.contains('pnx-hide')&&!/^Confirmed$/.test(PX.t(r,'.rr .v3chip')); });
+    var ok=rows.filter(function(r){ return /^Confirmed$/.test(PX.t(r,'.rr .v3chip')); });
+    var item=function(r,good){ var t=PX.t(r,'.t1'), i=t.indexOf(': '), title=i>0&&i<80?t.slice(0,i):t, rest=i>0&&i<80?t.slice(i+2):PX.t(r,'.t2'), chip=PX.t(r,'.rr .v3chip');
+      var tn=/problem|fail/i.test(chip)?'r':good?'gr':'a';
+      return PX.row(good?['check','gr']:['warn',tn],title,rest,chip?PX.tag(chip,tn):'',PX.oc(r),{cls:'px-long',wrap:true}); };
+    if(bad.length) h+=PX.sec('Could Not Confirm · '+bad.length)+'<div class="px-rows">'+bad.map(function(r){ return item(r,false); }).join('')+'</div>';
+    if(ok.length) h+=PX.sec('Confirmed · '+ok.length,open?'Fold Them Away':'Show Them','_pnxFoldToggle()')+(open?'<div class="px-rows">'+ok.map(function(r){ return item(r,true); }).join('')+'</div>':'<div class="px-rows"><div class="px-row" onclick="_pnxFoldToggle()"><div class="px-ic gr">'+I('check')+'</div><div class="px-g"><b>Every check ProOS confirmed</b><small>Tap to see them</small></div>'+PX.cv()+'</div></div>');
+    PX.paint(p,h,{sub:'Every check ProOS Core runs on the house, and its own answer to each. '+when,
+      act:(rep?'<button class="px-btn sm" onclick="'+E(PX.oc(rep))+'">View Report</button>':'')+(run?'<button class="px-btn sm blue" onclick="'+E(PX.oc(run))+'">Run Sweep Now</button>':'')});
+  };
+
+  // ── A PAGE OF ITS OWN (the Report) ──
+  PX.page=function(back,kick,title,sub,body){ var pg=document.getElementById('px-pg'); if(!pg){ pg=document.createElement('div'); pg.id='px-pg'; (document.getElementById('app')||document.body).appendChild(pg); }
+    setHTML(pg,'<div class="px-pgin"><div class="px-pgtop"><button class="px-backp" onclick="PX.pageClose()">'+I('back')+E(back)+'</button></div>'
+      +'<div class="px-head"><div class="px-k">'+E(kick)+'</div><h1>'+E(title)+'</h1>'+(sub?'<div class="px-sub">'+E(sub)+'</div>':'')+'</div>'+body+'</div>'); return pg; };
+  PX.pageClose=function(){ var pg=document.getElementById('px-pg'); if(pg) pg.remove(); };
+  PX._repOpen={};
+  PX.repTog=function(k){ PX._repOpen[k]=!PX._repOpen[k]; PX.report(true); };
+  PX.report=function(keep){
+    var j=(typeof _swLast!=='undefined'&&_swLast)||{}, items=j.items||[], groups=(typeof _SW_GROUPS!=='undefined'&&_SW_GROUPS)||[];
+    if(!keep) PX._repOpen={};
+    var word={confirmed:['gr','Confirmed'],problem:['r','Problem'],unknown:['a','Could Not Confirm']}, order={problem:0,unknown:1,confirmed:2};
+    var h='<div class="px-rows">'+groups.map(function(g){ var ck=g[0], label=g[1];
+      var l=items.filter(function(i){ return String(i.check).charAt(0)===ck; }).sort(function(a,b){ return order[a.answer]-order[b.answer]; });
+      if(!l.length) return '';
+      var nP=l.filter(function(i){ return i.answer==='problem'; }).length, nU=l.filter(function(i){ return i.answer==='unknown'; }).length, nC=l.length-nP-nU;
+      var tn=nP?'r':nU?'a':'gr', open=!!PX._repOpen[ck];
+      var sub=l.length+(l.length===1?' check':' checks')+' · '+nC+' confirmed'+(nU?' · '+nU+' could not confirm':'')+(nP?' · '+nP+(nP===1?' problem':' problems'):'');
+      return '<div class="px-row" onclick="PX.repTog(\''+E(ck)+'\')"><div class="px-ic '+tn+'">'+I(tn==='gr'?'check':'warn')+'</div><div class="px-g"><b>'+E(label)+'</b><small>'+E(sub)+'</small></div><span class="px-cv" style="transform:rotate('+(open?90:0)+'deg)">'+I('chev')+'</span></div>'
+        +(open?'<div class="px-repl">'+l.map(function(i){ var w=word[i.answer]||['',String(i.answer||'')]; return '<div><i class="'+w[0]+'">'+E(w[1])+'</i> — '+E(i.words||'')+'</div>'; }).join('')+'</div>':''); }).join('')+'</div>';
+    var tm=(j.schedule||{}).time||'07:00';
+    h+=PX.sec('Daily Sweep')+'<div class="px-rows"><div class="px-row"><div class="px-ic">'+I('clock')+'</div><div class="px-g"><b>Runs every day at</b><small>The sweep runs on its own at this time</small></div><input id="sw-time" class="px-time" type="time" value="'+E(tm)+'"><button class="px-btn sm blue" onclick="saveSweepTime()">Save Time</button></div></div>';
+    var when=''; try{ if(j.at) when=fmtBkDate(new Date(j.at*1000).toISOString()); }catch(e){}
+    var pg=document.getElementById('px-pg'), top=pg?pg.scrollTop:0;
+    pg=PX.page('Health Sweep','Health Sweep','Report',[when,items.length+' checks',j.headline&&!when?j.headline:''].filter(Boolean).join(' · '),h);
+    if(keep) pg.scrollTop=top;
+  };
+  if(typeof openSweepReport==='function'&&!openSweepReport._px){ var _osr=openSweepReport; openSweepReport=function(){ if(PX.on()) return PX.report(); return _osr.apply(this,arguments); }; openSweepReport._px=1; }
+  // the page leaves with its panel: any other page closes it
+  if(typeof show==='function'&&!show._pxpg){ var _sh=show; show=function(){ PX.pageClose(); return _sh.apply(this,arguments); }; show._pxpg=1; }
+
+  // ── AWARENESS ──
+  PX.diag.awareness=function(p){
+    var b=p.querySelector('#v3aw-body'); if(!b) return PX.unpaint(p);
+    var live=window._v3awSeg!=='activity', items=(typeof _awLast!=='undefined'&&_awLast&&_awLast.items)||[];
+    var seg='<div class="px-seg"><button class="'+(live?'on':'')+'" onclick="v3AwSeg(\'live\')">Live</button><button class="'+(live?'':'on')+'" onclick="v3AwSeg(\'activity\')">Activity</button></div>';
+    var att=PX.all(p,'.v3card>.v3row'), h='';
+    att.forEach(function(r){ h+='<div class="px-rows" style="margin-bottom:16px;box-shadow:inset 0 0 0 1px rgba(242,179,74,.5)">'+PX.row(['warn','a'],PX.t(r,'.t1'),PX.t(r,'.t2'),'',PX.oc(r),{cls:'px-long',wrap:true})+'</div>'; });
+    var sub='Every device ProOS watches, and what it last said — tap one for its page.';
+    if(live){
+      var two=0, alone=0, rooms=[], cur=null;
+      PX.all(b,'.aw-physbar').forEach(function(x){ h+='<div class="px-cs" style="margin:0 4px 12px">'+E(x.textContent.trim())+'</div>'; });
+      PX.all(b,'.awf-day,.awl-row').forEach(function(el){
+        if(el.classList.contains('awf-day')){ var nm=[].slice.call(el.childNodes).filter(function(n){ return n.nodeType===3; }).map(function(n){ return n.textContent; }).join('').trim()||el.textContent.trim(); cur={nm:nm,rows:[],amb:false}; rooms.push(cur); return; }
+        if(!cur){ cur={nm:'',rows:[],amb:false}; rooms.push(cur); }
+        var it=items.find(function(x){ return (x.entity||'')===(el.dataset.e||'')&&(x.name||'')===(el.dataset.n||''); })||{};
+        var kind=PX.t(el,'.awl-kind'), st=PX.t(el,'.awl-st'), since=PX.t(el,'.awl-since'), phys=PX.t(el,'.awl-phys');
+        if(/state alone/i.test(kind)) alone++; else if(/two ways/i.test(kind)) two++;
+        var tn=it.status==='fault'?'r':it.status==='amber'?'a':'', tag, tt;
+        if(it.status==='ok'&&/^normal$/i.test(st)){ tag=/state alone/i.test(kind)?'State Only':'Normal'; tt=/state alone/i.test(kind)?'n':'gr'; }
+        else { tag=st.replace(/\b\w/g,function(c){ return c.toUpperCase(); })+(since&&!/^stable/.test(since)?' '+since:''); tt=tn||'n'; }
+        if(tn) cur.amb=true;
+        var svg=el.querySelector('.awl-ic svg');
+        cur.rows.push('<div class="px-row" onclick="'+E(PX.oc(el))+'"><div class="px-ic'+(tn?' '+tn:'')+'">'+(svg?svg.outerHTML:I('devices'))+'</div><div class="px-g"><b>'+E(PX.t(el,'.awl-nm'))+'</b><small>'+E([kind.charAt(0).toUpperCase()+kind.slice(1),phys].filter(Boolean).join(' · '))+'</small></div>'+PX.tag(tag,tt)+'</div>');
+      });
+      if(rooms.length){ h+='<div class="px-masn">'+rooms.map(function(r){ return '<div class="px-room'+(r.amb?' amb':'')+'">'+(r.nm?PX.sec(r.nm):'')+'<div class="px-rows">'+r.rows.join('')+'</div></div>'; }).join('')+'</div>';
+        sub=items.length+' devices watched · '+two+' confirmed two ways · '+alone+' on state alone'; }
+      else h+='<div class="px-rows"><div class="px-empty">'+E(b.textContent.trim()||'No devices watched yet.')+'</div></div>';
+    } else {
+      var q=b.querySelector('#aws-search'), clr=b.querySelector('[onclick^="_awClearActivity"]');
+      if(q||clr){ h+='<div class="px-find">'+(q?'<input id="px-aws" placeholder="Search a device…" value="'+E(q.value)+'" oninput="_awActSearch(this.value)">':'')+(clr?'<button class="px-btn sm" onclick="_awClearActivity()">Clear History</button>':'')+'</div>';
+        var ty=(typeof _awActType!=='undefined')?_awActType:'all';
+        h+='<div class="px-seg" style="margin-bottom:6px">'+[['all','All'],['recovered','Recoveries'],['fault','Needs Attention']].map(function(c){ return '<button class="'+(ty===c[0]?'on':'')+'" onclick="_awActSetType(\''+c[0]+'\',null)">'+c[1]+'</button>'; }).join('')+'</div>'; }
+      var day=null, grp=[], out='';
+      var flush=function(){ if(grp.length) out+=(day?PX.sec(day):'')+'<div class="px-rows">'+grp.join('')+'</div>'; grp=[]; };
+      PX.all(b,'.awf-day,.awf-inc').forEach(function(el){
+        if(el.classList.contains('awf-day')){ flush(); day=el.textContent.trim(); return; }
+        var dot=el.querySelector('.awf-dot'), cls=dot?dot.className:'', tn=/fault|fail|red|bad/.test(cls)?'r':/rec|ok|good|green/.test(cls)?'gr':'a';
+        var badge=PX.t(el,'.awf-badge'), nm=(el.querySelector('.awf-nm')||{}).firstChild;
+        grp.push('<div class="px-row" onclick="'+E(PX.oc(el))+'"><div class="px-ic '+tn+'">'+I(tn==='gr'?'check':'warn')+'</div><div class="px-g"><b>'+E(nm&&nm.nodeType===3?nm.textContent.trim():PX.t(el,'.awf-nm'))+'</b><small>'+E([PX.t(el,'.awf-sub'),PX.t(el,'.awf-when')].filter(Boolean).join(' · '))+'</small></div>'+(badge?PX.tag(badge,tn):'')+PX.cv()+'</div>');
+      });
+      flush();
+      var empty=b.querySelector('.aw-empty');
+      h+=out||'<div class="px-rows"><div class="px-empty">'+E(empty?empty.innerText.trim():'Loading history…')+'</div></div>';
+      sub='What ProOS caught, and what it did about it.';
+    }
+    focusKeep('px-aws',function(){ PX.paint(p,h,{sub:sub,act:seg}); });
+  };
+
+  // ── INCIDENTS ──
+  PX.diag.incidents=function(p){
+    var ih=p.querySelector('#hlt-incidents'); if(!ih) return PX.unpaint(p);
+    var cards=PX.all(ih,'.hlt-inc'), n=((typeof _awLast!=='undefined'&&_awLast&&_awLast.items)||[]).length, h='';
+    var inc=function(c){ var bs=PX.all(c,'.acts button'), ack=PX.t(c,'.hlt-ack'), crit=/critical|error/.test(c.className);
+      var fix=bs.filter(function(x){ return !/^Acknowledge$/.test(x.textContent.trim()); }), dis=bs.find(function(x){ return /^Acknowledge$/.test(x.textContent.trim()); });
+      return PX.row(['warn',c.classList.contains('seen')?'':crit?'r':'a'],PX.t(c,'.t'),PX.t(c,'.c'),'<div class="px-acts">'+fix.map(function(x,i){ return cp(x,i===0); }).join('')+(dis?cp(dis,false):'')+(ack?'<span class="px-cs">'+E(ack)+'</span>':'')+'</div>',PX.oc(c),{cls:'px-long',wrap:true}); };
+    var now=cards.filter(function(c){ return !c.classList.contains('seen'); }), seen=cards.filter(function(c){ return c.classList.contains('seen'); });
+    if(!now.length) h+='<div class="px-ok"><div class="px-rows">'+PX.row(['check','gr'],'No faults right now','Every alarm ProOS Core holds is clear'+(n?' · '+n+' devices watched':''),'','')+'</div></div>';
+    else h+=PX.sec('Open · '+now.length)+'<div class="px-rows">'+now.map(inc).join('')+'</div>';
+    if(seen.length) h+=PX.sec(PX.t(ih,'.hlt-seen-h')||'Seen')+'<div class="px-rows">'+seen.map(inc).join('')+'</div>';
+    PX.paint(p,h,{sub:'Every fault ProOS Core holds right now, with its own fix.'});
+  };
+
+  // ── HEARD — Today or This Week, read from Core the way today's page reads it ──
+  PX._hw='today'; PX._hd=null; PX._hdAt=0;
+  PX.heardSet=function(k){ PX._hw=k; PX._hd=null; PX.heardLoad(); };
+  PX.heardLoad=async function(){ var d=new Date(); d.setHours(0,0,0,0); if(PX._hw==='week') d.setDate(d.getDate()-6);
+    try{ var r=await fetch(proCoreUrl()+'/assist/heard'+String.fromCharCode(63)+'since'+String.fromCharCode(61)+Math.floor(d.getTime()/1000),{cache:'no-store'}); PX._hd=r.ok?await r.json():{error:r.status}; }catch(e){ PX._hd={error:'net'}; }
+    PX._hdAt=Date.now(); var p=document.getElementById('panel-v3diag'); if(p&&view()==='heard') PX.diag.heard(p); };
+  PX.heardSay=function(i){ var x=((PX._hd&&PX._hd.heard)||[])[i]; if(!x) return;
+    var list=(_ents||[]).filter(function(e){ return /^(scene|script)\./.test(e.entity_id); }).map(function(e){ return [e.entity_id,entName(e.entity_id)]; }).sort(function(a,b){ return a[1].localeCompare(b[1]); });
+    window._pxSay=function(eid){ var o=document.getElementById('v3pop'); if(o) o.remove(); Promise.resolve(v3PhrasesOpen(eid)).then(function(){ var n=document.getElementById('v3ph-in'); if(n){ n.value=x.said||''; n.focus(); } }); };
+    v3Popup('+ Sentence','“'+(x.said||'')+'” — which scene or activity should it start? You check the words before they are saved.',
+      '<div style="max-height:46vh;overflow:auto;display:flex;flex-direction:column;gap:6px">'+list.map(function(l){ return '<button class="v3btn" style="justify-content:flex-start;text-align:left" onclick="_pxSay(\''+E(l[0])+'\')">'+E(l[1])+'</button>'; }).join('')+'</div>',[['Cancel']]); };
+  PX.diag.heard=function(p){
+    if(!p.querySelector('#v3heard')) return PX.unpaint(p);
+    if(!PX._hd||Date.now()-PX._hdAt>15000){ if(!PX._hdL){ PX._hdL=1; PX.heardLoad().finally(function(){ PX._hdL=0; }); } }
+    var d=PX._hd, list=(d&&d.heard)||[], wk=PX._hw==='week', h;
+    var road={instant:['b','Instant'],plan:['b','Instant · Plan'],ai:['a','Sent to the AI'],live:['b','Talk Live'],'not recorded':['n','Not Recorded']};
+    if(!d) h='<div class="px-rows"><div class="px-empty">Reading…</div></div>';
+    else if(d.error) h='<div class="px-rows"><div class="px-empty">'+(d.error===403?'Heard is for installer accounts.':'ProOS Core couldn’t be read.')+'</div></div>';
+    else if(!list.length) h='<div class="px-rows"><div class="px-empty">Nothing has been said to Assist '+(wk?'this week':'today')+'.</div></div>';
+    else { var day='', out='', grp=[];
+      var flush=function(){ if(grp.length) out+=(wk?PX.sec(day):'')+'<div class="px-rows">'+grp.join('')+'</div>'; grp=[]; };
+      list.forEach(function(x,i){ var dd=new Date((x.ts||0)*1000), dl=dd.toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'short'});
+        if(dl!==day){ flush(); day=dl; }
+        var hw=x.how||{}, r=road[hw.road]||['n',hw.road||'?'], how=[hw.matched,(hw.tools||[]).join(', ')].filter(Boolean).join(' · ');
+        grp.push('<div class="px-row"><div class="px-ic '+(r[0]==='n'?'':r[0])+'">'+I('mic')+'</div><div class="px-g"><b class="px-say" style="white-space:normal">“'+E(x.said||'')+'”</b><small style="white-space:normal">'+E([x.when,x.reply,x.where,x.who].filter(Boolean).join(' · '))+'</small>'+(how?'<small style="white-space:normal">'+E(how)+'</small>':'')+'</div><div class="px-acts">'+PX.tag(r[1],r[0])+'<button class="px-mini" onclick="PX.heardSay('+i+')">+ Sentence</button></div></div>'); });
+      flush(); h=out; }
+    PX.paint(p,h,{sub:'Every sentence said to Assist, and how it was understood.',act:'<div class="px-seg"><button class="'+(wk?'':'on')+'" onclick="PX.heardSet(\'today\')">Today</button><button class="'+(wk?'on':'')+'" onclick="PX.heardSet(\'week\')">This Week</button></div>'});
+  };
+
+  // ── ASSIST NOTICED ──
+  PX.diag.noticed=function(p){
+    var n=p.querySelector('#as2-noticed'); if(!p.querySelector('#v3noticed-host')) return PX.unpaint(p);
+    var h='', grp='';
+    if(n) [].slice.call(n.children).forEach(function(el){
+      if(el.classList.contains('as2-grp')){ grp=el.textContent.trim(); return; }
+      if(el.classList.contains('as2-sg')){ var t=PX.t(el,'.as2-sg-t'), ev=PX.t(el,'.as2-sg-e').split(' · ').filter(Boolean), wait=/waiting/i.test(grp);
+        h+='<div class="px-offer">'+PX.tag(grp||'Offer',wait?'b':'n')+'<b>'+E(t)+'</b><div class="px-chips">'+ev.map(function(e){ return '<span>'+E(e.charAt(0).toUpperCase()+e.slice(1))+'</span>'; }).join('')+'</div></div>'; return; }
+      if(el.classList.contains('as2-sg-e')) h+='<div class="px-rows"><div class="px-empty">'+E(el.textContent.trim())+'</div></div>';
+    });
+    PX.paint(p,h||'<div class="px-rows"><div class="px-empty">Reading…</div></div>',{sub:'Offers only — the household says yes on their own screen.'});
+  };
+  // Master Log stays as today's page (its pickers and search in place) — styled above
+  PX.diag.log=function(p){ PX.unpaint(p); p.setAttribute('data-pxsub','Every room, every event, as it happens.'); PX._hRun(); };
+})();
+</script>
+<script>
+(function(){
+  var E=PX.E, I=PX.I;
+  // A page that keeps today's controls in place: its own line under the title, its main action at the top.
+  PX.inplace=function(p,act){ PX.unpaint(p); p.setAttribute('data-pxin','');
+    var h=p.querySelector(':scope>.panel-head+.wiz-hint,:scope>.wiz-hint:first-child')||p.querySelector(':scope>[id$="-body"]>.wiz-hint:first-child')||p.querySelector('#music-hint');
+    var d=p.querySelector('[id$="-body"] .v3card:first-child>.v3dh2');
+    var sub=h?PX.t(h):(d&&d.querySelector('.t.pnx-dup')?PX.t(d,'.s'):'');
+    if(sub) p.setAttribute('data-pxsub',sub); else p.removeAttribute('data-pxsub');
+    p._pxAct=act||''; PX._hRun(); };
+  var sw=function(on,oc){ return '<button class="px-tog'+(on?' on':'')+'" role="switch" aria-checked="'+(on?'true':'false')+'" onclick="event.stopPropagation();'+E(String(oc||'').replace(/^event\.stopPropagation\(\);/,''))+'"></button>'; };
+  ['panel-site','panel-music','panel-dashremote','panel-share','panel-v3software','panel-credentials'].forEach(function(id){ PX.reg(id,function(p){ PX.inplace(p); }); });
+
+  // ── MANAGE USERS ──
+  PX.reg('panel-users',function(p){ var add=p.querySelector('[onclick^="usrAddToggle"]');
+    PX.inplace(p,add?'<button class="px-btn sm blue" onclick="usrAddToggle();setTimeout(function(){var a=document.getElementById(\'usr-add\');if(a&&a.firstChild)a.scrollIntoView({behavior:\'smooth\',block:\'center\'});},60)">'+I('plus')+'Add a Person</button>':''); });
+
+  // ── THE RACK — adapters, brands two across with a search, Read Again at the top ──
+  PX._rq='';
+  PX.rackFind=function(v){ PX._rq=v; var q=v.trim().toLowerCase(), b=document.getElementById('rack-body'); if(!b) return;
+    PX.all(b,'.v3sec~.v3sec').forEach(function(s){ var n=0; PX.all(s,'.v3row').forEach(function(r){ var hit=!q||PX.t(r,'.t1').toLowerCase().indexOf(q)>=0; r.style.display=hit?'':'none'; if(hit) n++; }); s.style.display=(q&&!n)?'none':''; }); };
+  PX.reg('panel-rack',function(p){
+    var b=p.querySelector('#rack-body'), ra=p.querySelector('[onclick^="openRack"]');
+    PX.inplace(p,ra?'<button class="px-btn sm" onclick="openRack()">Read Again</button>':'');
+    var rs=p.querySelector('#rack-body .v3card:first-child>.v3dh2 .s'); if(rs){ p.setAttribute('data-pxsub',PX.t(rs)); PX._hRun(); }
+    if(!b) return;
+    PX.all(b,'.v3sec~.v3sec .v3row').forEach(function(r){ if(/add another/i.test(PX.t(r,'.rr'))) r.dataset.pxadd='1'; });
+    var first=b.querySelector('.v3sec~.v3sec');
+    if(first&&!b.querySelector('.px-rsearch')){ var i=document.createElement('input'); i.className='px-rsearch'; i.placeholder='Search a brand…'; i.value=PX._rq; i.oninput=function(){ PX.rackFind(this.value); }; first.parentNode.insertBefore(i,first); }
+    if(PX._rq) PX.rackFind(PX._rq);
+  });
+
+  // ── BACKUPS ──
+  PX.reg('panel-backups',function(p){
+    var auto=p.querySelector('#backups-auto .bk-auto'), list=PX.all(p,'#backups-list .bk-item'), nw=p.querySelector('[onclick^="openBackupCreate"]'), h='';
+    if(auto){ var s=auto.querySelector('.sw'); h+='<div class="px-rows"><div class="px-row" onclick="'+E(PX.oc(auto))+'"><div class="px-ic gr">'+I('clock')+'</div><div class="px-g"><b>'+E(PX.t(auto,'.bk-auto-title').replace(/^Auto-backup$/i,'Auto-Backup'))+'</b><small>'+E(PX.t(auto,'.bk-auto-sub'))+'</small></div>'+(s?sw(s.classList.contains('on'),PX.oc(s)):'')+'</div></div>'; }
+    var bt=function(x,t,cls){ return x?'<button class="px-btn sm'+(cls?' '+cls:'')+'" onclick="event.stopPropagation();'+E(PX.oc(x))+'">'+t+'</button>':''; };
+    h+=PX.sec('Restore Points'+(list.length?' · '+list.length:''))+'<div class="px-rows">'+(list.map(function(it){ var dl=it.querySelector('[onclick^="downloadBackup"]'), rs=it.querySelector('[onclick^="restoreBackup"]'), dz=it.querySelector('[onclick^="deleteBackup"]');
+      var meta=[].slice.call((it.querySelector('.bk-meta')||{childNodes:[]}).childNodes).map(function(n){ return n.textContent.trim(); }).filter(Boolean).join(' · ').replace(/\s*·\s*·\s*/g,' · ');
+      return '<div class="px-row"><div class="px-ic">'+I('clock')+'</div><div class="px-g"><b>'+E(PX.t(it,'.bk-name'))+'</b><small>'+E(meta)+'</small></div><div class="px-acts">'+bt(dl,'Download')+bt(rs,'Restore')+bt(dz,'Delete','red')+'</div></div>'; }).join('')||'<div class="px-empty">'+E(PX.t(p,'#backups-list')||'No backups yet.')+'</div>')+'</div>';
+    PX.paint(p,h,{sub:PX.t(p,':scope>.wiz-hint'),act:nw?'<button class="px-btn sm blue" onclick="openBackupCreate()">'+I('plus')+'Create Backup</button>':''});
+  });
+
+  // ── CHANNEL LISTS — the lists as cards; a list opened is today's own editor ──
+  PX.reg('panel-channels',function(p){
+    var g=p.querySelector('.chl-grid'); if(!g) return PX.inplace(p);
+    var cards=PX.all(g,'.chl-card:not(.chl-new)'), nw=g.querySelector('.chl-new'), h='';
+    h+=cards.map(function(c){ var bar=c.querySelector('.pnx-bar>i'), chip=c.querySelector('.v3chip'), used=PX.all(c,':scope>.t2 b').map(function(b){ return b.textContent.trim(); });
+      return '<div class="px-list" onclick="'+E(PX.oc(c))+'"><div class="px-lt"><div class="px-g"><b>'+E(PX.t(c,'.chl-top .t1'))+'</b><small>'+E(used.length?'Used by '+used.join(', '):PX.t(c,'.chl-top .t2'))+'</small></div>'+(chip?PX.tag(chip.textContent.trim(),chip.classList.contains('amber')?'a':chip.classList.contains('green')?'gr':'n'):'')+'</div>'
+        +(bar?'<div class="px-bar"><i style="width:'+E(bar.style.width||'0')+'"></i></div>':'')+'<small>'+E(PX.t(c,'.pnx-barl')||PX.t(c,'.chl-top .t2'))+'</small></div>'; }).join('');
+    if(!cards.length) h='<div class="px-rows"><div class="px-empty">No channel lists yet.</div></div>';
+    var d=p.querySelector('.v3dh2 .s');
+    PX.paint(p,h,{sub:d?d.textContent.trim():'',act:nw?'<button class="px-btn sm blue" onclick="'+E(PX.oc(nw))+'">'+I('plus')+'New List</button>':''});
+  });
+
+  // ── MAINTENANCE ──
+  PX.reg('panel-maintenance',function(p){
+    var tiles=PX.all(p,'.pnx-tiles>.row'), dz=PX.all(p,'.danger-card'), h='';
+    var ttl=function(r){ var rl=r.querySelector('.rl'); return rl?[].slice.call(rl.childNodes).filter(function(n){ return n.nodeType===3; }).map(function(n){ return n.textContent; }).join('').trim():''; };
+    if(tiles.length) h+='<div class="px-g2">'+tiles.map(function(r){ return '<div class="px-card px-tile" onclick="'+E(PX.oc(r))+'"><b>'+E(ttl(r)||PX.t(r,'.rl'))+'</b><small>'+E(PX.t(r,'.es'))+'</small></div>'; }).join('')+'</div>';
+    if(dz.length) h+='<div class="px-sec r"><b>'+E(PX.t(p,'.section-label')||'Danger Zone')+'</b></div><div class="px-danger"><div class="px-rows">'+dz.map(function(c){ var b=c.querySelector('.danger-btn');
+      return PX.row(['warn','a'],PX.t(c,'.danger-title'),PX.t(c,'.danger-desc'),b?'<div class="px-acts"><button class="px-btn sm" onclick="event.stopPropagation();'+E(PX.oc(b))+'">'+E(b.textContent.trim())+'</button></div>':'','',{cls:'px-long',wrap:true}); }).join('')+'</div></div>';
+    PX.paint(p,h,{sub:PX.t(p,':scope>.wiz-hint')});
+  });
+})();
+</script>
+<script>
+(function(){
+  ['panel-applehome','panel-savant','panel-irrigation'].forEach(function(id){ PX.reg(id,function(p){ PX.inplace(p); }); });
+  PX.reg('panel-wallpanel',function(p){ PX.inplace(p); var s=p.querySelector('#wp-bigcap+div'); if(s){ p.setAttribute('data-pxsub',PX.t(s)); PX._hRun(); } });
+})();
+</script>
+<script>
+(function(){
+  ['panel-helpers','panel-blueprints','panel-labels'].forEach(function(id){ PX.reg(id,function(p){ PX.inplace(p); }); });
+  // a tool's own first line is its page's line; the shared "for Protech support" line only when it has none
+  PX.reg('panel-tech',function(p){ PX.inplace(p); var h=p.querySelector('#tech-view>.wiz-hint:first-child'); if(h){ p.setAttribute('data-pxsub',PX.t(h)); PX._hRun(); } });
 })();
 </script>
 </body>
