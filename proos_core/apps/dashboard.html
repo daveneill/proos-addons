@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026111718';
+const PROOS_BUILD='2026112001';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -25271,9 +25271,10 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
     scenes.forEach(function(s){ lit[s.entity]=(typeof _nxSceneOn==='function')&&_nxSceneOn(s.entity); });
     var yw=window._nxWidgets?_nxWidgets(null):'';   // 1387: every widget Home has, in the New Look
     var hs=M.hero?states[M.hero.lead]||{}:null;
-    var sig=JSON.stringify([greet,A,_nxhWeather(),empty,M.hero&&[M.hero.lead,hs.state,hs.attributes.media_title,hs.attributes.media_artist],M.cards.map(function(c){ return c.t==='lights'?['l',c.area,c.n]:[c.t,c.d.lead,c.d.r.word,(states[c.d.lead]||{}).state,((states[c.d.lead]||{}).attributes||{}).media_title]; }),scenes.map(function(s){ return [s.entity,s.name,s.photo,lit[s.entity],ran[s.entity]]; }),yw,M.hasLights]);
+    var sig=JSON.stringify([CONFIG._homeAreaPhoto||'',greet,A,_nxhWeather(),empty,M.hero&&[M.hero.lead,hs.state,hs.attributes.media_title,hs.attributes.media_artist],M.cards.map(function(c){ return c.t==='lights'?['l',c.area,c.n]:[c.t,c.d.lead,c.d.r.word,(states[c.d.lead]||{}).state,((states[c.d.lead]||{}).attributes||{}).media_title]; }),scenes.map(function(s){ return [s.entity,s.name,s.photo,lit[s.entity],ran[s.entity]]; }),yw,M.hasLights]);
     if(p._sig===sig) return; p._sig=sig;
-    var html='<div class="nx-in"><div class="nxh-top">'+_nxhWeather()+'<span></span></div><div class="nxh-greet">'+(empty?'Welcome':nxhEsc(greet))+'</div><div class="nxh-h1">Home</div>';
+    var hph=CONFIG._homeAreaPhoto||'';   // 1424: the Home photo, clear at the top, as a room's own
+    var html=(hph?'<div class="nxh-photo" aria-hidden="true" style="background-image:url(\''+String(hph).replace(/['"\\]/g,encodeURIComponent)+'\')"></div>':'')+'<div class="nx-in"><div class="nxh-top">'+_nxhWeather()+'<span></span></div><div class="nxh-greet">'+(empty?'Welcome':nxhEsc(greet))+'</div><div class="nxh-h1">Home</div>';
     if(empty){
       html+='<div class="nxh-welcome"><div class="nx-ic">'+nxhIc('home').replace('<svg','<svg style="width:24px;height:24px;stroke:#fff;fill:none;stroke-width:1.6"')+'</div><b>Your installer is setting up your home</b><span>Rooms, devices and scenes appear here as they are added. Nothing to do yet.</span></div>'+
         '<button type="button" class="nxh-ask" data-hask><div class="nx-ic">'+nxhIc('mic').replace('<svg','<svg style="width:20px;height:20px;stroke:#fff;fill:none;stroke-width:1.8"')+'</div><div><div style="font-size:15px;font-weight:600">Ask Assist</div><div style="font-size:13px;color:rgba(255,255,255,.62);margin-top:2px">“What’s the weather this weekend?”</div></div></button></div>';
@@ -27135,6 +27136,15 @@ body.nx-on.nxbg-on #nx-bgx{display:block}
 body.nx-on.nxbg-on #nx-page{background:transparent}
 body.nx-on.nxbg-on #nx-page .nxr-hero{-webkit-mask-image:linear-gradient(180deg,#000 50%,transparent 98%);mask-image:linear-gradient(180deg,#000 50%,transparent 98%)}
 body.nx-on.nxbg-on #nx-page .nxr-hero::after{background:linear-gradient(180deg,rgba(14,14,16,.15),rgba(14,14,16,.4) 60%,rgba(14,14,16,0))}
+/* REGISTER 1424 (Dave, 20 Nov, two iPhone screenshots): the room's photo reaches the top of the screen — the page is padded
+   below the phone's own top (#nx-page, --proos-sat), so the photo started under the clock and the frosted copy showed above
+   it. And Home shows the Home photo as a room shows its own: clear at the top, dissolving into its frosted copy (Home had
+   only the frosted copy — 30px of blur, a brown wash). */
+#nx-page.nx-room-pg .nxr-hero{margin-top:calc(-1 * var(--proos-sat,0px));height:calc(340px + var(--proos-sat,0px))}
+#nx-page.nx-home-pg>.nx-in{position:relative}
+#nx-page .nxh-photo{position:absolute;left:0;right:0;top:0;height:calc(var(--proos-sat,0px) + 340px);background:#1b1c20 center/cover;pointer-events:none;
+  -webkit-mask-image:linear-gradient(180deg,#000 50%,transparent 98%);mask-image:linear-gradient(180deg,#000 50%,transparent 98%)}
+#nx-page .nxh-photo::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(14,14,16,.15),rgba(14,14,16,.4) 60%,rgba(14,14,16,0))}
 @media (prefers-reduced-motion:reduce){#nx-bgx i{transition:none}}
 </style>
 <script>
