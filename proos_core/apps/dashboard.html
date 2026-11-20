@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112104';
+const PROOS_BUILD='2026112105';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -24755,6 +24755,28 @@ body.nx-on #nx-page.open{display:block}
 .nx-set{display:grid;grid-template-columns:1fr;gap:12px;margin-top:16px}
 @media (min-width:820px){.nx-set{grid-template-columns:minmax(0,1fr) minmax(0,1.5fr);align-items:start}.nx-set .nx-col{display:flex;flex-direction:column;gap:12px}}
 .nx-col{display:flex;flex-direction:column;gap:12px}
+/* REGISTER 1432 — SETTINGS USES THE SPACE (Dave, 21 Nov, agreed): the same five cards, placed by the screen.
+   Phone: one column — you, This Device, Assist, Your Installer, Version. iPad upright: you across the top (photo beside
+   your name), then This Device beside Assist / Your Installer / Version. Sideways (and a computer): you, Your Installer
+   and Version on the left; This Device and Assist on the right. Nothing added or taken away. */
+.nx-set.nx-set2{grid-template-areas:"pf" "dev" "as" "ins" "sys"}
+.nx-set2 .nx-wl,.nx-set2 .nx-wr{display:contents}
+.nx-set2 .nx-a-pf{grid-area:pf;text-align:center;padding:24px 16px}.nx-set2 .nx-a-dev{grid-area:dev}.nx-set2 .nx-a-as{grid-area:as}.nx-set2 .nx-a-ins{grid-area:ins}
+.nx-set2 .nx-a-sys{grid-area:sys;display:flex;flex-direction:column;gap:12px}
+.nx-a-pf .pf-nm{font-size:24px;font-weight:600;margin-top:12px}
+@media (min-width:700px){
+  .nx-set.nx-set2{grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);grid-template-areas:"pf pf" "dev as" "dev ins" "dev sys";align-items:start}
+  .nx-set2 .nx-a-pf{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:22px;text-align:left;padding:20px 24px}
+  .nx-set2 .nx-a-pf .nx-big{margin:0}.nx-set2 .nx-a-pf .pf-nm{margin-top:0}.nx-set2 .nx-a-pf .nx-btns{justify-content:flex-start}
+}
+/* sideways: two columns that each stack on their own — you, Your Installer, Version | This Device, Assist (balanced on the
+   box: Assist under This Device left no gap; a shared row grid did) */
+@media (min-width:820px) and (orientation:landscape){
+  .nx-set.nx-set2{grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);grid-template-areas:none;align-items:start}
+  .nx-set2 .nx-wl,.nx-set2 .nx-wr{display:flex;flex-direction:column;gap:12px;min-width:0}
+  .nx-set2 .nx-a-pf{display:block;text-align:center;padding:24px 16px}
+  .nx-set2 .nx-a-pf .nx-big{margin:4px auto 0}.nx-set2 .nx-a-pf .pf-nm{margin-top:12px}.nx-set2 .nx-a-pf .nx-btns{justify-content:center}
+}
 .nx-card{background:#1b1c20;border-radius:24px;padding:16px}
 .nx-card h3{font-size:17px;font-weight:600;margin-bottom:4px}
 .nx-lab{font-size:13px;font-weight:500;color:rgba(255,255,255,.62);margin:14px 0 8px}
@@ -24910,21 +24932,23 @@ body.nx-on #nx-page.open{display:block}
     var times=[[0,'Off'],[30,'30 Sec'],[60,'1 Min'],[120,'2 Min'],[300,'5 Min']];
     var instBtn=document.getElementById('set-installer-btn'), inst=instBtn?(instBtn.dataset.on===''?null:instBtn.dataset.on==='1'):null;
     var conn=(function(){ try{ var s=!!(localStorage.getItem('ha_url')&&localStorage.getItem('ha_token')); var c=s&&typeof ws!=='undefined'&&ws&&ws.readyState===WebSocket.OPEN; return !s?'Not set up':c?(_onHome()?'Connected · at home':'Connected · away'):'Not connected — trying again'; }catch(e){ return '—'; } })();
-    var left='<div class="nx-card" style="text-align:center;padding:24px 16px"><div class="nx-big" id="nx-big-av"></div><div style="font-size:24px;font-weight:600;margin-top:12px">'+nxEsc(u&&u.name||'')+'</div>'+
+    var left='<div class="nx-card nx-a-pf"><div class="nx-big" id="nx-big-av"></div><div class="pf-tx"><div class="pf-nm">'+nxEsc(u&&u.name||'')+'</div>'+
       '<div style="margin-top:8px"><span class="nx-pill g">'+(u?(u.is_owner?'Developer':u.is_admin?'Installer':'Homeowner'):'')+'</span><span class="nx-pill">'+nxEsc((typeof _haLocationName!=='undefined'&&_haLocationName)||'Home')+'</span></div>'+
-      '<div class="nx-btns"><button type="button" class="nx-btn" data-act="pic">Change Photo</button><button type="button" class="nx-btn red" data-act="unpic">Remove</button></div><div id="nx-av-msg" style="font-size:12.5px;min-height:16px;margin-top:10px;color:rgba(255,255,255,.55)"></div></div>'+
-      '<div class="nx-card" style="padding:4px 16px"><div class="nx-li">Version<span>1.0 · build '+nxEsc(typeof PROOS_BUILD!=='undefined'?PROOS_BUILD:'')+'</span></div>'+(inApp?'':'<div class="nx-li">Connection<span>'+nxEsc(conn)+'</span></div>')+'</div>'+
-      (inApp?'':'<button type="button" class="nx-btn red" data-act="out" style="width:100%;height:48px">Sign Out</button>');
-    var right='<div class="nx-card"><h3>This Device</h3><div class="nx-lab">Open App To</div>'+seg('room',dr,[['','Home']].concat(rooms.map(function(r){ return [r.name,r.name]; })))+
+      '<div class="nx-btns"><button type="button" class="nx-btn" data-act="pic">Change Photo</button><button type="button" class="nx-btn red" data-act="unpic">Remove</button></div><div id="nx-av-msg" style="font-size:12.5px;min-height:16px;margin-top:10px;color:rgba(255,255,255,.55)"></div></div></div>'+
+      '<div class="nx-a-sys"><div class="nx-card" style="padding:4px 16px"><div class="nx-li">Version<span>1.0 · build '+nxEsc(typeof PROOS_BUILD!=='undefined'?PROOS_BUILD:'')+'</span></div>'+(inApp?'':'<div class="nx-li">Connection<span>'+nxEsc(conn)+'</span></div>')+'</div>'+
+      (inApp?'':'<button type="button" class="nx-btn red" data-act="out" style="width:100%;height:48px">Sign Out</button>')+'</div>';
+    var right='<div class="nx-card nx-a-dev"><h3>This Device</h3><div class="nx-lab">Open App To</div>'+seg('room',dr,[['','Home']].concat(rooms.map(function(r){ return [r.name,r.name]; })))+
       (typeof ssAllowed==='function'&&ssAllowed()?'<div class="nx-lab">Screensaver After</div>'+seg('ss',ssSecs(),times):'')+
       '<div class="nx-lab">Return To Start After</div>'+seg('ret',retSecs(),times)+tog('newui',true,'New Look','This new dashboard on this screen. Off goes back to the one you know.')+'</div>'+
-      '<div class="nx-card"><h3>Assist</h3>'+tog('voice',voiceConsentGiven(),'Talk To ProOS','Your voice goes to your home’s transcription service to be turned into words. Nothing is kept.')+
+      '<div class="nx-card nx-a-as"><h3>Assist</h3>'+tog('voice',voiceConsentGiven(),'Talk To ProOS','Your voice goes to your home’s transcription service to be turned into words. Nothing is kept.')+
       tog('speak',speakAnswersOn(),'Speak Answers','Answers out loud on this screen in your home’s ProOS voice.')+
       '<button type="button" class="nx-li" data-act="mem" style="width:100%;background:none;border:0;color:#fff;font:inherit;cursor:pointer;margin-top:10px;border-top:1px solid rgba(255,255,255,.07)">What It Remembers<span>›</span></button></div>'+
-      '<div class="nx-card"><h3>Your Installer</h3>'+tog('inst',inst,'Allow Installer Access','Your installer can manage this home. Off revokes their access — and any tech support they enabled.')+
+      '<div class="nx-card nx-a-ins"><h3>Your Installer</h3>'+tog('inst',inst,'Allow Installer Access','Your installer can manage this home. Off revokes their access — and any tech support they enabled.')+
       (inApp?'':tog('loc',locationSharingOn(),'Share My Location','So the home knows when you’re coming and going. Off by default.'))+'</div>';
-    var html='<button type="button" class="nx-back" data-b>'+svgOf('back')+'</button><div class="nx-set"><div class="nx-col">'+left+'</div><div class="nx-col">'+right+'</div></div>';
+    var html='<button type="button" class="nx-back" data-b>'+svgOf('back')+'</button><div class="nx-set nx-set2"><div class="nx-wl">'+left+'</div><div class="nx-wr">'+right+'</div></div>';
     var p=_nxPage(html);
+    // 1432: Your Installer stands in the left column (sideways); on a phone and upright the columns dissolve and the order comes from the grid
+    try{ var _wl=p.querySelector('.nx-wl'), _ins=p.querySelector('.nx-a-ins'), _sys=p.querySelector('.nx-a-sys'); if(_wl&&_ins&&_sys) _wl.insertBefore(_ins,_sys); }catch(e){}
     var big=document.getElementById('nx-big-av'), a=window._proosAvatar||{}; if(a.url){ big.style.backgroundImage="url('"+a.url+"')"; } else big.textContent=a.initial||'D';
     p.querySelector('[data-b]').onclick=function(){ _nxGoTo('home'); };
     p.querySelectorAll('[data-seg]').forEach(function(sg){ sg.querySelectorAll('button').forEach(function(b){ b.onclick=function(){ var v=b.dataset.v, k=sg.dataset.seg;
