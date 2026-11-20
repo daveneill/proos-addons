@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112102';
+const PROOS_BUILD='2026112103';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -25167,12 +25167,14 @@ body.nx-on #nx-page.open{display:block}
    at the right; a very wide picture stops at 72% of the card. A tile keeps cover for a picture its own shape (a TV
    picture in a wide tile); a square cover in a wide tile shows whole at the right over its own blurred copy. */
 .nxh-hero .art[data-ar]{width:auto;aspect-ratio:var(--ar);max-width:72%;-webkit-mask-image:linear-gradient(90deg,transparent,#000 28%);mask-image:linear-gradient(90deg,transparent,#000 28%)}
-.nxr-live.art.fit{background-image:none!important}
-.nxr-live.art.fit>.nxa-bg,.nxr-live.art.fit>.nxa-sq{position:absolute;top:0;bottom:0;background:center/cover;pointer-events:none;z-index:0}
-.nxr-live.art.fit>.nxa-bg{left:0;right:0;filter:blur(28px) brightness(.55) saturate(1.2);transform:scale(1.25)}
-.nxr-live.art.fit>.nxa-sq{right:0;height:100%;aspect-ratio:var(--ar);max-width:70%;-webkit-mask-image:linear-gradient(90deg,transparent,#000 30%);mask-image:linear-gradient(90deg,transparent,#000 30%)}
-.nxr-live.art.fit::before{z-index:1}
-.nxr-live.art.fit>*:not(.nxa-bg):not(.nxa-sq){z-index:2}
+/* REGISTER 1429 (Dave, 21 Nov: "The others have the blurred background fading into the art the widget does not needs to be
+   the same across all widget sizes"): a media widget (.nxw.art) is built as an On Now card is, and now fits as one does. */
+:is(.nxr-live,.nxw).art.fit{background-image:none!important}
+:is(.nxr-live,.nxw).art.fit>.nxa-bg,:is(.nxr-live,.nxw).art.fit>.nxa-sq{position:absolute;top:0;bottom:0;background:center/cover;pointer-events:none;z-index:0}
+:is(.nxr-live,.nxw).art.fit>.nxa-bg{left:0;right:0;filter:blur(28px) brightness(.55) saturate(1.2);transform:scale(1.25)}
+:is(.nxr-live,.nxw).art.fit>.nxa-sq{right:0;height:100%;aspect-ratio:var(--ar);max-width:70%;-webkit-mask-image:linear-gradient(90deg,transparent,#000 30%);mask-image:linear-gradient(90deg,transparent,#000 30%)}
+:is(.nxr-live,.nxw).art.fit::before{z-index:1}
+:is(.nxr-live,.nxw).art.fit>*:not(.nxa-bg):not(.nxa-sq){z-index:2}
 /* REGISTER 1428 — …and EVERYWHERE else artwork is drawn (Dave, 21 Nov: "I said everywhere widgets need the change also"):
    any picture that came through artSrc, wherever it is painted, whose own shape is far from its box's. Square art in a
    wide box sits whole at the right; wide art in a square/tall box sits whole in the middle. */
@@ -26106,6 +26108,12 @@ body.nx-on #pa-detail{z-index:9070}
 .nxm-top{display:flex;align-items:center;gap:12px;cursor:pointer}
 .nxm-art{width:56px;height:56px;border-radius:14px;background:#26272d center/cover;flex:none;display:grid;place-items:center}
 .nxm-art svg{width:22px;height:22px;stroke:rgba(255,255,255,.5);fill:none;stroke-width:1.7}
+/* REGISTER 1429 (Dave, 21 Nov: "All the players need the blurred artwork background also"): a speaker with something on
+   carries its own artwork, blurred, behind the card — as the On Now cards and widgets do. The bar lets it show through. */
+.nxm-card>.nxm-bgart{position:absolute;inset:0;background:center/cover;filter:blur(28px) brightness(.5) saturate(1.2);transform:scale(1.3);pointer-events:none;z-index:0}
+.nxm-card.has-art>:not(.nxm-bgart){position:relative;z-index:1}
+.nxm-card.has-art .nxm-vol{background:rgba(255,255,255,.09)}
+.nxm-card.has-art .nxm-btn:not(.play):not(.on){background:rgba(255,255,255,.14)}
 .nxm-top .gr{flex:1;min-width:0}
 .nxm-top b{display:block;font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .nxm-top small{display:block;font-size:12.5px;color:rgba(255,255,255,.6);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -26158,7 +26166,8 @@ body.nx-on #pa-detail{z-index:9070}
     if(R.members.length&&R.canGroup) btn='<button type="button" class="nxm-btn grp on" data-mleave="'+nxmEsc(x.e)+'" aria-label="Leave the group">'+LINK+'</button>';
     else if(leader) btn='<button type="button" class="nxm-btn grp" data-mjoin="'+nxmEsc(x.e)+'" data-mlead="'+nxmEsc(leader.e)+'" aria-label="Join '+nxmEsc(leader.room||leader.name)+'">'+LINK+'</button>';
     if(R.canPP&&(R.playing||R.paused)) btn+='<button type="button" class="nxm-btn'+(R.playing?'':' play')+'" data-mpp="'+nxmEsc(x.e)+'" aria-label="'+(R.playing?'Pause':'Play')+'">'+(R.playing?PAUSE:PLAY)+'</button>';
-    return '<div class="nxm-card'+(R.playing?' play':'')+'"><div class="nxm-top" data-mopen="'+nxmEsc(x.e)+'"><div class="nxm-art" style="'+(art?"background-image:url('"+String(art).replace(/'/g,'%27')+"')":'')+'">'+(art?'':NOTE)+'</div>'+
+    var bgart=art?'<i class="nxm-bgart" aria-hidden="true" style="background-image:url(\''+String(art).replace(/'/g,'%27')+'\')"></i>':'';   // 1429
+    return '<div class="nxm-card'+(R.playing?' play':'')+(art?' has-art':'')+'">'+bgart+'<div class="nxm-top" data-mopen="'+nxmEsc(x.e)+'"><div class="nxm-art" style="'+(art?"background-image:url('"+String(art).replace(/'/g,'%27')+"')":'')+'">'+(art?'':NOTE)+'</div>'+
       '<div class="gr"><b>'+nxmEsc(x.label)+'</b><small class="'+(R.playing?'on':'')+'">'+nxmEsc(line)+(leader?' · join '+nxmEsc(leader.room||leader.name):'')+'</small></div><div style="display:flex;gap:8px">'+btn+'</div></div>'+
       (R.canVol&&!R.gone?'<div class="nxm-vol" data-mvol="'+nxmEsc(x.e)+'"><i style="width:'+R.vol+'%"></i><span class="l">'+VOL+'Volume</span><span class="r">'+R.vol+'</span></div>':'')+'</div>';
   }
@@ -32156,7 +32165,7 @@ try{ setInterval(_outcomesRead, LV_OUTCOME_EVERY_MS); }catch(e){}
   function fit(root){
     root.querySelectorAll('.nxh-hero .art').forEach(function(el){ var u=url(el); if(!u||el.dataset.artu===u) return; el.dataset.artu=u;
       ar(u,function(a){ if(el.dataset.artu!==u) return; el.style.setProperty('--ar',a.toFixed(4)); el.setAttribute('data-ar',''); }); });
-    root.querySelectorAll('.nxr-live.art').forEach(function(el){ var u=url(el)||el.dataset.artu; if(!u||(el.dataset.artu===u&&el.dataset.artd)) return; el.dataset.artu=u;
+    root.querySelectorAll('.nxr-live.art,.nxw.art').forEach(function(el){ var u=url(el)||el.dataset.artu; if(!u||(el.dataset.artu===u&&el.dataset.artd)) return; el.dataset.artu=u;
       ar(u,function(a){ if(el.dataset.artu!==u) return; el.dataset.artd='1'; var r=el.getBoundingClientRect(); if(!r.height) return;
         if(a < (r.width/r.height)*0.8){ if(!el.querySelector(':scope>.nxa-sq')){ var bg=document.createElement('i'), sq=document.createElement('i'); bg.className='nxa-bg'; sq.className='nxa-sq';
             bg.setAttribute('aria-hidden','true'); sq.setAttribute('aria-hidden','true'); el.insertBefore(sq,el.firstChild); el.insertBefore(bg,el.firstChild); }
@@ -32165,7 +32174,7 @@ try{ setInterval(_outcomesRead, LV_OUTCOME_EVERY_MS); }catch(e){}
   }
   function _nxArtGo(){ var p=document.getElementById('nx-page'); if(!p) return setTimeout(_nxArtGo,500); fit(p);
     var t=0; new MutationObserver(function(){ clearTimeout(t); t=setTimeout(function(){ fit(p); },60); }).observe(p,{childList:true,subtree:true});
-    var rt=0; window.addEventListener('resize',function(){ clearTimeout(rt); rt=setTimeout(function(){ p.querySelectorAll('.nxr-live.art').forEach(function(el){ delete el.dataset.artd; }); fit(p); },200); }); }
+    var rt=0; window.addEventListener('resize',function(){ clearTimeout(rt); rt=setTimeout(function(){ p.querySelectorAll('.nxr-live.art,.nxw.art').forEach(function(el){ delete el.dataset.artd; }); fit(p); },200); }); }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',_nxArtGo); else _nxArtGo();
 })();
 // REGISTER 1428 — every other place artwork is painted. Every artwork address passes through artSrc(); the ones it hands
@@ -32181,7 +32190,7 @@ try{ setInterval(_outcomesRead, LV_OUTCOME_EVERY_MS); }catch(e){}
   function _nxaClear(el){ el.classList.remove('nxa-fit-r','nxa-fit-c'); }
   function _nxaOne(el){ var u=_nxaSrc(el); if(u&&!SEEN[u]&&/\/api\/media_player_proxy\//.test(u)){ SEEN[u]=1; n++; }   // the platform's own art address
     if(!u||!SEEN[u]){ if(el.dataset.nxau){ _nxaClear(el); delete el.dataset.nxau; } return; }
-    if(el.closest('.nxh-hero,.nxr-live.art')) return;
+    if(el.closest('.nxh-hero,.nxr-live.art,.nxw.art')) return;
     var r=el.getBoundingClientRect(); if(!r.width||!r.height) return;
     if(r.width*r.height>0.5*innerWidth*innerHeight) return;
     if(/blur/.test(getComputedStyle(el).filter||'')) return;
