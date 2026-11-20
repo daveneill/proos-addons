@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112001';
+const PROOS_BUILD='2026112101';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -25161,6 +25161,18 @@ body.nx-on #nx-page.open{display:block}
 .nxh-hero{position:relative;width:100%;height:208px;margin-top:18px;border-radius:26px;border:0;padding:0;overflow:hidden;background:#1b1c20;color:#fff;cursor:pointer;text-align:left;display:flex;
   animation:nxrArrive var(--m-page) var(--e-spring)}
 @media (min-width:820px){.nxh-hero{height:250px}}
+/* REGISTER 1427 — ARTWORK TAKES ITS OWN SHAPE (Dave, 21 Nov: "needs to size correctly across everything … some are square
+   some are a rectangle"). The hero's art was a fixed 58% slice — square on a phone, four times wider than tall on an iPad,
+   where a square logo was cut off. Once the picture's own shape is read (_nxArtFit) the art panel IS that shape, full height,
+   at the right; a very wide picture stops at 72% of the card. A tile keeps cover for a picture its own shape (a TV
+   picture in a wide tile); a square cover in a wide tile shows whole at the right over its own blurred copy. */
+.nxh-hero .art[data-ar]{width:auto;aspect-ratio:var(--ar);max-width:72%;-webkit-mask-image:linear-gradient(90deg,transparent,#000 28%);mask-image:linear-gradient(90deg,transparent,#000 28%)}
+.nxr-live.art.fit{background-image:none!important}
+.nxr-live.art.fit>.nxa-bg,.nxr-live.art.fit>.nxa-sq{position:absolute;top:0;bottom:0;background:center/cover;pointer-events:none;z-index:0}
+.nxr-live.art.fit>.nxa-bg{left:0;right:0;filter:blur(28px) brightness(.55) saturate(1.2);transform:scale(1.25)}
+.nxr-live.art.fit>.nxa-sq{right:0;height:100%;aspect-ratio:var(--ar);max-width:70%;-webkit-mask-image:linear-gradient(90deg,transparent,#000 30%);mask-image:linear-gradient(90deg,transparent,#000 30%)}
+.nxr-live.art.fit::before{z-index:1}
+.nxr-live.art.fit>*:not(.nxa-bg):not(.nxa-sq){z-index:2}
 .nxh-hero .art{position:absolute;right:0;top:0;bottom:0;width:58%;background:#26272d center/cover;-webkit-mask-image:linear-gradient(90deg,transparent,#000 40%);mask-image:linear-gradient(90deg,transparent,#000 40%)}
 .nxh-hero .glow{position:absolute;inset:0;background:center/cover;filter:blur(40px) brightness(.45) saturate(1.3);transform:scale(1.3);opacity:.9}
 .nxh-hero .tx{position:relative;z-index:2;padding:18px;display:flex;flex-direction:column;justify-content:space-between;width:64%}
@@ -32125,6 +32137,29 @@ try{ setInterval(_outcomesRead, LV_OUTCOME_EVERY_MS); }catch(e){}
       return out;
     };
   }
+})();
+</script>
+<script>
+// REGISTER 1427 — read each artwork's own shape and fit it (styles beside .nxh-hero). Measured, never guessed: the
+// picture's natural width/height once it has loaded; until then it is drawn as before.
+(function(){
+  var AR={};   // url -> width/height, read once
+  function url(el){ var m=/url\(["']?([^"')]+)["']?\)/.exec(el.style.backgroundImage||''); return m?m[1]:''; }
+  function ar(u,cb){ if(AR[u]){ cb(AR[u]); return; } var i=new Image(); i.onload=function(){ if(i.naturalWidth&&i.naturalHeight){ AR[u]=i.naturalWidth/i.naturalHeight; cb(AR[u]); } }; i.src=u; }
+  function fit(root){
+    root.querySelectorAll('.nxh-hero .art').forEach(function(el){ var u=url(el); if(!u||el.dataset.artu===u) return; el.dataset.artu=u;
+      ar(u,function(a){ if(el.dataset.artu!==u) return; el.style.setProperty('--ar',a.toFixed(4)); el.setAttribute('data-ar',''); }); });
+    root.querySelectorAll('.nxr-live.art').forEach(function(el){ var u=url(el)||el.dataset.artu; if(!u||(el.dataset.artu===u&&el.dataset.artd)) return; el.dataset.artu=u;
+      ar(u,function(a){ if(el.dataset.artu!==u) return; el.dataset.artd='1'; var r=el.getBoundingClientRect(); if(!r.height) return;
+        if(a < (r.width/r.height)*0.8){ if(!el.querySelector(':scope>.nxa-sq')){ var bg=document.createElement('i'), sq=document.createElement('i'); bg.className='nxa-bg'; sq.className='nxa-sq';
+            bg.setAttribute('aria-hidden','true'); sq.setAttribute('aria-hidden','true'); el.insertBefore(sq,el.firstChild); el.insertBefore(bg,el.firstChild); }
+          el.querySelector(':scope>.nxa-bg').style.backgroundImage=el.querySelector(':scope>.nxa-sq').style.backgroundImage='url("'+u+'")';
+          el.style.setProperty('--ar',a.toFixed(4)); el.classList.add('fit'); } else el.classList.remove('fit'); }); });
+  }
+  function _nxArtGo(){ var p=document.getElementById('nx-page'); if(!p) return setTimeout(_nxArtGo,500); fit(p);
+    var t=0; new MutationObserver(function(){ clearTimeout(t); t=setTimeout(function(){ fit(p); },60); }).observe(p,{childList:true,subtree:true});
+    var rt=0; window.addEventListener('resize',function(){ clearTimeout(rt); rt=setTimeout(function(){ p.querySelectorAll('.nxr-live.art').forEach(function(el){ delete el.dataset.artd; }); fit(p); },200); }); }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',_nxArtGo); else _nxArtGo();
 })();
 </script>
 </body>
