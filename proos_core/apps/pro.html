@@ -4439,7 +4439,7 @@ html.pnx #px-more .px-row.on b{color:var(--px-blue2)}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111918';
+const PROOS_BUILD='2026111919';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -24967,8 +24967,11 @@ clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',plus:'<path d="M1
   window.PX={E:E,I:I,Q:Q,cv:cv,row:row,sec:sec,tag:tag,btn:btn,v:v,on:on,pages:{}};
 
   // ── WHO AND WHERE: the account and the home at the top of the rail ──
+  // REGISTER 1430: the account avatar is MOVED into the rail; when the rail redraws, the old .px-me goes with it — and the
+  // avatar with it (Pro had no avatar and no account menu at all). The redraw keeps hold of it and puts it back each time.
+  var _avw=null;
   function _me(){
-    var rail=document.getElementById('v2rail'), w=document.querySelector('#app .topbar .who-avw'); if(!rail) return;
+    var rail=document.getElementById('v2rail'), w=document.querySelector('#app .topbar .who-avw')||document.querySelector('#v2rail .who-avw')||_avw; if(!rail) return; if(w) _avw=w;
     var me=rail.querySelector('.px-me'); if(!me){ me=document.createElement('div'); me.className='px-me'; rail.insertBefore(me,rail.firstChild);
       setHTML(me,'<div class="px-mt"><b id="px-who">ProOS Pro</b><small id="px-home"></small></div>'); me.addEventListener('click',function(e){ if(e.target.closest('.who-avw')) return; try{ toggleWhoMenu(e); }catch(x){} }); }
     if(w&&w.parentNode!==me) me.insertBefore(w,me.firstChild);
