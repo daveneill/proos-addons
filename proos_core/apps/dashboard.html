@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112103';
+const PROOS_BUILD='2026112104';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -15582,30 +15582,37 @@ async function _haUploadJpeg(blob){
   if(!id) throw new Error('no image id');
   return '/api/image/serve/'+id+'/original';
 }
+// REGISTER 1430: the upload's words reach whichever look is on screen (New Look had no line — a failure looked like nothing)
+function _avMsg(t,c){ ['set-avatar-msg','nx-av-msg'].forEach(function(id){ var m=document.getElementById(id); if(m){ m.textContent=t; m.style.color=c; } }); }
 function dashAvatarUpload(){
+  // 1430: the chooser lives ON the page (out of sight) until the photo arrives — iOS's web view (the ProOS app) drops the
+  // "chosen" signal of a chooser that was never put on the page: the photo could be found, and then nothing happened
   const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*';
+  inp.style.cssText='position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0'; document.body.appendChild(inp);
+  const _done=function(){ try{ inp.remove(); }catch(_){} };
   inp.onchange=async()=>{
-    const f=inp.files&&inp.files[0]; if(!f) return;
-    const msg=document.getElementById('set-avatar-msg'); if(msg){ msg.textContent='Uploading…'; msg.style.color='rgba(255,255,255,0.4)'; }
+    const f=inp.files&&inp.files[0]; if(!f){ _done(); return; }
+    _avMsg('Uploading…','rgba(255,255,255,0.55)');
     try{
       const blob=await _dashFileToJpeg(f, 512);          // any format (incl. HEIC) -> JPEG
       const url=await _haUploadJpeg(blob);               // browser -> HA native image store
       const r=await fetch(proosCoreBase()+'/me/picture',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({picture:url})}); // Core writes it onto my person
       if(!r.ok){ let e=''; try{ e=(await r.json()).error||''; }catch(_){}; throw new Error(e||('HTTP '+r.status)); }
-      if(msg){ msg.textContent='Updated.'; msg.style.color='rgba(100,220,100,0.8)'; }
+      _avMsg('Updated.','rgba(100,220,100,0.85)');
       _dashAvatarRefresh();
-    }catch(e){ if(msg){ msg.textContent="Couldn't update picture"+(e&&e.message?(' — '+e.message):''); msg.style.color='rgba(225,112,85,0.9)'; } }
+    }catch(e){ _avMsg("Couldn't update picture"+(e&&e.message?(' — '+e.message):''),'rgba(225,112,85,0.95)'); }
+    _done();
   };
   inp.click();
 }
 async function dashAvatarRemove(){
-  const msg=document.getElementById('set-avatar-msg'); if(msg){ msg.textContent='Removing…'; msg.style.color='rgba(255,255,255,0.4)'; }
+  _avMsg('Removing…','rgba(255,255,255,0.55)');
   try{
     const r=await fetch(proosCoreBase()+'/me/picture',{method:'POST'});
     if(!r.ok){ let e=''; try{ e=(await r.json()).error||''; }catch(_){}; throw new Error(e||('HTTP '+r.status)); }
-    if(msg){ msg.textContent='Removed.'; msg.style.color='rgba(255,255,255,0.4)'; }
+    _avMsg('Removed.','rgba(255,255,255,0.55)');
     _dashAvatarRefresh();
-  }catch(e){ if(msg){ msg.textContent="Couldn't remove picture"; msg.style.color='rgba(225,112,85,0.9)'; } }
+  }catch(e){ _avMsg("Couldn't remove picture"+(e&&e.message?(' — '+e.message):''),'rgba(225,112,85,0.95)'); }
 }
 
 
@@ -24905,7 +24912,7 @@ body.nx-on #nx-page.open{display:block}
     var conn=(function(){ try{ var s=!!(localStorage.getItem('ha_url')&&localStorage.getItem('ha_token')); var c=s&&typeof ws!=='undefined'&&ws&&ws.readyState===WebSocket.OPEN; return !s?'Not set up':c?(_onHome()?'Connected · at home':'Connected · away'):'Not connected — trying again'; }catch(e){ return '—'; } })();
     var left='<div class="nx-card" style="text-align:center;padding:24px 16px"><div class="nx-big" id="nx-big-av"></div><div style="font-size:24px;font-weight:600;margin-top:12px">'+nxEsc(u&&u.name||'')+'</div>'+
       '<div style="margin-top:8px"><span class="nx-pill g">'+(u?(u.is_owner?'Developer':u.is_admin?'Installer':'Homeowner'):'')+'</span><span class="nx-pill">'+nxEsc((typeof _haLocationName!=='undefined'&&_haLocationName)||'Home')+'</span></div>'+
-      '<div class="nx-btns"><button type="button" class="nx-btn" data-act="pic">Change Photo</button><button type="button" class="nx-btn red" data-act="unpic">Remove</button></div></div>'+
+      '<div class="nx-btns"><button type="button" class="nx-btn" data-act="pic">Change Photo</button><button type="button" class="nx-btn red" data-act="unpic">Remove</button></div><div id="nx-av-msg" style="font-size:12.5px;min-height:16px;margin-top:10px;color:rgba(255,255,255,.55)"></div></div>'+
       '<div class="nx-card" style="padding:4px 16px"><div class="nx-li">Version<span>1.0 · build '+nxEsc(typeof PROOS_BUILD!=='undefined'?PROOS_BUILD:'')+'</span></div>'+(inApp?'':'<div class="nx-li">Connection<span>'+nxEsc(conn)+'</span></div>')+'</div>'+
       (inApp?'':'<button type="button" class="nx-btn red" data-act="out" style="width:100%;height:48px">Sign Out</button>');
     var right='<div class="nx-card"><h3>This Device</h3><div class="nx-lab">Open App To</div>'+seg('room',dr,[['','Home']].concat(rooms.map(function(r){ return [r.name,r.name]; })))+
@@ -30430,9 +30437,9 @@ html:not(.proos-panel) #page-home .top-bar .top-bar-inner{justify-content:space-
         var ini=(name&&name.trim()&&name.trim()[0].toUpperCase())||'';
         if(pic){ var url=(pic.charAt(0)==='/')?((typeof HA==='string'?HA:'').replace(/\/$/,'')+pic):pic;
           window._proosAvatar={url:url, initial:ini};
-          _proosPaintAvatar('set-avatar-preview'); window._proosPicDone=true; }
+          (window._proosPaintAll||function(){ _proosPaintAvatar('set-avatar-preview'); })(); window._proosPicDone=true; }
         else if(uid){ window._proosAvatar={url:'', initial:(ini||'D')};
-          _proosPaintAvatar('set-avatar-preview'); if(window._proosPicTries>=4) window._proosPicDone=true; }
+          (window._proosPaintAll||function(){ _proosPaintAvatar('set-avatar-preview'); })(); if(window._proosPicTries>=4) window._proosPicDone=true; }
       }catch(e){}
       window._proosPicBusy=false;
     })();
@@ -30443,6 +30450,24 @@ html:not(.proos-panel) #page-home .top-bar .top-bar-inner{justify-content:space-
     else { el.style.backgroundImage=''; el.style.color='#fff'; el.textContent=a.initial||'D'; }
   }
   window._proosApplyPic=applyProfilePic;   // let Settings refresh the header after an avatar change
+  // REGISTER 1430 (Dave, 21 Nov: a new picture "never updates … Needs to sync across everything"). ONE source — the
+  // signed-in person's own entity_picture, the platform's — and ONE painter for every place it shows: Settings (both looks),
+  // the New Look corner avatar and its big circle. It read once at start and painted Settings only, so a new picture never
+  // reached the New Look, and a picture set on another device never arrived until the app was reopened. Now the live copy
+  // of the person (the page's own states, kept current by the platform) is looked at every 2 seconds — no request — and a
+  // change, from this device or any other, repaints everything.
+  function _proosPaintAll(){ _proosPaintAvatar('set-avatar-preview'); _proosPaintAvatar('nx-avatar'); _proosPaintAvatar('nx-big-av');
+    var big=document.getElementById('nx-big-av'); if(big){ var a=window._proosAvatar||{}; big.style.backgroundSize='cover'; big.style.backgroundPosition='center'; } }
+  window._proosPaintAll=_proosPaintAll;
+  setInterval(function(){ try{
+    var uid=window._haUser&&window._haUser.id; if(!uid||typeof states!=='object'||!states) return;
+    var me=null; for(var k in states){ if(k.indexOf('person.')===0){ var A=(states[k]&&states[k].attributes)||{}; if(A.user_id===uid){ me=A; break; } } }
+    if(!me) return;
+    var pic=me.entity_picture||'', url=pic?((pic.charAt(0)==='/')?((typeof HA==='string'?HA:'').replace(/\/$/,'')+pic):pic):'';
+    var nm=me.friendly_name||(window._haUser&&window._haUser.name)||'', ini=(nm.trim()&&nm.trim()[0].toUpperCase())||'D';
+    var cur=window._proosAvatar||{};
+    if(cur.url!==url||cur.initial!==ini){ window._proosAvatar={url:url, initial:ini}; window._proosPicDone=true; _proosPaintAll(); }
+  }catch(e){} }, 2000);
   // iOS never focuses a range input on touch, so the app's in-place updaters
   // (which skip document.activeElement) overwrite the slider mid-drag — the
   // "slider fights my finger" bug. Focus it on touch, blur shortly after.

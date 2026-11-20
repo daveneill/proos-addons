@@ -4439,7 +4439,7 @@ html.pnx #px-more .px-row.on b{color:var(--px-blue2)}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111917';
+const PROOS_BUILD='2026111918';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -25577,6 +25577,30 @@ clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',plus:'<path d="M1
   if(typeof v2Render==='function'&&!v2Render._pxm){ var _r=v2Render; v2Render=function(){ var x=_r.apply(this,arguments); try{ add(); }catch(e){} return x; }; v2Render._pxm=1; }
   if(typeof v2AfterShow==='function'&&!v2AfterShow._pxm){ var _a=v2AfterShow; v2AfterShow=function(){ var x=_a.apply(this,arguments); try{ mark(); }catch(e){} return x; }; v2AfterShow._pxm=1; }
   try{ add(); }catch(e){}
+})();
+</script>
+<script>
+/* REGISTER 1430 — YOUR PICTURE, ONE SOURCE, EVERY SCREEN (Dave, 21 Nov: "Needs to sync across everything"). Pro read the
+   signed-in person's picture once, at sign-in; a picture changed on the dashboard, the app or another Mac never arrived
+   until Pro was reopened. Pro now follows the platform's own person live: whenever its connection to the box is (re)made
+   it reads the person once and subscribes to that person's state — a new or removed picture repaints the avatar (the
+   rail's and the header's — the same .who-av) the moment the platform says so. Nothing is kept of its own. */
+(function(){
+  var _pid=null;
+  function paint(pic){ document.querySelectorAll('.who-av').forEach(function(av){
+    if(pic){ av.classList.add('has-pic'); av.style.backgroundImage="url('"+_localUrl()+pic+"')"; }
+    else { av.classList.remove('has-pic'); av.style.backgroundImage=''; } }); }
+  async function follow(){
+    try{
+      var u=(await snd({type:'auth/current_user'})).result; if(!u||!u.id) return;
+      var st=await snd({type:'get_states'}); var me=((st&&st.result)||[]).find(function(e){ return e.entity_id&&e.entity_id.indexOf('person.')===0&&(e.attributes||{}).user_id===u.id; });
+      if(!me) return; _pid=me.entity_id; paint((me.attributes||{}).entity_picture||'');
+      var r=await snd({type:'subscribe_trigger', trigger:{platform:'state', entity_id:_pid}});
+      if(r&&r.id!=null) _evSubs[r.id]=function(m){ var t=m&&m.event&&m.event.variables&&m.event.variables.trigger, ns=t&&t.to_state; if(ns) paint((ns.attributes||{}).entity_picture||''); };
+    }catch(e){}
+  }
+  if(typeof _liveSubscribe==='function'&&!_liveSubscribe._pxav){ var _ls=_liveSubscribe;
+    _liveSubscribe=async function(){ var x=await _ls.apply(this,arguments); try{ await follow(); }catch(e){} return x; }; _liveSubscribe._pxav=1; }
 })();
 </script>
 </body>
