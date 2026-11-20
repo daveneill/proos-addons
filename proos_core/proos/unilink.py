@@ -165,7 +165,7 @@ def state(creds, ws, apps=None, app="network") -> dict:
     if ents is None:
         out.update(words="the platform's connection list could not be read", ok=None)
         return out
-    live = [e for e in ents if not e.get("disabled_by")]
+    live = [e for e in ents if not e.get("disabled_by") and e.get("source") != "ignore"]   # 1426: ignored = the platform's "don't ask again"
     if not live:
         out.update(entry=None, ok=None if on is False else False,
                    words=("this console does not run %s" % name if on is False
@@ -200,7 +200,7 @@ def ensure(creds, req, ws, apps, platform_host=None, replace=False, app="network
     ents = _entries(ws, domain)
     if ents is None:
         return {"done": False, "error": "the platform's connection list could not be read"}
-    live = [e for e in ents if not e.get("disabled_by")]
+    live = [e for e in ents if not e.get("disabled_by") and e.get("source") != "ignore"]   # 1426: ignored = the platform's "don't ask again"
     # the platform's own sign-in request, raised for this connection, is answered from the card
     try:
         flows = ws("config_entries/flow/progress") or []

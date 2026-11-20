@@ -2730,6 +2730,8 @@ html.pnx .px-g4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1
 html.pnx .px-cols{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:16px;align-items:start}
 html.pnx .px-cols.even{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
 html.pnx .px-photo{background:#222 center/cover;position:relative;overflow:hidden}
+/* REGISTER 1425: a picture tile has no rim — today's .hub-room hairline (0.5px var(--line)) showed through as a glassy edge (Dave, 20 Nov) */
+html.pnx .px-photo,html.pnx .px-photo.hub-room{border:0}
 html.pnx .px-rt{border-radius:20px;height:150px;padding:14px;display:flex;flex-direction:column;justify-content:flex-end;cursor:pointer;color:#fff}
 html.pnx .px-rt:before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.05),rgba(0,0,0,.65))}
 html.pnx .px-rt>*{position:relative}
@@ -4437,7 +4439,7 @@ html.pnx #px-more .px-row.on b{color:var(--px-blue2)}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111916';
+const PROOS_BUILD='2026111917';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the

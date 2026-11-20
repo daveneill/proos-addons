@@ -112,6 +112,13 @@ def _save_seen(d) -> None:
         pass
 
 
+def _set_aside(e) -> bool:
+    """REGISTER 1426: what the platform itself never calls a fault — an entry somebody disabled, or a discovery somebody
+    IGNORED (source "ignore": the platform's own remembered "don't ask again", always not_loaded; its Integrations page
+    lists it under Ignored, never as an error). Dave, 20 Nov: "it's need to be treated same as the platform"."""
+    return bool(e.get("disabled_by")) or e.get("source") == "ignore"
+
+
 def refresh(read, now=None) -> dict:
     """One read of the platform. `read` has entries(), repairs() and resolution(); a reader that raises leaves that
     list as last read and says why in `error` — it never empties a list (an unanswered question is not an all-clear)."""
@@ -124,10 +131,10 @@ def refresh(read, now=None) -> dict:
             was = dict(seen)
             for e in ents:
                 st = e.get("state")
-                if st in FAILED and not e.get("disabled_by"):
+                if st in FAILED and not _set_aside(e):
                     _failing_ids.add(e.get("entry_id"))
                     seen.setdefault(str(e.get("entry_id")), now)
-                elif st == "loaded" or e.get("disabled_by"):
+                elif st == "loaded" or _set_aside(e):
                     _failing_ids.discard(e.get("entry_id"))
                     seen.pop(str(e.get("entry_id")), None)
             present = {e.get("entry_id") for e in ents}
@@ -180,7 +187,7 @@ def cards(now=None) -> list:
     _read_now.clear()
     for e in snap.get("entries") or []:
         st, eid = e.get("state"), e.get("entry_id")
-        if e.get("disabled_by"):
+        if _set_aside(e):
             continue
         retrying = st == "setup_in_progress" and eid in failing
         if st not in FAILED and not retrying:
