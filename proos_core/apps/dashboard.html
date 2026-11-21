@@ -3895,7 +3895,7 @@ try{var _sb=localStorage.getItem('proos_std_bg');if(_sb){document.documentElemen
         </div>
         <div id="scene-edit-results" class="scene-edit-results"></div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:18px;gap:10px">
-          <button class="scene-edit-remove" onclick="sceneEditRemove()">Remove from dashboard</button>
+          <button class="scene-edit-remove" id="scene-edit-dash" onclick="sceneEditRemove()">Remove from dashboard</button>
           <div style="display:flex;gap:8px" id="scene-edit-acts">
             <button class="scene-edit-btn" style="background:rgba(255,255,255,0.09)" onclick="closeSceneEdit()">Cancel</button>
             <button class="scene-edit-btn" onclick="sceneEditSave()">Save</button>
@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112111';
+const PROOS_BUILD='2026112112';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -13745,7 +13745,7 @@ function _wireSceneEdit(){
 // while Pro staged and saved — one product, two habits. Generation goes
 // through POST /scenes/art, which stores nothing, exactly as /rooms/art does
 // for a room; the write is the single POST /scenes/photo that Save makes.
-let _sceneEditEid=null, _saUrl=null, _saData=null, _saRemove=false;
+let _sceneEditEid=null, _saUrl=null, _saData=null, _saRemove=false, _saAv=false;
 function _saPreview(url){
   const p=document.getElementById('scene-edit-prev');
   if(p){ if(url){ p.style.backgroundImage="url('"+url+"')"; p.classList.add('has'); }
@@ -13835,12 +13835,15 @@ function _psPick(i){
   const note=document.getElementById(L.note);
   if(note) (note.innerHTML='Photo by <a href="'+_psEsc(p.credit_url||'#')+'" target="_blank" rel="noopener" style="color:inherit">'+_psEsc(p.credit||'')+'</a> on <a href="'+_psEsc((L.source||{}).url||'#')+'" target="_blank" rel="noopener" style="color:inherit">'+_psEsc((L.source||{}).name||'')+'</a> — press Save to keep it.');
 }
-function openSceneEdit(eid){
-  _sceneEditEid=eid; _saUrl=null; _saData=null; _saRemove=false;
+// 1438: an AV scene (a room's activity) opens the same editor for its picture only — its name is the activity's, set by the
+// installer, and it is not a dashboard scene to remove. Its picture is kept under its script in the same store.
+function openSceneEdit(eid, avName, isAv){
+  _sceneEditEid=eid; _saUrl=null; _saData=null; _saRemove=false; _saAv=!!isAv;
   const ov=_scenePhotos[eid]||{};
-  const nm=ov.name||entityNames[eid]||eid.replace('scene.','').replace(/_/g,' ');
+  const nm=_saAv?(avName||entityNames[eid]||eid):(ov.name||entityNames[eid]||eid.replace('scene.','').replace(/_/g,' '));
   const sh=document.getElementById('scene-edit'); if(!sh) return;
-  document.getElementById('scene-edit-name').value=nm;
+  const ni=document.getElementById('scene-edit-name'); ni.value=nm; ni.disabled=_saAv; ni.style.opacity=_saAv?'.6':'';
+  const dr=document.getElementById('scene-edit-dash'); if(dr) dr.style.display=_saAv?'none':'';
   const gp=document.getElementById('scene-edit-photoq'); if(gp) gp.value='';
   const nt=document.getElementById('scene-edit-note');
   if(nt) nt.textContent=_sceneCanGen?'':'No image key set — Find will show photos and a matched style.';
@@ -13860,7 +13863,7 @@ function openSceneEdit(eid){
     });
   sh.classList.add('open');
 }
-function closeSceneEdit(){ const sh=document.getElementById('scene-edit'); if(sh) sh.classList.remove('open'); _sceneEditEid=null; _saUrl=null; _saData=null; _saRemove=false; }
+function closeSceneEdit(){ const sh=document.getElementById('scene-edit'); if(sh) sh.classList.remove('open'); _sceneEditEid=null; _saUrl=null; _saData=null; _saRemove=false; _saAv=false; }
 function sceneEditPick(url){ _saUrl=url; _saData=null; _saRemove=false; _saPreview(url); }
 function clearSceneArt(){ _saUrl=null; _saData=null; _saRemove=true; _saPreview(''); const fi=document.getElementById('scene-edit-file'); if(fi) fi.value=''; }
 async function sceneEditGenerate(){
@@ -13895,9 +13898,9 @@ async function sceneEditSave(){
     if(_saRemove && !_saData && !_saUrl){
       // Clear the picture, keep the scene and its name.
       await fetch(proosCoreBase()+'/scenes/photo',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({entity_id:eid, photo:'', name:nm})});
+        body:JSON.stringify(_saAv?{entity_id:eid, photo:''}:{entity_id:eid, photo:'', name:nm})});
     } else {
-      const body={entity_id:eid, name:nm};
+      const body=_saAv?{entity_id:eid}:{entity_id:eid, name:nm};
       if(_saData) body.upload=_saData; else if(_saUrl) body.photo=_saUrl;
       const r=await fetch(proosCoreBase()+'/scenes/photo',{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify(body)});
@@ -27065,8 +27068,11 @@ body.nx-on #pa-detail.nxd-ring .pa-fs-pip{top:156px;right:16px;left:auto;bottom:
 #nx-page.nx-scn-pg .nx-in{animation:none}
 .nxs-sec{display:flex;align-items:baseline;justify-content:space-between;margin:22px 2px 10px}
 .nxs-sec b{font-size:17px;font-weight:600}.nxs-sec span{font-size:13px;color:rgba(255,255,255,.62)}
-.nxs-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-@media (min-width:700px){.nxs-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.nxs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(440px,100%),1fr));gap:14px}
+/* 1438 — a scene card is an All Areas card (1280): its picture, 200 high, 20 round; 2 across on an iPad on its side, 3 on a Mac, 1 upright and on a phone (170 there) */
+.nxs-grid .nxr-scn{height:200px;border-radius:20px;padding:18px}
+.nxs-grid .nxr-scn b{font-size:19px}
+@media (max-width:600px){.nxs-grid .nxr-scn{height:170px}}
 .nxs-ask{width:100%;margin-top:24px;height:52px;border-radius:16px;border:0;display:flex;align-items:center;justify-content:center;gap:8px;background:#1b1c20;color:#fff;font:600 15px Inter,-apple-system,sans-serif;cursor:pointer}
 .nxs-ask svg{width:18px;height:18px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round}
 </style>
@@ -27092,7 +27098,12 @@ body.nx-on #pa-detail.nxd-ring .pa-fs-pip{top:156px;right:16px;left:auto;bottom:
   }
   window._nxScModel=_nxScModel;
   function lit(e){ return !!(window._nxSceneOn&&_nxSceneOn(e)); }
-  function sceneTile(s, ri){ return '<button type="button" class="nxr-scn'+(lit(s.e)?' on':'')+'" data-sc="'+esc(s.e)+'" data-si="'+s.i+'">'+SPARK+'<b>'+esc(s.n)+'</b></button>'; }
+  // 1438 (Dave 22 Nov: "scenes missing backgrounds on the tiles"): each card wears the scene's own picture — the one Save keeps,
+  // else the standard matched to its name — the same picture the Home page's scene tiles wear. An AV scene's picture is kept
+  // under its activity's script, in the same store.
+  function pic(e, n){ var o=(typeof _scenePhotos!=='undefined'&&_scenePhotos&&_scenePhotos[e])||{}; var c=((CONFIG.scenes||[]).filter(function(x){ return x.entity===e; })[0]||{}).photo;
+    var u=o.photo||c||(typeof getScenePhoto==='function'?getScenePhoto(n):''); return u?' style="background-image:url(\''+esc(String(u).replace(/'/g,'%27'))+'\')"':''; }
+  function sceneTile(s, ri){ return '<button type="button" class="nxr-scn nxh-scn'+(lit(s.e)?' on':'')+'" data-sc="'+esc(s.e)+'" data-si="'+s.i+'"'+pic(s.e,s.n)+'>'+SPARK+'<b>'+esc(s.n)+'</b></button>'; }
   function _nxScDraw(){
     var p=document.getElementById('nx-page'); if(!p||!p.classList.contains('open')||!p.classList.contains('nx-scn-pg')) return;
     if(OTHER.some(function(c){ return p.classList.contains(c); })){ _nxScStop(); return; }   // another page took the frame
@@ -27101,7 +27112,7 @@ body.nx-on #pa-detail.nxd-ring .pa-fs-pip{top:156px;right:16px;left:auto;bottom:
     if(M.whole.length) h+='<div class="nxs-sec"><b>Whole Home</b></div><div class="nxs-grid">'+M.whole.map(function(s){ return sceneTile(s); }).join('')+'</div>';
     M.rooms.forEach(function(x){ var r=x.r, onA=null;
       var tiles=x.av.map(function(a){ var s=window._nxRoomState?_nxRoomState(r,a.key):'off', g=s==='starting'&&window._nxrRing?_nxrRing(r):null; if(s==='on') onA=a;
-        return '<button type="button" class="nxr-scn'+(s==='on'?' on':'')+(g?' go':'')+'" data-av="'+esc(a.key)+'" data-ri="'+x.ri+'" data-script="'+esc(a.script)+'">'+TV+(g?g.svg:'<span class="tag">AV</span>')+
+        return '<button type="button" class="nxr-scn nxh-scn'+(s==='on'?' on':'')+(g?' go':'')+'" data-av="'+esc(a.key)+'" data-ri="'+x.ri+'" data-script="'+esc(a.script)+'" data-avn="'+esc(String(a.label||a.key))+'"'+pic(a.script,String(a.label||a.key))+'>'+TV+(g?g.svg:'<span class="tag">AV</span>')+
           '<b>'+esc(String(a.label||a.key))+(g&&g.cap?'<small class="nxr-cap'+(g.bad?' bad':g.cap==='Ready'?' ok':'')+'">'+esc(g.cap)+'</small>':'')+'</b></button>'; })
         .concat(x.sc.map(function(s){ return sceneTile(s); }))
         .concat(x.off?['<button type="button" class="nxr-scn" data-off="'+x.ri+'">'+PW+'<b>Room Off</b></button>']:[]);
@@ -27115,7 +27126,10 @@ body.nx-on #pa-detail.nxd-ring .pa-fs-pip{top:156px;right:16px;left:auto;bottom:
       b.onpointerdown=function(){ held=false; t=setTimeout(function(){ t=null; held=true; try{ openSceneEdit(b.dataset.sc); _proosHaptic&&_proosHaptic('lift'); }catch(e){} },550); };   // hold: today's editor
       b.onpointermove=b.onpointerup=b.onpointercancel=function(ev){ if(ev.type==='pointermove'&&!t) return; if(t){ clearTimeout(t); t=null; } };
       b.onclick=function(){ if(held){ held=false; return; } try{ triggerScene(b.dataset.sc, +b.dataset.si); }catch(e){} p._sig=''; setTimeout(_nxScDraw,1500); }; });
-    p.querySelectorAll('[data-av]').forEach(function(b){ b.onclick=function(){ try{ _nxScStop(); window._nxRoomFire&&_nxRoomFire(+b.dataset.ri, b.dataset.av, b.dataset.script); }catch(e){} }; });   // starts in its room (1393)
+    p.querySelectorAll('[data-av]').forEach(function(b){ var t=null;   // 1438: an AV scene is held to change its picture too
+      b.onpointerdown=function(){ held=false; t=setTimeout(function(){ t=null; held=true; try{ openSceneEdit(b.dataset.script, b.dataset.avn, true); _proosHaptic&&_proosHaptic('lift'); }catch(e){} },550); };
+      b.onpointermove=b.onpointerup=b.onpointercancel=function(ev){ if(ev.type==='pointermove'&&!t) return; if(t){ clearTimeout(t); t=null; } };
+      b.onclick=function(){ if(held){ held=false; return; } try{ _nxScStop(); window._nxRoomFire&&_nxRoomFire(+b.dataset.ri, b.dataset.av, b.dataset.script); }catch(e){} }; });   // starts in its room (1393)
     p.querySelectorAll('[data-off]').forEach(function(b){ b.onclick=function(){ var r=(CONFIG.rooms||[])[+b.dataset.off]; try{ r&&window._nxRoomOffOf&&_nxRoomOffOf(r); }catch(e){} p._sig=''; }; });
     var a=p.querySelector('[data-ask]'); if(a) a.onclick=function(){ try{ openAssist(); }catch(e){} };
   }
