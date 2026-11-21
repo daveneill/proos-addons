@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112108';
+const PROOS_BUILD='2026112109';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -24755,6 +24755,11 @@ body.nx-on #nx-page.open{display:block}
 .nx-set{display:grid;grid-template-columns:1fr;gap:12px;margin-top:16px}
 @media (min-width:820px){.nx-set{grid-template-columns:minmax(0,1fr) minmax(0,1.5fr);align-items:start}.nx-set .nx-col{display:flex;flex-direction:column;gap:12px}}
 .nx-col{display:flex;flex-direction:column;gap:12px}
+/* 1436: Open App To is one drop-down, not every room as a button */
+.nx-selw{position:relative;margin-bottom:4px}
+.nx-selw::after{content:'';position:absolute;right:16px;top:50%;width:8px;height:8px;border-right:2px solid rgba(255,255,255,.7);border-bottom:2px solid rgba(255,255,255,.7);transform:translateY(-70%) rotate(45deg);pointer-events:none}
+.nx-sel{width:100%;height:46px;appearance:none;-webkit-appearance:none;background:#26272d;border:0;border-radius:14px;color:#fff;font:600 15px Inter,-apple-system,sans-serif;padding:0 44px 0 16px;cursor:pointer}
+.nx-sel:focus{outline:2px solid #4f6bff;outline-offset:1px}
 /* REGISTER 1432 — SETTINGS USES THE SPACE (Dave, 21 Nov, agreed): the same five cards, placed by the screen.
    Phone: one column — you, This Device, Assist, Your Installer, Version. iPad upright: you across the top (photo beside
    your name), then This Device beside Assist / Your Installer / Version. Sideways (and a computer): you, Your Installer
@@ -24937,7 +24942,8 @@ body.nx-on #nx-page.open{display:block}
       '<div class="nx-btns"><button type="button" class="nx-btn" data-act="pic">Change Photo</button><button type="button" class="nx-btn red" data-act="unpic">Remove</button></div><div id="nx-av-msg" style="font-size:12.5px;min-height:16px;margin-top:10px;color:rgba(255,255,255,.55)"></div></div></div>'+
       '<div class="nx-a-sys"><div class="nx-card" style="padding:4px 16px"><div class="nx-li">Version<span>1.0 · build '+nxEsc(typeof PROOS_BUILD!=='undefined'?PROOS_BUILD:'')+'</span></div>'+(inApp?'':'<div class="nx-li">Connection<span>'+nxEsc(conn)+'</span></div>')+'</div>'+
       (inApp?'':'<button type="button" class="nx-btn red" data-act="out" style="width:100%;height:48px">Sign Out</button>')+'</div>';
-    var right='<div class="nx-card nx-a-dev"><h3>This Device</h3><div class="nx-lab">Open App To</div>'+seg('room',dr,[['','Home']].concat(rooms.map(function(r){ return [r.name,r.name]; })))+
+    var right='<div class="nx-card nx-a-dev"><h3>This Device</h3><div class="nx-lab">Open App To</div>'+   // 1436 (Dave, 22 Nov: "this needs to be a drop down list not all rooms listed at once")
+      '<div class="nx-selw"><select class="nx-sel" data-nxsel="room" aria-label="Open App To">'+[['','Home']].concat(rooms.map(function(r){ return [r.name,r.name]; })).map(function(o){ return '<option value="'+nxEsc(o[0])+'"'+(String(o[0])===String(dr)?' selected':'')+'>'+nxEsc(o[1])+'</option>'; }).join('')+'</select></div>'+
       (typeof ssAllowed==='function'&&ssAllowed()?'<div class="nx-lab">Screensaver After</div>'+seg('ss',ssSecs(),times):'')+
       '<div class="nx-lab">Return To Start After</div>'+seg('ret',retSecs(),times)+tog('newui',true,'New Look','This new dashboard on this screen. Off goes back to the one you know.')+'</div>'+
       '<div class="nx-card nx-a-as"><h3>Assist</h3>'+tog('voice',voiceConsentGiven(),'Talk To ProOS','Your voice goes to your home’s transcription service to be turned into words. Nothing is kept.')+
@@ -24954,6 +24960,7 @@ body.nx-on #nx-page.open{display:block}
     p.querySelectorAll('[data-seg]').forEach(function(sg){ sg.querySelectorAll('button').forEach(function(b){ b.onclick=function(){ var v=b.dataset.v, k=sg.dataset.seg;
       if(k==='room') setDefaultRoom(v); else if(k==='ss') setScreensaver(v); else if(k==='ret') setReturnAfter(v);
       sg.querySelectorAll('button').forEach(function(x){ x.classList.toggle('on',x===b); }); }; }); });
+    p.querySelectorAll('[data-nxsel="room"]').forEach(function(sel){ sel.onchange=function(){ setDefaultRoom(sel.value); }; });   // 1436
     p.querySelectorAll('[data-tog]').forEach(function(t){ t.onclick=async function(){ var k=t.dataset.tog;
       if(k==='newui'){ window._nxSet(false); return; }
       if(k==='voice') setVoiceConsent(!voiceConsentGiven()); else if(k==='speak') setSpeakAnswers(!speakAnswersOn()); else if(k==='loc') setLocationSharing(!locationSharingOn());
@@ -27628,7 +27635,9 @@ body.nx-on #jv .nxa-ty button{height:48px;padding:0 18px;border-radius:16px;bord
      (9 Nov: volume on the control page). Off, nothing changes. -->
 <style>
 body.nx-on #screensaver{justify-content:flex-start!important}
-body.nx-on #screensaver .nxs-ph{position:absolute;inset:-24px;background:#000 center/cover no-repeat;filter:brightness(.45) blur(2px);transform:scale(1.05);z-index:0;pointer-events:none}
+/* REGISTER 1436 (Dave, 22 Nov: "Screen saver background seems to be low quality"): it was blurred (2px) and enlarged (5%) on
+   purpose — on an iPad's sharp screen, a photo already stretched to about twice its size went soft. Now only dimmed. */
+body.nx-on #screensaver .nxs-ph{position:absolute;inset:0;background:#000 center/cover no-repeat;filter:brightness(.45);z-index:0;pointer-events:none}
 body.nx-on #screensaver .nxs-ph img{width:100%;height:100%;object-fit:cover;display:block}
 body.nx-on #screensaver>*:not(.nxs-ph){position:relative;z-index:1}
 body.nx-on #screensaver .ss-top{flex-direction:column;gap:8px;margin-top:max(18vh,120px);font-family:Inter,-apple-system,sans-serif}
