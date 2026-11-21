@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112107';
+const PROOS_BUILD='2026112108';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -5232,7 +5232,7 @@ function _whenLive(capMs){
   return new Promise(function(res,rej){ pr.waiters.push(res);
     if(capMs) setTimeout(function(){ if(!pr.live) rej(new Error('Still connecting to your home — try again in a moment')); }, capMs); });
 }
-function _setLive(){ var pr=window.__pr; if(pr.live) return; pr.live=true; var w=pr.waiters; pr.waiters=[]; w.forEach(function(f){ try{ f(); }catch(e){} }); }
+function _setLive(){ var pr=window.__pr; if(pr.live) return; pr.live=true; pr.liveAt=Date.now(); var w=pr.waiters; pr.waiters=[]; w.forEach(function(f){ try{ f(); }catch(e){} }); }
 function snd(d,timeout=15000){
   var pr=window.__pr;
   if(pr.replay){ var hit=pr.replay.ws&&pr.replay.ws[d.type];
@@ -25323,7 +25323,11 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
     // the rooms had been read at all — from the saved copy or live — and an unread home looked EMPTY, so "Your installer is
     // setting up your home" flashed on every open. Empty is only said once the rooms have been read and there are none;
     // until then Home shows its heading alone.
-    var known=!!window._nxRoomsKnown||(CONFIG.rooms||[]).length>0;
+    // 1435 (Dave, 22:12: "Still does it"): "read" was not enough — opened from the saved copy (his iPad), the rooms are read
+    // but what Home counts is not built yet, and it looked empty again. Empty is now said only when the home has ANSWERED
+    // LIVE, has been answering for a few seconds, the rooms have been read, and there are still none. Anything less: heading.
+    var _pr=window.__pr||{}, known=!!window._nxRoomsKnown&&!!_pr.live&&(Date.now()-(_pr.liveAt||Date.now()))>4000;
+    if(empty&&!known&&!p._nxEmptyT){ p._nxEmptyT=setTimeout(function(){ p._nxEmptyT=null; try{ _nxhDraw(); }catch(e){} }, 4500); }   // look again once it could be known
     var scenes=(CONFIG.scenes||[]).slice(0,7), lit={};
     scenes.forEach(function(s){ lit[s.entity]=(typeof _nxSceneOn==='function')&&_nxSceneOn(s.entity); });
     var yw=window._nxWidgets?_nxWidgets(null):'';   // 1387: every widget Home has, in the New Look
