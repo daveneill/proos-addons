@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112110';
+const PROOS_BUILD='2026112111';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -24987,10 +24987,13 @@ body.nx-on #nx-page.open{display:block}
   // (showPage + selectRoom) — under the New Look's own page, which opened on Home regardless. And Return To Start asked
   // the old look where it was. The New Look now opens the chosen room's page, and answers where it is itself.
   var _nxLastRoom=-1;
-  (function(){ var _r=window._nxRoom; if(typeof _r==='function'&&!_r._nxl){ window._nxRoom=function(i){ _nxLastRoom=i; window._nxLastRoomIdx=i; return _r.apply(this,arguments); }; window._nxRoom._nxl=1; } })();
+  // 1437a: _nxRoom is defined further down the page — wrapped once the page has loaded (wrapped here it did not exist yet,
+  // and the screensaver could not tell which room was open)
+  function _nxWrapRoom(){ var _r=window._nxRoom; if(typeof _r==='function'&&!_r._nxl){ window._nxRoom=function(i){ _nxLastRoom=i; window._nxLastRoomIdx=i; return _r.apply(this,arguments); }; window._nxRoom._nxl=1; } }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',_nxWrapRoom); else Promise.resolve().then(_nxWrapRoom);
   function _nxDefaultIdx(){ var t=''; try{ t=localStorage.getItem('dash_default_room')||''; }catch(e){} return t?(CONFIG.rooms||[]).findIndex(function(r){ return r.name===t; }):-1; }
   if(typeof applyDefaultLanding==='function'&&!applyDefaultLanding._nx){ var _adl=applyDefaultLanding;
-    applyDefaultLanding=function(){ if(!_nxIsOn()) return _adl.apply(this,arguments); var i=_nxDefaultIdx();
+    applyDefaultLanding=function(){ if(!_nxIsOn()) return _adl.apply(this,arguments); _nxWrapRoom(); var i=_nxDefaultIdx();
       if(i>=0&&typeof window._nxRoom==='function'){ cur='rooms'; bar(); window._nxRoom(i); } else _nxGoTo('home'); };
     applyDefaultLanding._nx=1; }
   if(typeof _atDefaultLanding==='function'&&!_atDefaultLanding._nx){ var _adf=_atDefaultLanding;
