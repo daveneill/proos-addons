@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112109';
+const PROOS_BUILD='2026112110';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -20855,8 +20855,14 @@ function ssSettingRow(){
     +opt(0,'Off')+opt(30,'30 seconds')+opt(60,'1 minute')+opt(120,'2 minutes')+opt(300,'5 minutes')
     +'</select></div>';
 }
-function ssReset(){
-  if(_ssActive){ ssHide(); return; }
+// REGISTER 1437 (Dave, 22 Nov: "the screensaver needs to ignore first touch as if i press screen to stop screensaver it also
+// presses whats behind it"): the screensaver woke on the finger going DOWN and stepped aside at once, so the tap that
+// followed landed on the page. The touch that wakes it is now swallowed — that tap, and only that one, reaches nothing.
+let _ssSwallowUntil=0;
+document.addEventListener('click', function(e){ if(Date.now()<_ssSwallowUntil){ _ssSwallowUntil=0; e.preventDefault(); e.stopImmediatePropagation(); } }, true);
+document.addEventListener('touchend', function(e){ if(Date.now()<_ssSwallowUntil){ e.preventDefault(); e.stopImmediatePropagation(); } }, {capture:true, passive:false});
+function ssReset(e){
+  if(_ssActive){ if(!e||e.type!=='keydown') _ssSwallowUntil=Date.now()+800; ssHide(); return; }
   clearTimeout(_ssTimer); _ssTimer=null;
   const s=ssSecs();
   if(s>0) _ssTimer=setTimeout(ssShow, s*1000);
@@ -24977,6 +24983,22 @@ body.nx-on #nx-page.open{display:block}
     document.body.classList.toggle('nx-on', !!v); if(v){ cur='home'; bar(); _nxGoTo('home'); } else { closePage(); document.body.classList.remove('nx-av'); try{ showPage('home'); }catch(e){} }
     try{ renderWidgetGrid(); }catch(e){} };
   function start(){ if(!_nxIsOn()) return; document.body.classList.add('nx-on','nx-av'); bar(); setTimeout(function(){ if(_nxIsOn()&&cur==='home') _nxGoTo('home'); },0); }   // 1377: opens on the new Home
+  // REGISTER 1437 (Dave, 22 Nov: "Open app to does not seem to work"): the choice was applied by the old look's landing
+  // (showPage + selectRoom) — under the New Look's own page, which opened on Home regardless. And Return To Start asked
+  // the old look where it was. The New Look now opens the chosen room's page, and answers where it is itself.
+  var _nxLastRoom=-1;
+  (function(){ var _r=window._nxRoom; if(typeof _r==='function'&&!_r._nxl){ window._nxRoom=function(i){ _nxLastRoom=i; window._nxLastRoomIdx=i; return _r.apply(this,arguments); }; window._nxRoom._nxl=1; } })();
+  function _nxDefaultIdx(){ var t=''; try{ t=localStorage.getItem('dash_default_room')||''; }catch(e){} return t?(CONFIG.rooms||[]).findIndex(function(r){ return r.name===t; }):-1; }
+  if(typeof applyDefaultLanding==='function'&&!applyDefaultLanding._nx){ var _adl=applyDefaultLanding;
+    applyDefaultLanding=function(){ if(!_nxIsOn()) return _adl.apply(this,arguments); var i=_nxDefaultIdx();
+      if(i>=0&&typeof window._nxRoom==='function'){ cur='rooms'; bar(); window._nxRoom(i); } else _nxGoTo('home'); };
+    applyDefaultLanding._nx=1; }
+  if(typeof _atDefaultLanding==='function'&&!_atDefaultLanding._nx){ var _adf=_atDefaultLanding;
+    _atDefaultLanding=function(){ if(!_nxIsOn()) return _adf.apply(this,arguments);
+      try{ var p=document.getElementById('nx-page'), i=_nxDefaultIdx(); if(!p||!p.classList.contains('open')) return false;
+        if(document.querySelector('.pe-ov[style*="flex"],#player-overlay.open,.player-overlay.open')) return false;
+        return i>=0 ? (p.classList.contains('nx-room-pg')&&_nxLastRoom===i) : p.classList.contains('nx-home-pg'); }catch(e){ return false; } };
+    _atDefaultLanding._nx=1; }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',start); else start();
   // your picture arrives after sign-in; paint it once it does
   setInterval(function(){ if(!_nxIsOn()) return; var av=document.getElementById('nx-avatar'), a=window._proosAvatar||{}; if(av&&a.url&&!av.style.backgroundImage) bar(); }, 3000);
@@ -27663,7 +27685,13 @@ body.nx-on #screensaver .ss-card .mpb.play svg{width:18px;height:18px;fill:#111;
     return d+(w?' · '+w:''); }
   window._nxsvLine=_nxsvLine;
   // the photo behind: the room's own, else the Home photo (1398's rule)
-  function _nxsvPhoto(){ try{ var r=(typeof curRoom==='number'&&curRoom>=0)?CONFIG.rooms[curRoom]:null; return (r&&r.photo)||(CONFIG&&CONFIG._homeAreaPhoto)||''; }catch(x){ return ''; } }
+  // 1437 (Dave, 07:18: "Screen saver changes to the room app is supposed to go back to but when you press it opens home"): the
+  // photo came from the OLD look's room underneath; waking showed the New Look's page. It is now the page you will see on
+  // waking — the New Look's open room, or Home.
+  function _nxsvPhoto(){ try{ var p=document.getElementById('nx-page'), r=null;
+    if(p&&p.classList.contains('open')){ if(p.classList.contains('nx-room-pg')&&typeof window._nxLastRoomIdx==='number'&&window._nxLastRoomIdx>=0) r=CONFIG.rooms[window._nxLastRoomIdx]; }
+    else if(typeof curRoom==='number'&&curRoom>=0) r=CONFIG.rooms[curRoom];
+    return (r&&r.photo)||(CONFIG&&CONFIG._homeAreaPhoto)||''; }catch(x){ return ''; } }
   window._nxsvPhoto=_nxsvPhoto;
   var _top=window.ssRenderTop; if(typeof _top==='function') window.ssRenderTop=function(){ var r=_top.apply(this,arguments); if(!_nxsvOn()) return r;
     var w=document.getElementById('ss-weather'); if(w){ var t=CONFIG.weather?att(CONFIG.weather,'temperature'):null, c=CONFIG.weather?st(CONFIG.weather):'';
