@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112105';
+const PROOS_BUILD='2026112106';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -27764,6 +27764,18 @@ body.nx-on #scene-edit .scene-edit-btn{min-height:44px;border-radius:14px}
 .nxv-ev b{display:block;font-size:15px;font-weight:600}.nxv-ev small{display:block;font-size:12.5px;color:rgba(255,255,255,.62)}
 .nxv-ev .t{margin-left:auto;font-size:12.5px;color:rgba(255,255,255,.62);flex:none}
 .nxv-empty{padding:24px 6px;color:rgba(255,255,255,.62);font-size:14px}
+/* 1433: today's Events in the New Look's dress — its filters as the page's chips, its picture tiles larger and rounder */
+.nxv-events .pe-filters{padding:0 0 14px;gap:8px}
+.nxv-events .pe-chip{height:34px;padding:0 14px;border-radius:17px;border:0;background:#1b1c20;color:rgba(255,255,255,.78);font:600 13px Inter,-apple-system,sans-serif;display:inline-flex;align-items:center}
+.nxv-events .pe-chip.on{background:#fff;color:#111}
+.nxv-events .pa-eg{grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}
+.nxv-events .pa-eg-cell{border-radius:16px;background-color:#1b1c20}
+.nxv-events .pa-eg-top{padding:10px 12px 18px}.nxv-events .pa-eg-cam{font:600 13px Inter,-apple-system,sans-serif}.nxv-events .pa-eg-time{font-size:11.5px}
+.nxv-events .pa-eg-bot{padding:8px 12px 10px}.nxv-events .pa-eg-ico,.nxv-events .pa-eg-ico svg{width:18px;height:18px}
+@media (max-width:699px){ .nxv-events .pa-eg{grid-template-columns:repeat(2,minmax(0,1fr))} }
+/* 1433: a clip played from an event sat UNDER the New Look page (its own inline z-index 900 against the page's 8990) — it
+   played where nobody could see it. In the New Look it opens on top. */
+body.nx-on .pe-ov{z-index:9600!important}
 body.nx-cam-events .nxv-grid{display:none}
 /* the viewer a camera opens by hand, in the New Look (the ring's own view is 1395's): today's viewer, its controls as the
    New Look's frosted round buttons and pills, its name in the page's type, its event list on the page's dark */
@@ -27786,17 +27798,22 @@ body.nx-on #pa-detail .pa-fs-tl{background:#0e0e10}
     seg.hidden=!cache.has; if(!cache.has){ c.innerHTML=''; E.innerHTML=''; return; }
     var evs=cache.ev||[], C=_nxvCounts(evs), ch=C.map(function(x){ return '<span>'+esc(x.k)+' <b>'+x.n+'</b></span>'; }).join('');
     if(c.innerHTML!==ch) c.innerHTML=ch;
-    var h=evs.length?evs.slice(0,40).map(function(e,i){ var ic=''; try{ ic=_paTypeIcon(e.kind); }catch(x){}
-      return '<button type="button" class="nxv-ev" data-evi="'+i+'"><span class="i">'+ic+'</span><span><b>'+esc(e.kind==='Person'?'Person':e.kind)+'</b><small>'+esc(e.cam||'')+'</small></span><span class="t">'+esc(ago(e.when))+'</span></button>'; }).join('')
-      :'<div class="nxv-empty">'+esc(window._peLoadErr?'Events unavailable — '+window._peLoadErr:'No detections in the last day')+'</div>';
-    if(E._h!==h){ E._h=h; E.innerHTML=h; E.querySelectorAll('[data-evi]').forEach(function(b){ b.onclick=function(){ var e=evs[+b.dataset.evi]; try{ playProtectClip(_peKey(e),''); }catch(x){} }; }); } }
+    // REGISTER 1433 (Dave, 21 Nov: "this does not look like the events I had before … these don't play anything it just
+    // lists the events"): 1407 drew its own list — text rows, no pictures, no filters, every Motion and Audio of a day —
+    // and a tap did nothing. The Events tab now HOSTS today's Events: the same list (people, vehicles, animals, faces,
+    // plates, packages — three days), the same picture tiles with the camera and the time, the same filters, and a tap
+    // plays the clip — today's _paRenderEvents, so the two can never drift apart again.
+    if(!E.querySelector('#pa-events')){ var old=document.getElementById('pa-events');
+      if(old&&!p.contains(old)){ var app=document.getElementById('protect-app'); if(app) app.remove(); else old.remove(); }   // the old page rebuilds itself when next opened
+      E.innerHTML='<div id="pa-events" class="pa-events"></div>'; }
+    if(!E.hidden&&(!E._at||Date.now()-E._at>30000)){ E._at=Date.now(); try{ _paRenderEvents(); }catch(x){} } }   // on opening, then every 30 s — not on every 5 s tick
   window._nxvEvents=function(p){ _nxvPaint(p); if(Date.now()-cache.t<30000) return; cache.t=Date.now();
     Promise.resolve(typeof pcProtectStatus==='function'?pcProtectStatus():null).then(function(s){ cache.has=!!(s&&s.reachable); if(!cache.has) return null;
       return _loadProtectEventsPC(24,60); }).then(function(evs){ if(cache.has) cache.ev=Array.isArray(evs)?evs.slice().sort(function(a,b){ return new Date(b.when||0)-new Date(a.when||0); }):[];
       var q=document.getElementById('nx-page'); if(q&&q.classList.contains('nx-cam-pg')) _nxvPaint(q); }).catch(function(){}); };
   window._nxvTab=function(p, t){ p.querySelectorAll('[data-vt]').forEach(function(b){ b.classList.toggle('on', b.dataset.vt===t); });
     var E=p.querySelector('.nxv-events'), c=p.querySelector('.nxv-counts'); if(E) E.hidden=t!=='events'; if(c) c.style.display=t==='events'?'none':'';
-    document.body.classList.toggle('nx-cam-events', t==='events'); };
+    document.body.classList.toggle('nx-cam-events', t==='events'); if(t==='events'){ if(E) E._at=0; _nxvPaint(p); } };
   // leaving the page leaves Events
   setInterval(function(){ var q=document.getElementById('nx-page'); if(!q||!q.classList.contains('open')||!q.classList.contains('nx-cam-pg')){ document.body.classList.remove('nx-cam-events'); return; } window._nxvEvents(q); }, 5000);
 })();
