@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112112';
+const PROOS_BUILD='2026112113';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -27068,11 +27068,13 @@ body.nx-on #pa-detail.nxd-ring .pa-fs-pip{top:156px;right:16px;left:auto;bottom:
 #nx-page.nx-scn-pg .nx-in{animation:none}
 .nxs-sec{display:flex;align-items:baseline;justify-content:space-between;margin:22px 2px 10px}
 .nxs-sec b{font-size:17px;font-weight:600}.nxs-sec span{font-size:13px;color:rgba(255,255,255,.62)}
-.nxs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(440px,100%),1fr));gap:14px}
-/* 1438 — a scene card is an All Areas card (1280): its picture, 200 high, 20 round; 2 across on an iPad on its side, 3 on a Mac, 1 upright and on a phone (170 there) */
-.nxs-grid .nxr-scn{height:200px;border-radius:20px;padding:18px}
-.nxs-grid .nxr-scn b{font-size:19px}
-@media (max-width:600px){.nxs-grid .nxr-scn{height:170px}}
+.nxs-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+@media (min-width:900px){.nxs-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+/* 1438/1439 — a scene card wears its picture. Dave 22 Nov: the All Areas size was "to big now" — 2 across on a phone and
+   upright, 3 on an iPad on its side and wider; 130 high (110 on a phone), 20 round */
+.nxs-grid .nxr-scn{height:130px;border-radius:20px;padding:14px}
+.nxs-grid .nxr-scn b{font-size:16px}
+@media (max-width:600px){.nxs-grid .nxr-scn{height:110px}.nxs-grid .nxr-scn b{font-size:15px}}
 .nxs-ask{width:100%;margin-top:24px;height:52px;border-radius:16px;border:0;display:flex;align-items:center;justify-content:center;gap:8px;background:#1b1c20;color:#fff;font:600 15px Inter,-apple-system,sans-serif;cursor:pointer}
 .nxs-ask svg{width:18px;height:18px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round}
 </style>
