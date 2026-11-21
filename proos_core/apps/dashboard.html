@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112106';
+const PROOS_BUILD='2026112107';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -5291,7 +5291,7 @@ async function _bootFromCache(){
     try{ await loadScenePhotos(); }catch(e){}
     const discovered = await autoDiscover(HA, TOK);
     if(pr.live) return;                      // the home answered first: the live open builds the screen itself
-    CONFIG.rooms = discovered.rooms;
+    CONFIG.rooms = discovered.rooms; window._nxRoomsKnown=true;   // 1434
     if(discovered.irrigation.length > 0) CONFIG.irrigation = discovered.irrigation;
     CONFIG.irrigationCtl = discovered.irrigationCtl||[];
     if(discovered.cameras.length > 0) CONFIG.cameras = discovered.cameras;
@@ -7123,7 +7123,7 @@ async function connect(){
           await fetchEntityRegistry();
           try{ await loadScenePhotos(); }catch(e){}   // per-scene photos before scenes are built
           const discovered = await autoDiscover(HA, TOK);
-          CONFIG.rooms = discovered.rooms;
+          CONFIG.rooms = discovered.rooms; window._nxRoomsKnown=true;   // 1434
           if(discovered.irrigation.length > 0) CONFIG.irrigation = discovered.irrigation;
     CONFIG.irrigationCtl = discovered.irrigationCtl||[];
           if(discovered.cameras.length > 0) CONFIG.cameras = discovered.cameras;
@@ -15662,7 +15662,7 @@ async function liveRediscover(){
   try{
     await fetchEntityRegistry();
     const discovered = await autoDiscover(HA, TOK);
-    CONFIG.rooms = discovered.rooms;
+    CONFIG.rooms = discovered.rooms; window._nxRoomsKnown=true;   // 1434
     if(discovered.irrigation.length > 0) CONFIG.irrigation = discovered.irrigation;
     CONFIG.irrigationCtl = discovered.irrigationCtl||[];
     if(discovered.cameras.length > 0) CONFIG.cameras = discovered.cameras;
@@ -15688,7 +15688,7 @@ async function rediscover(){
   await fetchEntityRegistry();
   try{
     const discovered = await autoDiscover(HA, TOK);
-    CONFIG.rooms = discovered.rooms;
+    CONFIG.rooms = discovered.rooms; window._nxRoomsKnown=true;   // 1434
     if(discovered.irrigation.length > 0) CONFIG.irrigation = discovered.irrigation;
     CONFIG.irrigationCtl = discovered.irrigationCtl||[];
     if(discovered.cameras.length > 0) CONFIG.cameras = discovered.cameras;
@@ -25319,14 +25319,20 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
     var first=((window._haUser&&window._haUser.name)||'').trim().split(/\s+/)[0]||'';
     var h=new Date().getHours(), greet=(h<12?'Good morning':h<17?'Good afternoon':'Good evening')+(first?', '+first:'');
     var empty=!M.rooms&&!M.devices;
+    // REGISTER 1434 (Dave, 21 Nov: "Every time I open the app I see this briefly before it all updates"): Home was drawn before
+    // the rooms had been read at all — from the saved copy or live — and an unread home looked EMPTY, so "Your installer is
+    // setting up your home" flashed on every open. Empty is only said once the rooms have been read and there are none;
+    // until then Home shows its heading alone.
+    var known=!!window._nxRoomsKnown||(CONFIG.rooms||[]).length>0;
     var scenes=(CONFIG.scenes||[]).slice(0,7), lit={};
     scenes.forEach(function(s){ lit[s.entity]=(typeof _nxSceneOn==='function')&&_nxSceneOn(s.entity); });
     var yw=window._nxWidgets?_nxWidgets(null):'';   // 1387: every widget Home has, in the New Look
     var hs=M.hero?states[M.hero.lead]||{}:null;
-    var sig=JSON.stringify([CONFIG._homeAreaPhoto||'',greet,A,_nxhWeather(),empty,M.hero&&[M.hero.lead,hs.state,hs.attributes.media_title,hs.attributes.media_artist],M.cards.map(function(c){ return c.t==='lights'?['l',c.area,c.n]:[c.t,c.d.lead,c.d.r.word,(states[c.d.lead]||{}).state,((states[c.d.lead]||{}).attributes||{}).media_title]; }),scenes.map(function(s){ return [s.entity,s.name,s.photo,lit[s.entity],ran[s.entity]]; }),yw,M.hasLights]);
+    var sig=JSON.stringify([known,CONFIG._homeAreaPhoto||'',greet,A,_nxhWeather(),empty,M.hero&&[M.hero.lead,hs.state,hs.attributes.media_title,hs.attributes.media_artist],M.cards.map(function(c){ return c.t==='lights'?['l',c.area,c.n]:[c.t,c.d.lead,c.d.r.word,(states[c.d.lead]||{}).state,((states[c.d.lead]||{}).attributes||{}).media_title]; }),scenes.map(function(s){ return [s.entity,s.name,s.photo,lit[s.entity],ran[s.entity]]; }),yw,M.hasLights]);
     if(p._sig===sig) return; p._sig=sig;
     var hph=CONFIG._homeAreaPhoto||'';   // 1424: the Home photo, clear at the top, as a room's own
-    var html=(hph?'<div class="nxh-photo" aria-hidden="true" style="background-image:url(\''+String(hph).replace(/['"\\]/g,encodeURIComponent)+'\')"></div>':'')+'<div class="nx-in"><div class="nxh-top">'+_nxhWeather()+'<span></span></div><div class="nxh-greet">'+(empty?'Welcome':nxhEsc(greet))+'</div><div class="nxh-h1">Home</div>';
+    var html=(hph?'<div class="nxh-photo" aria-hidden="true" style="background-image:url(\''+String(hph).replace(/['"\\]/g,encodeURIComponent)+'\')"></div>':'')+'<div class="nx-in"><div class="nxh-top">'+_nxhWeather()+'<span></span></div><div class="nxh-greet">'+(empty&&known?'Welcome':nxhEsc(greet))+'</div><div class="nxh-h1">Home</div>';
+    if(empty&&!known){ html+='</div>'; p.innerHTML=html; return; }   // 1434: not read yet — the heading only, never "setting up"
     if(empty){
       html+='<div class="nxh-welcome"><div class="nx-ic">'+nxhIc('home').replace('<svg','<svg style="width:24px;height:24px;stroke:#fff;fill:none;stroke-width:1.6"')+'</div><b>Your installer is setting up your home</b><span>Rooms, devices and scenes appear here as they are added. Nothing to do yet.</span></div>'+
         '<button type="button" class="nxh-ask" data-hask><div class="nx-ic">'+nxhIc('mic').replace('<svg','<svg style="width:20px;height:20px;stroke:#fff;fill:none;stroke-width:1.8"')+'</div><div><div style="font-size:15px;font-weight:600">Ask Assist</div><div style="font-size:13px;color:rgba(255,255,255,.62);margin-top:2px">“What’s the weather this weekend?”</div></div></button></div>';
