@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112114';
+const PROOS_BUILD='2026112115';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -25148,8 +25148,10 @@ body.nx-on #nx-page.open{display:block}
     if(litN) named.push(litN+' of '+lights.length+' lights');
     var line=on.length||litN?named.join(' · '):(L.length?'Off':'Nothing here yet');
     var sensors=L.filter(function(d){ return d.k.kind==='sensor'; }), open=sensors.filter(function(d){ return /Open|Motion|Wet|Smoke|CO detected|Gas/.test(d.r.word); });
-    var aware=sensors.length?('<span class="nx-aware" style="margin:0'+(open.length?';background:rgba(255,181,71,.12)':'')+'"><span class="nx-dot" style="'+(open.length?'background:#FFB547;box-shadow:none':'')+'"></span>'+
-      (open.length?open.map(function(d){ return d.name+' '+d.r.word.toLowerCase(); }).join(' · '):'All normal · '+sensors.length+(sensors.length===1?' sensor':' sensors')+' checked')+'</span>'):'';
+    var _aw='All normal · '+sensors.length+(sensors.length===1?' sensor':' sensors')+' checked';   // 1442: all normal is the dot alone
+    var aware=sensors.length?(open.length?'<span class="nx-aware" style="margin:0;background:rgba(255,181,71,.12)"><span class="nx-dot" style="background:#FFB547;box-shadow:none"></span>'+
+      open.map(function(d){ return d.name+' '+d.r.word.toLowerCase(); }).join(' · ')+'</span>'
+      :'<span class="nx-aware" style="margin:0;padding:0;width:30px;height:30px;justify-content:center;gap:0" title="'+_aw+'" aria-label="'+_aw+'"><span class="nx-dot"></span></span>'):'';
     // scenes row
     var tiles=av.map(function(a){ var s=_nxrAvState(r,a.key), R=s==='starting'?_nxrRing(r):null; return '<button type="button" class="nxr-scn'+(s==='on'?' on':'')+(R?' go':'')+'" data-av="'+nxrEsc(a.key)+'" data-script="'+nxrEsc(a.script)+'">'+gi('tv','g')+
         (R?R.svg:'<span class="tag">AV</span>')+
@@ -25232,6 +25234,7 @@ body.nx-on #nx-page.open{display:block}
 .nxh-aware{display:inline-flex;align-items:center;gap:8px;padding:9px 14px;border-radius:999px;background:#1b1c20;border:0;color:#fff;font:500 13px Inter,-apple-system,sans-serif;cursor:pointer;
   transition:background var(--m-page) var(--e-standard)}
 .nxh-aware i{width:7px;height:7px;border-radius:50%;background:#5FD39A;box-shadow:0 0 8px #5FD39A;flex:none}
+.nxh-aware.dot{padding:0;width:30px;height:30px;justify-content:center;gap:0}
 .nxh-aware.warn{background:rgba(255,181,71,.12)}.nxh-aware.warn i{background:#FFB547;box-shadow:0 0 8px #FFB547}
 .nxh-aware.notice i{background:#8A98FF;box-shadow:0 0 8px #8A98FF}
 .nxh-aware.grey{color:rgba(255,255,255,.62)}.nxh-aware.grey i{background:rgba(255,255,255,.4);box-shadow:none}
@@ -25388,7 +25391,10 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
         '<button type="button" class="nxh-ask" data-hask><div class="nx-ic">'+nxhIc('mic').replace('<svg','<svg style="width:20px;height:20px;stroke:#fff;fill:none;stroke-width:1.8"')+'</div><div><div style="font-size:15px;font-weight:600">Ask Assist</div><div style="font-size:13px;color:rgba(255,255,255,.62);margin-top:2px">“What’s the weather this weekend?”</div></div></button></div>';
       p.innerHTML=html; _nxhWire(p,M); return;
     }
-    html+='<button type="button" class="nxh-aware '+A.c+'" data-haware><i></i>'+nxhEsc(A.t)+'</button>';
+    // 1442 (Dave, 22 Nov: "All Normal · 63 devices checked … we agreed that this would just be the status dot if all normal"):
+    // all normal is the green dot alone — its words stay its label, and a tap still opens the check; anything else keeps its words
+    html+=A.c===''?'<button type="button" class="nxh-aware dot" data-haware title="'+nxhEsc(A.t)+'" aria-label="'+nxhEsc(A.t)+'"><i></i></button>'
+      :'<button type="button" class="nxh-aware '+A.c+'" data-haware><i></i>'+nxhEsc(A.t)+'</button>';
     if(M.hero){ var HA=hs.attributes||{}, art=''; try{ var ap=(typeof _artOf==='function')?_artOf(M.hero.lead):HA.entity_picture; art=ap?artSrc(ap):''; }catch(e){}
       var u=art?"url('"+String(art).replace(/'/g,'%27')+"')":'';
       html+='<button type="button" class="nxh-hero" data-hopen="'+nxhEsc(M.hero.lead)+'">'+(u?'<div class="glow" style="background-image:'+u+'"></div><div class="art" style="background-image:'+u+'"></div>':'')+
