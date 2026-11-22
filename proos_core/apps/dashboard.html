@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112123';
+const PROOS_BUILD='2026112124';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -25194,7 +25194,7 @@ body.nx-on #nx-page.open{display:block}
     // on now: the lights as one _nxrCard, every other device that is on as its own
     var cards=[];
     on.filter(function(d){ return d.k.kind!=='light'; }).forEach(function(d){ cards.push(_nxrCard(d,r)); });
-    if(litN) cards.splice(cards.length&&/wide/.test(cards[0])?1:0,0,'<button type="button" class="nxr-live lit" data-lights="1"><div class="nxr-row"><div class="nx-ic" style="background:rgba(255,196,107,.18)">'+gi('light').replace('<svg','<svg style="stroke:#FFC46B"')+'</div><span class="nxr-pw lit" data-lightsoff="1">'+gi('pw')+'</span></div><div><div class="k">'+litN+' of '+lights.length+' on</div><div class="n">Lights</div></div></button>');
+    if(litN) cards.splice(cards.length&&/wide/.test(cards[0])?1:0,0,'<button type="button" class="nxr-live lit" data-lights="1"><div class="nxr-row"><div class="nx-ic" style="background:rgba(255,196,107,.18)">'+gi('light').replace('<svg','<svg style="stroke:#FFC46B"')+'</div><span class="nxr-pw lit" data-lightsoff="1">'+gi('pw')+'</span></div><div><div class="n">'+litN+' of '+lights.length+' on</div></div></button>');
     // your widgets: the favourites pinned to this room
     var wids=window._nxWidgets?_nxWidgets(r):'';   // 1387: every widget this room has, in the New Look
     var sig=JSON.stringify([line,aware,tiles,cards,wids,lv]); if(p._sig===sig) return; p._sig=sig;
@@ -25373,7 +25373,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
   window._nxHomeModel=_nxhModel; window._nxHomeAware=_nxhAware;
 
   function _nxhCard(c){
-    if(c.t==='lights') return '<button type="button" class="nxr-live lit" data-hl="'+nxhEsc(c.area)+'" data-ri="'+c.ri+'" data-ents="'+nxhEsc(c.ents.join(','))+'"><div class="nxr-row"><div class="nx-ic" style="background:rgba(255,196,107,.18)">'+nxhIc('light').replace('<svg','<svg style="stroke:#FFC46B;width:20px;height:20px;fill:none;stroke-width:1.8"')+'</div><span class="nxr-pw lit" data-hloff="1">'+nxhIc('pw')+'</span></div><div><div class="k">'+nxhEsc(c.room||'Around the House')+'</div><div class="n">Lights · '+c.n+(c.of>1?' of '+c.of:'')+' on</div></div></button>';
+    if(c.t==='lights') return '<button type="button" class="nxr-live lit" data-hl="'+nxhEsc(c.area)+'" data-ri="'+c.ri+'" data-ents="'+nxhEsc(c.ents.join(','))+'"><div class="nxr-row"><div class="nx-ic" style="background:rgba(255,196,107,.18)">'+nxhIc('light').replace('<svg','<svg style="stroke:#FFC46B;width:20px;height:20px;fill:none;stroke-width:1.8"')+'</div><span class="nxr-pw lit" data-hloff="1">'+nxhIc('pw')+'</span></div><div><div class="k">'+nxhEsc(c.room||'Around the House')+'</div><div class="n">'+c.n+(c.of>1?' of '+c.of:'')+' on</div></div></button>';
     var d=c.d, s=states[d.lead]||{}, A=s.attributes||{}, k=d.k.kind;
     if(c.t==='media'){
       var art=''; try{ var p=(typeof _artOf==='function')?_artOf(d.lead):A.entity_picture; art=p?artSrc(p):''; }catch(e){}
@@ -26529,7 +26529,7 @@ body.nx-on #device-chooser{z-index:9380}
         var h=''; try{ h=(renderWidgetContent(w)||{}).html||''; }catch(x){} return h?'<div class="nxw-fav'+_nxwSize(w)+'" data-nwuid="'+e7(w.uid||'')+'">'+h+'</div>':''; }
       case 'lights': { var L=areaLights(r?r.id:null), on=L.filter(function(d){ return d.r.now; });
         var off=on.length?act(function(){ svc('light','turn_off',{entity_id:on.map(function(d){ return d.lead; })}); },'o:'+(w.uid||w.id)):'';
-        return _nxwCard(w,{ic:'light', cls:on.length?'lit':'', k:r?r.name:'Whole Home', n:'Lights', s:on.length?on.length+' of '+L.length+' on':'All off',
+        return _nxwCard(w,{ic:'light', cls:on.length?'lit':'', k:r?r.name:'Whole Home', n:on.length?on.length+' of '+L.length+' on':'All off', s:'',
           right:on.length?'<span class="nxr-pw lit" data-nwu="'+off+'">'+'<svg viewBox="0 0 24 24">'+IC.pw+'</svg></span>':'',
           go:function(){ if(r&&window._nxLightSheet) _nxLightSheet(r.id); else if(window._nxLights) _nxLights(); }}); }
       case 'climate': { var cr=r||(w.room?roomById(w.room):null), c=(cr&&cr.climate)||((CONFIG.rooms||[]).filter(function(x){ return x.climate; })[0]||{}).climate;
