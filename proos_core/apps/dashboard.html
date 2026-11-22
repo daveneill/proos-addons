@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112125';
+const PROOS_BUILD='2026112126';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -24704,7 +24704,7 @@ html.proos-panel #widget-px-btn{display:none!important}
     html+='<h2>Devices Page <small>the categories this home has</small></h2><div class="px-cats">'+Object.keys(cats).sort().map(function(c){ var x=cats[c]; return '<div class="px-cat"><b>'+_pxEsc(c)+'</b><span>'+x.n+(x.on?' · '+x.on+' on':'')+'</span></div>'; }).join('')+'</div>';
     rooms.forEach(function(r){ var L=(byRoom[r.id]||[]).sort(sortK); var on=L.filter(function(d){ return d.r.now; }).length;
       html+='<h2>'+_pxEsc(r.name)+'<small>'+(L.length?L.length+(L.length===1?' device':' devices')+(on?' · '+on+' on now':''):'Nothing here yet')+'</small></h2>'+(L.length?'<div class="px-grid">'+L.map(card).join('')+'</div>':''); });
-    if(noRoom.length) html+='<h2>Around the House<small>'+noRoom.length+(noRoom.length===1?' device':' devices')+' with no room — that is fine</small></h2><div class="px-grid">'+noRoom.sort(sortK).map(card).join('')+'</div>';
+    if(noRoom.length) html+='<h2>Around the House<small>'+noRoom.length+(noRoom.length===1?' device':' devices')+'</small></h2><div class="px-grid">'+noRoom.sort(sortK).map(card).join('')+'</div>';
     var y=pg.scrollTop, open={}; pg.querySelectorAll('.px-card.show').forEach(function(c){ open[c.dataset.px]=1; });
     pg.innerHTML=html; pg.scrollTop=y;
     pg.querySelectorAll('.px-card').forEach(function(c){ if(open[c.dataset.px]) c.classList.add('show'); });
@@ -24917,7 +24917,7 @@ body.nx-on #nx-page.open{display:block}
       var kinds=[]; L.forEach(function(d){ var k=d.k.kind; if(k==='source'||k==='receiver') k='tv'; if(['tv','light','speaker','shade','climate','camera','lock','garage','fan'].indexOf(k)>=0&&kinds.indexOf(k)<0) kinds.push(k); });
       var line=live.length?live.slice(0,2).map(function(d){ return (window._pxShown?_pxShown(d):d.name)||d.r.word; }).join(' · ')+(live.length>2?' +'+(live.length-2):''):(L.length?'Off':'Nothing here yet');
       html+='<button type="button" class="nx-room'+(live.length?'':' off')+'" data-ri="'+i+'" style="'+(r.photo?"background-image:url('"+String(r.photo).replace(/'/g,'%27')+"')":'')+'"><div class="nx-rt"><div><b>'+nxEsc(r.name)+'</b><span>'+nxEsc(line)+'</span></div><div class="nx-ics">'+kinds.slice(0,5).map(function(k){ return svgOf(k==='speaker'?'speaker':k); }).join('')+'</div></div></button>'; });
-    if(!rooms.length) html=html.replace(/<div class="nx-sub">[^<]*<\/div>/,'<div class="nx-sub"></div>')+'<div class="nxr-quiet" style="grid-column:1/-1">No rooms yet<small>Your home’s rooms appear here the moment your installer creates them.</small></div>';   // 1404: empty is never blank
+    if(!rooms.length) html=html.replace(/<div class="nx-sub">[^<]*<\/div>/,'<div class="nx-sub"></div>')+'<div class="nxr-quiet" style="grid-column:1/-1">No rooms yet</div>';   // 1404: empty is never blank
     var p=_nxPage(html+'</div>');
 
     p.querySelectorAll('[data-ri]').forEach(function(b){ b.onclick=function(){ cur='rooms'; bar(); if(typeof _nxRoom==='function') _nxRoom(+b.dataset.ri); else { closePage(); try{ showPage('home'); selectRoom(+b.dataset.ri); }catch(e){} } }; });   // 1376: the new room page
@@ -24943,8 +24943,8 @@ body.nx-on #nx-page.open{display:block}
     devs.forEach(function(d){ (cats[d.cat]=cats[d.cat]||[]).push(d); });
     var order=['Lights','Climate','Shades','Cameras','Security','Garage & Gates','Locks & Access','Music','TVs & Media','Irrigation','Fans','Switches & Plugs','Appliances','Security & Sensors','Voice','Other'];
     var keys=Object.keys(cats).sort(function(a,b){ return (order.indexOf(a)<0?99:order.indexOf(a))-(order.indexOf(b)<0?99:order.indexOf(b)); });
-    var html=_nxBackBtn()+'<div class="nx-hd"><div><h1>Devices</h1><div class="nx-sub">Everything in the house, by kind</div></div></div>';
-    if(!keys.length) html+='<div class="nx-card" style="text-align:center;padding:26px"><h3>Nothing yet</h3><div class="nx-sub">Lights, cameras, music and everything else appear here the moment they are added to your home.</div></div>';
+    var html=_nxBackBtn()+'<div class="nx-hd"><div><h1>Devices</h1><div class="nx-sub"></div></div></div>';
+    if(!keys.length) html+='<div class="nx-card" style="text-align:center;padding:26px"><h3>Nothing yet</h3><div class="nx-sub"></div></div>';
     html+='<div class="nx-cats">'+keys.map(function(c){ var L=cats[c], x=catLine(c,L), w=typeof x==='object'?x.w:x, warn=typeof x==='object'&&x.warn;
       var cls=warn?'warn':(c==='Lights'&&L.some(function(d){ return d.r.now; }))?'lit':((c==='Music'||c==='TVs & Media'||c==='Climate')&&L.some(function(d){ return d.r.now; }))?'blue':'';
       return '<button type="button" class="nx-cat '+cls+'" data-cat="'+nxEsc(c)+'"><div class="nx-ic">'+svgOf(CAT_IC[c]||'other')+'</div><div><b>'+nxEsc(c)+'</b><span>'+nxEsc(w)+'</span></div></button>'; }).join('')+'</div>';
@@ -24985,7 +24985,7 @@ body.nx-on #nx-page.open{display:block}
     if(!document.getElementById('set-installer-btn')){ try{ renderSettings(); }catch(e){} }
     var u=window._haUser||(typeof _haUser!=='undefined'?_haUser:null), inApp=(typeof _proosInApp==='function'&&_proosInApp());
     var seg=function(id,cur,opts){ return '<div class="nx-seg" data-seg="'+id+'">'+opts.map(function(o){ return '<button type="button" data-v="'+nxEsc(o[0])+'" class="'+(String(o[0])===String(cur)?'on':'')+'">'+nxEsc(o[1])+'</button>'; }).join('')+'</div>'; };
-    var tog=function(id,onv,title,sub){ return '<div class="nx-tr"><div class="t"><b>'+title+'</b><span>'+sub+'</span></div><button type="button" class="nx-tog'+(onv===null?' unk':onv?' on':'')+'" data-tog="'+id+'" aria-label="'+title+'"></button></div>'; };
+    var tog=function(id,onv,title,sub){ return '<div class="nx-tr"><div class="t"><b>'+title+'</b>'+(sub?'<span>'+sub+'</span>':'')+'</div><button type="button" class="nx-tog'+(onv===null?' unk':onv?' on':'')+'" data-tog="'+id+'" aria-label="'+title+'"></button></div>'; };
     var rooms=CONFIG.rooms||[], dr=(localStorage.getItem('dash_default_room')||'');
     var times=[[0,'Off'],[30,'30 Sec'],[60,'1 Min'],[120,'2 Min'],[300,'5 Min']];
     var instBtn=document.getElementById('set-installer-btn'), inst=instBtn?(instBtn.dataset.on===''?null:instBtn.dataset.on==='1'):null;
@@ -24998,12 +24998,12 @@ body.nx-on #nx-page.open{display:block}
     var right='<div class="nx-card nx-a-dev"><h3>This Device</h3><div class="nx-lab">Open App To</div>'+   // 1436 (Dave, 22 Nov: "this needs to be a drop down list not all rooms listed at once")
       '<div class="nx-selw"><select class="nx-sel" data-nxsel="room" aria-label="Open App To">'+[['','Home']].concat(rooms.map(function(r){ return [r.name,r.name]; })).map(function(o){ return '<option value="'+nxEsc(o[0])+'"'+(String(o[0])===String(dr)?' selected':'')+'>'+nxEsc(o[1])+'</option>'; }).join('')+'</select></div>'+
       (typeof ssAllowed==='function'&&ssAllowed()?'<div class="nx-lab">Screensaver After</div>'+seg('ss',ssSecs(),times):'')+
-      '<div class="nx-lab">Return To Start After</div>'+seg('ret',retSecs(),times)+tog('newui',true,'New Look','This new dashboard on this screen. Off goes back to the one you know.')+'</div>'+
-      '<div class="nx-card nx-a-as"><h3>Assist</h3>'+tog('voice',voiceConsentGiven(),'Talk To ProOS','Your voice goes to your home’s transcription service to be turned into words. Nothing is kept.')+
-      tog('speak',speakAnswersOn(),'Speak Answers','Answers out loud on this screen in your home’s ProOS voice.')+
+      '<div class="nx-lab">Return To Start After</div>'+seg('ret',retSecs(),times)+tog('newui',true,'New Look','')+'</div>'+
+      '<div class="nx-card nx-a-as"><h3>Assist</h3>'+tog('voice',voiceConsentGiven(),'Talk To ProOS','')+
+      tog('speak',speakAnswersOn(),'Speak Answers','')+
       '<button type="button" class="nx-li" data-act="mem" style="width:100%;background:none;border:0;color:#fff;font:inherit;cursor:pointer;margin-top:10px;border-top:1px solid rgba(255,255,255,.07)">What It Remembers<span>›</span></button></div>'+
-      '<div class="nx-card nx-a-ins"><h3>Your Installer</h3>'+tog('inst',inst,'Allow Installer Access','Your installer can manage this home. Off revokes their access — and any tech support they enabled.')+
-      (inApp?'':tog('loc',locationSharingOn(),'Share My Location','So the home knows when you’re coming and going. Off by default.'))+'</div>';
+      '<div class="nx-card nx-a-ins"><h3>Your Installer</h3>'+tog('inst',inst,'Allow Installer Access','')+
+      (inApp?'':tog('loc',locationSharingOn(),'Share My Location',''))+'</div>';
     var html='<button type="button" class="nx-back" data-b>'+svgOf('back')+'</button><div class="nx-set nx-set2"><div class="nx-wl">'+left+'</div><div class="nx-wr">'+right+'</div></div>';
     var p=_nxPage(html);
     // 1432: Your Installer stands in the left column (sideways); on a phone and upright the columns dissolve and the order comes from the grid
@@ -25203,8 +25203,8 @@ body.nx-on #nx-page.open{display:block}
     var html='<div class="nxr-hero" style="'+(r.photo?"background-image:url('"+String(r.photo).replace(/'/g,'%27')+"');":'')+'filter:'+(lv==null?(on.length?'none':'brightness(.75)'):'brightness('+(0.75+0.35*lv).toFixed(2)+') saturate('+(0.9+0.2*lv).toFixed(2)+')')+'"></div>'+
       '<div class="nxr-top"><button type="button" data-back aria-label="Rooms">'+gi('back')+'</button><span></span></div><div class="nxr-body">'+
       '<div class="nxr-name">'+nxrEsc(r.name)+'</div><div class="nxr-line">'+nxrEsc(line)+'</div>'+aware+
-      '<div class="nxr-cols"><div><div class="nxr-sec"><b>Scenes</b></div>'+(tiles.length?'<div class="nxr-grid">'+tiles.join('')+'</div>':'<div class="nxr-quiet">No scenes in the '+nxrEsc(r.name)+' yet<small>Your installer adds them, or ask Assist to save what’s on as a scene.</small></div>')+
-      '</div><div><div class="nxr-sec"><b>On Now</b></div>'+(cards.length?'<div class="nxr-grid" style="grid-template-columns:repeat(2,minmax(0,1fr))">'+cards.join('')+'</div>':'<div class="nxr-quiet">Nothing on in the '+nxrEsc(r.name)+'<small>Everything in here is in Devices, or just ask.</small></div>')+'</div></div>'+wids+'</div>';   // 1387a: widgets full width
+      '<div class="nxr-cols"><div><div class="nxr-sec"><b>Scenes</b></div>'+(tiles.length?'<div class="nxr-grid">'+tiles.join('')+'</div>':'<div class="nxr-quiet">No scenes in the '+nxrEsc(r.name)+' yet</div>')+
+      '</div><div><div class="nxr-sec"><b>On Now</b></div>'+(cards.length?'<div class="nxr-grid" style="grid-template-columns:repeat(2,minmax(0,1fr))">'+cards.join('')+'</div>':'<div class="nxr-quiet">Nothing on in the '+nxrEsc(r.name)+'</div>')+'</div></div>'+wids+'</div>';   // 1387a: widgets full width
     var y=p.scrollTop; p.innerHTML=html; p.scrollTop=y; _nxrWire(p,r,lights);
   }
   function _nxrWire(p,r,lights){
@@ -25422,8 +25422,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
     var html=(hph?'<div class="nxh-photo" aria-hidden="true" style="background-image:url(\''+String(hph).replace(/['"\\]/g,encodeURIComponent)+'\')"></div>':'')+'<div class="nx-in"><div class="nxh-top"><span></span></div><div class="nxh-greet">'+(empty&&known?'Welcome':nxhEsc(greet))+'</div><div class="nxh-h1">Home</div>';
     if(empty&&!known){ html+='</div>'; p.innerHTML=html; return; }   // 1434: not read yet — the heading only, never "setting up"
     if(empty){
-      html+='<div class="nxh-welcome"><div class="nx-ic">'+nxhIc('home').replace('<svg','<svg style="width:24px;height:24px;stroke:#fff;fill:none;stroke-width:1.6"')+'</div><b>Your installer is setting up your home</b><span>Rooms, devices and scenes appear here as they are added. Nothing to do yet.</span></div>'+
-        '<button type="button" class="nxh-ask" data-hask><div class="nx-ic">'+nxhIc('mic').replace('<svg','<svg style="width:20px;height:20px;stroke:#fff;fill:none;stroke-width:1.8"')+'</div><div><div style="font-size:15px;font-weight:600">Ask Assist</div><div style="font-size:13px;color:rgba(255,255,255,.62);margin-top:2px">“What’s the weather this weekend?”</div></div></button></div>';
+      html+='<button type="button" class="nxh-ask" data-hask><div class="nx-ic">'+nxhIc('mic').replace('<svg','<svg style="width:20px;height:20px;stroke:#fff;fill:none;stroke-width:1.8"')+'</div><div><div style="font-size:15px;font-weight:600">Ask Assist</div><div style="font-size:13px;color:rgba(255,255,255,.62);margin-top:2px">“What’s the weather this weekend?”</div></div></button></div>';
       p.innerHTML=html; _nxhWire(p,M); return;
     }
     // 1442 (Dave, 22 Nov: "All Normal · 63 devices checked … we agreed that this would just be the status dot if all normal"):
@@ -25440,11 +25439,11 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
     }
     var onNow='<div class="nxr-sec"><b>On Now</b><button type="button" class="nxh-more" data-hdev>All Devices ›</button></div>'+
       (M.cards.length?'<div class="nxr-grid" style="grid-template-columns:repeat(2,minmax(0,1fr))">'+M.cards.map(_nxhCard).join('')+'</div>'
-        :'<div class="nxr-quiet">Nothing on right now<small>When something turns on anywhere in the house, it shows here.</small></div>');
+        :'<div class="nxr-quiet">Nothing on right now</div>');
     var tiles=scenes.map(function(s,i){ return '<button type="button" class="nxr-scn nxh-scn'+(lit[s.entity]?' on':'')+(ran[s.entity]&&Date.now()-ran[s.entity]<1500?' run':'')+'" data-hscene="'+i+'" style="'+(function(u){ return u?"background-image:url('"+String(u).replace(/'/g,'%27')+"')":''; })(window._nxScenePic?_nxScenePic(s.entity,s.name):s.photo)+'">'+nxhIc('spark','g')+'<b>'+nxhEsc(s.name)+'</b></button>'; });
     if(M.hasLights||M.players.length) tiles.push('<button type="button" class="nxr-scn" data-halloff>'+nxhIc('pw','g')+'<b>All Off</b></button>');
     var sc='<div class="nxr-sec"><b>Scenes</b><button type="button" class="nxh-more" data-hscenes>All Scenes ›</button></div>'+
-      (tiles.length?'<div class="nxr-grid">'+tiles.join('')+'</div>':'<div class="nxr-quiet">No scenes yet<small>Your installer adds them, or ask Assist to save what’s on as a scene.</small></div>');
+      (tiles.length?'<div class="nxr-grid">'+tiles.join('')+'</div>':'<div class="nxr-quiet">No scenes yet</div>');
     html+='<div class="nxh-cols"><div>'+onNow+'</div><div>'+sc+'</div></div>'+yw+'</div>';   // 1387a: widgets full width under both columns
     var y=p.scrollTop; p.innerHTML=html; p.scrollTop=y; _nxhWire(p,M);
   }
@@ -25597,7 +25596,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
       return '<div class="nxl-room"><b>'+nxlEsc(r.name)+'</b><span>'+(n?n+' of '+Ls.length+' on':'Off')+'</span></div><div class="nxl-list">'+Ls.map(_nxlRow).join('')+'</div>'; }).join('');
     var html='<div class="nx-in"><button type="button" class="nx-back" data-lb>'+BACK+'</button><div class="nx-hd"><div><h1>Lights</h1><div class="nx-sub">'+(all.length?onN+' of '+all.length+' on':'')+'</div></div>'+
       (onN?'<button type="button" class="nx-chip" data-lalloff>'+PW.replace('<svg','<svg style="width:15px;height:15px;stroke:#fff;fill:none;stroke-width:2"')+'All Off</button>':'')+'</div>'+
-      (all.length?body:'<div class="nxr-quiet">No lights yet<small>They appear here the moment your installer adds them.</small></div>')+'</div>';
+      (all.length?body:'<div class="nxr-quiet">No lights yet</div>')+'</div>';
     if(p._sig===html) return; p._sig=html; var y=p.scrollTop; p.innerHTML=html; p.scrollTop=y;
     p.querySelector('[data-lb]').onclick=function(){ _nxlStop(); _nxGo('devices'); };
     var ao=p.querySelector('[data-lalloff]'); if(ao) ao.onclick=function(){ _nxlAllOff(all); };
@@ -25638,7 +25637,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
         var cur=S.state==='on'&&A.color_mode==='color_temp'?A.color_temp_kelvin:null;
         h+='<div class="nxl-sec">White · '+nxlEsc(L.name)+'</div><div class="nxl-wt">'+K.map(function(t){ return '<button type="button" class="'+(cur!=null&&Math.abs(cur-t[1])<350?'on':'')+'" data-lk="'+nxlEsc(L.e)+'" data-k="'+t[1]+'" style="background:'+t[2]+'">'+t[0]+'</button>'; }).join('')+'</div>'; }
     });
-    if(!all.length) h+='<div class="nxr-quiet" style="margin-top:16px">No lights here<small>They appear the moment your installer adds them.</small></div>';
+    if(!all.length) h+='<div class="nxr-quiet" style="margin-top:16px">No lights here</div>';
     h+='</div>';
     if(ov._sig===h) return; ov._sig=h; var y=(ov.querySelector('.cd')||{}).scrollTop||0; ov.innerHTML=h; var cd=ov.querySelector('.cd'); if(cd) cd.scrollTop=y;
     ov.querySelector('[data-sx]').onclick=_nxlSheetClose;
@@ -25786,7 +25785,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
       (U.length?'<div class="nxc-list">'+U.map(function(u){ var S=states[u.e], M=_nxcModel(S,pend[u.e]);
         var big=M.t!=null?fmt(M.t)+'°':(M.now!=null?Math.round(M.now)+'°':'–');
         return '<button type="button" class="nxc-card '+_nxcCls(M.mode)+(M.dead?' dead':'')+'" data-cu="'+nxcEsc(u.e)+'"><div><div class="k">'+nxcEsc(u.room||'Around the House')+'</div><div class="n">'+nxcEsc(u.name)+'</div><div class="w">'+nxcEsc(_nxcLine(u.e,M))+(M.t!=null&&M.now!=null?' · '+Math.round(M.now)+'° now':'')+'</div></div><div class="t">'+big+'</div></button>'; }).join('')+'</div>'
-        :'<div class="nxr-quiet">No air con or heating yet<small>Thermostats and air conditioners appear here the moment your installer adds them.</small></div>')+'</div>';
+        :'<div class="nxr-quiet">No air con or heating yet</div>')+'</div>';
     if(p._sig===h) return; p._sig=h; var y=p.scrollTop; p.innerHTML=h; p.scrollTop=y;
     p.querySelector('[data-cb]').onclick=function(){ _nxcStop(); _nxGo('devices'); };
     p.querySelectorAll('[data-cu]').forEach(function(b){ b.onclick=function(){ _nxClimate(b.dataset.cu, _nxClimateList); }; });
@@ -25924,7 +25923,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
       (closable.length?'<button type="button" class="nx-chip" data-sclose>Close All</button>':'')+'</div>'+
       (all.length?secs.map(function(r){ var Ls=all.filter(function(L){ return L.area===r.id; }); if(!Ls.length) return '';
         return '<div class="nxl-room" data-sroom="'+nxsEsc(r.id)+'"><b>'+nxsEsc(r.name)+'</b><span></span></div><div class="nxs-list">'+Ls.map(_nxsItem).join('')+'</div>'; }).join('')
-        :'<div class="nxr-quiet">No shades yet<small>Blinds, shades and curtains appear here the moment your installer adds them.</small></div>')+'</div>';
+        :'<div class="nxr-quiet">No shades yet</div>')+'</div>';
     if(p._sig===h) return; p._sig=h; var y=p.scrollTop; p.innerHTML=h; p.scrollTop=y;
     if(focus!=null){ var t=p.querySelector('[data-sroom="'+focus+'"]'); if(t) p.scrollTop=Math.max(0,t.offsetTop-80); focus=null; }
     p.querySelector('[data-sb]').onclick=function(){ var f=from; _nxsStop(); if(f) f(); else _nxGo('devices'); };
@@ -26063,7 +26062,7 @@ body.nx-on #pin-overlay{z-index:9060}
       (gar.length?'<div class="nxl-room" data-qsec="garage"><b>Garage &amp; Gates</b><span></span></div><div class="nxq-list">'+gar.map(_nxqGarage).join('')+'</div>':'');
     var right=sens.length?'<div class="nxl-room" data-qsec="sensors" style="margin-top:'+(panels.length||gar.length?'':'0')+'"><b>Sensors</b><span>'+(/^All /.test(_nxqLine(sens))?'':nxqEsc(_nxqLine(sens)))+'</span></div><div class="nxq-list">'+sens.map(function(x){
         return '<div class="nxq-li'+(x.active?' warn':'')+'"><div class="nx-ic">'+svgOfQ(x.kind)+'</div><div class="gr"><b>'+nxqEsc(x.name)+'</b>'+(x.room?'<small>'+nxqEsc(x.room)+'</small>':'')+'</div><span class="w'+(x.active?' on':'')+'">'+nxqEsc(x.dead?'Can’t reach it':x.word)+'</span></div>'; }).join('')+'</div>':'';
-    if(!panels.length&&!gar.length&&!sens.length) h+='<div class="nxr-quiet">No alarm, garage or sensors yet<small>They appear here the moment your installer adds them.</small></div>';
+    if(!panels.length&&!gar.length&&!sens.length) h+='<div class="nxr-quiet">No alarm, garage or sensors yet</div>';
     else h+='<div class="nxq-cols"><div>'+left+'</div><div>'+right+'</div></div>';
     h+='</div>';
     if(p._sig===h) return; p._sig=h; var y=p.scrollTop; p.innerHTML=h; p.scrollTop=y;
@@ -26123,12 +26122,12 @@ body.nx-on #pin-overlay{z-index:9060}
     var L=_nxkAll(), open=L.filter(function(x){ var R=_nxkRead(x.e,states[x.e],pend); return R.open||R.jam; });
     var h='<div class="nx-in"><button type="button" class="nx-back" data-kb>'+BACK+'</button><div class="nx-hd"><div><h1>Locks &amp; Access</h1><div class="nx-sub">'+(L.length?(open.length?open.length+' of '+L.length+' not locked':'All '+L.length+' locked'):'')+'</div></div>'+
       (open.length>1?'<button type="button" class="nx-chip" data-kall>Lock All</button>':'')+'</div>';
-    if(!L.length) h+='<div class="nxr-quiet">No locks yet<small>Door locks and access doors appear here the moment your installer adds them.</small></div>';
+    if(!L.length) h+='<div class="nxr-quiet">No locks yet</div>';
     else h+='<div class="nxq-list">'+L.map(function(x){ var R=_nxkRead(x.e,states[x.e],pend), warn=R.open||R.jam;
       var sub=R.gone?R.word:R.word+(R.open&&!R.sent&&since(x.e)?' · '+since(x.e):'')+(R.by&&!R.sent?' · by '+R.by:'')+(x.room?' · '+x.room:'');
       return '<div class="nxq-li'+(warn?' warn':'')+'"><div class="nx-ic">'+(R.open?OPEN:LOCK)+'</div><div class="gr"><b>'+nxkEsc(x.name)+'</b><small class="'+(err[x.e]?'nxk-err':R.sent?'act':warn?'warn':'')+'">'+nxkEsc(err[x.e]||sub)+'</small></div>'+
         ((R.open||R.jam)&&!R.sent?'<button type="button" class="act pri" data-klock="'+nxkEsc(x.e)+'">Lock</button>':'')+'</div>'; }).join('')+'</div>'+
-      '<div class="nxk-note">Unlocking from the app is off — your installer can enable it.</div>';
+      '';
     h+='</div>';
     if(!force&&p._sig===h) return; p._sig=h; var y=p.scrollTop; p.innerHTML=h; p.scrollTop=y;
     p.querySelector('[data-kb]').onclick=function(){ var f=from; _nxkStop(); if(f) f(); else _nxGo('devices'); };
@@ -26194,7 +26193,7 @@ body.nx-on #pa-detail{z-index:9070}
         '</div>'+(L.length?'<div class="nxv-seg" hidden><button type="button" class="on" data-vt="live">Cameras</button><button type="button" data-vt="events">Events</button></div><div class="nxv-counts"></div><div class="nxv-events" hidden></div>':'')+   // 1407
         (L.length?'<div class="nxv-grid">'+L.map(function(x,n){ var room=entityAreaMap[x.c.entity]; room=room?((CONFIG.rooms||[]).filter(function(r){ return r.id===room; })[0]||{}).name||(typeof areaNameById!=='undefined'&&areaNameById[room])||'':'';
           return '<button type="button" class="nxv-cam'+(n===0?' hero':'')+'" data-vi="'+x.i+'" data-ve="'+nxvEsc(x.c.entity)+'"><div class="ph">'+CAM+'</div><img alt=""/><span class="age"></span><span class="nm">'+nxvEsc(x.c.name)+(room&&room!==x.c.name?'<small>'+nxvEsc(room)+'</small>':'')+'</span></button>'; }).join('')+'</div>'
-          :'<div class="nxr-quiet">No cameras yet<small>They appear here the moment your installer adds them.</small></div>')+'</div>';
+          :'<div class="nxr-quiet">No cameras yet</div>')+'</div>';
       p.innerHTML=h;
       p.querySelector('[data-vb]').onclick=function(){ var f=from; _nxvStop(); if(f) f(); else _nxGo('devices'); };
       p.querySelectorAll('[data-vt]').forEach(function(b){ b.onclick=function(){ window._nxvTab&&_nxvTab(p, b.dataset.vt); }; });   // 1407: Live / Events on this page
@@ -26305,7 +26304,7 @@ body.nx-on #pa-detail{z-index:9070}
     all.sort(function(a,b){ var ra=_nxmRead(a.e,states[a.e],pend), rb=_nxmRead(b.e,states[b.e],pend); return ((rb.playing?2:rb.paused?1:0)-(ra.playing?2:ra.paused?1:0))||a.label.localeCompare(b.label); });
     var h='<div class="nx-in"><button type="button" class="nx-back" data-mb>'+BACK+'</button><div class="nx-hd"><div><h1>Music</h1><div class="nx-sub">'+(all.length?(playing.length?playing.length+' playing · ':'')+all.length+(all.length===1?' speaker':' speakers'):'')+'</div></div>'+
       '<button type="button" class="nx-chip" data-mbrowse>Browse Music</button></div>'+
-      (all.length?'<div class="nxm-list">'+all.map(function(x){ return _nxmCard(x,all); }).join('')+'</div>':'<div class="nxr-quiet">No speakers yet<small>They appear here the moment your installer adds them.</small></div>')+'</div>';
+      (all.length?'<div class="nxm-list">'+all.map(function(x){ return _nxmCard(x,all); }).join('')+'</div>':'<div class="nxr-quiet">No speakers yet</div>')+'</div>';
     if(p._sig===h) return; p._sig=h; var y=p.scrollTop; p.innerHTML=h; p.scrollTop=y;
     p.querySelector('[data-mb]').onclick=function(){ var f=from; _nxmStop(); if(f) f(); else _nxGo('devices'); };
     p.querySelector('[data-mbrowse]').onclick=function(){ _nxmStop(); p.classList.remove('open'); try{ showPage('music'); }catch(z){} };
@@ -26415,7 +26414,7 @@ body.nx-on #device-chooser{z-index:9380}
     L.sort(function(a,b){ var ra=_nxtRead(states[a.lead]), rb=_nxtRead(states[b.lead]); return (rb.on-ra.on)||roomOf(a.area).localeCompare(roomOf(b.area)); });
     var onN=L.filter(function(d){ return _nxtRead(states[d.lead]).on; }).length;
     var h='<div class="nx-in"><button type="button" class="nx-back" data-tb>'+BACK+'</button><div class="nx-hd"><div><h1>TVs &amp; Media</h1><div class="nx-sub">'+(L.length?(onN?onN+' on · ':'')+L.length+(L.length===1?' device':' devices'):'')+'</div></div></div>';
-    if(!L.length) h+='<div class="nxr-quiet">No TVs or players yet<small>They appear here the moment your installer adds them.</small></div>';
+    if(!L.length) h+='<div class="nxr-quiet">No TVs or players yet</div>';
     else h+='<div class="nxq-list">'+L.map(function(d){ var R=_nxtRead(states[d.lead]), rm=roomOf(d.area), nm=(window._pxShown?_pxShown(d):((d)||{}).name||''), lab=rm&&nm&&rm!==nm?rm+' · '+nm:(rm||d.name);
       return '<div class="nxq-li nxt-li'+(R.on?' on':'')+'" data-tl="'+esc6(d.lead)+'" data-ta="'+esc6(d.area||'')+'"><div class="nx-ic">'+TV+'</div><div class="gr"><b>'+esc6(lab)+'</b><small class="'+(R.on?'act':'')+'">'+esc6(R.word)+'</small></div><span class="go">›</span></div>'; }).join('')+'</div>';
     h+='</div>';
@@ -26437,7 +26436,7 @@ body.nx-on #device-chooser{z-index:9380}
     var Z=(CONFIG.irrigation||[]).filter(function(z){ return z&&z.entity; }), run=Z.filter(function(z){ return _nxiRead(states[z.entity]).on; });
     var h='<div class="nx-in"><button type="button" class="nx-back" data-ib>'+BACK+'</button><div class="nx-hd"><div><h1>Irrigation</h1><div class="nx-sub">'+(Z.length?(run.length?run.length+' watering · ':'')+Z.length+(Z.length===1?' zone':' zones'):'')+'</div></div>'+
       (Z.length?'<button type="button" class="nx-chip" data-ifull>Controller</button>':'')+'</div>';
-    if(!Z.length) h+='<div class="nxr-quiet">No irrigation yet<small>Zones appear here once your installer sets them up.</small></div>';
+    if(!Z.length) h+='<div class="nxr-quiet">No irrigation yet</div>';
     else h+='<div class="nxq-list">'+Z.map(function(z){ var R=_nxiRead(states[z.entity]), pr=pressed[z.entity]&&Date.now()-pressed[z.entity]<6000&&!R.gone;
       var sub=R.word+(pr?' · Sent':'');
       return '<div class="nxq-li nxi-li'+(R.on?' on':'')+'"><div class="nx-ic">'+DROP+'</div><div class="gr"><b>'+esc6(z.name||z.entity)+'</b><small class="'+(R.on||pr?'act':'')+'">'+esc6(sub)+'</small></div>'+
@@ -26609,7 +26608,7 @@ body.nx-on #device-chooser{z-index:9380}
   function _nxwAskRemove(uid){
     var ov=document.getElementById('nxl-sheet'); if(!ov){ ov=document.createElement('div'); ov.id='nxl-sheet'; document.body.appendChild(ov); }
     ov.onclick=function(){ ov.classList.remove('open'); }; ov._sig='rm'; ov.classList.add('open');
-    ov.innerHTML='<div class="cd" onclick="event.stopPropagation()" style="max-width:380px;text-align:center"><h2>Remove This Widget?</h2><div class="sub" style="margin:8px 0 18px">It comes back from + Add Widget at any time.</div>'+
+    ov.innerHTML='<div class="cd" onclick="event.stopPropagation()" style="max-width:380px;text-align:center"><h2>Remove This Widget?</h2><div style="height:18px"></div>'+
       '<div style="display:flex;gap:10px"><button type="button" class="nx-chip" data-rmno style="flex:1;justify-content:center;height:46px">Keep</button><button type="button" class="nx-chip" data-rmyes style="flex:1;justify-content:center;height:46px;background:#FF5A5A">Remove</button></div></div>';
     ov.querySelector('[data-rmno]').onclick=function(){ ov.classList.remove('open'); };
     ov.querySelector('[data-rmyes]').onclick=function(){ try{ removeWidget(uid); }catch(x){} ov.classList.remove('open'); var p=document.getElementById('nx-page'); if(p) p._sig=''; };
@@ -27165,8 +27164,8 @@ body.nx-on #pa-detail.nxd-ring .pa-fs-pip{top:156px;right:16px;left:auto;bottom:
   function _nxScDraw(){
     var p=document.getElementById('nx-page'); if(!p||!p.classList.contains('open')||!p.classList.contains('nx-scn-pg')) return;
     if(OTHER.some(function(c){ return p.classList.contains(c); })){ _nxScStop(); return; }   // another page took the frame
-    var M=_nxScModel(), h='<div class="nx-in">'+(window._nxBackBtn?_nxBackBtn():'')+'<div class="nx-hd"><div><h1>Scenes</h1><div class="nx-sub">'+(M.whole.length||M.rooms.length?'Hold a scene to edit it':'')+'</div></div></div>';
-    if(!M.whole.length&&!M.rooms.length) h+='<div class="nxr-quiet">No scenes yet<small>Your installer adds them, or ask Assist to save what’s on as a scene.</small></div>';
+    var M=_nxScModel(), h='<div class="nx-in">'+(window._nxBackBtn?_nxBackBtn():'')+'<div class="nx-hd"><div><h1>Scenes</h1><div class="nx-sub">'+(M.whole.length||M.rooms.length?'':'')+'</div></div></div>';
+    if(!M.whole.length&&!M.rooms.length) h+='<div class="nxr-quiet">No scenes yet</div>';
     if(M.whole.length) h+='<div class="nxs-sec"><b>Whole Home</b></div><div class="nxs-grid">'+M.whole.map(function(s){ return sceneTile(s); }).join('')+'</div>';
     M.rooms.forEach(function(x){ var r=x.r, onA=null;
       var tiles=x.av.map(function(a){ var s=window._nxRoomState?_nxRoomState(r,a.key):'off', g=s==='starting'&&window._nxrRing?_nxrRing(r):null; if(s==='on') onA=a;
@@ -27420,7 +27419,7 @@ body.nx-on.nxbg-on #nx-page .nxr-hero::after{background:linear-gradient(180deg,r
   function ic(c,day){ return '<svg viewBox="0 0 24 24">'+((typeof _wxIcon==='function')?_wxIcon(c,day):'')+'</svg>'; }
   function _nxwDraw(){ var p=mine('nx-wx-pg'); if(!p) return; var M=_nxwModel();
     var h='<div class="nx-in"><button type="button" class="nx-back" data-wb>'+BACK+'</button>';
-    if(!M) h+='<div class="nx-hd"><div><h1>Weather</h1></div></div><div class="nxr-quiet">No weather yet<small>Your installer adds the home’s weather in Pro.</small></div>';
+    if(!M) h+='<div class="nx-hd"><div><h1>Weather</h1></div></div><div class="nxr-quiet">No weather yet</div>';
     else { h+='<div class="nx-hd"><div><h1>'+esc(M.place)+'</h1><div class="nx-sub">'+esc(M.cond)+'</div></div></div>'+
       '<div class="nxw-now">'+ic(M.c,(typeof _wxIsDay==='function')?_wxIsDay():true)+'<div><b>'+R(M.temp)+'°</b><small>'+esc(M.facts)+'</small></div></div>';
       if(M.hours.length) h+='<div class="nxw-hrs">'+M.hours.map(function(x){ return '<div><span>'+esc(x.t)+'</span>'+ic(x.c,x.day)+'<b>'+R(x.v)+'°</b></div>'; }).join('')+'</div>';
@@ -27440,7 +27439,7 @@ body.nx-on.nxbg-on #nx-page .nxr-hero::after{background:linear-gradient(180deg,r
   function _nxeDraw(){ var p=mine('nx-en-pg'); if(!p) return; var M=_nxeModel();
     var h='<div class="nx-in"><button type="button" class="nx-back" data-eb>'+BACK+'</button><div class="nx-hd"><div><h1>Energy</h1><div class="nx-sub">'+(M?(M.now?'Now':'Today'):'')+'</div></div></div>';
     h+=M?'<div class="nxe-grid">'+M.tiles.map(function(t){ return '<div class="nxe-t"><svg viewBox="0 0 24 24" style="stroke:'+t.c+'">'+EI[t.ic]+'</svg><div><div class="k">'+esc(t.k)+'</div><div class="n">'+esc(t.n)+'</div><small>'+esc(t.s)+'</small></div></div>'; }).join('')+'</div>'
-      :'<div class="nxr-quiet">No energy readings yet<small>They appear here once your installer sets up the home’s energy meters.</small></div>';
+      :'<div class="nxr-quiet">No energy readings yet</div>';
     h+='</div>'; if(p._sig===h) return; p._sig=h; var y=p.scrollTop; p.innerHTML=h; p.scrollTop=y; back(p,'[data-eb]',function(){ _nxGo('devices'); }); }
   window._nxEnergy=function(b){ _nxwPage('nx-en-pg'); from=b||null; try{ _energyLoad(); }catch(e){} _nxeDraw(); clearInterval(timer); timer=setInterval(function(){ try{ _energyLoad(); }catch(e){} _nxeDraw(); },1000); };
 })();
@@ -31182,14 +31181,14 @@ function _ppBHome(){
         +'<button class="pp-lt pp-glass off" data-cmd="alloff"><span class="ico">'+_ppIc('power')+'</span><span class="tx"><div class="a">All Off</div><div class="b">Lights and music, every room</div></span></button></div>'
     +'</div>'
     +(rs.length?('<div class="pp-row">'+rs.map(function(r){ return _ppRC(r); }).join('')+'</div>')
-      :'<div class="pp-empty" style="top:270px">Your rooms appear here once they’re set up.</div>');
+      :'<div class="pp-empty" style="top:270px">No rooms yet</div>');
 }
 function _ppBRooms(){
   var rs=_ppShownRooms();
   return '<div class="pp-bg" style="'+_ppBg(_ppHomePhoto())+'"></div>'
     +'<div class="pp-head"><div class="n">Rooms</div><div class="s" data-inuse></div></div>'
     +(rs.length?('<div class="pp-grid pp-scroll">'+rs.map(function(r){ return _ppRC(r); }).join('')+'</div>')
-      :'<div class="pp-empty">Your rooms appear here once they’re set up.</div>');
+      :'<div class="pp-empty">No rooms yet</div>');
 }
 function _ppSL(kind, label, icon){
   return '<div class="pp-sl'+((kind==='vol'||kind==='mvol')?' vol':'')+'" data-sl="'+kind+'"><div class="fill"></div><div class="lab">'+_ppIc(icon)+_ppE(label)+'</div><div class="lab in">'+_ppIc(icon)+_ppE(label)+'</div><div class="val"></div></div>';
