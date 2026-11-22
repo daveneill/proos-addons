@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112119';
+const PROOS_BUILD='2026112120';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -24788,6 +24788,7 @@ body.nx-on #nx-page.open{display:block}
 .nxr-scn[data-av].on{background-color:#1b1c20;background-image:none;box-shadow:none;outline:2px solid rgba(255,255,255,.95);outline-offset:-2px}
 .nxr-scn.nxh-scn[data-av].on::before{background:linear-gradient(180deg,rgba(14,14,16,.25),rgba(14,14,16,.82))}
 .nxr-scn[data-av].on .tag.on{background:#fff;color:#111}
+.nxr-scn.nxh-scn.on{background-size:cover;background-position:center}   /* 1451: .nxr-scn.on's shorthand reset these — an on tile showed its picture's corner at full size (read on the box) */
 .nx-back svg{width:18px;height:18px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 /* Settings — the G-Flip's look: big cards, choices you can see */
 .nx-set{display:grid;grid-template-columns:1fr;gap:12px;margin-top:16px}
