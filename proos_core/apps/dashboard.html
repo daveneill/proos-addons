@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112118';
+const PROOS_BUILD='2026112119';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -24782,6 +24782,12 @@ body.nx-on #nx-page.open{display:block}
 .nx-dot{width:7px;height:7px;border-radius:50%;background:#5FD39A;box-shadow:0 0 8px #5FD39A}
 .nx-back{width:42px;height:42px;border-radius:50%;background:#1b1c20;border:0;display:grid;place-items:center;cursor:pointer;margin-top:12px}
 .nx-back.nx-fromb{position:absolute;top:calc(12px + var(--proos-sat,0px));left:18px;margin:0;background:rgba(0,0,0,.38);z-index:2}   /* 1443: where a room page's back sits */
+.nx-fromb~.nx-hd{margin-top:52px}   /* 1450: the title starts under the back button, never under it (Dave, 22 Nov) */
+/* 1450 (Dave, 22 Nov: "when AV scene on its blue can we just have a white ring and an on"): an AV scene that is on keeps its
+   picture and look, with a white ring and its tag reading On */
+.nxr-scn[data-av].on{background-color:#1b1c20;background-image:none;box-shadow:none;outline:2px solid rgba(255,255,255,.95);outline-offset:-2px}
+.nxr-scn.nxh-scn[data-av].on::before{background:linear-gradient(180deg,rgba(14,14,16,.25),rgba(14,14,16,.82))}
+.nxr-scn[data-av].on .tag.on{background:#fff;color:#111}
 .nx-back svg{width:18px;height:18px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 /* Settings — the G-Flip's look: big cards, choices you can see */
 .nx-set{display:grid;grid-template-columns:1fr;gap:12px;margin-top:16px}
@@ -25177,7 +25183,7 @@ body.nx-on #nx-page.open{display:block}
       :'<span class="nx-aware" style="margin:0;padding:0;width:22px;height:22px;justify-content:center;gap:0;background:none" title="'+_aw+'" aria-label="'+_aw+'"><span class="nx-dot"></span></span>'):'';
     // scenes row
     var tiles=av.map(function(a){ var s=_nxrAvState(r,a.key), R=s==='starting'?_nxrRing(r):null; var u=window._nxScenePic?_nxScenePic(a.script,String(a.label||a.key)):''; return '<button type="button" class="nxr-scn nxh-scn'+(s==='on'?' on':'')+(R?' go':'')+'" data-av="'+nxrEsc(a.key)+'" data-script="'+nxrEsc(a.script)+'"'+(u?' style="background-image:url(\''+nxrEsc(String(u).replace(/'/g,'%27'))+'\')"':'')+'>'+gi('tv','g')+
-        (R?R.svg:'<span class="tag">AV</span>')+
+        (R?R.svg:(s==='on'?'<span class="tag on">On</span>':'<span class="tag">AV</span>'))+
         '<b>'+nxrEsc(String(a.label||a.key).replace(/^Watch\s+/i,'Watch '))+(R&&R.cap?'<small class="nxr-cap'+(R.bad?' bad':R.cap==='Ready'?' ok':'')+'">'+nxrEsc(R.cap)+'</small>':'')+'</b></button>'; })
       .concat(sc.map(function(e){ var nm=_pxName({lead:e,devName:att(e,'friendly_name')},{kind:'other'},r,states), u=window._nxScenePic?_nxScenePic(e,nm):'';
         return '<button type="button" class="nxr-scn nxh-scn'+(_nxrSceneOn(e)?' on':'')+'" data-scene="'+nxrEsc(e)+'"'+(u?' style="background-image:url(\''+nxrEsc(String(u).replace(/'/g,'%27'))+'\')"':'')+'>'+gi('spark','g')+'<b>'+nxrEsc(nm)+'</b></button>'; }))
@@ -27160,7 +27166,7 @@ body.nx-on #pa-detail.nxd-ring .pa-fs-pip{top:156px;right:16px;left:auto;bottom:
     if(M.whole.length) h+='<div class="nxs-sec"><b>Whole Home</b></div><div class="nxs-grid">'+M.whole.map(function(s){ return sceneTile(s); }).join('')+'</div>';
     M.rooms.forEach(function(x){ var r=x.r, onA=null;
       var tiles=x.av.map(function(a){ var s=window._nxRoomState?_nxRoomState(r,a.key):'off', g=s==='starting'&&window._nxrRing?_nxrRing(r):null; if(s==='on') onA=a;
-        return '<button type="button" class="nxr-scn nxh-scn'+(s==='on'?' on':'')+(g?' go':'')+'" data-av="'+esc(a.key)+'" data-ri="'+x.ri+'" data-script="'+esc(a.script)+'" data-avn="'+esc(String(a.label||a.key))+'"'+pic(a.script,String(a.label||a.key))+'>'+TV+(g?g.svg:'<span class="tag">AV</span>')+
+        return '<button type="button" class="nxr-scn nxh-scn'+(s==='on'?' on':'')+(g?' go':'')+'" data-av="'+esc(a.key)+'" data-ri="'+x.ri+'" data-script="'+esc(a.script)+'" data-avn="'+esc(String(a.label||a.key))+'"'+pic(a.script,String(a.label||a.key))+'>'+TV+(g?g.svg:(s==='on'?'<span class="tag on">On</span>':'<span class="tag">AV</span>'))+
           '<b>'+esc(String(a.label||a.key))+(g&&g.cap?'<small class="nxr-cap'+(g.bad?' bad':g.cap==='Ready'?' ok':'')+'">'+esc(g.cap)+'</small>':'')+'</b></button>'; })
         .concat(x.sc.map(function(s){ return sceneTile(s); }))
         .concat(x.off?['<button type="button" class="nxr-scn" data-off="'+x.ri+'">'+PW+'<b>Room Off</b></button>']:[]);
