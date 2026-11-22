@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112113';
+const PROOS_BUILD='2026112114';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -24853,7 +24853,18 @@ body.nx-on #nx-page.open{display:block}
     p.classList.remove('nx-room-pg','nx-home-pg','nx-lights-pg','nx-clim-pg','nx-shade-pg','nx-sec-pg','nx-lock-pg','nx-cam-pg','nx-mus-pg','nx-tv-pg','nx-irr-pg','nx-scn-pg','nx-wx-pg','nx-en-pg'); document.body.classList.remove('nx-scr');   // 1376–1380: leaving a room page, Home or Lights
     p.innerHTML='<div class="nx-in">'+html+'</div>'; p.classList.add('open'); p.scrollTop=0; return p; }
   function closePage(){ var p=document.getElementById('nx-page'); if(p) p.classList.remove('open'); }
+  // REGISTER 1441 (Dave, 22 Nov: Devices and Scenes "have no close so need to press home and that takes you to home not back
+  // to the area page"): Devices, Scenes and Rooms keep where you came from — a room's page, or Home — and their back button
+  // returns you there. Moving between those three keeps the first place; anything else is Home.
+  var _from=null;
+  function _nxHereNow(){ var p=document.getElementById('nx-page'); if(!p||!p.classList.contains('open')) return null;
+    if(p.classList.contains('nx-room-pg')&&window._nxLastRoomIdx!=null) return {room:+window._nxLastRoomIdx}; return null; }
+  window._nxBackFrom=function(){ var f=_from; _from=null;
+    if(f&&f.room!=null&&typeof _nxRoom==='function'&&(CONFIG.rooms||[])[f.room]){ cur='rooms'; bar(); _nxRoom(f.room); return; }
+    _nxGoTo('home'); };
+  window._nxBackBtn=function(){ return '<button type="button" class="nx-back" data-nxfrom onclick="window._nxBackFrom&&_nxBackFrom()">'+svgOf('back')+'</button>'; };
   function _nxGoTo(id){
+    if(id==='devices'||id==='scenes'||id==='rooms'){ var h=_nxHereNow(); if(h) _from=h; else if(!(cur==='devices'||cur==='scenes'||cur==='rooms')) _from=null; } else _from=null;
     cur=id; document.body.classList.toggle('nx-av', id==='home'||id==='rooms'||id==='devices');
     if(id==='assist'){ cur=cur; try{ openAssist(); }catch(e){} bar(); return; }
     if(id==='home'){ if(typeof _nxHome==='function') _nxHome(); else { closePage(); try{ showPage('home'); selectRoom(-1); }catch(e){} } }   // 1377: the new Home
@@ -24867,7 +24878,7 @@ body.nx-on #nx-page.open{display:block}
   // ── Rooms ──
   function drawRooms(){
     var devs=nxAll(), rooms=CONFIG.rooms||[];
-    var html='<div class="nx-hd"><div><h1>Rooms</h1><div class="nx-sub">'+rooms.filter(function(r){ return devs.some(function(d){ return d.area===r.id&&d.r.now; }); }).length+' in use · '+rooms.length+' rooms</div></div>'+
+    var html=_nxBackBtn()+'<div class="nx-hd"><div><h1>Rooms</h1><div class="nx-sub">'+rooms.filter(function(r){ return devs.some(function(d){ return d.area===r.id&&d.r.now; }); }).length+' in use · '+rooms.length+' rooms</div></div>'+
       '<button type="button" class="nx-chip" data-whole>'+svgOf('home')+'Whole Home</button></div><div class="nx-rooms">';
     rooms.forEach(function(r,i){ var L=devs.filter(function(d){ return d.area===r.id; }), live=L.filter(function(d){ return d.r.now; });
       var kinds=[]; L.forEach(function(d){ var k=d.k.kind; if(k==='source'||k==='receiver') k='tv'; if(['tv','light','speaker','shade','climate','camera','lock','garage','fan'].indexOf(k)>=0&&kinds.indexOf(k)<0) kinds.push(k); });
@@ -24899,7 +24910,7 @@ body.nx-on #nx-page.open{display:block}
     devs.forEach(function(d){ (cats[d.cat]=cats[d.cat]||[]).push(d); });
     var order=['Lights','Climate','Shades','Cameras','Security','Garage & Gates','Locks & Access','Music','TVs & Media','Irrigation','Fans','Switches & Plugs','Appliances','Security & Sensors','Voice','Other'];
     var keys=Object.keys(cats).sort(function(a,b){ return (order.indexOf(a)<0?99:order.indexOf(a))-(order.indexOf(b)<0?99:order.indexOf(b)); });
-    var html='<div class="nx-hd"><div><h1>Devices</h1><div class="nx-sub">Everything in the house, by kind</div></div></div>';
+    var html=_nxBackBtn()+'<div class="nx-hd"><div><h1>Devices</h1><div class="nx-sub">Everything in the house, by kind</div></div></div>';
     if(!keys.length) html+='<div class="nx-card" style="text-align:center;padding:26px"><h3>Nothing yet</h3><div class="nx-sub">Lights, cameras, music and everything else appear here the moment they are added to your home.</div></div>';
     html+='<div class="nx-cats">'+keys.map(function(c){ var L=cats[c], x=catLine(c,L), w=typeof x==='object'?x.w:x, warn=typeof x==='object'&&x.warn;
       var cls=warn?'warn':(c==='Lights'&&L.some(function(d){ return d.r.now; }))?'lit':((c==='Music'||c==='TVs & Media'||c==='Climate')&&L.some(function(d){ return d.r.now; }))?'blue':'';
@@ -25370,7 +25381,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
     var sig=JSON.stringify([known,CONFIG._homeAreaPhoto||'',greet,A,_nxhWeather(),empty,M.hero&&[M.hero.lead,hs.state,hs.attributes.media_title,hs.attributes.media_artist],M.cards.map(function(c){ return c.t==='lights'?['l',c.area,c.n]:[c.t,c.d.lead,c.d.r.word,(states[c.d.lead]||{}).state,((states[c.d.lead]||{}).attributes||{}).media_title]; }),scenes.map(function(s){ return [s.entity,s.name,s.photo,lit[s.entity],ran[s.entity]]; }),yw,M.hasLights]);
     if(p._sig===sig) return; p._sig=sig;
     var hph=CONFIG._homeAreaPhoto||'';   // 1424: the Home photo, clear at the top, as a room's own
-    var html=(hph?'<div class="nxh-photo" aria-hidden="true" style="background-image:url(\''+String(hph).replace(/['"\\]/g,encodeURIComponent)+'\')"></div>':'')+'<div class="nx-in"><div class="nxh-top">'+_nxhWeather()+'<span></span></div><div class="nxh-greet">'+(empty&&known?'Welcome':nxhEsc(greet))+'</div><div class="nxh-h1">Home</div>';
+    var html=(hph?'<div class="nxh-photo" aria-hidden="true" style="background-image:url(\''+String(hph).replace(/['"\\]/g,encodeURIComponent)+'\')"></div>':'')+'<div class="nx-in"><div class="nxh-top"><span></span></div><div class="nxh-greet">'+(empty&&known?'Welcome':nxhEsc(greet))+'</div><div class="nxh-h1">Home</div>';
     if(empty&&!known){ html+='</div>'; p.innerHTML=html; return; }   // 1434: not read yet — the heading only, never "setting up"
     if(empty){
       html+='<div class="nxh-welcome"><div class="nx-ic">'+nxhIc('home').replace('<svg','<svg style="width:24px;height:24px;stroke:#fff;fill:none;stroke-width:1.6"')+'</div><b>Your installer is setting up your home</b><span>Rooms, devices and scenes appear here as they are added. Nothing to do yet.</span></div>'+
@@ -27109,7 +27120,7 @@ body.nx-on #pa-detail.nxd-ring .pa-fs-pip{top:156px;right:16px;left:auto;bottom:
   function _nxScDraw(){
     var p=document.getElementById('nx-page'); if(!p||!p.classList.contains('open')||!p.classList.contains('nx-scn-pg')) return;
     if(OTHER.some(function(c){ return p.classList.contains(c); })){ _nxScStop(); return; }   // another page took the frame
-    var M=_nxScModel(), h='<div class="nx-in"><div class="nx-hd"><div><h1>Scenes</h1><div class="nx-sub">'+(M.whole.length||M.rooms.length?'Hold a scene to edit it':'')+'</div></div></div>';
+    var M=_nxScModel(), h='<div class="nx-in">'+(window._nxBackBtn?_nxBackBtn():'')+'<div class="nx-hd"><div><h1>Scenes</h1><div class="nx-sub">'+(M.whole.length||M.rooms.length?'Hold a scene to edit it':'')+'</div></div></div>';
     if(!M.whole.length&&!M.rooms.length) h+='<div class="nxr-quiet">No scenes yet<small>Your installer adds them, or ask Assist to save what’s on as a scene.</small></div>';
     if(M.whole.length) h+='<div class="nxs-sec"><b>Whole Home</b></div><div class="nxs-grid">'+M.whole.map(function(s){ return sceneTile(s); }).join('')+'</div>';
     M.rooms.forEach(function(x){ var r=x.r, onA=null;
