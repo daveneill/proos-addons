@@ -3478,7 +3478,7 @@ html.pnx #px-more .px-row.on b{color:var(--px-blue2)}
       </div>
       <div id="manage-sec-readiness" style="display:none">
         <div class="section-label">Dashboard readiness</div>
-        <div id="manage-ready"><div class="empty"><div class="et">Reading the site…</div><div class="es">What the homeowner dashboard needs will list here.</div></div></div>
+        <div id="manage-ready"><div class="empty"><div class="et">Reading the site…</div></div></div>
       </div>
       <div id="manage-sec-rooms" style="display:none">
         <div class="section-label">Rooms</div>
@@ -3492,7 +3492,7 @@ html.pnx #px-more .px-row.on b{color:var(--px-blue2)}
         <button class="back" onclick="goHome()">‹ Home</button>
         <div class="panel-title">Backups</div>
       </div>
-      <div class="wiz-hint">Restore points for this home. Backups are encrypted; download a copy to keep your own off-device.</div>
+      
       <div id="backups-auto"></div>
       <button class="btn-primary" onclick="openBackupCreate()" style="margin-bottom:14px">Create Backup</button>
       <div id="backups-list"><div class="empty"><div class="et">Loading…</div></div></div>
@@ -3504,7 +3504,7 @@ html.pnx #px-more .px-row.on b{color:var(--px-blue2)}
         <button class="back" onclick="goHome()">‹ Home</button>
         <div class="panel-title">Tech Tools</div>
       </div>
-      <div class="wiz-hint">Elevated diagnostics for Protech support — visible only to tech-tier accounts.</div>
+      
       <div id="tech-body"><div class="empty"><div class="et">Loading…</div></div></div>
     </div>
 
@@ -3572,12 +3572,12 @@ html.pnx #px-more .px-row.on b{color:var(--px-blue2)}
       <div class="section-label" style="margin-top:30px">Danger zone</div>
       <div class="danger-card">
         <div class="danger-title">Reset This Home</div>
-        <div class="danger-desc">Wipes rooms, devices, integrations, automations, scenes and dashboards back to a clean commissioned state — the owner account stays and the home remains set up. The OS and ProOS add-ons are untouched. A recovery backup is saved first.</div>
+        <div class="danger-desc">Wipes rooms, devices, integrations, automations, scenes and dashboards. A backup is saved first.</div>
         <button class="danger-btn" onclick="openResetConfirm()">Reset This Home…</button>
       </div>
       <div class="danger-card" style="margin-top:14px" id="danger-factory">
         <div class="danger-title">Factory Reset</div>
-        <div class="danger-desc">Returns the box to a brand-new install — clears the owner account and onboarding too, so the next installer starts from “Set up this home”. The OS, ProOS add-ons and dashboards stay. A recovery backup is saved first.</div>
+        
         <button class="danger-btn" onclick="openFactoryConfirm()">Factory reset…</button>
       </div>
     </div>
@@ -3755,7 +3755,7 @@ html.pnx #px-more .px-row.on b{color:var(--px-blue2)}
       <div class="mstep locked" id="ahstep-pair">
         <div class="mstep-head"><span class="mstep-num">2</span><span class="mstep-name">Pair This Home</span><span class="mstep-pill" id="ahstep-pair-pill">Locked</span></div>
         <div class="mstep-body">
-          <div class="mstep-locked" id="ahstep-pair-locked">Publish to Apple Home first, then pair using the code shown here.</div>
+          
           <div id="ah-pair" style="display:none"></div>
           <div id="ah-own" style="display:none"></div>
           <div id="ah-pc" style="display:none"></div>
@@ -3766,7 +3766,7 @@ html.pnx #px-more .px-row.on b{color:var(--px-blue2)}
       <div class="mstep locked" id="ahstep-media">
         <div class="mstep-head"><span class="mstep-num">3</span><span class="mstep-name">Devices &amp; Rooms</span><button class="mstep-hbtn" id="ahstep-media-hbtn" onclick="ahLoadInventory()" style="display:none">Refresh</button><span class="mstep-pill" id="ahstep-media-pill">Locked</span></div>
         <div class="mstep-body">
-          <div class="mstep-locked" id="ahstep-media-locked">Publish to Apple Home first, then choose what to expose.</div>
+          
           <div id="ah-inv" style="display:none">
             <div class="wiz-hint" style="margin-bottom:6px">Nothing is exposed unless it's switched on here. Each item shows the kind of accessory it becomes in Apple Home. Switches, speakers, TVs and the Services area are off by default — turn on only what this home should control from Apple. Use the search box to jump to a room or device.</div>
             <div class="wiz-hint" style="margin-bottom:12px;color:var(--t3)">Rooms live on Apple's side, not ours — a bridge can't create or move Apple Home rooms. But when you add this bridge in the Home app it walks every accessory one at a time and lets you <b>create a new room or pick an existing one</b> for each; the list here is grouped by your ProOS rooms to make that match obvious. (If you tapped through quickly they all land in the Default Room — re-open each in Home and set its room, or remove &amp; re-add the bridge to run the room prompts again.)</div>
@@ -3776,7 +3776,7 @@ html.pnx #px-more .px-row.on b{color:var(--px-blue2)}
         </div>
       </div>
 
-      <div class="wiz-hint" id="ah-verify" style="display:none;border-left:2px solid rgba(76,175,130,0.5);padding-left:12px">This home is published to Apple Home. Residents add it once in the Apple Home app, then control it from Control Centre, the Lock Screen and Siri. Remove it any time — nothing else about the home changes.</div>
+      
 
       <div id="ah-remove" style="display:none;margin-top:22px">
         <button onclick="ahRemove()" style="width:100%;padding:12px;border-radius:12px;background:transparent;border:1px solid rgba(225,112,85,.5);color:#e17055;font-size:14px;font-weight:500;cursor:pointer">Remove from Apple Home</button>
@@ -4314,7 +4314,7 @@ html.pnx #px-more .px-row.on b{color:var(--px-blue2)}
     <img id="pwc-logo" alt="ProOS" style="width:56px;height:56px;display:block;margin:0 auto 18px"/>
     <div class="rp-head" style="justify-content:center;text-align:center"><div class="rp-title" style="font-size:26px;font-weight:300">Set Your Password</div></div>
     <div class="rp-list">
-      <div class="reset-wiped" style="text-align:center;background:none;border:0;color:rgba(255,255,255,.5)">This box came with a starter password. Choose your own to continue.</div>
+      <div class="reset-wiped" style="text-align:center;background:none;border:0;color:rgba(255,255,255,.5)">This box came with a starter password.</div>
       <div class="field"><div class="field-label">New Password</div><input id="pwc-new" type="password" autocomplete="new-password" onkeydown="if(event.key===&quot;Enter&quot;)document.getElementById('pwc-new2').focus()"/></div>
       <div class="field"><div class="field-label">Confirm Password</div><input id="pwc-new2" type="password" autocomplete="new-password" onkeydown="if(event.key===&quot;Enter&quot;)doChangePassword()"/></div>
       <div id="pwc-error" style="color:#e0564b;font-size:12px"></div>
@@ -4376,7 +4376,7 @@ html.pnx #px-more .px-row.on b{color:var(--px-blue2)}
     <div class="rp-list">
       <div class="g-step"><div class="g-n">1</div><div><div class="g-t">Rooms and Labels · the room is the unit</div><div class="g-d">Open a room and set it up in one place — its devices and their roles, the display's inputs, TV audio — then Save Room to generate its one-touch activities. Do each room, room by room.</div></div></div>
       <div class="g-step"><div class="g-n">2</div><div><div class="g-t">Devices · the library</div><div class="g-d">Where devices live. Pair what's discovered on the network and drop each into a room. You can also add a device straight from inside a room while you commission it.</div></div></div>
-      <div class="g-step"><div class="g-n">3</div><div><div class="g-t">Automations and Scenes</div><div class="g-d">Room activities are generated automatically when the room is saved and edited in the room. This is where broader rules, scenes and macros across the home live.</div></div></div>
+      <div class="g-step"><div class="g-n">3</div><div><div class="g-t">Automations and Scenes</div></div></div>
       <div class="g-key">A device only appears for the homeowner once it's in a room. Scenes are the lighting and device states you publish.</div>
     </div>
     <button class="btn-primary" onclick="closeGuide()" style="margin-top:14px">Got It</button>
@@ -4440,7 +4440,7 @@ html.pnx #px-more .px-row.on b{color:var(--px-blue2)}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111921';
+const PROOS_BUILD='2026111922';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -5337,7 +5337,7 @@ function _awRenderLive(){ const d=_awLast; if(!d||!Array.isArray(d.items)||!d.it
 }
 let _awActQ='', _awActType='all';
 function _awRenderActivity(){ _awIncs=awIncidents(_awAudit||[]);
-  if(!_awIncs.length) return '<div class="aw-empty">No events recorded yet.<br>When ProOS catches and fixes something, it shows here.</div>';
+  if(!_awIncs.length) return '<div class="aw-empty">No events recorded yet.<br></div>';
   const bar='<div class="awf-filter"><input class="awf-search" id="aws-search" placeholder="Search a device…" value="'+esc(_awActQ)+'" oninput="_awActSearch(this.value)">'
     +'<div class="awf-chips">'+[['all','All'],['recovered','Recoveries'],['fault','Needs attention']].map(([k,l])=>'<div class="awf-chip'+(_awActType===k?' on':'')+'" onclick="_awActSetType(\''+k+'\',this)">'+l+'</div>').join('')+'</div>'
     +'<button onclick="_awClearActivity()" title="Clear the recorded history on this box" style="margin-top:10px;background:transparent;border:1px solid var(--line,#333);color:var(--t2,#9aa0a6);border-radius:9px;padding:6px 13px;font-size:12px;cursor:pointer">Clear history</button></div>';
@@ -5552,7 +5552,7 @@ function openRoom(areaId){
   } else {
     const isSys=_systemAreas.has(areaId);
     const sysToggle=`<div class="bld-item"><div class="bld-sum">Exclude from dashboard`
-      +`<div class="rsub" style="margin-top:3px;max-width:30ch">Infrastructure area (UniFi, security, etc.). Hidden from the homeowner and skipped by the dashboard refresh — still works in scripts.</div></div>`
+      +`</div>`
       +`<div class="sw-wrap"><button class="sw ${isSys?'on':''}" role="switch" aria-checked="${isSys}" onclick="toggleSystemArea('${esc(areaId)}')"><span class="sw-knob"></span></button></div></div>`;
     const devs=_devices.filter(d=>deviceRoomId(d)===areaId);
     const devHtml = devs.length
@@ -5560,7 +5560,7 @@ function openRoom(areaId){
           const sub=[d.manufacturer,d.model].filter(Boolean).join(' · ');
           return `<div class="row col"><div class="rl">${esc(devName(d))}</div>${sub?`<div class="rsub">${esc(sub)}</div>`:''}</div>`;
         }).join('')
-      : '<div class="empty"><div class="et">No devices here</div><div class="es">Devices assigned to this room will list here.</div></div>';
+      : '<div class="empty"><div class="et">No devices here</div></div>';
     host.innerHTML = sysToggle + devHtml;
   }
   show('room');
@@ -6654,7 +6654,7 @@ function _uniNSHTML(sec){
   }
   if(sec==='power'){
     const L=d.power||[];
-    return refresh+(L.length?L.map(sw=>card(esc(sw.name),`<div class="unifi-status">${kv('PoE In Use',esc(sw.used_w)+' W'+(sw.budget_w?' of '+esc(sw.budget_w)+' W':''))}${kv('Ports Powered',esc(sw.ports_powered))}${(sw.top||[]).map(p=>kv('Port '+esc(p.port)+(p.name&&!/^Port \d+$/.test(p.name)?' · '+esc(p.name):''),esc(p.watts)+' W')).join('')}${(sw.outlets||[]).map(o=>kv(esc(o.name||'Outlet'),o.on?'On':'Off')).join('')}</div>`,esc(sw.model||''))).join(''):card('Power','<div class="es">No PoE switches or power strips report power.</div>'));
+    return refresh+(L.length?L.map(sw=>card(esc(sw.name),`<div class="unifi-status">${kv('PoE In Use',esc(sw.used_w)+' W'+(sw.budget_w?' of '+esc(sw.budget_w)+' W':''))}${kv('Ports Powered',esc(sw.ports_powered))}${(sw.top||[]).map(p=>kv('Port '+esc(p.port)+(p.name&&!/^Port \d+$/.test(p.name)?' · '+esc(p.name):''),esc(p.watts)+' W')).join('')}${(sw.outlets||[]).map(o=>kv(esc(o.name||'Outlet'),o.on?'On':'Off')).join('')}</div>`,esc(sw.model||''))).join(''):card('Power','<div class="es">No PoE switches or power strips report power</div>'));
   }
   const L=d.events||[];
   return refresh+card('Events — Last 24 Hours',L.length?`<div class="ual-list">${L.map(e=>row([esc(e.kind),esc(e.message||(e.who||[]).join(' · ')||''),when(e.when)])).join('')}</div>`:'<div class="es">No events in the last 24 hours.</div>',L.length+' shown');
@@ -6956,7 +6956,7 @@ function _ipChipsHTML(rows){
 function _ipListHTML(rows){
   const q=_ip.q.trim().toLowerCase();
   const list=rows.filter(r=>_ipMatch(r,q) && (_ip.kind==='all' || (_ip.kind==='need'?r.need:r.kind===_ip.kind)));
-  if(!rows.length) return '<div class="empty"><div class="et">No devices</div><div class="es">This integration has no devices of its own — what it gives you is listed above.</div></div>';
+  if(!rows.length) return '<div class="empty"><div class="et">No devices</div></div>';
   if(!list.length) return '<div class="empty"><div class="et">Nothing matches</div><div class="es">Try another word, or tap All.</div></div>';
   const key=r=>_ip.group==='room'?(r.room||'No Room'):_ipKindLabel(r.kind);
   const groups={}; list.forEach(r=>{ (groups[key(r)]=groups[key(r)]||[]).push(r); });
@@ -7756,7 +7756,7 @@ function renderDeviceManage(deviceId){
   const _linked=_linkedDevices(d);
   _dpAt='r';
   if(_linked.length) rows+=card(ghead('Linked devices',_linked.length)
-    +`<div class="wiz-hint">These devices share hardware with this device and are managed by other integrations.</div>`
+    +``
     +_linked.map(x=>{
       const xd=_devIntg[x.id]||'';
       return `<div class="row tappable" onclick="openDeviceManage('${esc(x.id)}')">`
@@ -7991,7 +7991,7 @@ function _dpZoneTile(z, d){
 function _dpZonesHTML(Z, d){
   return `<div class="bld-sec-h">Zones · In Zone Order<span class="dg-ct">${Z.zones.length}</span></div>`
     +`<div class="dp-zgrid">${Z.zones.map(z=>_dpZoneTile(z,d)).join('')}</div>`
-    +`<div class="wiz-hint dp-hint">Tap a zone for its page — Shows As, name, area.</div>`;
+    +``;
 }
 // A zone's word moves when the zone or its on/off twin changes.
 function _dpZonePatch(eid){
@@ -8359,13 +8359,13 @@ function gdRender(keepForm){
       +'<div class="cred-actions"><button class="btn-ghost" onclick="_gd.edit=true;gdRender()">Change Settings</button><button class="btn-ghost" onclick="gdUndo()">Undo</button></div>');
     return;
   }
-  if(!C.length){ setHTML(host, head+'<div class="wiz-hint">Nothing in this home looks like it opens this door — no task, output or button shares its name or its panel. Add the opener’s integration first.</div>'); return; }
+  if(!C.length){ setHTML(host, head+'<div class="wiz-hint">Nothing in this home looks like it opens this door</div>'); return; }
   const relay=String(d.opener||(C[0]&&C[0].entity)||'').indexOf('switch.')===0;
   const two=!!(d.closer) || (prev && prev.closer!=='' && document.getElementById('gd-buttons') && document.getElementById('gd-buttons').dataset.v==='two');
   setHTML(host, head
     +'<div class="field"><div class="field-label">This Is a</div>'+gdSeg('gd-kind',[['garage','Garage Door'],['gate','Gate']], d.kind||'garage', true)+'</div>'
     +'<div class="field"><div class="field-label">Name</div><input id="gd-name" type="text" value="'+esc(d.name||'')+'" placeholder="'+(d.kind==='gate'?'Gate':'Garage Door')+'" autocomplete="off"/></div>'
-    +'<div class="field"><div class="field-label">Opens With</div><select id="gd-opener" class="fsel" onchange="gdRender(true)">'+opt(d.opener||(C[0]&&C[0].entity))+'</select><div class="field-hint">Suggested from its name and panel — check it is the right door.</div></div>'
+    +'<div class="field"><div class="field-label">Opens With</div><select id="gd-opener" class="fsel" onchange="gdRender(true)">'+opt(d.opener||(C[0]&&C[0].entity))+'</select></div>'
     +(relay?('<div class="field"><div class="field-label">Output Mode</div>'+gdSeg('gd-mode',[['pulse','Pulse'],['toggle','Toggle']], d.mode||'pulse', true)+'<div class="field-hint">'+((d.mode||'pulse')==='toggle'?'Each press flips the output — on if it was off, off if it was on.':'Each press closes the relay for the Pulse Time, like pressing a button.')+'</div></div>'
       +((d.mode||'pulse')==='toggle'?'':('<div class="field"><div class="field-label">Pulse Time</div><select id="gd-pulse" class="fsel">'+[0.5,1,1.5,2,3,5].map(v=>'<option value="'+v+'"'+(Number(d.pulse_s||1)===v?' selected':'')+'>'+v+' s</option>').join('')+'</select><div class="field-hint">How long the relay closes for one press.</div></div>'
       +'<div class="field"><div class="field-label">Relay Contact</div>'+gdSeg('gd-contact',[['NO','Normally Open'],['NC','Normally Closed']], d.contact||'NO')+'</div>'))
@@ -9078,10 +9078,10 @@ function renderDiscoveredFlows(){
   const tile=f=>`<div class="itile"><div class="itile-ico">${intgLogo(f.handler)}</div><div class="itile-foot"><div class="itile-body"><div class="itile-nm">${esc(flowName(f))}${isCertified(f.handler)?'<span class="cert-pill">CERTIFIED</span>':''}</div><div class="itile-sub">${esc(integrationName(f.handler))}${isCertified(f.handler)?'':' · Platform integration — not ProOS certified'}</div></div><div class="itile-act"><button class="itile-skip" onclick="skipFlow('${f.flow_id}')">Ignore</button><button class="itile-add" onclick="addFlow('${f.flow_id}')">Add</button></div></div></div>`;
   const ignoredTile=e=>`<div class="itile"><div class="itile-ico">${intgLogo(e.domain)}</div><div class="itile-foot"><div class="itile-body"><div class="itile-nm">${esc(e.title||integrationName(e.domain))}</div><div class="itile-sub">${esc(integrationName(e.domain))} · ignored</div></div><div class="itile-act"><button class="itile-skip" onclick="restoreFlow('${esc(e.entry_id)}')">Stop ignoring</button></div></div></div>`;
   let h='';
-  if(!visible.length && !hidden.length){ host.innerHTML='<div class="empty"><div class="et">No new devices</div><div class="es">Devices found on the network appear here to add.</div></div>'; try{ ilDiscApply(); }catch(e){} return; }
+  if(!visible.length && !hidden.length){ host.innerHTML='<div class="empty"><div class="et">No new devices</div></div>'; try{ ilDiscApply(); }catch(e){} return; }
   if(visible.length>=3) h+=`<button class="btn-ghost" style="margin:0 0 10px" onclick="skipAllFlows()">Ignore all (${visible.length})</button>`;
   if(visible.length) h+=`<div class="itile-grid">`+visible.map(tile).join('')+`</div>`;
-  else if(!_showIgnoredFlows) h+='<div class="empty"><div class="et">No new devices</div><div class="es">Devices found on the network appear here to add.</div></div>';
+  else if(!_showIgnoredFlows) h+='<div class="empty"><div class="et">No new devices</div></div>';
   if(hidden.length){
     h+=`<button class="btn-ghost" style="margin:12px 0 10px" onclick="toggleIgnoredFlows()">${_showIgnoredFlows?'Hide':'Show'} ignored (${hidden.length})</button>`;
     if(_showIgnoredFlows) h+=`<div class="itile-grid">`+hidden.map(ignoredTile).join('')+`</div>`;
@@ -9632,7 +9632,7 @@ async function loadRoomBgStyles(){
   }catch(e){}
   if(!styles){
     // Not knowing which styles exist is a reading; showing stale ones is not.
-    host.innerHTML='<div class="wiz-hint">Styles unavailable \u2014 ProOS Core cannot be reached right now. Uploading your own picture still works.</div>';
+    host.innerHTML='<div class="wiz-hint">Core cannot be reached.</div>';
     const _n=document.getElementById('re-bg-note'); if(_n) _n.innerHTML='';
     return;
   }
@@ -9915,7 +9915,7 @@ function renderSharePanel(){
     +srow('Broker Address','',`<span class="v3code">${ip}</span>`)+srow('Port','',`<span class="v3code">${b.port||1883}</span>`)
     +srow('Logins','',(st.logins||[]).length?esc(st.logins.join(', ')):'None Yet')
     +`</div><div class="v3form" style="margin-top:12px"><label class="v3f">Username<input id="shr-user" class="v3in" autocomplete="off"></label><label class="v3f">Password<input id="shr-pass" class="v3in" type="password" autocomplete="new-password"></label><button class="v3btn pri" onclick="saveShareLogin()">Save Login</button></div>
-      <span class="v3hint">Give the other system its own login. The password is handed to the broker and never shown again.</span></div>
+      <span class="v3hint">The password is never shown again.</span></div>
     <div class="v3sec"><div class="h">What Is Shared · ${sh.length}</div>`
     +(sh.length?`<div class="v3rows">${sh.map(x=>srow(esc(entName(x.entity_id)),'',`<span class="v3code">${esc(x.topic)}</span>`)).join('')}</div>`:'<div class="v3rows"><div class="v3empty">No ProOS room states yet.</div></div>')
     +`<span class="v3hint">Each topic carries {"state": …, "attributes": {…}}, retained, sent on every change and again whenever the platform starts.</span></div></div>`;
@@ -10005,7 +10005,7 @@ function renderSavantPanel(){
   const host=document.getElementById('savant-body'); if(!host) return;
   const st=_savStatus;
   if(st===null&&_savStatus===null&&!host.innerHTML){ host.innerHTML='<div class="sav-card"><div class="sav-s">Reading…</div></div>'; }
-  if(!st){ if(!host.innerHTML.includes('Reading')) host.innerHTML='<div class="sav-card"><div class="sav-t">Savant</div><div class="sav-s">Core did not answer. This build of Core may not have the Savant feed yet.</div></div>'; return; }
+  if(!st){ if(!host.innerHTML.includes('Reading')) host.innerHTML='<div class="sav-card"><div class="sav-t">Savant</div><div class="sav-s">Core did not answer.</div></div>'; return; }
   const on=!!st.enabled;
   const live=on&&st.connected;
   const roomName=slug=>{ const a=_areas.find(x=>x.area_id===slug); return a?a.name:slug; };
@@ -10017,17 +10017,17 @@ function renderSavantPanel(){
       <button class="sw ${on?'on':''}" role="switch" aria-checked="${on}" onclick="setSavantEnabled(${!on})"><span class="sw-knob"></span></button></div></div>`;
   h+=`<div class="sav-card"><div class="sav-row"><span class="sav-dot ${live?'on':(on?'bad':'')}"></span><span class="sav-nm">${!on?'Off':(live?'Savant is connected':'Waiting for the Savant profile to connect')}</span><span class="sav-v">${on&&st.connected?(st.clients+' on the line'):''}</span></div>
       <div class="sav-row"><span class="sav-dot ${st.ping_age!=null&&st.ping_age<90?'on':''}"></span><span class="sav-nm">Last poll from Savant</span><span class="sav-v">${_savAgo(st.ping_age)}</span></div></div>`;
-  h+=`<div class="sav-card"><div class="sav-t" style="margin-bottom:4px">What Savant is told</div>`+(rooms.length?rooms.map(slug=>{ const r=st.rooms[slug]||{}; return `<div class="sav-row"><span class="sav-nm">${esc(roomName(slug))}</span><span class="sav-v">${esc(word(r.act))}${r.dsp?' · display '+esc(r.dsp):''}</span></div>`; }).join(''):'<div class="sav-s">Nothing yet — rooms appear as their verdicts settle.</div>')+'</div>';
+  h+=`<div class="sav-card"><div class="sav-t" style="margin-bottom:4px">What Savant is told</div>`+(rooms.length?rooms.map(slug=>{ const r=st.rooms[slug]||{}; return `<div class="sav-row"><span class="sav-nm">${esc(roomName(slug))}</span><span class="sav-v">${esc(word(r.act))}${r.dsp?' · display '+esc(r.dsp):''}</span></div>`; }).join(''):'<div class="sav-s">Nothing yet</div>')+'</div>';
   const zmap=st.zone_map||{};
   const areaOpts=sel=>'<option value="">— which ProOS room —</option>'+_areas.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(a=>`<option value="${esc(a.area_id)}"${a.area_id===sel?' selected':''}>${esc(a.name)}</option>`).join('');
-  h+=`<div class="sav-card"><div class="sav-t" style="margin-bottom:4px">What Savant reported</div><div class="sav-s" style="margin-bottom:6px">Say which ProOS room each zone is, then which ProOS activity each Savant service means. A mapped service fires that activity when the Savant remote selects it.</div>`+(zones.length?zones.map(z=>{ const d=st.zones[z]||{}; const m=zmap[z]||{}; const area=m.area||''; if(area) _savLoadActs(area); const acts=_savActs[area]||[]; const ks=Object.keys(d).filter(k=>k!=='_at'&&['service','state','activity','power'].includes(k.toLowerCase())); const others=Object.keys(d).filter(k=>k!=='_at'&&!ks.includes(k));
+  h+=`<div class="sav-card"><div class="sav-t" style="margin-bottom:4px">What Savant reported</div>`+(zones.length?zones.map(z=>{ const d=st.zones[z]||{}; const m=zmap[z]||{}; const area=m.area||''; if(area) _savLoadActs(area); const acts=_savActs[area]||[]; const ks=Object.keys(d).filter(k=>k!=='_at'&&['service','state','activity','power'].includes(k.toLowerCase())); const others=Object.keys(d).filter(k=>k!=='_at'&&!ks.includes(k));
       let r=`<div class="sav-row"><span class="sav-nm"><b>${esc(z)}</b>${others.length?' <span class="sav-v">· '+esc(others.map(k=>k+' '+d[k]).join(' · '))+'</span>':''}</span><select class="sav-sel" onchange="setSavantMap('${esc(z)}','area',this.value)">${areaOpts(area)}</select></div>`;
       ks.forEach(k=>{ const v=String(d[k]); const cur=(m.services||{})[v]||''; r+=`<div class="sav-row" style="padding-left:14px"><span class="sav-nm">${esc(k)} <span class="sav-v">${esc(v)}</span></span>`+(area?`<select class="sav-sel" onchange="setSavantMap('${esc(z)}','${esc(v)}',this.value)"><option value="">— does nothing —</option>${acts.map(a=>`<option value="${esc(a.script)}"${a.script===cur?' selected':''}>${esc(a.label)}</option>`).join('')}</select>`:'<span class="sav-v">choose the room first</span>')+'</div>'; });
       return r; }).join(''):'<div class="sav-s">Nothing yet. A Blueprint state trigger that calls the profile\'s ReportZone action puts the zone here.</div>')+'</div>';
   h+=`<div class="sav-card"><div class="sav-t">Set up in Blueprint (Savant dealer)</div><ol class="sav-steps">
       <li>${st.profile_shipped?`<a href="${proCoreUrl()}/savant/profile" download="proos_avbridge.xml" style="color:#8fa0ff">Download the profile</a> and import it in Blueprint: Preferences › Libraries › Import. It appears as <b>ProOS AV Bridge</b>.`:'The profile is not in this build of Core yet.'}</li>
       <li>Place it, and set its IP address to this box: <b>${esc((location.hostname||'').replace(/^\[|\]$/g,''))}</b>, port ${st.port||25804}.</li>
-      <li>Upload. Switch the feed on above; the row turns green when Savant connects.</li>
+      <li></li>
       <li>ProOS → Savant: a state trigger per activity on <code>Activity_&lt;room&gt;</code> runs the zone's Savant service, with device control off so Savant only updates its own model.</li>
       <li>Savant → ProOS: a state trigger per service on the zone calls <code>ReportZone</code> (Zone, <code>service</code>, the service). Map each one above and ProOS runs the devices.</li></ol></div>`;
   host.innerHTML=h;
@@ -10128,7 +10128,7 @@ function activitiesSectionHTML(){
   const pub=e=>(e.labels||[]).includes(SCENE_LABEL);
   const cards=sceneEnts.length
     ? '<div class="scene-grid">'+sceneEnts.slice().sort((a,b)=>entName(a.entity_id).localeCompare(entName(b.entity_id))).map(e=>{ const eid=esc(e.entity_id); const p=pub(e); return `<div class="scene-card" data-scene-bg="${eid}" onclick="editScene('${eid}')"><div class="scene-card-top"><button class="scene-card-test" onclick="event.stopPropagation();openSceneArt('${eid}')">Art</button><button class="scene-card-test" onclick="event.stopPropagation();openManage('scene','${eid}')">⋯</button><button class="scene-card-test" onclick="event.stopPropagation();testScene('${eid}')">Test</button></div><div class="scene-card-body"><div class="scene-card-name">${esc(dispName(e.entity_id))}</div><div class="scene-card-pub"><span class="sw-lbl">Dashboard</span><button class="sw ${p?'on':''}" role="switch" aria-checked="${p}" onclick="event.stopPropagation();togglePublish('${eid}')"><span class="sw-knob"></span></button></div></div></div>`; }).join('')+'</div>'
-    : '<div class="empty"><div class="et">No scenes yet</div><div class="es">Create scenes for one-tap lighting and device states (Ask ProOS can build them), then publish them here.</div></div>';
+    : '<div class="empty"><div class="et">No scenes yet</div></div>';
   if(sceneEnts.length) setTimeout(hydrateSceneBackgrounds,0);
   return `<div class="wiz-hint">Create scenes, tap one to edit, Art to change its picture, Test to preview, and switch Dashboard on to publish it to the homeowner.${sceneEnts.length?` ${r.scenesPublished||0} of ${sceneEnts.length} published.`:''}</div>`
     +`<button class="btn-primary" onclick="openCfgEditor({kind:'scene',isNew:true})" style="margin-bottom:14px">New Scene</button>`+cards;
@@ -10249,7 +10249,7 @@ async function loadSceneArtStyles(nm){
   // pictures from a list kept in this file — there is no such list any more.
   host.innerHTML=styles.length
     ? styles.slice(0,9).map(u=>'<button type="button" class="ra-style" style="background-image:url(\''+esc(u)+'\')" onclick="pickSceneArtStyle(\''+esc(u)+'\')"></button>').join('')
-    : '<div class="ra-note">Styles come from ProOS Core — it did not answer.</div>';
+    : '<div class="ra-note">Core did not answer.</div>';
 }
 function _saPreview(url){
   const p=document.getElementById('sa-prev');
@@ -10302,18 +10302,18 @@ function automationsSectionHTML(){
   const hidden=all.length-items.length;
   const rows=items.length
     ? '<div class="itile-grid">'+items.map(x=>{ const on=x.state==='on'; return `<div class="itile" onclick="editAutomation('${esc(x.entity_id)}')"><div class="itile-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 4v3M12 17v3M4 12h3M17 12h3M6.3 6.3l2 2M15.7 15.7l2 2M17.7 6.3l-2 2M8.3 15.7l-2 2"/></svg></div><div class="itile-foot"><div class="itile-body"><div class="itile-nm">${esc(entName(x.entity_id))}</div></div><div class="itile-act"><button class="row-more" onclick="event.stopPropagation();openManage('automation','${esc(x.entity_id)}')">\u22ef</button><button class="sw ${on?'on':''}" role="switch" aria-checked="${on}" onclick="event.stopPropagation();toggleAutomation('${esc(x.entity_id)}')"><span class="sw-knob"></span></button></div></div></div>`; }).join('')+'</div>'
-    : '<div class="empty"><div class="et">No automations yet</div><div class="es">Create one below — it appears here, and you can reopen it to edit.</div></div>';
+    : '<div class="empty"><div class="et">No automations yet</div></div>';
   if(all.length) setTimeout(probeAutomations,0);
   // ProOS's own automations (the voice ones Core writes: Music, Favourites, Activities, Apps, Learned — register 973) are never
   // offered to edit or delete: Core rewrites them on every start. A Developer may READ them, in their own group.
   const sys=all.filter(x=>_isProosSystemObject(String(x.entity_id).split('.').pop()));
   const devGroup=(_me&&_me.developer&&sys.length)
-    ? `<div class="bld-sec" style="margin-top:18px"><div class="bld-sec-h">Managed by ProOS</div><div class="wiz-hint">Written by ProOS and rewritten on every start — read-only here. Change them in ProOS, not by hand.</div><div class="itile-grid">`
+    ? `<div class="bld-sec" style="margin-top:18px"><div class="bld-sec-h">Managed by ProOS</div><div class="itile-grid">`
       +sys.map(x=>`<div class="itile" onclick="viewSystemAutomation('${esc(x.entity_id)}')"><div class="itile-ico"><svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div><div class="itile-name">${esc(entName(x.entity_id))}</div></div>`).join('')+`</div></div>`
     : '';
   const _hid=hidden-(devGroup?sys.length:0);
   const note=_hid>0?`<div class="wiz-hint" style="margin-top:14px;color:var(--t3)">${_hid} system automation${_hid===1?'':'s'} hidden — managed by ProOS.</div>`:'';
-  return `<div class="wiz-hint">Automations run rules in the background. Build one by hand — it shows here and stays editable.</div>`
+  return ``
     +`<button class="btn-primary" onclick="newAutomation()" style="margin-bottom:14px">New Automation</button>`+rows+note+devGroup;
 }
 // register 973: a Developer reads a ProOS-managed automation — its contents and when it last ran. Nothing to edit or delete.
@@ -10321,7 +10321,7 @@ async function viewSystemAutomation(eid){
   if(!(_me&&_me.developer)) return;
   document.getElementById('cfg-title').textContent=entName(eid);
   document.getElementById('cfg-sub').textContent='Managed by ProOS';
-  setHTML(document.getElementById('cfg-note'), '<div class="g-key">ProOS writes this automation and rewrites it on every start, so a change made here would be lost. It is shown read-only.</div>');
+  setHTML(document.getElementById('cfg-note'), '');
   setHTML(document.getElementById('cfg-actions'), '<button class="rp-cancel" onclick="closeCfgEdit()">Close</button>');
   setHTML(document.getElementById('cfg-build'), '<div class="wiz-hint">Loading…</div>');
   document.getElementById('cfg-edit').classList.add('open');
@@ -10375,7 +10375,7 @@ function scriptsSectionHTML(){
   const rows=items.length
     ? '<div class="itile-grid">'+items.map(x=>{ const dn=dispName(x.entity_id); const parts=dn.split('\u00b7').map(s=>s.trim()).filter(Boolean); const sub=parts.length>=2?parts[0]:''; const title=parts.length>=2?parts.slice(1).join(' \u00b7 '):dn; return `<div class="itile" onclick="editScript('${esc(x.entity_id)}')"><div class="itile-ico"><svg viewBox="0 0 24 24"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg></div><div class="itile-foot"><div class="itile-body"><div class="itile-nm">${esc(title)}</div>${sub?`<div class="itile-sub">${esc(sub)}</div>`:''}</div><div class="itile-act"><button class="row-more" onclick="event.stopPropagation();openManage('script','${esc(x.entity_id)}')">\u22ef</button><span class="itile-chev">\u203a</span></div></div></div>`; }).join('')+'</div>'
     : '<div class="empty"><div class="et">No activities here</div><div class="es">'+(sel==='all'?'Create one below — it appears here, and you can reopen it to edit.':'No activities in this room yet.')+'</div></div>';
-  return `<div class="wiz-hint">Activities are multi-step sequences — Watch TV, TV off, lights and AV in one tap. Build one by hand — it shows here and stays editable.</div>`
+  return ``
     +`<button class="btn-primary" onclick="newScript()" style="margin-bottom:14px">New Activity</button>`+chips+rows;
 }
 function assistPrefill(t){ openAssist(); setTimeout(()=>{ const i=document.getElementById('assist-input'); if(i){ i.value=t; i.focus(); } },380); }
@@ -10961,7 +10961,7 @@ function editScene(entity_id){ openCfgEditor({kind:'scene', id:sceneConfigId(ent
 function sceneEntSummary(e){ const d=edom(e.entity_id); let s=e.state||''; if(d==='light'&&e.state==='on'&&e.brightness!=null) s='on · '+Math.round(e.brightness/255*100)+'%'; else if(d==='cover'&&e.position!=null) s=e.position+'% open'; else if(d==='climate'&&e.temperature!=null) s=(e.state||'')+' · '+e.temperature+'°'; return entName(e.entity_id)+' → '+s; }
 function renderSceneCfg(){
   let body='<div class="field"><div class="field-label">Name</div><input id="cfg-name" type="text" value="'+esc(CFG.alias||'')+'" oninput="CFG.alias=this.value" placeholder="e.g. Movie Night"/></div>';
-  const rows=(CFG.entities||[]).map((e,i)=>'<div class="bld-item" data-sec="entities" data-idx="'+i+'" onpointerdown="sortDown(event)" onclick="editSceneEnt('+i+')"><span class="bld-grip">⠿</span><div class="bld-sum">'+esc(sceneEntSummary(e))+'</div><button class="bld-x" onclick="event.stopPropagation();removeSceneEnt('+i+')">×</button></div>').join('') || '<div class="bld-empty">No devices yet — add devices and set how each should be.</div>';
+  const rows=(CFG.entities||[]).map((e,i)=>'<div class="bld-item" data-sec="entities" data-idx="'+i+'" onpointerdown="sortDown(event)" onclick="editSceneEnt('+i+')"><span class="bld-grip">⠿</span><div class="bld-sum">'+esc(sceneEntSummary(e))+'</div><button class="bld-x" onclick="event.stopPropagation();removeSceneEnt('+i+')">×</button></div>').join('') || '<div class="bld-empty">No devices yet</div>';
   body+='<div class="bld-sec"><div class="bld-sec-h">Devices &amp; States</div>'+rows+'<button class="bld-add" onclick="sceneAddEntity()">+ Add Device</button><button class="bld-add" style="margin-top:7px" onclick="sceneCaptureRoom()">Capture a room as it is now</button></div>';
   const _bg=sceneBgUrl();
   body+='<div class="bld-sec"><div class="bld-sec-h">Background</div>'
@@ -11273,7 +11273,7 @@ function blkView(){
     return '<div class="bld-sec"><div class="bld-sec-h">'+title+'</div>'+rows+'<button class="bld-add" onclick="blkAddSub(\''+list+'\',\''+section+'\')">'+addLabel+'</button></div>';
   };
   document.getElementById('item-body').innerHTML=
-     '<div class="wiz-hint">Runs the \u201cThen\u201d steps when the conditions are met, otherwise the \u201cElse\u201d steps. \u201cElse\u201d is optional.</div>'
+     ''
     + sub('If \u2014 all of these are true','if','conditions','+ Add condition','No conditions yet.')
     + sub('Then \u2014 do','then','actions','+ Add action','No actions yet.')
     + sub('Else \u2014 otherwise do','else','actions','+ Add action','Optional.');
@@ -11498,7 +11498,7 @@ function avMemberRow(area,r,e){
     +`<span style="font-size:14px;color:var(--t1)">${esc(avName(e))}</span>${avTierBadge(tier)}</div>`
     +avRoleChips(area,e,role)
     +(role==='source'?avInputSelect(area,r,e):'')
-    +(unver?`<div style="font-size:11px;color:var(--warn);margin-top:6px">Certified driver, but no discrete inputs detected — one-touch falls back to HDMI-CEC.</div>`:'')
+    +(unver?`<div style="font-size:11px;color:var(--warn);margin-top:6px">No discrete inputs — HDMI-CEC is used.</div>`:'')
     +`</div>`;
 }
 function avMembers(r){ const out=[]; if(r.display) out.push(r.display); (r.sources||[]).forEach(x=>out.push(x)); (r.audio||[]).forEach(x=>{ if(!out.includes(x)) out.push(x); }); return out; }
@@ -11506,7 +11506,7 @@ function avMembers(r){ const out=[]; if(r.display) out.push(r.display); (r.sourc
 function avRender(){
   const b=avBody(); if(!b) return;
   const proj=_avProj||{areas:{}}; const areas=Object.keys(proj.areas||{}).sort();
-  let h=`<div class="wiz-hint">Reviewed and saved rooms get one-touch activities, a clean dashboard, and live monitoring. Non-AV devices are already filtered out.</div>`;
+  let h=``;
   h+=`<div style="display:flex;gap:8px;margin-bottom:12px"><button class="btn-ghost" onclick="avEnsure(true)">Re-scan</button>`
     +(areas.length?`<button class="btn-primary" onclick="avCommitAll()">Save All Rooms</button>`:'')+`</div>`;
 
@@ -11520,7 +11520,7 @@ function avRender(){
         +`</div>`).join('')+`</div>`;
   }
 
-  if(!areas.length){ h+=`<div class="empty"><div class="et">No AV devices found yet</div><div class="es">Assign your TVs and players to rooms, then Re-scan.</div></div>`; b.innerHTML=h; return; }
+  if(!areas.length){ h+=`<div class="empty"><div class="et">No AV devices found yet</div></div>`; b.innerHTML=h; return; }
 
   areas.forEach(area=>{
     const r=proj.areas[area]; const members=avMembers(r);
@@ -11534,7 +11534,7 @@ function avRender(){
       +`</div>`;
     if((r.warnings||[]).includes('missing_display')) h+=`<div style="font-size:12px;color:var(--warn);background:rgba(225,112,85,0.12);border-radius:8px;padding:8px 10px;margin-top:8px">A source is present but no display is assigned — add the TV from Unassigned above.</div>`;
     h+=members.map(e=>avMemberRow(area,r,e)).join('');
-    if(!members.length) h+=`<div style="font-size:12px;color:var(--t2);padding:6px 0">No devices added to this room yet — add them below.</div>`;
+    if(!members.length) h+=`<div style="font-size:12px;color:var(--t2);padding:6px 0">No devices added to this room yet</div>`;
     const _cands=_avAreaCandidates(r);
     if(_cands.length){
       h+=`<div style="font-size:11px;color:var(--t2);text-transform:uppercase;letter-spacing:0.06em;margin-top:10px">In this room — tap Add to include</div>`;
@@ -12935,7 +12935,7 @@ function _proveShow(j){
         +(s.ok?'':'<div id="prove-step-'+i+'" style="flex-basis:100%;display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap"><div class="t2" style="flex:1 1 100%;white-space:normal;color:var(--text,#fff);font-weight:600">'+esc(_proveAsk(s))+'</div><button class="v3btn pri" onclick="_proveWitness('+i+')">Yes</button><button class="v3btn" onclick="_proveChange('+i+')">No</button></div>')
         +'</div>').join('')+'</div>';
     const failed=steps.filter(s=>!s.ok&&!s.sent&&s.kind!=='shortcut');
-    if(failed.length) body+='<div id="prove-fix" style="margin-top:14px"><button class="v3btn pri" style="width:100%" onclick="_proveFixAsk()">Fix and Test Again</button><div class="v3hint" style="margin-top:6px">Jarvis fixes what failed and tests it again — the equipment will turn on and off.</div></div>';
+    if(failed.length) body+='<div id="prove-fix" style="margin-top:14px"><button class="v3btn pri" style="width:100%" onclick="_proveFixAsk()">Fix and Test Again</button><div class="v3hint" style="margin-top:6px">The equipment will turn on and off.</div></div>';
   }
   _recOverlay('<div class="v3dh2"><div class="t">Prove the Room</div></div>'+body
     +'<div class="v3foot" style="display:flex;gap:8px;margin-top:14px">'+(j.state==='done'?'<button class="v3btn" onclick="_proveRun()">Prove Again</button>':'')+'<button class="v3btn" style="flex:1" onclick="_proveClose()">'+(j.state==='running'?'Hide':'Close')+'</button></div>');
@@ -12984,7 +12984,7 @@ function _recList(){
   const rows=_recMembers.map(e=>{ const c=_recCfg[e]; const tag=c?(c.method==='poe_cycle'?'UniFi PoE':(c.method==='power_cycle'?'Smart plug':'Reload')):'Reload (default)';
     return '<div class="row tappable" onclick="_recEnt(\''+e+'\')"><div class="rl">'+esc(entName(e))+'</div><div class="rr" style="color:#9aa8b8">'+tag+' ›</div></div>'; }).join('');
   _recOverlay('<div style="font-size:15px;font-weight:600;margin-bottom:6px">Device recovery</div>'
-    +'<div style="font-size:12px;color:#9aa8b8;margin-bottom:12px">How ProOS recovers each device if it stops responding.</div>'
+    +''
     +rows+'<button class="rp-cancel" style="margin-top:14px;width:100%" onclick="_recClose()">Close</button>');
 }
 async function _recEnt(entity){
@@ -13014,10 +13014,10 @@ function _recRenderEnt(){
       ?((plugsRoom.length?'<optgroup label="In This Room">'+plugsRoom.map(_opt).join('')+'</optgroup>':'')
         +(plugsElse.length?'<optgroup label="Elsewhere in the Home">'+plugsElse.map(_opt).join('')+'</optgroup>':''))
       :'<option value="">No power devices found</option>')+'</select>'
-      +(plugsRoom.length?'':'<div style="font-size:12px;color:#9aa8b8;margin-top:6px">This room has no power device of its own — a plug or outlet elsewhere can still be chosen, or keep Reload.</div>');
+      +(plugsRoom.length?'':'<div style="font-size:12px;color:#9aa8b8;margin-top:6px">No power device in this room.</div>');
   if(method==='poe_cycle'){
     if(!_recPoePorts||!_recPoePorts.length) body+='<div style="font-size:12px;color:#e0a33a">No UniFi PoE ports found — is the UniFi Network integration added?</div>';
-    else body+='<div class="field-label">UniFi PoE port</div><select id="rec-poe" class="set-input">'+_recPoePorts.map(p=>'<option value="'+p.entity_id+'" '+(c.poe_switch===p.entity_id?'selected':'')+'>'+esc(p.name)+(p.enabled?'':' — will enable')+'</option>').join('')+'</select><div style="font-size:12px;color:#9aa8b8;margin-top:6px">ProOS enables the port control for you automatically.</div>';
+    else body+='<div class="field-label">UniFi PoE port</div><select id="rec-poe" class="set-input">'+_recPoePorts.map(p=>'<option value="'+p.entity_id+'" '+(c.poe_switch===p.entity_id?'selected':'')+'>'+esc(p.name)+(p.enabled?'':' — will enable')+'</option>').join('')+'</select>';
     body+='<button class="rp-cancel" style="margin-top:8px;width:100%" onclick="_recDetectPort(\''+entity+'\')">🔍 Auto-detect port (UniFi)</button>';
   }
   _recOverlay('<div style="font-size:15px;font-weight:600;margin-bottom:2px">'+esc(entName(entity))+'</div>'
@@ -13118,10 +13118,10 @@ function rhActivities(rec){
   // A room with live activity scripts IS commissioned, even if the project record didn't
   // load this instant — so never hide real activities behind a "commit the room" message.
   const committed = (rec&&rec.committed) || (_avActivities&&_avActivities.length>0);
-  if(!committed) return `<div class="rh-empty">Save the room to generate its one-touch activities.</div>`;
+  if(!committed) return ``;
   if(!_avActivities.length){
     if(_avActErr) return `<div class="rh-empty">Couldn't load this room's activities — the box briefly lost its connection to Home. Your activities are safe; this is just the read. <span style="color:var(--accent);cursor:pointer" onclick="avRetryActivities()">Retry &rsaquo;</span></div>`;
-    return `<div class="rh-empty">No activities generated yet — Save Room to build them.</div>`;
+    return `<div class="rh-empty">No activities generated yet</div>`;
   }
   return `<div class="rh-act">`+_avActivities.map(a=>{
     const badge=a.edited?`<span class="rh-edited">edited</span>`:`<span class="gen">generated</span>`;
@@ -13254,7 +13254,7 @@ function renderRoomHub(){
   // installer couldn't tell "in this room" from "available to add" (reported
   // 1 Aug). Two labelled sections now.
   h+=`<div class="rh-sec-lbl">AV — give each one a role</div>`;
-  h+= members.length ? members.map((e,i)=>rhDeviceRow(e,rec,inputs,i===0)).join('') : `<div class="rh-empty">No AV equipment is assigned to this room yet — add some below.</div>`;
+  h+= members.length ? members.map((e,i)=>rhDeviceRow(e,rec,inputs,i===0)).join('') : `<div class="rh-empty">No AV equipment yet</div>`;
   // EVERYTHING ELSE, in the same list and the same card (Dave, 4 Aug: "the
   // whole point of having all the devices that are in this room is so Assist
   // can control or access them — that's why this section had hide from
@@ -13338,7 +13338,7 @@ function shortcutsCardHTML(area, list, cat, devices){
   list=list||[]; devices=devices||[];
   const nameOf={}; devices.forEach(d=>{ nameOf[d.entity_id]=d.name; });
   const tiles=list.length ? '<div class="sc-grid">'+list.map(sc=>scTileHTML(area,sc,nameOf[sc.target])).join('')+'</div>'
-    : '<div class="rh-empty">No app shortcuts yet — pick a device below and tap the apps this room uses.</div>';
+    : '<div class="rh-empty">No app shortcuts yet</div>';
   // REGISTER 918 (Dave, 17 Oct): "the add a shortcut list needs to be the apps that are synced to the device". The
   // list was every library app for every device — Foxtel was offered for an Apple TV that doesn't have it. Now: pick
   // the device, and what is offered is THAT device's own app list (Core: /shortcuts/<area>/apps?target=), each app
@@ -13354,14 +13354,14 @@ function shortcutsCardHTML(area, list, cat, devices){
       +'<div id="sc-devapps" style="margin-top:10px"></div>'
       +'<div style="margin-top:8px"><button class="rh-link" onclick="scNewApp(\''+esc(area)+'\')">App not listed?</button></div>'
       +'<div id="scb-wrap" style="display:none;margin-top:10px;border:0.5px solid var(--line);border-radius:12px;padding:14px">'
-      +'<div class="wiz-hint" style="margin-bottom:8px">Teach ProOS this app now — it stays on this system and its artwork is fetched and shown here. No need to leave the job.</div>'
+      +''
       +(typeof brandPickerHtml==='function'?brandPickerHtml('scb'):'')
       +'<div style="margin-top:10px"><button class="rh-act-pill rh-act-new" onclick="brandAsk(\'scb\',\''+esc(area)+'\')">Ask ProOS Connect for This App</button></div>'
       +'<div id="scb-out" class="wiz-hint" style="margin-top:8px;display:none"></div></div>'
     : '<div class="rh-empty">Save the room\'s display first, then add shortcuts.</div>';
   return '<div class="rh-card"><div class="rh-hd"><span class="rh-hd-t">App Shortcuts</span>'
     +'<button class="rh-link" onclick="scSupport()">Supported Brands</button></div>'
-    +'<div class="wiz-hint">The apps this room uses — each a tile with the ProOS icon that launches on the device you pick. The TV turns on and switches to it automatically. Tap a tile to test it.</div>'
+    +''
     +tiles+add
     +'</div>';
 }
@@ -13419,7 +13419,7 @@ function scDevAppsHTML(area,target,list){
   // REGISTER 918j: an Android TV box opens an app only by the app's own link; ProOS holds the ones seen working.
   if(android && (d.apps||[]).some(x=>x.method==='manual')) h+='<div class="wiz-hint" style="margin-top:8px">\u201cRoom only\u201d apps have no proven link on Android TV yet \u2014 their tile turns the room on and says to open the app with the box\u2019s remote. The first time an app opens, the box may ask which app to use: choose the app, then Always.</div>';
   if(android) h+='<div style="margin-top:10px"><button class="rh-act-pill rh-act-new" onclick="scLearn(\''+a+'\',\''+t+'\')">Learn from Device</button>'
-    +'<div class="wiz-hint" style="margin-top:6px">Open the app on the box with its remote, then press Learn from Device — ProOS reads the app straight off the box.</div></div>';
+    +'</div>';
   return h;
 }
 async function scAddApp(area,target,app,token){
@@ -13459,7 +13459,7 @@ async function scSupport(){
   ov.onclick=function(){ ov.remove(); };
   ov.innerHTML='<div onclick="event.stopPropagation()" style="background:#1c1e26;max-width:440px;width:90%;max-height:80vh;overflow:auto;border-radius:14px;padding:18px">'
     +'<div style="font-weight:600;margin-bottom:6px">App Shortcuts — brand support</div>'
-    +'<div class="wiz-hint">The same tile everywhere; how each brand launches it differs. Gaps are shown, not hidden.</div>'
+    +''
     +rows
     +'<div style="margin-top:12px;text-align:right"><button class="rh-link" onclick="document.getElementById(\'sc-support-ov\').remove()">Close</button></div></div>';
   document.body.appendChild(ov);
@@ -13505,7 +13505,7 @@ function rhChannels(rec){
         +(f.confirmed&&f.shown?'':'<div class="rch-st">'+(f.confirmed?'Hidden':'To Check')+' · off the dashboards</div>')
         +'<div class="rch-mv">'+(i?'<button title="Earlier" onclick="event.stopPropagation();rchFav(\''+a+'\',\'move\',\''+l+'\',\''+esc(f.channel)+'\',\''+e+'\',-1)">‹</button>':'<span></span>')
         +(i<favs.length-1?'<button title="Later" onclick="event.stopPropagation();rchFav(\''+a+'\',\'move\',\''+l+'\',\''+esc(f.channel)+'\',\''+e+'\',1)">›</button>':'<span></span>')+'</div></div>').join('')+'</div>'
-      :'<div class="rh-empty">No favourite channels yet — tap a channel below to add it.</div>';
+      :'<div class="rh-empty">No favourite channels yet</div>';
     const addTiles=ok.length?'<div class="sc-grid">'+ok.map(c=>'<div class="sc-tile rch-tile" onclick="rchFav(\''+a+'\',\'add\',\''+l+'\',\''+esc(c.id)+'\',\''+e+'\')">'+_rhChTile(c)+'<div class="sc-nm">'+esc(c.name)+'</div><div class="rch-add">TAP TO ADD</div></div>').join('')+'</div>'
       :'<div class="rh-empty">'+(!(lst.channels||[]).length?'This list has no channels yet.'
           :!(lst.channels||[]).some(c=>c.confirmed)?'No channel in the list has been confirmed on the TV yet.'
@@ -13517,7 +13517,7 @@ function rhChannels(rec){
       +(toCheck?'<div class="wiz-hint" style="margin-top:8px">'+toCheck+' channel'+(toCheck===1?' is':'s are')+' still To Check in the list, so '+(toCheck===1?'it isn’t':'they aren’t')+' offered here. Check them in Channel Lists.</div>':'');
   }).join('<div style="height:14px"></div>');
   return '<div class="rh-card"><div class="rh-hd"><span class="rh-hd-t">Channels</span></div>'
-    +'<div class="wiz-hint">The channels this room shows on its TV page, in this order, on every dashboard. Only channels confirmed on the TV can be added. Tap a tile to send it to the TV.</div>'+body+'</div>';
+    +''+body+'</div>';
 }
 async function rchFav(area, op, list, channel, device, step){
   try{ const r=await _coreFetch(proCoreUrl()+'/areas/'+encodeURIComponent(area)+'/channels',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:op, list:list, channel:channel, device:device, step:step||0})});
@@ -13605,8 +13605,8 @@ function rhRoomDevices(){
   const s=_roomDevs[_roomHubArea];
   if(!s||s.loading) return `<div class="rh-empty">Scanning room…</div>`;
   const list=s.devices||[];
-  if(!list.length) return `<div class="rh-empty">No controllable devices (lights, shades, climate, fans, switches) are assigned to this room yet. Add them from this room\u2019s Devices \u0026 AV card.</div>`;
-  const hint=`<div class="wiz-hint" style="margin:2px 0 12px">These are what Pro Assist can use to build scenes and control the room. Toggle one off to hide it from the assistant; tap a device to name it or give it a role.</div>`;
+  if(!list.length) return `<div class="rh-empty">No devices yet</div>`;
+  const hint=``;
   // Type filter chips — counts per domain present, plus All.
   const counts={}; list.forEach(d=>{ counts[d.domain]=(counts[d.domain]||0)+1; });
   const doms=Object.keys(counts).sort((a,b)=>(_RD_DOMAIN_LABEL[a]||a).localeCompare(_RD_DOMAIN_LABEL[b]||b));
@@ -13906,7 +13906,7 @@ function renderGate(view, err){
     return;
   }
   if(view==='provisioning'){
-    setHTML(g, '<div class="landing-heading">Setting Up This Box</div><div class="landing-sub">This takes a minute. The installer login appears by itself.</div>'+_dots);
+    setHTML(g, '<div class="landing-heading">Setting Up This Box</div>'+_dots);
     return;
   }
   if(view==='create'){
@@ -13943,9 +13943,9 @@ function renderGate(view, err){
   // manual (token) — original path, preserved as a fallback for remote/odd setups
   setHTML(g, '<div class="landing-eyebrow">Installer console</div>'
     +'<div class="landing-heading">Connect a Home</div>'
-    +'<div class="landing-sub">Connect to a ProOS host with an access token.</div>'
+    +''
     +_gateWhere()
-    +'<div class="field"><div class="field-label">Access Token</div><input id="in-token" type="password" placeholder="Access token" autocomplete="off"/><div class="field-hint">Created on the host under your profile → security.</div></div>'
+    +'<div class="field"><div class="field-label">Access Token</div><input id="in-token" type="password" placeholder="Access token" autocomplete="off"/></div>'
     +'<button class="btn-primary" onclick="doConnect()">Connect</button>'
     +'<div id="landing-error">'+(err?esc(err):'')+'</div>'
     +'<button class="gate-link" onclick="gateDetect()">← Set up or log in instead</button>');
@@ -14357,7 +14357,7 @@ function _chListsHTML(){
       +'<div>'+(l.to_check?'<span class="v3chip amber">'+l.to_check+' to check</span>':(l.count?'<span class="v3chip ok">All confirmed</span>':'<span class="v3chip">Empty</span>'))+'</div>'
       +'<div class="t2">'+(l.used_by.length?'Used by '+l.used_by.map(e=>'<b>'+_chEsc(_chName(e))+'</b>').join(', '):'Not used by a TV yet')+'</div></button>').join('');
   const undo=_chv.undo?'<div class="chl-ask" style="margin:0 0 12px">'+_chEsc(_chv.undo.name)+' deleted. <button type="button" class="v3btn" onclick="chUndoRemove()">Undo</button></div>':'';   // 1097
-  return '<div class="v3card">'+undo+'<div class="v3dh2"><div class="t">Channel Lists</div><div class="s">One list per service in this house. Every TV that uses a service shares its list, so a number fixed once is fixed in every room. Nothing in a list reaches the dashboards or voice until it has been confirmed on a TV.</div></div>'
+  return '<div class="v3card">'+undo+'<div class="v3dh2"><div class="t">Channel Lists</div></div>'
     +'<div class="v3sec"><div class="chl-grid">'+cards
     +'<button type="button" class="chl-card chl-new" onclick="chNew()"><div class="t1">+ New Channel List</div><div class="t2">Free-to-air, Foxtel, Fetch TV or other</div></button></div></div></div>';
 }
@@ -14372,10 +14372,10 @@ function _chNewHTML(){
   const tuners=(d.tuners||[]).map(t=>{ const other=t.list&&t.list!==null; const on=_chv.used.includes(t.entity_id);
     return '<button type="button" class="v3chip '+(on?'blue':'btn')+'"'+(other?' disabled title="Already uses another list"':'')+' onclick="chUse(\''+_chEsc(t.entity_id)+'\')">'+_chEsc(t.name)+(other?' · uses another list':'')+'</button>'; }).join(' ');
   const sendNote=_chv.svc==='fta'?'':'<div class="chl-note">ProOS can’t send a channel number to a '+_chEsc(names[_chv.svc]||'')+' box yet. The list can still be built now; its page comes later.</div>';
-  return '<div class="v3card"><div class="v3dh2"><div class="t">New Channel List</div><div class="s">Pick the service, the TVs that use it, and where to start.</div></div>'
+  return '<div class="v3card"><div class="v3dh2"><div class="t">New Channel List</div></div>'
     +'<div class="v3sec"><div class="h">What Is It For</div><div class="v3seg" style="margin:0 0 6px">'+svcs+'</div>'
-    +'<div class="h">Used By</div><div class="chl-chips">'+(tuners||'<span class="chl-hint">No TV ProOS can send a channel number to was found.</span>')+'</div>'
-    +'<div class="chl-hint">The TVs with a tuner ProOS can send a number to, from the house’s own records. A TV uses one list.</div>'+sendNote
+    +'<div class="h">Used By</div><div class="chl-chips">'+(tuners||'<span class="chl-hint">No TV takes a channel number</span>')+'</div>'
+    +''+sendNote
     +'<div class="h" style="margin-top:8px">Start From</div>'
     +(starts.length?'<div class="chl-chips">'+starts.map(s=>'<button type="button" class="v3btn pri" onclick="chCreate(\'proos\',\''+_chEsc(s.region)+'\')">Use ProOS’s '+_chEsc(s.region)+' List · '+s.count+'</button>').join(' ')+' <button type="button" class="v3btn" onclick="chCreate(\'empty\',\'\')">Start Empty</button></div>'
       :'<div class="chl-chips"><button type="button" class="v3btn pri" onclick="chCreate(\'empty\',\'\')">Start Empty</button></div><div class="chl-hint">ProOS has no starting list for this yet.</div>')
@@ -14421,8 +14421,8 @@ function _chUsedHTML(){
   const L=_chv.list, lists=(_chv.data&&_chv.data.lists)||[];
   const chips=((_chv.data&&_chv.data.tuners)||[]).map(t=>{ const on=(L.used_by||[]).includes(t.entity_id); const oth=t.list&&t.list!==L.id?lists.find(x=>x.id===t.list):null;
     return '<button type="button" class="v3chip '+(on?'blue':'btn')+'"'+(oth||(t.list&&t.list!==L.id)?' disabled title="A TV uses one list"':'')+' onclick="chListUse(\''+_chEsc(t.entity_id)+'\')">'+_chEsc(t.name)+(t.list&&t.list!==L.id?' · uses '+_chEsc(oth?oth.name:'another list'):'')+'</button>'; }).join(' ');
-  return '<div class="v3sec"><div class="h">Used By</div><div class="chl-chips chl-used">'+(chips||'<span class="chl-hint">No TV ProOS can send a channel number to was found.</span>')+'</div>'
-    +'<div class="chl-hint">Tap a TV to add it to this list, tap again to take it off. Every TV here shares these channels. A TV uses one list.</div></div>';
+  return '<div class="v3sec"><div class="h">Used By</div><div class="chl-chips chl-used">'+(chips||'<span class="chl-hint">No TV takes a channel number</span>')+'</div>'
+    +'</div>';
 }
 async function chListUse(eid){
   const L=_chv.list; if(!L) return; const cur=(L.used_by||[]).slice(); const i=cur.indexOf(eid);
@@ -14449,13 +14449,13 @@ function _chSideHTML(){
   const sentKey=d=>c.id+'|'+d+'|'+c.number;
   let test='';
   if(!isNew){
-    if(!devs.length) test='<div class="chl-note">No TV uses this list yet, so there is nothing to send it to.</div>';
+    if(!devs.length) test='<div class="chl-note">No TV uses this list yet</div>';
     else test=devs.map(d=>{ const asked=_chv.ask&&_chv.ask.kind==='off'&&_chv.ask.dev===d; const was=_chv.sent[sentKey(d)];
       return '<div class="chl-test"><div class="rt"><b>'+_chEsc(_chName(d))+'</b>'+(asked?'The TV is off. Sending turns it on.':(c.confirmed?(was?'Sent '+_chEsc(c.number)+' to test this TV.':'Puts '+_chEsc(c.number)+' on the TV to test it.'):(was?'Sent '+_chEsc(c.number)+'. Look at the TV, then confirm.':'Puts '+_chEsc(c.number)+' on the TV. Look, then confirm.')))+'</div>'
         +(asked?'<button type="button" class="v3btn" onclick="chSend(\''+_chEsc(d)+'\',true)">Send Anyway</button><button type="button" class="v3btn" onclick="chAsk(null)">Cancel</button>'
           :'<button type="button" class="v3btn" onclick="chSend(\''+_chEsc(d)+'\',false)">Send</button>'+(c.confirmed?'':'<button type="button" class="v3btn pri"'+(was?'':' disabled title="Send it first"')+' onclick="chConfirm(\''+_chEsc(d)+'\')">Confirm</button>'))+'</div>'; }).join('');
     // REGISTER 1103 (Dave 31 Oct 06:53): the numbers are the list's, so one confirmation covers every TV on it; Send stays per TV
-    if(c.confirmed && devs.length) test='<div class="chl-note blue">Confirmed for every TV on this list. Send tests each TV\u2019s own command.</div>'+test;
+    if(c.confirmed && devs.length) test=''+test;
   }
   const conf=c.confirmed?'<span class="v3chip ok">Confirmed on '+_chEsc(_chName(c.confirmed.on))+' · '+_chEsc(new Date(c.confirmed.at*1000).toLocaleDateString())+(c.confirmed.by?' · '+_chEsc(c.confirmed.by):'')+'</span>':(isNew?'':'<span class="v3chip amber">To Check</span>');
   return '<div class="chl-sh2"><div class="h">'+(isNew?'New Channel':'Channel')+'</div>'+conf+'</div>'
@@ -14535,7 +14535,7 @@ function _siteLoadLeaflet(){
 async function _siteInitMap(lat,lon){
   const el=document.getElementById('site-map'); if(!el) return;
   let L;
-  try{ L=await _siteLoadLeaflet(); }catch(e){ el.innerHTML='<div class="site-map-fallback">Map needs internet. Use the address search when online, or type coordinates below.</div>'; return; }
+  try{ L=await _siteLoadLeaflet(); }catch(e){ el.innerHTML='<div class="site-map-fallback">Map needs internet.</div>'; return; }
   if(!_siteActive()) return;
   try{ L.Icon.Default.mergeOptions({iconRetinaUrl:'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',iconUrl:'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',shadowUrl:'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png'}); }catch(e){}
   if(_siteMap){ try{ _siteMap.remove(); }catch(e){} _siteMap=null; _siteMarker=null; }
@@ -14561,10 +14561,10 @@ async function siteGeoSearch(){
   try{
     const r=await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&q='+encodeURIComponent(q),{headers:{Accept:'application/json'}});
     const list=await r.json();
-    if(!Array.isArray(list)||!list.length){ if(box) box.innerHTML='<div class="site-geo-empty">No matches. Try a broader search, or drop the pin on the map.</div>'; return; }
+    if(!Array.isArray(list)||!list.length){ if(box) box.innerHTML='<div class="site-geo-empty">No matches</div>'; return; }
     _siteGeoResults=list;
     if(box) box.innerHTML=list.map((it,i)=>`<div class="site-geo-item" onclick="siteGeoPick(${i})">${esc(it.display_name)}</div>`).join('');
-  }catch(e){ if(box) box.innerHTML='<div class="site-geo-empty">Search needs internet — check the connection, or type coordinates below.</div>'; }
+  }catch(e){ if(box) box.innerHTML='<div class="site-geo-empty">Search needs internet.</div>'; }
 }
 function siteGeoPick(i){
   const it=_siteGeoResults[i]; if(!it) return;
@@ -14592,13 +14592,13 @@ async function renderSite(){
   const wx=_states.find(s=>s.entity_id&&s.entity_id.indexOf('weather.')===0);
   const wxName=(wx&&wx.attributes&&wx.attributes.friendly_name)||'';
   const gpsBtn=window.isSecureContext ? `<button class="site-linkbtn" onclick="siteUseGPS()">Use This Device's Location</button>` : '';
-  setHTML(body, `<div class="wiz-hint">Where this system lives. Location drives weather, sun &amp; day/night, and any presence features. Set once at commissioning — it rarely changes after.</div>`+
+  setHTML(body, ``+
     `<div class="field"><div class="field-label">Home Name</div><input id="site-name" type="text" value="${esc(name)}" placeholder="e.g. Smith Residence"/><div class="field-hint">Shown across the homeowner's app.</div></div>`+
     `<div class="section-label" style="margin-top:8px">Location</div>`+
     `<div class="field"><div class="field-label">Search Address or Place</div>`+
       `<div style="display:flex;gap:8px"><input id="site-geo-q" type="text" placeholder="e.g. 12 Main St, Kurunjang VIC" onkeydown="if(event.key==='Enter'){event.preventDefault();siteGeoSearch();}"/>`+
       `<button class="btn-ghost" style="flex:0 0 auto;white-space:nowrap" onclick="siteGeoSearch()">Search</button></div>`+
-      `<div class="field-hint">Type an address — it drops a pin you can nudge to fine-tune.</div></div>`+
+      `</div>`+
     `<div id="site-geo-results"></div>`+
     `<div id="site-map" class="site-map"></div>`+
     `<div class="site-map-foot"><span id="site-pin-label" class="site-pin-label"></span>${gpsBtn}</div>`+
@@ -14717,14 +14717,14 @@ function renderDashRemote(){
       +'<div id="dr-screens" style="display:flex;flex-direction:column;gap:8px;margin:12px 0 4px"><div class="cred-meta">Checking connected screens…</div></div>'
       +'<button class="btn-primary" style="gap:10px" onclick="proPublishDashboards(false)"><span style="font-size:16px">⟳</span> Update All Dashboards</button>'
     +'</div>'
-    +'<div class="cred-card"><div class="cred-top"><span class="cred-name">Control a Screen</span></div><div class="cred-meta">Send the dashboard to a page, show a message, or reload it.</div>'
+    +'<div class="cred-card"><div class="cred-top"><span class="cred-name">Control a Screen</span></div>'
       +'<div style="display:flex;gap:8px;margin-top:12px"><select id="dashremote-page" style="flex:1;'+fld+'">'+pages.map(p=>'<option value="'+p+'">Go to '+p.charAt(0).toUpperCase()+p.slice(1)+'</option>').join('')+'</select><button class="btn-ghost" onclick="dashSend(\'goto\', document.getElementById(\'dashremote-page\').value)">Send</button></div>'
       +'<input id="dashremote-room" type="text" placeholder="…or a room name" style="width:100%;box-sizing:border-box;margin-top:8px;'+fld+'" onkeydown="if(event.key===\'Enter\'){dashSend(\'goto\',this.value);this.value=\'\';}"/>'
       +'<div style="display:flex;gap:8px;margin-top:8px"><input id="dashremote-msg" type="text" placeholder="Show a message — e.g. Commissioning complete" style="flex:1;min-width:0;'+fld+'"/><button class="btn-ghost" onclick="var m=document.getElementById(\'dashremote-msg\');dashSend(\'message\',m.value);m.value=\'\'">Send</button></div>'
       +'<div class="cred-actions" style="margin-top:12px"><button class="btn-ghost" onclick="dashSend(\'reload\')">Reload the dashboard app</button></div>'
     +'</div>'
-    +'<div class="cred-card"><div class="cred-top"><span class="cred-name">Re-discover Devices</span></div><div class="cred-meta">Tell the dashboard to re-scan rooms and devices.</div><div class="cred-actions"><button class="btn-ghost" onclick="dashSend(\'rediscover\')">Send</button></div></div>'
-    +'<div class="cred-card" onclick="openNavLayout()" style="cursor:pointer"><div class="cred-top"><span class="cred-name">Nav Layout</span></div><div class="cred-meta">Arrange the dashboard bottom-nav — order and show/hide icons for Home and Area pages.</div><div class="cred-actions"><button class="btn-ghost" onclick="openNavLayout()">Open</button></div></div>';
+    +'<div class="cred-card"><div class="cred-top"><span class="cred-name">Re-discover Devices</span></div><div class="cred-actions"><button class="btn-ghost" onclick="dashSend(\'rediscover\')">Send</button></div></div>'
+    +'<div class="cred-card" onclick="openNavLayout()" style="cursor:pointer"><div class="cred-top"><span class="cred-name">Nav Layout</span></div><div class="cred-actions"><button class="btn-ghost" onclick="openNavLayout()">Open</button></div></div>';
   _dashRemoteRefresh();
   if(typeof _wpCardRender==='function') _wpCardRender(true);   // 963–964: the wall panels, each with a NEW picture of its screen
   if(typeof _rmCardRender==='function') _rmCardRender();        // 969j: the remotes, and any remote waiting to be accepted
@@ -14761,7 +14761,7 @@ async function _dashRemoteRefresh(){
           : 'No screen has ever linked to this Core. A dashboard links itself when it opens, so check the screens can reach ProOS Core on <b>'+esc(proCoreUrl())+'</b> (same network, port open).')
         : 'ProOS Core is not answering on '+esc(proCoreUrl())+'.')
       +'</div>'
-      +'<div class="cred-meta" style="margin-top:6px;color:var(--t3)">Publishing still works — every dashboard applies the newest version the next time it opens.</div>';
+      +'';
     return; }
   el.innerHTML=clients.map(function(c){
     var ago=(c.seen_ago==null)?'':(c.seen_ago<60?(c.seen_ago+'s ago'):(Math.round(c.seen_ago/60)+'m ago'));
@@ -14829,7 +14829,7 @@ async function _wpCardRender(withShots){
   const el=document.getElementById('wp-rows'); if(!el) return;
   await _wpLoad();
   const ids=Object.keys(_wpList).sort(function(a,b){ return (_wpOnline(_wpList[b])?1:0)-(_wpOnline(_wpList[a])?1:0); });
-  if(!ids.length){ el.innerHTML='<div class="cred-meta">No wall panel has listed itself yet. A panel lists itself here the first time it turns on — there is nothing to type in.</div>'; return; }
+  if(!ids.length){ el.innerHTML='<div class="cred-meta">No wall panels yet</div>'; return; }
   if(withShots) ids.forEach(function(id){ if(_wpList[id].shot) delete _wpShots[id]; });
   el.innerHTML='<div onclick="openWpEdit(\'\')" style="cursor:pointer;display:flex;gap:14px;align-items:center;border-radius:12px;padding:14px;background:linear-gradient(90deg,rgba(91,108,255,.16),rgba(91,108,255,.04));border:0.5px solid rgba(91,108,255,.35)">'
     +'<div style="flex:1"><div style="font-size:15px;font-weight:600;color:var(--t1)">All Wall Panels</div><div class="cred-meta" style="margin:2px 0 0">The layout every panel starts with — set a room here once and every panel shows it</div></div>'
@@ -14868,7 +14868,7 @@ function renderWallPanel(takeShot){
       +'<select id="wp-room" style="width:100%;margin-top:10px;'+fld+'" onchange="_wpSetRoom(this.value)"><option value="">Not set</option>'
         +areas.map(function(a){ return '<option value="'+esc(a.area_id)+'"'+(a.area_id===st.home_room?' selected':'')+'>'+esc(a.name)+'</option>'; }).join('')+'</select>'
       +'<div class="cred-meta" id="wp-microom" style="margin-top:8px"></div></div>'
-    +'<div class="cred-card"><div class="cred-top"><span class="cred-name">Microphone</span></div><div class="cred-meta">The microphone in this panel, or near it. Only microphones the box has found are listed.</div>'
+    +'<div class="cred-card"><div class="cred-top"><span class="cred-name">Microphone</span></div>'
       +'<select id="wp-mic" style="width:100%;margin-top:10px;'+fld+'" onchange="_wpSetMic(this.value)"><option value="">No microphone — touch only</option>'
         +sats.map(function(x){ return '<option value="'+esc(x.entity_id)+'"'+(x.entity_id===st.mic?' selected':'')+'>'+esc((x.attributes&&x.attributes.friendly_name)||x.entity_id)+' · '+esc(x.state)+'</option>'; }).join('')+'</select>'
       +'<div class="cred-meta" style="margin-top:8px">Replies are spoken through the speaker in '+(room?esc(room):'the panel\'s room')+'.</div></div>'
@@ -14880,7 +14880,7 @@ function renderWallPanel(takeShot){
       +'<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px"><div><div style="font-size:14px;color:var(--t1)">Locked</div><div class="cred-meta">The homeowner uses it but can\'t change it — everything is set here</div></div><span style="font-size:12.5px;color:#3ec77e">Always</span></div></div>'
     +'<div class="cred-card"><div class="cred-top"><span class="cred-name">Layout</span></div><div class="cred-meta">'+((s.pages&&s.pages.length)?('This panel has its own layout for '+s.pages.length+(s.pages.length===1?' page':' pages')+'; every other page uses the layout for All Wall Panels.'):'Uses the layout for All Wall Panels.')+'</div>'
       +'<div class="cred-actions"><button class="btn-primary" onclick="openWpEdit(_wpSel)">Edit Layout</button></div></div>'
-    +'<div class="cred-card"><div class="cred-top"><span class="cred-name">Forget This Panel</span></div><div class="cred-meta">For a panel taken off the wall, or an old copy of one. A panel that is still on lists itself again within a minute.</div>'
+    +'<div class="cred-card"><div class="cred-top"><span class="cred-name">Forget This Panel</span></div>'
       +'<div class="cred-actions"><button class="btn-ghost" id="wp-forget" onclick="_wpForget()">'+(_wpForgetArm===id?'Tap Again to Forget':'Forget')+'</button></div></div>';
   _wpMicRoomLine();
   if(takeShot && s.shot){ delete _wpShots[id]; _wpRetake(); }
@@ -14953,7 +14953,7 @@ async function _rmCardRender(){
     +'<div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:600;color:var(--t1)">New Remote Waiting</div><div class="cred-meta" style="margin:2px 0 0">'+esc(p.model||'HA100')+' · '+esc(p.serial)+' — accept it only if the remote in your hand shows this code</div></div>'
     +'<button class="btn-primary" style="flex:none;width:auto;min-height:40px;padding:0 22px" onclick="_rmAccept(\''+esc(p.serial)+'\',this)">Accept</button></div>'; });
   h+=rs.map(_rmRow).join('');
-  if(!h) h='<div class="cred-meta">No remote yet. Open ProOS Remote on the remote: it shows a four-digit code and appears here to be accepted — there is nothing to type in.</div>';
+  if(!h) h='<div class="cred-meta">No remote yet</div>';
   el.innerHTML=h;
   const pane=document.getElementById('panel-dashremote');
   if(_rmPoll) clearTimeout(_rmPoll);
@@ -15015,7 +15015,7 @@ async function renderRemote(){
   }).join('');
   body.innerHTML=''
     +'<div class="cred-card"><div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">'+_rmPic(r,150,250)
-      +'<div style="flex:1;min-width:200px"><div class="cred-name">Actual Screen</div><div class="cred-meta">The remote sends a picture of its screen while it is in use.</div>'
+      +'<div style="flex:1;min-width:200px"><div class="cred-name">Actual Screen</div>'
       +'<div style="font-size:12.5px;margin-top:8px;color:'+(r.online?'#3ec77e':'var(--t3)')+'">'+esc(_rmOnlineTxt(r))+'</div>'
       +'<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">'+_wpChip(esc(r.model||'HA100'))+(r.battery!=null?_wpChip('Battery '+r.battery+'%'+(r.docked?' · On the Dock':'')):'')+(r.app?_wpChip('App '+esc(r.app)):'')+_wpChip(esc(r.serial))+'</div></div></div></div>'
     +'<div class="cred-card"><div class="cred-top"><span class="cred-name">Name</span></div><div class="cred-meta">What it is called in Pro.</div>'
@@ -15029,10 +15029,10 @@ async function renderRemote(){
         return '<button onclick="_rmSet({rooms:\''+o[0]+'\'})" style="border:0;cursor:pointer;font:inherit;font-size:12.5px;padding:6px 11px;border-radius:8px;background:'+(on?'rgba(255,255,255,.18)':'transparent')+';color:'+(on?'#fff':'var(--t2)')+';font-weight:'+(on?'600':'400')+'">'+esc(o[1])+'</button>'; }).join('')+'</div></div></div>'
     +'<div class="cred-card"><div class="cred-top"><span class="cred-name">Button Map</span>'
       +'<select style="margin-left:auto;'+fld+'" onchange="_rmMapRoom=this.value;renderRemote()">'+areas.map(function(a){ return '<option value="'+esc(a.area_id)+'"'+(a.area_id===mroom?' selected':'')+'>'+esc(a.name)+'</option>'; }).join('')+'</select></div>'
-      +'<div class="cred-meta">The eight printed and coloured keys, in this room. Everything else follows the activity: the D-pad drives what’s on, Volume moves the room’s volume device, Power is Room Off (hold: All Off).</div>'
+      +''
       +(mroom?'<div style="display:grid;grid-template-columns:130px 1fr 1fr;gap:10px;font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.08em;margin-top:14px"><span>Key</span><span>Press</span><span>Hold</span></div>'+rows
         +'<div class="cred-actions" style="margin-top:12px"><button class="btn-ghost" onclick="_rmSet({reset_map:\''+esc(mroom)+'\'})">Reset to Defaults</button></div>':'<div class="cred-meta" style="margin-top:10px">Set a Home Room first.</div>')+'</div>'
-    +'<div class="cred-card"><div class="cred-top"><span class="cred-name">Forget This Remote</span></div><div class="cred-meta">Signs the remote out and removes its login. To use it again it shows a new code to accept.</div>'
+    +'<div class="cred-card"><div class="cred-top"><span class="cred-name">Forget This Remote</span></div><div class="cred-meta">Signs the remote out.</div>'
       +'<div class="cred-actions"><button class="btn-ghost" onclick="_rmForget()">'+(_rmForgetArm===_rmSel?'Tap Again to Forget':'Forget')+'</button></div></div>';
 }
 async function _rmSet(o){ o.serial=_rmSel; if(await _rmPost(o)){ await renderRemote(); toast('Saved — the remote picks it up within a few seconds'); } }
@@ -15410,7 +15410,7 @@ async function techViewPrepare(view){
     +'<span>Preparation audit</span><span class="mut" style="letter-spacing:0;text-transform:none;font-size:11.5px">'
     +(m.totalFails?m.totalFails+' issue'+(m.totalFails===1?'':'s'):'no issues')
     +(m.totalUnknowns?' · '+m.totalUnknowns+' unknown':'')+'</span></div>';
-  h+='<div class="mut" style="font-size:11.5px;margin:-4px 0 12px">Required settings and observed evidence per committed display — what a factory reset or re-pair silently drops. Advisory only; nothing here blocks a commit.</div>';
+  h+='';
   for(const r of m.rooms){
     const chip=r.empty?'<span class="hlt-chip off">nothing claimed</span>'
       :(r.fails?'<span class="hlt-chip warn">'+r.fails+' issue'+(r.fails===1?'':'s')+'</span>'
@@ -15419,7 +15419,7 @@ async function techViewPrepare(view){
     h+='<div class="sys-card" style="cursor:default;margin-bottom:10px">'
       +'<div class="t" style="justify-content:space-between"><span>'+esc(r.area)+'</span>'+chip+'</div>'
       +(r.display?'<div class="d">'+esc(r.display)+'</div>':'');
-    if(r.empty){ h+='<div class="s mut">No preparation facts claimed for this display’s integration.</div>'; }
+    if(r.empty){ h+='<div class="s mut">No preparation facts claimed for this display’s integration</div>'; }
     for(const c of r.rows){
       const mark=c.state==='ok'?'✓':(c.state==='fail'?'✗':'?');
       const col=c.state==='ok'?'#39d98a':(c.state==='fail'?'#ff6b6b':'#e6c34d');
@@ -15499,7 +15499,7 @@ function netEdit(name){
     +'<div class="d" id="net-dh" style="font-size:12px"></div></div>'
     +'<div class="d" id="net-err" style="color:#ff6b6b;font-size:13px"></div>'
     +'<div><button class="btn-primary" onclick="netSave(\''+esc(itf.name)+'\')">Save</button> <button class="btn-ghost" onclick="_netRefresh()">Cancel</button></div>'
-    +'<div class="d" style="font-size:12px">After saving, the box waits 2 minutes for Keep These Settings. If nobody keeps them, it puts the old settings back by itself.</div>'
+    +'<div class="d" style="font-size:12px">Not kept within 2 minutes, the old settings come back.</div>'
     +'</div>');
   netForm();
 }
@@ -15602,7 +15602,7 @@ async function techViewNet(view){
         +(allSensors.length?allSensors.map(sn=>{
             const on=chosen.includes(sn);
             return '<label class="nw-opt'+(on?' on':'')+'"><input type="checkbox" data-nw="'+id+'" value="'+esc(sn)+'"'+(on?' checked':'')+' onchange="nwMark(this)">'+esc(sn)+'</label>';
-          }).join(''):'<div class="mut" style="font-size:12px;padding:6px 2px">No traffic sensors published — enable bandwidth sensors on the provider.</div>')
+          }).join(''):'<div class="mut" style="font-size:12px;padding:6px 2px">No traffic sensors published</div>')
       +'</div></div>';
   }
   setHTML(view,h);
@@ -15832,21 +15832,21 @@ async function techViewAssist(view){
     // the engine itself — never typed, never guessed; the fallback to
     // first-found is said when the chosen engine is gone.
     +'<div class="bld-sec" style="margin-top:18px"><div class="bld-sec-h">ProOS Voice</div>'
-    +'<div class="wiz-hint">The voice Assist speaks with in the rooms (Assist voice replies). Engines and voices are read from this box.</div>'
+    +''
     +'<div id="as-voice-body" class="wiz-hint">Loading…</div></div>'
     // ── TRY A COMMAND (register 736 — Dave's design, 9 Oct 2026, stage A step 6).
     // Type what someone would say: Core asks the platform's recogniser (it reads the
     // sentence, it acts on nothing) and ProOS's own mapping, and says which road the
     // sentence takes and what it would do. Nothing in the house is switched.
     +'<div class="bld-sec" style="margin-top:18px"><div class="bld-sec-h">Try a Command</div>'
-    +'<div class="wiz-hint">Type what someone would say. ProOS shows whether it is instant or goes to the AI, and what it would do. Nothing is switched.</div>'
+    +''
     +'<div style="display:flex;gap:8px"><input id="as-try" class="set-input" type="text" placeholder="watch apple tv in the bedroom" autocapitalize="off" autocorrect="off" spellcheck="false" onkeydown="if(event.key===\'Enter\')assistTryIt()"/>'
     +'<button class="btn-ghost" onclick="assistTryIt()">Try</button></div>'
     +'<div id="as-try-out" class="wiz-hint" style="margin-top:10px"></div></div>'
     // ── TALK LIVE FOR THE HOME (register 1153, Dave 1 Nov 18:41 — everyone, switchable). Every microphone in the ProOS app
     // talks live; on for everyone unless switched off here, for the home or for one person.
     +'<div class="bld-sec" style="margin-top:18px"><div class="bld-sec-h">Talk Live</div>'
-    +'<div class="wiz-hint">Every microphone in the ProOS app talks live with Assist — speak, interrupt, follow up — and ProOS Assist does the work through its own tools and rules. Each person is asked once before their voice is used. On for everyone unless it is turned off here.</div>'
+    +''
     +'<div id="tl-body" class="wiz-hint">Loading…</div></div>'
     // REGISTER 1348: the Realtime prototype, the Speaker Music Test and the Apple Music token paste are off this page —
     // Talk Live is the live voice for everyone, and ProOS Connect makes the Apple Music token.
@@ -15854,7 +15854,7 @@ async function techViewAssist(view){
     // and a Connect for any the person can sign in to on the service's own page (Dave, 12 Oct: "I want any
     // signins to be on both" — this and the homeowner's Music page). ProOS never sees a password.
     +'<div class="bld-sec" style="margin-top:18px"><div class="bld-sec-h">Music Sign-Ins</div>'
-    +'<div class="wiz-hint">The music services a speaker holds, which ones answer, and Connect for any that need signing in again.</div>'
+    +''
     +'<div style="display:flex;gap:8px"><input id="mi-ent" class="set-input" type="text" value="media_player.office_office" autocapitalize="off" autocorrect="off" spellcheck="false"/>'
     +'<button class="btn-ghost" onclick="musicSignInsLoad()">Check</button></div>'
     +'<div id="mi-out" class="wiz-hint" style="margin-top:10px"></div></div>');
@@ -15934,8 +15934,8 @@ async function tlLoad(){
   h+='<label style="display:flex;align-items:center;gap:10px;margin:14px 0 2px;cursor:pointer"><input type="checkbox" id="hl-auto"'+(st.health_auto!==false?' checked':'')+' onchange="hlSave()"/> <b>Health Hands Problems to Assist</b></label>'
     +'<div style="margin:0 0 6px 28px">'+(st.health_auto!==false?'On: once a problem a day, Health asks Assist to fix it by itself.':'Paused: problems stay on Health with their Fix button; nothing goes to the AI by itself.')+'</div>';
   // 1288: the Assist AI decides the road — ChatGPT talks Live; Claude holds the conversation on the ordinary microphone
-  if(st.provider==='claude') h+='<div style="margin-top:6px">Assist AI is Claude, so the microphone holds the conversation instead: after each spoken answer it listens again by itself — no need to press the mic. It stops after 8 seconds of quiet, or when someone says “stop”, “thanks” or “that’s all”. Tap the mic while Assist is speaking to cut in. Talk Live (talking over Assist) is used when ChatGPT is chosen.</div>';
-  else if(st.provider && st.provider!=='openai') h+='<div style="margin-top:6px;color:var(--warn)">Talk Live needs Assist on OpenAI — it is off until then.</div>';
+  if(st.provider==='claude') h+='';
+  else if(st.provider && st.provider!=='openai') h+='';
   setHTML(el, h);
 }
 async function tlSave(){
@@ -15999,7 +15999,7 @@ async function assistVoiceLoad(){
       return '<option value="'+esc(id)+'"'+(d.voice===id?' selected':'')+'>'+esc(nm)+'</option>';
     })).join('');
     setHTML(body,
-      (d.chosen_missing?'<div class="wiz-hint" style="color:#e3a23c">The chosen engine is no longer on the box — speaking falls back to the first one found.</div>':'')
+      (d.chosen_missing?'<div class="wiz-hint" style="color:#e3a23c">That engine is gone — the first one found is used.</div>':'')
       +'<div class="field"><div class="field-label">Engine</div><select id="as-veng" class="set-input" onchange="assistVoiceSave(true)">'+engOpts+'</select></div>'
       +'<div class="field"><div class="field-label">Voice'+(d.voices_language?' ('+esc(d.voices_language)+')':'')+'</div><select id="as-vvoice" class="set-input">'+vOpts+'</select>'
       +(d.why?'<div class="field-hint">'+esc(d.why)+'</div>':'')+'</div>'
@@ -16051,7 +16051,7 @@ async function assistConnectLoad(st){
 // REGISTER 1348 — THE PROOS CONNECT PAGE (System Setup): the same reading, on its own, for setting up a new box.
 async function techViewConnect(view){
   let st={}; try{ const r=await fetch(proCoreUrl()+'/assist/status'); st=await r.json(); }catch(e){}
-  setHTML(view,'<div class="wiz-hint">Every ProOS service that needs a supplier key — Pro Assist, scene pictures, Talk Live, photo search, iPhone alerts and Apple Music — runs through ProOS Connect. A new box is linked automatically once it is approved there; nothing is entered on the box.</div>'
+  setHTML(view,''
     +'<div class="bld-sec" style="margin-top:12px"><div class="bld-sec-h">ProOS Connect</div><div id="as-connect" class="wiz-hint">Asking ProOS Connect…</div></div>');
   assistConnectLoad(st);
 }
@@ -16091,7 +16091,7 @@ async function techViewNotify(view){
     // the test to every phone; each row below is only the reading — what Apple said, and Apple's receipt for it.
     +'<div class="bld-sec" style="margin-top:18px"><div class="bld-sec-h" style="display:flex;align-items:center;justify-content:space-between">Send a Test Alert'
     +'<button class="btn-ghost" id="nt-send" style="padding:6px 14px" onclick="notifyTestSend(this)">Send Test Alert</button></div>'
-    +'<div class="wiz-hint">Sends one test to every phone: this box → ProOS Core → ProOS Connect → Apple → the phone. Below is every app signed in to this box. If Apple accepted an alert and the phone shows nothing, look its Apple Receipt up in Apple’s Push Notifications Console › Delivery Log; a sign-in not heard from in a long time, or one sharing a name, is usually the cause.</div>'
+    +''
     +'<div id="nt-phones" class="wiz-hint">Reading the phones this box knows…</div></div>');
   notifyPhonesLoad();
 }
@@ -16174,7 +16174,7 @@ async function techViewTiles(view){
     ?'<b style="color:#84d9b4">From ProOS Connect</b> · '+(cx.tiles||0)+' tile'+((cx.tiles||0)===1?'':'s')+' in the library'+((cx.failed||[]).length?' · <span style="color:#e3a23c">'+cx.failed.length+' still to arrive</span>':'')
     :'<b style="color:#e3a23c">Not mirroring yet</b> · ProOS Connect’s library isn’t on for every box yet, so this box shows what it already had';
   const miss=((d.audit||{}).missing)||[];
-  let h='<div class="wiz-hint">Tiles, channel logos and apps are made on ProOS Connect (App Tiles) and reach every box within 10 minutes. Nothing is added on a box.</div>'
+  let h=''
     +'<div class="field" style="border:0.5px solid var(--line);border-radius:12px;padding:14px;margin-top:12px"><div class="wiz-hint" style="margin:0">'+head+'</div>'
     +(miss.length?'<div class="wiz-hint" style="margin-top:8px">'+miss.length+' app'+(miss.length===1?'':'s')+' here still show'+(miss.length===1?'s':'')+' a wordmark — ProOS Connect has been told: '+miss.map(m=>esc(m.name||m.slug)).join(', ')+'</div>':'')
     +'</div>';
@@ -16257,7 +16257,7 @@ async function _brandSearchNow(pfx){
     out.innerHTML='<div class="wiz-hint">Couldn\'t reach the brand directory. Type the name and domain by hand below.</div>';
     return;
   }
-  if(!list.length){ out.innerHTML='<div class="wiz-hint">Nothing matched — type the name and domain by hand below.</div>'; return; }
+  if(!list.length){ out.innerHTML='<div class="wiz-hint">Nothing matched</div>'; return; }
   out.innerHTML='<div style="display:flex;flex-direction:column;gap:4px;max-height:210px;overflow:auto">'
     +list.slice(0,8).map(b=>{
       const nm=esc(b.name||b.domain||''), dom=esc(b.domain||'');
@@ -16359,7 +16359,7 @@ async function techBoxNameLoad(){
     +'<div style="font-size:13px;margin-top:6px;color:var(--t2)">On the network as <b style="color:var(--t1)">'+esc(cur||'—')+'</b>'+(sug&&sug!==cur?' · this box\u2019s own name is '+esc(sug):'')+'</div>'
     +'<div style="display:flex;gap:8px;margin-top:10px"><input id="tb-name" type="text" value="'+esc(offer)+'" autocomplete="off" autocapitalize="off" style="flex:1"/>'
     +'<button class="btn-ghost" onclick="techBoxNameSave()">Rename</button></div>'
-    +'<div class="es" style="margin-top:6px">Letters, numbers and hyphens. Anything that reaches the box by its name (a bookmark, the file share) will need the new one.</div>');
+    +'<div class="es" style="margin-top:6px">Bookmarks and the file share will need the new name.</div>');
 }
 async function techBoxNameSave(){
   const el=document.getElementById('tb-name'); const name=((el&&el.value)||'').trim().toLowerCase(); if(!name) return;
@@ -16439,7 +16439,7 @@ async function techViewLog(view){
   // `_techLogErrors` emptied the very pane the shell had just protected.
   inner._techFresh=_rebuilt;
   if(_techLogSrc==='errors') return _techLogErrors(inner);
-  if(_techLogSrc==='addon' && !_techLogSlug){ setHTML(inner,'<div class="empty"><div class="et">Pick an add-on</div><div class="es">Choose an add-on above to read its live log.</div></div>'); return; }
+  if(_techLogSrc==='addon' && !_techLogSlug){ setHTML(inner,'<div class="empty"><div class="et">Pick an add-on</div></div>'); return; }
   const path=(_techLogSrc==='addon')?('/logs/addon/'+encodeURIComponent(_techLogSlug)):('/logs/'+_techLogSrc);
   let ctl='';
   if(_techLogSrc==='addon' && _techLogSlug){ ctl='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">'+[['restart','Restart'],['rebuild','Rebuild'],['stop','Stop'],['start','Start']].map(a=>'<button class="btn-ghost" onclick="techAddonAction(\''+esc(_techLogSlug)+'\',\''+a[0]+'\')">'+a[1]+'</button>').join('')+'</div>'; }
@@ -16509,7 +16509,7 @@ async function techViewIntegrations(view){  if(view._techFresh) setHTML(view,'<d
     const list=(entries||[]).filter(e=>!_isIgnoredEntry(e) && _catTiers && _catTiers[e.domain] && _catTiers[e.domain].tier==='certified')
       .sort((a,b)=>String(a.title||a.domain).localeCompare(String(b.title||b.domain)));
     const logBtn='<button class="btn-ghost" style="width:100%;margin-bottom:14px" onclick="techWatcherAudit()">View Recovery &amp; Fault Log</button><div id="tech-wlog"></div>';
-    const intro='<div class="wiz-hint" style="margin-bottom:12px">Certified integrations self-monitor and auto-recover. Below you can prove the recovery path on demand or reload one manually. Everything else is watched automatically — see the fault log for history.</div>';
+    const intro='';
     if(!list.length){ setHTML(view,intro+logBtn+'<div class="empty"><div class="et">No certified integrations set up</div></div>'); return; }
     setHTML(view,intro+logBtn+list.map(e=>{
       const loaded=e.state==='loaded';
@@ -16675,12 +16675,12 @@ async function techExec(){
 function techViewActions(view){
   setHTML(view,''
     +'<div class="cred-card"><div class="cred-top"><span class="cred-name">Check Configuration</span></div><div class="cred-meta">Validates the home\'s configuration before a restart.<span id="cfg-check-res"></span></div><div class="cred-actions"><button class="btn-ghost" onclick="techCheckConfig()">Check Config</button></div></div>'
-    +'<div class="cred-card"><div class="cred-top"><span class="cred-name">Update ProOS Core</span></div><div class="cred-meta">Checks the ProOS store and updates Core in place.<span id="coreupd-res"></span></div><div class="cred-actions"><button class="btn-ghost" onclick="coreUpdCheck()">Check for Update</button><button class="btn-ghost" id="coreupd-go" style="display:none" onclick="coreUpdGo()">Update Core</button></div></div>'
-    +'<div class="cred-card"><div class="cred-top"><span class="cred-name">Sync Integration Catalog</span></div><div class="cred-meta">Pulls the latest Protech master catalog (certified / native / hidden tiers).<span id="catsync-res"></span></div><div class="cred-actions"><button class="btn-ghost" onclick="catalogSyncNow()">Sync Now</button></div></div>'
-    +'<div class="cred-card"><div class="cred-top"><span class="cred-name">Reload Config</span></div><div class="cred-meta">Re-reads core configuration without a restart.</div><div class="cred-actions"><button class="btn-ghost" onclick="techReloadConfig()">Reload</button></div></div>'
-    +'<div class="cred-card"><div class="cred-top"><span class="cred-name">Restart ProOS Core</span></div><div class="cred-meta">Restarts the Core add-on. Rooms and settings are untouched.</div><div class="cred-actions"><button class="btn-ghost" onclick="techRestartCore()">Restart Core</button></div></div>'
+    +'<div class="cred-card"><div class="cred-top"><span class="cred-name">Update ProOS Core</span></div><div class="cred-meta"><span id="coreupd-res"></span></div><div class="cred-actions"><button class="btn-ghost" onclick="coreUpdCheck()">Check for Update</button><button class="btn-ghost" id="coreupd-go" style="display:none" onclick="coreUpdGo()">Update Core</button></div></div>'
+    +'<div class="cred-card"><div class="cred-top"><span class="cred-name">Sync Integration Catalog</span></div><div class="cred-meta"><span id="catsync-res"></span></div><div class="cred-actions"><button class="btn-ghost" onclick="catalogSyncNow()">Sync Now</button></div></div>'
+    +'<div class="cred-card"><div class="cred-top"><span class="cred-name">Reload Config</span></div><div class="cred-meta">No restart.</div><div class="cred-actions"><button class="btn-ghost" onclick="techReloadConfig()">Reload</button></div></div>'
+    +'<div class="cred-card"><div class="cred-top"><span class="cred-name">Restart ProOS Core</span></div><div class="cred-meta">Rooms and settings stay.</div><div class="cred-actions"><button class="btn-ghost" onclick="techRestartCore()">Restart Core</button></div></div>'
     +'<div class="cred-card"><div class="cred-top"><span class="cred-name">Restart the Home Engine</span></div><div class="cred-meta">Full restart (~1 min offline).</div><div class="cred-actions"><button class="btn-ghost cred-revoke" onclick="techRestartHA()">Restart</button></div></div>'
-    +'<div class="cred-card"><div class="cred-top"><span class="cred-name">Reboot the Machine</span></div><div class="cred-meta">Power-cycles the whole box (~2–3 min offline).</div><div class="cred-actions"><button class="btn-ghost cred-revoke" onclick="rebootHost()">Reboot</button></div></div>');
+    +'<div class="cred-card"><div class="cred-top"><span class="cred-name">Reboot the Machine</span></div><div class="cred-meta">~2–3 min offline.</div><div class="cred-actions"><button class="btn-ghost cred-revoke" onclick="rebootHost()">Reboot</button></div></div>');
 }
 async function techReloadConfig(){ try{ await snd({type:'call_service',domain:'homeassistant',service:'reload_core_config'}); toast('Config reloaded'); }catch(e){ toast('Reload failed'); } }
 async function techCheckConfig(){
@@ -16718,7 +16718,7 @@ function coreUpdGo(){
   // The confirm closes IMMEDIATELY and the card narrates (Dave, 3 Aug:
   // the dialog sat on "Working\u2026" for the whole rebuild, hiding every
   // progress line behind it). The runner is fired, never awaited here.
-  dangerConfirm('Update ProOS Core','<div class="reset-wiped">Core rebuilds and restarts itself \u2014 allow a few minutes. Rooms and settings are untouched. Progress shows on the Update card and this page confirms when the new version is running.</div>','',()=>{ _coreUpdRun(); });
+  dangerConfirm('Update ProOS Core','<div class="reset-wiped">Core restarts — a few minutes. Rooms and settings stay.</div>','',()=>{ _coreUpdRun(); });
 }
 async function _coreUpdRun(){
   {
@@ -16816,8 +16816,8 @@ async function catalogSyncNow(){
     toast(stale?'Catalog unchanged (master unreachable)':'Catalog v'+String(d.version||'?')+' synced');
   }catch(e){ if(res) res.textContent=" \u00b7 couldn't reach ProOS Core"; }
 }
-function techRestartHA(){ dangerConfirm('Restart the home engine','<div class="reset-wiped">The home will be offline for about a minute, then comes back on its own. Nothing is wiped.</div>','',async()=>{ try{ await snd({type:'call_service',domain:'homeassistant',service:'restart'}); toast('Restarting…'); setStatus('off','Restarting…'); }catch(e){ toast('Restart failed'); } }); }
-function techRestartCore(){ dangerConfirm('Restart ProOS Core','<div class="reset-wiped">Restarts the Core add-on. Rooms and settings are untouched.</div>','',async()=>{ try{ await snd({type:'call_service',domain:'hassio',service:'addon_restart',service_data:{addon:'b333b432_proos_core'}}); toast('Restarting Core…'); }catch(e){ toast('Restart failed'); } }); }
+function techRestartHA(){ dangerConfirm('Restart the home engine','<div class="reset-wiped">Offline for about a minute. Nothing is wiped.</div>','',async()=>{ try{ await snd({type:'call_service',domain:'homeassistant',service:'restart'}); toast('Restarting…'); setStatus('off','Restarting…'); }catch(e){ toast('Restart failed'); } }); }
+function techRestartCore(){ dangerConfirm('Restart ProOS Core','<div class="reset-wiped">Rooms and settings stay.</div>','',async()=>{ try{ await snd({type:'call_service',domain:'hassio',service:'addon_restart',service_data:{addon:'b333b432_proos_core'}}); toast('Restarting Core…'); }catch(e){ toast('Restart failed'); } }); }
 async function techClearLog(){ if(!(_me.tech||_me.developer)) return; try{ await snd({type:'system_log/clear'}); toast('Log cleared'); renderTech(); }catch(e){ toast('Could not clear'); } }
 
 // ── Developer tools (tech tier): full HA Developer-Tools parity ───────────────
@@ -16838,7 +16838,7 @@ function techViewDev(view){
 }
 // Template (Jinja) — HA /api/template renders against live state.
 function _devRenderTemplate(host){
-  host.innerHTML='<div class="wiz-hint">Render a Jinja template against live state.</div>'
+  host.innerHTML=''
     +'<textarea id="dev-tmpl" class="script-box" spellcheck="false" style="min-height:120px" placeholder="{{ states(\'sensor.example\') }}">{{ now() }}</textarea>'
     +'<button class="btn-primary" style="margin-top:10px" onclick="devRenderTemplate()">Render</button>'
     +'<div class="field-label" style="margin-top:14px">Result</div>'
@@ -16877,7 +16877,7 @@ async function devCallService(){
 // Events — fire via REST, listen via a dedicated ws subscription.
 function _devRenderEvent(host){
   const listening=!!_devEvtWs;
-  host.innerHTML='<div class="wiz-hint">Fire an event, or listen to the live event bus.</div>'
+  host.innerHTML=''
     +'<div class="field"><div class="field-label">Fire Event — Type</div><input id="dev-evt-type" type="text" placeholder="e.g. my_custom_event" autocapitalize="off" autocorrect="off" spellcheck="false"/></div>'
     +'<div class="field"><div class="field-label">Event Data (JSON, Optional)</div><textarea id="dev-evt-data" class="script-box" spellcheck="false" style="min-height:60px" placeholder=\'{"key":"value"}\'></textarea></div>'
     +'<button class="btn-primary" onclick="devFireEvent()">Fire Event</button>'
@@ -17228,7 +17228,7 @@ async function renderUnifiSuite(quick){
     +'</div>';
   // Console Settings: the connection itself. Shown until ProOS is signed in and holds its key; folded after that.
   h+=`<div id="uni-settings"${(ready||quick)&&!_uniSettingsOpen?' hidden':''}><div class="bld-sec-h">${ready?'Console Settings':'Connect the Console'}</div>`;
-  h+='<div class="wiz-hint">One connection for every UniFi app on the console. ProOS signs in with its own local user and creates its own API key from it — the same way the Control4 UniFi drivers work. Where the platform already does something, ProOS uses it; ProOS adds the rest.</div>';
+  h+='';
   h+=`<div class="cred-card"><div class="cred-top">${dot(quick?null:signed)}<span class="cred-name">Console</span><span class="cert-pill" style="margin-left:auto">CERTIFIED</span></div><div class="unifi-status">`
     +`<div class="unifi-row"><span class="unifi-row-l">Address</span><span class="unifi-row-d">${st.host?esc(st.host)+(st.host_from?' · from '+esc(st.host_from):''):'not known yet'}</span></div>`
     +`<div class="unifi-row"><span class="unifi-row-l">Local User</span><span class="unifi-row-d">${esc(cs)}${st.why&&!signed?' — '+esc(st.why):''}</span></div>`
@@ -17247,7 +17247,7 @@ async function renderUnifiSuite(quick){
   h+=step(1,'Local User',signed?'ok':'',signed?'Signed In':(st.user_set?'Check':'Needed'),s1);
   // Step 2 — ProOS's own API key, created from the sign-in
   const s2=keySet?`<div class="wiz-hint">ProOS's key opens Ubiquiti's official Network and Protect interfaces.</div><button class="btn-primary" onclick="unifiSuiteKey()">Create a New Key</button>`
-    :(signed?`<div class="wiz-hint">ProOS creates its own API key on the console from the local user — nothing to copy.</div><button class="btn-primary" onclick="unifiSuiteKey()">Create ProOS API Key</button>`:'<div class="mstep-locked">Sign in first.</div>');
+    :(signed?`<button class="btn-primary" onclick="unifiSuiteKey()">Create ProOS API Key</button>`:'<div class="mstep-locked">Sign in first.</div>');
   h+=step(2,'API Key',keySet?'ok':'',keySet?'Created':'Needed',s2);
   // Step 3 — the Access token (Access has its own)
   const s3=`<div class="wiz-hint">UniFi Access uses its own token: in the Access app, <b>Settings → General → API Token</b>. Paste it here.</div><div class="field"><div class="field-label">Access API Token</div><input id="us-acc" type="password" autocomplete="off" placeholder="${accSet?'Saved — paste again to change':''}"/></div><button class="btn-primary" onclick="unifiSuiteAccess()">${accSet?'Replace Token':'Save Token'}</button>`;
@@ -17432,7 +17432,7 @@ function renderUniAlarm(){
   body+=`<div class="upg-sec">Alarm Manager Triggers</div>`
     +(T.length?`<div class="ual-grid">${T.map(t=>`<div class="ual-trig"><button class="ual-big" onclick="uniAlarmFire('${esc(t.id)}','${esc(t.name)}')">${esc(t.name)}</button>${_uniTrigEdit?`<button class="ual-x" title="Remove" onclick="uniTrigSave('${esc(t.id)}')">✕</button>`:''}</div>`).join('')}</div>`:'<div class="upg-note">No triggers yet.</div>');
   if(_uniTrigEdit){
-    body+=`<div class="upg-note">In UniFi: Alarm Manager → Create Alarm → Trigger: Webhook (custom). Give it its actions, then copy its ID here.</div><div class="field"><div class="field-label">Name</div><input id="ut-name" placeholder="e.g. Panic — Sirens On"/></div><div class="field"><div class="field-label">Trigger ID</div><input id="ut-id" autocomplete="off"/></div>`;
+    body+=`<div class="upg-note">UniFi: Alarm Manager → Create Alarm → Trigger: Webhook. Copy its ID.</div><div class="field"><div class="field-label">Name</div><input id="ut-name" placeholder="e.g. Panic — Sirens On"/></div><div class="field"><div class="field-label">Trigger ID</div><input id="ut-id" autocomplete="off"/></div>`;
     acts=[`<button class="btn-primary" onclick="uniTrigSave()">Save Trigger</button>`,`<button class="wide" onclick="uniTrigEdit(false)">Done</button>`];
   } else acts.push(`<button class="wide" onclick="uniTrigEdit(true)">Add or Remove Triggers</button>`);
   const arming=`<div class="upg-dbody" data-fit-trim><div class="upg-over">${over}</div><div class="upg-title ual-state">${title}</div><div class="upg-note" style="margin-top:0">${words}</div>${body}</div>`
@@ -17533,7 +17533,7 @@ function renderUniDets(){
   const tiles=L.map(x=>`<div class="ucam">${x.picture?`<img data-det="${esc(x.id)}" alt="" ${_uniDetImg[x.id]?`src="${_uniDetImg[x.id]}"`:''}>`:''}`
     +`<span class="udet-k">${esc(x.kinds.join(' · '))}</span><span class="ucam-n">${esc(x.device)}<span class="udet-t">${hm(x.start)}${x.seconds!=null?' · '+x.seconds+' s':''}</span></span></div>`).join('');
   setHTML(el,`<div class="unp-chips">${chips}</div>`
-    +(d.read_limit_hit?'<div class="es" style="margin-bottom:8px">Showing the newest the console handed over — there were more in the last 24 hours.</div>':'')
+    +(d.read_limit_hit?'':'')
     +(L.length?`<div class="uni-dets">${tiles}</div>`:'<div class="empty"><div class="et">Nothing in the last 24 hours</div></div>'));
 }
 // ── REGISTER 1233 — PROTECT → CAMERAS: each camera with the PLATFORM's own UniFi Protect controls (Core joins them by the
@@ -17758,7 +17758,7 @@ function _uniStripHTML(){
   const hm=t=>{ const n=Number(t); return n>0?new Date(n).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}):''; };
   const head=`<div class="upg-strip-h"><b>Detections — Last 24 Hours</b>${kinds.map(k=>`<button class="unp-chip${_uniStripKind===k?' on':''}" onclick="uniStripKind('${esc(k)}')">${esc(k)} ${all.filter(x=>x.kinds.includes(k)).length}</button>`).join('')}<a onclick="uniProtectSection('detections')">All Detections ›</a></div>`;
   if(!_uniDet.ok) return head+`<div class="upg-note">Couldn't read the detections — ${esc(_uniDet.why||'')}.</div>`;
-  if(!L.length) return head+'<div class="upg-note">No people, vehicles or animals seen in the last 24 hours.</div>';
+  if(!L.length) return head+'<div class="upg-note">No people, vehicles or animals seen in the last 24 hours</div>';
   return head+`<div class="upg-thumbs" data-fit-x=".upg-thumb">${L.map(x=>{ const img=_uniDetImg[x.id], what=x.kinds.filter(k=>UNI_SEEN.includes(k)).join(' · ');
     return `<button class="upg-thumb" onclick="uniProtectSection('recordings');uniPlayClip('${esc(x.id)}','${esc((what+' — '+x.device).replace(/'/g,''))}')"><i><img data-det="${esc(x.id)}" alt="" ${img?`src="${img}"`:''}></i><b>${esc(what)}</b><span>${esc(x.device||'')} · ${hm(x.start)}</span></button>`; }).join('')}</div>`;
 }
@@ -17792,7 +17792,7 @@ async function renderUnifi(){
   // REGISTER 1256 — ONE SPOT (Dave 8 Nov). The console's address, ProOS's local user and its API key are the UniFi
   // card's alone; the platform's Protect connection is set up (and set up again) from there. Nothing to type here.
   let s1=`<div class="row"><div class="rl">Console</div><div class="rr">${esc(String(priv.host||'—'))}</div></div>`
-    +`<div class="field-hint" style="margin:8px 0 12px">Signed in from the UniFi card — the address, local user and API key are set there.</div>`
+    +``
     +`<button class="btn-primary" onclick="openUnifiSuite()">Open the UniFi Card</button>`;
   html+=step(1,'The console', connected?'ok':'', connected?'Connected':(priv.entry?'Set up — not answering':'Not set up'), s1);
 
@@ -17850,7 +17850,7 @@ async function renderUnifi(){
               +`</div>`;
           }).join('')+'</div>';
       }
-      s2+=`<div class="field" style="margin-top:14px"><div class="field-label">Doorbell Camera</div><select id="uc-doorbell" class="uc-select"><option value="">None</option>`+cams.map(c=>`<option value="${esc(c.id)}" ${c.doorbell?'selected':''}>${esc(c.name||'Camera')}</option>`).join('')+`</select><div class="field-hint">Drives the doorbell widget &amp; package-cam preview. Set to None to clear.</div></div>`;
+      s2+=`<div class="field" style="margin-top:14px"><div class="field-label">Doorbell Camera</div><select id="uc-doorbell" class="uc-select"><option value="">None</option>`+cams.map(c=>`<option value="${esc(c.id)}" ${c.doorbell?'selected':''}>${esc(c.name||'Camera')}</option>`).join('')+`</select></div>`;
       s2+='<button class="btn-primary" style="margin-top:12px" onclick="unifiSaveCuration()">Save Cameras</button>';
     }
   }
@@ -17862,10 +17862,10 @@ async function renderUnifi(){
   // the integration is broken or disconnected, which is exactly when a reset is needed.
   const _hasProtectEntry=(typeof _cfgEntries!=='undefined'?_cfgEntries:[]).some(e=>e.domain==='unifiprotect');
   if(connected){
-    html+='<div class="wiz-hint" id="unifi-verify" style="border-left:2px solid rgba(76,175,130,0.5);padding-left:12px">UniFi Protect is live and certified — cameras, live view, events and clips all run through ProOS Core. Remove it any time; nothing else about the home changes.</div>';
+    html+='';
   }
   if(connected || configured || _hasProtectEntry){
-    if(!connected) html+='<div class="wiz-hint" style="border-left:2px solid rgba(225,112,85,.4);padding-left:12px">Not connecting? Remove it here and re-add fresh — right from this page.</div>';
+    if(!connected) html+='';
     html+='<div style="margin-top:14px"><button onclick="unifiRemove()" style="width:100%;padding:12px;border-radius:12px;background:transparent;border:1px solid rgba(225,112,85,.5);color:#e17055;font-size:14px;font-weight:500;cursor:pointer">Remove UniFi Protect</button></div>';
   }
   body.innerHTML=html; body.dataset.rendered='1';
@@ -17961,7 +17961,7 @@ async function usrHomeAwayLoad(){
   }).join('');
   const rad=(d.home&&d.home.radius)||'';
   setHTML(host,'<div class="bld-sec" style="margin-top:22px"><div class="bld-sec-h">Home and Away</div>'
-    +'<div class="wiz-hint">Each person\u2019s Primary Device decides whether they\u2019re home. A Mac or a wall panel never counts unless it is chosen here.</div>'
+    +''
     +(rows||'<div class="wiz-hint">No one has signed in on a phone yet.</div>')
     +'<div class="row" style="margin-top:10px"><div class="rl">Home Radius<div class="field-hint" style="margin-top:2px">How far from the home\u2019s location counts as home'+((d.home&&d.home.set)?'':' \u2014 the home\u2019s location isn\u2019t set yet')+'.</div></div>'
     +'<div class="rr"><input id="usr-radius" type="number" min="50" max="2000" step="10" value="'+esc(String(rad))+'" style="width:84px"> m '
@@ -18126,7 +18126,7 @@ async function usrMemory(userId){
   let h=list('Told it',d.facts||[])+list('It has noticed',d.learned||[])+list('Said no to',d.declines||[]);
   if(d.recent&&d.recent.length) h+=`<div class="bld-sec-h" style="margin-top:10px">Recent conversations<span class="dg-ct">${d.turns||d.recent.length}</span></div>`
     +d.recent.map(t=>`<div class="row"><div class="erow-l"><div class="rl">${esc(t.you)}</div><div class="rsub">${esc((t.when||'')+(t.where?' \u00b7 '+t.where:''))}</div></div></div>`).join('');
-  box.innerHTML=h?`<div style="padding:4px 2px 8px">${h}<div class="wiz-hint" style="margin-top:8px">Read only \u2014 they forget things from their own app.</div></div>`
+  box.innerHTML=h?`<div style="padding:4px 2px 8px">${h}</div>`
                  :'<div class="wiz-hint" style="padding:8px 2px">Nothing remembered yet.</div>';
 }
 function usrPicMenu(userId){
@@ -18171,7 +18171,7 @@ function usrAddToggle(){ const box=document.getElementById('usr-add'); if(!box) 
 function _usrAddForm(){
   const box=document.getElementById('usr-add'); if(!box) return;
   box.innerHTML=`<div class="cred-card" style="margin-top:10px">`
-    +`<div class="wiz-hint">One login per person. Pro Assist remembers each person separately \u2014 what they have said, what it has noticed, their conversations \u2014 so a shared \u201cFamily\u201d login would blend the household into one memory.</div>`
+    +``
     +`<div class="field"><div class="field-label">Name</div><input id="usr-name" type="text" placeholder="e.g. Sam" autocapitalize="words"/></div>`
     +`<div class="field"><div class="field-label">Role</div><select id="usr-role" class="fsel"><option value="homeowner">Homeowner — Dashboard access</option><option value="pro">Installer — full ProOS access</option>`+((_me.tech||_me.developer)?`<option value="tech">Tech — installer + elevated tools</option>`:'')+`</select></div>`
     +`<div class="field"><div class="field-label">Password</div><input id="usr-pw" type="text" placeholder="Leave blank to auto-generate"/><div class="field-hint">Shown once, right after you add them.</div></div>`
@@ -18376,13 +18376,13 @@ function renderServiceOrder(){
 }
 function _paintServiceOrder(source){
   const host=document.getElementById('sec-generic'); if(!host) return;
-  if(!_svcOrder.length){ host.innerHTML='<div class="empty"><div class="et">No Services Found</div><div class="es">None of this home’s speakers reported a music service. Add one on the speaker, then come back.</div></div>'; return; }
+  if(!_svcOrder.length){ host.innerHTML='<div class="empty"><div class="et">No Services Found</div><div class="es">None of this home’s speakers reported a music service</div></div>'; return; }
   host.innerHTML=_svcOrder.map((n,i)=>'<div class="row"><div class="rl">'+(i+1)+'. '+esc(n)+'</div><div class="rr" style="display:flex;gap:8px">'
       +'<button class="mlink" '+(i?'':'disabled ')+'onclick="moveServiceOrder('+i+',-1)">Up</button>'
       +'<button class="mlink" '+(i<_svcOrder.length-1?'':'disabled ')+'onclick="moveServiceOrder('+i+',1)">Down</button></div></div>').join('')
     +'<div style="display:flex;gap:10px;margin-top:14px"><button class="btn-primary" onclick="saveServiceOrder(false)">Save Order</button>'
     +'<button class="btn-ghost" onclick="saveServiceOrder(true)">Clear</button></div>'
-    +(source==='option'?'<div class="es" style="margin-top:8px;color:var(--t3)">This order came from the add-on’s options. Saving here replaces it.</div>':'');
+    +(source==='option'?'':'');
 }
 function moveServiceOrder(i,d){ const j=i+d; if(j<0||j>=_svcOrder.length) return; const t=_svcOrder[i]; _svcOrder[i]=_svcOrder[j]; _svcOrder[j]=t; _paintServiceOrder(); }
 async function saveServiceOrder(clear){
@@ -18494,7 +18494,7 @@ function renderAboutSection(){
       +row('Connected',(st&&st.connected)?'Yes':'No')
       +row('Server',(st&&st.host)||'—')
       +row('Admin rights',adminWords)
-      +'<div class="wiz-hint" style="margin-top:12px">ProOS Music is a certified ProOS integration. Residents never see the engine — only the Music page.</div>';
+      +'';
   });
 }
 // Genres: the list residents browse, plus the mapping scan that fills it.
@@ -18521,7 +18521,7 @@ function renderGenreSection(){
     // it (Dave, 10 Aug: switched every genre off, pressed this, expected his
     // choice to change). This rebuilds the MUSIC ENGINE'S own list of genres.
     h+='<div class="row"><div class="rl">Rebuild the genre list'
-      +'<div class="es" style="font-size:11px;color:var(--t3);font-weight:300;margin-top:3px">Puts the music engine’s own genres and names back. Does not change which ones you show below.</div></div>'
+      +'</div>'
       +'<div class="rr"><button class="mlink" style="color:var(--t3)" onclick="genreRestoreDefaults()">Rebuild</button></div></div>';
     const picked=_genrePicks;   // null = never curated → residents see them all
     const on=n=>!picked || picked.map(x=>String(x).toLowerCase()).indexOf(String(n).toLowerCase())>=0;
@@ -18661,7 +18661,7 @@ async function loadMusicStatus(){
     +'<div class="rr">'+dot(d)+'</div></div>';
   if(!m.installed){
     setHTML(st, card('ProOS Music','Not installed','var(--t3)')
-      +'<div class="wiz-hint" style="margin-top:10px">Install the ProOS Music add-on on this home, then come back here to add it.</div>');
+      +'');
   } else if(!m.running){
     setHTML(st, card('ProOS Music','Installed · not running','#f5a623'));
     form.style.display='block';
@@ -18745,7 +18745,7 @@ async function addMusicAssistant(){
 
 function removeMusicAssistant(){
   dangerConfirm('Remove ProOS Music',
-    '<div class="reset-wiped">Fully reverses ProOS Music on this home: removes the integration and every player it added, stops the server, and clears the room-speaker selection. The dashboard returns to exactly your native Sonos &amp; HEOS setup. You can re-add it anytime.</div>',
+    '<div class="reset-wiped">Removes ProOS Music and every player it added.</div>',
     '',
     async()=>{
       // 1) Delete the HA integration entry/entries — removes every MA media_player entity.
@@ -18810,12 +18810,12 @@ function renderMusicServices(){
   // renaming a playlist and ProOS "hasn't noticed" — it asks the engine to
   // re-read every service. Installer-gated in Core; reports the engine's own
   // refusal rather than a shrug.
-  let html='<div class="wiz-hint" style="margin-bottom:12px">Streaming &amp; library sources for this home — Spotify, Apple Music, Tidal, local files and more. The resident can also add these from the dashboard’s Music page.</div>'
+  let html=''
     +'<div class="row"><div class="rl">Re-read the library'
     +'<div class="es" style="font-size:11px;color:var(--t3);font-weight:300;margin-top:3px">Use after adding a service, or when something new is missing from the resident’s Music page</div></div>'
     +'<div class="rr"><button class="mlink" onclick="musicLibrarySync()">Rescan</button></div></div>';
   if(!configured.length){
-    html+='<div class="empty"><div class="et">No services yet</div><div class="es">Tap + Add above to connect Spotify, Apple Music, Tidal and others.</div></div>';
+    html+='<div class="empty"><div class="et">No services yet</div></div>';
   } else {
     html+=configured.map(p=>{ const on=p.enabled!==false; const err=p.last_error; const f=_provFault(p);
       // A service whose STREAMING half is refused says so HERE, where the
@@ -19315,7 +19315,7 @@ async function loadHelpers(){
 }
 function renderHelpers(){
   const body=document.getElementById('helpers-body'); if(!body) return;
-  let html='<div class="wiz-hint">Helpers are small building blocks — toggles, numbers, dropdowns, timers, and computed values — you can use in activities, automations and on the dashboard.</div>';
+  let html='';
   html+='<button class="btn-primary" style="margin-bottom:14px" onclick="helperPick()">+ Add Helper</button>';
   html+='<input id="helper-search" class="hsearch" type="text" placeholder="Search helpers…" autocapitalize="none" autocomplete="off" spellcheck="false" value="'+esc(_helperQ)+'" oninput="_helperQ=this.value; renderHelpersList()"/>';
   html+='<div id="helpers-list"></div>';
@@ -19470,8 +19470,8 @@ async function deleteFlowHelper(){
   try{ await haRest('DELETE','/api/config/config_entries/entry/'+entryId,undefined,30000); toast('Deleted'); closeHelperSheet(); await loadSite(); await loadHelpers(); }
   catch(e){ toast("Couldn't delete"); manageFlowHelper(entryId); }
 }
-function restartHA(){ dangerConfirm('Restart ProOS','<div class="reset-wiped">Reloads configuration and all integrations. The home goes briefly offline (~30–60s), then comes back on its own. Nothing is wiped.</div>','',async()=>{ try{ await snd({type:'call_service',domain:'homeassistant',service:'restart'}); }catch(e){} toast('Restarting ProOS…'); setStatus('off','Restarting…'); }); }
-function rebootHost(){ dangerConfirm('Reboot the Machine','<div class="reset-wiped">Power-cycles the whole machine running this home (~2–3 min offline). Use only if ProOS is unresponsive. Nothing is wiped.</div>','',async()=>{ try{ await snd({type:'call_service',domain:'hassio',service:'host_reboot'}); }catch(e){} toast('Rebooting the machine…'); setStatus('off','Rebooting…'); }); }
+function restartHA(){ dangerConfirm('Restart ProOS','<div class="reset-wiped">Offline for about a minute. Nothing is wiped.</div>','',async()=>{ try{ await snd({type:'call_service',domain:'homeassistant',service:'restart'}); }catch(e){} toast('Restarting ProOS…'); setStatus('off','Restarting…'); }); }
+function rebootHost(){ dangerConfirm('Reboot the Machine','<div class="reset-wiped">~2–3 min offline. Nothing is wiped.</div>','',async()=>{ try{ await snd({type:'call_service',domain:'hassio',service:'host_reboot'}); }catch(e){} toast('Rebooting the machine…'); setStatus('off','Rebooting…'); }); }
 async function loadBackups(){
   const host=document.getElementById('backups-list'); if(!host) return;
   host.innerHTML='<div class="empty"><div class="et">Loading…</div></div>';
@@ -19875,7 +19875,7 @@ function entrySysOpts(){ const e=ENT;
   if(e.__enablePoll===undefined) e.__enablePoll=!e.pref_disable_polling;
   document.getElementById('item-title').textContent='System options';
   const tog=(k,label,val)=>'<div class="field"><div class="field-label">'+esc(label)+'</div><div class="seg"><button class="'+(val?'on':'')+'" onclick="ENT.'+k+'=true;entrySysOpts()">On</button><button class="'+(!val?'on':'')+'" onclick="ENT.'+k+'=false;entrySysOpts()">Off</button></div></div>';
-  document.getElementById('item-body').innerHTML=tog('__enableNew','Enable newly added entities',e.__enableNew)+tog('__enablePoll','Enable polling for updates',e.__enablePoll)+'<div class="wiz-hint">Turn polling off only for integrations that push their own updates.</div>';
+  document.getElementById('item-body').innerHTML=tog('__enableNew','Enable newly added entities',e.__enableNew)+tog('__enablePoll','Enable polling for updates',e.__enablePoll)+'';
   document.getElementById('item-actions').innerHTML='<button class="btn-primary" onclick="entrySysOptsSave()">Save</button><button class="rp-cancel" onclick="openEntryManage(ENT.entry_id)">Back</button>';
 }
 async function entrySysOptsSave(){ const e=ENT; document.getElementById('item-actions').innerHTML='<div class="wiz-hint">Saving…</div>';
@@ -19888,7 +19888,7 @@ function entryConfigure(){ const e=ENT; const id=e.entry_id, dom=e.domain, title
     .then(s=>{ _flow.flowId=s.flow_id; renderFlowStep(s); })
     .catch(err=>flowMessage("This integration has no options to configure."));
 }
-function entryDelete(){ if(!ENT) return; document.getElementById('item-actions').innerHTML='<div class="wiz-hint">Remove this integration and its devices? It returns under Discovered if still on the network.</div><button class="btn-danger" onclick="entryDeleteDo()">Remove</button><button class="rp-cancel" onclick="openEntryManage(ENT.entry_id)">Keep</button>'; }
+function entryDelete(){ if(!ENT) return; document.getElementById('item-actions').innerHTML='<div class="wiz-hint">Remove this integration and its devices?</div><button class="btn-danger" onclick="entryDeleteDo()">Remove</button><button class="rp-cancel" onclick="openEntryManage(ENT.entry_id)">Keep</button>'; }
 async function entryDeleteDo(){ const id=ENT.entry_id; document.getElementById('item-actions').innerHTML='<div class="wiz-hint">Removing…</div>';
   try{ await haRest('DELETE','/api/config/config_entries/entry/'+id,undefined,30000); toast('Removed'); closeEntrySheet(); await loadSite(); await loadConfigEntries(); rerenderConfig(); }
   catch(e){ toast("Couldn't remove"); openEntryManage(id); } }
@@ -19960,7 +19960,7 @@ function labelUsage(labelId){ let n=0;
 }
 function renderLabelsPanel(){
   const body=document.getElementById('labels-body'); if(!body) return;
-  let h='<div class="wiz-hint">Labels tag entities, devices and rooms so you can group and filter them. Categories sort automations, activities and scenes into folders.</div>';
+  let h='';
   h+='<div class="bld-sec"><div class="bld-sec-h">Labels</div>';
   h+='<button class="btn-primary" style="margin-bottom:14px" onclick="labelNew()">+ New Label</button>';
   const _all=(_labels||[]).filter(l=>l.label_id!==SCENE_LABEL&&l.label_id!==SYSTEM_LABEL).slice().sort((a,b)=>(a.name||'').localeCompare(b.name||''));
@@ -20051,7 +20051,7 @@ async function catSave(){ if(!CT) return; const name=(CT.form.name||'').trim(); 
   }catch(e){ toast("Couldn't save"); renderCatForm(); }
 }
 function catDelete(){ if(!CT||!CT.id) return;
-  document.getElementById('item-actions').innerHTML='<div class="wiz-hint">Delete this category? Items in it become uncategorised.</div><button class="btn-danger" onclick="catDeleteDo()">Delete</button><button class="rp-cancel" onclick="renderCatForm()">Keep</button>';
+  document.getElementById('item-actions').innerHTML='<div class="wiz-hint">Delete this category?</div><button class="btn-danger" onclick="catDeleteDo()">Delete</button><button class="rp-cancel" onclick="renderCatForm()">Keep</button>';
 }
 async function catDeleteDo(){ if(!CT||!CT.id) return; const scope=CT.scope; document.getElementById('item-actions').innerHTML='<div class="wiz-hint">Deleting…</div>';
   try{ await snd({type:'config/category_registry/delete', scope, category_id:CT.id}); _cats[scope]=undefined; await ensureCats(scope); toast('Deleted'); closeLabelSheet(); if(panelActive('labels')) renderLabelsPanel(); }
@@ -20061,7 +20061,7 @@ async function catDeleteDo(){ if(!CT||!CT.id) return; const scope=CT.scope; docu
 // ── label assignment toggle (entity settings sheet) ──
 function entLabelsField(e){
   const labels=(_labels||[]).filter(l=>l.label_id!==SCENE_LABEL&&l.label_id!==SYSTEM_LABEL&&String(l.label_id).indexOf('proos_shows_')!==0).slice().sort((a,b)=>(a.name||'').localeCompare(b.name||''));
-  if(!labels.length) return '<div class="field"><div class="field-label">Labels</div><div class="wiz-hint" style="opacity:.6;margin:0">No labels yet — create them under Labels &amp; categories.</div></div>';
+  if(!labels.length) return '<div class="field"><div class="field-label">Labels</div><div class="wiz-hint" style="opacity:.6;margin:0">No labels yet</div></div>';
   const cur=Array.isArray(e.labels)?e.labels:[];
   const chips=labels.map(l=>{ const on=cur.includes(l.label_id); return '<button class="chip'+(on?' on':'')+'" onclick="toggleEntLabel(\''+esc(l.label_id)+'\')"><span class="ldot" style="background:'+labelColorHex(l.color)+'"></span>'+esc(l.name||l.label_id)+'</button>'; }).join('');
   return '<div class="field"><div class="field-label">Labels</div><div class="chips">'+chips+'</div></div>';
@@ -20105,7 +20105,7 @@ async function loadBlueprintsPanel(){
 }
 function renderBlueprintsPanel(){
   const body=document.getElementById('blueprints-body'); if(!body) return;
-  let h='<div class="wiz-hint">Blueprints are reusable templates. Import one from a URL, then create automations or activities from it in a few taps.</div>';
+  let h='';
   h+='<button class="btn-primary" onclick="importBlueprint()" style="margin-bottom:14px">Import from URL</button>';
   let any=false;
   [['automation','Automation blueprints'],['script','Activity blueprints']].forEach(arr=>{ const kind=arr[0], label=arr[1]; const m=BP_CACHE[kind]||{}; const paths=Object.keys(m).sort((a,b)=>String(metaOf(m[a]).name||a).localeCompare(String(metaOf(m[b]).name||b)));
@@ -20128,7 +20128,7 @@ function bpManage(kind, path){
 }
 function bpCreate(){ const m=BPMG; closeBpSheet(); chooseBlueprint(m.kind, m.path); }
 function bpSource(){ const u=BPMG&&BPMG.source; if(u){ try{ window.open(u,'_blank'); }catch(e){} } }
-function bpDelete(){ if(!BPMG) return; document.getElementById('item-actions').innerHTML='<div class="wiz-hint">Delete this blueprint? Anything using it will break.</div><button class="btn-danger" onclick="bpDeleteDo()">Delete</button><button class="rp-cancel" onclick="bpManage(BPMG.kind,BPMG.path)">Keep</button>'; }
+function bpDelete(){ if(!BPMG) return; document.getElementById('item-actions').innerHTML='<div class="wiz-hint">Delete this blueprint? Anything using it breaks.</div><button class="btn-danger" onclick="bpDeleteDo()">Delete</button><button class="rp-cancel" onclick="bpManage(BPMG.kind,BPMG.path)">Keep</button>'; }
 async function bpDeleteDo(){ const m=BPMG; if(!m) return; document.getElementById('item-actions').innerHTML='<div class="wiz-hint">Deleting…</div>';
   try{ await snd({type:'blueprint/delete', domain:m.kind, path:m.path}); toast('Deleted'); closeBpSheet(); await loadBlueprintsPanel(); }
   catch(e){ toast("Couldn't delete"); bpManage(m.kind,m.path); }
@@ -20136,7 +20136,7 @@ async function bpDeleteDo(){ const m=BPMG; if(!m) return; document.getElementByI
 function importBlueprint(){
   BPIMP=null;
   document.getElementById('item-title').textContent='Import a blueprint';
-  document.getElementById('item-body').innerHTML=hfield('Blueprint URL','<input id="bp-url" type="text" placeholder="https://…/blueprint.yaml" autocapitalize="off" autocomplete="off"/>')+'<div class="wiz-hint">Paste a link to a blueprint — community forum, GitHub, or gist.</div>';
+  document.getElementById('item-body').innerHTML=hfield('Blueprint URL','<input id="bp-url" type="text" placeholder="https://…/blueprint.yaml" autocapitalize="off" autocomplete="off"/>')+'';
   document.getElementById('item-actions').innerHTML='<button class="btn-primary" onclick="bpImportFetch()">Preview</button><button class="rp-cancel" onclick="closeBpSheet()">Cancel</button>';
   document.getElementById('item-edit').classList.add('open');
   setTimeout(()=>{ const i=document.getElementById('bp-url'); if(i) i.focus(); },200);
@@ -20576,7 +20576,7 @@ async function ahLoadInventory(){
     return '<div class="row" data-eid-row="1" data-search="'+search+'"><div class="rl">'+esc(nm)
       +'<div class="es" style="font-size:11px;color:var(--t3);font-weight:300;margin-top:3px">Appears as '+esc(t)+(ahNeedsOwn(e.entity_id)?' · Paired On Its Own':'')+'</div>'
       // register 974: a cover nobody said the kind of is a blind to Apple Home — the garage-door-as-a-blind fault
-      +((DOM(e)==='cover' && !((ahState(e.entity_id)||{}).attributes||{}).device_class)?'<div class="es" style="font-size:11px;color:#f5a623;margin-top:3px">No type set — Apple Home will show this as a blind. If it is a garage door or gate, set it up on its sensor’s page (Garage Door card).</div>':'')
+      +((DOM(e)==='cover' && !((ahState(e.entity_id)||{}).attributes||{}).device_class)?'<div class="es" style="font-size:11px;color:#f5a623;margin-top:3px">No type set — Apple Home shows a blind.</div>':'')
       +camBlock+'</div><div class="rr"><button type="button" class="sw '+(on?'on':'')+'" role="switch" aria-checked="'+on+'" data-eid="'+esc(e.entity_id)+'" data-area="'+esc(ahAreaOf(e)||'_')+'" onclick="ahToggleOne(this)"><span class="sw-knob"></span></button></div></div>';
   };
   const section=(title, arr, areaKey, warn)=>{
@@ -20592,7 +20592,7 @@ async function ahLoadInventory(){
   let html='';
   realAreas.forEach(a=>{ if(byArea[a.area_id]) html+=section(a.name||'Room', byArea[a.area_id], a.area_id); });
   sysAreas.forEach(a=>{ if(byArea[a.area_id]) html+=section(a.name||'System', byArea[a.area_id], a.area_id, 'Infrastructure & alarm outputs — leave off unless intentionally exposing.'); });
-  if(!html){ list.innerHTML='<div class="empty"><div class="et">Nothing publishable yet</div><div class="es">Assign devices to rooms to make them available here.</div></div>'; if(save) save.style.display='none'; return; }
+  if(!html){ list.innerHTML='<div class="empty"><div class="et">Nothing publishable yet</div></div>'; if(save) save.style.display='none'; return; }
   const searchBox='<div style="position:sticky;top:0;z-index:3;padding:4px 0 8px;background:#000"><input id="ah-inv-search" type="search" placeholder="Search devices, rooms or types…" oninput="ahFilterInv()" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" style="width:100%;box-sizing:border-box;padding:10px 12px;border-radius:10px;border:0.5px solid var(--line-soft);background:var(--card);color:var(--t1);font-size:13px;font-family:inherit;-webkit-appearance:none;appearance:none"><div id="ah-inv-none" style="display:none;color:var(--t3);font-size:12px;padding:10px 2px">No matches.</div></div>';
   const prev=(document.getElementById('ah-inv-search')||{}).value||'';
   list.innerHTML=searchBox+html;
@@ -20772,7 +20772,7 @@ async function ahRenderOwn(){
   const notes=await ahFetchNotifications(); const paired=await ahPairedCounts();
   host.style.display='block';
   host.innerHTML='<div class="section-label" style="margin-top:18px">Paired On Their Own</div>'
-    +'<div class="wiz-hint" style="margin:0 0 10px">Apple pairs these one at a time. After the bridge, add each in the Home app with its own code.</div>'
+    +''
     +mine.map(x=>{
       const info=ahParsePairing(notes, x.entry_id); const nm=ahNiceName(x.entity_id);
       const qr=ahQrSrc(info);
@@ -20817,7 +20817,7 @@ async function ahBrand(entryId){
   }catch(e){ return {supported:false, error:String(e)}; }
 }
 function ahRestartNotice(host){
-  if(host) host.innerHTML='<div class="wiz-hint" style="margin:0">Applying the ProOS name — the home restarts once (about a minute). When it reconnects, reopen Apple Home to pair; the pairing code stays the same.</div>';
+  if(host) host.innerHTML='<div class="wiz-hint" style="margin:0">The home restarts once (about a minute). Same pairing code.</div>';
 }
 async function ahBrandFromCard(btn){
   if(btn){ btn.disabled=true; btn.textContent='Applying…'; }
@@ -20855,7 +20855,7 @@ async function ahSetup(){
     if(b.supported && b.restarting){
       _ahRestarting=true; ahStartReconnectPoll();
       const st=document.getElementById('ah-status');
-      if(st) st.innerHTML='<div class="wiz-hint" style="margin:0">Published, and applying the ProOS name to the bridge. The home restarts once (about a minute) — when it reconnects, reopen Apple Home to pair.</div>';
+      if(st) st.innerHTML='<div class="wiz-hint" style="margin:0">Published. The home restarts once (about a minute).</div>';
       ahStep('bridge','ok','Restarting'); ahStep('pair','locked'); ahStep('media','locked');
       toast('Restarting to apply ProOS branding…');
     } else {
@@ -22137,7 +22137,7 @@ async function _devNotifyFill(deviceId){
     +'<div class="rsub" style="padding:0 14px 10px">A security, lock, smoke, CO, gas or water-leak device always alerts the household\u2019s phones and iPads.</div>'); return; }
   setHTML(host,'<div class="rp-room" style="align-items:center"><span>Send Alerts to Phones</span>'
     +'<button type="button" class="sw '+(on?'on':'')+'" role="switch" aria-checked="'+on+'" onclick="event.stopPropagation();setDevNotify(\''+esc(deviceId)+'\','+(!on)+')"><span class="sw-knob"></span></button></div>'
-    +'<div class="rsub" style="padding:0 14px 10px">Off by default \u2014 only critical devices alert without this. When on, this device going offline alerts the household\u2019s phones and iPads.</div>');
+    +'<div class="rsub" style="padding:0 14px 10px">When on, this device going offline alerts the household.</div>');
 }
 async function setDevNotify(deviceId,on){
   try{ const r=await fetch(proCoreUrl()+'/notify/devices',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({device_id:deviceId,on:!!on})});
@@ -22666,7 +22666,7 @@ async function v2RoomVoice(){
           +'<button class="btn-ghost" onclick="v2RoomVoiceVolTest()">Test</button>':'')
       +'</div>'
       // ROOM MICS (register 970vv; Dave, 24 Oct): where each room mic's answers are heard.
-      +((d.mics||[]).length&&!d.voice_endpoint?'<div style="margin-top:10px;padding-top:10px;border-top:0.5px solid rgba(255,255,255,.06)">The room mics here answer through themselves until the room is commissioned with an audio endpoint.</div>':'')
+      +((d.mics||[]).length&&!d.voice_endpoint?'':'')
       +(d.voice_endpoint?(d.mics||[]):[]).map(function(m){
         const nm=m.name||((_allStates||[]).find(x=>x.entity_id===m.entity)||{attributes:{}}).attributes.friendly_name||m.entity.split('.').pop().replace(/_/g,' ');
         const seg=[['room','Room Speakers'],['device','This Device']].map(function(o){ const on=(m.replies===o[0]);
@@ -22937,7 +22937,7 @@ async function mlRenderEverything(){
   const html=rows.length?rows.map(e=>{
     const t=new Date(e.ts*1000); const hh=('0'+t.getHours()).slice(-2)+':'+('0'+t.getMinutes()).slice(-2);
     return '<div class="rh-jrow"><span class="jt">'+hh+'</span><span class="jd">'+esc((e.name||e.entity||'—')+' — '+(e.state||e.message||'—'))+'</span></div>';
-  }).join(''):'<div class="rh-add-sub" style="padding:6px 2px">Nothing in the platform log for this window.</div>';
+  }).join(''):'<div class="rh-add-sub" style="padding:6px 2px">Nothing in the platform log for this window</div>';
   document.querySelectorAll('.ml-body').forEach(el=>setHTML(el,html));
 }
 function mlPass(e,nm){
@@ -24169,7 +24169,7 @@ function v3PhraseRow(card,eid){
 async function v3PhrasesOpen(eid){
   await v3EnsureAliases([eid]);
   const name=entName(eid).split('\u00b7').map(x=>x.trim()).filter(x=>x&&x.toLowerCase()!=='proos').join(' \u00b7 '); let list=v3PhraseList(eid);
-  const paint=()=>{ const b=document.getElementById('v3ph-list'); if(b) setHTML(b, list.length?list.map((p,i)=>'<span class="v3al">'+esc(p)+'<button aria-label="Remove phrase" onclick="v3PhraseDrop('+i+')">×</button></span>').join(''):'<span class="t2" style="color:rgba(255,255,255,.5)">No phrases yet — the name still works with “activate”.</span>'); };
+  const paint=()=>{ const b=document.getElementById('v3ph-list'); if(b) setHTML(b, list.length?list.map((p,i)=>'<span class="v3al">'+esc(p)+'<button aria-label="Remove phrase" onclick="v3PhraseDrop('+i+')">×</button></span>').join(''):'<span class="t2" style="color:rgba(255,255,255,.5)">No phrases yet</span>'); };
   window.v3PhraseDrop=(i)=>{ list.splice(i,1); paint(); };
   const o=v3Popup('Phrases',name+' · what starts it on its own, from any voice door',
     '<div id="v3ph-list" style="min-height:30px"></div>'+_v3input('v3ph-in','Add a Phrase','','The household’s own words — “movie time”, “goodnight”. Not a room’s name.'),
@@ -24244,7 +24244,7 @@ async function v3Diag(k){
   }
   v3Side('diagnostics'); v3Title('v3diag','diagnostics'); setTimeout(v2BackSync,0);
 }
-function v3IncidentsFill(){ const ih=document.getElementById('hlt-incidents'), e=document.getElementById('v3inc-empty'); if(!e) return; setHTML(e,(ih&&ih.children.length)?'':'<div class="v3empty">No faults right now. Every alarm ProOS Core holds is clear.</div>'); }
+function v3IncidentsFill(){ const ih=document.getElementById('hlt-incidents'), e=document.getElementById('v3inc-empty'); if(!e) return; setHTML(e,(ih&&ih.children.length)?'':'<div class="v3empty">No faults right now</div>'); }
 function v3AwSeg(k){
   window._v3awSeg=k;
   const l=document.getElementById('v3aw-l'), a=document.getElementById('v3aw-a'); if(l) l.classList.toggle('on',k==='live'); if(a) a.classList.toggle('on',k==='activity');
@@ -24385,7 +24385,7 @@ async function v3Software(){
     var side='<h2>'+esc(name)+'</h2><div class="hv-sub">Exactly what the homeowner’s '+esc(name)+' page shows — live, and it fills itself from what is in the room. Nothing can be sent from this preview.</div>'+
       '<div class="hv-sec">Setting Up</div>'+(C.items.length?C.items.map(function(c){ return '<div class="hv-row"><span class="hv-dot"></span><div class="gr"><b>'+esc(c.t)+'</b><small>'+esc(c.s)+'</small></div></div>'; }).join(''):'')+
       '<div class="hv-row"><span class="hv-dot ok"></span><div class="gr"><b>'+(C.items.length?'Everything else here is set up':'Everything here is set up')+'</b><small>'+C.n+(C.n===1?' device':' devices')+' in the room · '+(_avActivities||[]).length+' AV scenes</small></div></div>'+
-      (sw.length?'<div class="hv-sec">On Now</div><div class="hv-sub" style="margin:-4px 0 10px">Switches and plugs stay out of On Now unless you put them in (a power board, an always-on outlet would sit there forever).</div>'+
+      (sw.length?'<div class="hv-sec">On Now</div>'+
         sw.map(function(e){ var on=(e.labels||[]).indexOf(ON_NOW)>=0; return '<div class="hv-row"><div class="gr"><b>'+esc(hvName(e.entity_id))+'</b><small>'+(on?'Shows in On Now when it is on':'Not in On Now')+'</small></div><button type="button" class="hv-tog'+(on?' on':'')+'" data-hvon="'+esc(e.entity_id)+'" aria-label="Show in On Now"></button></div>'; }).join(''):'');
     ov.querySelector('.hv-side').innerHTML=side;
     ov.querySelectorAll('[data-hvon]').forEach(function(b){ b.onclick=function(){ hvToggle(b.dataset.hvon); }; });
@@ -24486,7 +24486,7 @@ async function v3Software(){
     if(!c){ c=document.createElement('div'); c.className='rh-card'; c.setAttribute('data-v3','recovery'); host.appendChild(c); }
     var rows=(_recMembers||[]).map(function(e){ var cf=(_recCfg||{})[e]; var tag=cf?(cf.method==='poe_cycle'?'UniFi PoE':(cf.method==='power_cycle'?'Smart Plug':'Reload')):'Reload (default)';
       return '<div class="v3row" onclick="_recEnt(\''+E(e)+'\')"><div class="rt"><div class="t1">'+E(entName(e))+'</div><div class="t2">How ProOS brings it back when it stops answering</div></div><div class="rr"><span class="v3chip">'+E(tag)+'</span>'+(((window.V3ICONS&&V3ICONS.chev)||'›').replace('<svg','<svg class="cv"'))+'</div></div>'; }).join('');
-    setHTML(c,'<div class="rh-hd"><span class="rh-hd-t">Device Recovery</span></div><div class="v3dh2" style="padding:6px 4px 12px"><div class="s">How ProOS recovers each device if it stops responding. Tap one to choose Reload, Smart Plug or UniFi PoE.</div></div><div class="v3rows">'+rows+'</div>');
+    setHTML(c,'<div class="rh-hd"><span class="rh-hd-t">Device Recovery</span></div><div class="v3dh2" style="padding:6px 4px 12px"></div><div class="v3rows">'+rows+'</div>');
   }
   window._pnxRecPaint=_pnxRecPaint;
   if(typeof _recList==='function'){ var _rl=_recList; _recList=function(){ if(recPage&&on()&&_v3roomView==='recovery'){ _recClose(); _pnxRecPaint(); return; } return _rl.apply(this,arguments); }; }
@@ -24546,13 +24546,13 @@ async function v3Software(){
     var scenes=(_ents||[]).filter(function(e){ return /^scene\./.test(e.entity_id)&&e.platform==='homeassistant'; });
     var sc=scenes.length?scenes.map(function(e){ var onH=(e.labels||[]).indexOf(SCENE_LABEL)>=0; var n=(e.name||e.original_name||(_states||[]).find&&(((_states||[]).find(function(s){ return s.entity_id===e.entity_id; })||{}).attributes||{}).friendly_name)||e.entity_id;
         return '<div class="v3row"><div class="rt"><div class="t1">'+E(n)+'</div></div><div class="rr"><button type="button" class="sw'+(onH?' on':'')+'" aria-pressed="'+onH+'" onclick="_pnxScene(\''+E(e.entity_id)+'\')"><span class="sw-knob"></span></button></div></div>'; }).join('')
-      :'<div class="v3row static"><div class="rt"><div class="t2">No scenes made here yet — make them in Scenes.</div></div></div>';
+      :'<div class="v3row static"><div class="rt"><div class="t2">No scenes made here yet</div></div></div>';
     var ord=_dOrder===null?'<div class="v3row static"><div class="rt"><div class="t2">Reading the home’s order…</div></div></div>'
       :rooms.map(function(a){ return '<div class="v3row" data-id="'+E(a.area_id)+'"><span class="hd">≡</span><div class="rt"><div class="t1">'+E(a.name)+'</div></div></div>'; }).join('');
-    setHTML(host,'<div class="v3dh2" style="padding:0 2px 14px"><div class="s">What the homeowner starts with. They can change their own favourites and order afterwards.</div></div>'
-      +'<div class="pnx-dcols"><div><div class="v3card" style="padding:18px"><div class="pnx-grp" style="margin:0">Room Pictures</div><div class="v3dh2" style="padding:2px 0 0"><div class="s">Tap one to change it — the same sheet as Edit Room.</div></div><div class="pnx-pics">'+pics+'</div></div>'
+    setHTML(host,'<div class="v3dh2" style="padding:0 2px 14px"></div>'
+      +'<div class="pnx-dcols"><div><div class="v3card" style="padding:18px"><div class="pnx-grp" style="margin:0">Room Pictures</div><div class="v3dh2" style="padding:2px 0 0"></div><div class="pnx-pics">'+pics+'</div></div>'
       +'<div class="pnx-grp">On Home</div><div class="v3dh2" style="padding:0 2px 8px"><div class="s">Which scenes start as favourites on Home.</div></div><div class="v3rows">'+sc+'</div></div>'
-      +'<div><div class="pnx-grp" style="margin-top:4px">Room Order</div><div class="v3dh2" style="padding:0 2px 8px"><div class="s">Drag to set the order on Rooms, for every screen in the home.</div></div><div class="v3rows pnx-ord">'+ord+'</div></div></div>');
+      +'<div><div class="pnx-grp" style="margin-top:4px">Room Order</div><div class="v3dh2" style="padding:0 2px 8px"></div><div class="v3rows pnx-ord">'+ord+'</div></div></div>');
   }
   window._pnxScene=async function(eid){ await togglePublish(eid); var h=document.getElementById('pnx-defaults'); if(_dOpen&&h) _dDraw(h); };
   window._pnxDefaultsClose=function(){ _dOpen=false; var hub=document.getElementById('panel-hub'); if(hub) hub.removeAttribute('data-pnx'); try{ renderHub(); v3Title('hub','areas'); }catch(e){} };
@@ -25120,7 +25120,7 @@ clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',plus:'<path d="M1
 /* AV Setup is today's own controls, laid out by the rules above; the redraw only gives the page its line. */
 (function(){
   PX.roomView=PX.roomView||{};
-  PX.roomView.av=function(p){ PX.unpaint(p); p.setAttribute('data-pxsub','Give each device its role. ProOS builds the activities from these.'); PX._hRun(); };
+  PX.roomView.av=function(p){ PX.unpaint(p); p.setAttribute('data-pxsub',''); PX._hRun(); };
 })();
 </script>
 <script>
@@ -25129,8 +25129,8 @@ clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',plus:'<path d="M1
   PX.roomView=PX.roomView||{};
   var card=function(id){ return document.querySelector('#room-devices>.rh-card[data-v3="'+id+'"]')||document.getElementById(id); };
   var sub=function(p,s){ PX.unpaint(p); p.setAttribute('data-pxsub',s); PX._hRun(); };
-  PX.roomView.shortcuts=function(p){ sub(p,'Each opens on the device you pick. The TV turns on and switches to it.'); };
-  PX.roomView.channels=function(p){ sub(p,PX.t(card('channels'),'.rch-dev')||'The channels this room shows on its TV page.'); };
+  PX.roomView.shortcuts=function(p){ sub(p,''); };
+  PX.roomView.channels=function(p){ sub(p,PX.t(card('channels'),'.rch-dev')||''); };
   PX.roomView.dashboard=function(p){ PX.unpaint(p); };
 
   // ── ACTIVITIES (mock): the room's activities as rows, the chosen one beside them — Test-Fire, Edit, Reset, and
@@ -25153,13 +25153,13 @@ clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',plus:'<path d="M1
       g='<div class="px-sees">'+sv.acts.filter(function(a){ return a.script&&!off(a); }).map(function(a){ return '<div class="'+(a.script===mine?'lit':'')+'"><em>AV</em>'+E(a.label||a.key)+'</div>'; }).join('')
         +sv.acts.filter(function(a){ return a.script&&off(a); }).slice(0,1).map(function(a){ return '<div class="'+(a.script===mine?'lit':'')+'"><span></span>Room Off</div>'; }).join('')+'</div>';
       var shown=sv.acts.find(function(a){ return a.script===mine; });
-      g+='<div class="px-cs" style="margin-top:10px">'+E(shown?(off(shown)?'Shown to them as Room Off, at the end of the room’s scenes.':'In the '+((typeof _rhName==='function'&&_rhName())||'room')+'’s scenes. A ring while it starts, then its remote.'):'Not shown to the homeowner — it runs from Pro, voice and automations.')+'</div>'; }
+      g+='<div class="px-cs" style="margin-top:10px">'+E(shown?(off(shown)?'':'In the '+((typeof _rhName==='function'&&_rhName())||'room')+'’s scenes. A ring while it starts, then its remote.'):'')+'</div>'; }
     else if(!sv){ sees[room]={}; fetch(proCoreUrl()+'/rooms/'+encodeURIComponent(room)+'/activities',{cache:'no-store'}).then(function(r){ return r.ok?r.json():null; }).then(function(d){ sees[room]={acts:(d&&d.activities)||[]}; PX.redraw('panel-room'); }).catch(function(){ sees[room]={acts:[]}; }); }
     var d='<div class="px-card px-actd"><div class="px-ct">'+E(cur.label||cur.key)+'</div><div class="px-cs">'+(cur.edited?'Edited by you':'Generated by ProOS')+' · '+E(cur.kind||'activity')+'</div>'
       +'<button class="px-btn blue w" style="margin-top:14px" onclick="PX.actDo(\'actTest\')">'+I('play')+'Test-Fire</button>'
       +'<div class="px-g2" style="margin-top:0"><button class="px-btn w" onclick="PX.actDo(\'actEdit\')">Edit</button><button class="px-btn w" onclick="PX.actDo(\'actReset\')">Reset</button></div>'
       +'<div class="px-k11" style="margin-top:18px">The Homeowner Sees</div>'+(g||'<div class="px-cs">Reading the room’s page…</div>')+'</div>';
-    PX.paint(p,'<div class="px-cols even"><div class="px-rows">'+rows+'</div>'+d+'</div>',{sub:'Built from AV Setup. Tap one to test, edit or reset it.'});
+    PX.paint(p,'<div class="px-cols even"><div class="px-rows">'+rows+'</div>'+d+'</div>',{sub:''});
   };
 
   // ── EVIDENCE (mock): the room's devices as tiles, then the timeline with its filter as a segmented control (today's
@@ -25190,7 +25190,7 @@ clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',plus:'<path d="M1
       var b0=r0&&r0.querySelector('button'), isOn=b0&&/turn off/i.test(b0.textContent);
       h+='<div class="px-card"><div class="px-ct">Assist Voice Replies</div><div class="px-cs">'+E(r0?PX.t(r0.querySelector('span')):'')+'</div>'
         +'<div class="px-row" style="padding:12px 0 0;min-height:0;border:0"><div class="px-g"><b>Speak Replies</b></div>'+(b0?'<button class="px-tog'+(isOn?' on':'')+'" aria-label="Speak Replies" onclick="'+E(PX.oc(b0))+'"></button>':'')+'</div>'
-        +(r1?'<div class="px-row" style="padding:12px 0 0;min-height:0;border:0"><div class="px-g"><b>Voice Volume</b><small class="wrap">'+E(PX.t(r1.querySelector('.rs, span small, div>div:nth-child(2)'))||'How loud spoken replies are in this room. The music stays at its own volume.')+'</small></div><span id="px-vvol"></span></div>':'')+'</div>'; }
+        +(r1?'<div class="px-row" style="padding:12px 0 0;min-height:0;border:0"><div class="px-g"><b>Voice Volume</b><small class="wrap">'+E(PX.t(r1.querySelector('.rs, span small, div>div:nth-child(2)'))||'')+'</small></div><span id="px-vvol"></span></div>':'')+'</div>'; }
     h+='</div>';
     var pg=PX.paint(p,h,{sub:''});
     // the volume and Test are today's own controls, moved in (their handlers are inline, so they work where they sit)
@@ -25201,12 +25201,12 @@ clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',plus:'<path d="M1
   //     A tap opens today's chooser (_recEnt), where a plug or PoE port is picked. Read straight from today's list ──
   PX.roomView.recovery=function(p){
     var M=(typeof _recMembers!=='undefined'&&_recMembers)||null;
-    if(!M){ PX.paint(p,'<div class="px-rows"><div class="px-empty">Reading the room’s devices…</div></div>',{sub:'What ProOS may power-cycle when a device stops answering.'}); if(!PX._recAsk){ PX._recAsk=1; try{ openRecovery(); }catch(e){} } return; }
+    if(!M){ PX.paint(p,'<div class="px-rows"><div class="px-empty">Reading the room’s devices…</div></div>',{sub:''}); if(!PX._recAsk){ PX._recAsk=1; try{ openRecovery(); }catch(e){} } return; }
     var rows=M.map(function(e){ var cf=((typeof _recCfg!=='undefined'&&_recCfg)||{})[e], m=cf?cf.method:'reload';
       var b=function(k,t){ return '<button class="'+(m===k||(k==='reload'&&!cf)?'on':'')+'" onclick="event.stopPropagation();_recEnt(\''+E(e)+'\')">'+t+'</button>'; };
       var n=''; try{ n=entName(e); }catch(x){ n=e; }
       return PX.row([/^media_player\./.test(e)?'tv':'pw',''],n,(m==='poe_cycle'?'UniFi PoE — ProOS cycles its switch port':m==='power_cycle'?'Smart Plug — ProOS cycles its plug':'Reload — ProOS asks the platform to reconnect it'),'<div class="px-segsm">'+b('reload','Reload')+b('power_cycle','Smart Plug')+b('poe_cycle','UniFi PoE')+'</div>','_recEnt(\''+E(e)+'\')'); }).join('');
-    PX.paint(p,'<div class="px-rows">'+(rows||'<div class="px-empty">No devices to recover in this room.</div>')+'</div><div class="px-cs" style="margin:10px 4px">Shown with each device on Reload, the default. A plug or PoE port is picked when that choice is tapped.</div>',{sub:'What ProOS may power-cycle when a device stops answering.'});
+    PX.paint(p,'<div class="px-rows">'+(rows||'<div class="px-empty">No devices to recover in this room.</div>')+'</div><div class="px-cs" style="margin:10px 4px">Shown with each device on Reload, the default. A plug or PoE port is picked when that choice is tapped.</div>',{sub:''});
   };
 })();
 </script>
@@ -25236,7 +25236,7 @@ clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',plus:'<path d="M1
   // Talk: its own page, as the mock draws it — the apps bar, and Ubiquiti's door still shut, said plainly (it was a toast)
   if(typeof uniLater==='function'&&!uniLater._px){ var _ul=uniLater; uniLater=function(k){
     if(PX.on()&&k==='talk'){ var bar=''; try{ bar=uniAppBar('talk'); }catch(e){}
-      PX.page('UniFi','Devices · UniFi','Talk','',(bar?'<div style="margin:0 0 16px">'+bar+'</div>':'')+'<div class="px-rows">'+PX.row(['clock','a'],'Waiting on Ubiquiti','Phones and call routing. Ubiquiti has no way in for other systems yet — Talk is built the day there is.','','',{wrap:true})+'</div>'); return; }
+      PX.page('UniFi','Devices · UniFi','Talk','',(bar?'<div style="margin:0 0 16px">'+bar+'</div>':'')+'<div class="px-rows">'+PX.row(['clock','a'],'Waiting on Ubiquiti','','','',{wrap:true})+'</div>'); return; }
     return _ul.apply(this,arguments); }; uniLater._px=1; }
 })();
 </script>
@@ -25292,7 +25292,7 @@ clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',plus:'<path d="M1
       return '<div class="px-row" onclick="'+E(PX.oc(t))+'"><div class="px-ic b">'+I('play')+'</div><div class="px-g"><b>'+E(PX.t(t,'.itile-nm'))+'</b><small>'+E(PX.t(t,'.itile-sub'))+'</small></div><div class="px-acts">'+mini('+ Phrase',PX.oc(ph))+mini('⋯',PX.oc(more))+'</div>'+PX.cv()+'</div>'; };
     var h=(chips.length?'<div class="px-seg" style="margin-bottom:6px">'+chips.map(function(c){ return '<button class="'+(c.classList.contains('on')?'on':'')+'" onclick="'+E(PX.oc(c))+'">'+E(c.textContent.trim())+'</button>'; }).join('')+'</div>':'')
       +order.map(function(r){ return PX.sec(r)+'<div class="px-rows">'+groups[r].map(row).join('')+'</div>'; }).join('');
-    PX.paint(p,h||'<div class="px-rows"><div class="px-empty">No activities yet.</div></div>',{sub:'Every room’s activities, and any you build by hand.',act:nw?'<button class="px-btn sm blue" onclick="'+E(PX.oc(nw))+'">'+I('plus')+'New Activity</button>':''});
+    PX.paint(p,h||'<div class="px-rows"><div class="px-empty">No activities yet.</div></div>',{sub:'',act:nw?'<button class="px-btn sm blue" onclick="'+E(PX.oc(nw))+'">'+I('plus')+'New Activity</button>':''});
   });
   // ── AUTOMATIONS: yours, then ProOS's own (locked, with why) ──
   PX.reg('panel-automations',function(p){
@@ -25302,7 +25302,7 @@ clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',plus:'<path d="M1
       return '<div class="px-row" onclick="'+E(PX.oc(t))+'"><div class="px-ic">'+I(lock?'shield':'clock')+'</div><div class="px-g"><b>'+E(PX.t(t,'.itile-nm'))+'</b>'+(lock?'<small>Read-only · ProOS writes it</small>':'')+'</div><div class="px-acts">'+mini('⋯',PX.oc(more))+tog(t.querySelector('.sw'))+'</div>'+(lock?PX.cv():'')+'</div>'; };
     var h=PX.sec('Yours')+'<div class="px-rows">'+(mine.map(function(t){ return row(t,false); }).join('')||'<div class="px-empty">None of your own yet.</div>')+'</div>';
     if(sys.length) h+=PX.sec(PX.t(sec,'.bld-sec-h')||'Managed by ProOS')+'<div class="px-cs" style="margin:-4px 4px 10px">'+E(PX.t(sec,'.wiz-hint'))+'</div><div class="px-rows">'+sys.map(function(t){ return row(t,true); }).join('')+'</div>';
-    PX.paint(p,h,{sub:'Rules that run in the background. Build one by hand — it shows here and stays editable.',act:nw?'<button class="px-btn sm blue" onclick="'+E(PX.oc(nw))+'">'+I('plus')+'New Automation</button>':''});
+    PX.paint(p,h,{sub:'',act:nw?'<button class="px-btn sm blue" onclick="'+E(PX.oc(nw))+'">'+I('plus')+'New Automation</button>':''});
   });
 })();
 </script>
@@ -25342,7 +25342,7 @@ clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',plus:'<path d="M1
     if(prob.length) h+=PX.sec('On Health · '+prob.length)+'<div class="px-rows">'+prob.map(function(r){ return item(r,false); }).join('')+'</div>';
     if(unk.length) h+=PX.sec('Could Not Confirm · '+unk.length)+'<div class="px-rows">'+unk.map(function(r){ return item(r,false); }).join('')+'</div>';
     if(ok.length) h+=PX.sec('Confirmed · '+ok.length,open?'Fold Them Away':'Show Them','_pnxFoldToggle()')+(open?'<div class="px-rows">'+ok.map(function(r){ return item(r,true); }).join('')+'</div>':'<div class="px-rows"><div class="px-row" onclick="_pnxFoldToggle()"><div class="px-ic gr">'+I('check')+'</div><div class="px-g"><b>Every check ProOS confirmed</b><small>Tap to see them</small></div>'+PX.cv()+'</div></div>');
-    PX.paint(p,h,{sub:'Every check ProOS Core runs on the house, and its own answer to each. '+when,
+    PX.paint(p,h,{sub:''+when,
       act:(rep?'<button class="px-btn sm" onclick="'+E(PX.oc(rep))+'">View Report</button>':'')+(run?'<button class="px-btn sm blue" onclick="'+E(PX.oc(run))+'">Run Sweep Now</button>':'')});
   };
 
@@ -25383,7 +25383,7 @@ clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',plus:'<path d="M1
     var seg='<div class="px-seg"><button class="'+(live?'on':'')+'" onclick="v3AwSeg(\'live\')">Live</button><button class="'+(live?'':'on')+'" onclick="v3AwSeg(\'activity\')">Activity</button></div>';
     var att=PX.all(p,'.v3card>.v3row'), h='';
     att.forEach(function(r){ h+='<div class="px-rows" style="margin-bottom:16px;box-shadow:inset 0 0 0 1px rgba(242,179,74,.5)">'+PX.row(['warn','a'],PX.t(r,'.t1'),PX.t(r,'.t2'),'',PX.oc(r),{cls:'px-long',wrap:true})+'</div>'; });
-    var sub='Every device ProOS watches, and what it last said — tap one for its page.';
+    var sub='';
     if(live){
       var two=0, alone=0, rooms=[], cur=null;
       PX.all(b,'.aw-physbar').forEach(function(x){ h+='<div class="px-cs" style="margin:0 4px 12px">'+E(x.textContent.trim())+'</div>'; });
@@ -25419,7 +25419,7 @@ clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',plus:'<path d="M1
       flush();
       var empty=b.querySelector('.aw-empty');
       h+=out||'<div class="px-rows"><div class="px-empty">'+E(empty?empty.innerText.trim():'Loading history…')+'</div></div>';
-      sub='What ProOS caught, and what it did about it.';
+      sub='';
     }
     focusKeep('px-aws',function(){ PX.paint(p,h,{sub:sub,act:seg}); });
   };
@@ -25435,7 +25435,7 @@ clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',plus:'<path d="M1
     if(!now.length) h+='<div class="px-ok"><div class="px-rows">'+PX.row(['check','gr'],'No faults right now','Every alarm ProOS Core holds is clear'+(n?' · '+n+' devices watched':''),'','')+'</div></div>';
     else h+=PX.sec('Open · '+now.length)+'<div class="px-rows">'+now.map(inc).join('')+'</div>';
     if(seen.length) h+=PX.sec(PX.t(ih,'.hlt-seen-h')||'Seen')+'<div class="px-rows">'+seen.map(inc).join('')+'</div>';
-    PX.paint(p,h,{sub:'Every fault ProOS Core holds right now, with its own fix.'});
+    PX.paint(p,h,{sub:''});
   };
 
   // ── HEARD — Today or This Week, read from Core the way today's page reads it ──
@@ -25455,7 +25455,7 @@ clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',plus:'<path d="M1
     var d=PX._hd, list=(d&&d.heard)||[], wk=PX._hw==='week', h;
     var road={instant:['b','Instant'],plan:['b','Instant · Plan'],ai:['a','Sent to the AI'],live:['b','Talk Live'],'not recorded':['n','Not Recorded']};
     if(!d) h='<div class="px-rows"><div class="px-empty">Reading…</div></div>';
-    else if(d.error) h='<div class="px-rows"><div class="px-empty">'+(d.error===403?'Heard is for installer accounts.':'ProOS Core couldn’t be read.')+'</div></div>';
+    else if(d.error) h='<div class="px-rows"><div class="px-empty">'+(d.error===403?'Installer accounts only.':'ProOS Core couldn’t be read.')+'</div></div>';
     else if(!list.length) h='<div class="px-rows"><div class="px-empty">Nothing has been said to Assist '+(wk?'this week':'today')+'.</div></div>';
     else { var day='', out='', grp=[];
       var flush=function(){ if(grp.length) out+=(wk?PX.sec(day):'')+'<div class="px-rows">'+grp.join('')+'</div>'; grp=[]; };
@@ -25464,7 +25464,7 @@ clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',plus:'<path d="M1
         var hw=x.how||{}, r=road[hw.road]||['n',hw.road||'?'], how=[hw.matched,(hw.tools||[]).join(', ')].filter(Boolean).join(' · ');
         grp.push('<div class="px-row"><div class="px-ic '+(r[0]==='n'?'':r[0])+'">'+I('mic')+'</div><div class="px-g"><b class="px-say" style="white-space:normal">“'+E(x.said||'')+'”</b><small style="white-space:normal">'+E([x.when,x.reply,x.where,x.who].filter(Boolean).join(' · '))+'</small>'+(how?'<small style="white-space:normal">'+E(how)+'</small>':'')+'</div><div class="px-acts">'+PX.tag(r[1],r[0])+'<button class="px-mini" onclick="PX.heardSay('+i+')">+ Sentence</button></div></div>'); });
       flush(); h=out; }
-    PX.paint(p,h,{sub:'Every sentence said to Assist, and how it was understood.',act:'<div class="px-seg"><button class="'+(wk?'':'on')+'" onclick="PX.heardSet(\'today\')">Today</button><button class="'+(wk?'on':'')+'" onclick="PX.heardSet(\'week\')">This Week</button></div>'});
+    PX.paint(p,h,{sub:'',act:'<div class="px-seg"><button class="'+(wk?'':'on')+'" onclick="PX.heardSet(\'today\')">Today</button><button class="'+(wk?'on':'')+'" onclick="PX.heardSet(\'week\')">This Week</button></div>'});
   };
 
   // ── ASSIST NOTICED ──
@@ -25477,10 +25477,10 @@ clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',plus:'<path d="M1
         h+='<div class="px-offer">'+PX.tag(grp||'Offer',wait?'b':'n')+'<b>'+E(t)+'</b><div class="px-chips">'+ev.map(function(e){ return '<span>'+E(e.charAt(0).toUpperCase()+e.slice(1))+'</span>'; }).join('')+'</div></div>'; return; }
       if(el.classList.contains('as2-sg-e')) h+='<div class="px-rows"><div class="px-empty">'+E(el.textContent.trim())+'</div></div>';
     });
-    PX.paint(p,h||'<div class="px-rows"><div class="px-empty">Reading…</div></div>',{sub:'Offers only — the household says yes on their own screen.'});
+    PX.paint(p,h||'<div class="px-rows"><div class="px-empty">Reading…</div></div>',{sub:''});
   };
   // Master Log stays as today's page (its pickers and search in place) — styled above
-  PX.diag.log=function(p){ PX.unpaint(p); p.setAttribute('data-pxsub','Every room, every event, as it happens.'); PX._hRun(); };
+  PX.diag.log=function(p){ PX.unpaint(p); p.setAttribute('data-pxsub',''); PX._hRun(); };
 })();
 </script>
 <script>
