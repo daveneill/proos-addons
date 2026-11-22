@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112117';
+const PROOS_BUILD='2026112118';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -24744,7 +24744,7 @@ body.nx-on #nx-bar{display:flex}
   font:600 17px Inter,-apple-system,sans-serif;color:#fff;background:linear-gradient(135deg,#6f86ff,#2139F0) center/cover;box-shadow:0 0 0 2px rgba(255,255,255,.08)}
 body.nx-on.nx-av #nx-avatar{display:grid}
 /* 1444 (Dave, 22 Nov: "profile pic only needs to appear on Home or area pages not on all pages"): only Home and a room's page */
-body.nx-on #nx-avatar{display:none}
+body.nx-on #nx-avatar,body.nx-on.nx-av #nx-avatar{display:none}
 body.nx-on:has(#nx-page.open.nx-home-pg) #nx-avatar,body.nx-on:has(#nx-page.open.nx-room-pg) #nx-avatar{display:grid}
 #nx-page{position:fixed;inset:0;z-index:8990;background:#0e0e10;color:#fff;overflow-y:auto;display:none;font-family:Inter,-apple-system,sans-serif;
   padding-left:18px;padding-right:18px;padding-bottom:calc(130px + env(safe-area-inset-bottom,0px));-webkit-overflow-scrolling:touch}
