@@ -2644,7 +2644,8 @@ html.pnx #app.v3 .v2item svg{width:20px;height:20px;stroke-width:1.7}
 html.pnx #app.v3 .v2item.on{background:rgba(77,99,255,.18);color:#fff;box-shadow:none}
 html.pnx #app.v3 .v2item>svg:last-child:not(:first-child){display:none}
 html.pnx #app.v3 .v3acc{margin:2px 0 8px 22px;padding-left:10px;border-left:1px solid var(--px-line)}
-html.pnx #app.v3 .v3acc .v3si{padding:5px 8px;min-height:0;font-size:13.5px;gap:9px;border-radius:9px;color:var(--px-t2);margin:0}
+/* REGISTER 1440: a little more room between the sections under a heading — at 5px they ran together (Dave, 22 Nov: "to close together … father apart slightly") */
+html.pnx #app.v3 .v3acc .v3si{padding:8px 10px;min-height:0;font-size:13.5px;gap:9px;border-radius:9px;color:var(--px-t2);margin:1px 0}
 html.pnx #app.v3 .v3acc .v3si.on{background:var(--px-card2);color:#fff;box-shadow:none}
 html.pnx #app.v3 .v3acc .v3th,html.pnx #app.v3 .v3acc .v3ic{width:24px;height:24px;border-radius:7px}
 html.pnx #app.v3 .v3acc .v3ic svg{width:14px;height:14px}
@@ -4439,7 +4440,7 @@ html.pnx #px-more .px-row.on b{color:var(--px-blue2)}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111919';
+const PROOS_BUILD='2026111920';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
