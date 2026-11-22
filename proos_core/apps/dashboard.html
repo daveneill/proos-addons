@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112126';
+const PROOS_BUILD='2026112127';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -24644,7 +24644,13 @@ html.proos-panel #widget-px-btn{display:none!important}
       // WattBox) would sit there forever; the installer will be able to put one in On Now from Pro (stage 8)
       case 'plug': return s==='on'?{on:true, now:!!(dev.onNow), word:'On'}:{on:false, word:'Off'};
       case 'fan': return s==='on'?{on:true, now:true, word:'On'}:{on:false, word:'Off'};
-      case 'speaker': return s==='playing'?{on:true, now:true, blue:true, word:(A('media_title')?'Playing · '+A('media_title'):'Playing')}:s==='paused'?{on:true, now:true, blue:true, word:'Paused'}:{on:false, word:(s==='idle'||s==='on')?'Not playing':'Off'};
+      case 'speaker':
+        // REGISTER 1460 (Dave, 22 Nov: "When rooms have an audio endpoint with a TV input and that is configured … make the
+        // Sonos media or room audio card not show when on TV input on all rooms when commissioned this way"): the room's
+        // TV-audio endpoint, set in Pro, on its TV input is carrying the picture's sound — the room's TV / source card is the
+        // card. It reads "TV" (on) in Devices; it is not a card of its own in On Now, on Home or in the room.
+        if((dev.roles||{}).proos_tvaudio && s!=='off' && /^(TV|TV Audio)$/i.test(String(A('source')||''))) return {on:true, now:false, tvIn:true, word:'TV'};
+        return s==='playing'?{on:true, now:true, blue:true, word:(A('media_title')?'Playing · '+A('media_title'):'Playing')}:s==='paused'?{on:true, now:true, blue:true, word:'Paused'}:{on:false, word:(s==='idle'||s==='on')?'Not playing':'Off'};
       case 'tv': case 'receiver': case 'source':
         if(s==='off'||s==='standby') return {on:false, word:'Off'};
         return {on:true, now:true, blue:true, word:s==='playing'?(A('media_title')?'Playing · '+A('media_title'):'Playing'):s==='paused'?'Paused':(A('source')?'On · '+A('source'):'On')};
@@ -26561,7 +26567,7 @@ body.nx-on #device-chooser{z-index:9380}
       case 'scene': { var all=CONFIG.scenes||[], pick=(w.scenes&&w.scenes.length)?all.filter(function(s){ return w.scenes.indexOf(s.entity)>=0; }):all.slice(0,4);
         return _nxwCard(w,{k:'Scenes', extra:'<div class="scs">'+pick.map(function(s){ var i=all.indexOf(s), on=window._nxSceneOn&&_nxSceneOn(s.entity);
           return '<button type="button" class="'+(on?'on':'')+'" data-nwu="'+act(function(){ try{ triggerScene(s.entity,i); }catch(x){} },'s:'+(w.uid||w.id)+':'+s.entity)+'" style="'+(s.photo?"background-image:url('"+String(s.photo).replace(/'/g,'%27')+"')":'')+'"><span>'+e7(s.name)+'</span></button>'; }).join('')+'</div>'}); }
-      case 'media': { var M2=D.filter(function(d){ return /tv|source|receiver|speaker/.test(d.k.kind)&&states[d.lead]&&(states[d.lead].state==='playing'||states[d.lead].state==='paused')&&(states[d.lead].attributes||{}).media_title; });
+      case 'media': { var M2=D.filter(function(d){ return /tv|source|receiver|speaker/.test(d.k.kind)&&!(d.r&&d.r.tvIn)&&states[d.lead]&&(states[d.lead].state==='playing'||states[d.lead].state==='paused')&&(states[d.lead].attributes||{}).media_title; });
         if(r) M2.sort(function(a,b){ return (b.area===r.id)-(a.area===r.id); }); var m=M2[0];
         if(!m) return _nxwCard(w,{ic:'tv', k:'Now Playing', n:'Nothing playing'});
         var A2=states[m.lead].attributes, art=''; try{ var pth=(typeof _artOf==='function')?_artOf(m.lead):A2.entity_picture; art=pth?artSrc(pth):''; }catch(x){}
