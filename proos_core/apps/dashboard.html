@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112124';
+const PROOS_BUILD='2026112125';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -7180,13 +7180,13 @@ let _pcWsUp=true, _pcHealthFails=0, _pcShown=false, _pcDownAt=0, _pcMonTimer=nul
 // the title follows what the page knows: a restart the platform ANNOUNCED (within 10 min), or simply looking
 // REGISTER 948 (Dave, 18 Oct: "when we do a reboot I have asked before we dont need all the explanations just
 // Reconnecting to your home"): one line, the same whatever the reason, and nothing under it.
-function _pcTitle(){ try{ const t=document.getElementById('pcr-title'); if(t) t.textContent='Reconnecting to Your Home'; }catch(e){} }
+function _pcTitle(){ try{ const t=document.getElementById('pcr-title'); if(t) t.textContent='Reconnecting'; }catch(e){} }
 function _pcInitOverlay(){
   if(document.getElementById('proos-reboot')) return;
   let logo=''; try{ logo=(document.querySelector('#loading img')||{}).src||''; }catch(e){}
   const o=document.createElement('div'); o.id='proos-reboot';
   o.innerHTML=`<div class="pcr-logo">${logo?`<img src="${logo}" alt="ProOS"/>`:''}</div>`
-    +`<div class="pcr-title" id="pcr-title">Reconnecting to Your Home</div>`
+    +`<div class="pcr-title" id="pcr-title">Reconnecting</div>`
     +`<div class="pcr-dots"><i></i><i></i><i></i></div>`
     +`<button type="button" class="pcr-out" id="pcr-out">Sign in to a different home</button>`;
   document.body.appendChild(o);
@@ -24781,7 +24781,8 @@ body.nx-on #nx-page.open{display:block}
 .nx-aware{display:inline-flex;align-items:center;gap:8px;padding:9px 14px;border-radius:999px;background:#1b1c20;font-size:13px;font-weight:500;margin-bottom:16px}
 .nx-dot{width:7px;height:7px;border-radius:50%;background:#5FD39A;box-shadow:0 0 8px #5FD39A}
 .nx-back{width:42px;height:42px;border-radius:50%;background:#1b1c20;border:0;display:grid;place-items:center;cursor:pointer;margin-top:12px}
-.nx-back.nx-fromb{position:absolute;top:calc(12px + var(--proos-sat,0px));left:18px;margin:0;background:rgba(0,0,0,.38);z-index:2}   /* 1443: where a room page's back sits */
+#nx-page .nx-in:has(>.nx-fromb){position:relative}
+.nx-back.nx-fromb{position:absolute;top:12px;left:0;margin:0;background:rgba(0,0,0,.38);z-index:2}   /* 1457: placed on the page's own content, so it opens where it stays — the content slides in, and the button measured from it only during the slide (Dave: "starts as pic 1 then jumps") */   /* 1443: where a room page's back sits */
 .nx-fromb~.nx-hd{padding-left:54px}   /* 1453 (Dave, 22 Nov: "can the previous page be on left next to the page name as it seem to waste page space"): the back sits beside the title (1450 had put the title under it) */
 /* 1450 (Dave, 22 Nov: "when AV scene on its blue can we just have a white ring and an on"): an AV scene that is on keeps its
    picture and look, with a white ring and its tag reading On */
