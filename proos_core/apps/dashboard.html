@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112115';
+const PROOS_BUILD='2026112117';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -5283,7 +5283,7 @@ async function _bootFromCache(){
   if(_proosDoorBase===null){ try{ var md=localStorage.getItem('proos_last_way_in'); if(md!==null) _proosDoorBase=md; }catch(e){} }
   pr.replay=snap;
   try{
-    (snap.ws.get_states.result||[]).forEach(s=>{ if(s && s.entity_id) states[s.entity_id]=s; });
+    (snap.ws.get_states.result||[]).forEach(s=>{ if(s && s.entity_id) states[s.entity_id]=(typeof _proosAd==='function'?_proosAd(s):s); });
     try{ _haLocationName=(snap.ws.get_config&&snap.ws.get_config.result&&snap.ws.get_config.result.location_name)||''; }catch(e){}
     try{ _haUser=(snap.ws['auth/current_user']&&snap.ws['auth/current_user'].result)||null; }catch(e){}
     if(!_haLocationName){ const zh=states['zone.home']; if(zh&&zh.attributes&&zh.attributes.friendly_name) _haLocationName=zh.attributes.friendly_name; }
@@ -7086,7 +7086,7 @@ async function connect(){
       _pcWsUp=true; _pcWsDownAt=0; _pcEvaluate();
       if(loadMsg) loadMsg.textContent = 'Loading states…';
       const r = await snd({type:'get_states'});
-      r.result.forEach(s=>{states[s.entity_id]=s});
+      r.result.forEach(s=>{states[s.entity_id]=(typeof _proosAd==='function'?_proosAd(s):s)});
       try{ const cfg=await snd({type:'get_config'}); _haLocationName=(cfg&&cfg.result&&cfg.result.location_name)||''; _rememberPlatformUrls(cfg&&cfg.result); }catch(e){}
       try{ localStorage.setItem('ha_url', HA); }catch(e){}   // the address that just worked — a fact, not a typed one
       try{ const wu=await snd({type:'auth/current_user'}); _haUser=(wu&&wu.result)||null; }catch(e){}
@@ -7150,7 +7150,7 @@ async function connect(){
       _onEntitiesEvent(m.event);      // 697: the platform's own per-device feed
     }else if(m.type==='event'&&m.event?.event_type==='state_changed'){
       if(_entSubId&&m.id!==_entSubId&&_wantedSet&&!_wantedSet.has(m.event.data.entity_id)) return;   // 697: the old feed, during the hand-over
-      const d=m.event.data; states[d.entity_id]=d.new_state;
+      const d=m.event.data; states[d.entity_id]=(typeof _proosAd==='function'?_proosAd(d.new_state):d.new_state);
       onStateChange(d.entity_id);
     }else if(m.type==='event'&&['entity_registry_updated','device_registry_updated','area_registry_updated','label_registry_updated'].includes(m.event?.event_type)){
       scheduleLiveRediscover();
@@ -7537,20 +7537,32 @@ function _wantedEntities(){
     return !_NOISE_DOMAINS.has(d) || !!entityAreaMap[e] || e.indexOf('sensor.proos_')===0 || _zoneIds.has(e); });
 }
 function _isoS(t){ return new Date(t*1000).toISOString(); }
+// REGISTER 1446 (Dave, 22 Nov: "when a radio station is playing adds we get this Asset spot but that does not show in Sonos"):
+// during a station's advert the player reports the ad server's tag as the song ("Asset Spot 29.98 2026-11-22T06:21:23.788Z").
+// Sonos shows the station then; so does ProOS — the title becomes the station, the artist goes. Songs are untouched. The
+// player's own words are kept (_rawA) so the next change is laid over them, not over ours.
+function _proosAdTag(x){ return typeof x==='string'&&(/^\s*asset\s+spot\b/i.test(x)||/\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z/.test(x)); }
+function _proosAd(n){ try{
+  if(!n||!n.entity_id||n.entity_id.indexOf('media_player.')!==0||!n.attributes) return n;
+  var raw=n._rawA||n.attributes; delete n._rawA;
+  if(!(_proosAdTag(raw.media_title)||_proosAdTag(raw.media_artist))){ n.attributes=raw; return n; }
+  n._rawA=raw; n.attributes=Object.assign({},raw,{media_title:raw.media_channel||raw.source||'',media_artist:'',media_album_name:''});
+}catch(e){} return n; }
 function _onEntitiesEvent(ev){
   if(ev.a) Object.keys(ev.a).forEach(eid=>{ const c=ev.a[eid], prev=states[eid];
     const n={entity_id:eid, state:c.s, attributes:c.a||{}, context:(typeof c.c==='string')?{id:c.c,parent_id:null,user_id:null}:(c.c||{}),
       last_changed:_isoS(c.lc), last_updated:c.lu?_isoS(c.lu):_isoS(c.lc)};
-    states[eid]=n;
+    states[eid]=(typeof _proosAd==='function'?_proosAd(n):n);
     if(!prev||prev.state!==n.state||Math.abs(Date.parse(prev.last_updated)-Date.parse(n.last_updated))>1) onStateChange(eid); });   // the first answer repeats what get_states said: only a real change repaints
   if(ev.c) Object.keys(ev.c).forEach(eid=>{ const cur=states[eid]; if(!cur) return;
     const n=Object.assign({},cur), p=ev.c[eid]['+'], m=ev.c[eid]['-'];
     if(p){ if(p.s!==undefined) n.state=p.s;
       if(p.c) n.context=(typeof p.c==='string')?Object.assign({},cur.context,{id:p.c}):Object.assign({},cur.context,p.c);
       if(p.lc){ n.last_changed=n.last_updated=_isoS(p.lc); } else if(p.lu){ n.last_updated=_isoS(p.lu); }
-      if(p.a) n.attributes=Object.assign({},cur.attributes,p.a); }
-    if(m&&m.a){ n.attributes=Object.assign({},n.attributes); m.a.forEach(k=>{ delete n.attributes[k]; }); }
-    states[eid]=n; onStateChange(eid); });
+      if(p.a) n.attributes=Object.assign({},cur._rawA||cur.attributes,p.a); }
+    if(m&&m.a){ n.attributes=Object.assign({},(p&&p.a)?n.attributes:(cur._rawA||n.attributes)); m.a.forEach(k=>{ delete n.attributes[k]; }); }
+    if(!(p&&p.a)&&!(m&&m.a)&&cur._rawA) n.attributes=cur._rawA;
+    delete n._rawA; states[eid]=(typeof _proosAd==='function'?_proosAd(n):n); onStateChange(eid); });
   if(ev.r) ev.r.forEach(eid=>{ delete states[eid]; onStateChange(eid); });
 }
 function _subscribeStates(){
@@ -24605,12 +24617,18 @@ html.proos-panel #widget-px-btn{display:none!important}
     speaker:'Speaker',camera:'Camera',doorbell:'Doorbell',lock:'Lock',alarm:'Alarm',sensor:'Sensor',reading:'Sensor',irrigation:'Irrigation',vacuum:'Vacuum',appliance:'Appliance',other:'Device',voice:'Voice'};
   function _pxNameOf(dev, k, room, states){
     var n=String(dev.devName||_pxA(states[dev.lead],'friendly_name')||dev.lead.split('.')[1].replace(/_/g,' ')).trim();
-    var rn=room&&room.name?String(room.name).trim():'';
+    var rn=room&&room.name?String(room.name).trim():''; dev.roomNamed=false;
     if(rn){
       var low=n.toLowerCase(), rl=rn.toLowerCase();
-      if(low===rl) return k.kind==='garage'&&k.sub==='gate'?'Gate':(KIND_WORD[k.kind]||'Device');
+      // 1443: a device named after its room is marked; a media card or Now Playing never calls it by its kind (Dave, 22 Nov: "I have
+      // never called anything a speaker so why would it appear anywhere") — the room's name already says where it is
+      if(low===rl||(function(){ var ps=n.split(/\s*[·\-–|]\s*|\s+/); return ps.length>1&&ps.every(function(p){ return p.toLowerCase()===rl; }); })()) dev.roomNamed=true;
+      // 1445 (Dave, 22 Nov 17:18: "The rule was if the device name matches the room name then dont list twice — speaker as not a
+      // name"): a device named after its room keeps its own name (the room's); it is never renamed by its kind. Wherever the
+      // room is already said beside it, it is not said twice (_pxShown).
+      if(low===rl) return rn;
       // "Office Office", "Office · Office", "Office - Office"
-      var parts=n.split(/\s*[·\-–|]\s*|\s+/); if(parts.length>1 && parts.every(function(p){ return p.toLowerCase()===rl; })) return KIND_WORD[k.kind]||'Device';
+      var parts=n.split(/\s*[·\-–|]\s*|\s+/); if(parts.length>1 && parts.every(function(p){ return p.toLowerCase()===rl; })) return rn;
       if(low.indexOf(rl+' ')===0 && n.length>rn.length+1){ n=n.slice(rn.length+1).replace(/^[·\-–|]\s*/,''); }
     }
     return n.charAt(0).toUpperCase()+n.slice(1);
@@ -24650,6 +24668,7 @@ html.proos-panel #widget-px-btn{display:none!important}
   // the Devices categories, from the kinds a home actually has
   var CAT={light:'Lights',plug:'Switches & Plugs',fan:'Fans',shade:'Shades',garage:'Garage & Gates',climate:'Climate',tv:'TVs & Media',receiver:'TVs & Media',source:'TVs & Media',
     speaker:'Music',camera:'Cameras',doorbell:'Cameras',lock:'Locks & Access',alarm:'Security',sensor:'Security & Sensors',reading:'Readings',irrigation:'Irrigation',vacuum:'Appliances',appliance:'Appliances',voice:'Voice',other:'Other'};
+  window._pxShown=function(d){ return d&&d.roomNamed?'':(d&&d.name)||''; };   // 1443: the name a media card shows
   window._pxDevices=_pxDevicesOf; window._pxKind=_pxKindOf; window._pxName=_pxNameOf; window._pxReading=_pxReadingOf; window._pxCat=function(k){ return CAT[k]||'Other'; };
 
   // ── THE TEST PAGE ── every device in every room, live, as its new card
@@ -24724,6 +24743,9 @@ body.nx-on #nx-bar{display:flex}
 #nx-avatar{position:fixed;top:calc(12px + var(--proos-sat,0px));right:16px;z-index:9001;width:44px;height:44px;border-radius:50%;border:0;cursor:pointer;display:none;place-items:center;
   font:600 17px Inter,-apple-system,sans-serif;color:#fff;background:linear-gradient(135deg,#6f86ff,#2139F0) center/cover;box-shadow:0 0 0 2px rgba(255,255,255,.08)}
 body.nx-on.nx-av #nx-avatar{display:grid}
+/* 1444 (Dave, 22 Nov: "profile pic only needs to appear on Home or area pages not on all pages"): only Home and a room's page */
+body.nx-on #nx-avatar{display:none}
+body.nx-on:has(#nx-page.open.nx-home-pg) #nx-avatar,body.nx-on:has(#nx-page.open.nx-room-pg) #nx-avatar{display:grid}
 #nx-page{position:fixed;inset:0;z-index:8990;background:#0e0e10;color:#fff;overflow-y:auto;display:none;font-family:Inter,-apple-system,sans-serif;
   padding-left:18px;padding-right:18px;padding-bottom:calc(130px + env(safe-area-inset-bottom,0px));-webkit-overflow-scrolling:touch}
 body.nx-on #nx-page.open{display:block}
@@ -24759,6 +24781,7 @@ body.nx-on #nx-page.open{display:block}
 .nx-aware{display:inline-flex;align-items:center;gap:8px;padding:9px 14px;border-radius:999px;background:#1b1c20;font-size:13px;font-weight:500;margin-bottom:16px}
 .nx-dot{width:7px;height:7px;border-radius:50%;background:#5FD39A;box-shadow:0 0 8px #5FD39A}
 .nx-back{width:42px;height:42px;border-radius:50%;background:#1b1c20;border:0;display:grid;place-items:center;cursor:pointer;margin-top:12px}
+.nx-back.nx-fromb{position:absolute;top:calc(12px + var(--proos-sat,0px));left:18px;margin:0;background:rgba(0,0,0,.38);z-index:2}   /* 1443: where a room page's back sits */
 .nx-back svg{width:18px;height:18px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 /* Settings — the G-Flip's look: big cards, choices you can see */
 .nx-set{display:grid;grid-template-columns:1fr;gap:12px;margin-top:16px}
@@ -24862,7 +24885,7 @@ body.nx-on #nx-page.open{display:block}
   window._nxBackFrom=function(){ var f=_from; _from=null;
     if(f&&f.room!=null&&typeof _nxRoom==='function'&&(CONFIG.rooms||[])[f.room]){ cur='rooms'; bar(); _nxRoom(f.room); return; }
     _nxGoTo('home'); };
-  window._nxBackBtn=function(){ return '<button type="button" class="nx-back" data-nxfrom onclick="window._nxBackFrom&&_nxBackFrom()">'+svgOf('back')+'</button>'; };
+  window._nxBackBtn=function(){ return '<button type="button" class="nx-back nx-fromb" aria-label="Back" data-nxfrom onclick="window._nxBackFrom&&_nxBackFrom()">'+svgOf('back')+'</button>'; };
   function _nxGoTo(id){
     if(id==='devices'||id==='scenes'||id==='rooms'){ var h=_nxHereNow(); if(h) _from=h; else if(!(cur==='devices'||cur==='scenes'||cur==='rooms')) _from=null; } else _from=null;
     cur=id; document.body.classList.toggle('nx-av', id==='home'||id==='rooms'||id==='devices');
@@ -25127,15 +25150,15 @@ body.nx-on #nx-page.open{display:block}
     var s=states[d.lead]||{}, A=s.attributes||{}, k=d.k.kind;
     if(k==='tv'||k==='source'||k==='receiver'||k==='speaker'){
       var art=''; try{ var p=(typeof _artOf==='function')?_artOf(d.lead):A.entity_picture; art=p?artSrc(p):''; }catch(e){}
-      var title=A.media_title||A.media_channel||'', sub=[A.media_artist||A.app_name||'', d.name].filter(Boolean).join(' · ');
+      var title=A.media_title||A.media_channel||'', sub=[A.media_artist||A.app_name||'', (window._pxShown?_pxShown(d):((d)||{}).name||'')].filter(Boolean).join(' · ');
       var playing=s.state==='playing';
       return '<button type="button" class="nxr-live wide'+(art?' art':'')+'" data-open="'+nxrEsc(d.lead)+'" style="'+(art?"background-image:url('"+String(art).replace(/'/g,'%27')+"')":'')+'">'+
-        '<span class="nxr-pill">'+nxrEsc(d.name)+(playing?' <b>PLAYING</b>':s.state==='paused'?' <b>PAUSED</b>':'')+'</span>'+
-        '<div class="nxr-row" style="align-items:flex-end"><div style="min-width:0"><div style="font-size:20px;font-weight:600">'+nxrEsc(title||d.r.word)+'</div><div class="k">'+nxrEsc(title?sub:d.name)+'</div></div>'+
+        (((window._pxShown?_pxShown(d):((d)||{}).name||'')||playing||s.state==='paused')?'<span class="nxr-pill">'+nxrEsc((window._pxShown?_pxShown(d):((d)||{}).name||''))+(playing?' <b>PLAYING</b>':s.state==='paused'?' <b>PAUSED</b>':'')+'</span>':'')+
+        '<div class="nxr-row" style="align-items:flex-end"><div style="min-width:0"><div style="font-size:20px;font-weight:600">'+nxrEsc(title||d.r.word)+'</div><div class="k">'+nxrEsc(title?sub:(window._pxShown?_pxShown(d):((d)||{}).name||''))+'</div></div>'+
         ((k==='speaker'||A.media_title)?'<span class="nxr-pw play" data-pp="'+nxrEsc(d.lead)+'">'+gi(playing?'pause':'play')+'</span>':'')+'</div></button>';
     }
     var cls=d.r.warn?' warn':'', ic={shade:'shade',garage:'garage',lock:'lock',climate:'climate',fan:'fan'}[k]||'other';
-    return '<button type="button" class="nxr-live'+cls+'" data-cat="'+nxrEsc(d.cat)+'" data-lead="'+nxrEsc(d.lead)+'"><div class="nxr-row"><div class="nx-ic">'+gi(ic)+'</div></div><div><div class="k">'+nxrEsc(d.name)+'</div><div class="n">'+nxrEsc(d.r.word)+'</div></div></button>';
+    return '<button type="button" class="nxr-live'+cls+'" data-cat="'+nxrEsc(d.cat)+'" data-lead="'+nxrEsc(d.lead)+'"><div class="nxr-row"><div class="nx-ic">'+gi(ic)+'</div></div><div><div class="k">'+nxrEsc((window._pxShown?_pxShown(d):d.name))+'</div><div class="n">'+nxrEsc(d.r.word)+'</div></div></button>';
   }
   function _nxrDraw(){
     var r=ROOM; if(!r) return; var p=document.getElementById('nx-page'); if(!p||!p.classList.contains('open')||!p.classList.contains('nx-room-pg')) return;
@@ -25144,19 +25167,20 @@ body.nx-on #nx-page.open{display:block}
     var av=_nxrAvScenes(r), sc=_nxrRoomScenes(r), off=_nxrOffAct(r); _nxrLoadSceneChecks(sc);
     var lv=_nxrLightLevel(L);
     // the line under the name: where the room IS (30 Oct) — what is on, by name; else Off
-    var named=on.filter(function(d){ return d.k.kind!=='light'; }).map(function(d){ return d.name; });
+    var named=on.filter(function(d){ return d.k.kind!=='light'; }).map(function(d){ return (window._pxShown?_pxShown(d):((d)||{}).name||'')||d.r.word; });   // 1443
     if(litN) named.push(litN+' of '+lights.length+' lights');
     var line=on.length||litN?named.join(' · '):(L.length?'Off':'Nothing here yet');
     var sensors=L.filter(function(d){ return d.k.kind==='sensor'; }), open=sensors.filter(function(d){ return /Open|Motion|Wet|Smoke|CO detected|Gas/.test(d.r.word); });
     var _aw='All normal · '+sensors.length+(sensors.length===1?' sensor':' sensors')+' checked';   // 1442: all normal is the dot alone
     var aware=sensors.length?(open.length?'<span class="nx-aware" style="margin:0;background:rgba(255,181,71,.12)"><span class="nx-dot" style="background:#FFB547;box-shadow:none"></span>'+
       open.map(function(d){ return d.name+' '+d.r.word.toLowerCase(); }).join(' · ')+'</span>'
-      :'<span class="nx-aware" style="margin:0;padding:0;width:30px;height:30px;justify-content:center;gap:0" title="'+_aw+'" aria-label="'+_aw+'"><span class="nx-dot"></span></span>'):'';
+      :'<span class="nx-aware" style="margin:0;padding:0;width:22px;height:22px;justify-content:center;gap:0;background:none" title="'+_aw+'" aria-label="'+_aw+'"><span class="nx-dot"></span></span>'):'';
     // scenes row
-    var tiles=av.map(function(a){ var s=_nxrAvState(r,a.key), R=s==='starting'?_nxrRing(r):null; return '<button type="button" class="nxr-scn'+(s==='on'?' on':'')+(R?' go':'')+'" data-av="'+nxrEsc(a.key)+'" data-script="'+nxrEsc(a.script)+'">'+gi('tv','g')+
+    var tiles=av.map(function(a){ var s=_nxrAvState(r,a.key), R=s==='starting'?_nxrRing(r):null; var u=window._nxScenePic?_nxScenePic(a.script,String(a.label||a.key)):''; return '<button type="button" class="nxr-scn nxh-scn'+(s==='on'?' on':'')+(R?' go':'')+'" data-av="'+nxrEsc(a.key)+'" data-script="'+nxrEsc(a.script)+'"'+(u?' style="background-image:url(\''+nxrEsc(String(u).replace(/'/g,'%27'))+'\')"':'')+'>'+gi('tv','g')+
         (R?R.svg:'<span class="tag">AV</span>')+
         '<b>'+nxrEsc(String(a.label||a.key).replace(/^Watch\s+/i,'Watch '))+(R&&R.cap?'<small class="nxr-cap'+(R.bad?' bad':R.cap==='Ready'?' ok':'')+'">'+nxrEsc(R.cap)+'</small>':'')+'</b></button>'; })
-      .concat(sc.map(function(e){ return '<button type="button" class="nxr-scn'+(_nxrSceneOn(e)?' on':'')+'" data-scene="'+nxrEsc(e)+'">'+gi('spark','g')+'<b>'+nxrEsc(_pxName({lead:e,devName:att(e,'friendly_name')},{kind:'other'},r,states))+'</b></button>'; }))
+      .concat(sc.map(function(e){ var nm=_pxName({lead:e,devName:att(e,'friendly_name')},{kind:'other'},r,states), u=window._nxScenePic?_nxScenePic(e,nm):'';
+        return '<button type="button" class="nxr-scn nxh-scn'+(_nxrSceneOn(e)?' on':'')+'" data-scene="'+nxrEsc(e)+'"'+(u?' style="background-image:url(\''+nxrEsc(String(u).replace(/'/g,'%27'))+'\')"':'')+'>'+gi('spark','g')+'<b>'+nxrEsc(nm)+'</b></button>'; }))
       .concat((off||lights.length||L.some(function(d){ return d.k.kind==='speaker'; }))?['<button type="button" class="nxr-scn" data-off="1">'+gi('pw','g')+'<b>Room Off</b></button>']:[]);
     // on now: the lights as one _nxrCard, every other device that is on as its own
     var cards=[];
@@ -25234,7 +25258,8 @@ body.nx-on #nx-page.open{display:block}
 .nxh-aware{display:inline-flex;align-items:center;gap:8px;padding:9px 14px;border-radius:999px;background:#1b1c20;border:0;color:#fff;font:500 13px Inter,-apple-system,sans-serif;cursor:pointer;
   transition:background var(--m-page) var(--e-standard)}
 .nxh-aware i{width:7px;height:7px;border-radius:50%;background:#5FD39A;box-shadow:0 0 8px #5FD39A;flex:none}
-.nxh-aware.dot{padding:0;width:30px;height:30px;justify-content:center;gap:0}
+.nxh-aware.dot{padding:0;width:22px;height:22px;justify-content:center;gap:0;background:none}
+.nxh-aware.dot i{width:7px;height:7px}   /* 1443: no dark circle — the dot keeps its glow (Dave, 22 Nov 17:17) */
 .nxh-aware.warn{background:rgba(255,181,71,.12)}.nxh-aware.warn i{background:#FFB547;box-shadow:0 0 8px #FFB547}
 .nxh-aware.notice i{background:#8A98FF;box-shadow:0 0 8px #8A98FF}
 .nxh-aware.grey{color:rgba(255,255,255,.62)}.nxh-aware.grey i{background:rgba(255,255,255,.4);box-shadow:none}
@@ -25275,7 +25300,7 @@ img.nxa-fit-c{object-fit:contain!important;object-position:center!important;back
 .nxh-scn{background-size:cover;background-position:center}
 .nxh-scn::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(14,14,16,.25),rgba(14,14,16,.82));transition:opacity var(--m-page) var(--e-standard)}
 .nxh-scn>*{position:relative}
-.nxh-scn.on::before{background:linear-gradient(135deg,rgba(50,72,255,.82),rgba(33,57,240,.9))}
+.nxh-scn.on::before{background:linear-gradient(135deg,rgba(50,72,255,.55),rgba(33,57,240,.72))}   /* 1447: a scene that is on keeps its picture under the blue */
 .nxh-scn.run{animation:nxhRun var(--m-hold) var(--e-standard)}
 @keyframes nxhRun{50%{box-shadow:0 0 0 3px rgba(138,152,255,.6)}}
 .nxh-cols .nxr-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -25346,11 +25371,11 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
       var title=A.media_title||A.media_channel||'', playing=s.state==='playing';
       return '<button type="button" class="nxr-live'+(art?' art':'')+'" data-hopen="'+nxhEsc(d.lead)+'" style="'+(art?"background-image:url('"+String(art).replace(/'/g,'%27')+"')":'')+'">'+
         '<span class="nxr-pill">'+nxhEsc(c.room||d.name)+(playing?' <b>PLAYING</b>':s.state==='paused'?' <b>PAUSED</b>':'')+'</span>'+
-        '<div><div class="n" style="font-size:16px">'+nxhEsc(title||d.name)+'</div><div class="k">'+nxhEsc(title?d.name:d.r.word)+'</div></div></button>';
+        '<div><div class="n" style="font-size:16px">'+nxhEsc(title||(window._pxShown?_pxShown(d):((d)||{}).name||'')||d.r.word)+'</div><div class="k">'+nxhEsc(title?((window._pxShown?_pxShown(d):((d)||{}).name||'')||A.media_artist||''):((window._pxShown?_pxShown(d):((d)||{}).name||'')?d.r.word:''))+'</div></div></button>';
     }
     var ic={shade:'shade',garage:'garage',lock:'lock',climate:'climate',fan:'fan'}[k]||'other';
     return '<button type="button" class="nxr-live'+(d.r.warn?' warn':'')+'" data-hcat="'+nxhEsc(d.cat)+'" data-hlead="'+nxhEsc(d.lead)+'"><div class="nxr-row"><div class="nx-ic"'+(d.r.warn?' style="background:rgba(255,181,71,.18)"':'')+'>'+nxhIc(ic).replace('<svg','<svg style="stroke:'+(d.r.warn?'#FFB547':'#fff')+';width:20px;height:20px;fill:none;stroke-width:1.8"')+'</div>'+
-      (d.r.warn?'<span style="font-size:13px;font-weight:600;color:#FFB547">'+nxhEsc(d.r.word)+'</span>':'')+'</div><div><div class="k">'+nxhEsc(c.room||'Around the House')+'</div><div class="n">'+nxhEsc(d.name)+(d.r.warn?'':' · '+nxhEsc(d.r.word))+'</div></div></button>';
+      (d.r.warn?'<span style="font-size:13px;font-weight:600;color:#FFB547">'+nxhEsc(d.r.word)+'</span>':'')+'</div><div><div class="k">'+nxhEsc(c.room||'Around the House')+'</div><div class="n">'+(function(nm){ return nm?nxhEsc(nm)+(d.r.warn?'':' · '+nxhEsc(d.r.word)):nxhEsc(d.r.word); })((window._pxShown?_pxShown(d):d.name))+'</div></div></button>';
   }
   function _nxhWeather(){
     var w=CONFIG.weather; if(!w||!states[w]) return '';
@@ -25381,7 +25406,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
     scenes.forEach(function(s){ lit[s.entity]=(typeof _nxSceneOn==='function')&&_nxSceneOn(s.entity); });
     var yw=window._nxWidgets?_nxWidgets(null):'';   // 1387: every widget Home has, in the New Look
     var hs=M.hero?states[M.hero.lead]||{}:null;
-    var sig=JSON.stringify([known,CONFIG._homeAreaPhoto||'',greet,A,_nxhWeather(),empty,M.hero&&[M.hero.lead,hs.state,hs.attributes.media_title,hs.attributes.media_artist],M.cards.map(function(c){ return c.t==='lights'?['l',c.area,c.n]:[c.t,c.d.lead,c.d.r.word,(states[c.d.lead]||{}).state,((states[c.d.lead]||{}).attributes||{}).media_title]; }),scenes.map(function(s){ return [s.entity,s.name,s.photo,lit[s.entity],ran[s.entity]]; }),yw,M.hasLights]);
+    var sig=JSON.stringify([known,CONFIG._homeAreaPhoto||'',greet,A,_nxhWeather(),empty,M.hero&&[M.hero.lead,hs.state,hs.attributes.media_title,hs.attributes.media_artist],M.cards.map(function(c){ return c.t==='lights'?['l',c.area,c.n]:[c.t,c.d.lead,c.d.r.word,(states[c.d.lead]||{}).state,((states[c.d.lead]||{}).attributes||{}).media_title]; }),scenes.map(function(s){ return [s.entity,s.name,(window._nxScenePic?_nxScenePic(s.entity,s.name):s.photo),lit[s.entity],ran[s.entity]]; }),yw,M.hasLights]);
     if(p._sig===sig) return; p._sig=sig;
     var hph=CONFIG._homeAreaPhoto||'';   // 1424: the Home photo, clear at the top, as a room's own
     var html=(hph?'<div class="nxh-photo" aria-hidden="true" style="background-image:url(\''+String(hph).replace(/['"\\]/g,encodeURIComponent)+'\')"></div>':'')+'<div class="nx-in"><div class="nxh-top"><span></span></div><div class="nxh-greet">'+(empty&&known?'Welcome':nxhEsc(greet))+'</div><div class="nxh-h1">Home</div>';
@@ -25398,15 +25423,15 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
     if(M.hero){ var HA=hs.attributes||{}, art=''; try{ var ap=(typeof _artOf==='function')?_artOf(M.hero.lead):HA.entity_picture; art=ap?artSrc(ap):''; }catch(e){}
       var u=art?"url('"+String(art).replace(/'/g,'%27')+"')":'';
       html+='<button type="button" class="nxh-hero" data-hopen="'+nxhEsc(M.hero.lead)+'">'+(u?'<div class="glow" style="background-image:'+u+'"></div><div class="art" style="background-image:'+u+'"></div>':'')+
-        '<div class="tx"><span class="nxr-pill">'+nxhEsc([M.heroRoom,M.hero.name].filter(function(x,i,a){ return x&&a.indexOf(x)===i; }).join(' · '))+' <b>PLAYING</b></span>'+
+        '<div class="tx"><span class="nxr-pill">'+nxhEsc([M.heroRoom,(window._pxShown?_pxShown(M.hero):((M.hero)||{}).name||'')].filter(function(x,i,a){ return x&&a.indexOf(x)===i; }).join(' · '))+' <b>PLAYING</b></span>'+
         '<div><div class="ar">'+nxhEsc(HA.media_artist||HA.media_album_name||'')+'</div><div class="tt">'+nxhEsc(HA.media_title)+'</div></div>'+
-        '<div class="ar" style="display:flex;align-items:center"><span class="nxh-bars"><i></i><i></i><i></i></span>'+nxhEsc(HA.app_name||HA.source||M.hero.name)+'</div></div>'+
+        '<div class="ar" style="display:flex;align-items:center"><span class="nxh-bars"><i></i><i></i><i></i></span>'+nxhEsc(HA.app_name||HA.source||(window._pxShown?_pxShown(M.hero):((M.hero)||{}).name||''))+'</div></div>'+
         '<span class="nxr-pw play" data-hpp="'+nxhEsc(M.hero.lead)+'">'+nxhIc('pause')+'</span></button>';
     }
     var onNow='<div class="nxr-sec"><b>On Now</b><button type="button" class="nxh-more" data-hdev>All Devices ›</button></div>'+
       (M.cards.length?'<div class="nxr-grid" style="grid-template-columns:repeat(2,minmax(0,1fr))">'+M.cards.map(_nxhCard).join('')+'</div>'
         :'<div class="nxr-quiet">Nothing on right now<small>When something turns on anywhere in the house, it shows here.</small></div>');
-    var tiles=scenes.map(function(s,i){ return '<button type="button" class="nxr-scn nxh-scn'+(lit[s.entity]?' on':'')+(ran[s.entity]&&Date.now()-ran[s.entity]<1500?' run':'')+'" data-hscene="'+i+'" style="'+(s.photo?"background-image:url('"+String(s.photo).replace(/'/g,'%27')+"')":'')+'">'+nxhIc('spark','g')+'<b>'+nxhEsc(s.name)+'</b></button>'; });
+    var tiles=scenes.map(function(s,i){ return '<button type="button" class="nxr-scn nxh-scn'+(lit[s.entity]?' on':'')+(ran[s.entity]&&Date.now()-ran[s.entity]<1500?' run':'')+'" data-hscene="'+i+'" style="'+(function(u){ return u?"background-image:url('"+String(u).replace(/'/g,'%27')+"')":''; })(window._nxScenePic?_nxScenePic(s.entity,s.name):s.photo)+'">'+nxhIc('spark','g')+'<b>'+nxhEsc(s.name)+'</b></button>'; });
     if(M.hasLights||M.players.length) tiles.push('<button type="button" class="nxr-scn" data-halloff>'+nxhIc('pw','g')+'<b>All Off</b></button>');
     var sc='<div class="nxr-sec"><b>Scenes</b><button type="button" class="nxh-more" data-hscenes>All Scenes ›</button></div>'+
       (tiles.length?'<div class="nxr-grid">'+tiles.join('')+'</div>':'<div class="nxr-quiet">No scenes yet<small>Your installer adds them, or ask Assist to save what’s on as a scene.</small></div>');
@@ -26246,7 +26271,7 @@ body.nx-on #pa-detail{z-index:9070}
   window._nxmRead=_nxmRead;
   function _nxmAll(){ return (window._nxAll?_nxAll():[]).filter(function(d){ return d.cat==='Music'; }).map(function(d){
     var r=(CONFIG.rooms||[]).filter(function(x){ return x.id===d.area; })[0]; var room=r?r.name:(d.area&&typeof areaNameById!=='undefined'&&areaNameById[d.area])||'';
-    return {e:d.lead, name:d.name, room:room, label:room&&room!==d.name?room+' · '+d.name:(room||d.name)}; }); }
+    var nm=(window._pxShown?_pxShown(d):((d)||{}).name||''); return {e:d.lead, name:nm||room||d.name, room:room, label:room&&nm&&room!==nm?room+' · '+nm:(room||d.name)}; }); }
   function _nxmCard(x, all){
     var S=states[x.e], R=_nxmRead(x.e,S,pend), A=(S&&S.attributes)||{};
     var art=''; if(R.title){ try{ var p=(typeof _artOf==='function')?_artOf(x.e):A.entity_picture; art=p?artSrc(p):''; }catch(z){} }
@@ -26381,7 +26406,7 @@ body.nx-on #device-chooser{z-index:9380}
     var onN=L.filter(function(d){ return _nxtRead(states[d.lead]).on; }).length;
     var h='<div class="nx-in"><button type="button" class="nx-back" data-tb>'+BACK+'</button><div class="nx-hd"><div><h1>TVs &amp; Media</h1><div class="nx-sub">'+(L.length?(onN?onN+' on · ':'')+L.length+(L.length===1?' device':' devices'):'')+'</div></div></div>';
     if(!L.length) h+='<div class="nxr-quiet">No TVs or players yet<small>They appear here the moment your installer adds them.</small></div>';
-    else h+='<div class="nxq-list">'+L.map(function(d){ var R=_nxtRead(states[d.lead]), rm=roomOf(d.area), lab=rm&&rm!==d.name?rm+' · '+d.name:(rm||d.name);
+    else h+='<div class="nxq-list">'+L.map(function(d){ var R=_nxtRead(states[d.lead]), rm=roomOf(d.area), nm=(window._pxShown?_pxShown(d):((d)||{}).name||''), lab=rm&&nm&&rm!==nm?rm+' · '+nm:(rm||d.name);
       return '<div class="nxq-li nxt-li'+(R.on?' on':'')+'" data-tl="'+esc6(d.lead)+'" data-ta="'+esc6(d.area||'')+'"><div class="nx-ic">'+TV+'</div><div class="gr"><b>'+esc6(lab)+'</b><small class="'+(R.on?'act':'')+'">'+esc6(R.word)+'</small></div><span class="go">›</span></div>'; }).join('')+'</div>';
     h+='</div>';
     if(p._sig===h) return; p._sig=h; var y=p.scrollTop; p.innerHTML=h; p.scrollTop=y;
@@ -26532,7 +26557,7 @@ body.nx-on #device-chooser{z-index:9380}
         if(!m) return _nxwCard(w,{ic:'tv', k:'Now Playing', n:'Nothing playing'});
         var A2=states[m.lead].attributes, art=''; try{ var pth=(typeof _artOf==='function')?_artOf(m.lead):A2.entity_picture; art=pth?artSrc(pth):''; }catch(x){}
         var rm=(roomById(m.area)||{}).name||'';
-        return _nxwCard(w,{bg:art, k:[rm,m.name].filter(function(x,i,a){ return x&&a.indexOf(x)===i; }).join(' · ')+(states[m.lead].state==='playing'?' · Playing':' · Paused'), n:A2.media_title, s:A2.media_artist||A2.app_name||'', go:function(){ try{ openPlayer(m.lead); }catch(x){} },
+        return _nxwCard(w,{bg:art, k:[rm,(window._pxShown?_pxShown(m):((m)||{}).name||'')].filter(function(x,i,a){ return x&&a.indexOf(x)===i; }).join(' · ')+(states[m.lead].state==='playing'?' · Playing':' · Paused'), n:A2.media_title, s:A2.media_artist||A2.app_name||'', go:function(){ try{ openPlayer(m.lead); }catch(x){} },
           right:'<span class="nxw-pp" aria-label="'+(states[m.lead].state==='playing'?'Pause':'Play')+'" data-nwu="'+act(function(){ svc('media_player','media_play_pause',{entity_id:m.lead}); },'pp:'+(w.uid||w.id))+'"><svg viewBox="0 0 24 24">'+(states[m.lead].state==='playing'?'<path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/>':'<path d="M8 5v14l11-7z"/>')+'</svg></span>'}); }   // 1401: play/pause, as the mock
       case 'camera': case 'protect_doorbell': case 'protect_detect': {
         var ci=Math.min(parseInt(w.cam)||0,(CONFIG.cameras||[]).length-1), cam=(CONFIG.cameras||[])[Math.max(0,ci)];
@@ -27122,6 +27147,10 @@ body.nx-on #pa-detail.nxd-ring .pa-fs-pip{top:156px;right:16px;left:auto;bottom:
   // under its activity's script, in the same store.
   function pic(e, n){ var o=(typeof _scenePhotos!=='undefined'&&_scenePhotos&&_scenePhotos[e])||{}; var c=((CONFIG.scenes||[]).filter(function(x){ return x.entity===e; })[0]||{}).photo;
     var u=o.photo||c||(typeof getScenePhoto==='function'?getScenePhoto(n):''); return u?' style="background-image:url(\''+esc(String(u).replace(/'/g,'%27'))+'\')"':''; }
+  // 1447 (Dave, 22 Nov: "background art I give to scenes needs to update everywhere it's used on dashboard"): Home's and a room's
+  // scene tiles take their picture from here too — the one Save keeps, else the scene's own, else its standard
+  window._nxScenePic=function(e,n){ var o=(typeof _scenePhotos!=='undefined'&&_scenePhotos&&_scenePhotos[e])||{}; var c=((CONFIG.scenes||[]).filter(function(x){ return x.entity===e; })[0]||{}).photo;
+    return o.photo||c||(typeof getScenePhoto==='function'?getScenePhoto(n):''); };
   function sceneTile(s, ri){ return '<button type="button" class="nxr-scn nxh-scn'+(lit(s.e)?' on':'')+'" data-sc="'+esc(s.e)+'" data-si="'+s.i+'"'+pic(s.e,s.n)+'>'+SPARK+'<b>'+esc(s.n)+'</b></button>'; }
   function _nxScDraw(){
     var p=document.getElementById('nx-page'); if(!p||!p.classList.contains('open')||!p.classList.contains('nx-scn-pg')) return;
@@ -27195,6 +27224,9 @@ body.nx-on #mus-ask .ma-h{font-size:20px;font-weight:600}
 body.nx-on #mus-ask .ma-list{background:none;display:flex;flex-direction:column;gap:6px}
 body.nx-on #mus-ask .ma-row,body.nx-on #mus-ask .ma-row:nth-child(even){min-height:52px;border-radius:14px;background:#26272c;font-weight:600}
 body.nx-on #mus-ask .ma-row .ma-on{color:#8A98FF;font-weight:600}
+/* 1448 (Dave, 22 Nov: "a pop up needs a darker background while it's showing as it blends into background"): every New Look
+   popup's backdrop is darker and frosted, so the card stands off the page behind it */
+#nxl-sheet,#nxp-sheet,#nxm-sheet,body.nx-on #pin-bg,body.nx-on #mus-ask,body.nx-on #widget-picker .widget-picker-scrim,body.nx-on .sg-pop,body.nx-on .scene-edit-scrim{background:rgba(0,0,0,.78)!important;-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
 #nxm-sheet{position:fixed;inset:0;z-index:9200;display:none;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.55);font-family:Inter,-apple-system,sans-serif;color:#fff}
 #nxm-sheet.open{display:flex}
 #nxm-sheet .nxm-card{width:min(520px,100%);max-height:80vh;overflow-y:auto;background:#1b1c20;border-radius:28px 28px 0 0;padding:22px 16px calc(18px + env(safe-area-inset-bottom,0px))}
@@ -31059,7 +31091,7 @@ function _ppFetchMissing(){
   if(_pp.fetching || (Date.now()-(_pp.fetchedAt||0))<15000) return;
   _pp.fetching=true; _pp.fetchedAt=Date.now();
   snd({type:'get_states'}).then(function(m){
-    var got=0; ((m&&m.result)||[]).forEach(function(s){ if(s && s.entity_id && !states[s.entity_id]){ states[s.entity_id]=s; got++; } });
+    var got=0; ((m&&m.result)||[]).forEach(function(s){ if(s && s.entity_id && !states[s.entity_id]){ states[s.entity_id]=(typeof _proosAd==='function'?_proosAd(s):s); got++; } });
     if(got){ try{ if(typeof _subscribeStates==='function') _subscribeStates(); }catch(e){} ppState(); }
   }).catch(function(){}).then(function(){ _pp.fetching=false; });
 }
