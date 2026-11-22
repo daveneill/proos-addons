@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112120';
+const PROOS_BUILD='2026112123';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -24782,10 +24782,12 @@ body.nx-on #nx-page.open{display:block}
 .nx-dot{width:7px;height:7px;border-radius:50%;background:#5FD39A;box-shadow:0 0 8px #5FD39A}
 .nx-back{width:42px;height:42px;border-radius:50%;background:#1b1c20;border:0;display:grid;place-items:center;cursor:pointer;margin-top:12px}
 .nx-back.nx-fromb{position:absolute;top:calc(12px + var(--proos-sat,0px));left:18px;margin:0;background:rgba(0,0,0,.38);z-index:2}   /* 1443: where a room page's back sits */
-.nx-fromb~.nx-hd{margin-top:52px}   /* 1450: the title starts under the back button, never under it (Dave, 22 Nov) */
+.nx-fromb~.nx-hd{padding-left:54px}   /* 1453 (Dave, 22 Nov: "can the previous page be on left next to the page name as it seem to waste page space"): the back sits beside the title (1450 had put the title under it) */
 /* 1450 (Dave, 22 Nov: "when AV scene on its blue can we just have a white ring and an on"): an AV scene that is on keeps its
    picture and look, with a white ring and its tag reading On */
-.nxr-scn[data-av].on{background-color:#1b1c20;background-image:none;box-shadow:none;outline:2px solid rgba(255,255,255,.95);outline-offset:-2px}
+.nxr-scn[data-av].on{background-color:#1b1c20;background-image:none;box-shadow:none}
+/* 1452 (Dave, 22 Nov: "hard to see the ring around at the bottom"): the ring is drawn above the picture's shade, the whole way round */
+.nxr-scn[data-av].on::after{content:'';position:absolute;inset:0;border:2.5px solid #fff;border-radius:inherit;pointer-events:none;z-index:3}
 .nxr-scn.nxh-scn[data-av].on::before{background:linear-gradient(180deg,rgba(14,14,16,.25),rgba(14,14,16,.82))}
 .nxr-scn[data-av].on .tag.on{background:#fff;color:#111}
 .nxr-scn.nxh-scn.on{background-size:cover;background-position:center}   /* 1451: .nxr-scn.on's shorthand reset these — an on tile showed its picture's corner at full size (read on the box) */
@@ -24909,14 +24911,14 @@ body.nx-on #nx-page.open{display:block}
   function drawRooms(){
     var devs=nxAll(), rooms=CONFIG.rooms||[];
     var html=_nxBackBtn()+'<div class="nx-hd"><div><h1>Rooms</h1><div class="nx-sub">'+rooms.filter(function(r){ return devs.some(function(d){ return d.area===r.id&&d.r.now; }); }).length+' in use · '+rooms.length+' rooms</div></div>'+
-      '<button type="button" class="nx-chip" data-whole>'+svgOf('home')+'Whole Home</button></div><div class="nx-rooms">';
+      '</div><div class="nx-rooms">';   // 1453: no Whole Home chip — Home is in the bar (Dave, 22 Nov)
     rooms.forEach(function(r,i){ var L=devs.filter(function(d){ return d.area===r.id; }), live=L.filter(function(d){ return d.r.now; });
       var kinds=[]; L.forEach(function(d){ var k=d.k.kind; if(k==='source'||k==='receiver') k='tv'; if(['tv','light','speaker','shade','climate','camera','lock','garage','fan'].indexOf(k)>=0&&kinds.indexOf(k)<0) kinds.push(k); });
-      var line=live.length?live.slice(0,2).map(function(d){ return d.name; }).join(' · ')+(live.length>2?' +'+(live.length-2):''):(L.length?'Off':'Nothing here yet');
+      var line=live.length?live.slice(0,2).map(function(d){ return (window._pxShown?_pxShown(d):d.name)||d.r.word; }).join(' · ')+(live.length>2?' +'+(live.length-2):''):(L.length?'Off':'Nothing here yet');
       html+='<button type="button" class="nx-room'+(live.length?'':' off')+'" data-ri="'+i+'" style="'+(r.photo?"background-image:url('"+String(r.photo).replace(/'/g,'%27')+"')":'')+'"><div class="nx-rt"><div><b>'+nxEsc(r.name)+'</b><span>'+nxEsc(line)+'</span></div><div class="nx-ics">'+kinds.slice(0,5).map(function(k){ return svgOf(k==='speaker'?'speaker':k); }).join('')+'</div></div></button>'; });
     if(!rooms.length) html=html.replace(/<div class="nx-sub">[^<]*<\/div>/,'<div class="nx-sub"></div>')+'<div class="nxr-quiet" style="grid-column:1/-1">No rooms yet<small>Your home’s rooms appear here the moment your installer creates them.</small></div>';   // 1404: empty is never blank
     var p=_nxPage(html+'</div>');
-    p.querySelector('[data-whole]').onclick=function(){ _nxGoTo('home'); };   // 1377: Whole Home is Home
+
     p.querySelectorAll('[data-ri]').forEach(function(b){ b.onclick=function(){ cur='rooms'; bar(); if(typeof _nxRoom==='function') _nxRoom(+b.dataset.ri); else { closePage(); try{ showPage('home'); selectRoom(+b.dataset.ri); }catch(e){} } }; });   // 1376: the new room page
   }
   // ── Devices ── the categories this home has, each with a live reading
@@ -25184,7 +25186,7 @@ body.nx-on #nx-page.open{display:block}
       :'<span class="nx-aware" style="margin:0;padding:0;width:22px;height:22px;justify-content:center;gap:0;background:none" title="'+_aw+'" aria-label="'+_aw+'"><span class="nx-dot"></span></span>'):'';
     // scenes row
     var tiles=av.map(function(a){ var s=_nxrAvState(r,a.key), R=s==='starting'?_nxrRing(r):null; var u=window._nxScenePic?_nxScenePic(a.script,String(a.label||a.key)):''; return '<button type="button" class="nxr-scn nxh-scn'+(s==='on'?' on':'')+(R?' go':'')+'" data-av="'+nxrEsc(a.key)+'" data-script="'+nxrEsc(a.script)+'"'+(u?' style="background-image:url(\''+nxrEsc(String(u).replace(/'/g,'%27'))+'\')"':'')+'>'+gi('tv','g')+
-        (R?R.svg:(s==='on'?'<span class="tag on">On</span>':'<span class="tag">AV</span>'))+
+        (R?R.svg:(s==='on'?'<span class="tag on">ON</span>':'<span class="tag">AV</span>'))+
         '<b>'+nxrEsc(String(a.label||a.key).replace(/^Watch\s+/i,'Watch '))+(R&&R.cap?'<small class="nxr-cap'+(R.bad?' bad':R.cap==='Ready'?' ok':'')+'">'+nxrEsc(R.cap)+'</small>':'')+'</b></button>'; })
       .concat(sc.map(function(e){ var nm=_pxName({lead:e,devName:att(e,'friendly_name')},{kind:'other'},r,states), u=window._nxScenePic?_nxScenePic(e,nm):'';
         return '<button type="button" class="nxr-scn nxh-scn'+(_nxrSceneOn(e)?' on':'')+'" data-scene="'+nxrEsc(e)+'"'+(u?' style="background-image:url(\''+nxrEsc(String(u).replace(/'/g,'%27'))+'\')"':'')+'>'+gi('spark','g')+'<b>'+nxrEsc(nm)+'</b></button>'; }))
@@ -25254,7 +25256,7 @@ body.nx-on #nx-page.open{display:block}
      An empty box says what will appear and who adds it. Nothing on Home is hand-placed except your widgets. -->
 <style>
 #nx-page.nx-home-pg .nx-in{animation:none}
-.nxh-top{display:flex;justify-content:space-between;align-items:center;padding-right:56px;margin:12px 0 22px}
+.nxh-top{display:flex;justify-content:space-between;align-items:center;padding-right:56px;margin:12px 0 0}   /* 1454 (Dave, 22 Nov): with the Outside pill gone, the greeting lines up with the top of the profile picture */
 .nxh-wx{display:inline-flex;align-items:center;gap:10px;padding:8px 16px 8px 10px;border-radius:999px;background:#1b1c20;border:0;color:#fff;cursor:pointer;text-align:left;font-family:inherit}
 .nxh-wx svg{width:30px;height:30px}
 .nxh-wx small{display:block;font-size:11px;font-weight:500;color:rgba(255,255,255,.55)}
@@ -27167,7 +27169,7 @@ body.nx-on #pa-detail.nxd-ring .pa-fs-pip{top:156px;right:16px;left:auto;bottom:
     if(M.whole.length) h+='<div class="nxs-sec"><b>Whole Home</b></div><div class="nxs-grid">'+M.whole.map(function(s){ return sceneTile(s); }).join('')+'</div>';
     M.rooms.forEach(function(x){ var r=x.r, onA=null;
       var tiles=x.av.map(function(a){ var s=window._nxRoomState?_nxRoomState(r,a.key):'off', g=s==='starting'&&window._nxrRing?_nxrRing(r):null; if(s==='on') onA=a;
-        return '<button type="button" class="nxr-scn nxh-scn'+(s==='on'?' on':'')+(g?' go':'')+'" data-av="'+esc(a.key)+'" data-ri="'+x.ri+'" data-script="'+esc(a.script)+'" data-avn="'+esc(String(a.label||a.key))+'"'+pic(a.script,String(a.label||a.key))+'>'+TV+(g?g.svg:(s==='on'?'<span class="tag on">On</span>':'<span class="tag">AV</span>'))+
+        return '<button type="button" class="nxr-scn nxh-scn'+(s==='on'?' on':'')+(g?' go':'')+'" data-av="'+esc(a.key)+'" data-ri="'+x.ri+'" data-script="'+esc(a.script)+'" data-avn="'+esc(String(a.label||a.key))+'"'+pic(a.script,String(a.label||a.key))+'>'+TV+(g?g.svg:(s==='on'?'<span class="tag on">ON</span>':'<span class="tag">AV</span>'))+
           '<b>'+esc(String(a.label||a.key))+(g&&g.cap?'<small class="nxr-cap'+(g.bad?' bad':g.cap==='Ready'?' ok':'')+'">'+esc(g.cap)+'</small>':'')+'</b></button>'; })
         .concat(x.sc.map(function(s){ return sceneTile(s); }))
         .concat(x.off?['<button type="button" class="nxr-scn" data-off="'+x.ri+'">'+PW+'<b>Room Off</b></button>']:[]);
