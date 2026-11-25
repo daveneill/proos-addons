@@ -7995,6 +7995,14 @@ class Handler(BaseHTTPRequestHandler):
                 if len(parts) == 2:
                     return self._send(200, _logs.fetch(parts[1]))
                 return self._send(404, {"error": "unknown log route"})
+            if parts == ["tech", "tokens"]:
+                # REGISTER 1466 (Dave 25 Nov 2026: "just follow the tech tools gate"): the long-lived tokens this person
+                # holds on the platform, read on THEIR OWN sign-in. Same gate as the logs and the terminal.
+                u = getattr(self, "_user", None)
+                if not (users and u and (users.is_tech(u.get("id")) or u.get("is_owner"))):
+                    return self._send(403, {"error": "tech access required"})
+                from proos import accesstokens as _at
+                return self._send(200, _at.listing(auth.bearer(self.headers)))
             if parts == ["sysadmin", "health"]:
                 u = getattr(self, "_user", None)
                 if not (users and u and (users.is_tech(u.get("id")) or u.get("is_owner"))):
@@ -10800,6 +10808,26 @@ class Handler(BaseHTTPRequestHandler):
             if parts == ["unifi", "curation"]:
                 # Save the installer's exposure model (exposed set + doorbell + talkback).
                 return self._send(200, unifi.curation_save(self._body() or {}))
+            if parts[:2] == ["tech", "tokens"]:
+                # REGISTER 1466: make a token (shown once, kept nowhere by ProOS) or revoke one — the platform's own
+                # commands on the caller's own sign-in. Tech Tools' gate; the Master Log says who did what, never the token.
+                u = getattr(self, "_user", None)
+                if not (users and u and (users.is_tech(u.get("id")) or u.get("is_owner"))):
+                    return self._send(403, {"error": "tech access required"})
+                from proos import accesstokens as _at
+                b = self._body() or {}
+                if parts == ["tech", "tokens"]:
+                    res = _at.create(auth.bearer(self.headers), str(b.get("name") or ""))
+                    act = "made"
+                elif parts == ["tech", "tokens", "revoke"]:
+                    res = _at.revoke(auth.bearer(self.headers), str(b.get("id") or ""))
+                    act = "revoked"
+                else:
+                    return self._send(404, {"error": "unknown token route"})
+                if res.get("ok") and _journal_mod is not None:
+                    _journal_mod.emit("site", "access_token", {"action": act, "name": res.get("name"),
+                                                               "by": u.get("name") or u.get("id")})
+                return self._send(200 if res.get("ok") else 409, res)
             if parts and parts[0] == "sysadmin":
                 u = getattr(self, "_user", None)
                 if not (users and u and (users.is_tech(u.get("id")) or u.get("is_owner"))):

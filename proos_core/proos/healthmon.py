@@ -1571,6 +1571,19 @@ def _when(ts):
         return "earlier"
 
 
+def _when_dated(ts):
+    """A time a card SAYS: the clock alone when it was today; with the weekday, day and month when it was not.
+    REGISTER 1467 (Dave's box, 25 Nov 2026): "Asked for Watch Apple TV at 4:04 pm" stood on Health for a request made
+    thirteen days earlier — the clock alone made an old incident read as today's. Nothing is measured here and nothing
+    waits: it is the same instant, said in full (the calendar day of the box's own clock decides which)."""
+    try:
+        if _dt.datetime.fromtimestamp(float(ts)).date() == _dt.datetime.now().date():
+            return _when(ts)
+        return _when_day(ts)
+    except Exception:                                            # noqa: BLE001
+        return "earlier"
+
+
 PUSH_STATUS_FN = None      # -> {phone: {ok, words, at}} — set by server (plan B1)
 MIRROR_STATE_FN = None     # -> {connected, why, down_since, keeper} — set by server (register 1253)
 MIRROR_GRACE_S = 900       # PLUMBING (register 1253): a fresh box installs the add-on in its first minutes
@@ -1764,7 +1777,7 @@ def _missed_check(snapall, seen):
             "severity": "warning", "audience": AUD_HOME,
             "title": ("%s — %s never came on" % (room, dname)) if room else ("%s never came on" % dname),
             "cause": ("Asked for %s at %s; %s never reported on. It reads \"%s\"%s.%s"
-                      % (m.get("label") or m["key"], _when(m.get("fired_at")), dname,
+                      % (m.get("label") or m["key"], _when_dated(m.get("fired_at")), dname,
                          dstate, since_words, net_words)),
             "subject": disp or eid,
             "fired": {"activity": m["key"], "label": m.get("label"), "at": m.get("fired_at")},

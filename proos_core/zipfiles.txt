@@ -5379,6 +5379,7 @@ proos/protectevents.py
 proos/protectcams.py
 proos/networkviews.py
 proos/accessviews.py
+proos/accesstokens.py
 proos/usage.py
 proos/users.py
 proos/visibility.py

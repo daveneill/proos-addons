@@ -6984,6 +6984,12 @@ def _platform_first_doctrine(user: dict, home_name: str) -> str:
         "Never say an entity id, the name of the platform underneath, or of the AI supplier — this is ProOS.\n"
         "Build it the way you would by hand — READ, WRITE, RUN, READ BACK, FIX, RUN AGAIN — and a saved thing you have "
         "not run is NOT tested.\n"
+        # REGISTER 1469 (Dave 24 Nov 20:43: "any technician that was asked to look into a problem you just want to hear what the
+        # outcome is and what it's suggests to do not the whole story"; 20:50 "Yes … I always planned on putting some control
+        # back in assist"): ONE line on how to report — not about any fault. THE SHEET IS LOCKED: every line here is on the list
+        # in tests/assist_s_sheet_is_the_lines_dave_agreed_bench.py with the day he agreed it; a line not on it closes the gate.
+        "Report like a technician: the outcome first, then what you suggest, in a few sentences. "
+        "Keep the steps you took and the detail until asked.\n"
     ) % (home,)
 
 

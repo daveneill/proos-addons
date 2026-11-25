@@ -967,7 +967,7 @@ html.proos-has-bg #landing::before,html.proos-has-bg #proos-reboot::before,html.
 #assist-history::-webkit-scrollbar{display:none}
 .assist-msg{display:flex;gap:10px;max-width:90%}
 .assist-msg.user{align-self:flex-end}
-.assist-msg.ai{align-self:flex-start}
+.assist-msg.ai{align-self:flex-start} .assist-col{display:flex;flex-direction:column;min-width:0} .assist-col>.assist-bubble{align-self:flex-start}
 .assist-avatar{width:26px;height:26px;border-radius:8px;background:rgba(255,255,255,0.06);border:0.5px solid var(--line-soft);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--accent)}
 .assist-avatar svg{width:15px;height:15px}
 .assist-bubble{padding:11px 14px;border-radius:14px;font-size:13px;line-height:1.45;background:var(--card-hi);border:0.5px solid var(--line-soft);color:var(--t1);white-space:pre-wrap}
@@ -4440,7 +4440,7 @@ html.pnx #px-more .px-row.on b{color:var(--px-blue2)}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111922';
+const PROOS_BUILD='2026111924';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -7246,10 +7246,23 @@ function assistToolWord(t){
 // grep — exactly what the assistant read/did this turn, reads marked
 // "checked", failures marked, targets spoken through the shared lookup.
 function assistTraceLine(list){
+  // REGISTER 1468: what a check was made ON. One device → its name. A list of devices (a real list, or the
+  // ['a.b', 'c.d'] Core writes) → each one's name, once. Anything else is left exactly as it is.
+  const one=/^[a-z_]+\.[\w]+$/;
+  const on=t=>{
+    let ids=null;
+    if(Array.isArray(t)) ids=t.map(String);
+    else { t=String(t); if(one.test(t)) return awPretty(t);
+      if(!/^\s*[\[(]/.test(t)) return t;
+      ids=(t.match(/['"][^'"]+['"]/g)||[]).map(x=>x.slice(1,-1)); }
+    if(!ids.length || !ids.every(x=>one.test(x))) return Array.isArray(t)?ids.join(', '):t;
+    const names=[]; ids.forEach(x=>{ const n=awPretty(x); if(names.indexOf(n)<0) names.push(n); });
+    return names.join(', ');
+  };
   return (list||[]).map(a=>{
     if(typeof a==='string') return a;
     return (a.kind==='read'?'checked ':'')+(assistToolWord(a.tool||a.name)||'tool')
-      +(a.target?' → '+(/^[a-z_]+\.[\w]+$/.test(String(a.target))?awPretty(a.target):a.target):'')
+      +(a.target?' → '+on(a.target):'')
       +(a.action?' ('+a.action+')':'')+(a.error?' ✗':'');
   }).join(' · ');
 }
@@ -15331,7 +15344,7 @@ async function renderTech(){
   const body=document.getElementById('tech-body'); if(!body) return;
   if(!_techFull() && !_me.admin){ body.innerHTML='<div class="empty"><div class="et">Not available</div></div>'; show('home'); return; }
   if(!_techFull() && _TECH_TABS_INSTALLER.indexOf(_techView)<0) _techView='net';
-  const tabs='<div class="usr-seg" style="margin-bottom:14px;flex-wrap:wrap">'+[['log','Logs'],['health','Health'],['prepare','Prepare'],['integrations','Integrations'],['net','Network'],['inspect','Inspect'],['dev','Developer'],['terminal','Terminal'],['actions','Actions'],['assist','Assist AI'],['notify','Notifications'],['tiles','App Tiles']].filter(t=>_techFull()||_TECH_TABS_INSTALLER.indexOf(t[0])>=0).map(t=>'<button class="'+(_techView===t[0]?'on':'')+'" onclick="techTab(\''+t[0]+'\')">'+t[1]+'</button>').join('')+'</div>';
+  const tabs='<div class="usr-seg" style="margin-bottom:14px;flex-wrap:wrap">'+[['log','Logs'],['health','Health'],['prepare','Prepare'],['integrations','Integrations'],['net','Network'],['inspect','Inspect'],['dev','Developer'],['terminal','Terminal'],['actions','Actions'],['assist','Assist AI'],['notify','Notifications'],['tiles','App Tiles'],['tokens','Access Tokens']].filter(t=>_techFull()||_TECH_TABS_INSTALLER.indexOf(t[0])>=0).map(t=>'<button class="'+(_techView===t[0]?'on':'')+'" onclick="techTab(\''+t[0]+'\')">'+t[1]+'</button>').join('')+'</div>';
   // THE SHELL IS STRUCTURE; "Loading…" BELONGS TO A CHANGE OF TAB.
   // This line used to rebuild the tab strip AND throw the whole view away for a
   // "Loading…" placeholder on EVERY call — and `rerenderConfig` calls this on
@@ -15359,6 +15372,7 @@ async function renderTech(){
   if(_techView==='assist') return techViewAssist(view);
   if(_techView==='notify') return techViewNotify(view);
   if(_techView==='connect') return techViewConnect(view);            // register 1348
+  if(_techView==='tokens') return techViewTokens(view);                // register 1466
   if(_techView==='tiles') return techViewTiles(view);
   if(_techView==='health') return techViewHealth(view);
   if(_techView==='integrations') return techViewIntegrations(view);
@@ -21174,7 +21188,8 @@ function addMsg(role, text, opts={}){
   // opts.md — the MODEL's words, escaped then lightly formatted. Every
   // other caller is ProOS's own text and stays plain-escaped.
   const body = opts.md ? mdLite(text) : esc(text);
-  div.innerHTML = avatar+'<div class="assist-bubble'+(opts.thinking?' thinking':'')+'">'+body+'</div>';
+  // REGISTER 1462: the reply sits in a column, so the lines added after it (what it checked, sent to speak) go UNDER it
+  div.innerHTML = avatar+'<div class="assist-col"><div class="assist-bubble'+(opts.thinking?' thinking':'')+'">'+body+'</div></div>';
   h.appendChild(div); h.scrollTop=h.scrollHeight; return div;
 }
 // WHERE THE PERSON IS, AND HOW SURE WE ARE (Stage 1, register 103).
@@ -21373,14 +21388,14 @@ async function submitAssist(){
     const _ftr=Array.isArray(data.trace)&&data.trace.length?data.trace:(Array.isArray(data.actions)?data.actions:[]);
     if(div && _ftr.length){
       const f=document.createElement('div');
-      f.style.cssText='font-size:10.5px;color:rgba(255,255,255,0.42);margin:5px 0 0 46px;font-family:ui-monospace,Menlo,monospace';
+      f.style.cssText='font-size:10.5px;color:rgba(255,255,255,0.42);margin:5px 0 0 14px;font-family:ui-monospace,Menlo,monospace';
       // A3 (22 Aug 2026): the line is built by assistTraceLine — the same
       // words as the Master Log, and a function the bench runs for real.
       f.textContent=assistTraceLine(_ftr);
       // The SUPPLIER'S name stays off the glass (Dave, 16 Aug: "side
       // notes don't need to say openai or claude") — the evidence line
       // is about what was checked, and the provider is a Settings fact.
-      div.appendChild(f);
+      (div.querySelector('.assist-col')||div).appendChild(f);
       // STAGE 4 BUILD 2 (16 Aug 2026): the setTimeout(as2Audit,600) that
       // stood here outlived its function — as2Audit was deleted with its
       // card (register 142) but this caller survived, so EVERY Assist
@@ -21393,11 +21408,11 @@ async function submitAssist(){
     // "no room context" is the normal quiet case and says nothing.
     if(div && data.spoke && (data.spoke.sent || (data.spoke.why && data.spoke.why!=='no room context'))){
       const sp=document.createElement('div');
-      sp.style.cssText='font-size:10.5px;color:rgba(255,255,255,0.42);margin:3px 0 0 46px;font-family:ui-monospace,Menlo,monospace';
+      sp.style.cssText='font-size:10.5px;color:rgba(255,255,255,0.42);margin:3px 0 0 14px;font-family:ui-monospace,Menlo,monospace';
       sp.textContent=data.spoke.sent
         ?('sent to speak in '+(data.spoke.room||'the room')+(data.spoke.cut?' (shortened for speech)':''))
         :('not spoken — '+data.spoke.why);
-      div.appendChild(sp);
+      (div.querySelector('.assist-col')||div).appendChild(sp);
     }
     // THE RECORD SAYS WHETHER THE HOME CHANGED, NOT THE PROSE (register 243).
     // What stood here searched the model's English for "created", "added" or
@@ -23458,7 +23473,7 @@ async function tbxState(){
 // tech page's own tab bar (a second copy of the same choices) never renders.
 // The page titles itself after the tool, so the crumb reads Toolbox › Logs.
 const _TECH_LABELS={log:'Logs',health:'Box Diagnostics',prepare:'Prepare',integrations:'Integrations',net:'Network',
-  inspect:'Entities',dev:'Developer',terminal:'Terminal',actions:'Actions',assist:'Assist AI',tiles:'App Tiles'};
+  inspect:'Entities',dev:'Developer',terminal:'Terminal',actions:'Actions',assist:'Assist AI',tiles:'App Tiles',tokens:'Access Tokens'};
 if(typeof renderTech==='function'){
   const _renderTechOrig=renderTech;
   renderTech=function(){
@@ -23707,14 +23722,14 @@ const V3SYSTEMS=[];
 const V3TOOLS=[['log','Logs','log'],['health','Box Diagnostics','diagnostics'],['prepare','Prepare','check'],['integrations','Recovery Log','plug'],['inspect','Inspect','spark'],
   ['dev','Developer','tag'],['terminal','Terminal','box'],['actions','Actions','bolt'],['assist','Assist AI','assist'],['tiles','App Tiles','grid'],
   // REGISTER 1352 (Dave 15 Nov 11:00: "keep it as a test page but only for tech and developer NOT installer")
-  ['notify','Notifications','bolt'],
+  ['notify','Notifications','bolt'],['tokens','Access Tokens','tag'],
   ['helpers','Helpers','list'],['blueprints','Blueprints','map'],['labels','Labels','tag']];
 // TB-01 · the Toolbox board, as approved: one row per item in the list beside it, the same words, nothing else —
 // the old board's Entities/Integrations (raw)/Notifications/Dashboard layout/Nav layout tiles and its dev console
 // each reached a page the menu already reaches (Inspect, Recovery Log, System Setup › Notifications and Dashboards,
 // Developer), so in the new flow they would be the doubled routes Dave ruled out.
 const V3TOOLSUB={log:'Core and the platform',health:'Resources, updates',prepare:'Before handover',integrations:'Faults and reloads',inspect:'One entity — state, attributes, registry',
-  dev:'Templates, actions, events, set state',terminal:'The box\'s shell',actions:'Restarts, update Core',assist:'ProOS Connect, voice, Talk Live',tiles:'Shortcut artwork',notify:'Test alerts to each phone',
+  dev:'Templates, actions, events, set state',terminal:'The box\'s shell',actions:'Restarts, update Core',assist:'ProOS Connect, voice, Talk Live',tiles:'Shortcut artwork',notify:'Test alerts to each phone',tokens:'For a tool that signs in to this box',
   helpers:'Toggles, numbers, texts',blueprints:'Import and manage',labels:'Tags and categories'};
 if(typeof renderToolbox==='function'){
   const _v3rtb=renderToolbox;
@@ -25606,6 +25621,58 @@ clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',plus:'<path d="M1
   if(typeof _liveSubscribe==='function'&&!_liveSubscribe._pxav){ var _ls=_liveSubscribe;
     _liveSubscribe=async function(){ var x=await _ls.apply(this,arguments); try{ await follow(); }catch(e){} return x; }; _liveSubscribe._pxav=1; }
 })();
+</script>
+<script>
+/* REGISTER 1466 — ACCESS TOKENS, a tool in Tech Tools (Dave 25 Nov 2026: "pro cant generate a token like native HA so can this be
+   added to Pro"; "just follow the tech tools gate"). The box's own profile page is hidden on a ProOS box, so a tool that needs to
+   sign in had nowhere to get a token. This makes, lists and revokes the signed-in person's long-lived tokens through Core
+   (/tech/tokens — the platform's own commands on that person's own sign-in; Core refuses any tier but Tech and Developer).
+   The token itself is shown ONCE, here, and is kept by nothing: not Core, not this page past the visit. */
+var _tokNew=null, _tokForce=false;
+function _tokDay(iso){ if(!iso) return ''; var d=new Date(iso); if(isNaN(d)) return ''; var m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']; return d.getUTCDate()+' '+m[d.getUTCMonth()]+' '+d.getUTCFullYear(); }
+function _tokWhen(t){ var made=_tokDay(t.created), used=_tokDay(t.last_used), exp=_tokDay(t.expires);
+  return (made?'Made '+made:'')+' · '+(used?'Last Used '+used:'Never Used')+(exp?' · Expires '+exp:''); }
+async function techViewTokens(view){
+  if(!view) return;
+  if(view._techFresh && !_tokForce) _tokNew=null;                       // opened again: the shown-once token is not shown again
+  if(!view._techFresh && !_tokForce){                                   // the page's own refresh never wipes a name being typed
+    var ae=document.activeElement; if(ae && /^tok-/.test(ae.id||'')) return;
+    var typed=document.getElementById('tok-name'); if(typed && typed.value) return;
+  }
+  _tokForce=false;
+  var d=null; try{ var r=await fetch(proCoreUrl()+'/tech/tokens'); d=await r.json(); }catch(e){}
+  if(!d||!d.ok){ setHTML(view,'<div class="empty"><div class="et">Couldn’t Read the Tokens</div><div class="es">'+esc((d&&d.error)||'ProOS Core did not answer')+'</div></div>'); return; }
+  var rows=(d.tokens||[]).map(function(t){ return '<div class="cred-card"><div class="cred-name">'+esc(t.name)+'</div><div class="cred-meta">'+esc(_tokWhen(t))+'</div>'
+    +'<div class="cred-actions">'+(t.current?'<span class="cred-meta">In Use by This Sign-In</span>'
+      :'<button type="button" class="btn-ghost cred-revoke" onclick="tokRevoke(\''+esc(t.id)+'\',this)">Revoke</button>')+'</div></div>'; }).join('');
+  var fresh=_tokNew?'<div id="tok-new" style="background:rgba(255,255,255,.06);border-radius:20px;padding:16px;margin:0 0 14px"><div class="cred-name">'+esc(_tokNew.name)+'</div>'
+    +'<div class="cred-meta" style="margin:4px 0 10px">Shown Once — copy it now. It lasts '+esc(_tokNew.days)+' days.</div>'
+    +'<input type="text" id="tok-secret" readonly value="'+esc(_tokNew.token)+'" style="width:100%;font-family:ui-monospace,Menlo,monospace;font-size:12.5px;padding:10px 12px;margin:0 0 10px">'
+    +'<div><button type="button" class="btn-primary" onclick="tokCopy()">Copy</button><button type="button" class="btn-ghost" onclick="_tokNew=null;_tokForce=true;renderTech()">Done</button></div></div>':'';
+  setHTML(view,'<div class="wiz-hint">For a tool that signs in to this box as you.</div>'+fresh
+    +'<div class="field"><div class="field-label">Name</div><input type="text" id="tok-name" maxlength="60" autocomplete="off" placeholder="Claude on the Mac"></div>'
+    +'<button type="button" class="btn-primary" onclick="tokCreate()">Create Token</button>'
+    +'<div class="section-label">Tokens on This Account</div>'+(rows||'<div class="es">No tokens yet</div>'));
+}
+async function tokCreate(){
+  var inp=document.getElementById('tok-name'), name=((inp&&inp.value)||'').trim();
+  if(!name){ toast('Give the token a name'); return; }
+  var d=null; try{ var r=await fetch(proCoreUrl()+'/tech/tokens',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name})}); d=await r.json(); }catch(e){}
+  if(!d||!d.ok||!d.token){ toast((d&&d.error)||'ProOS Core did not answer'); return; }
+  if(inp) inp.value='';
+  _tokNew={name:d.name,token:d.token,days:d.days}; _tokForce=true; renderTech();
+}
+async function tokRevoke(id,btn){
+  if(btn && btn.dataset.arm!=='1'){ btn.dataset.arm='1'; btn.textContent='Tap Again to Revoke'; return; }
+  var d=null; try{ var r=await fetch(proCoreUrl()+'/tech/tokens/revoke',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:id})}); d=await r.json(); }catch(e){}
+  if(!d||!d.ok){ toast((d&&d.error)||'ProOS Core did not answer'); }
+  _tokForce=true; renderTech();
+}
+async function tokCopy(){
+  if(!_tokNew) return;
+  try{ await navigator.clipboard.writeText(_tokNew.token); toast('Copied'); }
+  catch(e){ var i=document.getElementById('tok-secret'); if(i){ i.focus(); i.select(); } toast('Select it and copy'); }
+}
 </script>
 </body>
 </html>
