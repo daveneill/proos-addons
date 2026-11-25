@@ -4443,7 +4443,7 @@ html.pnx #px-more .px-secl .px-ct{color:var(--px-t3);font-size:14px;margin-right
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111925';
+const PROOS_BUILD='2026111926';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -25693,8 +25693,13 @@ async function tokRevoke(id,btn){
 }
 async function tokCopy(){
   if(!_tokNew) return;
-  try{ await navigator.clipboard.writeText(_tokNew.token); toast('Copied'); }
-  catch(e){ var i=document.getElementById('tok-secret'); if(i){ i.focus(); i.select(); } toast('Select it and copy'); }
+  // REGISTER 1474: the box is reached at a plain http address, where the browser gives a page no clipboard — so the first
+  // try always failed there and Copy only ever said "Select it and copy". The page's own copy (register 800's way) follows.
+  var ok=false;
+  try{ if(navigator.clipboard&&navigator.clipboard.writeText){ await navigator.clipboard.writeText(_tokNew.token); ok=true; } }catch(e){}
+  var i=document.getElementById('tok-secret');
+  if(!ok&&i){ try{ i.focus(); i.select(); if(i.setSelectionRange) i.setSelectionRange(0,99999); ok=!!document.execCommand('copy'); }catch(e){} }
+  toast(ok?'Copied':'Select it and copy');
 }
 </script>
 </body>
