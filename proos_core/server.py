@@ -6159,7 +6159,18 @@ class Handler(BaseHTTPRequestHandler):
         return self._send(400 if (res or {}).get("error") else 200, res or {})
 
     def _send(self, code: int, payload: dict):
-        body = json.dumps(payload).encode()
+        body = json.dumps(payload)
+        # REGISTER 1479 — THE ONE DOOR (Dave, 25 Nov: "needs to be right can't have this leak"). Every JSON answer Core
+        # sends leaves here. For anyone but the Developer the platform is never named in it: the product's one rule
+        # (platformlog.scrub_text) on every value, identities untouched. The walk is done only when the name is in the
+        # answer at all, so an ordinary answer costs one look.
+        try:
+            from proos import platformlog as _plg_
+            if _plg_._PLATFORM_NAME.search(body) and not (getattr(self, "_user", None) or {}).get("is_owner"):
+                body = json.dumps(_plg_.for_glass(payload))
+        except Exception as _e:                                  # noqa: BLE001
+            print("  [words] answer sent unfiltered: %s" % _e, flush=True)
+        body = body.encode()
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
         self.send_header("Access-Control-Allow-Origin", "*")

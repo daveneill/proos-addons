@@ -7772,11 +7772,24 @@ def product_words(text):
     s = "" if text is None else str(text)
     for theirs, ours in _PRODUCT_WORDS:
         s = s.replace(theirs, ours)
+    # REGISTER 1479: the table above knows ONE spelling of the platform's name; the leak of 25 Nov was another. Every
+    # spelling is caught by the product's one rule (platformlog.scrub_text) — ids, addresses and domains untouched.
+    from proos.platformlog import scrub_text
+    return scrub_text(s)
+
+
+def _tool_words(out) -> str:
+    """A tool's answer as Assist may read it (1479): the one rule applied to each VALUE — never to the whole answer as
+    one string, where a domain Assist must act on would read as a word in a sentence — then the table's own names."""
+    from proos.platformlog import for_glass
+    s = json.dumps(for_glass(out))
+    for theirs, ours in _PRODUCT_WORDS:
+        s = s.replace(theirs, ours)
     return s
 
 
 def _tool_payload(out) -> str:
-    s = product_words(json.dumps(out))
+    s = _tool_words(out)
     if len(s) <= _TOOL_RESULT_CAP:
         return s
     kept = s[:_TOOL_RESULT_CAP - 700]     # room for the envelope itself

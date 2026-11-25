@@ -145,6 +145,33 @@ _ID_KEYS = frozenset(("entity_id", "entity", "entities", "subject", "id", "key",
                       "type", "kind", "tool", "unique_id", "entry_id", "rid", "token_id"))
 
 
+# REGISTER 1479 (the sweep, 1478): ONE RULE for what may be reworded and what may not, used by every filter in the product.
+#   * in a sentence, the platform's name in any spelling reads "ProOS";
+#   * an IDENTITY is never touched — an entity id, a web address, a file path, a dotted or longer joined name — or a
+#     control, a link or a sign-in stops working. In a sentence that is told by the run of name-characters the match
+#     sits in: the name standing alone is the name; inside a longer run it is part of an identity;
+#   * a lone word: lower-case is an identity (a domain the pages and Assist act on), Capitalised is the name.
+_RUN_CH = re.compile(r"[\w./:\-]")
+_SPACE = re.compile(r"\s")
+
+
+def scrub_text(s):
+    """One piece of text as it may be shown or said. Not text → returned as it is."""
+    if not isinstance(s, str) or not s or not _PLATFORM_NAME.search(s):
+        return s
+    if not _SPACE.search(s):
+        return "ProOS" if (_PLATFORM_NAME.fullmatch(s) and s != s.lower()) else s
+
+    def _one(m):
+        a, b = m.start(), m.end()
+        while a > 0 and _RUN_CH.match(s[a - 1]):
+            a -= 1
+        while b < len(s) and _RUN_CH.match(s[b]):
+            b += 1
+        return "ProOS" if s[a:b].rstrip(".,;:!?-") == m.group(0) else m.group(0)
+    return _PLATFORM_NAME.sub(_one, s)
+
+
 def for_glass(obj, developer: bool = False):
     """A log line (or a list of them) as it may be shown: word for word to the Developer, the platform never named to
     anyone else. Returns a new object; the one given is untouched."""
@@ -153,7 +180,7 @@ def for_glass(obj, developer: bool = False):
 
     def _walk(v, key=None):
         if isinstance(v, str):
-            return v if key in _ID_KEYS else _PLATFORM_NAME.sub("ProOS", v)
+            return v if key in _ID_KEYS else scrub_text(v)
         if isinstance(v, dict):
             return {k: _walk(x, k) for k, x in v.items()}
         if isinstance(v, (list, tuple)):

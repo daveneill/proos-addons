@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112129';
+const PROOS_BUILD='2026112130';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -32409,6 +32409,44 @@ try{ setInterval(_outcomesRead, LV_OUTCOME_EVERY_MS); }catch(e){}
   function _nxaStart(){ _nxaScan(); new MutationObserver(_nxaScan).observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['style','src']});
     addEventListener('resize',function(){ document.querySelectorAll('[data-nxau]').forEach(function(el){ delete el.dataset.nxau; }); _nxaScan(); }); }
   if(document.body) _nxaStart(); else document.addEventListener('DOMContentLoaded',_nxaStart);
+})();
+</script>
+<script>
+/* REGISTER 1479 — NO TEXT ON THE GLASS NAMES THE PLATFORM (Dave, 25 Nov 2026: "needs to be right can't have this leak").
+   The sweep (1478) found the page's own filter knew one spelling and was used in twelve places, while the page reads the
+   platform directly as well as through Core. This is the one fixer for the glass: every piece of TEXT, as it is drawn or
+   changed anywhere on the page, has the platform's name — in any spelling — replaced. ONLY text is touched: never a value,
+   an attribute, an address being typed or a command, so no control, link or saved setting can be altered by it. An address
+   shown as text stays a true address. The Developer sees every word as written (his ruling of 27 Oct) — on Pro; a dashboard has no Developer. */
+(function(){
+  var T=/hass|assistant/i, N=/home[\s_\-]?assistant|hass(?:io)?/gi, A=/[\w.\/:\-]/, L=/[a-z]/i, SKIP=/^(SCRIPT|STYLE|TEXTAREA)$/;
+  function words(s){
+    s=String(s==null?'':s); if(!T.test(s)) return s;
+    s=s.replace(/Music\sAssistant/g,'ProOS Music');
+    return s.replace(N,function(m,i){
+      var a=i,b=i+m.length;
+      if((a>0&&L.test(s.charAt(a-1)))||(b<s.length&&L.test(s.charAt(b)))) return m;      // inside another word (chassis)
+      while(a>0&&A.test(s.charAt(a-1))) a--; while(b<s.length&&A.test(s.charAt(b))) b++;
+      var run=s.slice(a,b); return (run.indexOf('/')>=0||/\.local\b/i.test(run))?m:'ProOS';      // a true address stays true
+    });
+  }
+  window.proosWordsShown=words;
+  function dev(){ try{ return typeof _me!=='undefined'&&!!(_me&&_me.developer); }catch(e){ return false; } }
+  function fix(n){
+    if(!n) return;
+    if(n.nodeType===3){ var p=n.parentNode; if(p&&SKIP.test(p.nodeName)) return; var v=n.nodeValue; if(v&&T.test(v)){ var w=words(v); if(w!==v) n.nodeValue=w; } return; }
+    if(n.nodeType!==1||SKIP.test(n.nodeName)) return;
+    if(!T.test(n.textContent||'')) return;
+    var tw=document.createTreeWalker(n,4,null), x; while((x=tw.nextNode())) fix(x);
+  }
+  if(typeof MutationObserver==='undefined') return;
+  new MutationObserver(function(ms){
+    if(dev()) return;
+    for(var i=0;i<ms.length;i++){ var m=ms[i];
+      if(m.type==='characterData') fix(m.target);
+      else for(var j=0;j<m.addedNodes.length;j++) fix(m.addedNodes[j]); }
+  }).observe(document.documentElement,{childList:true,subtree:true,characterData:true});
+  document.addEventListener('DOMContentLoaded',function(){ if(!dev()) fix(document.body); });
 })();
 </script>
 </body>
