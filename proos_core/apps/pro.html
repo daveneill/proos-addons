@@ -3334,6 +3334,9 @@ html.pnx #px-more .px-grab{width:38px;height:5px;border-radius:3px;background:rg
 html.pnx #px-more h2{font-size:20px;font-weight:700;margin:0 4px 12px;color:#fff}
 html.pnx #px-more .px-ic svg{width:22px;height:22px}
 html.pnx #px-more .px-row.on b{color:var(--px-blue2)}
+/* REGISTER 1472: the section's own pages, as the sheet's second step — a long list scrolls inside the sheet */
+html.pnx #px-more .px-secl{max-height:62vh;overflow-y:auto}
+html.pnx #px-more .px-secl .px-ct{color:var(--px-t3);font-size:14px;margin-right:6px}
 </style>
 </head>
 <body>
@@ -4440,7 +4443,7 @@ html.pnx #px-more .px-row.on b{color:var(--px-blue2)}
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111924';
+const PROOS_BUILD='2026111925';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -25588,9 +25591,29 @@ clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',plus:'<path d="M1
   var label=function(k){ var s=(typeof V2SECTIONS!=='undefined'?V2SECTIONS:[]).find(function(x){ return x[0]===k; }); return s?s[1]:k; };
   PX.moreOpen=function(){ PX.moreClose(); var ov=document.createElement('div'); ov.id='px-more'; ov.onclick=function(e){ if(e.target===ov) PX.moreClose(); };
     setHTML(ov,'<div class="px-msh"><div class="px-grab"></div><h2>More</h2><div class="px-rows">'+held().map(function(k){
-      return '<div class="px-row'+(cur()===k?' on':'')+'" onclick="PX.moreClose();v2go('+PX.Q(k)+')"><div class="px-ic">'+((typeof V3ICONS!=='undefined'&&V3ICONS[k])||'')+'</div><div class="px-g"><b>'+PX.E(label(k))+'</b></div>'+PX.cv()+'</div>'; }).join('')+'</div></div>');
+      return '<div class="px-row'+(cur()===k?' on':'')+'" onclick="PX.moreSec('+PX.Q(k)+')"><div class="px-ic">'+((typeof V3ICONS!=='undefined'&&V3ICONS[k])||'')+'</div><div class="px-g"><b>'+PX.E(label(k))+'</b></div>'+PX.cv()+'</div>'; }).join('')+'</div></div>');
     (document.getElementById('app')||document.body).appendChild(ov); };
   PX.moreClose=function(){ var o=document.getElementById('px-more'); if(o) o.remove(); };
+  // REGISTER 1472 (Dave's iPhone, 25 Nov: "no way to get to side menu"). A row in More opened a section's FIRST page and stopped;
+  // the list of its other pages is drawn only in the side menu, which a phone does not have — Software Update could not be
+  // reached on a phone. The section still opens on its first page, and the sheet then shows the section's OWN page list: the
+  // rows the side menu draws for it (#v2rail .v3acc), each run by its own click, so a page opens exactly as from the menu.
+  PX.moreSec=function(k){
+    PX.moreClose(); v2go(k);
+    var tries=0;
+    var show=function(){
+      var acc=document.querySelector('#v2rail .v3acc[data-sec="'+k+'"]');
+      var items=acc?PX.all(acc,'.v3si'):[];
+      if(items.length<2){ if(tries++<12) setTimeout(show,60); return; }        // one page: nothing to choose between
+      var ov=document.createElement('div'); ov.id='px-more'; ov.onclick=function(e){ if(e.target===ov) PX.moreClose(); };
+      setHTML(ov,'<div class="px-msh"><div class="px-grab"></div><h2>'+PX.E(label(k))+'</h2><div class="px-rows px-secl">'+items.map(function(it,i){
+        var nm=it.querySelector('.v3nm'), ct=it.querySelector('.v3ct');
+        return '<div class="px-row'+(it.classList.contains('on')?' on':'')+'" data-i="'+i+'"><div class="px-g"><b>'+PX.E(PX.t(nm||it))+'</b></div>'+(ct?'<span class="px-ct">'+PX.E(PX.t(ct))+'</span>':'')+PX.cv()+'</div>'; }).join('')+'</div></div>');
+      ov.querySelector('.px-secl').addEventListener('click',function(e){ var r=e.target.closest('.px-row'); if(!r) return; var it=items[+r.getAttribute('data-i')]; PX.moreClose(); if(it) it.click(); });
+      (document.getElementById('app')||document.body).appendChild(ov);
+    };
+    show();
+  };
   var add=function(){ var tabs=document.getElementById('v2tabs'); if(!tabs||tabs.querySelector('.px-more')||!held().length) return;
     var m=document.createElement('div'); m.className='v2t px-more'; m.setAttribute('onclick','PX.moreOpen()'); setHTML(m,DOTS+'<span>More</span>'); tabs.appendChild(m); mark(); };
   if(typeof v2Render==='function'&&!v2Render._pxm){ var _r=v2Render; v2Render=function(){ var x=_r.apply(this,arguments); try{ add(); }catch(e){} return x; }; v2Render._pxm=1; }
