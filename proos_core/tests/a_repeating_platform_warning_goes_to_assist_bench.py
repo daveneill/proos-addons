@@ -71,7 +71,8 @@ AF._seen_counts.clear()
 AF.repeating([row(100)], t0)
 r = AF.repeating([row(120)], t0 + 600)[0]
 inc = AF.repeat_incident(r)
-ok(inc["kind"] == "platform_warning_repeating" and inc["title"] == "homeassistant.helpers.entity keeps warning"
+ok(inc["kind"] == "platform_warning_repeating" and inc["title"] == "The platform keeps warning"   # re-pinned 1475: this check held the leak — the platform's own part was named
+  
    and MSG in inc["cause"] and "20 times in the last hour" in inc["cause"] and inc["subject"].startswith("log:"),
    "4 · worded for Assist: who, the platform's own message, 20 times in the hour")
 ok("Updating samsungtv_smart" in AF.health_brief(inc), "  …and Assist's brief carries it")

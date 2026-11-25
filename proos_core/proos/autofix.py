@@ -145,8 +145,14 @@ def repeat_incident(row: dict) -> dict:
     msg = row.get("message")
     msg = msg[0] if isinstance(msg, list) and msg else msg
     who = str(row.get("name") or "the platform").replace("homeassistant.components.", "").replace("custom_components.", "")
+    # REGISTER 1475 (Dave on his box, 25 Nov: "Homeassistant keeps warning" in the Master Log — "can't have this leak").
+    # A warning from the platform's OWN core carries the platform's name as its part; this sentence is ProOS's, it is
+    # shown to every sign-in and handed to Assist, so the platform is "The platform" here and is never named in the
+    # quoted message either. The mirrored row (platformlog) is where the Developer still reads it word for word.
+    from proos.platformlog import _PLATFORM_NAME
+    who = "The platform" if _PLATFORM_NAME.match(who) else _PLATFORM_NAME.sub("ProOS", who)
     return {"id": "log:" + row.get("key", _log_key(row))[:120], "kind": "platform_warning_repeating",
             "subject": "log:" + row.get("key", _log_key(row))[:120],
             "title": "%s keeps warning" % who,
             "cause": "The platform logged \"%s\" %d times in the last hour (%s times since it first appeared)."
-                     % (str(msg or "")[:240], int(row.get("rose") or 0), row.get("count"))}
+                     % (_PLATFORM_NAME.sub("ProOS", str(msg or ""))[:240], int(row.get("rose") or 0), row.get("count"))}

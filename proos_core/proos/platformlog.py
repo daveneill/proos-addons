@@ -135,6 +135,33 @@ def ingest(platform_rows, now=None, ent_area=None, host_areas=None) -> dict:
         return dict(rows)
 
 
+# REGISTER 1475 (Dave, 25 Nov 2026: "not happy that in logs I can see home assistant … needs to be right can't have this
+# leak"). 1027 filtered only the MIRRORED platform rows (for_viewer, below). ProOS's own log lines — the journal — carry
+# the platform's words too (a quoted message, an error, a part's own name) and left Core unfiltered. for_glass is the one
+# filter every log line passes on its way out of Core: for anyone but the Developer the platform's name reads "ProOS" in
+# every word of the line. IDENTITIES are left exactly as they are — an entity id that happens to hold the name still has
+# to find its device — and the stored record is never altered (Assist and Health read the record, not this).
+_ID_KEYS = frozenset(("entity_id", "entity", "entities", "subject", "id", "key", "device_id", "area_id", "room",
+                      "type", "kind", "tool", "unique_id", "entry_id", "rid", "token_id"))
+
+
+def for_glass(obj, developer: bool = False):
+    """A log line (or a list of them) as it may be shown: word for word to the Developer, the platform never named to
+    anyone else. Returns a new object; the one given is untouched."""
+    if developer:
+        return obj
+
+    def _walk(v, key=None):
+        if isinstance(v, str):
+            return v if key in _ID_KEYS else _PLATFORM_NAME.sub("ProOS", v)
+        if isinstance(v, dict):
+            return {k: _walk(x, k) for k, x in v.items()}
+        if isinstance(v, (list, tuple)):
+            return [_walk(x, key) for x in v]
+        return v
+    return _walk(obj)
+
+
 def for_viewer(developer: bool, since=None) -> list:
     """Master Log rows (newest occurrence first). Developer: word for word. Tech / installer: the platform's name
     replaced by "ProOS", nothing else changed; no logger or source path."""

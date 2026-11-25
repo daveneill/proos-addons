@@ -6176,6 +6176,9 @@ class Handler(BaseHTTPRequestHandler):
         if _journal_mod is None:
             return self._send(503, {"error": "journal unavailable"})
         q = _journal_mod.subscribe()
+        # 1475: a live log line is a log line — the same filter as the pages that read the log (platformlog.for_glass)
+        from proos import platformlog as _plg_
+        _dev_ = bool((getattr(self, "_user", None) or {}).get("is_owner"))
         try:
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream")
@@ -6192,7 +6195,7 @@ class Handler(BaseHTTPRequestHandler):
             while True:
                 try:
                     msg = q.get(timeout=15)
-                    self.wfile.write(("data: %s\n\n" % json.dumps(msg)).encode())
+                    self.wfile.write(("data: %s\n\n" % json.dumps(_plg_.for_glass(msg, developer=_dev_))).encode())
                 except queue.Empty:
                     self.wfile.write(b": hb\n\n")
                 self.wfile.flush()
@@ -7592,8 +7595,10 @@ class Handler(BaseHTTPRequestHandler):
                 if _journal_mod is None:
                     return self._send(503, {"error": "journal unavailable"})
                 q = parse_qs(urlparse(self.path).query)
-                return self._send(200, {"events": _journal_mod.read(
-                    "service", limit=(q.get("limit") or ["100"])[0])})
+                from proos import platformlog as _plg_                # 1475
+                return self._send(200, {"events": _plg_.for_glass(_journal_mod.read(
+                    "service", limit=(q.get("limit") or ["100"])[0]),
+                    developer=bool((getattr(self, "_user", None) or {}).get("is_owner")))})
             if parts == ["events", "stream"]:
                 # Live bus: journal events + incident updates + presence, as
                 # Server-Sent Events. One connection per open Pro client is
@@ -7746,12 +7751,15 @@ class Handler(BaseHTTPRequestHandler):
                 if _journal_mod is None:
                     return self._send(503, {"error": "journal unavailable"})
                 q = parse_qs(urlparse(self.path).query)
+                # 1475: no log line leaves Core naming the platform, except to the Developer (platformlog.for_glass)
+                from proos import platformlog as _plg_
                 return self._send(200, {
                     "room": parts[1],
-                    "events": _journal_mod.read(
+                    "events": _plg_.for_glass(_journal_mod.read(
                         parts[1],
                         limit=(q.get("limit") or ["200"])[0],
-                        since=(q.get("since") or [None])[0])})
+                        since=(q.get("since") or [None])[0]),
+                        developer=bool((getattr(self, "_user", None) or {}).get("is_owner")))})
             if parts == ["journal", "rooms"]:
                 if _journal_mod is None:
                     return self._send(503, {"error": "journal unavailable"})
@@ -7782,7 +7790,10 @@ class Handler(BaseHTTPRequestHandler):
                 # word for the Developer; for tech and installer the platform's name reads "ProOS", nothing else changed.
                 # 1027a: the page limit applies to ProOS's own events only — every integration row the platform still
                 # holds always comes along (read on the box: with limit 600, ten two-day-old platform messages fell off).
-                _evs_ = list(_journal_mod.merged(lim))
+                # 1475: ProOS's OWN lines carry the platform's words too (a quoted message, a part's name) — they pass the
+                # same filter as the mirrored rows: word for word to the Developer, the platform never named to anyone else.
+                from proos import platformlog as _plg_
+                _evs_ = list(_plg_.for_glass(_journal_mod.merged(lim), developer=bool(u.get("is_owner"))))
                 try:
                     from proos import platformlog as _pl_
                     _evs_ += _pl_.for_viewer(bool(u.get("is_owner")))
