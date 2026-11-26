@@ -2749,6 +2749,11 @@ html.pnx .px-hero{border-radius:26px;height:230px;padding:24px;display:flex;flex
 html.pnx .px-hero:before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(14,14,16,.1),rgba(14,14,16,.85))}
 html.pnx .px-hero>*{position:relative}
 html.pnx .px-hero .px-pill{background:rgba(0,0,0,.4);color:#fff}
+/* REGISTER 1483: Edit in the photo's bottom right corner; the chips beside it wrap before they reach it */
+html.pnx .px-hero .px-hero-chips{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;padding-right:96px}
+html.pnx .px-hero .px-hero-edit{position:absolute;right:24px;bottom:24px;background:rgba(0,0,0,.4)}
+/* 1483: a long room name takes two lines and then ends in … — four lines ran out of the top of the photo on a phone (measured) */
+html.pnx .px-hero .px-hero-name{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;padding-bottom:2px}
 html.pnx .px-chip{height:36px;padding:0 14px;border-radius:12px;background:var(--px-card2);font-size:13.5px;font-weight:600;display:inline-flex;align-items:center;gap:8px;margin:0 6px 8px 0;color:#fff;border:0;cursor:pointer;font-family:inherit}
 html.pnx .px-chip.on{background:#fff;color:#111}
 html.pnx .px-aw{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:18px;background:rgba(242,179,74,.10);box-shadow:inset 0 0 0 1px rgba(242,179,74,.25)}
@@ -4449,7 +4454,7 @@ html.pnx #px-more .px-secl .px-ct{color:var(--px-t3);font-size:14px;margin-right
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111928';
+const PROOS_BUILD='2026111929';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -25132,11 +25137,15 @@ clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',plus:'<path d="M1
       var rr=PX.t(x,'.rr'), right=rr?(/^\d+$/.test(rr)?PX.v(rr):PX.tag(rr,/committed|ready|ok/i.test(rr)?'gr':/not|none|needs/i.test(rr)?'a':'')):'';
       return PX.row(ICON[nm]||['list',''],nm,PX.t(x,'.t2'),right+PX.cv(),PX.oc(x)); };
     var sets=[grp(0),grp(1),grp(2)];
-    var h='<div class="px-photo px-hero" style="background-image:'+E(bg)+'"><div class="px-k11" style="color:rgba(255,255,255,.7)">Room</div><div style="font-size:40px;font-weight:600;letter-spacing:-.015em;line-height:1.1">'+E(name)+'</div><div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'
-      +(devs?'<span class="px-pill">'+E(devs)+'</span>':'')+(committed?'<span class="px-pill" style="background:rgba(95,185,140,.25);color:#bff0d4"><span class="px-dot"></span>AV committed</span>':'')+(now?'<span class="px-pill">'+E(now)+'</span>':'')+'</div></div>'
-      +'<div class="px-cols" style="margin-top:6px"><div>'+PX.sec('Set Up')+'<div class="px-rows">'+sets[0].map(r).join('')+'</div></div>'
+    var h='<div class="px-photo px-hero" style="background-image:'+E(bg)+'"><div class="px-k11" style="color:rgba(255,255,255,.7)">Room</div><div class="px-hero-name" style="font-size:40px;font-weight:600;letter-spacing:-.015em;line-height:1.1">'+E(name)+'</div><div class="px-hero-chips">'
+      +(devs?'<span class="px-pill">'+E(devs)+'</span>':'')+(committed?'<span class="px-pill" style="background:rgba(95,185,140,.25);color:#bff0d4"><span class="px-dot"></span>AV committed</span>':'')+(now?'<span class="px-pill">'+E(now)+'</span>':'')+'</div>'
+      // REGISTER 1483 (Dave, 26 Nov: "edit pill was originally within the background pic right hand bottom corner" … "yes proceed"):
+      // Edit is in the photo, bottom right, on every size — it sat in the top row touching the back pill on an iPad, and on a row of
+      // its own above the photo on a phone. The cards start 20 px under the photo, as content does under every header (it was 6).
+      +(edit?'<button class="px-btn sm px-hero-edit" onclick="'+E(PX.oc(edit))+'">'+I('edit')+'Edit</button>':'')+'</div>'
+      +'<div class="px-cols" style="margin-top:20px"><div>'+PX.sec('Set Up')+'<div class="px-rows">'+sets[0].map(r).join('')+'</div></div>'
       +'<div>'+PX.sec('Check')+'<div class="px-rows">'+sets[1].map(r).join('')+'</div>'+PX.sec('The Homeowner')+'<div class="px-rows">'+sets[2].map(r).join('')+'</div></div></div>';
-    PX.paint(p,h,{hero:true,act:edit?'<button class="px-btn sm" onclick="'+E(PX.oc(edit))+'">'+I('edit')+'Edit</button>':''});
+    PX.paint(p,h,{hero:true});
   });
 })();
 </script>
