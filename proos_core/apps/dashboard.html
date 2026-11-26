@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112130';
+const PROOS_BUILD='2026112131';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -20941,7 +20941,12 @@ function ssRenderMedia(){
   let eid=null;
   if(curRoom>=0 && CONFIG.rooms[curRoom]){
     const cands=getRoomMediaCandidates(CONFIG.rooms[curRoom]);
-    eid=cands.find(e=>st(e)==='playing') || cands.find(e=>st(e)==='paused') || null;
+    // REGISTER 1495 (Dave 26 Nov 16:04, photo: a Bedroom track paused hours ago still on the screensaver): the card is for
+    // what is PLAYING. A pause keeps its card only for the player seen playing on this screen in the last five minutes —
+    // so the pause you just tapped can be un-tapped — and never for something that was already stopped.
+    eid=cands.find(e=>st(e)==='playing') || null;
+    if(eid){ window._ssSeenPlay={e:eid,t:Date.now()}; }
+    else { const sp=window._ssSeenPlay; if(sp && cands.indexOf(sp.e)>=0 && st(sp.e)==='paused' && Date.now()-sp.t<300000) eid=sp.e; }
   }
   if(!eid){ if(_ssCardSig){ m.style.display='none'; m.innerHTML=''; _ssCardSig=''; } return; }
   const title=att(eid,'media_title')||att(eid,'media_channel')||'', artist=_npArtistLine(eid, att(eid,'media_artist')||''), art=_artOf(eid)||'', stt=st(eid);
@@ -20973,7 +20978,7 @@ function ssRender(){ if(!document.getElementById('screensaver')) return; ssRende
 function ssShow(){
   if(_ssActive || ssSecs()<=0) return;
   if(typeof _widgetEditMode!=='undefined' && _widgetEditMode) return;  // don't cover an active widget edit
-  const ov=ssBuild(); _ssCardSig=''; ssRender(); _ssActive=true;
+  const ov=ssBuild(); _ssCardSig=''; window._ssSeenPlay=null; ssRender(); _ssActive=true;
   ov.style.opacity='1'; ov.style.pointerEvents='auto';
   clearInterval(_ssTick); _ssTick=setInterval(ssRender, 1000);
 }
@@ -24911,7 +24916,10 @@ body.nx-on #nx-page.open{display:block}
   function _nxGoTo(id){
     if(id==='devices'||id==='scenes'||id==='rooms'){ var h=_nxHereNow(); if(h) _from=h; else if(!(cur==='devices'||cur==='scenes'||cur==='rooms')) _from=null; } else _from=null;
     cur=id; document.body.classList.toggle('nx-av', id==='home'||id==='rooms'||id==='devices');
-    if(id==='assist'){ cur=cur; try{ openAssist(); }catch(e){} bar(); return; }
+    // REGISTER 1495 (Dave 26 Nov 15:54): the bar's microphone opens Assist ALREADY listening — the tap that opens it is the tap to talk
+    if(id==='assist'){ cur=cur; try{ openAssist(); }catch(e){}
+      try{ var jd=document.getElementById('jv'); if(jd&&jd.classList.contains('on')&&!document.body.classList.contains('proos-listening')&&!(typeof _vcap!=='undefined'&&_vcap)&&!/[?&]nxview=/.test(location.search)&&typeof homeMicTap==='function') homeMicTap(); }catch(e){}
+      bar(); return; }
     if(id==='home'){ if(typeof _nxHome==='function') _nxHome(); else { closePage(); try{ showPage('home'); selectRoom(-1); }catch(e){} } }   // 1377: the new Home
     else if(id==='scenes'){ if(typeof _nxScenes==='function') _nxScenes(); else { closePage(); try{ showPage('scenes'); }catch(e){} } }   // 1396: the new Scenes
     else if(id==='rooms') drawRooms();
@@ -27709,7 +27717,8 @@ body.nx-on #jv .nxa-wave i:nth-child(1){background:radial-gradient(closest-side,
 body.nx-on #jv .nxa-wave i:nth-child(2){background:radial-gradient(closest-side,#8f7bff,transparent);left:calc(50% - 110px);animation-delay:-1s}
 body.nx-on #jv .nxa-wave i:nth-child(3){background:radial-gradient(closest-side,#4dc3ff,transparent);left:calc(50% - 10px);animation-delay:-2s}
 @keyframes nxaWave{0%{transform:scale(.8) translateY(6px)}100%{transform:scale(1.15) translateY(-6px)}}
-body.nx-on #jv .jv-sg{flex-wrap:wrap;justify-content:center;overflow:hidden;max-height:96px;margin:0;padding:14px 0 2px}
+/* REGISTER 1495: the suggestions start clear of the microphone's glow and its status word, and show two WHOLE rows */
+body.nx-on #jv .jv-sg{flex-wrap:wrap;justify-content:center;overflow:hidden;max-height:136px;margin:0;padding:44px 0 2px}
 body.nx-on #jv .nxa-ty{display:none;gap:8px;margin-top:12px;width:100%;max-width:780px;align-self:center}
 body.nx-on #jv.nxa-typing .nxa-ty{display:flex}
 body.nx-on #jv .nxa-ty input{flex:1;min-width:0;height:48px;border-radius:16px;border:0;background:#1b1c20;color:#fff;padding:0 16px;font:16px Inter,-apple-system,sans-serif;outline:none}

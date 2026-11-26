@@ -2897,6 +2897,16 @@ html.pnx #panel-room[data-v3view="av"] .rh-tva{background:var(--px-card);border-
 html.pnx #panel-room[data-v3view="av"] .rh-commit{background:var(--px-card);border-radius:20px;padding:16px 18px;margin:0}
 html.pnx #panel-room[data-v3view="av"] .rh-commit button,html.pnx #panel-room[data-v3view="av"] .rh-commit .btn-primary{height:44px;border-radius:14px;background:var(--px-blue);border:0;font-size:15px;font-weight:600}
 @media (max-width:700px){ html.pnx #panel-room[data-v3view="av"] .rh-card[data-v3="av"]{grid-template-columns:minmax(0,1fr)} }
+/* REGISTER 1493 (Dave's iPhone, 26 Nov: "av setups screens missed on pro mobile"). In "Everything else" the three buttons sat over
+   each device's own line — measured on his box the name had 47 px, and 5 px for the WattBox outlets. On a phone the name, line and id
+   take the row and the buttons go under them. Only rows that carry those buttons or the "Activities Only" tag: an AV device's own
+   card keeps its handle beside its name. */
+@media (max-width:700px){
+  html.pnx #panel-room .rh-dev:is(:has(.rd-toggle),:has(.rd-role)) .rh-dev-top{flex-wrap:wrap;row-gap:10px}
+  html.pnx #panel-room .rh-dev:is(:has(.rd-toggle),:has(.rd-role)) .rh-dev-id{flex:1 1 100%;min-width:0}
+  html.pnx #panel-room .rh-dev:is(:has(.rd-toggle),:has(.rd-role)) .rh-dev-act{flex:1 1 100%;display:flex;flex-wrap:wrap;gap:8px;margin:0}
+  html.pnx #panel-room .rh-dev:is(:has(.rd-toggle),:has(.rd-role)) .rd-eid{overflow-wrap:anywhere}
+}
 </style>
 <style>
 /* REGISTER 1418 — a room's other pages, drawn to their mocks. App Shortcuts and Channels keep today's tiles in place,
@@ -3280,6 +3290,11 @@ html.pnx .px-list small{font-size:13px;color:var(--px-t3)}
   html.pnx .px-row:has(>.px-acts>.px-btn){flex-wrap:wrap}
   html.pnx .px-row:has(>.px-acts>.px-btn)>.px-acts{width:100%;padding-left:52px;flex-wrap:wrap}
   html.pnx #rack-body .v3sec~.v3sec .v3rows{grid-template-columns:minmax(0,1fr)}
+  /* REGISTER 1493 (found by measuring every page full length at phone size, after Dave's AV Setup picture): Other Control Systems'
+     "What Is Shared" gave a room's name 46–85 px (three to five lines) beside its topic — the name takes the row, the topic under it */
+  html.pnx #panel-share .v3rows>.v3row:has(.v3code){flex-wrap:wrap;row-gap:4px}
+  html.pnx #panel-share .v3rows>.v3row:has(.v3code) .rt{flex:1 1 100%}
+  html.pnx #panel-share .v3rows>.v3row:has(.v3code) .rr{margin-left:0;max-width:100%;overflow-wrap:anywhere}
   /* REGISTER 1489 (seen on his box, phone size — "Look for wasted space on a page and think why"): three tiles in two columns
      left an empty cell, so the third takes the full row; The Rack's adapter columns are equal; Software's tiles cut their own
      version and build numbers off at 22 px, so those are drawn at 15 with room for all of it */
@@ -4517,7 +4532,7 @@ html.pnx #px-more .px-secl .px-ct{color:var(--px-t3);font-size:15px;margin-right
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111935';
+const PROOS_BUILD='2026111937';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -25333,7 +25348,12 @@ clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',plus:'<path d="M1
     f.style.width=W+'px'; f.style.height=H+'px'; f.style.transform='scale('+k+')'; f.style.marginBottom=''; f.style.marginRight=''; }
   window.addEventListener('resize',fit);
   if(typeof hvDraw==='function'){ var _d=hvDraw; hvDraw=function(){ var r=_d.apply(this,arguments); try{ head(); }catch(e){} return r; }; }
-  if(typeof hvOpen==='function'){ var _o=hvOpen; hvOpen=function(){ var r=_o.apply(this,arguments); try{ setTimeout(head,50); }catch(e){} return r; }; }
+  // REGISTER 1494 (Dave on the Mac, 26 Nov: "menu hidden though"; reproduced on his box at 1019 px wide): today's hvOpen puts the
+  // view on the page's body, above the whole app — so the side menu, when it opens over the page, opened UNDER this view and only
+  // its first 76 px showed. The view is moved inside the app, where the menu opens over it as it does over every page.
+  if(typeof hvOpen==='function'){ var _o=hvOpen; hvOpen=function(){ var r=_o.apply(this,arguments);
+    try{ var app=document.getElementById('app'), ov=document.getElementById('hv-ov'); if(app&&ov&&ov.parentElement!==app) app.appendChild(ov); }catch(e){}
+    try{ setTimeout(head,50); }catch(e){} return r; }; }
 })();
 </script>
 <script>
