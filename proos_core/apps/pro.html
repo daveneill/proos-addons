@@ -4539,7 +4539,7 @@ html.pnx #px-more .px-secl .px-ct{color:var(--px-t3);font-size:15px;margin-right
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111939';
+const PROOS_BUILD='2026111940';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -25170,7 +25170,12 @@ clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',plus:'<path d="M1
       // REGISTER 1499 (Dave 26 Nov 18:04: the state Core serves "should be all that the tile says unless there is something to report remove
       // the totals … does not need an open pill as tapping on tile is enough"): normal — the words alone; otherwise what it reports
       h+='<div class="px-aw'+(cls?' '+cls:'')+'" onclick="'+E(PX.oc(aw))+'" style="cursor:pointer"><div class="px-row" style="padding:0;min-height:0;flex:1"><div class="px-ic '+(cls==='ok'?'gr':cls||'a')+'">'+I(cls==='ok'?'check':'warn')+'</div><div class="px-g"><b>'+E(PX.t(aw,'#awh-state'))+'</b>'+(cls==='ok'?'':'<small class="wrap">'+E(PX.t(aw,'#awh-sub'))+(stats?' · '+E(stats):'')+(pin?' · '+E(pin):'')+'</small>')+'</div></div></div>'; }
+    // REGISTER 1502 (seen in Dave's photo 18:04: the tile said 1 while the list under it showed three lit rooms): the box's count is of
+    // lighting-ONLY rooms that are on (Kitchen); a room with AV whose lights are on (Jarrod's Room, Garage) is in the list but not in
+    // that count. The tile now counts what the list beside it shows — its lit rows — and is named for what it counts.
+    var litRows=PX.all(rm,'.hlt-mirror').filter(function(r){ return PX.t(r,'.art')!=='▶'; }).length;
     if(st){ h+='<div class="px-g3" style="margin-top:14px">'+[].slice.call(st.children).map(function(c){ var num=PX.t(c,'.n'), lab=PX.t(c,'.l');
+      if(/^lights on$/i.test(lab)){ num=String(litRows); lab='rooms lit'; }
       return '<div class="px-stat"'+(PX.oc(c)?' onclick="'+E(PX.oc(c))+'"':'')+'><b>'+E(num)+'</b><small>'+E(lab.replace(/\b\w/g,function(x){ return x.toUpperCase(); }))+'</small></div>'; }).join('')+'</div>'; }
     var rooms=PX.all(rm,'.hlt-mirror').map(function(r){ var art=PX.t(r,'.art'); var chip=PX.t(r,'.hlt-chip');
       return PX.row(art==='▶'?['play','b']:['bulb','lit'],PX.t(r,'.hm-room'),PX.t(r,'.hm-act'),(chip?PX.tag(chip,'gr'):'')+PX.cv(),PX.oc(r)); });
