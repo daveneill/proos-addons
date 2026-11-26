@@ -2942,7 +2942,11 @@ html.pnx .px-page select{background:var(--px-card2);border:0;border-radius:10px;
    On Now under it. */
 html.pnx #hv-ov.open{position:fixed;inset:0 0 0 236px;padding:0;background:var(--px-bg);display:block;overflow:auto;-webkit-backdrop-filter:none;backdrop-filter:none;z-index:70}
 html.pnx #hv-ov .hv-cd{width:auto;max-width:none;height:auto;max-height:none;background:none;border:0;box-shadow:none;border-radius:0;padding:22px 30px 40px;display:block}
-html.pnx #hv-ov iframe{display:block;width:390px;height:760px;max-width:none;border:0;border-radius:18px;box-shadow:0 0 0 1px var(--px-line);background:#0e0e10;transform-origin:top left;flex:none}
+/* REGISTER 1492 (Dave on his iPad, 26 Nov: "Homeowner view should not have navigation only a live screen shot and should be smaller
+   on iPad and mobile so you can see all at once"): the page is held in a box scaled to the height left on the screen as well as the
+   width, centred; nothing in it can be tapped; its own back button is not shown. */
+html.pnx #hv-ov .px-hvbox{position:relative;overflow:hidden;margin:0 auto;border-radius:18px;box-shadow:0 0 0 1px var(--px-line);background:#0e0e10;pointer-events:none}
+html.pnx #hv-ov iframe{position:absolute;left:0;top:0;display:block;width:390px;height:760px;max-width:none;border:0;border-radius:0;box-shadow:none;background:#0e0e10;transform-origin:top left;flex:none}
 html.pnx #hv-ov .hv-x{display:none}
 html.pnx #hv-ov .px-hvhead{grid-column:1/-1;margin-bottom:6px}
 html.pnx #hv-ov .hv-side{width:auto;padding:0;background:none;margin-top:20px}
@@ -4513,7 +4517,7 @@ html.pnx #px-more .px-secl .px-ct{color:var(--px-t3);font-size:15px;margin-right
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111934';
+const PROOS_BUILD='2026111935';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -25317,12 +25321,16 @@ clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',plus:'<path d="M1
   function head(){ var cd=document.querySelector('#hv-ov .hv-cd'); if(!cd||!PX.on()) return; var h=cd.querySelector('.px-hvhead'); if(!h){ h=document.createElement('div'); h.className='px-hvhead'; cd.insertBefore(h,cd.firstChild); }
     var nm=(typeof _rhName==='function'&&_rhName())||PX.t(document.querySelector('#hv-ov .hv-side>div:first-child'))||'';
     setHTML(h,'<div style="display:flex;align-items:center;min-height:40px;margin-bottom:18px"><button class="px-btn sm" style="height:40px;border-radius:20px;padding:0 16px 0 10px;font-size:15px" onclick="hvClose()">'+I('back')+E(nm)+'</button></div>'
-      +'<div class="px-head" style="margin:0 0 16px"><div class="px-k">'+E(nm)+'</div><h1>Homeowner View</h1><div class="px-sub">Exactly what their '+E(nm)+' page shows on a screen this size — it fills itself.</div></div>'); fit(); }
+      +'<div class="px-head" style="margin:0 0 16px"><div class="px-k">'+E(nm)+'</div><h1>Homeowner View</h1><div class="px-sub">Exactly what their '+E(nm)+' page shows on a screen this size — a live picture; it fills itself.</div></div>'); fit(); }
   // 1491: the homeowner's page at this screen's own size, scaled to the width there is
+  function still(){ var f=document.querySelector('#hv-ov iframe'); try{ var d=f&&f.contentDocument; if(d&&d.head&&!d.getElementById('px-still')){ var s=d.createElement('style'); s.id='px-still'; s.textContent='.nx-back{display:none!important}'; d.head.appendChild(s); } }catch(e){} }
   function fit(){ var ov=document.getElementById('hv-ov'), cd=ov&&ov.querySelector('.hv-cd'), f=ov&&ov.querySelector('iframe'); if(!ov||!cd||!f||!PX.on()) return;
+    var b=f.parentElement; if(!b.classList.contains('px-hvbox')){ b=document.createElement('div'); b.className='px-hvbox'; f.parentElement.insertBefore(b,f); b.appendChild(f); f.addEventListener('load',still); }
+    still();
     var cs=getComputedStyle(cd), avail=cd.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight); if(!(avail>0)) return;
-    var W=window.innerWidth, H=window.innerHeight, k=Math.min(1,avail/W);
-    f.style.width=W+'px'; f.style.height=H+'px'; f.style.transform='scale('+k+')'; f.style.marginBottom=Math.round(-H*(1-k))+'px'; f.style.marginRight=Math.round(-W*(1-k))+'px'; }
+    var W=window.innerWidth, H=window.innerHeight, top=b.getBoundingClientRect().top+ov.scrollTop, availH=window.innerHeight-top-(W<=700?110:24), k=Math.max(.3,Math.min(1,avail/W,availH/H));
+    b.style.width=Math.round(W*k)+'px'; b.style.height=Math.round(H*k)+'px';
+    f.style.width=W+'px'; f.style.height=H+'px'; f.style.transform='scale('+k+')'; f.style.marginBottom=''; f.style.marginRight=''; }
   window.addEventListener('resize',fit);
   if(typeof hvDraw==='function'){ var _d=hvDraw; hvDraw=function(){ var r=_d.apply(this,arguments); try{ head(); }catch(e){} return r; }; }
   if(typeof hvOpen==='function'){ var _o=hvOpen; hvOpen=function(){ var r=_o.apply(this,arguments); try{ setTimeout(head,50); }catch(e){} return r; }; }
