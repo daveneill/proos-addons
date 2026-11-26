@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112138';
+const PROOS_BUILD='2026112139';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -27908,6 +27908,10 @@ body.nx-on #atv-page .atv-fchips{flex-wrap:wrap;overflow:visible}
 body.nx-on #atv-page .atv-fchips button{height:34px;border-radius:17px;background:#26272d;border:0;font-weight:600;font-size:13px;color:#fff}
 body.nx-on #atv-page .atv-fchips button.on{background:#fff;color:#111}
 body.nx-on #atv-page .atv-postgrid>*{border-radius:14px;overflow:hidden}
+/* REGISTER 1503 (Dave 26 Nov 20:21, photo: every search result a strip 18px high): the rule above clips each result, and a clipped
+   grid item may be squeezed to nothing — so the rows shrank to fit the space left above the keyboard instead of scrolling. A row
+   is as tall as its poster and words, always. */
+body.nx-on #atv-page .atv-postgrid{grid-auto-rows:max-content}
 body.nx-on #atv-page .atv-npbig .atv-art.big{border-radius:22px;box-shadow:0 20px 50px rgba(0,0,0,.45)}
 body.nx-on #atv-page .atv-trans button{border-radius:50%;background:rgba(255,255,255,.12)!important;-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px)}
 body.nx-on #atv-page .atv-trans button.big{background:#fff!important;color:#111}
