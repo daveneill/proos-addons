@@ -2665,9 +2665,8 @@ html.pnx #app.v3 .topbar{padding:22px 30px 0 30px!important;min-height:62px}
 html.pnx #app.v3 .topbar .left{gap:10px}
 html.pnx #app.v3 .v2crumb{display:none!important}
 /* REGISTER 1482 (review 1480): ONE HEADER STANDARD. The back pill starts at the page gutter, where the title starts (it stood 6 px
-   right of it here and 28 px on a phone); a switch in this row is the pill's height. */
+   right of it here and 28 px on a phone). (1488: a page's switch is no longer in this row at all.) */
 html.pnx #app.v3 .v2back,html.pnx #app.v3 .v2back.lab{height:40px;width:auto;padding:0 16px 0 10px;border-radius:20px;background:var(--px-card2);border:0;gap:4px;margin-left:0}
-html.pnx #app.v3 .topbar .px-seg{height:40px;box-sizing:border-box;padding:3px;align-items:center;flex-wrap:nowrap}
 html.pnx #app.v3 .v2back span{display:inline;font-size:15px;font-weight:600;color:#fff;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 html.pnx #app.v3 .v2back svg{width:18px;height:18px}
 html.pnx #app.v3 .topbar .right{margin-left:auto;padding-right:310px;gap:8px;align-items:center}
@@ -2679,7 +2678,11 @@ html.pnx #app.v3 .v3cmd .v3cp{font-size:15px;color:var(--px-t3)}
 /* ── the page ── */
 /* 1482: the page starts 8 px under the back-pill row, as on a phone — the title (or a room's photo) began exactly where it ended */
 html.pnx #app.v3 .scroll{padding:8px 30px 40px 30px!important}
-html.pnx .px-head{margin:0 0 20px}
+/* 1488: the title block on the left, the page's own buttons opposite it — a long title gives way, the buttons do not */
+html.pnx .px-head{margin:0 0 20px;display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+html.pnx .px-head .px-hl{flex:1;min-width:0}
+html.pnx .px-head .px-act{flex:none;margin-top:13px}
+html.pnx .px-head .px-act:empty{display:none}
 html.pnx .px-head .px-k{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--px-t3);margin-bottom:2px}
 html.pnx .px-head .px-k b{font-weight:700;cursor:pointer}
 html.pnx .px-head h1{font-size:34px;font-weight:600;letter-spacing:-.015em;line-height:1.1;margin:0;color:#fff}
@@ -2827,6 +2830,11 @@ html.pnx body.v3menu-open #app.v3 #v2rail .v3acc{display:flex}
   html.pnx #app.v3.v2:not(:has(#v2back:not([hidden])))::before{height:calc(max(10px,var(--proos-sat)) + 14px)}
   html.pnx #app.v3 .v3cmd{top:auto!important;width:auto!important;border-radius:22px}
   html.pnx .px-head h1{font-size:30px}
+  /* 1488: on a phone the page's buttons stay under the title (.px-actph) — one copy shown, never two */
+  html.pnx .px-head .px-act{display:none}
+  /* 1488 (seen on his box): Heard's sentence stood one word per line beside its tags — the tags go under it */
+  html.pnx .px-row.px-heard{flex-wrap:wrap}
+  html.pnx .px-row.px-heard>.px-acts{width:100%;padding-left:52px}
   html.pnx .px-hero .px-hero-name{font-size:30px}
   html.pnx .px-cols,html.pnx .px-cols.even{grid-template-columns:minmax(0,1fr)}
   /* three figures stay three across, as the phone mock draws them (they broke 2+1 — Dave, 20 Nov); four go two by two */
@@ -2995,6 +3003,14 @@ html.pnx #v3devices-body .v3row.pnx-sub .rt{flex:1;min-width:0}
 html.pnx #v3devices-body .v3row.pnx-sub .rr{margin-left:auto!important;order:2}
 html.pnx #v3devices-body .v3row.pnx-sub .v3add{height:34px;padding:0 14px;border-radius:10px;background:var(--px-card2);border:0;color:#fff;font-size:13px;font-weight:600;cursor:pointer}
 html.pnx #v3devices-body .v3row .rr>.v3chip:not(.btn){font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:7px}
+/* REGISTER 1488 (seen on his box): on a phone a device's name stood in three lines beside its name tag and + Alias — the name
+   takes the row's width and the tag and + Alias go under it */
+@media (max-width:700px){
+  html.pnx #v3devices-body .v3row.pnx-sub{flex-wrap:wrap;row-gap:8px}
+  html.pnx #v3devices-body .v3row.pnx-sub .rt{flex:1 1 100%}
+  html.pnx #v3devices-body .v3row.pnx-sub .rr{margin-left:0!important}
+  html.pnx #v3devices-body .v3row.pnx-sub>div:not(.rt):not(.rr){margin-left:auto}
+}
 </style>
 <style>
 /* REGISTER 1418 — INTEGRATIONS, to its mock: Add Integration at the top; the search; then three sections as tiles —
@@ -4458,7 +4474,7 @@ html.pnx #px-more .px-secl .px-ct{color:var(--px-t3);font-size:15px;margin-right
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111930';
+const PROOS_BUILD='2026111931';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -25023,8 +25039,13 @@ clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',plus:'<path d="M1
     var kick=c.querySelector('.pnx-kick'); var k=kick?kick.innerHTML:'';
     var p=[].slice.call(document.querySelectorAll('#app .panel.active')).pop(); var sub=p&&p.getAttribute('data-pxsub')||'';
     var app=document.getElementById('app'); if(app){ if(p&&p.hasAttribute('data-pxhero')) app.setAttribute('data-pxhero',''); else app.removeAttribute('data-pxhero'); }
-    setHTML(h,(k?'<div class="px-k">'+k+'</div>':'')+'<h1>'+E(title)+'</h1>'+(sub?'<div class="px-sub">'+E(sub)+'</div>':''));
-    var r=document.querySelector('#app .topbar .right'); if(r){ var a=document.getElementById('px-act'); if(!a){ a=document.createElement('div'); a.id='px-act'; a.className='px-act'; r.insertBefore(a,r.firstChild); } setHTML(a,(p&&p._pxAct)||''); }
+    // REGISTER 1488 (Dave, 26 Nov, with a picture of Awareness: "all the info on the top header looks cramped … maybe look at moving
+    // it to opposite the page title in the spare space"). A page's own buttons or switch were put in the top row with the back
+    // pill, who's connected, Local and Assist — while the width beside every title stood empty. They are drawn in the head now,
+    // opposite the title. On a phone the copy under the title (.px-actph) is the one shown, as before.
+    var old=document.querySelector('#app .topbar #px-act'); if(old) old.remove();
+    setHTML(h,'<div class="px-hl">'+(k?'<div class="px-k">'+k+'</div>':'')+'<h1>'+E(title)+'</h1>'+(sub?'<div class="px-sub">'+E(sub)+'</div>':'')+'</div>'
+      +'<div class="px-act" id="px-act">'+((p&&p._pxAct)||'')+'</div>');
   }
   window._pxHead=_head;
   var _hq=null; var _hRun=function(){ if(_hq) return; _hq=setTimeout(function(){ _hq=null; try{ PX._me(); PX._head(); }catch(e){} },40); };
@@ -25499,7 +25520,7 @@ clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',plus:'<path d="M1
       list.forEach(function(x,i){ var dd=new Date((x.ts||0)*1000), dl=dd.toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'short'});
         if(dl!==day){ flush(); day=dl; }
         var hw=x.how||{}, r=road[hw.road]||['n',hw.road||'?'], how=[hw.matched,(hw.tools||[]).join(', ')].filter(Boolean).join(' · ');
-        grp.push('<div class="px-row"><div class="px-ic '+(r[0]==='n'?'':r[0])+'">'+I('mic')+'</div><div class="px-g"><b class="px-say" style="white-space:normal">“'+E(x.said||'')+'”</b><small style="white-space:normal">'+E([x.when,x.reply,x.where,x.who].filter(Boolean).join(' · '))+'</small>'+(how?'<small style="white-space:normal">'+E(how)+'</small>':'')+'</div><div class="px-acts">'+PX.tag(r[1],r[0])+'<button class="px-mini" onclick="PX.heardSay('+i+')">+ Sentence</button></div></div>'); });
+        grp.push('<div class="px-row px-heard"><div class="px-ic '+(r[0]==='n'?'':r[0])+'">'+I('mic')+'</div><div class="px-g"><b class="px-say" style="white-space:normal">“'+E(x.said||'')+'”</b><small style="white-space:normal">'+E([x.when,x.reply,x.where,x.who].filter(Boolean).join(' · '))+'</small>'+(how?'<small style="white-space:normal">'+E(how)+'</small>':'')+'</div><div class="px-acts">'+PX.tag(r[1],r[0])+'<button class="px-mini" onclick="PX.heardSay('+i+')">+ Sentence</button></div></div>'); });
       flush(); h=out; }
     PX.paint(p,h,{sub:'',act:'<div class="px-seg"><button class="'+(wk?'':'on')+'" onclick="PX.heardSet(\'today\')">Today</button><button class="'+(wk?'on':'')+'" onclick="PX.heardSet(\'week\')">This Week</button></div>'});
   };
