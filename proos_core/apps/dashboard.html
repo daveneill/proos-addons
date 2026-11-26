@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112136';
+const PROOS_BUILD='2026112137';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -25453,7 +25453,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
     scenes.forEach(function(s){ lit[s.entity]=(typeof _nxSceneOn==='function')&&_nxSceneOn(s.entity); });
     var yw=window._nxWidgets?_nxWidgets(null):'';   // 1387: every widget Home has, in the New Look
     var hs=M.hero?states[M.hero.lead]||{}:null;
-    var sig=JSON.stringify([(empty||waiting)?[known,waiting]:1,CONFIG._homeAreaPhoto||'',greet,A,_nxhWeather(),empty,M.heroes.map(function(d){ var x=states[d.lead]||{}, xa=x.attributes||{}; return [d.lead,x.state,xa.media_title,xa.media_artist]; }),M.cards.map(function(c){ return c.t==='lights'?['l',c.n,c.of,c.rooms]:[c.t,c.d.lead,c.d.r.word,(states[c.d.lead]||{}).state,((states[c.d.lead]||{}).attributes||{}).media_title]; }),scenes.map(function(s){ return [s.entity,s.name,(window._nxScenePic?_nxScenePic(s.entity,s.name):s.photo),lit[s.entity],ran[s.entity]]; }),yw,M.hasLights]);
+    var sig=JSON.stringify([(empty||waiting)?[known,waiting]:1,CONFIG._homeAreaPhoto||'',greet,att('sensor.proos_home_summary','home_sentence')||'',A,_nxhWeather(),empty,M.heroes.map(function(d){ var x=states[d.lead]||{}, xa=x.attributes||{}; return [d.lead,x.state,xa.media_title,xa.media_artist]; }),M.cards.map(function(c){ return c.t==='lights'?['l',c.n,c.of,c.rooms]:[c.t,c.d.lead,c.d.r.word,(states[c.d.lead]||{}).state,((states[c.d.lead]||{}).attributes||{}).media_title]; }),scenes.map(function(s){ return [s.entity,s.name,(window._nxScenePic?_nxScenePic(s.entity,s.name):s.photo),lit[s.entity],ran[s.entity]]; }),yw,M.hasLights]);
     if(p._sig===sig) return; p._sig=sig;
     var hph=CONFIG._homeAreaPhoto||'';   // 1424: the Home photo, clear at the top, as a room's own
     var html=(hph?'<div class="nxh-photo" aria-hidden="true" style="background-image:url(\''+String(hph).replace(/['"\\]/g,encodeURIComponent)+'\')"></div>':'')+'<div class="nx-in"><div class="nxh-top"><span></span></div>'+(empty&&known?'<div class="nxh-greet">Welcome</div>':'')+'<div class="nxh-h1 nxr-name">Home</div>';   // 1498a: the greeting is in the line of words under the name, not above it
@@ -25468,10 +25468,10 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
       :'<button type="button" class="nxh-aware '+A.c+'" data-haware><i></i>'+nxhEsc(A.t)+'</button>';
     // 1498 + 1498a (Dave 17:54: "go back to having a word summary on the home page and remove the greeting or incorporate it into the
     // home summary"): the line under the name, where a room says what is on — the greeting, where things are on, then the lights
-    var _rm=[]; M.heroes.forEach(function(d,i){ var n=M.heroRooms[i]||(window._pxShown?_pxShown(d):d.name)||''; if(n&&_rm.indexOf(n)<0) _rm.push(n); });
-    M.cards.forEach(function(c){ if(c.t==='media'){ var n=c.room||(window._pxShown?_pxShown(c.d):c.d.name)||''; if(n&&_rm.indexOf(n)<0) _rm.push(n); } });
-    var _ln=[greet]; if(_rm.length) _ln.push('On in '+(_rm.length<3?_rm.join(' and '):_rm.slice(0,2).join(', ')+' and '+(_rm.length-2)+' more'));
-    M.cards.forEach(function(c){ if(c.t==='lights') _ln.push(c.n+' of '+c.of+' lights on'+(c.rooms>1?' in '+c.rooms+' rooms':'')); });
+    // 1501 (Dave 26 Nov 19:29: "remove the lights from the word summary … it's a summary: TV on or music playing descriptions, not
+    // just on"): the words are CORE'S OWN home sentence (sensor.proos_home_summary · home_sentence, register 316 — "both panels
+    // print the SAME words"): "Watching Channels in the Family Room. Music in the Garage." No lights; nothing counted here.
+    var _ln=[greet]; try{ var _hsn=String(att('sensor.proos_home_summary','home_sentence')||'').trim().replace(/\.$/,''); if(_hsn) _ln.push(_hsn); }catch(e){}
     // 1499 (Dave 26 Nov 17:59: "Never say nothing on … either not show anything or have maybe the weather"): with nothing on, the weather
     if(_ln.length===1){ try{ var _w=CONFIG.weather, _t=_w?att(_w,'temperature'):null, _c=_w?String(st(_w)||''):''; if(_t!=null&&_t!==''&&isFinite(+_t)) _ln.push(Math.round(+_t)+'°'+(_c&&_c!=='unknown'&&_c!=='unavailable'?' '+String(wxLabel(_c)).toLowerCase():'')); }catch(e){} }
     html=html.replace('<div class="nxh-h1 nxr-name">Home</div>','<div class="nxh-h1 nxr-name">Home</div><div class="nxr-line">'+nxhEsc(_ln.join(' · '))+'</div>');
