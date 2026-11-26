@@ -2664,7 +2664,10 @@ html.pnx body.railmin .px-me .px-mt{display:none}
 html.pnx #app.v3 .topbar{padding:22px 30px 0 30px!important;min-height:62px}
 html.pnx #app.v3 .topbar .left{gap:10px}
 html.pnx #app.v3 .v2crumb{display:none!important}
-html.pnx #app.v3 .v2back,html.pnx #app.v3 .v2back.lab{height:40px;width:auto;padding:0 16px 0 10px;border-radius:20px;background:var(--px-card2);border:0;gap:4px}
+/* REGISTER 1482 (review 1480): ONE HEADER STANDARD. The back pill starts at the page gutter, where the title starts (it stood 6 px
+   right of it here and 28 px on a phone); a switch in this row is the pill's height. */
+html.pnx #app.v3 .v2back,html.pnx #app.v3 .v2back.lab{height:40px;width:auto;padding:0 16px 0 10px;border-radius:20px;background:var(--px-card2);border:0;gap:4px;margin-left:0}
+html.pnx #app.v3 .topbar .px-seg{height:40px;box-sizing:border-box;padding:3px;align-items:center;flex-wrap:nowrap}
 html.pnx #app.v3 .v2back span{display:inline;font-size:14.5px;font-weight:600;color:#fff;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 html.pnx #app.v3 .v2back svg{width:18px;height:18px}
 html.pnx #app.v3 .topbar .right{margin-left:auto;padding-right:310px;gap:8px;align-items:center}
@@ -2674,7 +2677,8 @@ html.pnx #app.v3 .v3cmd{top:22px;right:30px;left:auto;bottom:auto;width:300px;he
 html.pnx #app.v3 .v3cmd svg{color:var(--px-blue2);stroke:var(--px-blue2)}
 html.pnx #app.v3 .v3cmd .v3cp{font-size:14px;color:var(--px-t3)}
 /* ── the page ── */
-html.pnx #app.v3 .scroll{padding:0 30px 40px 30px!important}
+/* 1482: the page starts 8 px under the back-pill row, as on a phone — the title (or a room's photo) began exactly where it ended */
+html.pnx #app.v3 .scroll{padding:8px 30px 40px 30px!important}
 html.pnx .px-head{margin:0 0 20px}
 html.pnx .px-head .px-k{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--px-t3);margin-bottom:2px}
 html.pnx .px-head .px-k b{font-weight:700;cursor:pointer}
@@ -2805,7 +2809,8 @@ html.pnx body.v3menu-open #app.v3 .v2rail .px-me .px-mt{display:block}
 html.pnx body.v3menu-open #app.v3 #v2rail .v3acc{display:flex}
 @media (max-width:700px){
   html.pnx #app.v3{padding-left:0!important}
-  html.pnx #app.v3 .topbar{padding:14px 18px 0 18px!important;min-height:54px}
+  /* 1482: the top row spans the screen, so its 18 px gutter IS the page's — the page's own rule insets it 26 px each side */
+  html.pnx #app.v3 .topbar{padding:14px 18px 0 18px!important;min-height:54px;left:0!important;right:0!important}
   html.pnx #app.v3 .topbar .right{padding-right:0}
   /* REGISTER 1421: the iPhone's own top (--proos-sat) comes first, as today's page does — a flat 72px put the title under the top bar (Dave, 20 Nov) */
   html.pnx #app.v3 .scroll{padding:calc(var(--proos-sat,0px) + 72px) 18px 170px 18px!important}
@@ -2824,7 +2829,8 @@ html.pnx body.v3menu-open #app.v3 #v2rail .v3acc{display:flex}
   html.pnx .px-v{display:none}
   html.pnx .px-hide-ph{display:none!important}
   html.pnx .px-hero{height:200px}
-  html.pnx .px-actph{display:flex;gap:8px;flex-wrap:wrap;margin:-8px 0 16px}
+  /* 1482: no -8 px pull — it made the header-to-content gap 12 px on the eight pages with buttons and 20 on the rest */
+  html.pnx .px-actph{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 16px}
 }
 </style>
 <style>
@@ -4443,7 +4449,7 @@ html.pnx #px-more .px-secl .px-ct{color:var(--px-t3);font-size:14px;margin-right
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111927';
+const PROOS_BUILD='2026111928';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
