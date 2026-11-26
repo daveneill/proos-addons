@@ -3305,6 +3305,13 @@ html.pnx .px-list small{font-size:13px;color:var(--px-t3)}
      numbers were still 22 px and cut off; I had proved it with a stronger rule than the one I shipped. #app makes these win. */
   html.pnx #app #panel-v3software .v3kp b{font-size:15px;letter-spacing:-.2px}
   html.pnx #app #panel-v3software .v3kp>div{padding-left:12px;padding-right:12px}
+  /* REGISTER 1497 (Dave 26 Nov 16:32, photo — Software with an update waiting: "words hidden when checking for update"): a row
+     that can hold TWO buttons left 36 px for its words once the second showed. On a phone such a row puts its buttons on
+     their own line, always (so nothing jumps when the second appears), and its second line of words wraps in full. */
+  html.pnx #app .v3row.static:has(>.rr>.v3btn+.v3btn){flex-wrap:wrap;row-gap:12px}
+  html.pnx #app .v3row.static:has(>.rr>.v3btn+.v3btn)>.rt{flex:1 1 0;min-width:0}
+  html.pnx #app .v3row.static:has(>.rr>.v3btn+.v3btn)>.rt .t2{white-space:normal;overflow:visible}
+  html.pnx #app .v3row.static:has(>.rr>.v3btn+.v3btn)>.rr{flex:0 0 100%;margin-left:0;display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-start}
   html.pnx #credentials-body>.cred-card{grid-template-columns:minmax(0,1fr)}
   html.pnx #credentials-body>.cred-card>.cred-actions,html.pnx #credentials-body>.cred-card>.cred-managed{grid-column:1;grid-row:auto;margin-top:10px}
 }
@@ -4532,7 +4539,7 @@ html.pnx #px-more .px-secl .px-ct{color:var(--px-t3);font-size:15px;margin-right
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111937';
+const PROOS_BUILD='2026111938';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the

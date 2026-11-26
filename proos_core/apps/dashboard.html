@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112131';
+const PROOS_BUILD='2026112133';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -20941,16 +20941,16 @@ function ssRenderMedia(){
   let eid=null;
   if(curRoom>=0 && CONFIG.rooms[curRoom]){
     const cands=getRoomMediaCandidates(CONFIG.rooms[curRoom]);
-    // REGISTER 1495 (Dave 26 Nov 16:04, photo: a Bedroom track paused hours ago still on the screensaver): the card is for
-    // what is PLAYING. A pause keeps its card only for the player seen playing on this screen in the last five minutes —
-    // so the pause you just tapped can be un-tapped — and never for something that was already stopped.
+    // REGISTER 1495c: the card is for what is PLAYING (a track paused hours ago stayed on the screensaver).
     eid=cands.find(e=>st(e)==='playing') || null;
-    if(eid){ window._ssSeenPlay={e:eid,t:Date.now()}; }
-    else { const sp=window._ssSeenPlay; if(sp && cands.indexOf(sp.e)>=0 && st(sp.e)==='paused' && Date.now()-sp.t<300000) eid=sp.e; }
   }
+  // REGISTER 1496 (Dave 26 Nov 16:29: "exactly the same as the room page or home page nothing different"): in the New Look
+  // the card is whatever that page's own On Now shows — asked of the page's own list, never decided a second way here.
+  try{ if(typeof window._nxSsPick==='function'){ const pk=window._nxSsPick(); if(pk!==undefined) eid=pk; } }catch(e){}
   if(!eid){ if(_ssCardSig){ m.style.display='none'; m.innerHTML=''; _ssCardSig=''; } return; }
   const title=att(eid,'media_title')||att(eid,'media_channel')||'', artist=_npArtistLine(eid, att(eid,'media_artist')||''), art=_artOf(eid)||'', stt=st(eid);
-  const sig=eid+'|'+title+'|'+artist+'|'+stt;
+  const nfo=(window._nxSsInfo&&window._nxSsInfo.e===eid)?window._nxSsInfo:null;   // 1496: the New Look page's own word and play button
+  const sig=eid+'|'+title+'|'+artist+'|'+stt+'|'+(nfo?nfo.word+(nfo.pp?1:0):'');
   if(sig!==_ssCardSig){
     _ssCardSig=sig; m.style.display='';
     const playing=stt==='playing';
@@ -20962,11 +20962,11 @@ function ssRenderMedia(){
       +'<div class="ss-vol-col">'+spk+'<input type="range" min="0" max="1" step="0.02" value="'+vl.toFixed(2)+'" class="mp-vol-sl ss-vol" oninput="ssVol(\''+_zss+'\',this.value)" onpointerdown="_ssVolDrag=true;event.stopPropagation()" onpointerup="_ssVolDrag=false" onclick="event.stopPropagation()"/></div>'
       +'<div class="ss-card-top">'
         +'<div class="mp-art ss-art">'+(art?('<img src="'+esc(artSrc(art))+'" onerror="this.style.display=\'none\'"/>'):'<div class="mp-art-ph"><svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div>')+'</div>'
-        +'<div class="mp-info"><div class="mp-title ss-mt">'+esc(title||'Playing')+'</div>'+(artist?('<div class="mp-artist ss-ma">'+esc(artist)+'</div>'):'')+'</div>'
+        +'<div class="mp-info"><div class="mp-title ss-mt">'+esc(title||(nfo&&nfo.word)||'Playing')+'</div>'+(artist?('<div class="mp-artist ss-ma">'+esc(artist)+'</div>'):'')+'</div>'
       +'</div>'
       +'<div class="mp-ctrls">'
         +'<button class="mpb" onclick="event.stopPropagation();svc(\'media_player\',\'media_previous_track\',{entity_id:\''+eid+'\'})">'+prevSVG+'</button>'
-        +'<button class="mpb play" onclick="event.stopPropagation();togglePlayPause(\''+eid+'\')">'+(playing?pauseSVG:playSVG)+'</button>'
+        +'<button class="mpb play"'+((nfo&&!nfo.pp)?' style="display:none"':'')+' onclick="event.stopPropagation();togglePlayPause(\''+eid+'\')">'+(playing?pauseSVG:playSVG)+'</button>'
         +'<button class="mpb" onclick="event.stopPropagation();svc(\'media_player\',\'media_next_track\',{entity_id:\''+eid+'\'})">'+nextSVG+'</button>'
       +'</div></div>';
   } else if(!_ssVolDrag){
@@ -20978,7 +20978,7 @@ function ssRender(){ if(!document.getElementById('screensaver')) return; ssRende
 function ssShow(){
   if(_ssActive || ssSecs()<=0) return;
   if(typeof _widgetEditMode!=='undefined' && _widgetEditMode) return;  // don't cover an active widget edit
-  const ov=ssBuild(); _ssCardSig=''; window._ssSeenPlay=null; ssRender(); _ssActive=true;
+  const ov=ssBuild(); _ssCardSig=''; ssRender(); _ssActive=true;
   ov.style.opacity='1'; ov.style.pointerEvents='auto';
   clearInterval(_ssTick); _ssTick=setInterval(ssRender, 1000);
 }
@@ -25611,7 +25611,8 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
     var S=states[L.e], can=_nxlCan(S), R=_nxlRead(L.e,S,pend);
     if(!can.dim) return '<div class="nxl-sw'+(R.gone?' gone':'')+'" data-lsw="'+nxlEsc(L.e)+'"><div><b>'+nxlEsc(L.name)+'</b><small>Switch · '+nxlEsc(R.word)+'</small></div><span class="nxl-tog'+(R.on?' on':'')+'"></span></div>';
     var c=R.on?_nxlColour(S):'', pct=R.pct||0;
-    return '<div class="nxl-bar'+(R.on?' on':'')+(R.on&&pct<38?' low':'')+(R.gone?' gone':'')+'" data-lbar="'+nxlEsc(L.e)+'"><i style="width:'+(R.on?Math.max(pct,4):0)+'%'+(c?';background:'+c:'')+'"></i><span class="nm">'+nxlEsc(L.name)+'</span><span class="v">'+nxlEsc(R.word)+'</span></div>';
+    var dk=false; try{ var mm=/^rgb\((\d+),(\d+),(\d+)\)$/.exec(String(c).replace(/\s/g,'')); if(mm) dk=(0.299*mm[1]+0.587*mm[2]+0.114*mm[3])/255<0.6; }catch(e){}   // 1497c
+    return '<div class="nxl-bar'+(R.on?' on':'')+(R.on&&dk?' dk':'')+(R.on&&pct<38?' low':'')+(R.gone?' gone':'')+'" data-lbar=""'+nxlEsc(L.e)+'"><i style="width:'+(R.on?Math.max(pct,4):0)+'%'+(c?';background:'+c:'')+'"></i><span class="nm">'+nxlEsc(L.name)+'</span><span class="v">'+nxlEsc(R.word)+'</span></div>';
   }
   function _nxlDraw(){
     var p=document.getElementById('nx-page'); if(!p||!p.classList.contains('open')||!p.classList.contains('nx-lights-pg')||held) return;
@@ -26086,7 +26087,7 @@ body.nx-on #pin-overlay{z-index:9060}
     var h='<div class="nx-in"><button type="button" class="nx-back" data-qb>'+BACK+'</button><div class="nx-hd"><div><h1>Security</h1><div class="nx-sub">'+nxqEsc(_nxqLine(sens)||'')+'</div></div></div>';
     var left=(panels.length?'<div data-qsec="alarm">'+panels.map(_nxqAlarm).join('')+'</div>':'')+
       (gar.length?'<div class="nxl-room" data-qsec="garage"><b>Garage &amp; Gates</b><span></span></div><div class="nxq-list">'+gar.map(_nxqGarage).join('')+'</div>':'');
-    var right=sens.length?'<div class="nxl-room" data-qsec="sensors" style="margin-top:'+(panels.length||gar.length?'':'0')+'"><b>Sensors</b><span>'+(/^All /.test(_nxqLine(sens))?'':nxqEsc(_nxqLine(sens)))+'</span></div><div class="nxq-list">'+sens.map(function(x){
+    var right=sens.length?'<div class="nxl-room" data-qsec="sensors" style="margin-top:'+(panels.length||gar.length?'':'0')+'"><b>Sensors</b><span></span></div><div class="nxq-list">'+sens.map(function(x){
         return '<div class="nxq-li'+(x.active?' warn':'')+'"><div class="nx-ic">'+svgOfQ(x.kind)+'</div><div class="gr"><b>'+nxqEsc(x.name)+'</b>'+(x.room?'<small>'+nxqEsc(x.room)+'</small>':'')+'</div><span class="w'+(x.active?' on':'')+'">'+nxqEsc(x.dead?'Can’t reach it':x.word)+'</span></div>'; }).join('')+'</div>':'';
     if(!panels.length&&!gar.length&&!sens.length) h+='<div class="nxr-quiet">No alarm, garage or sensors yet</div>';
     else h+='<div class="nxq-cols"><div>'+left+'</div><div>'+right+'</div></div>';
@@ -27446,7 +27447,7 @@ body.nx-on.nxbg-on #nx-page .nxr-hero::after{background:linear-gradient(180deg,r
   function _nxwDraw(){ var p=mine('nx-wx-pg'); if(!p) return; var M=_nxwModel();
     var h='<div class="nx-in"><button type="button" class="nx-back" data-wb>'+BACK+'</button>';
     if(!M) h+='<div class="nx-hd"><div><h1>Weather</h1></div></div><div class="nxr-quiet">No weather yet</div>';
-    else { h+='<div class="nx-hd"><div><h1>'+esc(M.place)+'</h1><div class="nx-sub">'+esc(M.cond)+'</div></div></div>'+
+    else { h+='<div class="nx-hd"><div><h1>Weather</h1><div class="nx-sub">'+esc([M.place,M.cond].filter(Boolean).join(' · '))+'</div></div></div>'+
       '<div class="nxw-now">'+ic(M.c,(typeof _wxIsDay==='function')?_wxIsDay():true)+'<div><b>'+R(M.temp)+'°</b><small>'+esc(M.facts)+'</small></div></div>';
       if(M.hours.length) h+='<div class="nxw-hrs">'+M.hours.map(function(x){ return '<div><span>'+esc(x.t)+'</span>'+ic(x.c,x.day)+'<b>'+R(x.v)+'°</b></div>'; }).join('')+'</div>';
       if(M.days.length) h+='<div class="nxw-days">'+M.days.map(function(d){ return '<div class="nxw-day"><span class="d">'+esc(d.d)+'</span><span class="c">'+esc(d.c)+'</span><span class="lo">'+(d.lo!=null?R(d.lo)+'°':'')+'</span><div class="nxw-bar"><i style="left:'+d.a.toFixed(0)+'%;right:'+(100-d.b).toFixed(0)+'%"></i></div><span class="hi">'+(d.hi!=null?R(d.hi)+'°':'')+'</span></div>'; }).join('')+'</div>';
@@ -27752,6 +27753,33 @@ body.nx-on #jv .nxa-ty button{height:48px;padding:0 18px;border-radius:16px;bord
  jvOpen(); try{ _nxaDress(); }catch(x){} return; } return _oa.apply(this,arguments); };
 })();
 </script>
+<style>
+/* ══ REGISTER 1497 — THE NEW LOOK, LOOKED THROUGH (Dave 26 Nov 16:40 "continue with the rest of the dashboard changes") ══
+   (a) a page's own button sits at the right edge, opposite its title: the 56px kept clear on the right is for the picture
+       that only Home and a room page show.
+   (b) ONE header: Back sits beside the title on every page (his ruling of 22 Nov, 1453 — it had reached only the pages
+       opened "from" another; the rest still stacked Back above the title and spent a row on it).
+   (c) a light bar filled with a dark or strong colour (a red LED strip) writes its name and level in white.
+   (d) Lights on a wide screen: a room's odd last row takes the full width — no half-empty card.
+   (e) a room's scenes on an iPad held upright: two across, so "Watch Apple TV" is one line.
+   (f) Assist: "Listening" sits under the rings (they reach 36–40px out from the microphone), not inside them. */
+#nx-page:not(.nx-home-pg):not(.nx-room-pg) .nx-hd{padding-right:0}
+#nx-page .nx-in:has(>.nx-back:not(.nx-fromb)~.nx-hd){position:relative}
+#nx-page .nx-in>.nx-back:not(.nx-fromb):has(~.nx-hd){position:absolute;top:12px;left:0;margin:0;z-index:2}
+#nx-page .nx-in>.nx-back:not(.nx-fromb)~.nx-hd{padding-left:54px}
+.nxl-bar.on.dk .nm,.nxl-bar.on.dk .v{color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.45)}
+@media (min-width:820px){.nxl-list>:last-child:nth-child(odd){grid-column:1/-1}}
+@media (min-width:820px) and (max-width:1023px){.nxr-cols .nxr-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+body.nx-on #jv .jv-st{bottom:-68px}
+/* (g) Security: four modes sit four across (they sat three and one, leaving a hole) */
+.nxq-modes:has(>:nth-child(4):last-child){grid-template-columns:repeat(4,minmax(0,1fr))}
+/* (h) Settings: a row of choices stays ONE row (five sat four and one); (i) Cameras: the counts stay one line and slide */
+#nx-page .nx-seg{flex-wrap:nowrap}
+#nx-page .nx-seg button{flex:1 1 0;min-width:0;padding:0 4px;white-space:nowrap}
+#nx-page .nxv-counts{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+#nx-page .nxv-counts::-webkit-scrollbar{display:none}
+#nx-page .nxv-counts span{flex:0 0 auto}
+</style>
 <!-- ══ REGISTER 1403 — REBUILD STEP 9a, THE SCREENSAVER IN THE NEW LOOK (Dave 17 Nov 18:58 "Go"; mock S.screensaver). Today's
      screensaver (the idle time set in Settings, tap to wake, the clock, the weather, what the room plays) is drawn as the
      mock: the room's photo — or the Home photo — dimmed and softened behind; the time large and light in the middle; one
@@ -27797,11 +27825,26 @@ body.nx-on #screensaver .ss-card .mpb.play svg{width:18px;height:18px;fill:#111;
     else if(typeof curRoom==='number'&&curRoom>=0) r=CONFIG.rooms[curRoom];
     return (r&&r.photo)||(CONFIG&&CONFIG._homeAreaPhoto)||''; }catch(x){ return ''; } }
   window._nxsvPhoto=_nxsvPhoto;
+  // REGISTER 1496: the page you will see on waking (the photo's own rule, 1437) — a room's number, or -1 for Home
+  function _nxsvRoomIdx(){ try{ var p=document.getElementById('nx-page');
+    if(p&&p.classList.contains('open')) return (p.classList.contains('nx-room-pg')&&typeof window._nxLastRoomIdx==='number'&&window._nxLastRoomIdx>=0&&CONFIG.rooms[window._nxLastRoomIdx])?window._nxLastRoomIdx:-1;
+    return (typeof curRoom==='number'&&curRoom>=0&&CONFIG.rooms[curRoom])?curRoom:-1; }catch(x){ return -1; } }
+  // what that page's On Now shows as media, in its own order: a room — its devices that are on now (the room page's list);
+  // Home — the large card, else the first media card (the Home page's own model). null: nothing is on; undefined: New Look off.
+  function _nxsvPick(){ if(!_nxsvOn()||typeof window._nxAll!=='function') return undefined;
+    var MEDIA={tv:1,source:1,receiver:1,speaker:1}, all=window._nxAll()||[], i=_nxsvRoomIdx(), d=null;
+    if(i>=0){ var r=CONFIG.rooms[i]; d=all.filter(function(x){ return x.area===r.id && x.r&&x.r.now && MEDIA[x.k.kind]; })[0]||null; }
+    else if(typeof window._nxHomeModel==='function'){ var M=window._nxHomeModel(all.filter(function(x){ return x.cat!=='Readings'; }), CONFIG.rooms||[], states||{});
+      d=M.hero||((M.cards||[]).filter(function(c){ return c.t==='media'; })[0]||{}).d||null; }
+    // the page's own words for it: its state word when there is no title ("Art Mode"), and a play button only where the page has one
+    window._nxSsInfo=d?{e:d.lead, word:(d.r&&d.r.word)||'', pp:!!(d.k.kind==='speaker'||((states[d.lead]||{}).attributes||{}).media_title)}:null;
+    return d?d.lead:null; }
+  window._nxSsPick=_nxsvPick; window._nxsvRoomIdx=_nxsvRoomIdx;
   var _top=window.ssRenderTop; if(typeof _top==='function') window.ssRenderTop=function(){ var r=_top.apply(this,arguments); if(!_nxsvOn()) return r;
     var w=document.getElementById('ss-weather'); if(w){ var t=CONFIG.weather?att(CONFIG.weather,'temperature'):null, c=CONFIG.weather?st(CONFIG.weather):'';
       var s=_nxsvLine(new Date(), t, c); if(w.textContent!==s) w.textContent=s; w.style.display=''; } return r; };
   var _med=window.ssRenderMedia; if(typeof _med==='function') window.ssRenderMedia=function(){ var r=_med.apply(this,arguments); if(!_nxsvOn()) return r;
-    try{ var a=document.querySelector('#screensaver .ss-ma'), rm=(typeof curRoom==='number'&&curRoom>=0&&CONFIG.rooms[curRoom])?CONFIG.rooms[curRoom].name:'';
+    try{ var a=document.querySelector('#screensaver .ss-ma'), rm=''; try{ var _pk=_nxsvPick(), _ar=_pk&&typeof entityAreaMap!=='undefined'?entityAreaMap[_pk]:'', _rr=(CONFIG.rooms||[]).filter(function(x){ return x.id===_ar; })[0]; rm=_rr?_rr.name:''; }catch(x){}
       if(rm){ if(!a){ var info=document.querySelector('#screensaver .mp-info'); if(info){ info.insertAdjacentHTML('beforeend','<div class="mp-artist ss-ma"></div>'); a=info.querySelector('.ss-ma'); } }
         if(a&&a.textContent.indexOf(rm+' · ')!==0&&a.textContent!==rm) a.textContent=a.textContent?rm+' · '+a.textContent:rm; } }catch(x){}
     return r; };
