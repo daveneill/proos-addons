@@ -2675,6 +2675,26 @@ html.pnx #app.v3 .v3cmd{top:22px;right:30px;left:auto;bottom:auto;width:300px;he
   font-size:15px;color:var(--px-t3);padding:0 14px;gap:8px}
 html.pnx #app.v3 .v3cmd svg{color:var(--px-blue2);stroke:var(--px-blue2)}
 html.pnx #app.v3 .v3cmd .v3cp{font-size:15px;color:var(--px-t3)}
+/* REGISTER 1491 — the rest of the look-through (1487, 1490), each seen on his box:
+   Terminal and the Logs list stopped at a fixed height and left half an iPad empty — they fill the page;
+   four cards on Network sat three and one — two by two;
+   a device's details in Notifications were one-fifth-white on black;
+   the map's pin was a picture fetched from another site and showed as broken — the page draws it;
+   the tiles' figures stayed 22 on an iPad, and an integration's page title stayed 30. */
+html.pnx #tech-term-out{min-height:max(280px,calc(100vh - 330px))!important;max-height:max(280px,calc(100vh - 330px))!important}
+html.pnx #tlog-rows{max-height:max(440px,calc(100vh - 400px))!important}
+/* (only Pro's own breakpoints, 1023 and 700 — two benches hold that, and stopped a 701 one I wrote first) */
+/* (four across was measured at iPad landscape: 210 px a card, too narrow for an address and its label — two by two) */
+html.pnx #tech-view .sys-grid:has(>.sys-card:nth-child(4):last-child){grid-template-columns:repeat(2,minmax(0,1fr))}
+html.pnx #app .pnx-tile b.big{font-size:28px}
+@media (max-width:700px){
+  html.pnx #tech-view .sys-grid:has(>.sys-card:nth-child(4):last-child){grid-template-columns:minmax(0,1fr)}
+  html.pnx #app .pnx-tile b.big{font-size:22px}
+}
+html.pnx #tech-view .row .field-hint{color:var(--px-t3);font-size:11px}
+.px-pin{width:22px;height:22px;border-radius:50%;background:#2f6bff;border:3px solid #fff;box-shadow:0 1px 6px rgba(0,0,0,.55);box-sizing:border-box}
+html.pnx #app #panel-integration .ip-headcard .ip-title{font-size:34px}
+@media (max-width:700px){ html.pnx #app #panel-integration .ip-headcard .ip-title{font-size:30px} }
 /* ── the page ── */
 /* 1482: the page starts 8 px under the back-pill row, as on a phone — the title (or a room's photo) began exactly where it ended */
 html.pnx #app.v3 .scroll{padding:8px 30px 40px 30px!important}
@@ -2917,12 +2937,15 @@ html.pnx .px-page select{background:var(--px-card2);border:0;border-radius:10px;
 /* REGISTER 1418 — HOMEOWNER VIEW, drawn to its mock as a page of the room: the back pill and the title, the room's
    live page in a phone on the left, Setting Up and On Now on the right. Today's view (1389) in place: its phone, its
    checks, its On Now switches. */
-html.pnx #hv-ov.open{position:fixed;inset:0 0 0 236px;background:var(--px-bg);display:block;overflow:auto;-webkit-backdrop-filter:none;backdrop-filter:none;z-index:70}
-html.pnx #hv-ov .hv-cd{width:auto;max-width:none;height:auto;max-height:none;background:none;border:0;box-shadow:none;border-radius:0;padding:22px 30px 40px;display:grid;grid-template-columns:282px minmax(0,1fr);grid-template-rows:auto 1fr;column-gap:20px;align-items:start}
+/* REGISTER 1491 (Dave, 26 Nov: "homeowner view is ridiculous that needs to be an iPad on an ipad and a mobile on a mobile"): the
+   homeowner's page is drawn at THIS screen's own size and scaled to fit the width — no phone drawn round it — with Setting Up and
+   On Now under it. */
+html.pnx #hv-ov.open{position:fixed;inset:0 0 0 236px;padding:0;background:var(--px-bg);display:block;overflow:auto;-webkit-backdrop-filter:none;backdrop-filter:none;z-index:70}
+html.pnx #hv-ov .hv-cd{width:auto;max-width:none;height:auto;max-height:none;background:none;border:0;box-shadow:none;border-radius:0;padding:22px 30px 40px;display:block}
+html.pnx #hv-ov iframe{display:block;width:390px;height:760px;max-width:none;border:0;border-radius:18px;box-shadow:0 0 0 1px var(--px-line);background:#0e0e10;transform-origin:top left;flex:none}
 html.pnx #hv-ov .hv-x{display:none}
 html.pnx #hv-ov .px-hvhead{grid-column:1/-1;margin-bottom:6px}
-html.pnx #hv-ov .hv-cd>div:not(.hv-side):not(.px-hvhead):not(.hv-x){transform:scale(.72);transform-origin:top left;width:390px;height:547px;border-radius:46px;overflow:hidden;box-shadow:0 0 0 8px #18181b,0 0 0 9px #2c2c31}
-html.pnx #hv-ov .hv-side{width:auto;padding:0;background:none}
+html.pnx #hv-ov .hv-side{width:auto;padding:0;background:none;margin-top:20px}
 html.pnx #hv-ov .hv-side>div:first-child{display:none!important}
 html.pnx #hv-ov .hv-side>.hv-sub:first-of-type{display:none!important}
 html.pnx #hv-ov .hv-sec{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--px-t3);margin:4px 2px 8px}
@@ -2934,8 +2957,10 @@ html.pnx #hv-ov .hv-sec+.hv-row:has(+.hv-sec),html.pnx #hv-ov .hv-sub+.hv-row:la
 html.pnx #hv-ov .hv-row+.hv-row{border-top:1px solid var(--px-line)}
 @media (max-width:700px){
   html.pnx #hv-ov.open{inset:0}
-  html.pnx #hv-ov .hv-cd{grid-template-columns:minmax(0,1fr);padding:14px 18px 120px}
-  html.pnx #hv-ov .hv-cd>div:not(.hv-side):not(.px-hvhead):not(.hv-x){margin:0 auto 12px}
+  /* 1491 (measured on his box): the icon-menu rule (left:76px!important, shell.css) also held on a phone, which has no side
+     menu — a 76 px strip of the room page showed down the left of this view, and of any page drawn the same way */
+  html.pnx #px-pg,html.pnx #hv-ov.open{left:0!important}
+  html.pnx #hv-ov .hv-cd{padding:14px 18px 120px}
 }
 </style>
 <style>
@@ -4488,7 +4513,7 @@ html.pnx #px-more .px-secl .px-ct{color:var(--px-t3);font-size:15px;margin-right
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111933';
+const PROOS_BUILD='2026111934';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -14607,7 +14632,7 @@ async function _siteInitMap(lat,lon){
   // wear — the previous host answers every tile with an "Access blocked"
   // picture now. z/y/x order; 16 is its deepest level.
   L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',{maxNativeZoom:16,maxZoom:19,attribution:'Map © Esri'}).addTo(_siteMap);
-  _siteMarker=L.marker([clat,clon],{draggable:true}).addTo(_siteMap);
+  _siteMarker=L.marker([clat,clon],{draggable:true,icon:L.divIcon({className:'px-pin',html:'',iconSize:[22,22],iconAnchor:[11,11]})}).addTo(_siteMap);
   _siteMarker.on('dragend',()=>{ const p=_siteMarker.getLatLng(); _siteSyncFields(p.lat,p.lng); _siteReverse(p.lat,p.lng); });
   _siteMap.on('click',(e)=>{ if(_siteMarker) _siteMarker.setLatLng(e.latlng); _siteSyncFields(e.latlng.lat,e.latlng.lng); _siteReverse(e.latlng.lat,e.latlng.lng); });
   setTimeout(()=>{ if(_siteMap) _siteMap.invalidateSize(); },220);
@@ -25202,7 +25227,11 @@ clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',plus:'<path d="M1
   var card=function(id){ return document.querySelector('#room-devices>.rh-card[data-v3="'+id+'"]')||document.getElementById(id); };
   var sub=function(p,s){ PX.unpaint(p); p.setAttribute('data-pxsub',s); PX._hRun(); };
   PX.roomView.shortcuts=function(p){ sub(p,''); };
-  PX.roomView.channels=function(p){ sub(p,PX.t(card('channels'),'.rch-dev')||''); };
+  // 1491 (seen on his box): the line read "Family Room TVFree-to-air · MelbourneEdit the List ›" — its parts run together. Each
+  // part is taken on its own, joined with " · ", and the link (which is on the page below) is left out.
+  PX.roomView.channels=function(p){ var d=card('channels'); d=d&&d.querySelector('.rch-dev');
+    var parts=d?[].slice.call(d.childNodes).map(function(n){ return (n.textContent||'').replace(/\s+/g,' ').trim(); }).filter(function(t){ return t&&!/^Edit the List/i.test(t); }):[];
+    sub(p,parts.join(' · ')); };
   PX.roomView.dashboard=function(p){ PX.unpaint(p); };
 
   // ── ACTIVITIES (mock): the room's activities as rows, the chosen one beside them — Test-Fire, Edit, Reset, and
@@ -25288,7 +25317,13 @@ clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',plus:'<path d="M1
   function head(){ var cd=document.querySelector('#hv-ov .hv-cd'); if(!cd||!PX.on()) return; var h=cd.querySelector('.px-hvhead'); if(!h){ h=document.createElement('div'); h.className='px-hvhead'; cd.insertBefore(h,cd.firstChild); }
     var nm=(typeof _rhName==='function'&&_rhName())||PX.t(document.querySelector('#hv-ov .hv-side>div:first-child'))||'';
     setHTML(h,'<div style="display:flex;align-items:center;min-height:40px;margin-bottom:18px"><button class="px-btn sm" style="height:40px;border-radius:20px;padding:0 16px 0 10px;font-size:15px" onclick="hvClose()">'+I('back')+E(nm)+'</button></div>'
-      +'<div class="px-head" style="margin:0 0 16px"><div class="px-k">'+E(nm)+'</div><h1>Homeowner View</h1><div class="px-sub">Exactly what their '+E(nm)+' page shows — it fills itself.</div></div>'); }
+      +'<div class="px-head" style="margin:0 0 16px"><div class="px-k">'+E(nm)+'</div><h1>Homeowner View</h1><div class="px-sub">Exactly what their '+E(nm)+' page shows on a screen this size — it fills itself.</div></div>'); fit(); }
+  // 1491: the homeowner's page at this screen's own size, scaled to the width there is
+  function fit(){ var ov=document.getElementById('hv-ov'), cd=ov&&ov.querySelector('.hv-cd'), f=ov&&ov.querySelector('iframe'); if(!ov||!cd||!f||!PX.on()) return;
+    var cs=getComputedStyle(cd), avail=cd.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight); if(!(avail>0)) return;
+    var W=window.innerWidth, H=window.innerHeight, k=Math.min(1,avail/W);
+    f.style.width=W+'px'; f.style.height=H+'px'; f.style.transform='scale('+k+')'; f.style.marginBottom=Math.round(-H*(1-k))+'px'; f.style.marginRight=Math.round(-W*(1-k))+'px'; }
+  window.addEventListener('resize',fit);
   if(typeof hvDraw==='function'){ var _d=hvDraw; hvDraw=function(){ var r=_d.apply(this,arguments); try{ head(); }catch(e){} return r; }; }
   if(typeof hvOpen==='function'){ var _o=hvOpen; hvOpen=function(){ var r=_o.apply(this,arguments); try{ setTimeout(head,50); }catch(e){} return r; }; }
 })();
