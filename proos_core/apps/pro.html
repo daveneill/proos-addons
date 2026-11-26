@@ -3247,6 +3247,14 @@ html.pnx .px-list small{font-size:13px;color:var(--px-t3)}
   html.pnx .px-row:has(>.px-acts>.px-btn){flex-wrap:wrap}
   html.pnx .px-row:has(>.px-acts>.px-btn)>.px-acts{width:100%;padding-left:52px;flex-wrap:wrap}
   html.pnx #rack-body .v3sec~.v3sec .v3rows{grid-template-columns:minmax(0,1fr)}
+  /* REGISTER 1489 (seen on his box, phone size — "Look for wasted space on a page and think why"): three tiles in two columns
+     left an empty cell, so the third takes the full row; The Rack's adapter columns are equal; Software's tiles cut their own
+     version and build numbers off at 22 px, so those are drawn at 15 with room for all of it */
+  html.pnx .pnx-tiles>.pnx-tile:nth-child(3):last-child{grid-column:1/-1}
+  html.pnx #rack-body .v3rows.pnx-adapt{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  html.pnx #rack-body .v3rows.pnx-adapt>.v3row:nth-child(3):last-child{grid-column:1/-1}
+  html.pnx #panel-v3software .v3kp b{font-size:15px;letter-spacing:-.2px}
+  html.pnx #panel-v3software .v3kp>div{padding-left:12px;padding-right:12px}
   html.pnx #credentials-body>.cred-card{grid-template-columns:minmax(0,1fr)}
   html.pnx #credentials-body>.cred-card>.cred-actions,html.pnx #credentials-body>.cred-card>.cred-managed{grid-column:1;grid-row:auto;margin-top:10px}
 }
@@ -4474,7 +4482,7 @@ html.pnx #px-more .px-secl .px-ct{color:var(--px-t3);font-size:15px;margin-right
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111931';
+const PROOS_BUILD='2026111932';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -16672,7 +16680,7 @@ function techViewTerminal(view){
   setHTML(view,'<div class="wiz-hint">Full shell inside ProOS Core (Protech only) — pipes, redirects and <code>cd</code> all work; <b>↑ / ↓</b> cycles your command history. Refresh an add-on without leaving ProOS, e.g. restart Core: <code>curl -s -X POST -H "Authorization: Bearer $SUPERVISOR_TOKEN" http://supervisor/addons/self/restart</code></div>'
     +'<pre id="tech-term-out" style="margin-top:12px;white-space:pre-wrap;word-break:break-word;font-family:ui-monospace,Menlo,monospace;font-size:13px;color:var(--t1);background:rgba(0,0,0,0.55);border:0.5px solid var(--line);border-radius:10px;padding:14px;min-height:480px;max-height:74vh;overflow:auto"></pre>'
     +'<div class="tech-prompt"><span id="tech-cwd" class="tech-cwd">'+esc(_termCwd)+' $</span><input id="tech-cmd" type="text" placeholder="run a command…" autocapitalize="off" autocorrect="off" spellcheck="false" onkeydown="techTermKey(event)"/></div>');
-  const i=document.getElementById('tech-cmd'); if(i) i.focus();
+  const i=document.getElementById('tech-cmd'); if(i) i.focus({preventScroll:true});
   techLoadHistory();
 }
 // Preload arrow-up/down history from the persisted command log so it cycles ALL
