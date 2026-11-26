@@ -2679,10 +2679,14 @@ html.pnx #app.v3 .v3cmd .v3cp{font-size:15px;color:var(--px-t3)}
 /* 1482: the page starts 8 px under the back-pill row, as on a phone — the title (or a room's photo) began exactly where it ended */
 html.pnx #app.v3 .scroll{padding:8px 30px 40px 30px!important}
 /* 1488: the title block on the left, the page's own buttons opposite it — a long title gives way, the buttons do not */
-html.pnx .px-head{margin:0 0 20px;display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
-html.pnx .px-head .px-hl{flex:1;min-width:0}
-html.pnx .px-head .px-act{flex:none;margin-top:13px}
-html.pnx .px-head .px-act:empty{display:none}
+html.pnx .px-head{margin:0 0 20px}
+/* 1488b: ONLY the shell's own head (#px-head) lays a title block and buttons side by side. A head a page draws for itself
+   (Homeowner View, the Diagnostics detail pages) is a plain block — as 1.0.1571 shipped it, those had their small label, title
+   and line pushed into a row (seen on his box, Homeowner View, 26 Nov). */
+html.pnx #px-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+html.pnx #px-head .px-hl{flex:1;min-width:0}
+html.pnx #px-head .px-act{flex:none;margin-top:13px}
+html.pnx #px-head .px-act:empty{display:none}
 html.pnx .px-head .px-k{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--px-t3);margin-bottom:2px}
 html.pnx .px-head .px-k b{font-weight:700;cursor:pointer}
 html.pnx .px-head h1{font-size:34px;font-weight:600;letter-spacing:-.015em;line-height:1.1;margin:0;color:#fff}
@@ -2831,7 +2835,7 @@ html.pnx body.v3menu-open #app.v3 #v2rail .v3acc{display:flex}
   html.pnx #app.v3 .v3cmd{top:auto!important;width:auto!important;border-radius:22px}
   html.pnx .px-head h1{font-size:30px}
   /* 1488: on a phone the page's buttons stay under the title (.px-actph) — one copy shown, never two */
-  html.pnx .px-head .px-act{display:none}
+  html.pnx #px-head .px-act{display:none}
   /* 1488 (seen on his box): Heard's sentence stood one word per line beside its tags — the tags go under it */
   html.pnx .px-row.px-heard{flex-wrap:wrap}
   html.pnx .px-row.px-heard>.px-acts{width:100%;padding-left:52px}
@@ -3253,8 +3257,10 @@ html.pnx .px-list small{font-size:13px;color:var(--px-t3)}
   html.pnx .pnx-tiles>.pnx-tile:nth-child(3):last-child{grid-column:1/-1}
   html.pnx #rack-body .v3rows.pnx-adapt{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
   html.pnx #rack-body .v3rows.pnx-adapt>.v3row:nth-child(3):last-child{grid-column:1/-1}
-  html.pnx #panel-v3software .v3kp b{font-size:15px;letter-spacing:-.2px}
-  html.pnx #panel-v3software .v3kp>div{padding-left:12px;padding-right:12px}
+  /* 1489b: READ ON HIS BOX after 1.0.1572 — the rule above the next two lost to the figure rule (html.pnx #app .panel .v3kp b) and the
+     numbers were still 22 px and cut off; I had proved it with a stronger rule than the one I shipped. #app makes these win. */
+  html.pnx #app #panel-v3software .v3kp b{font-size:15px;letter-spacing:-.2px}
+  html.pnx #app #panel-v3software .v3kp>div{padding-left:12px;padding-right:12px}
   html.pnx #credentials-body>.cred-card{grid-template-columns:minmax(0,1fr)}
   html.pnx #credentials-body>.cred-card>.cred-actions,html.pnx #credentials-body>.cred-card>.cred-managed{grid-column:1;grid-row:auto;margin-top:10px}
 }
@@ -4482,7 +4488,7 @@ html.pnx #px-more .px-secl .px-ct{color:var(--px-t3);font-size:15px;margin-right
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111932';
+const PROOS_BUILD='2026111933';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
