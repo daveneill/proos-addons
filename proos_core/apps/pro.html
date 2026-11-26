@@ -4539,7 +4539,7 @@ html.pnx #px-more .px-secl .px-ct{color:var(--px-t3);font-size:15px;margin-right
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111938';
+const PROOS_BUILD='2026111939';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -25167,7 +25167,9 @@ clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',plus:'<path d="M1
     if(aw){ var cls=aw.classList.contains('attention')?(/[1-9]/.test(PX.t(aw,'.awh-st:last-child .awh-sn'))&&/fault/i.test(PX.t(aw,'#awh-stats'))?'r':''):'ok';
       var stats=PX.all(aw,'#awh-stats .awh-st').map(function(s){ return PX.t(s,'.awh-sn')+' '+PX.t(s,'.awh-sl'); }).join(' · ');
       var pin=PX.t(aw,'#awh-ptxt');
-      h+='<div class="px-aw'+(cls?' '+cls:'')+'" onclick="'+E(PX.oc(aw))+'" style="cursor:pointer"><div class="px-row" style="padding:0;min-height:0;flex:1"><div class="px-ic '+(cls==='ok'?'gr':cls||'a')+'">'+I(cls==='ok'?'check':'warn')+'</div><div class="px-g"><b>'+E(PX.t(aw,'#awh-state'))+'</b><small class="wrap">'+E(PX.t(aw,'#awh-sub'))+(stats?' · '+E(stats):'')+(pin?' · '+E(pin):'')+'</small></div><button class="px-btn sm" onclick="event.stopPropagation();'+E(PX.oc(aw))+'">Open</button></div></div>'; }
+      // REGISTER 1499 (Dave 26 Nov 18:04: the state Core serves "should be all that the tile says unless there is something to report remove
+      // the totals … does not need an open pill as tapping on tile is enough"): normal — the words alone; otherwise what it reports
+      h+='<div class="px-aw'+(cls?' '+cls:'')+'" onclick="'+E(PX.oc(aw))+'" style="cursor:pointer"><div class="px-row" style="padding:0;min-height:0;flex:1"><div class="px-ic '+(cls==='ok'?'gr':cls||'a')+'">'+I(cls==='ok'?'check':'warn')+'</div><div class="px-g"><b>'+E(PX.t(aw,'#awh-state'))+'</b>'+(cls==='ok'?'':'<small class="wrap">'+E(PX.t(aw,'#awh-sub'))+(stats?' · '+E(stats):'')+(pin?' · '+E(pin):'')+'</small>')+'</div></div></div>'; }
     if(st){ h+='<div class="px-g3" style="margin-top:14px">'+[].slice.call(st.children).map(function(c){ var num=PX.t(c,'.n'), lab=PX.t(c,'.l');
       return '<div class="px-stat"'+(PX.oc(c)?' onclick="'+E(PX.oc(c))+'"':'')+'><b>'+E(num)+'</b><small>'+E(lab.replace(/\b\w/g,function(x){ return x.toUpperCase(); }))+'</small></div>'; }).join('')+'</div>'; }
     var rooms=PX.all(rm,'.hlt-mirror').map(function(r){ var art=PX.t(r,'.art'); var chip=PX.t(r,'.hlt-chip');
@@ -25175,8 +25177,12 @@ clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',plus:'<path d="M1
     var attn=PX.all(at,'.v3row').map(function(r){ var chip=PX.t(r,'.rr .v3chip');
       return PX.row(['warn','a'],PX.t(r,'.t1'),PX.t(r,'.t2'),chip?'<button class="px-btn sm blue" onclick="event.stopPropagation();'+E(PX.oc(r))+'">'+E(chip)+'</button>':PX.cv(),PX.oc(r)); });
     var atBtn=at?at.querySelector('.h button'):null;
-    h+='<div class="px-cols" style="margin-top:4px"><div>'+PX.sec('Happening Now','All Rooms',"v2go('areas')")+(rooms.length?'<div class="px-rows">'+rooms.join('')+'</div>':'<div class="px-rows"><div class="px-empty">Nothing is on in the home right now.</div></div>')+'</div>'
-      +'<div>'+PX.sec('Needs Attention',atBtn?atBtn.textContent.trim():'',atBtn?PX.oc(atBtn):'')+(attn.length?'<div class="px-rows">'+attn.join('')+'</div>':'<div class="px-rows"><div class="px-empty">Nothing needs attention.</div></div>')+'</div></div>';
+    // 1499: "Needs Attention if nothing to report it should not show"; "Happening now should just say live or Now as these disappear
+    // if nothing playing or on" — a part with nothing in it is not drawn; the box's own all-clear row is not a thing to report
+    attn=attn.filter(function(x){ return !/Nothing needs a hand/.test(x); });
+    var cNow=rooms.length?'<div>'+PX.sec('On Now','All Rooms',"v2go('areas')")+'<div class="px-rows">'+rooms.join('')+'</div></div>':'';
+    var cAt=attn.length?'<div>'+PX.sec('Needs Attention',atBtn?atBtn.textContent.trim():'',atBtn?PX.oc(atBtn):'')+'<div class="px-rows">'+attn.join('')+'</div></div>':'';
+    if(cNow&&cAt) h+='<div class="px-cols" style="margin-top:4px">'+cNow+cAt+'</div>'; else if(cNow||cAt) h+='<div style="margin-top:4px">'+(cNow||cAt)+'</div>';
     PX.paint(p,h,{sub:sub});
   });
 })();

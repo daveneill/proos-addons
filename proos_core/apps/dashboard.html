@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112133';
+const PROOS_BUILD='2026112135';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -24935,7 +24935,7 @@ body.nx-on #nx-page.open{display:block}
       '</div><div class="nx-rooms">';   // 1453: no Whole Home chip — Home is in the bar (Dave, 22 Nov)
     rooms.forEach(function(r,i){ var L=devs.filter(function(d){ return d.area===r.id; }), live=L.filter(function(d){ return d.r.now; });
       var kinds=[]; L.forEach(function(d){ var k=d.k.kind; if(k==='source'||k==='receiver') k='tv'; if(['tv','light','speaker','shade','climate','camera','lock','garage','fan'].indexOf(k)>=0&&kinds.indexOf(k)<0) kinds.push(k); });
-      var line=live.length?live.slice(0,2).map(function(d){ return (window._pxShown?_pxShown(d):d.name)||d.r.word; }).join(' · ')+(live.length>2?' +'+(live.length-2):''):(L.length?'Off':'Nothing here yet');
+      var line=live.length?live.slice(0,2).map(function(d){ return (window._pxShown?_pxShown(d):d.name)||d.r.word; }).join(' · ')+(live.length>2?' +'+(live.length-2):''):(L.length?'':'Nothing here yet');   // 1499
       html+='<button type="button" class="nx-room'+(live.length?'':' off')+'" data-ri="'+i+'" style="'+(r.photo?"background-image:url('"+String(r.photo).replace(/'/g,'%27')+"')":'')+'"><div class="nx-rt"><div><b>'+nxEsc(r.name)+'</b><span>'+nxEsc(line)+'</span></div><div class="nx-ics">'+kinds.slice(0,5).map(function(k){ return svgOf(k==='speaker'?'speaker':k); }).join('')+'</div></div></button>'; });
     if(!rooms.length) html=html.replace(/<div class="nx-sub">[^<]*<\/div>/,'<div class="nx-sub"></div>')+'<div class="nxr-quiet" style="grid-column:1/-1">No rooms yet</div>';   // 1404: empty is never blank
     var p=_nxPage(html+'</div>');
@@ -25199,7 +25199,7 @@ body.nx-on #nx-page.open{display:block}
     // the line under the name: where the room IS (30 Oct) — what is on, by name; else Off
     var named=on.filter(function(d){ return d.k.kind!=='light'; }).map(function(d){ return (window._pxShown?_pxShown(d):((d)||{}).name||'')||d.r.word; });   // 1443
     if(litN) named.push(litN+' of '+lights.length+' lights');
-    var line=on.length||litN?named.join(' · '):(L.length?'Off':'Nothing here yet');
+    var line=on.length||litN?named.join(' · '):(L.length?'':'Nothing here yet');   // 1499: a room that is off does not say so
     var sensors=L.filter(function(d){ return d.k.kind==='sensor'; }), open=sensors.filter(function(d){ return /Open|Motion|Wet|Smoke|CO detected|Gas/.test(d.r.word); });
     var _aw='All normal · '+sensors.length+(sensors.length===1?' sensor':' sensors')+' checked';   // 1442: all normal is the dot alone
     var aware=sensors.length?(open.length?'<span class="nx-aware" style="margin:0;background:rgba(255,181,71,.12)"><span class="nx-dot" style="background:#FFB547;box-shadow:none"></span>'+
@@ -25224,7 +25224,7 @@ body.nx-on #nx-page.open{display:block}
       '<div class="nxr-top"><button type="button" data-back aria-label="Rooms">'+gi('back')+'</button><span></span></div><div class="nxr-body">'+
       '<div class="nxr-name">'+nxrEsc(r.name)+'</div><div class="nxr-line">'+nxrEsc(line)+'</div>'+aware+
       '<div class="nxr-cols"><div><div class="nxr-sec"><b>Scenes</b></div>'+(tiles.length?'<div class="nxr-grid">'+tiles.join('')+'</div>':'<div class="nxr-quiet">No scenes in the '+nxrEsc(r.name)+' yet</div>')+
-      '</div><div><div class="nxr-sec"><b>On Now</b></div>'+(cards.length?'<div class="nxr-grid" style="grid-template-columns:repeat(2,minmax(0,1fr))">'+cards.join('')+'</div>':'<div class="nxr-quiet">Nothing on in the '+nxrEsc(r.name)+'</div>')+'</div></div>'+wids+'</div>';   // 1387a: widgets full width
+      '</div><div>'+(cards.length?'<div class="nxr-sec"><b>On Now</b></div><div class="nxr-grid" style="grid-template-columns:repeat(2,minmax(0,1fr))">'+cards.join('')+'</div>':'')+'</div></div>'+wids+'</div>';   // 1499: nothing on — nothing shown   // 1387a: widgets full width
     var y=p.scrollTop; p.innerHTML=html; p.scrollTop=y; _nxrWire(p,r,lights);
   }
   function _nxrWire(p,r,lights){
@@ -25283,8 +25283,16 @@ body.nx-on #nx-page.open{display:block}
 .nxh-wx small{display:block;font-size:11px;font-weight:500;color:rgba(255,255,255,.55)}
 .nxh-wx b{display:block;font-size:13px;font-weight:600}
 .nxh-greet{font-size:13px;font-weight:500;color:rgba(255,255,255,.62)}
-.nxh-h1{font-size:40px;font-weight:300;letter-spacing:-.03em;line-height:1.05;margin:4px 0 14px}
-@media (min-width:820px){.nxh-h1{font-size:48px}.nxh-cols{display:grid;grid-template-columns:1.35fr 1fr;gap:30px;align-items:start}}
+/* REGISTER 1498 (Dave 26 Nov: "Home needs to match the area/room pages in the same layout"): Home's name is the room name's own
+   class, at the room name's height (220px down the photo); its columns are the room's; the greeting sits small above the name */
+.nxh-h1{margin:4px 0 0}
+#nx-page.nx-home-pg .nxh-top{height:0;margin:0;padding:0;overflow:hidden}
+#nx-page.nx-home-pg .nxh-greet{margin-top:200px}
+#nx-page.nx-home-pg .nxh-top+.nxh-h1{margin-top:220px}
+.nxh-heroes{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;-webkit-overflow-scrolling:touch;margin-top:18px}
+.nxh-heroes::-webkit-scrollbar{display:none}
+.nxh-heroes>.nxh-hero{flex:0 0 100%;scroll-snap-align:start;margin-top:0}
+.nxh-dots{display:flex;justify-content:center;gap:6px;margin-top:10px}.nxh-dots i{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.3)}.nxh-dots i.on{background:#fff}
 .nxh-aware{display:inline-flex;align-items:center;gap:8px;padding:9px 14px;border-radius:999px;background:#1b1c20;border:0;color:#fff;font:500 13px Inter,-apple-system,sans-serif;cursor:pointer;
   transition:background var(--m-page) var(--e-standard)}
 .nxh-aware i{width:7px;height:7px;border-radius:50%;background:#5FD39A;box-shadow:0 0 8px #5FD39A;flex:none}
@@ -25333,7 +25341,6 @@ img.nxa-fit-c{object-fit:contain!important;object-position:center!important;back
 .nxh-scn.on::before{background:linear-gradient(135deg,rgba(50,72,255,.55),rgba(33,57,240,.72))}   /* 1447: a scene that is on keeps its picture under the blue */
 .nxh-scn.run{animation:nxhRun var(--m-hold) var(--e-standard)}
 @keyframes nxhRun{50%{box-shadow:0 0 0 3px rgba(138,152,255,.6)}}
-.nxh-cols .nxr-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 #nx-avatar{transition:opacity var(--m-page) var(--e-standard)}
 body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
 .nxh-more{font-size:13px;font-weight:600;color:#8A98FF;background:none;border:0;cursor:pointer;font-family:inherit}
@@ -25367,17 +25374,21 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
     var roomOf={}; (rooms||[]).forEach(function(r,i){ roomOf[r.id]={name:r.name,i:i}; });
     var att=function(d){ return ((S[d.lead]||{}).attributes)||{}; }, stOf=function(d){ return (S[d.lead]||{}).state; };
     var on=devs.filter(function(d){ return d.r&&d.r.now; });
-    var hero=on.filter(function(d){ return MEDIA[d.k.kind] && stOf(d)==='playing' && att(d).media_title; })[0]||null;
+    // 1498: everything PLAYING is the large card (swiped through when there is more than one); hero is the first of them
+    var heroes=on.filter(function(d){ return MEDIA[d.k.kind] && stOf(d)==='playing' && att(d).media_title; }), hero=heroes[0]||null;
     var cards=[];
     on.filter(function(d){ return d.r.warn; }).forEach(function(d){ cards.push({t:'dev',d:d}); });
-    on.filter(function(d){ return !d.r.warn && MEDIA[d.k.kind] && d!==hero; }).forEach(function(d){ cards.push({t:'media',d:d}); });
+    on.filter(function(d){ return !d.r.warn && MEDIA[d.k.kind] && heroes.indexOf(d)<0; }).forEach(function(d){ cards.push({t:'media',d:d}); });
     var byRoom={}, order=[];
     devs.filter(function(d){ return d.k.kind==='light'; }).forEach(function(d){ var a=d.area||''; if(!byRoom[a]){ byRoom[a]={area:a,all:0,on:[]}; order.push(a); } byRoom[a].all++; if(d.r.now) byRoom[a].on.push(d.lead); });
-    order.forEach(function(a){ var g=byRoom[a]; if(g.on.length) cards.push({t:'lights',area:a,room:(roomOf[a]||{}).name||'',ri:roomOf[a]?roomOf[a].i:-1,n:g.on.length,of:g.all,ents:g.on}); });
+    // 1498 (Dave 26 Nov: "a tile that just gives home summary of lights … a home with 20 rooms the home page would be full of
+    // these tiles at night"): ONE card for the house — how many are on, of how many, in how many rooms. A room's own card is on its page.
+    var lOn=[], lAll=0, lRooms=0; order.forEach(function(a){ var g=byRoom[a]; lAll+=g.all; if(g.on.length){ lRooms++; lOn=lOn.concat(g.on); } });
+    if(lOn.length) cards.push({t:'lights',area:'',room:'',ri:-1,n:lOn.length,of:lAll,rooms:lRooms,ents:lOn});
     on.filter(function(d){ return !d.r.warn && !MEDIA[d.k.kind] && d.k.kind!=='light'; }).forEach(function(d){ cards.push({t:'dev',d:d}); });
     var an=function(a){ return (roomOf[a]||{}).name||(a&&typeof areaNameById!=='undefined'&&areaNameById[a])||''; };   // 1378a: an area that is not a room keeps its name
     cards.forEach(function(c){ if(c.d) c.room=an(c.d.area); else if(c.t==='lights') c.room=an(c.area); });
-    return {hero:hero, heroRoom:hero?((roomOf[hero.area]||{}).name||''):'', cards:cards, rooms:(rooms||[]).length, devices:devs.length,
+    return {hero:hero, heroes:heroes, heroRooms:heroes.map(function(d){ return (roomOf[d.area]||{}).name||''; }), heroRoom:hero?((roomOf[hero.area]||{}).name||''):'', cards:cards, rooms:(rooms||[]).length, devices:devs.length,
             hasLights:order.length>0, players:devs.filter(function(d){ return d.k.kind==='speaker'||d.k.kind==='tv'; }).map(function(d){ return d.lead; })};
   }
   // the awareness line is Core's verdict from /watchers (the same answer the old Home's light used, register 322) — it says
@@ -25394,7 +25405,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
   window._nxHomeModel=_nxhModel; window._nxHomeAware=_nxhAware;
 
   function _nxhCard(c){
-    if(c.t==='lights') return '<button type="button" class="nxr-live lit" data-hl="'+nxhEsc(c.area)+'" data-ri="'+c.ri+'" data-ents="'+nxhEsc(c.ents.join(','))+'"><div class="nxr-row"><div class="nx-ic" style="background:rgba(255,196,107,.18)">'+nxhIc('light').replace('<svg','<svg style="stroke:#FFC46B;width:20px;height:20px;fill:none;stroke-width:1.8"')+'</div><span class="nxr-pw lit" data-hloff="1">'+nxhIc('pw')+'</span></div><div><div class="k">'+nxhEsc(c.room||'Around the House')+'</div><div class="n">'+c.n+(c.of>1?' of '+c.of:'')+' on</div></div></button>';
+    if(c.t==='lights') return '<button type="button" class="nxr-live lit" data-hlights="1"><div class="nxr-row"><div class="nx-ic" style="background:rgba(255,196,107,.18)">'+nxhIc('light').replace('<svg','<svg style="stroke:#FFC46B;width:20px;height:20px;fill:none;stroke-width:1.8"')+'</div></div><div><div class="k">'+(c.rooms?c.rooms+(c.rooms===1?' room':' rooms'):'')+'</div><div class="n">'+c.n+(c.of>1?' of '+c.of:'')+' on</div></div></button>';   // 1498: no power button on Home (Dave: "just leave on the room pages")
     var d=c.d, s=states[d.lead]||{}, A=s.attributes||{}, k=d.k.kind;
     if(c.t==='media'){
       var art=''; try{ var p=(typeof _artOf==='function')?_artOf(d.lead):A.entity_picture; art=p?artSrc(p):''; }catch(e){}
@@ -25421,7 +25432,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
     var M=_nxhModel(devs, rooms, states||{});
     var A=_nxhAware(typeof _awareOk!=='undefined'?_awareOk:null, typeof _awareItems!=='undefined'?_awareItems:[], document.body.dataset.homeState);
     var first=((window._haUser&&window._haUser.name)||'').trim().split(/\s+/)[0]||'';
-    var h=new Date().getHours(), greet=(h<12?'Good morning':h<17?'Good afternoon':'Good evening')+(first?', '+first:'');
+    var h=new Date().getHours(), greet=(h<12?'Good morning':h<17?'Good afternoon':'Good evening');   // 1498: no name — on a wall it is nobody's
     var empty=!M.rooms&&!M.devices;
     // REGISTER 1434 (Dave, 21 Nov: "Every time I open the app I see this briefly before it all updates"): Home was drawn before
     // the rooms had been read at all — from the saved copy or live — and an unread home looked EMPTY, so "Your installer is
@@ -25442,10 +25453,10 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
     scenes.forEach(function(s){ lit[s.entity]=(typeof _nxSceneOn==='function')&&_nxSceneOn(s.entity); });
     var yw=window._nxWidgets?_nxWidgets(null):'';   // 1387: every widget Home has, in the New Look
     var hs=M.hero?states[M.hero.lead]||{}:null;
-    var sig=JSON.stringify([(empty||waiting)?[known,waiting]:1,CONFIG._homeAreaPhoto||'',greet,A,_nxhWeather(),empty,M.hero&&[M.hero.lead,hs.state,hs.attributes.media_title,hs.attributes.media_artist],M.cards.map(function(c){ return c.t==='lights'?['l',c.area,c.n]:[c.t,c.d.lead,c.d.r.word,(states[c.d.lead]||{}).state,((states[c.d.lead]||{}).attributes||{}).media_title]; }),scenes.map(function(s){ return [s.entity,s.name,(window._nxScenePic?_nxScenePic(s.entity,s.name):s.photo),lit[s.entity],ran[s.entity]]; }),yw,M.hasLights]);
+    var sig=JSON.stringify([(empty||waiting)?[known,waiting]:1,CONFIG._homeAreaPhoto||'',greet,A,_nxhWeather(),empty,M.heroes.map(function(d){ var x=states[d.lead]||{}, xa=x.attributes||{}; return [d.lead,x.state,xa.media_title,xa.media_artist]; }),M.cards.map(function(c){ return c.t==='lights'?['l',c.n,c.of,c.rooms]:[c.t,c.d.lead,c.d.r.word,(states[c.d.lead]||{}).state,((states[c.d.lead]||{}).attributes||{}).media_title]; }),scenes.map(function(s){ return [s.entity,s.name,(window._nxScenePic?_nxScenePic(s.entity,s.name):s.photo),lit[s.entity],ran[s.entity]]; }),yw,M.hasLights]);
     if(p._sig===sig) return; p._sig=sig;
     var hph=CONFIG._homeAreaPhoto||'';   // 1424: the Home photo, clear at the top, as a room's own
-    var html=(hph?'<div class="nxh-photo" aria-hidden="true" style="background-image:url(\''+String(hph).replace(/['"\\]/g,encodeURIComponent)+'\')"></div>':'')+'<div class="nx-in"><div class="nxh-top"><span></span></div><div class="nxh-greet">'+(empty&&known?'Welcome':nxhEsc(greet))+'</div><div class="nxh-h1">Home</div>';
+    var html=(hph?'<div class="nxh-photo" aria-hidden="true" style="background-image:url(\''+String(hph).replace(/['"\\]/g,encodeURIComponent)+'\')"></div>':'')+'<div class="nx-in"><div class="nxh-top"><span></span></div>'+(empty&&known?'<div class="nxh-greet">Welcome</div>':'')+'<div class="nxh-h1 nxr-name">Home</div>';   // 1498a: the greeting is in the line of words under the name, not above it
     if((empty&&!known)||waiting){ html+='</div>'; p.innerHTML=html; return; }   // 1434: not read yet — the heading only, never "setting up"
     if(empty){
       html+='<button type="button" class="nxh-ask" data-hask><div class="nx-ic">'+nxhIc('mic').replace('<svg','<svg style="width:20px;height:20px;stroke:#fff;fill:none;stroke-width:1.8"')+'</div><div><div style="font-size:15px;font-weight:600">Ask Assist</div><div style="font-size:13px;color:rgba(255,255,255,.62);margin-top:2px">“What’s the weather this weekend?”</div></div></button></div>';
@@ -25455,23 +25466,33 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
     // all normal is the green dot alone — its words stay its label, and a tap still opens the check; anything else keeps its words
     html+=A.c===''?'<button type="button" class="nxh-aware dot" data-haware title="'+nxhEsc(A.t)+'" aria-label="'+nxhEsc(A.t)+'"><i></i></button>'
       :'<button type="button" class="nxh-aware '+A.c+'" data-haware><i></i>'+nxhEsc(A.t)+'</button>';
-    if(M.hero){ var HA=hs.attributes||{}, art=''; try{ var ap=(typeof _artOf==='function')?_artOf(M.hero.lead):HA.entity_picture; art=ap?artSrc(ap):''; }catch(e){}
+    // 1498 + 1498a (Dave 17:54: "go back to having a word summary on the home page and remove the greeting or incorporate it into the
+    // home summary"): the line under the name, where a room says what is on — the greeting, where things are on, then the lights
+    var _rm=[]; M.heroes.forEach(function(d,i){ var n=M.heroRooms[i]||(window._pxShown?_pxShown(d):d.name)||''; if(n&&_rm.indexOf(n)<0) _rm.push(n); });
+    M.cards.forEach(function(c){ if(c.t==='media'){ var n=c.room||(window._pxShown?_pxShown(c.d):c.d.name)||''; if(n&&_rm.indexOf(n)<0) _rm.push(n); } });
+    var _ln=[greet]; if(_rm.length) _ln.push('On in '+(_rm.length<3?_rm.join(' and '):_rm.slice(0,2).join(', ')+' and '+(_rm.length-2)+' more'));
+    M.cards.forEach(function(c){ if(c.t==='lights') _ln.push(c.n+' of '+c.of+' lights on'+(c.rooms>1?' in '+c.rooms+' rooms':'')); });
+    // 1499 (Dave 26 Nov 17:59: "Never say nothing on … either not show anything or have maybe the weather"): with nothing on, the weather
+    if(_ln.length===1){ try{ var _w=CONFIG.weather, _t=_w?att(_w,'temperature'):null, _c=_w?String(st(_w)||''):''; if(_t!=null&&_t!==''&&isFinite(+_t)) _ln.push(Math.round(+_t)+'°'+(_c&&_c!=='unknown'&&_c!=='unavailable'?' '+String(wxLabel(_c)).toLowerCase():'')); }catch(e){} }
+    html=html.replace('<div class="nxh-h1 nxr-name">Home</div>','<div class="nxh-h1 nxr-name">Home</div><div class="nxr-line">'+nxhEsc(_ln.join(' · '))+'</div>');
+    var _hero=function(d,room){ var hs2=states[d.lead]||{}, HA=hs2.attributes||{}, art=''; try{ var ap=(typeof _artOf==='function')?_artOf(d.lead):HA.entity_picture; art=ap?artSrc(ap):''; }catch(e){}
       var u=art?"url('"+String(art).replace(/'/g,'%27')+"')":'';
-      html+='<button type="button" class="nxh-hero" data-hopen="'+nxhEsc(M.hero.lead)+'">'+(u?'<div class="glow" style="background-image:'+u+'"></div><div class="art" style="background-image:'+u+'"></div>':'')+
-        '<div class="tx"><span class="nxr-pill">'+nxhEsc([M.heroRoom,(window._pxShown?_pxShown(M.hero):((M.hero)||{}).name||'')].filter(function(x,i,a){ return x&&a.indexOf(x)===i; }).join(' · '))+' <b>PLAYING</b></span>'+
+      return '<button type="button" class="nxh-hero" data-hopen="'+nxhEsc(d.lead)+'">'+(u?'<div class="glow" style="background-image:'+u+'"></div><div class="art" style="background-image:'+u+'"></div>':'')+
+        '<div class="tx"><span class="nxr-pill">'+nxhEsc([room,(window._pxShown?_pxShown(d):((d)||{}).name||'')].filter(function(x,i,a){ return x&&a.indexOf(x)===i; }).join(' · '))+' <b>PLAYING</b></span>'+
         '<div><div class="ar">'+nxhEsc(HA.media_artist||HA.media_album_name||'')+'</div><div class="tt">'+nxhEsc(HA.media_title)+'</div></div>'+
-        '<div class="ar" style="display:flex;align-items:center"><span class="nxh-bars"><i></i><i></i><i></i></span>'+nxhEsc(HA.app_name||HA.source||(window._pxShown?_pxShown(M.hero):((M.hero)||{}).name||''))+'</div></div>'+
-        '<span class="nxr-pw play" data-hpp="'+nxhEsc(M.hero.lead)+'">'+nxhIc('pause')+'</span></button>';
-    }
-    var onNow='<div class="nxr-sec"><b>On Now</b><button type="button" class="nxh-more" data-hdev>All Devices ›</button></div>'+
-      (M.cards.length?'<div class="nxr-grid" style="grid-template-columns:repeat(2,minmax(0,1fr))">'+M.cards.map(_nxhCard).join('')+'</div>'
-        :'<div class="nxr-quiet">Nothing on right now</div>');
+        '<div class="ar" style="display:flex;align-items:center"><span class="nxh-bars"><i></i><i></i><i></i></span>'+nxhEsc(HA.app_name||HA.source||(window._pxShown?_pxShown(d):((d)||{}).name||''))+'</div></div>'+
+        '<span class="nxr-pw play" data-hpp="'+nxhEsc(d.lead)+'">'+nxhIc('pause')+'</span></button>'; };
+    // 1498 (Dave: "if it has more than one thing playing you can swipe to go through them"): one card as before; more — a row that is swiped, with its dots
+    if(M.heroes.length===1) html+=_hero(M.heroes[0],M.heroRooms[0]);
+    else if(M.heroes.length>1) html+='<div class="nxh-heroes">'+M.heroes.map(function(d,i){ return _hero(d,M.heroRooms[i]); }).join('')+'</div><div class="nxh-dots">'+M.heroes.map(function(d,i){ return '<i'+(i===0?' class="on"':'')+'></i>'; }).join('')+'</div>';
+    var onNow=M.cards.length?'<div class="nxr-sec"><b>On Now</b><button type="button" class="nxh-more" data-hdev>All Devices ›</button></div>'+
+      '<div class="nxr-grid" style="grid-template-columns:repeat(2,minmax(0,1fr))">'+M.cards.map(_nxhCard).join('')+'</div>':'';   // 1499: nothing on — nothing shown
     var tiles=scenes.map(function(s,i){ return '<button type="button" class="nxr-scn nxh-scn'+(lit[s.entity]?' on':'')+(ran[s.entity]&&Date.now()-ran[s.entity]<1500?' run':'')+'" data-hscene="'+i+'" style="'+(function(u){ return u?"background-image:url('"+String(u).replace(/'/g,'%27')+"')":''; })(window._nxScenePic?_nxScenePic(s.entity,s.name):s.photo)+'">'+nxhIc('spark','g')+'<b>'+nxhEsc(s.name)+'</b></button>'; });
     if(M.hasLights||M.players.length) tiles.push('<button type="button" class="nxr-scn" data-halloff>'+nxhIc('pw','g')+'<b>All Off</b></button>');
     var sc='<div class="nxr-sec"><b>Scenes</b><button type="button" class="nxh-more" data-hscenes>All Scenes ›</button></div>'+
       (tiles.length?'<div class="nxr-grid">'+tiles.join('')+'</div>':'<div class="nxr-quiet">No scenes yet</div>');
-    html+='<div class="nxh-cols"><div>'+onNow+'</div><div>'+sc+'</div></div>'+yw+'</div>';   // 1387a: widgets full width under both columns
-    var y=p.scrollTop; p.innerHTML=html; p.scrollTop=y; _nxhWire(p,M);
+    html+='<div class="nxr-cols nxh-cols"><div>'+sc+'</div><div>'+onNow+'</div></div>'+yw+'</div>';   // 1498: Scenes left, On Now right, as a room   // 1387a: widgets full width under both columns
+    var y=p.scrollTop, _hx=(p.querySelector('.nxh-heroes')||{}).scrollLeft||0; p.innerHTML=html; p.scrollTop=y; var _hr=p.querySelector('.nxh-heroes'); if(_hr&&_hx) _hr.scrollLeft=_hx; _nxhWire(p,M);
   }
   function _nxhLeave(){ clearInterval(homeTimer); homeTimer=null; document.body.classList.remove('nx-scr'); var p=document.getElementById('nx-page'); if(p){ p.classList.remove('open','nx-home-pg'); } }
   function _nxhWire(p,M){
@@ -25483,6 +25504,8 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
     q('[data-hscenes]',function(){ _nxhLeave(); _nxGo('scenes'); });
     q('[data-hopen]',function(b,e){ if(e.target.closest('[data-hpp]')) return; try{ openPlayer(b.dataset.hopen); }catch(x){} });
     q('[data-hpp]',function(b,e){ e.stopPropagation(); svc('media_player','media_play_pause',{entity_id:b.dataset.hpp}); });
+    q('[data-hlights]',function(){ if(typeof _nxLights==='function'){ _nxhStop(); _nxLights(); } });   // 1498: the house's lights tile opens Lights
+    (function(){ var hr=p.querySelector('.nxh-heroes'); if(!hr) return; var dots=p.querySelectorAll('.nxh-dots i'); var mark=function(){ var i=Math.round(hr.scrollLeft/Math.max(1,hr.clientWidth)); dots.forEach(function(d,k){ d.classList.toggle('on',k===i); }); }; hr.onscroll=mark; mark(); })();
     q('[data-hl]',function(b,e){ if(e.target.closest('[data-hloff]')) return; if(typeof _nxLightSheet==='function'){ _nxLightSheet(b.dataset.hl); return; } _nxhLeave(); try{ openLightOverlay(+b.dataset.ri); }catch(x){} });   // 1378
     q('[data-hloff]',function(b,e){ e.stopPropagation(); var ents=(b.closest('[data-ents]').dataset.ents||'').split(',').filter(Boolean); if(ents.length) svc('light','turn_off',{entity_id:ents}); });
     q('[data-hcat]',function(b){ if(b.dataset.hcat==='Climate'&&typeof _nxClimate==='function'){ _nxhStop(); _nxClimate(b.dataset.hlead, function(){ _nxHome(); }); return; }   // 1379
