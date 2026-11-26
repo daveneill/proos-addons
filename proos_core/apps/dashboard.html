@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112135';
+const PROOS_BUILD='2026112136';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -25635,7 +25635,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
     if(!can.dim) return '<div class="nxl-sw'+(R.gone?' gone':'')+'" data-lsw="'+nxlEsc(L.e)+'"><div><b>'+nxlEsc(L.name)+'</b><small>Switch · '+nxlEsc(R.word)+'</small></div><span class="nxl-tog'+(R.on?' on':'')+'"></span></div>';
     var c=R.on?_nxlColour(S):'', pct=R.pct||0;
     var dk=false; try{ var mm=/^rgb\((\d+),(\d+),(\d+)\)$/.exec(String(c).replace(/\s/g,'')); if(mm) dk=(0.299*mm[1]+0.587*mm[2]+0.114*mm[3])/255<0.6; }catch(e){}   // 1497c
-    return '<div class="nxl-bar'+(R.on?' on':'')+(R.on&&dk?' dk':'')+(R.on&&pct<38?' low':'')+(R.gone?' gone':'')+'" data-lbar=""'+nxlEsc(L.e)+'"><i style="width:'+(R.on?Math.max(pct,4):0)+'%'+(c?';background:'+c:'')+'"></i><span class="nm">'+nxlEsc(L.name)+'</span><span class="v">'+nxlEsc(R.word)+'</span></div>';
+    return '<div class="nxl-bar'+(R.on?' on':'')+(R.on&&dk?' dk':'')+(R.on&&pct<38?' low':'')+(R.gone?' gone':'')+'" data-lbar="'+nxlEsc(L.e)+'"><i style="width:'+(R.on?Math.max(pct,4):0)+'%'+(c?';background:'+c:'')+'"></i><span class="nm">'+nxlEsc(L.name)+'</span><span class="v">'+nxlEsc(R.word)+'</span></div>';
   }
   function _nxlDraw(){
     var p=document.getElementById('nx-page'); if(!p||!p.classList.contains('open')||!p.classList.contains('nx-lights-pg')||held) return;
@@ -25643,13 +25643,18 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
     var onN=all.filter(function(L){ return _nxlRead(L.e,states[L.e],pend).on; }).length;
     var body=rooms.map(function(r){ var Ls=all.filter(function(L){ return L.area===r.id; }); if(!Ls.length) return '';
       var n=Ls.filter(function(L){ return _nxlRead(L.e,states[L.e],pend).on; }).length;
-      return '<div class="nxl-room"><b>'+nxlEsc(r.name)+'</b><span>'+(n?n+' of '+Ls.length+' on':'Off')+'</span></div><div class="nxl-list">'+Ls.map(_nxlRow).join('')+'</div>'; }).join('');
+      // 1500 (Dave 26 Nov 19:13: RGB lights "are supposed to automatically identify an RGB light and give the full controls"): the room's
+      // heading opens that room's lights card — its faders, and Colour / White for every light that reports it can. A room whose lights
+      // can do neither keeps a plain heading. 1499: a room that is off does not say Off.
+      var full=Ls.some(function(L){ var c=_nxlCan(states[L.e]); return c.colour||c.white; });
+      return '<div class="nxl-room'+(full?' more':'')+'"'+(full?' data-lroom="'+nxlEsc(r.id)+'" role="button"':'')+'><b>'+nxlEsc(r.name)+'</b><span>'+(n?n+' of '+Ls.length+' on':'')+(full?'<em>Colour ›</em>':'')+'</span></div><div class="nxl-list">'+Ls.map(_nxlRow).join('')+'</div>'; }).join('');
     var html='<div class="nx-in"><button type="button" class="nx-back" data-lb>'+BACK+'</button><div class="nx-hd"><div><h1>Lights</h1><div class="nx-sub">'+(all.length?onN+' of '+all.length+' on':'')+'</div></div>'+
       (onN?'<button type="button" class="nx-chip" data-lalloff>'+PW.replace('<svg','<svg style="width:15px;height:15px;stroke:#fff;fill:none;stroke-width:2"')+'All Off</button>':'')+'</div>'+
       (all.length?body:'<div class="nxr-quiet">No lights yet</div>')+'</div>';
     if(p._sig===html) return; p._sig=html; var y=p.scrollTop; p.innerHTML=html; p.scrollTop=y;
     p.querySelector('[data-lb]').onclick=function(){ _nxlStop(); _nxGo('devices'); };
     var ao=p.querySelector('[data-lalloff]'); if(ao) ao.onclick=function(){ _nxlAllOff(all); };
+    p.querySelectorAll('[data-lroom]').forEach(function(h){ h.onclick=function(){ _nxLightSheet(h.dataset.lroom); }; });   // 1500
   }
   function _nxlAllOff(list){ var on=list.filter(function(L){ return states[L.e]&&states[L.e].state==='on'; }).map(function(L){ return L.e; });
     if(!on.length) return; on.forEach(function(e){ pend[e]={on:false,pct:null,t:Date.now()}; }); svc('light','turn_off',{entity_id:on}); }
@@ -27802,6 +27807,9 @@ body.nx-on #jv .jv-st{bottom:-68px}
 #nx-page .nxv-counts{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
 #nx-page .nxv-counts::-webkit-scrollbar{display:none}
 #nx-page .nxv-counts span{flex:0 0 auto}
+/* 1500: a Lights heading that opens the room's full controls */
+.nxl-room.more{cursor:pointer}
+.nxl-room.more em{font-style:normal;color:#8A98FF;font-weight:600;margin-left:10px}
 </style>
 <!-- ══ REGISTER 1403 — REBUILD STEP 9a, THE SCREENSAVER IN THE NEW LOOK (Dave 17 Nov 18:58 "Go"; mock S.screensaver). Today's
      screensaver (the idle time set in Settings, tap to wake, the clock, the weather, what the room plays) is drawn as the
