@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112139';
+const PROOS_BUILD='2026112140';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -25453,7 +25453,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
     scenes.forEach(function(s){ lit[s.entity]=(typeof _nxSceneOn==='function')&&_nxSceneOn(s.entity); });
     var yw=window._nxWidgets?_nxWidgets(null):'';   // 1387: every widget Home has, in the New Look
     var hs=M.hero?states[M.hero.lead]||{}:null;
-    var sig=JSON.stringify([(empty||waiting)?[known,waiting]:1,CONFIG._homeAreaPhoto||'',greet,att('sensor.proos_home_summary','home_sentence')||'',A,_nxhWeather(),empty,M.heroes.map(function(d){ var x=states[d.lead]||{}, xa=x.attributes||{}; return [d.lead,x.state,xa.media_title,xa.media_artist]; }),M.cards.map(function(c){ return c.t==='lights'?['l',c.n,c.of,c.rooms]:[c.t,c.d.lead,c.d.r.word,(states[c.d.lead]||{}).state,((states[c.d.lead]||{}).attributes||{}).media_title]; }),scenes.map(function(s){ return [s.entity,s.name,(window._nxScenePic?_nxScenePic(s.entity,s.name):s.photo),lit[s.entity],ran[s.entity]]; }),yw,M.hasLights]);
+    var sig=JSON.stringify([(empty||waiting)?[known,waiting]:1,CONFIG._homeAreaPhoto||'',att('sensor.proos_home_summary','home_sentence')||'',att('sensor.proos_home_summary','env_line')||'',A,_nxhWeather(),empty,M.heroes.map(function(d){ var x=states[d.lead]||{}, xa=x.attributes||{}; return [d.lead,x.state,xa.media_title,xa.media_artist]; }),M.cards.map(function(c){ return c.t==='lights'?['l',c.n,c.of,c.rooms]:[c.t,c.d.lead,c.d.r.word,(states[c.d.lead]||{}).state,((states[c.d.lead]||{}).attributes||{}).media_title]; }),scenes.map(function(s){ return [s.entity,s.name,(window._nxScenePic?_nxScenePic(s.entity,s.name):s.photo),lit[s.entity],ran[s.entity]]; }),yw,M.hasLights]);
     if(p._sig===sig) return; p._sig=sig;
     var hph=CONFIG._homeAreaPhoto||'';   // 1424: the Home photo, clear at the top, as a room's own
     var html=(hph?'<div class="nxh-photo" aria-hidden="true" style="background-image:url(\''+String(hph).replace(/['"\\]/g,encodeURIComponent)+'\')"></div>':'')+'<div class="nx-in"><div class="nxh-top"><span></span></div>'+(empty&&known?'<div class="nxh-greet">Welcome</div>':'')+'<div class="nxh-h1 nxr-name">Home</div>';   // 1498a: the greeting is in the line of words under the name, not above it
@@ -25471,9 +25471,12 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
     // 1501 (Dave 26 Nov 19:29: "remove the lights from the word summary … it's a summary: TV on or music playing descriptions, not
     // just on"): the words are CORE'S OWN home sentence (sensor.proos_home_summary · home_sentence, register 316 — "both panels
     // print the SAME words"): "Watching Channels in the Family Room. Music in the Garage." No lights; nothing counted here.
-    var _ln=[greet]; try{ var _hsn=String(att('sensor.proos_home_summary','home_sentence')||'').trim().replace(/\.$/,''); if(_hsn) _ln.push(_hsn); }catch(e){}
-    // 1499 (Dave 26 Nov 17:59: "Never say nothing on … either not show anything or have maybe the weather"): with nothing on, the weather
-    if(_ln.length===1){ try{ var _w=CONFIG.weather, _t=_w?att(_w,'temperature'):null, _c=_w?String(st(_w)||''):''; if(_t!=null&&_t!==''&&isFinite(+_t)) _ln.push(Math.round(+_t)+'°'+(_c&&_c!=='unknown'&&_c!=='unavailable'?' '+String(wxLabel(_c)).toLowerCase():'')); }catch(e){} }
+    var _ln=[]; try{ var _hsn=String(att('sensor.proos_home_summary','home_sentence')||'').trim().replace(/\.$/,''); if(_hsn) _ln.push(_hsn); }catch(e){}
+    // 1504 (Dave 26 Nov 20:30: "remove greeting on home page word summary when something on just have the weather forecast when nothing
+    // on"): no greeting. Something on — the sentence alone. Nothing on — the weather alone: Core's own line for the home
+    // (env_line, "24.2° and partly cloudy outside"), else the weather entity read here.
+    if(!_ln.length){ try{ var _el=String(att('sensor.proos_home_summary','env_line')||'').trim(); if(_el) _ln.push(_el.charAt(0).toUpperCase()+_el.slice(1));
+      else { var _w=CONFIG.weather, _t=_w?att(_w,'temperature'):null, _c=_w?String(st(_w)||''):''; if(_t!=null&&_t!==''&&isFinite(+_t)) _ln.push(Math.round(+_t)+'°'+(_c&&_c!=='unknown'&&_c!=='unavailable'?' '+String(wxLabel(_c)).toLowerCase():'')); } }catch(e){} }
     html=html.replace('<div class="nxh-h1 nxr-name">Home</div>','<div class="nxh-h1 nxr-name">Home</div><div class="nxr-line">'+nxhEsc(_ln.join(' · '))+'</div>');
     var _hero=function(d,room){ var hs2=states[d.lead]||{}, HA=hs2.attributes||{}, art=''; try{ var ap=(typeof _artOf==='function')?_artOf(d.lead):HA.entity_picture; art=ap?artSrc(ap):''; }catch(e){}
       var u=art?"url('"+String(art).replace(/'/g,'%27')+"')":'';
@@ -25635,7 +25638,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
     if(!can.dim) return '<div class="nxl-sw'+(R.gone?' gone':'')+'" data-lsw="'+nxlEsc(L.e)+'"><div><b>'+nxlEsc(L.name)+'</b><small>Switch · '+nxlEsc(R.word)+'</small></div><span class="nxl-tog'+(R.on?' on':'')+'"></span></div>';
     var c=R.on?_nxlColour(S):'', pct=R.pct||0;
     var dk=false; try{ var mm=/^rgb\((\d+),(\d+),(\d+)\)$/.exec(String(c).replace(/\s/g,'')); if(mm) dk=(0.299*mm[1]+0.587*mm[2]+0.114*mm[3])/255<0.6; }catch(e){}   // 1497c
-    return '<div class="nxl-bar'+(R.on?' on':'')+(R.on&&dk?' dk':'')+(R.on&&pct<38?' low':'')+(R.gone?' gone':'')+'" data-lbar="'+nxlEsc(L.e)+'"><i style="width:'+(R.on?Math.max(pct,4):0)+'%'+(c?';background:'+c:'')+'"></i><span class="nm">'+nxlEsc(L.name)+'</span><span class="v">'+nxlEsc(R.word)+'</span></div>';
+    return '<div class="nxl-bar'+(R.on?' on':'')+(R.on&&dk?' dk':'')+(R.on&&pct<38?' low':'')+(R.on&&pct>=88?' hi':'')+(R.gone?' gone':'')+'" data-lbar="'+nxlEsc(L.e)+'"><i style="width:'+(R.on?Math.max(pct,4):0)+'%'+(c?';background:'+c:'')+'"></i><span class="nm">'+nxlEsc(L.name)+'</span><span class="v">'+nxlEsc(R.word)+'</span></div>';
   }
   function _nxlDraw(){
     var p=document.getElementById('nx-page'); if(!p||!p.classList.contains('open')||!p.classList.contains('nx-lights-pg')||held) return;
@@ -25719,7 +25722,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
   }, true);
   function _nxlPct(ev){ var r=G.el.getBoundingClientRect(); var f=G.vert?1-(ev.clientY-r.top)/r.height:(ev.clientX-r.left)/r.width; return Math.max(0,Math.min(100,Math.round(f*100))); }
   function _nxlShow(pct){ var i=G.el.querySelector('i'); if(!i) return; if(G.vert){ i.style.height=pct+'%'; var pc=G.el.parentNode.querySelector('.pc'); if(pc) pc.textContent=pct?pct+'%':'Off'; }
-    else { i.style.width=pct+'%'; var v=G.el.querySelector('.v'); if(v) v.textContent=pct?pct+'%':'Off'; G.el.classList.toggle('on',pct>0); G.el.classList.toggle('low',pct<38); } }
+    else { i.style.width=pct+'%'; var v=G.el.querySelector('.v'); if(v) v.textContent=pct?pct+'%':'Off'; G.el.classList.toggle('on',pct>0); G.el.classList.toggle('low',pct<38); G.el.classList.toggle('hi',pct>=88); } }
   document.addEventListener('pointermove', function(ev){
     if(!G||ev.pointerId!==G.id) return; var dx=ev.clientX-G.x, dy=ev.clientY-G.y;
     if(!G.axis){ if(Math.abs(dx)<8&&Math.abs(dy)<8) return; G.axis=Math.abs(dx)>Math.abs(dy)?'h':'scroll';
@@ -27912,6 +27915,13 @@ body.nx-on #atv-page .atv-postgrid>*{border-radius:14px;overflow:hidden}
    grid item may be squeezed to nothing — so the rows shrank to fit the space left above the keyboard instead of scrolling. A row
    is as tall as its poster and words, always. */
 body.nx-on #atv-page .atv-postgrid{grid-auto-rows:max-content}
+/* REGISTER 1504 — (a) Dave 20:26 (photo, Dave's Lamp at 60%): "Can't see the percentage now on lamps" — the level is written at the
+   right-hand end, on the dark track, in the dark ink meant for the fill. It is white unless the fill has reached it (88% and up).
+   (b) Dave 20:28: "when you scroll on any screens I shouldn't see the scroll on the right side" — no scroll bar anywhere in the New Look. */
+.nxl-bar.on .v{color:#fff;text-shadow:none}
+.nxl-bar.on.hi:not(.dk) .v{color:#2a1a05}
+body.nx-on,body.nx-on *{scrollbar-width:none}
+body.nx-on ::-webkit-scrollbar{display:none;width:0;height:0}
 body.nx-on #atv-page .atv-npbig .atv-art.big{border-radius:22px;box-shadow:0 20px 50px rgba(0,0,0,.45)}
 body.nx-on #atv-page .atv-trans button{border-radius:50%;background:rgba(255,255,255,.12)!important;-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px)}
 body.nx-on #atv-page .atv-trans button.big{background:#fff!important;color:#111}
