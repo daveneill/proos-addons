@@ -864,14 +864,34 @@ def play(sp, service_id, item_id, account=None, time_zone=None, wait_s=10.0, lim
         return _queue_play(sp, s, songs, lambda c: apple_prepare(br, c), title, wait_s)
     with s["lock"]:
         it = s["items"].get(item_id, item_id)
-        if opens(it):
+        is_open = opens(it)
+        if isinstance(it, str):
+            # REGISTER 1513 (Dave 27 Nov 17:52: a Spotify shortcut — "items of type 'unknown' cannot be played directly").
+            # A shortcut holds the id; what KIND of thing it is was kept only in memory, from the browse that showed it,
+            # and every restart empties that. A bare id was taken for a single track. Now: it is tried as a single thing
+            # (a track or station prepares), and when the library refuses it, it is OPENED and what is inside is played.
+            # Read on the box first: bare playlist, album and artist ids all open (50 · 10 · the artist's shelves).
+            try:
+                first = prepare(br, it)
+            except Exception:                                    # noqa: BLE001
+                is_open = True
+                try:
+                    tracks = tracks_inside(br, it, limit)
+                except Exception:                                # noqa: BLE001
+                    tracks = []
+                if not tracks:
+                    raise SpeakerMusicError("that shortcut's music couldn't be found on the service any more — "
+                                            "find it in Browse Music and add it again")
+            else:
+                tracks = [it]
+        elif is_open:
             tracks = tracks_inside(br, it, limit)
             if not tracks:
                 raise SpeakerMusicError("there's nothing to play directly inside “%s” — open it to choose" % it.title)
         else:
             tracks = [it]
             first = prepare(br, it)
-    if not opens(it) and is_stream(first[0]):
+    if not is_open and is_stream(first[0]):
         if mode in ("next", "add"):
             raise SpeakerMusicError("a station can't go in the queue — play it instead")
         return _stream_play(sp, first, getattr(it, "title", "") or "", wait_s)
