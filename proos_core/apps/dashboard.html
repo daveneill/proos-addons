@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112142';
+const PROOS_BUILD='2026112143';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -32568,7 +32568,7 @@ try{ setInterval(_outcomesRead, LV_OUTCOME_EVERY_MS); }catch(e){}
    on that screen (the band is measured from the phone, never written in) and then: the whole page ends where the band begins, and
    the bottom bar stands upright IN the band, from the foot up. Every other phone, the open Duo and every tablet: nothing changes. */
 html.duo-rail:has(body.nx-on){background:#151518}
-html.duo-rail body.nx-on{position:fixed;top:0;left:0;bottom:0;right:var(--duo-r,0px);width:auto;height:auto;margin:0;contain:layout}
+html.duo-rail body.nx-on{position:fixed;top:0;left:0;bottom:0;right:var(--duo-r,0px);width:auto;height:auto;margin:0;contain:layout;overflow:visible}
 html.duo-rail body.nx-on #nx-bar{left:auto;right:calc(-1 * var(--duo-r));top:0;bottom:0;width:var(--duo-r);height:auto;flex-direction:column;align-items:center;justify-content:flex-end;gap:2px;padding:0 0 calc(env(safe-area-inset-bottom,0px) + 10px);box-shadow:-1px 0 0 rgba(255,255,255,.05)}
 html.duo-rail body.nx-on #nx-bar .nb{flex:none;max-width:none;width:100%;padding:11px 0}
 html.duo-rail body.nx-on #nx-bar .nmic{top:0;margin:10px 0;width:58px;height:58px;box-shadow:0 10px 26px rgba(33,57,240,.5)}

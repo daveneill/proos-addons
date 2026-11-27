@@ -3440,7 +3440,7 @@ html.pnx #px-more .px-secl .px-ct{color:var(--px-t3);font-size:15px;margin-right
    on that screen (the band is measured from the phone, never written in) and then: the whole page ends where the band begins, and
    the bottom bar stands upright IN the band, from the foot up. Every other phone, the open Duo and every tablet: nothing changes. */
 html.pnx.duo-rail{background:#0e0e10}
-html.pnx.duo-rail body{position:fixed;top:0;left:0;bottom:0;right:var(--duo-r,0px);width:auto;height:auto;margin:0;contain:layout}
+html.pnx.duo-rail body{position:fixed;top:0;left:0;bottom:0;right:var(--duo-r,0px);width:auto;height:auto;margin:0;contain:layout;overflow:visible}
 html.pnx.duo-rail #app{padding-right:0}
 html.pnx.duo-rail #app.v2 .v2tabs{left:auto;right:calc(-1 * var(--duo-r));top:0;bottom:0;width:var(--duo-r);height:auto;display:flex;flex-direction:column;justify-content:flex-end;align-items:stretch;gap:2px;padding:0 0 calc(env(safe-area-inset-bottom,0px) + 10px);background:rgba(18,18,21,.92)!important}
 html.pnx.duo-rail #app.v2 .v2tabs::before{display:none}
@@ -4553,7 +4553,7 @@ html.pnx.duo-rail #app.v3 .scroll{padding-bottom:calc(env(safe-area-inset-bottom
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111941';
+const PROOS_BUILD='2026111942';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
