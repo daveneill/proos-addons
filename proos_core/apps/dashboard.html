@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112157';
+const PROOS_BUILD='2026112158';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -17656,12 +17656,19 @@ async function _mfPlay(w){
     return musicCmd(sp,'media_player','play_media',{entity_id:sp, media_content_id:p.cid, media_content_type:p.ctype||'favorite_item_id'},null,'Starting '+(w.title||''));
   }
   // speaker: the service item, played by the speaker with the home's own account (as spmPlay)
+  /* 1514 (Dave 27 Nov 18:05: "the first one says starting and the spotify says nothing just circle"): this road never
+     marked the speaker as starting — only the favourite's road (musicCmd) and Browse Music's (spmPlay) did. Same mark,
+     same words, cleared when Core answers. */
+  const _nxAgain=()=>{ try{ const g=document.getElementById('nx-page'); if(g) g._sig=''; }catch(e){} };
+  if(_musicBusy[sp]){ _musicPendingUi(true,'Starting '+(w.title||'')+'…'); return; }
+  _musicBusy[sp]={t0:Date.now()}; _musicPendingUi(true,'Starting '+(w.title||'')+'…'); _nxAgain();
   let j=null, msg='';
   try{
     const r=await fetch(proosCoreBase()+'/speakers/music/play',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({entity_id:sp, service_id:p.sid, account:p.acct, item:p.item})});
     j=await r.json().catch(()=>null); if(!r.ok) msg=(j&&j.error)||('error '+r.status);
   }catch(e){ msg=String(e&&e.message||e); }
+  delete _musicBusy[sp]; _musicPendingUi(false); _nxAgain();
   if(msg){ showToast('Couldn’t play on '+playerRoomName(sp)+' — '+msg); try{ _musicReport(sp,'speaker','play',msg); }catch(e){} return; }
   if(!(j&&j.ok)) showToast(playerRoomName(sp)+' didn’t start playing '+(w.title||'')+(j&&j.state?' ('+String(j.state).toLowerCase()+')':''));
 }
