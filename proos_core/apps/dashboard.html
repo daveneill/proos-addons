@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112152';
+const PROOS_BUILD='2026112153';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -26615,9 +26615,12 @@ body.nx-on #device-chooser{z-index:9380}
     // redraws whenever its text changes — redrew every second. The widget already says when it has REALLY changed (its own mark,
     // the one the old look goes by): while that mark is the same, the face handed back is the same.
     var ck=(w.uid||w.id)+'|'+dm.w+'x'+dm.h+'|'+(room?room.id:'');
-    if(d.hsig!=null){ var cc=_nxwFaceC[ck]; if(cc&&cc.s===String(d.hsig)) return cc.h; }
-    var out='<div class="widget-cell nxw-face'+(dm.w>=2?' w-span2':'')+(dm.w>=3?' w-span3':'')+(dm.h===2?' w-rows2':'')+(d.on?' w-on':'')+(d._mediaTile?' w-media':'')+'" data-wid="'+e7(w.id)+'" data-wsz="'+dm.w+'x'+dm.h+'" data-nwuid="'+e7(w.uid||'')+'"'+(tap?' data-nwo="'+act(tap,'f:'+(w.uid||w.id))+'"':'')+'>'+d.html+'</div>';
-    if(d.hsig!=null) _nxwFaceC[ck]={s:String(d.hsig), h:out};
+    // 1505 kept: a music shortcut says "Starting…" on its own tile from the tap until the speaker is heard
+    var bz=''; if(w.id==='musicfav'){ try{ if(_musicBusy&&_musicBusy[w.speaker]) bz=(_musicPendingLabel||'Starting…'); }catch(x){} }
+    var hs=d.hsig!=null?String(d.hsig)+'|'+bz:null;
+    if(hs!=null){ var cc=_nxwFaceC[ck]; if(cc&&cc.s===hs) return cc.h; }
+    var out='<div class="widget-cell nxw-face'+(dm.w>=2?' w-span2':'')+(dm.w>=3?' w-span3':'')+(dm.h===2?' w-rows2':'')+(d.on?' w-on':'')+(d._mediaTile?' w-media':'')+(d._appTile?' w-app':'')+(bz?' nxw-bz':'')+'" data-wid="'+e7(w.id)+'" data-wsz="'+dm.w+'x'+dm.h+'" data-nwuid="'+e7(w.uid||'')+'"'+(tap?' data-nwo="'+act(tap,'f:'+(w.uid||w.id))+'"':'')+'>'+d.html+(bz?'<span class="nxw-busy">'+e7(bz)+'</span>':'')+'</div>';
+    if(hs!=null) _nxwFaceC[ck]={s:hs, h:out};
     return out; }
   var _nxwFaceC={};
   // 1507b (Dave, 27 Nov 16:07: "yes do the rest please"): where each face's own tap goes in the New Look — the page the plain card
@@ -26641,7 +26644,9 @@ body.nx-on #device-chooser{z-index:9380}
   function _nxwClimateOf(w, r){ var cr=r||(w.room?roomById(w.room):null), c=(cr&&cr.climate)||((CONFIG.rooms||[]).filter(function(x){ return x.climate; })[0]||{}).climate; return (c&&states[c])?c:''; }
   // the one-tap shortcuts keep the New Look's own tiles (brand art, and "Starting…" — 1505); everything else wears its face.
   // A widget for something this room has not got is not drawn (his rule: what is not there is not said).
-  var _NXW_TILE={apps:1,musicfav:1,chfav:1,actfav:1,act1:1};
+  // 1508b (Dave, 27 Nov 17:04, on 1.0.1596's tiles: "Its worse" — and a picture of the old look: "how it was before"). The one-tap
+  // shortcuts wear their OLD faces too: the whole tile is the picture, 5 by 3 (a square for music), nothing written under it.
+  var _NXW_TILE={};
   function _nxwAbsent(w, r){ try{
     if(w.id==='climate') return !_nxwClimateOf(w, r);
     if(w.id==='covers') return !(window._nxAll?_nxAll():[]).some(function(d){ return d.k.kind==='shade'&&(!r||d.area===r.id); });
@@ -28269,10 +28274,11 @@ body.nx-on .nxw-grid>.widget-cell.nxw-face.w-rows2{grid-row:span 2}
    Look's four fixed columns stretched them (277–450 wide). Every face was drawn for this cell too. 3 wide is 3 wide again. */
 body.nx-on .nxw-grid{grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:minmax(150px,auto)}
 body.nx-on .nxw-grid>.nxw.w3{grid-column:span 2}
-@media (min-width:501px){ body.nx-on .nxw-grid{grid-template-columns:repeat(auto-fill,minmax(180px,1fr))} }
+@media (min-width:501px){ body.nx-on .nxw-grid{grid-template-columns:repeat(auto-fill,minmax(200px,1fr))} }
 @media (min-width:600px){ body.nx-on .nxw-grid>.nxw.w3,body.nx-on .nxw-grid>.widget-cell.nxw-face.w-span3{grid-column:span 3} }
-body.nx-on .nxw-grid>.nxw-fv,body.nx-on .nxw-grid>.nxw-fav,body.nx-on .nxw-grid>.nxr-scn{grid-column:span 1;height:150px;min-height:0}
-body.nx-on .nxw-grid>.nxw-fv .fa{flex:1 1 auto;min-height:0;aspect-ratio:auto}
+/* 1508b — a shortcut is the old look's tile: no card behind it, the picture is the tile (5:3, music square), one cell, 150 tall */
+body.nx-on .nxw-grid>.widget-cell.nxw-face.w-app{background:transparent!important;padding:0!important;height:150px!important;min-height:0;grid-column:span 1}
+body.nx-on .nxw-grid>.widget-cell.nxw-face .nxw-busy{position:absolute;left:8px;right:8px;bottom:8px;padding:6px 8px;border-radius:10px;background:rgba(14,14,16,.84);color:#8A98FF;font:600 13px Inter,-apple-system,sans-serif;text-align:center;pointer-events:none;z-index:3}
 /* 1508 — the Back of an old-look page opened from the New Look (see _nxOldBack) */
 #nx-oldback{display:none;position:fixed;top:calc(14px + var(--proos-sat,0px));left:16px;z-index:8980}
 body.nx-on[data-page]:not([data-page="home"]):not(:has(#nx-page.open)) #nx-oldback{display:grid}
