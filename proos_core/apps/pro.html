@@ -4583,7 +4583,7 @@ html.pnx.duo-rail #app.v3 .scroll{padding-bottom:calc(env(safe-area-inset-bottom
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026112802';
+const PROOS_BUILD='2026112803';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -18817,8 +18817,8 @@ async function loadMusicStatus(){
     +'<div class="es" style="font-size:11px;color:var(--t3);font-weight:300;margin-top:3px">'+sub+'</div></div>'
     +'<div class="rr">'+dot(d)+'</div></div>';
   if(!m.installed){
-    setHTML(st, card('ProOS Music','Not installed','var(--t3)')
-      +'');
+    setHTML(st, card('ProOS Music','Not installed','var(--t3)'));
+    form.style.display='block';
   } else if(!m.running){
     setHTML(st, card('ProOS Music','Installed · not running','#f5a623'));
     form.style.display='block';
