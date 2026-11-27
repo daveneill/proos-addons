@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112146';
+const PROOS_BUILD='2026112147';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -28193,6 +28193,17 @@ html.duo-rail:has(body.nx-on){background:#151518}
 html.duo-rail body.nx-on{width:calc(100% - var(--duo-r,0px));margin:0;contain:layout;overflow:visible}
 html.duo-rail body.nx-on #nx-bar{left:auto;right:calc(-1 * var(--duo-r));top:0;bottom:0;width:var(--duo-r);height:auto;flex-direction:column;align-items:center;justify-content:space-evenly;gap:0;padding:var(--duo-r) 0 env(safe-area-inset-bottom,0px);box-shadow:-1px 0 0 rgba(255,255,255,.05)}
 html.duo-rail body.nx-on #nx-bar .nb{flex:none;max-width:none;width:100%;padding:11px 0}
+/* 1506g (Dave's simulator picture, 27 Nov 14:14: Pro's Assist panel cut off at the left). Anything sized from the SCREEN's width
+   (vw) was 84 too wide for the page beside the band. --duo-vw is the page's own width; each such size is restated from it. */
+html.duo-rail{--duo-vw:calc(100vw - var(--duo-r))}
+html.duo-rail body.nx-on .widget-picker-sheet,html.duo-rail body.nx-on #music-act-sheet .sheet,html.duo-rail body.nx-on .scene-edit-sheet,html.duo-rail body.nx-on .proos-card,html.duo-rail body.nx-on .appc-box,html.duo-rail body.nx-on #assist-panel,html.duo-rail body.nx-on .all-lights-panel,html.duo-rail body.nx-on .light-panel,html.duo-rail body.nx-on .climate-all-panel,html.duo-rail body.nx-on .climate-panel,html.duo-rail body.nx-on #device-chooser .dc-card,html.duo-rail body.nx-on .pa-dbmsg-card,html.duo-rail body.nx-on #player-apps-sheet>div:nth-child(2),html.duo-rail body.nx-on #player-group-sheet>div:nth-child(2){width:min(520px,calc(var(--duo-vw) - 32px))!important}
+html.duo-rail body.nx-on #widget-picker .widget-picker-sheet{width:min(1100px,calc(var(--duo-vw) - 32px))!important}
+html.duo-rail body.nx-on #mus-ask .ma-card{width:min(420px,calc(var(--duo-vw) - 32px))}
+html.duo-rail body.nx-on #proos-req-overlay .rq-card{width:min(420px,calc(var(--duo-vw) * .9))}
+html.duo-rail body.nx-on #proos-acard{--pac-tw:calc((var(--duo-vw) - 54px) / 2)}
+html.duo-rail body.nx-on #screensaver .ss-card{max-width:min(520px,calc(var(--duo-vw) * .9))}
+html.duo-rail body.nx-on #screensaver .ss-vol-col{width:min(460px,calc(var(--duo-vw) * .84))}
+html.duo-rail body.nx-on #app-toast{max-width:calc(var(--duo-vw) * .8)}
 html.duo-rail body.nx-on #nx-bar .nmic{top:0;margin:0;width:58px;height:58px;box-shadow:0 10px 26px rgba(33,57,240,.5)}
 </style>
 <style id="proos-refresh">

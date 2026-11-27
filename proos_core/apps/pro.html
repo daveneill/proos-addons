@@ -3445,6 +3445,14 @@ html.pnx.duo-rail #app{padding-right:0}
 html.pnx.duo-rail #app.v2 .v2tabs{left:auto;right:calc(-1 * var(--duo-r));top:0;bottom:0;width:var(--duo-r);height:auto;display:flex;flex-direction:column;justify-content:space-evenly;align-items:stretch;gap:0;padding:var(--duo-r) 0 env(safe-area-inset-bottom,0px);background:rgba(18,18,21,.92)!important}
 html.pnx.duo-rail #app.v2 .v2tabs::before{display:none}
 html.pnx.duo-rail #app.v2 .v2tabs .v2t{flex:none;padding:11px 0}
+/* 1506g (Dave's simulator picture, 27 Nov 14:14: Pro's Assist panel cut off at the left). Anything sized from the SCREEN's width
+   (vw) was 84 too wide for the page beside the band. --duo-vw is the page's own width; each such size is restated from it. */
+html.pnx.duo-rail{--duo-vw:calc(100vw - var(--duo-r))}
+html.pnx.duo-rail .v3drawer{width:min(480px,calc(var(--duo-vw) - 32px))}
+html.pnx.duo-rail .awi-card{width:min(560px,calc(var(--duo-vw) - 32px))}
+html.pnx.duo-rail #rec-modal>div{width:min(520px,calc(var(--duo-vw) * .92))}
+html.pnx.duo-rail .who-menu .wm-card{max-width:calc(var(--duo-vw) * .88)}
+html.pnx.duo-rail #toast{max-width:calc(var(--duo-vw) * .8)}
 /* 1506f — held sideways: the camera is at the FOOT of the band, so the tabs spread over the height above it */
 html.pnx.duo-rail.duo-ls #app.v2 .v2tabs{padding:env(safe-area-inset-top,0px) 0 var(--duo-r)}
 html.pnx.duo-rail.duo-ls #app.v2 .v2tabs .v2t{padding:7px 0}
@@ -4556,7 +4564,7 @@ html.pnx.duo-rail #app.v3 .scroll{padding-bottom:calc(env(safe-area-inset-bottom
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111946';
+const PROOS_BUILD='2026111947';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
