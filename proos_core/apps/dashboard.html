@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112140';
+const PROOS_BUILD='2026112141';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -17666,9 +17666,12 @@ async function _mfPlay(w){
 }
 function _mfTap(el){
   if(_widgetEditMode) return;
-  const uid=el&&el.dataset.mfuid; const w=(loadWidgetLayout()||[]).find(x=>x&&x.uid===uid); if(!w) return;
+  // 1505: nothing here fails in silence any more — a shortcut the page cannot find, or a start that throws, is SAID
+  const uid=el&&el.dataset.mfuid; const w=(loadWidgetLayout()||[]).find(x=>x&&x.uid===uid);
+  if(!w){ try{ showToast('That shortcut is not on this page any more — open the page again'); }catch(e){} return; }
   _awRing(el,true);
-  Promise.resolve(_mfPlay(w)).catch(()=>{}).finally(()=>setTimeout(()=>_awRing(el,false),400));
+  Promise.resolve(_mfPlay(w)).catch(e=>{ try{ showToast('Couldn’t start '+(w.title||'that')+' — '+String(e&&e.message||e)); }catch(x){} }).finally(()=>setTimeout(()=>_awRing(el,false),400));
+  try{ const p=document.getElementById('nx-page'); if(p&&document.body.classList.contains('nx-on')){ p._sig=''; } }catch(e){}
 }
 function closeMusicAct(){ const sh=document.getElementById('music-act-sheet'); if(sh) sh.style.display='none'; _musicHoldFired=false; }
 function _musicActExtra(){
@@ -27585,7 +27588,11 @@ body.nx-on #widget-picker .wl-tz button{border-radius:10px;font-size:12px;paddin
     if(w.id==='apps'&&w.app){ var n=w.app; try{ n=_appCanon(w.app,w.appid||'').n||w.app; }catch(x){} var dv=_nxeNameOf(w.device);
       return {kind:'app', name:n, line:['App',dv].filter(Boolean).join(' · ')}; }
     if(w.id==='musicfav'&&w.speaker&&(w.uri||w.play)){ var rm=_nxeRoomName(typeof entityAreaMap!=='undefined'?entityAreaMap[w.speaker]:'')||_nxeNameOf(w.speaker);
-      return {kind:'music', name:w.title||'Music', line:[w.subtitle||w.media_type&&String(w.media_type).replace(/^\w/,function(c){ return c.toUpperCase(); })||'Music',rm].filter(Boolean).join(' · ')}; }
+      // REGISTER 1505 (Dave 27 Nov: "we need it to follow what it was doing on old look"): the old look says "Starting…" in its
+      // now-playing strip from the tap until the speaker is heard playing (and "Still starting — the service is answering slowly…"
+      // at ten seconds). The New Look has no such strip, so a tapped tile looked dead for up to 35 seconds. The tile says it now.
+      var busy=false, lab=''; try{ busy=!!(_musicBusy&&_musicBusy[w.speaker]); lab=busy?(_musicPendingLabel||'Starting…'):''; }catch(x){}
+      return {kind:'music', busy:busy, name:w.title||'Music', line:busy?lab:[w.subtitle||w.media_type&&String(w.media_type).replace(/^\w/,function(c){ return c.toUpperCase(); })||'Music',rm].filter(Boolean).join(' · ')}; }
     if(w.id==='chfav'&&w.room&&w.device&&w.channel) return {kind:'channel', name:w.name||('Channel '+w.number), line:['Channel'+(w.number?' '+w.number:''), _nxeNameOf(w.device)||_nxeRoomName(w.room)].filter(Boolean).join(' · ')};
     if(w.id==='actfav'&&w.room&&w.key){ var r=(CONFIG.rooms||[]).filter(function(x){ return x.id===w.room; })[0]; if(!r) return null;
       var av=((window._nxAvScenesOf&&_nxAvScenesOf(r))||[]).filter(function(a){ return a.key===w.key; })[0];
@@ -27602,6 +27609,7 @@ body.nx-on #widget-picker .wl-tz button{border-radius:10px;font-size:12px;paddin
     if(M.kind==='music'){ art=w.art?'<img '+(typeof _artAttr==='function'?_artAttr(w.art):'src="'+esc(w.art)+'"')+' alt="" onerror="this.remove()">':''; tap=' data-mfuid="'+esc(w.uid)+'" onclick="event.stopPropagation();_mfTap(this)"'; }
     if(M.kind==='channel'){ var slug=w.logo_tile||('channel_'+String(w.name||'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,''));
       art='<img src="'+esc(proosCoreBase()+'/apps/art/tile/'+slug+'.png')+'" alt="" onerror="this.remove()">'; tap=' data-cfroom="'+esc(w.room)+'" data-cfdev="'+esc(w.device)+'" data-cfch="'+esc(w.channel)+'" onclick="event.stopPropagation();_cfTap(this)"'; }
+    if(M.busy) cls+=' busy';   // 1505
     return '<div class="'+cls+'"'+uid+tap+'><div class="fa"><span class="wm">'+esc(M.name)+'</span>'+art+'</div><div><b>'+esc(M.name)+'</b><small>'+esc(M.line)+'</small></div></div>';
   };
   // ── editing
@@ -27816,6 +27824,9 @@ body.nx-on #jv .jv-st{bottom:-68px}
 /* 1502: (a) a widget's second line shows in full, on two lines ("App · Family Room Apple TV" was cut); (b) a light's six colours
    stay ONE row on a phone (they sat five and one) */
 .nxw-fv small{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+/* 1505: a music shortcut that has been tapped and is starting */
+.nxw-fv.busy small{color:#8A98FF}
+.nxw-fv.busy .fa{box-shadow:0 0 0 2px #8A98FF}
 .nxl-cols{flex-wrap:nowrap}
 .nxl-cols button{flex:0 1 42px;width:auto;height:auto;aspect-ratio:1;min-width:0}
 </style>
