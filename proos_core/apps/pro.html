@@ -2786,6 +2786,13 @@ html.pnx .px-chip{height:36px;padding:0 14px;border-radius:12px;background:var(-
 html.pnx .px-chip.on{background:#fff;color:#111}
 html.pnx .px-aw{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:18px;background:rgba(242,179,74,.10);box-shadow:inset 0 0 0 1px rgba(242,179,74,.25)}
 html.pnx .px-aw.ok{background:rgba(95,185,140,.08);box-shadow:inset 0 0 0 1px rgba(95,185,140,.22)}
+/* REGISTER 1516 (Dave 28 Nov 08:39: "All Systems Normal needs to be larger when normal and maybe a separation between All Systems and Normal") */
+html.pnx .px-aw.ok{padding:22px;border-radius:22px}
+html.pnx .px-aw.ok .px-ic{width:52px;height:52px;border-radius:16px}
+html.pnx .px-aw.ok .px-ic svg{width:26px;height:26px;stroke-width:2}
+html.pnx .px-aw.ok .px-g>b{display:flex;align-items:center;gap:14px;font-size:22px;letter-spacing:-.3px;line-height:1.15}
+html.pnx .px-aw.ok .aw-sep{width:1px;height:24px;background:rgba(255,255,255,.22);flex:none}
+html.pnx .px-aw.ok .aw-val{color:var(--px-green)}
 html.pnx .px-aw.r{background:rgba(224,86,75,.10);box-shadow:inset 0 0 0 1px rgba(224,86,75,.28)}
 html.pnx .px-stat{background:var(--px-card);border-radius:18px;padding:14px 16px;color:#fff}
 html.pnx .px-stat[onclick]{cursor:pointer}
@@ -3372,10 +3379,19 @@ html.pnx #wallpanel-body select,html.pnx #wallpanel-body input[type=text]{height
 html.pnx #danger-confirm .rp-sheet{max-width:520px;text-align:left;padding:24px 24px 22px}
 html.pnx #danger-confirm .rp-head{padding:0;margin:0}
 html.pnx #danger-confirm .rp-title{font-size:22px;font-weight:600;color:#fff;text-align:left;letter-spacing:-.2px}
-html.pnx #danger-msg{font-size:15px;color:var(--px-t2);line-height:1.45;text-align:left;margin:6px 0 18px}
+html.pnx #danger-msg{font-size:15px;color:var(--px-t2);line-height:1.45;text-align:left;margin:0 0 18px}
 html.pnx #danger-confirm .rp-list{padding:0}
 html.pnx #danger-confirm .rp-sheet>div:last-child>button{height:46px;border-radius:14px;font-size:15px;font-weight:600;border:0}
 html.pnx #danger-confirm .rp-cancel{background:var(--px-card2);color:#fff}
+/* REGISTER 1516 — the Update popup: the two versions, no sentence. An empty message or error takes no room. */
+html.pnx #danger-msg:empty,html.pnx #danger-error:empty{display:none}
+html.pnx #danger-confirm .rp-head{margin-bottom:18px}
+html.pnx #danger-msg .dg-ver{display:flex;align-items:center;gap:14px;padding:14px 16px;margin:0;border-radius:16px;background:var(--px-card2)}
+html.pnx #danger-msg .dg-ver div{display:flex;flex-direction:column;gap:2px}
+html.pnx #danger-msg .dg-ver small{font-size:13px;color:var(--px-t2)}
+html.pnx #danger-msg .dg-ver b{font-size:17px;font-weight:600;color:#fff;letter-spacing:-.2px}
+html.pnx #danger-msg .dg-ver .to b{color:var(--px-green)}
+html.pnx #danger-msg .dg-ver svg{width:20px;height:20px;stroke:var(--px-t2);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none;margin:0 6px}
 html.pnx #v3cmd .v3cp{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 html.pnx #rec-modal>div{width:min(520px,92vw);max-width:520px!important;min-width:0!important;background:#1b1c20!important;border:0!important;border-radius:28px!important;padding:24px!important;box-shadow:0 30px 80px rgba(0,0,0,.6)}
 html.pnx #rec-modal .v3dh2{padding:0 0 4px}
@@ -4567,7 +4583,7 @@ html.pnx.duo-rail #app.v3 .scroll{padding-bottom:calc(env(safe-area-inset-bottom
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111948';
+const PROOS_BUILD='2026112801';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -16848,7 +16864,7 @@ async function coreUpdCheck(){
     if(!d||!d.ok){ if(res) res.textContent=' \u00b7 check failed: '+String((d&&d.error)||'Core unreachable').slice(0,80); return; }
     if(d.update_available){
       if(res) res.innerHTML=' \u00b7 <span style="color:#46e3a0">'+esc(String(d.version_latest))+' available</span> (running '+esc(String(d.version))+')';
-      if(go){ go.style.display=''; go.dataset.target=String(d.version_latest); }
+      if(go){ go.style.display=''; go.dataset.target=String(d.version_latest); go.dataset.from=String(d.version); }
     } else {
       if(res) res.textContent=' \u00b7 up to date ('+String(d.version)+')';
       if(go) go.style.display='none';
@@ -16859,7 +16875,7 @@ function coreUpdGo(){
   // The confirm closes IMMEDIATELY and the card narrates (Dave, 3 Aug:
   // the dialog sat on "Working\u2026" for the whole rebuild, hiding every
   // progress line behind it). The runner is fired, never awaited here.
-  dangerConfirm('Update ProOS Core','<div class="reset-wiped">Core restarts — a few minutes. Rooms and settings stay.</div>','',()=>{ _coreUpdRun(); });
+  dangerConfirm('Update ProOS Core',(function(){var g=document.getElementById('coreupd-go'),f=g&&g.dataset.from,t=g&&g.dataset.target;return (f&&t)?'<div class="dg-ver"><div><small>Running</small><b>'+esc(f)+'</b></div><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg><div class="to"><small>Update to</small><b>'+esc(t)+'</b></div></div>':'';})(),'',()=>{ _coreUpdRun(); });
 }
 async function _coreUpdRun(){
   {
@@ -25197,7 +25213,7 @@ clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',plus:'<path d="M1
       var pin=PX.t(aw,'#awh-ptxt');
       // REGISTER 1499 (Dave 26 Nov 18:04: the state Core serves "should be all that the tile says unless there is something to report remove
       // the totals … does not need an open pill as tapping on tile is enough"): normal — the words alone; otherwise what it reports
-      h+='<div class="px-aw'+(cls?' '+cls:'')+'" onclick="'+E(PX.oc(aw))+'" style="cursor:pointer"><div class="px-row" style="padding:0;min-height:0;flex:1"><div class="px-ic '+(cls==='ok'?'gr':cls||'a')+'">'+I(cls==='ok'?'check':'warn')+'</div><div class="px-g"><b>'+E(PX.t(aw,'#awh-state'))+'</b>'+(cls==='ok'?'':'<small class="wrap">'+E(PX.t(aw,'#awh-sub'))+(stats?' · '+E(stats):'')+(pin?' · '+E(pin):'')+'</small>')+'</div></div></div>'; }
+      h+='<div class="px-aw'+(cls?' '+cls:'')+'" onclick="'+E(PX.oc(aw))+'" style="cursor:pointer"><div class="px-row" style="padding:0;min-height:0;flex:1"><div class="px-ic '+(cls==='ok'?'gr':cls||'a')+'">'+I(cls==='ok'?'check':'warn')+'</div><div class="px-g"><b>'+(function(w){ var m=cls==='ok'&&/^(.*\S)\s+(Normal)$/i.exec(w); return m?'<span>'+E(m[1])+'</span><span class="aw-sep"></span><span class="aw-val">'+E(m[2])+'</span>':E(w); })(PX.t(aw,'#awh-state'))+'</b>'+(cls==='ok'?'':'<small class="wrap">'+E(PX.t(aw,'#awh-sub'))+(stats?' · '+E(stats):'')+(pin?' · '+E(pin):'')+'</small>')+'</div></div></div>'; }
     // REGISTER 1502 (seen in Dave's photo 18:04: the tile said 1 while the list under it showed three lit rooms): the box's count is of
     // lighting-ONLY rooms that are on (Kitchen); a room with AV whose lights are on (Jarrod's Room, Garage) is in the list but not in
     // that count. The tile now counts what the list beside it shows — its lit rows — and is named for what it counts.
