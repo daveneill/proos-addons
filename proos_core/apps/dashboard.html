@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112155';
+const PROOS_BUILD='2026112156';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -26619,7 +26619,11 @@ body.nx-on #device-chooser{z-index:9380}
     var ck=(w.uid||w.id)+'|'+dm.w+'x'+dm.h+'|'+(room?room.id:'');
     // 1505 kept: a music shortcut says "Starting…" on its own tile from the tap until the speaker is heard
     var bz=''; if(w.id==='musicfav'){ try{ if(_musicBusy&&_musicBusy[w.speaker]) bz=(_musicPendingLabel||'Starting…'); }catch(x){} }
-    var hs=d.hsig!=null?String(d.hsig)+'|'+bz:null;
+    // 1511 (Dave, 27 Nov 17:37: "App shortcuts have art one minute gone the next"). MY FAULT in 1507c: I kept EVERY face by its
+    // change-mark. An app tile's mark is its app and device — it does not change when its logo arrives — so a tile first drawn
+    // before its logo loaded was kept without it. Only the face that moves with the clock (Latest Detection) is kept this way;
+    // every other face is drawn fresh each time, and its own text only changes when something real does.
+    var hs=(w.id==='protect_detect'&&d.hsig!=null)?String(d.hsig)+'|'+bz:null;
     if(hs!=null){ var cc=_nxwFaceC[ck]; if(cc&&cc.s===hs) return cc.h; }
     var out='<div class="widget-cell nxw-face'+(dm.w>=2?' w-span2':'')+(dm.w>=3?' w-span3':'')+(dm.h===2?' w-rows2':'')+(d.on?' w-on':'')+(d._mediaTile?' w-media':'')+(d._appTile?' w-app':'')+(bz?' nxw-bz':'')+'" data-wid="'+e7(w.id)+'" data-wsz="'+dm.w+'x'+dm.h+'" data-nwuid="'+e7(w.uid||'')+'"'+(tap?' data-nwo="'+act(tap,'f:'+(w.uid||w.id))+'"':'')+'>'+d.html+(bz?'<span class="nxw-busy">'+e7(bz)+'</span>':'')+'</div>';
     if(hs!=null) _nxwFaceC[ck]={s:hs, h:out};
