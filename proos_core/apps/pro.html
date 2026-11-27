@@ -3453,6 +3453,9 @@ html.pnx.duo-rail .awi-card{width:min(560px,calc(var(--duo-vw) - 32px))}
 html.pnx.duo-rail #rec-modal>div{width:min(520px,calc(var(--duo-vw) * .92))}
 html.pnx.duo-rail .who-menu .wm-card{max-width:calc(var(--duo-vw) * .88)}
 html.pnx.duo-rail #toast{max-width:calc(var(--duo-vw) * .8)}
+/* 1506h — a sheet open: the bar dims and takes no taps; toasts sit just above the foot; no room kept for a bar that is not there */
+html.pnx.duo-rail.duo-dim #app.v2 .v2tabs{opacity:.3;pointer-events:none}
+html.pnx.duo-rail #toast{bottom:calc(env(safe-area-inset-bottom,0px) + 66px)}
 /* 1506f — held sideways: the camera is at the FOOT of the band, so the tabs spread over the height above it */
 html.pnx.duo-rail.duo-ls #app.v2 .v2tabs{padding:env(safe-area-inset-top,0px) 0 var(--duo-r)}
 html.pnx.duo-rail.duo-ls #app.v2 .v2tabs .v2t{padding:7px 0}
@@ -4564,7 +4567,7 @@ html.pnx.duo-rail #app.v3 .scroll{padding-bottom:calc(env(safe-area-inset-bottom
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111947';
+const PROOS_BUILD='2026111948';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -25914,6 +25917,15 @@ async function tokCopy(){
     if(on) H.style.setProperty('--duo-r',r+'px'); else H.style.removeProperty('--duo-r');
     H.classList.toggle('duo-rail',on); H.classList.toggle('duo-ls',ls);
   }catch(e){} };
+  // 1506h (Dave, 27 Nov 14:22: "go"): on other phones a sheet COVERS the bar. Beside the page it cannot, so while anything stands
+  // over the page above the bar's own level the bar dims and takes no taps. Asked of the page itself (what is at its middle),
+  // so no list of sheets is kept here.
+  var Z=function(el){ var z=0; for(;el&&el!==document.body&&el.nodeType===1;el=el.parentNode){ var c=getComputedStyle(el); if(c.position!=='static'){ var n=parseInt(c.zIndex,10); if(n>z) z=n; } } return z; };
+  var dim=function(){ try{ var H=document.documentElement; if(!H.classList.contains('duo-rail')){ H.classList.remove('duo-dim'); return; }
+    var b=document.querySelector('#v2tabs'); if(!b) return;
+    var e=document.elementFromPoint(document.body.getBoundingClientRect().width/2,window.innerHeight/2);
+    H.classList.toggle('duo-dim',!!e&&!b.contains(e)&&Z(e)>Z(b)); }catch(e){} };
+  setInterval(dim,500); document.addEventListener('click',function(){ setTimeout(dim,60); },true);
   go(); window.addEventListener('resize',go); window.addEventListener('orientationchange',go);
   setTimeout(go,300); setTimeout(go,1500);
 })();

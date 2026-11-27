@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112147';
+const PROOS_BUILD='2026112148';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -28204,6 +28204,10 @@ html.duo-rail body.nx-on #proos-acard{--pac-tw:calc((var(--duo-vw) - 54px) / 2)}
 html.duo-rail body.nx-on #screensaver .ss-card{max-width:min(520px,calc(var(--duo-vw) * .9))}
 html.duo-rail body.nx-on #screensaver .ss-vol-col{width:min(460px,calc(var(--duo-vw) * .84))}
 html.duo-rail body.nx-on #app-toast{max-width:calc(var(--duo-vw) * .8)}
+/* 1506h — a sheet open: the bar dims and takes no taps; toasts sit just above the foot; no room kept for a bar that is not there */
+html.duo-rail.duo-dim body.nx-on #nx-bar{opacity:.3;pointer-events:none}
+html.duo-rail body.nx-on #app-toast{bottom:calc(env(safe-area-inset-bottom,0px) + 18px)}
+html.duo-rail body.nx-on #nx-page{padding-bottom:calc(env(safe-area-inset-bottom,0px) + 28px)}
 html.duo-rail body.nx-on #nx-bar .nmic{top:0;margin:0;width:58px;height:58px;box-shadow:0 10px 26px rgba(33,57,240,.5)}
 </style>
 <style id="proos-refresh">
@@ -32596,6 +32600,15 @@ try{ setInterval(_outcomesRead, LV_OUTCOME_EVERY_MS); }catch(e){}
     if(on) H.style.setProperty('--duo-r',r+'px'); else H.style.removeProperty('--duo-r');
     H.classList.toggle('duo-rail',on);
   }catch(e){} };
+  // 1506h (Dave, 27 Nov 14:22: "go"): on other phones a sheet COVERS the bar. Beside the page it cannot, so while anything stands
+  // over the page above the bar's own level the bar dims and takes no taps. Asked of the page itself (what is at its middle),
+  // so no list of sheets is kept here.
+  var Z=function(el){ var z=0; for(;el&&el!==document.body&&el.nodeType===1;el=el.parentNode){ var c=getComputedStyle(el); if(c.position!=='static'){ var n=parseInt(c.zIndex,10); if(n>z) z=n; } } return z; };
+  var dim=function(){ try{ var H=document.documentElement; if(!H.classList.contains('duo-rail')){ H.classList.remove('duo-dim'); return; }
+    var b=document.querySelector('#nx-bar'); if(!b) return;
+    var e=document.elementFromPoint(document.body.getBoundingClientRect().width/2,window.innerHeight/2);
+    H.classList.toggle('duo-dim',!!e&&!b.contains(e)&&Z(e)>Z(b)); }catch(e){} };
+  setInterval(dim,500); document.addEventListener('click',function(){ setTimeout(dim,60); },true);
   go(); window.addEventListener('resize',go); window.addEventListener('orientationchange',go);
   setTimeout(go,300); setTimeout(go,1500);
 })();
