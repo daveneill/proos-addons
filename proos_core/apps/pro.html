@@ -4583,7 +4583,7 @@ html.pnx.duo-rail #app.v3 .scroll{padding-bottom:calc(env(safe-area-inset-bottom
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026112801';
+const PROOS_BUILD='2026112802';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -5510,7 +5510,7 @@ function _awActSetType(t,el){ _awActType=t; if(el&&el.parentNode){ el.parentNode
 // Clear the recorded awareness/recovery history on this box (installer action). Wipes
 // the audit log Core reads for this feed; new events start accumulating again from now.
 async function _awClearActivity(){
-  if(!await proAsk('Clear all awareness activity history on this box? This removes the recorded events and can’t be undone.')) return;
+  if(!await proAsk('Clear all awareness activity history on this box?')) return;
   try{
     const r=await fetch(proCoreUrl()+'/watchers/audit/clear',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
     if(!r.ok){ toast(r.status===403?'Tech access required':'Couldn’t clear history'); return; }
@@ -6199,7 +6199,7 @@ async function _beginFlow(domain){
     if(waiting){
       flowMessage(`The ${integrationName(domain)} certified driver is installed. The home engine needs to restart once to load it (about a minute).`);
       try{ const host=document.getElementById('flow-actions'); if(host && !host.querySelector('.drv-restart')){ const b=document.createElement('button'); b.className='btn-primary drv-restart'; b.textContent='Restart the Home Engine';
-        b.onclick=async()=>{ if(!(await proAsk('Restart the home engine now? Everything pauses for about a minute.'))) return; b.disabled=true; b.textContent='Restarting\u2026'; try{ await snd({type:'call_service',domain:'homeassistant',service:'restart'}); }catch(_){} };
+        b.onclick=async()=>{ if(!(await proAsk('Restart the home engine now?'))) return; b.disabled=true; b.textContent='Restarting\u2026'; try{ await snd({type:'call_service',domain:'homeassistant',service:'restart'}); }catch(_){} };
         host.insertBefore(b, host.firstChild); } }catch(_){}
     } else {
     flowMessage(notInstalled
@@ -6590,7 +6590,7 @@ function uniPortFilter(f){ _uniPortFilter=f; renderUniNet(); }
 // REGISTER 1221 — switching, through the PLATFORM's own controls. Core guards (locked / unreadable ports are refused for
 // Off and Power-Cycle) and reads the port back; Pro says what the controller reported, never assumes it.
 async function uniPortControlsOn(){
-  if(!await proAsk('Switch on the platform\'s Port and PoE controls?\n\nYour UniFi integration ships them switched off. Turning them on lets ProOS turn ports and PoE on and off from this page. The integration reloads itself (about 30 seconds). ProOS keeps locked ports locked.')) return;
+  if(!await proAsk('Switch on the platform\'s Port and PoE controls?')) return;
   try{ const r=await fetch(proCoreUrl()+'/unifi/console/ports/controls',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}); const d=await r.json();
     toast(d.ok?('Switched on '+d.enabled+' platform controls — they come online in about 30 seconds'):('Not all switched on — '+((d.failed&&d.failed[0]&&d.failed[0].why)||d.why||'the platform refused')));
     setTimeout(()=>{ _uniPorts=null; if(panelActive('unifi-net')) { renderUniNet(); _uniPortsLoad(); } },32000);
@@ -6688,8 +6688,8 @@ async function uniWifiSet(id,on){
   const w=((_uniNet&&_uniNet.wifi)||[]).find(x=>x.id===id)||{};
   const name=w.name||'this network', mine=_uniNet&&_uniNet.you_are_on===w.name;
   const q=on?('Turn '+name+' on?')
-    :('Turn '+name+' off?\n\n'+(w.clients?w.clients+' device'+(w.clients===1?' is':'s are')+' on it now and will drop off.':'Nothing is on it now.')
-      +(mine?'\n\nThis screen is on '+name+' — it will lose ProOS until '+name+' is back on (turn it on from the UniFi app, or from a screen on another network).':''));
+    :('Turn '+name+' off?'+(w.clients?'\n\n'+w.clients+' device'+(w.clients===1?' is':'s are')+' on it now.':'')
+      +(mine?'\n\nThis screen is on '+name+'.':''));
   if(!await proAsk(q)) return;
   toast((on?'Turning ':'Turning off ')+name+(on?' on…':'…'));
   try{ const r=await fetch(proCoreUrl()+'/unifi/console/network/wifi',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,on})}); const d=await r.json();
@@ -6807,13 +6807,13 @@ function _uniNSHTML(sec){
 let _uniQR=null;
 function uniWifiQRClose(){ if(_uniQR&&_uniQR.url) URL.revokeObjectURL(_uniQR.url); _uniQR=null; renderUniNet(); }
 async function uniWifiQR(id,name){
-  if(!await proAsk('Show the QR code for "'+name+'"?\n\nAnyone who scans it joins this network.')) return;
+  if(!await proAsk('Show the QR code for "'+name+'"?')) return;
   try{
     const r=await fetch(proCoreUrl()+'/unifi/console/wifiqr?id='+encodeURIComponent(id));
     if(r.ok&&String(r.headers.get('content-type')||'').startsWith('image/')){ if(_uniQR&&_uniQR.url) URL.revokeObjectURL(_uniQR.url); _uniQR={id,name,url:URL.createObjectURL(await r.blob())}; renderUniNet(); return; }
     const d=await r.json().catch(()=>({}));
     if(d.disabled){
-      if(!await proAsk('The platform has sharing switched off for "'+name+'".\n\nSwitch on its QR code? The platform reloads its UniFi connection (about 30 seconds).')) return;
+      if(!await proAsk('Switch on the QR code for "'+name+'"?')) return;
       const e=await fetch(proCoreUrl()+'/unifi/console/wifiqr/enable',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
       const ed=await e.json().catch(()=>({}));
       toast(ed.ok?('Sharing switched on — try Share Wi-Fi again in about 30 seconds'):('Not done — '+(ed.why||'Core answered '+e.status)));
@@ -8540,7 +8540,7 @@ async function gdSave(){
   await gdLoad(f.sensor);
 }
 async function gdUndo(){
-  if(!await proAsk('Undo this door? The pieces go back to how they were.')) return;
+  if(!await proAsk('Undo this door?')) return;
   try{ const r=await fetch(proCoreUrl()+'/garage/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sensor:_gd.sensor})}); const d=await r.json().catch(()=>({}));
     if(!r.ok){ toast(d.error||'Could not undo'); return; } toast('Door removed'); }
   catch(e){ toast(_coreFailWords('',e)); return; }
@@ -9994,8 +9994,8 @@ async function _trgPost(path,body,done){
     if(r.ok){ toast(j.made&&j.made.ready===false?'Made — the platform has not started it yet; Read Again in a moment':done); await loadTriggers(); } else toast(j.error||'Not done'); }catch(e){ toast(_coreFailWords('',e)); } }   // 1328a: Core answers once the platform runs it
 function makeTrigger(){ const n=(document.getElementById('trg-name')||{}).value||'', t=(document.getElementById('trg-target')||{}).value||'';
   if(!n.trim()||!t){ toast('Name it, and pick what it starts'); return; } _trgPost('',{name:n.trim(),target:t},'Outside Trigger made'); }
-async function removeTrigger(i){ const t=((_trgSt||{}).triggers||[])[i]; if(!t) return; const id=t.id, name=t.name; if(await proAsk('Remove the Outside Trigger "'+name+'"?\n\nThe other system\'s calls to its address will do nothing from now on.')) _trgPost('/'+encodeURIComponent(id)+'/remove',{},'Removed'); }
-async function testTrigger(i){ const t=((_trgSt||{}).triggers||[])[i]; if(!t) return; const id=t.id, name=t.name, what=_trgWhat(t.target); if(await proAsk('Test "'+name+'"?\n\nThis calls it the way the other system will, so '+what+' really starts.')) _trgPost('/'+encodeURIComponent(id)+'/test',{},'Called — '+what+' should be starting'); }
+async function removeTrigger(i){ const t=((_trgSt||{}).triggers||[])[i]; if(!t) return; const id=t.id, name=t.name; if(await proAsk('Remove the Outside Trigger "'+name+'"?')) _trgPost('/'+encodeURIComponent(id)+'/remove',{},'Removed'); }
+async function testTrigger(i){ const t=((_trgSt||{}).triggers||[])[i]; if(!t) return; const id=t.id, name=t.name, what=_trgWhat(t.target); if(await proAsk('Test "'+name+'"?')) _trgPost('/'+encodeURIComponent(id)+'/test',{},'Called — '+what+' should be starting'); }
 async function copyTrigger(i,where){ const t=((_trgSt||{}).triggers||[])[i]; const url=t&&t.addresses&&t.addresses[where]; if(!url) return; try{ await navigator.clipboard.writeText(url); toast('Address copied'); }catch(e){ toast('Copy did not work — select the address and copy it'); } }
 // ── GOOGLE AND ALEXA (register 1330, plan item 24) — the Matter Hub, read through Core from inside the box ──────────
 let _mhSt=null;
@@ -10004,7 +10004,7 @@ async function _mhPost(path,body,done){
   try{ const r=await _coreFetch(proCoreUrl()+'/matterhub'+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})},30000); const j=await r.json().catch(()=>({}));
     if(r.ok){ toast(done); await loadMatterHub(); } else toast(j.error||'Not done'); }catch(e){ toast(_coreFailWords('',e)); } }
 function makeMatterTest(){ const a=(document.getElementById('mh-area')||{}).value||''; if(!a){ toast('Pick a room'); return; } _mhPost('/test',{area_id:a},'ProOS Bridge made'); }
-async function removeMatterBridge(i){ const b=(((_mhSt||{}).bridges)||[])[i]; if(!b) return; if(await proAsk('Remove "'+b.name+'"?\n\nGoogle Home and Alexa will lose the devices it carries.')) _mhPost('/'+encodeURIComponent(b.id)+'/remove',{},'Bridge removed'); }
+async function removeMatterBridge(i){ const b=(((_mhSt||{}).bridges)||[])[i]; if(!b) return; if(await proAsk('Remove "'+b.name+'"?')) _mhPost('/'+encodeURIComponent(b.id)+'/remove',{},'Bridge removed'); }
 function matterCard(){
   const st=_mhSt, head=`<div class="v3dh2"><div class="t">Google and Alexa</div><div class="s">On test: the community Matter Hub${st&&st.version?' '+esc(st.version):''} publishes devices as a Matter bridge. In Google Home or the Alexa app, add a Matter device and type the pairing code.</div></div>`;
   if(!st) return '<div class="v3card">'+head+'<div class="v3empty">Reading…</div></div>';
@@ -13319,7 +13319,7 @@ async function actTest(){
 }
 async function actReset(){
   if(!_actCur) return;
-  if(_actCur.edited && !await proAsk('Reset “'+_actShort(_actCur)+'”? This replaces your edited version with a freshly generated activity from the room’s current configuration. Your edits will be lost.')) return;
+  if(_actCur.edited && !await proAsk('Reset “'+_actShort(_actCur)+'”?')) return;
   try{
     const r=await fetch(proCoreUrl()+'/project/activities/regenerate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({area:_roomHubArea,object_id:_actCur.object_id})});   // by area id (reg 441)
     const j=r.ok?await r.json():null;
@@ -15672,7 +15672,7 @@ async function netSave(name){
   const body={method:v('net-m'), address:v('net-a'), prefix:parseInt(v('net-p'),10), gateway:v('net-g'), dns:[v('net-d1'),v('net-d2')].filter(Boolean)};
   const err=document.getElementById('net-err'); if(err) err.textContent='';
   const itf=((_boxNet&&_boxNet.interfaces)||[]).find(i=>i.name===name)||{};
-  if(body.method==='disabled' && itf.primary){ if(!(await proAsk('Turn off '+(itf.label||name)+'?\n\nIt is the port this box is reached on. If nobody keeps the change within 2 minutes, it is turned back on by itself.'))) return; }
+  if(body.method==='disabled' && itf.primary){ if(!(await proAsk('Turn off '+(itf.label||name)+'?\n\nIt is the port this box is reached on.'))) return; }
   let r, d={};
   try{ r=await _coreFetch(proCoreUrl()+'/network/interface/'+encodeURIComponent(name),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)},70000); d=await r.json().catch(()=>({})); }
   catch(e){ d={}; }
@@ -16549,7 +16549,7 @@ async function techUpdatesLoad(){
 }
 async function techUpdateApply(kind){
   const nm=_TU_NAMES[kind]||kind;
-  if(!await proAsk('Update the '+nm+' now? '+(kind==='os'?'The box restarts.':'The platform restarts; a backup is taken first.'))) return;
+  if(!await proAsk('Update the '+nm+' now?')) return;
   try{
     const r=await fetch(proCoreUrl()+'/sysadmin/updates/apply',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind})});
     const d=await r.json().catch(()=>({}));
@@ -16973,8 +16973,8 @@ async function catalogSyncNow(){
     toast(stale?'Catalog unchanged (master unreachable)':'Catalog v'+String(d.version||'?')+' synced');
   }catch(e){ if(res) res.textContent=" \u00b7 couldn't reach ProOS Core"; }
 }
-function techRestartHA(){ dangerConfirm('Restart the home engine','<div class="reset-wiped">Offline for about a minute. Nothing is wiped.</div>','',async()=>{ try{ await snd({type:'call_service',domain:'homeassistant',service:'restart'}); toast('Restarting…'); setStatus('off','Restarting…'); }catch(e){ toast('Restart failed'); } }); }
-function techRestartCore(){ dangerConfirm('Restart ProOS Core','<div class="reset-wiped">Rooms and settings stay.</div>','',async()=>{ try{ await snd({type:'call_service',domain:'hassio',service:'addon_restart',service_data:{addon:'b333b432_proos_core'}}); toast('Restarting Core…'); }catch(e){ toast('Restart failed'); } }); }
+function techRestartHA(){ dangerConfirm('Restart the home engine','','',async()=>{ try{ await snd({type:'call_service',domain:'homeassistant',service:'restart'}); toast('Restarting…'); setStatus('off','Restarting…'); }catch(e){ toast('Restart failed'); } }); }
+function techRestartCore(){ dangerConfirm('Restart ProOS Core','','',async()=>{ try{ await snd({type:'call_service',domain:'hassio',service:'addon_restart',service_data:{addon:'b333b432_proos_core'}}); toast('Restarting Core…'); }catch(e){ toast('Restart failed'); } }); }
 async function techClearLog(){ if(!(_me.tech||_me.developer)) return; try{ await snd({type:'system_log/clear'}); toast('Log cleared'); renderTech(); }catch(e){ toast('Could not clear'); } }
 
 // ── Developer tools (tech tier): full HA Developer-Tools parity ───────────────
@@ -17161,7 +17161,7 @@ async function credAddSave(prefillSvc){
   }catch(e){ toast(_coreFailWords('',e)); }
 }
 function credRevoke(svc){
-  dangerConfirm('Revoke '+svc+' token','<div class="reset-wiped">ProOS Core will stop using this token.</div>','',async()=>{
+  dangerConfirm('Revoke '+svc+' token','','',async()=>{
     const r=await fetch(proCoreUrl()+'/credentials/'+encodeURIComponent(svc),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clear:true})});
     let d={}; try{ d=await r.json(); }catch(e){}
     if(!r.ok){ toast(d.error||'Revoke failed'); return; }
@@ -17246,7 +17246,7 @@ const UNI_CONN_SAY={display_on:'turns the screen on',display_off:'turns the scre
 async function uniConnAct(id,action,value,label){
   const x=((_uniConn&&_uniConn.displays)||[]).find(d=>d.id===id); if(!x) return;
   const what=value!=null?(label+' to '+value):label;
-  if(!await proAsk(what+' on "'+x.name+'"?\n\nThis '+(UNI_CONN_SAY[action]||'changes the display')+'.')){ renderUniConnect(); return; }
+  if(!await proAsk(what+' on "'+x.name+'"?')){ renderUniConnect(); return; }
   try{
     const r=await fetch(proCoreUrl()+'/unifi/console/connect/act',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,action,value})});
     const d=await r.json().catch(()=>({}));
@@ -17313,10 +17313,10 @@ function renderUniAccess(){
     const E=d.emergency;
     const em=E?card('Emergency',`<div class="unifi-status">${kv('Lockdown',E.lockdown?'<em class="unp-red">On — every door locked</em>':'Off')}${kv('Evacuation',E.evacuation?'<em class="unp-red">On — every door unlocked</em>':'Off')}</div><div class="unp-acts">`
       +(E.lockdown||E.evacuation?`<button class="btn-primary" onclick="uniAccAct({action:'emergency',lockdown:false,evacuation:false},'End the emergency and put every door back to normal?','Emergency ended')">End Emergency</button>`
-        :`<button class="unp-act" onclick="uniAccAct({action:'emergency',lockdown:true,evacuation:false},'LOCK DOWN every door?\n\nNo one gets in with a card, PIN or the app until it is ended.','Lockdown on')">Lockdown</button><button class="unp-act" onclick="uniAccAct({action:'emergency',lockdown:false,evacuation:true},'EVACUATE — unlock every door?\n\nEvery door stays unlocked until it is ended.','Evacuation on')">Evacuate</button>`)+'</div>'):'';
+        :`<button class="unp-act" onclick="uniAccAct({action:'emergency',lockdown:true,evacuation:false},'LOCK DOWN every door?','Lockdown on')">Lockdown</button><button class="unp-act" onclick="uniAccAct({action:'emergency',lockdown:false,evacuation:true},'EVACUATE — unlock every door?','Evacuation on')">Evacuate</button>`)+'</div>'):'';
     const L=d.doors||[];
     const doors=L.length?`<div class="ual-list">${L.map(x=>row([esc(x.name),x.locked===true?'Locked':x.locked===false?'<em class="unp-red">Unlocked</em>':'Lock —',x.open===true?'<em class="unp-red">Open</em>':x.open===false?'Closed':'',x.has_hub?'':'No hub'],
-      `<button class="unp-act" onclick="uniAccAct({action:'unlock',id:${q(x.id)}},'Unlock ${esc(x.name).replace(/'/g,'')} now?\n\nIt locks again on its own.','Unlocked')">Unlock</button><select class="ucc-sel" onchange="this.blur();if(this.value)uniAccAct({action:'lock_rule',id:${q(x.id)},rule:this.value},'Change ${esc(x.name).replace(/'/g,'')} to: '+this.options[this.selectedIndex].text+'?','Lock rule set');this.value=''"><option value="">Lock Rule…</option><option value="keep_unlock">Keep Unlocked</option><option value="keep_lock">Keep Locked</option><option value="reset">Back to Schedule</option></select>`)).join('')}</div>`:'<div class="es">No doors in Access.</div>';
+      `<button class="unp-act" onclick="uniAccAct({action:'unlock',id:${q(x.id)}},'Unlock ${esc(x.name).replace(/'/g,'')} now?','Unlocked')">Unlock</button><select class="ucc-sel" onchange="this.blur();if(this.value)uniAccAct({action:'lock_rule',id:${q(x.id)},rule:this.value},'Change ${esc(x.name).replace(/'/g,'')} to: '+this.options[this.selectedIndex].text+'?','Lock rule set');this.value=''"><option value="">Lock Rule…</option><option value="keep_unlock">Keep Unlocked</option><option value="keep_lock">Keep Locked</option><option value="reset">Back to Schedule</option></select>`)).join('')}</div>`:'<div class="es">No doors in Access.</div>';
     page=em+card('Doors',doors,L.length+' door'+(L.length===1?'':'s'));
   }
   else if(k==='people'){ const L=d.people||[]; page=card('People',L.length?`<div class="ual-list">${L.map(x=>row([esc(x.name),esc(x.status||''),esc(x.number||''),(x.has_pin?'PIN':'')+(x.cards?(x.has_pin?' · ':'')+x.cards+' card'+(x.cards===1?'':'s'):'')])).join('')}</div>`:'<div class="es">No people in Access.</div>',L.length+' people'); }
@@ -17441,14 +17441,14 @@ async function unifiSuiteAccess(){
   catch(e){ toast(_coreFailWords('',e)); }
 }
 async function unifiSuiteForget(){
-  if(!await proAsk('Remove ProOS\'s console sign-in and API key?\n\nThe UniFi integrations themselves are not touched. Features that need the local user stop until it is entered again.')) return;
+  if(!await proAsk('Remove ProOS\'s console sign-in and API key?')) return;
   try{ await _unifiSuitePost('forget'); toast('Removed'); renderUnifiSuite(false); }catch(e){ toast(_coreFailWords('',e)); }
 }
 // REGISTER 1255 — Set Up Again: the platform's UniFi Network connection from this card's sign-in. Replacing a broken one
 // removes its devices and brings them back with the new connection, so the press is asked once, in those words.
 async function uniRelink(replace, app){
   app=app==='protect'?'protect':'network'; const nm=app==='protect'?'UniFi Protect':'UniFi Network';
-  if(replace&&!await proAsk('Set up the platform’s '+nm+' connection again from this card?\n\nThe broken connection is removed and set up again with ProOS’s local user. Its devices are removed and come back with it'+(app==='network'?'; the port controls are switched on again.':'.'))) return;
+  if(replace&&!await proAsk('Set up the platform’s '+nm+' connection again from this card?')) return;
   toast('Setting up '+nm+'… (up to two minutes)');
   try{ const r=await fetch(proCoreUrl()+'/unifi/console/platform',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({replace:!!replace,app})});
     const j=await r.json(); toast(j.ok?nm+' set up from this card':(j.words||j.skipped||j.error||'Not set up'));
@@ -17494,7 +17494,7 @@ async function _uniAlarmPost(path,body,ask,done){
   }catch(e){ toast(_coreFailWords('',e)); }
   _uniAlarmLoad();
 }
-function uniAlarmFire(id,name){ _uniAlarmPost('alarm-manager/webhook/'+encodeURIComponent(id),{},'Fire the Alarm Manager trigger "'+name+'"?\n\nUniFi runs whatever that alarm is set to do (notify, siren, lights…).','Sent "'+name+'" to Alarm Manager'); }
+function uniAlarmFire(id,name){ _uniAlarmPost('alarm-manager/webhook/'+encodeURIComponent(id),{},'Fire the Alarm Manager trigger "'+name+'"?','Sent "'+name+'" to Alarm Manager'); }
 function uniAlarmArm(on){ _uniAlarmPost('arm-profiles/'+(on?'enable':'disable'),{},on?'Arm the alarm with the current profile?':'Disarm the alarm?',on?'Arm sent':'Disarm sent'); }
 function uniAlarmProfile(id,name){ _uniAlarmPost('arm-profiles/settings',{armProfileId:id},'Set the arm profile to "'+name+'"?','Profile set to '+name); }
 function uniSiren(id,play){ _uniAlarmPost('sirens/'+encodeURIComponent(id)+'/'+(play?'play':'stop'),{},play?'Sound this siren now?':'Stop this siren?',play?'Siren sounding':'Siren stopped'); }
@@ -17520,7 +17520,7 @@ function uniAlarmSel(id){ _uniAlarmSel=id; renderUniAlarm(); }   // 1247: the Wh
 async function uniAlarmSet(id,on){
   const a=((_uniAlarms&&_uniAlarms.alarms)||[]).find(x=>x.id===id); if(!a) return;
   const q=(on?'Turn on':'Turn off')+' the alarm "'+a.name+'"?'
-    +(on?'':'\n\nUniFi stops running it — no '+(a.actions.join(' or ')||'action').toLowerCase()+' when '+(a.watches.slice(0,3).join(', ')||'it would trigger').toLowerCase()+'.')
+    
     +(a.used_in_arm_mode?'\n\nThis alarm is used when the system is armed.':'');
   if(!await proAsk(q)) return;
   try{
@@ -17709,7 +17709,7 @@ async function uniCamSet(cid,eid,value){
   const c=[...((_uniCC&&_uniCC.cameras)||[]),...((_uniDV&&_uniDV.devices)||[])].find(x=>x.id===cid); const r=c&&c.controls.find(x=>x.entity_id===eid); if(!r) return;
   const words=(r.domain==='switch'||r.domain==='light')?(value?'On':'Off'):r.domain==='button'?'':String(value)+(r.unit?' '+r.unit:'');
   const q=r.domain==='button'?(r.label+' on "'+c.name+'"?'):('Set '+r.label+' on "'+c.name+'" to '+words+'?');
-  if(!await proAsk(q+'\n\nThis '+r.does+'.')){ renderUniCC(); renderUniDV(); return; }
+  if(!await proAsk(q)){ renderUniCC(); renderUniDV(); return; }
   try{
     const res=await fetch(proCoreUrl()+'/unifi/console/cameras/set',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({entity_id:eid,value})});
     const d=await res.json().catch(()=>({}));
@@ -18046,7 +18046,7 @@ async function unifiSaveCuration(){
 // native HA. Each maps to an HA entity on the camera's device (matched by
 // domain + id suffix); a control missing on a given camera is simply skipped.
 async function unifiRemove(){
-  if(!await proAsk('Remove UniFi Protect?\n\nThis uninstalls the certified integration — cameras, live view, events and clips — and clears the saved connection. The homeowner loses all camera access until it is re-added.')) return;
+  if(!await proAsk('Remove UniFi Protect?')) return;
   toast('Removing…');
   let done=false;
   // Primary path: Core removes the native entry with its Supervisor rights, so an
@@ -18421,7 +18421,7 @@ async function usrSetRole(id,role){
 }
 
 function usrRemove(id,name){
-  dangerConfirm('Remove '+(name||'this person'),'<div class="reset-wiped">They will no longer be able to sign in.</div>','',async()=>{
+  dangerConfirm('Remove '+(name||'this person'),'','',async()=>{
     const r=await fetch(proCoreUrl()+'/users/'+encodeURIComponent(id)+'/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
     let d={}; try{ d=await r.json(); }catch(e){}
     if(!r.ok){ toast(d.error||'Remove failed'); return; }
@@ -18721,7 +18721,7 @@ function runGenreScan(){
 }
 function genreRestoreDefaults(){
   dangerConfirm('Restore the default genres',
-    '<div class="reset-wiped">Puts the engine\'s standard genre list and aliases back. Genres you added or merged are lost; music itself is untouched.</div>','',
+    '','',
     ()=>genreWrite('restore_defaults',{},'Default genres restored',renderGenreSection));
 }
 // One genre, opened: its aliases (the names that fold INTO it), and the merge.
@@ -18766,7 +18766,7 @@ function genreMerge(id,name){
   if(!target){ toast('Choose a genre to merge into'); return; }
   const tn=sel.options[sel.selectedIndex].textContent;
   dangerConfirm('Merge '+(name||'this genre')+' into '+tn,
-    '<div class="reset-wiped">'+esc(name||'This genre')+' disappears and everything filed under it moves to '+esc(tn)+'. The music itself is untouched.</div>','',
+    '','',
     ()=>genreWrite('merge',{genre_ids:[id], target_genre_id:target},'Merged',renderGenreSection));
 }
 // WHICH GENRES RESIDENTS SEE — the same curated-allowlist mechanism as room
@@ -18902,7 +18902,7 @@ async function addMusicAssistant(){
 
 function removeMusicAssistant(){
   dangerConfirm('Remove ProOS Music',
-    '<div class="reset-wiped">Removes ProOS Music and every player it added.</div>',
+    '',
     '',
     async()=>{
       // 1) Delete the HA integration entry/entries — removes every MA media_player entity.
@@ -19009,7 +19009,7 @@ async function toggleProviderEnabled(instanceId, enabled){
 function removeMusicService(instanceId, name){
   if(!instanceId){ toast('No instance id for this service'); return; }
   dangerConfirm('Remove '+(name||'this service'),
-    '<div class="reset-wiped">Removes the service and its login from the music server. Library items synced from it disappear from the resident\'s Music page. You can add it back and sign in again anytime.</div>','',
+    '','',
     async()=>{
       try{
         const r=await fetch(proCoreUrl()+'/music/providers/'+encodeURIComponent(instanceId)+'/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
@@ -19627,8 +19627,8 @@ async function deleteFlowHelper(){
   try{ await haRest('DELETE','/api/config/config_entries/entry/'+entryId,undefined,30000); toast('Deleted'); closeHelperSheet(); await loadSite(); await loadHelpers(); }
   catch(e){ toast("Couldn't delete"); manageFlowHelper(entryId); }
 }
-function restartHA(){ dangerConfirm('Restart ProOS','<div class="reset-wiped">Offline for about a minute. Nothing is wiped.</div>','',async()=>{ try{ await snd({type:'call_service',domain:'homeassistant',service:'restart'}); }catch(e){} toast('Restarting ProOS…'); setStatus('off','Restarting…'); }); }
-function rebootHost(){ dangerConfirm('Reboot the Machine','<div class="reset-wiped">~2–3 min offline. Nothing is wiped.</div>','',async()=>{ try{ await snd({type:'call_service',domain:'hassio',service:'host_reboot'}); }catch(e){} toast('Rebooting the machine…'); setStatus('off','Rebooting…'); }); }
+function restartHA(){ dangerConfirm('Restart ProOS','','',async()=>{ try{ await snd({type:'call_service',domain:'homeassistant',service:'restart'}); }catch(e){} toast('Restarting ProOS…'); setStatus('off','Restarting…'); }); }
+function rebootHost(){ dangerConfirm('Reboot the Machine','','',async()=>{ try{ await snd({type:'call_service',domain:'hassio',service:'host_reboot'}); }catch(e){} toast('Rebooting the machine…'); setStatus('off','Rebooting…'); }); }
 async function loadBackups(){
   const host=document.getElementById('backups-list'); if(!host) return;
   host.innerHTML='<div class="empty"><div class="et">Loading…</div></div>';
@@ -19716,11 +19716,11 @@ async function downloadBackup(slug){
 }
 function restoreBackup(slug){
   const nm=( _bkMap[slug] && _bkMap[slug].name )||slug;
-  dangerConfirm('Restore this backup?', 'Replaces the current home with <b>'+esc(nm)+'</b> and restarts. Anything since this backup is lost — consider creating a fresh backup first.', (homeName()||'').trim()||'RESTORE', ()=>doRestoreBackup(slug));
+  dangerConfirm('Restore this backup?', '<b>'+esc(nm)+'</b>', (homeName()||'').trim()||'RESTORE', ()=>doRestoreBackup(slug));
 }
 function deleteBackup(slug){
   const nm=( _bkMap[slug] && _bkMap[slug].name )||slug;
-  dangerConfirm('Delete this backup?', 'Permanently removes <b>'+esc(nm)+'</b>. This can\'t be undone.', '', ()=>doDeleteBackup(slug));
+  dangerConfirm('Delete this backup?', '<b>'+esc(nm)+'</b>', '', ()=>doDeleteBackup(slug));
 }
 async function doRestoreBackup(slug){
   const r=await fetch(proCoreUrl()+'/backups/'+slug+'/restore',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:'RESTORE'})});
@@ -21038,7 +21038,7 @@ async function ahSetup(){
 function ahRemove(){
   if(!_ahBridge) return;
   dangerConfirm('Remove from Apple Home',
-    '<div class="reset-wiped">Stops publishing this home to Apple Home. The accessory disappears from residents\' Home apps. Nothing else about the home changes, and you can publish again any time.</div>','',
+    '','',
     async()=>{
       try{ await haRest('DELETE','/api/config/config_entries/entry/'+_ahBridge.entry_id, undefined, 30000); toast('Removed from Apple Home'); }
       catch(e){ toast("Couldn't remove"); }
