@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112153';
+const PROOS_BUILD='2026112154';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -28283,6 +28283,34 @@ body.nx-on .nxw-grid>.widget-cell.nxw-face .nxw-busy{position:absolute;left:8px;
 #nx-oldback{display:none;position:fixed;top:calc(14px + var(--proos-sat,0px));left:16px;z-index:8980}
 body.nx-on[data-page]:not([data-page="home"]):not(:has(#nx-page.open)) #nx-oldback{display:grid}
 body.nx-on[data-page]:not([data-page="home"]) .page.active .page-header{padding-left:64px}
+</style>
+<style>
+/* REGISTER 1509 — ONE STANDARD LAYOUT FOR HOME AND EVERY AREA PAGE (Dave, 27 Nov 2026 17:14: "the whole pages and widgets need to
+   fit into a standard layout, sizing and spacing so all pages have continuity"; 17:17: "the new look layout to stay as Scenes and
+   On now etc but widgets as the extra but they all just fit together but are still separate areas").
+   ONE GRID: --pg-n columns by the screen's width (2 · 3 · 4 · 5), one gap (12), one margin. THREE HEIGHTS: Half 69 (scene and
+   activity buttons) · Standard 150 · Large 312 — two Halves and a gap are a Standard; two Standards and a gap are a Large.
+   Scenes, On Now and Your Widgets stay three areas; all three stand on the same columns. Nothing makes its tile taller. */
+body.nx-on #nx-page{--pg-n:2;--pg-g:12px;--pg-half:69px;--pg-std:150px}
+@media (min-width:501px){ body.nx-on #nx-page{--pg-n:3} }
+@media (min-width:761px){ body.nx-on #nx-page{--pg-n:4} }
+@media (min-width:1101px){ body.nx-on #nx-page{--pg-n:5} }
+body.nx-on #nx-page .nxr-body{max-width:1216px}
+body.nx-on #nx-page .nxr-cols{display:grid;grid-template-columns:repeat(var(--pg-n),minmax(0,1fr));gap:0 var(--pg-g);align-items:start}
+body.nx-on #nx-page .nxr-cols>*{grid-column:1 / -1;min-width:0}
+body.nx-on #nx-page .nxr-cols .nxr-grid{grid-template-columns:repeat(var(--pg-n),minmax(0,1fr));gap:var(--pg-g)}
+@media (min-width:761px){
+  body.nx-on #nx-page .nxr-cols>:first-child{grid-column:1 / -3}
+  body.nx-on #nx-page .nxr-cols>:last-child:not(:first-child){grid-column:-3 / -1}
+  body.nx-on #nx-page .nxr-cols>:first-child .nxr-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  body.nx-on #nx-page .nxr-cols>:last-child:not(:first-child) .nxr-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (min-width:1101px){ body.nx-on #nx-page .nxr-cols>:first-child .nxr-grid{grid-template-columns:repeat(3,minmax(0,1fr))} }
+body.nx-on #nx-page .nxr-cols .nxr-scn{height:var(--pg-half);flex-direction:row;align-items:center;justify-content:flex-start;gap:10px;padding:0 14px}
+body.nx-on #nx-page .nxr-cols .nxr-live,body.nx-on #nx-page .nxr-cols .nxr-live.wide{height:var(--pg-std);min-height:0}
+body.nx-on #nx-page .nxw-grid{grid-template-columns:repeat(var(--pg-n),minmax(0,1fr));gap:var(--pg-g);grid-auto-rows:var(--pg-std)}
+body.nx-on #nx-page .nxw-grid>*{min-height:0!important;height:auto!important}
+body.nx-on #nx-page .nxw-add{height:var(--pg-half)}
 </style>
 <style>
 /* REGISTER 1506 — THE CLOSED iPHONE DUO (Dave, 27 Nov 2026: "go with your recommendation"). Its outer screen keeps a band clear
