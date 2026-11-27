@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112151';
+const PROOS_BUILD='2026112152';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -24915,6 +24915,13 @@ body.nx-on #nx-page.open{display:block}
   window._nxBackFrom=function(){ var f=_from; _from=null;
     if(f&&f.room!=null&&typeof _nxRoom==='function'&&(CONFIG.rooms||[])[f.room]){ cur='rooms'; bar(); _nxRoom(f.room); return; }
     _nxGoTo('home'); };
+  // REGISTER 1508 (Dave, 27 Nov 2026 16:52, on the Music browser: "pages have no close page like before … need to press home which
+  // then goes home not to room page"). A page of the old look opened from the New Look (Browse Music, the full Irrigation, Cameras,
+  // Weather) had no way back. One Back for all of them: it returns to the page it was opened from — and that page's own Back
+  // returns to the room.
+  window._nxOldBack=function(){ var f=window._nxRet; window._nxRet=null; try{ showPage('home'); }catch(e){} if(f){ try{ f(); return; }catch(e){} } _nxBackFrom(); };
+  (function(){ var mk=function(){ if(document.getElementById('nx-oldback')||!document.body) return; var b=document.createElement('button'); b.type='button'; b.id='nx-oldback'; b.className='nx-back'; b.setAttribute('aria-label','Back'); b.innerHTML=svgOf('back'); b.onclick=function(){ _nxOldBack(); }; document.body.appendChild(b); };
+    if(document.body) mk(); else document.addEventListener('DOMContentLoaded',mk); })();
   window._nxBackBtn=function(){ return '<button type="button" class="nx-back nx-fromb" aria-label="Back" data-nxfrom onclick="window._nxBackFrom&&_nxBackFrom()">'+svgOf('back')+'</button>'; };
   function _nxGoTo(id){
     if(id==='devices'||id==='scenes'||id==='rooms'){ var h=_nxHereNow(); if(h) _from=h; else if(!(cur==='devices'||cur==='scenes'||cur==='rooms')) _from=null; } else _from=null;
@@ -26368,7 +26375,7 @@ body.nx-on #pa-detail{z-index:9070}
       (all.length?'<div class="nxm-list">'+all.map(function(x){ return _nxmCard(x,all); }).join('')+'</div>':'<div class="nxr-quiet">No speakers yet</div>')+'</div>';
     if(p._sig===h) return; p._sig=h; var y=p.scrollTop; p.innerHTML=h; p.scrollTop=y;
     p.querySelector('[data-mb]').onclick=function(){ var f=from; _nxmStop(); if(f) f(); else _nxGo('devices'); };
-    p.querySelector('[data-mbrowse]').onclick=function(){ _nxmStop(); p.classList.remove('open'); try{ showPage('music'); }catch(z){} };
+    p.querySelector('[data-mbrowse]').onclick=function(){ var f=from; _nxmStop(); p.classList.remove('open'); window._nxRet=function(){ _nxMusic(f); }; try{ showPage('music'); }catch(z){} };   // 1508
     p.querySelectorAll('[data-mopen]').forEach(function(b){ b.onclick=function(ev){ if(ev.target.closest('button')) return; try{ openPlayer(b.dataset.mopen); }catch(z){} }; });
     p.querySelectorAll('[data-mpp]').forEach(function(b){ b.onclick=function(){ svc('media_player','media_play_pause',{entity_id:b.dataset.mpp}); }; });
     p.querySelectorAll('[data-mjoin]').forEach(function(b){ b.onclick=function(){ svc('media_player','join',{entity_id:b.dataset.mlead, group_members:[b.dataset.mjoin]}); }; });
@@ -26505,7 +26512,7 @@ body.nx-on #device-chooser{z-index:9380}
     h+='</div>';
     if(p._sig===h) return; p._sig=h; var y=p.scrollTop; p.innerHTML=h; p.scrollTop=y;
     p.querySelector('[data-ib]').onclick=function(){ var f=from; _nx6Stop(); if(f) f(); else _nxGo('devices'); };
-    var fu=p.querySelector('[data-ifull]'); if(fu) fu.onclick=function(){ _nx6Stop(); p.classList.remove('open'); try{ showPage('irrigation'); }catch(x){} };
+    var fu=p.querySelector('[data-ifull]'); if(fu) fu.onclick=function(){ var f=from; _nx6Stop(); p.classList.remove('open'); window._nxRet=function(){ _nxIrrigation(f); }; try{ showPage('irrigation'); }catch(x){} };   // 1508
     p.querySelectorAll('[data-irun]').forEach(function(b){ b.onclick=function(){ _nxiRun(b.dataset.irun); p._sig=''; _nxiDraw(); }; });
   }
   function _nx6Stop(){ clearInterval(timer); timer=null; from=null; var p=document.getElementById('nx-page'); if(p){ p.classList.remove('nx-tv-pg','nx-irr-pg'); } }
@@ -26568,9 +26575,22 @@ body.nx-on #device-chooser{z-index:9380}
     dot:'<circle cx="12" cy="12" r="4"/>',other:'<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5h.01"/>'};
   var ic=function(k){ return '<div class="nx-ic"><svg viewBox="0 0 24 24">'+(IC[k]||IC.other)+'</svg></div>'; };
   var ACT={}, camStill={};
+  // REGISTER 1508 (Dave, 27 Nov 2026 16:52: widgets "with a camera view in them … refresh every 10 secs or so and that cant happen").
+  // The card carried its picture's address in its own text; a fresh address every 10 s changed the text and the whole page redrew.
+  // Now the card names its camera and takes its picture from a page-wide value (--nxcam-…): a new picture is loaded out of sight,
+  // then the value is set — the picture changes where it stands and nothing is redrawn.
+  var _nxCamVar=function(e){ return '--nxcam-'+String(e).replace(/[^a-zA-Z0-9]/g,'_'); };
+  var _nxCamGet=function(e){ var st=camStill[e]; if(st&&st.busy) return; camStill[e]={u:(st&&st.u)||'', t:Date.now(), busy:1};
+    var done=function(){ if(camStill[e]) camStill[e].busy=0; };
+    try{ Promise.resolve(fetchCamWS(e)).then(function(u){ if(!u){ done(); return; } var im=new Image();
+      im.onload=function(){ camStill[e]={u:u, t:Date.now()}; try{ document.documentElement.style.setProperty(_nxCamVar(e), "url('"+String(u).replace(/'/g,'%27')+"')"); }catch(x){} };
+      im.onerror=done; im.src=u; }).catch(done); }catch(x){ done(); } };
+  var _nxCamMark=function(e, card){ return String(card).replace("style=\"background-image:url('nxcam')\"", 'data-nxcam="'+e7(e)+'" style="background-image:var('+_nxCamVar(e)+')"'); };
+  setInterval(function(){ try{ if(document.hidden||!document.body.classList.contains('nx-on')) return; var seen={};
+    [].forEach.call(document.querySelectorAll('[data-nxcam]'), function(el){ var e=el.dataset.nxcam; if(seen[e]) return; seen[e]=1; var st=camStill[e]; if(!st||Date.now()-st.t>10000) _nxCamGet(e); }); }catch(x){} }, 2000);
   // a tap's name is fixed for its widget (its uid and what it is), so a page that did not change keeps working taps
   var act=function(fn, key){ ACT[key]=fn; return key; };
-  var leave=function(){ var p=document.getElementById('nx-page'); if(p) p.classList.remove('open'); };
+  var leave=function(){ var p=document.getElementById('nx-page'); if(p) p.classList.remove('open'); window._nxRet=function(){ window._nxBack&&_nxBack(); }; };   // 1508: the way back
   var roomById=function(id){ return (CONFIG.rooms||[]).filter(function(r){ return r.id===id; })[0]||null; };
   // the size a widget was saved at — kept
   function _nxwSize(w){ var d={w:1,h:1}; try{ d=_widgetDims(w); }catch(x){} return ' w'+Math.min(3,d.w||1)+(d.h===2?' h2':''); }
@@ -26596,7 +26616,7 @@ body.nx-on #device-chooser{z-index:9380}
     // the one the old look goes by): while that mark is the same, the face handed back is the same.
     var ck=(w.uid||w.id)+'|'+dm.w+'x'+dm.h+'|'+(room?room.id:'');
     if(d.hsig!=null){ var cc=_nxwFaceC[ck]; if(cc&&cc.s===String(d.hsig)) return cc.h; }
-    var out='<div class="widget-cell nxw-face'+(dm.w>=2?' w-span2':'')+(dm.h===2?' w-rows2':'')+(d.on?' w-on':'')+(d._mediaTile?' w-media':'')+'" data-wid="'+e7(w.id)+'" data-wsz="'+dm.w+'x'+dm.h+'" data-nwuid="'+e7(w.uid||'')+'"'+(tap?' data-nwo="'+act(tap,'f:'+(w.uid||w.id))+'"':'')+'>'+d.html+'</div>';
+    var out='<div class="widget-cell nxw-face'+(dm.w>=2?' w-span2':'')+(dm.w>=3?' w-span3':'')+(dm.h===2?' w-rows2':'')+(d.on?' w-on':'')+(d._mediaTile?' w-media':'')+'" data-wid="'+e7(w.id)+'" data-wsz="'+dm.w+'x'+dm.h+'" data-nwuid="'+e7(w.uid||'')+'"'+(tap?' data-nwo="'+act(tap,'f:'+(w.uid||w.id))+'"':'')+'>'+d.html+'</div>';
     if(d.hsig!=null) _nxwFaceC[ck]={s:String(d.hsig), h:out};
     return out; }
   var _nxwFaceC={};
@@ -26681,9 +26701,9 @@ body.nx-on #device-chooser{z-index:9380}
         var words=w.id==='camera'?{}:_nxwWords(w);
         if(w.id!=='camera'&&!cam) return _nxwCard(w,{ic:'cam', k:words.label||lib.name, n:words.value||'', s:words.sub||'', go:words.go});
         if(!cam) return _nxwCard(w,{ic:'cam', n:'Camera', s:'No camera'});
-        var still=camStill[cam.entity]; if(!still||Date.now()-still.t>10000){ camStill[cam.entity]={u:(still&&still.u)||'', t:Date.now()}; try{ Promise.resolve(fetchCamWS(cam.entity)).then(function(u){ if(u) camStill[cam.entity]={u:u,t:Date.now()}; }); }catch(x){} }
-        return _nxwCard(w,{bg:(camStill[cam.entity]||{}).u, k:w.id==='camera'?cam.name:(words.label||lib.name), n:w.id==='camera'?'':(words.value||cam.name), s:w.id==='camera'?'':(words.sub||''),
-          go:w.id==='camera'?function(){ try{ openProtectCamera(Math.max(0,ci)); }catch(x){} }:(words.go||function(){ leave(); try{ showPage('cameras'); }catch(x){} })}); }
+        if(!camStill[cam.entity]) _nxCamGet(cam.entity);   // 1508: fetched and refreshed by _nxCamGet; the card's own text never changes
+        return _nxCamMark(cam.entity, _nxwCard(w,{bg:'nxcam', k:w.id==='camera'?cam.name:(words.label||lib.name), n:w.id==='camera'?'':(words.value||cam.name), s:w.id==='camera'?'':(words.sub||''),
+          go:w.id==='camera'?function(){ try{ openProtectCamera(Math.max(0,ci)); }catch(x){} }:(words.go||function(){ leave(); try{ showPage('cameras'); }catch(x){} })})); }
       case 'assist': return _nxwCard(w,{ic:'mic', cls:'blue', k:'Assist', n:'Ask anything', s:'“Turn off the kitchen lights”', go:function(){ try{ openAssist(); }catch(x){} }});
       default: { var W=_nxwWords(w); var icx={energy:'bolt',activities:'tv',device:'dot'}[w.id]||'other';
         return _nxwCard(w,{ic:icx, k:W.label||lib.name||w.id, n:W.value||'', s:W.sub||(W.value?'':'No reading yet'), go:W.go?function(){ leave(); W.go(); }:null}); }   // 1387a: never a bare title
@@ -26713,6 +26733,10 @@ body.nx-on #device-chooser{z-index:9380}
     var cancel=function(e2){ if(!e2||Math.abs(e2.clientX-x0)>8||Math.abs(e2.clientY-y0)>8||e2.type!=='pointermove'){ clearTimeout(holdT); document.removeEventListener('pointermove',cancel,true); document.removeEventListener('pointerup',cancel,true); } };
     document.addEventListener('pointermove',cancel,true); document.addEventListener('pointerup',cancel,true);
     holdT=setTimeout(function(){ held=true; document.removeEventListener('pointermove',cancel,true); document.removeEventListener('pointerup',cancel,true);
+      // 1508 (Dave 16:52: "need to press remove twice the first time"): the hold swallows the click that ends it — but a finger
+      // lifted after a long press sends NO click, so the swallow waited and ate the next tap (Remove). It now ends with the press.
+      var _hu=function(){ document.removeEventListener('pointerup',_hu,true); document.removeEventListener('pointercancel',_hu,true); setTimeout(function(){ held=false; }, 350); };
+      document.addEventListener('pointerup',_hu,true); document.addEventListener('pointercancel',_hu,true);
       if(typeof _nxEditOn==='function'){ if(!document.body.classList.contains('nxe-edit')) _nxEditOn(); } else _nxwAskRemove(uid); }, 600); }, true);   // 1400: hold starts editing (1011); × asks
   window._nxwAskRemove=function(u){ _nxwAskRemove(u); };   // 1400: the × asks the same question
   function _nxwAskRemove(uid){
@@ -28240,6 +28264,19 @@ html.mx-js .widget-cell .mo-fan{animation:none!important}
 body.nx-on .nxw-grid>.widget-cell.nxw-face{min-height:150px;height:auto!important;border-radius:24px!important;background:#1b1c20!important;box-shadow:none!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;animation:none}
 body.nx-on .nxw-grid>.widget-cell.nxw-face.w-span2{grid-column:span 2}
 body.nx-on .nxw-grid>.widget-cell.nxw-face.w-rows2{grid-row:span 2}
+/* REGISTER 1508 — THE WIDGET GRID IS THE OLD LOOK'S: cells about 180–220 wide by 150, as many across as the screen holds (a phone:
+   two). Dave, 27 Nov 16:52: the shortcut tiles "need to be same shape and size as they were before on the old look" — the New
+   Look's four fixed columns stretched them (277–450 wide). Every face was drawn for this cell too. 3 wide is 3 wide again. */
+body.nx-on .nxw-grid{grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:minmax(150px,auto)}
+body.nx-on .nxw-grid>.nxw.w3{grid-column:span 2}
+@media (min-width:501px){ body.nx-on .nxw-grid{grid-template-columns:repeat(auto-fill,minmax(180px,1fr))} }
+@media (min-width:600px){ body.nx-on .nxw-grid>.nxw.w3,body.nx-on .nxw-grid>.widget-cell.nxw-face.w-span3{grid-column:span 3} }
+body.nx-on .nxw-grid>.nxw-fv,body.nx-on .nxw-grid>.nxw-fav,body.nx-on .nxw-grid>.nxr-scn{grid-column:span 1;height:150px;min-height:0}
+body.nx-on .nxw-grid>.nxw-fv .fa{flex:1 1 auto;min-height:0;aspect-ratio:auto}
+/* 1508 — the Back of an old-look page opened from the New Look (see _nxOldBack) */
+#nx-oldback{display:none;position:fixed;top:calc(14px + var(--proos-sat,0px));left:16px;z-index:8980}
+body.nx-on[data-page]:not([data-page="home"]):not(:has(#nx-page.open)) #nx-oldback{display:grid}
+body.nx-on[data-page]:not([data-page="home"]) .page.active .page-header{padding-left:64px}
 </style>
 <style>
 /* REGISTER 1506 — THE CLOSED iPHONE DUO (Dave, 27 Nov 2026: "go with your recommendation"). Its outer screen keeps a band clear
