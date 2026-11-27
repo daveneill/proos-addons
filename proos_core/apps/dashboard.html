@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112154';
+const PROOS_BUILD='2026112155';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -9896,32 +9896,32 @@ const PHONE_FACE={S:[1,1],M:[2,1],L:[2,2]};
 const WIDGET_LIBRARY = [
   {id:'lights',    name:'Lights',      size:1, phone:['S','M','L'], sizes:[[1,1],[2,1],[2,2]], requires:r=>r&&r.lights&&r.lights.length>0,  desc:'Each light by what it can do'},
   {id:'climate',   name:'Climate',     size:1, phone:['S','M'], sizes:[[1,1],[2,1]], requires:r=>r?!!r.climate:CONFIG.rooms.some(x=>x.climate),                    desc:'The temperature and the thermostat'},
-  {id:'awareness', name:'Awareness',   size:2, phone:['M'], min:2, sizes:[[2,1],[3,1]], requires:()=>true,      desc:'How the house is, live'},
-  {id:'weather',   name:'Weather',     size:1, phone:['S','M'], sizes:[[1,1],[2,1],[3,1]], requires:()=>!!CONFIG.weather, desc:'Outside, now and next'},
+  {id:'awareness', name:'Awareness',   size:2, phone:['M'], min:2, sizes:[[2,1]], requires:()=>true,      desc:'How the house is, live'},
+  {id:'weather',   name:'Weather',     size:1, phone:['S','M'], sizes:[[1,1],[2,1]], requires:()=>!!CONFIG.weather, desc:'Outside, now and next'},
   {id:'sun',       name:'Sun',         size:1, phone:['S','M'], sizes:[[1,1],[2,1]], requires:()=>true,                           desc:'Sunrise, sunset and daylight'},
-  {id:'people',    name:'People',      size:2, phone:['M'], single:true, sizes:[[2,1],[3,1]], requires:()=>_peopleList().length>0, desc:'Who\'s home and where'},
+  {id:'people',    name:'People',      size:2, phone:['M'], single:true, sizes:[[2,1]], requires:()=>_peopleList().length>0, desc:'Who\'s home and where'},
   {id:'security',  name:'Security',    size:1, phone:['S','M'], sizes:[[1,1],[2,1],[2,2]], requires:()=>!!CONFIG.security.alarm, desc:'The alarm and its sensors'},
   {id:'garage',    name:'Garage Doors', size:1, phone:['S','M'], sizes:[[1,1],[2,1]], requires:()=>_garageDoors().length>0, desc:'Garage doors and gates, read from their sensors'},   // register 974
   {id:'covers',    name:'Covers',      size:1, phone:['S','M'], sizes:[[1,1],[2,1]], requires:r=>r&&r.covers&&r.covers.length>0,  desc:'Blinds & shutters'},
-  {id:'media',     name:'Now Playing', size:2, phone:['M','L'], min:2, sizes:[[2,1],[3,1],[2,2],[3,2]], requires:r=>true, desc:'Music and TV playing in the house'},
-  {id:'protect_detect',   name:'Latest Detection', size:2, phone:['M'], min:2, sizes:[[2,1],[3,1]], requires:()=>_detectEventIds().length>0,   desc:'The newest thing a camera saw'},
-  {id:'protect_doorbell', name:'Doorbell',         size:1, phone:['S'], requires:()=>_doorbellEventIds().length>0, desc:'The last ring at the door'},
-  {id:'activities',name:'Activities',  size:1, phone:['S','M'], single:true, requires:r=>_roomHasActivities(r),      desc:'What\'s on, and the room\'s chain'},
+  {id:'media',     name:'Now Playing', size:2, phone:['M','L'], min:2, sizes:[[2,1],[2,2]], requires:r=>true, desc:'Music and TV playing in the house'},
+  {id:'protect_detect',   name:'Latest Detection', size:2, phone:['M'], min:2, sizes:[[2,1]], requires:()=>_detectEventIds().length>0,   desc:'The newest thing a camera saw'},
+  {id:'protect_doorbell', name:'Doorbell',         size:1, phone:['S'], sizes:[[1,1],[2,1]], requires:()=>_doorbellEventIds().length>0, desc:'The last ring at the door'},
+  {id:'activities',name:'Activities',  size:1, phone:['S','M'], single:true, sizes:[[1,1],[2,1]], requires:r=>_roomHasActivities(r),      desc:'What\'s on, and the room\'s chain'},
   // ENERGY (register 620): the platform's own Energy settings — offered only
   // where a meter or inverter has been set up there.
   {id:'energy',    name:'Energy',      size:1, phone:['S','M'], sizes:[[1,1],[2,1]], requires:()=>!!(window._energy&&window._energy.ok), desc:'What the house is using, and the sun is making'},
   // ONE-TAP ACTIVITY (register 619): a button bound to ONE committed activity
   // of one room. Pointed at it when added, like Device and Camera.
   {id:'act1',      name:'Activity button', size:1, phone:['S'], sizes:[[1,1]], requires:r=>r?_roomHasActivities(r):CONFIG.rooms.some(x=>_roomHasActivities(x)), desc:'One press starts an activity'},
-  {id:'assist',    name:'Assistant',   size:2, phone:['M'], single:true, sizes:[[2,1],[3,1]], requires:()=>true, desc:'Ask, control, create'},
+  {id:'assist',    name:'Assistant',   size:2, phone:['M'], single:true, sizes:[[2,1]], requires:()=>true, desc:'Ask, control, create'},
   {id:'irrigation',name:'Irrigation',  size:1, phone:['S','M'], sizes:[[1,1],[2,1]], requires:()=>CONFIG.irrigation&&CONFIG.irrigation.length>0, desc:'Garden zones'},
   {id:'scene',     name:'Scenes',      size:1, phone:['S','M','L'], sizes:[[1,1],[2,1],[2,2]], requires:()=>CONFIG.scenes&&CONFIG.scenes.length>0, desc:'One tap for a scene'},
   // App Shortcut: added by pressing & holding an app in a device's app grid
   // (the device is implicit), so it stays out of the Add-widget sheet. Fixed 1x1.
-  {id:'apps',      name:'App Shortcut', size:1, phone:['S'], hidden:true, requires:r=>!!(r&&r.id), desc:'One-tap launch for a favourite app'},
-  {id:'musicfav',  name:'Music Favourite', size:1, phone:['S'], hidden:true, requires:()=>true, desc:'One-tap play for a favourite playlist, album or station'},   // 1073
-  {id:'actfav',    name:'Activity Favourite', size:1, phone:['S'], hidden:true, requires:()=>true, desc:'One-tap start for a room\u2019s activity'},   // 1091
-  {id:'chfav',     name:'Channel Favourite', size:1, phone:['S'], hidden:true, requires:()=>true, desc:'One-tap channel on a room\u2019s TV'},   // 1105
+  {id:'apps',      name:'App Shortcut', size:1, phone:['S'], hidden:true, sizes:[[1,1]], requires:r=>!!(r&&r.id), desc:'One-tap launch for a favourite app'},
+  {id:'musicfav',  name:'Music Favourite', size:1, phone:['S'], hidden:true, sizes:[[1,1]], requires:()=>true, desc:'One-tap play for a favourite playlist, album or station'},   // 1073
+  {id:'actfav',    name:'Activity Favourite', size:1, phone:['S'], hidden:true, sizes:[[1,1]], requires:()=>true, desc:'One-tap start for a room\u2019s activity'},   // 1091
+  {id:'chfav',     name:'Channel Favourite', size:1, phone:['S'], hidden:true, sizes:[[1,1]], requires:()=>true, desc:'One-tap channel on a room\u2019s TV'},   // 1105
   // ANY ONE THING (9 Sep 2026, register 377). Dave: "I want the ability to add
   // any device, scene, etc through a widget… I believe the widget list is
   // limited". Every other entry in this library is a CATEGORY — "Lights" means
@@ -9933,7 +9933,7 @@ const WIDGET_LIBRARY = [
    requires:()=>_deviceCandidates(curRoom===-1?null:CONFIG.rooms[curRoom]).length>0,
    desc:'Any one light, switch, fan, lock, blind, scene or script'},
   // A SMALL LIVE THUMBNAIL (register 607): large stays; small is added.
-  {id:'camera',    name:'Camera Feed', size:'full', phone:['L','S','M'], sizes:[[2,2],[1,1],[2,1],[3,2]], requires:()=>CONFIG.cameras&&CONFIG.cameras.length>0, desc:'A camera, live'},
+  {id:'camera',    name:'Camera Feed', size:'full', phone:['L','S','M'], sizes:[[2,2],[1,1],[2,1]], requires:()=>CONFIG.cameras&&CONFIG.cameras.length>0, desc:'A camera, live'},
 ];
 
 // Get page key for widget storage
@@ -11072,11 +11072,12 @@ function renderWidgetContent(w){
         : '');
       // since when it has been as it is — the platform's own last_changed (968g)
       const _dAt=_wvAt(eid);
+      const _dvSay=(function(){ const x=_deviceWords(eid); return /^off$/i.test(String(x||'').trim())?'':x; })();   /* 1510: Off is not said */
       const html=`<div class="wc dvw${_dWide?' dvw-m':''}${on?' on':''}">`+
         // medium: the control sits in the row — under it, the slider's 40pt
         // touch height overflowed a 100px row (measured 80 in 74)
-        `<div class="dvw-top">${_glyph}${_dWide?`<div class="dvw-tx"><div class="dvw-n">${esc(_deviceLabel(eid))}</div><div class="dvw-s${acts?'':' wc-read'}">${esc(_deviceWords(eid))}${_dAt?' \u00b7 since '+esc(_dAt):''}</div></div>`:''}</div>${_ctl}`+
-        (_dWide?'':`<div class="dvw-sp"></div><div class="dvw-n">${esc(_deviceLabel(eid))}</div><div class="dvw-s${acts?'':' wc-read'}">${esc(_deviceWords(eid))}</div>${_dAt?`<div class="dvw-f">Since ${esc(_dAt)}</div>`:''}`)+
+        `<div class="dvw-top">${_glyph}${_dWide?`<div class="dvw-tx"><div class="dvw-n">${esc(_deviceLabel(eid))}</div><div class="dvw-s${acts?'':' wc-read'}">${esc(_dvSay)}${_dvSay&&_dAt?' \u00b7 since '+esc(_dAt):''}</div></div>`:''}</div>${_ctl}`+
+        (_dWide?'':`<div class="dvw-sp"></div><div class="dvw-n">${esc(_deviceLabel(eid))}</div><div class="dvw-s${acts?'':' wc-read'}">${esc(_dvSay)}</div>${_dvSay&&_dAt?`<div class="dvw-f">Since ${esc(_dAt)}</div>`:''}`)+
         `</div>`;
       // A READING GETS NO LISTENER AT ALL, not a listener that declines. The
       // cell only binds a tap when onclickFn is given, so "a reading is not a
@@ -11115,7 +11116,7 @@ function renderWidgetContent(w){
       const _lvl=l=>{ if(st(l)!=='on') return 0; if(!_wLightDims(l)) return 100;
         const b=att(l,'brightness'); return (b!=null&&b!=='')?Math.max(1,Math.round(b/2.55)):100; };
       const _words=l=>{ const v=st(l); if(!v||v==='unavailable'||v==='unknown') return 'No signal';
-        if(v!=='on') return 'Off'; if(!_wLightDims(l)) return 'On';
+        if(v!=='on') return '';   /* 1510: a light that is off is not labelled Off */ if(!_wLightDims(l)) return 'On';
         const b=att(l,'brightness'); return (b!=null&&b!=='')?Math.max(1,Math.round(b/2.55))+'%':'On'; };
       // the room's own name is not repeated on every row ("Living Room Pendant" → "Pendant")
       const _nm=l=>{ let n=_deviceLabel(l); const rn=r&&r.name?String(r.name):'';
@@ -11124,13 +11125,13 @@ function renderWidgetContent(w){
       const _ld=(typeof _widgetDims==='function')?_widgetDims(w):{w:1,h:1};
       const _val=on.length?'On':(lUnread.length===lights.length&&lights.length?'No reading':'Off');
       const _cnt=(lights.length&&lUnread.length===lights.length)?'No reading'
-        :`${on.length} of ${lights.length} on${lUnread.length?' · '+lUnread.length+' not reporting':''}`;
+        :[on.length?`${on.length} of ${lights.length} on`:'', lUnread.length?lUnread.length+' not reporting':''].filter(Boolean).join(' · ');   /* 1510: none on → no count */
       const _lit1=on.find(l=>isColorLight(l));
       // REGISTER 1365 motion 4: the glow is as bright as the lights report — the average level of the dimmers, full for a switch
       const _gl=on.length?(briPct!=null?briPct/100:1):0, _go=(0.12+0.5*_gl).toFixed(3);
       const _glow=on.length?`<div class="wv-glow" data-mxk="lg:${w.uid}" data-mxo="${_go}" style="opacity:${_go};background:${(_lit1&&_wLightRGB(_lit1))||'#FFC46B'}"></div>`:'';
       const _pw=`<button class="wv-pw lw-qa${on.length?' on':''}" aria-label="Toggle lights" onclick="event.stopPropagation();_wLightsQA(${curRoom})" onpointerdown="event.stopPropagation()" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()">${_wvSvg('power')}</button>`;
-      const _hd=`<div class="wv-hd"><div class="wv-tx"><div class="wv-t">Lights</div><div class="wv-s">${_ld.w>=2?_hEsc(r?r.name:'Whole House')+' · ':''}<b>${_hEsc(_cnt)}</b></div></div>${_pw}</div>`;
+      const _hd=`<div class="wv-hd"><div class="wv-tx"><div class="wv-t">Lights</div><div class="wv-s">${_ld.w>=2?_hEsc(r?r.name:'Whole House')+(_cnt?' · ':''):''}<b>${_hEsc(_cnt)}</b></div></div>${_pw}</div>`;
       let _body='';
       if(_ld.h>=2){
         // LARGE: each light a row — its control, and its own slider when it dims
@@ -11640,7 +11641,7 @@ function renderWidgetContent(w){
       const _drops=_run?'<g class="irw-drops" fill="#9fcbff"><circle cx="20" cy="22" r="1.8"/><circle cx="25" cy="20" r="1.8"/><circle cx="30" cy="22" r="1.8"/></g>'
         :'<path d="M25 16c-3 4-5 6.6-5 9a5 5 0 0 0 10 0c0-2.4-2-5-5-9z" fill="none" stroke="rgba(255,255,255,0.55)" stroke-width="1.5"/>';
       const _iWord=_run===1?(_nm(active[0])+' running'):_run?(_run+' zones running')
-        :(_n&&zUnread.length===_n?'No reading':'Idle');
+        :(_n&&zUnread.length===_n?'No reading':'');
       const _iSub=_run?(_n>1?`${_run} of ${_n} zones`:''):(`${_n} zone${_n!==1?'s':''}`);
       const _iWide=_widgetDims(w).w>=2;
       // EACH ZONE, AND WHEN IT LAST RAN (968j). The ring and the words are as before (602 — no time left is
@@ -11654,7 +11655,7 @@ function renderWidgetContent(w){
         ? `<div class="wc wv irw irw-m"><div class="wv-hd"><div class="irw-h"><svg class="irw-ring" viewBox="0 0 50 50">${_ring}${_drops}</svg><div class="irw-tx"><div class="irw-v">${_hEsc(_iWord)}</div><div class="irw-s">${_hEsc(_iSub)}</div></div></div>`
           +(_run?`<button class="irw-stop" type="button" onclick="event.stopPropagation();if(!_widgetEditMode)_wIrrStop(${JSON.stringify(active).replace(/"/g,'&quot;')})" onpointerdown="event.stopPropagation()">Stop all</button>`:'')+`</div>`
           +`<div class="irv-zs wv-mt">${_zones.slice(0,3).map(z=>{ const at=_wvAt(z), on=st(z)==='on';
-              return `<div class="irv-z${on?' on':''}"><span class="irv-n">${_hEsc(_nm(z))}</span><span class="irv-w">${on?'Running':(at?'Off since '+_hEsc(at):'')}</span>${_zbtn(z)}</div>`; }).join('')}</div></div>`
+              return `<div class="irv-z${on?' on':''}"><span class="irv-n">${_hEsc(_nm(z))}</span><span class="irv-w">${on?'Running':(at?'Last ran '+_hEsc(at):'')}</span>${_zbtn(z)}</div>`; }).join('')}</div></div>`
         : `<div class="wc wv irw"><div class="wv-k">Irrigation</div><div class="irw-h"><svg class="irw-ring" viewBox="0 0 50 50">${_ring}${_drops}</svg><div class="irw-tx"><div class="irw-v">${_hEsc(_iWord)}</div><div class="irw-s">${_hEsc(_iSub)}</div></div></div></div>`;
       return {icon, label:'Irrigation', value:active.length?`${active.length} Active`
              :(_zones.length&&zUnread.length===_zones.length?'No reading':'Off'),
@@ -26586,7 +26587,7 @@ body.nx-on #device-chooser{z-index:9380}
       im.onload=function(){ camStill[e]={u:u, t:Date.now()}; try{ document.documentElement.style.setProperty(_nxCamVar(e), "url('"+String(u).replace(/'/g,'%27')+"')"); }catch(x){} };
       im.onerror=done; im.src=u; }).catch(done); }catch(x){ done(); } };
   var _nxCamMark=function(e, card){ return String(card).replace("style=\"background-image:url('nxcam')\"", 'data-nxcam="'+e7(e)+'" style="background-image:var('+_nxCamVar(e)+')"'); };
-  setInterval(function(){ try{ if(document.hidden||!document.body.classList.contains('nx-on')) return; var seen={};
+  if(typeof setInterval==='function') setInterval(function(){ try{ if(document.hidden||!document.body.classList.contains('nx-on')) return; var seen={};
     [].forEach.call(document.querySelectorAll('[data-nxcam]'), function(el){ var e=el.dataset.nxcam; if(seen[e]) return; seen[e]=1; var st=camStill[e]; if(!st||Date.now()-st.t>10000) _nxCamGet(e); }); }catch(x){} }, 2000);
   // a tap's name is fixed for its widget (its uid and what it is), so a page that did not change keeps working taps
   var act=function(fn, key){ ACT[key]=fn; return key; };
@@ -26604,7 +26605,8 @@ body.nx-on #device-chooser{z-index:9380}
   // FACE — the one the old look draws, with its art, its readings and its own buttons — in the New Look's grid. Drawn by the same
   // function in the same cell, so nothing is copied and its own layout rules apply. Nothing to show → not drawn.
   function _nxwFace(w, room, go){ var d=null, keep;
-    try{ keep=curRoom; curRoom=room?(CONFIG.rooms||[]).indexOf(room):-1; d=renderWidgetContent(w); }catch(x){ d=null; }
+    var wf=w; if(w.id==='weather'&&w.size===2&&w.rows!==2){ wf={}; for(var k9 in w) wf[k9]=w[k9]; wf.size=3; }   // 1510: Weather's graph lives in its Wide size
+    try{ keep=curRoom; curRoom=room?(CONFIG.rooms||[]).indexOf(room):-1; d=renderWidgetContent(wf); }catch(x){ d=null; }
     try{ if(keep!==undefined) curRoom=keep; }catch(x){}
     if(!d||!d.html) return null;
     if(d._hide) return '';
@@ -28311,6 +28313,12 @@ body.nx-on #nx-page .nxr-cols .nxr-live,body.nx-on #nx-page .nxr-cols .nxr-live.
 body.nx-on #nx-page .nxw-grid{grid-template-columns:repeat(var(--pg-n),minmax(0,1fr));gap:var(--pg-g);grid-auto-rows:var(--pg-std)}
 body.nx-on #nx-page .nxw-grid>*{min-height:0!important;height:auto!important}
 body.nx-on #nx-page .nxw-add{height:var(--pg-half)}
+/* 1510 — the small Lights face: its line ends before the power button, never under it (seen on a phone, 1507b) */
+body.nx-on .nxw-face .wv-hd>.wv-tx{min-width:0;flex:1 1 auto}
+body.nx-on .nxw-face .wv-hd>.wv-tx>.wv-s{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+body.nx-on .nxw-face .wv-hd>.wv-pw{flex:none}
+/* 1510 (Dave, 27 Nov 17:28: "remove the AV pill on the scenes tiles for media as they conflict with the name") */
+body.nx-on #nx-page .nxr-scn .tag{display:none}
 </style>
 <style>
 /* REGISTER 1506 — THE CLOSED iPHONE DUO (Dave, 27 Nov 2026: "go with your recommendation"). Its outer screen keeps a band clear
