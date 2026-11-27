@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112148';
+const PROOS_BUILD='2026112149';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -26580,6 +26580,17 @@ body.nx-on #device-chooser{z-index:9380}
       '<div class="row">'+(o.ic?ic(o.ic):'<span></span>')+(o.right||'')+'</div><div>'+(o.k?'<div class="k">'+e7(o.k)+'</div>':'')+(o.v?'<div class="v">'+e7(o.v)+'</div>':'')+(o.n?'<div class="n">'+e7(o.n)+'</div>':'')+(o.s?'<div class="s">'+e7(o.s)+'</div>':'')+(o.extra||'')+'</div></div>'; }
   // a widget's own words, where today's widget already works them out (Energy, detection, doorbell, Activities, Device)
   function _nxwWords(w){ try{ var c=renderWidgetContent(w)||{}; return {label:c.label||'', value:c.value||'', sub:c.sub||'', go:c.onclickFn||null}; }catch(x){ return {}; } }
+  // REGISTER 1507 (Dave, 27 Nov 2026: the New Look's widgets "all boring looking … need to be eye catching"; "go"). A widget's OWN
+  // FACE — the one the old look draws, with its art, its readings and its own buttons — in the New Look's grid. Drawn by the same
+  // function in the same cell, so nothing is copied and its own layout rules apply. Nothing to show → not drawn.
+  function _nxwFace(w, room, go){ var d=null, keep;
+    try{ keep=curRoom; curRoom=room?(CONFIG.rooms||[]).indexOf(room):-1; d=renderWidgetContent(w); }catch(x){ d=null; }
+    try{ if(keep!==undefined) curRoom=keep; }catch(x){}
+    if(!d||!d.html) return null;
+    if(d._hide) return '';
+    var dm={w:1,h:1}; try{ dm=_widgetDims(w); }catch(x){}
+    var tap=go||(d.onclickFn?function(){ d.onclickFn(); }:null);
+    return '<div class="widget-cell nxw-face'+(dm.w>=2?' w-span2':'')+(dm.h===2?' w-rows2':'')+(d.on?' w-on':'')+(d._mediaTile?' w-media':'')+'" data-wid="'+e7(w.id)+'" data-wsz="'+dm.w+'x'+dm.h+'" data-nwuid="'+e7(w.uid||'')+'"'+(tap?' data-nwo="'+act(tap,'f:'+(w.uid||w.id))+'"':'')+'>'+d.html+'</div>'; }
   function _nxwOne(w, room){
     var D=(window._nxAll?_nxAll():[]), r=room||null, lib=(typeof WIDGET_LIBRARY!=='undefined'?WIDGET_LIBRARY:[]).filter(function(x){ return x.id===w.id; })[0]||{};
     var areaLights=function(a){ return D.filter(function(d){ return d.k.kind==='light'&&(a==null||d.area===a); }); };
@@ -26600,7 +26611,8 @@ body.nx-on #device-chooser{z-index:9380}
           go:function(){ window._nxClimate&&_nxClimate(c, function(){ window._nxBack&&_nxBack(); }); }}); }
       case 'awareness': { var A=window._nxHomeAware?_nxHomeAware(typeof _awareOk!=='undefined'?_awareOk:null, typeof _awareItems!=='undefined'?_awareItems:[], document.body.dataset.homeState):{t:''};
         return _nxwCard(w,{ic:'dot', cls:A.c==='warn'?'warn':A.c===''?'ok':'', k:'The House', n:A.t, go:function(){ try{ openAwareness(); }catch(x){} }}); }
-      case 'weather': { var wx=CONFIG.weather, s=st(wx), t=att(wx,'temperature');
+      case 'weather': { var _f=_nxwFace(w,r,function(){ if(window._nxWeather){ _nxWeather(function(){ window._nxBack&&_nxBack(); }); return; } leave(); try{ showPage('weather'); }catch(x){} }); if(_f!=null) return _f;
+        var wx=CONFIG.weather, s=st(wx), t=att(wx,'temperature');
         if(!s||s==='unavailable') return _nxwCard(w,{ic:'sun', n:'Weather', s:'No reading'});
         var word=''; try{ word=wxLabel(s); }catch(x){ word=s; } var icn=''; try{ icn='<div class="nx-ic" style="background:none"><svg viewBox="0 0 24 24" style="width:34px;height:34px">'+_wxIcon(s,st('sun.sun')!=='below_horizon')+'</svg></div>'; }catch(x){}
         return _nxwCard(w,{k:'Outside', v:(t!=null?Math.round(+t)+'°':'–'), s:word, right:'', extra:'', ic:'', go:function(){ if(window._nxWeather){ _nxWeather(function(){ window._nxBack&&_nxBack(); }); return; } leave(); try{ showPage('weather'); }catch(x){} }}).replace('<div class="row"><span></span>','<div class="row">'+icn); }
@@ -26610,7 +26622,8 @@ body.nx-on #device-chooser{z-index:9380}
         var faces='<div class="faces">'+P.slice(0,4).map(function(p){ var home=p.zone==='Home', pic=p.pic||p.picture||p.entity_picture||'';
           return '<div class="face'+(home?'':' away')+'"><i'+(pic?' style="background-image:url(\''+String(pic).replace(/'/g,'%27')+'\')"':'')+'>'+(pic?'':e7(String(p.name||'?').charAt(0)))+'</i>'+e7(p.zone||'')+'</div>'; }).join('')+'</div>';
         return _nxwCard(w,{k:'People', n:P.filter(function(p){ return p.zone==='Home'; }).length+' home', extra:'<div style="margin-top:10px">'+faces+'</div>'}); }
-      case 'security': { var pn=[]; try{ pn=_alarmPanels(); }catch(x){} var a=pn[0];
+      case 'security': { var _f=_nxwFace(w,r,function(){ window._nxSecurity&&_nxSecurity('alarm', function(){ window._nxBack&&_nxBack(); }); }); if(_f!=null) return _f;
+        var pn=[]; try{ pn=_alarmPanels(); }catch(x){} var a=pn[0];
         var word=a?_alarmWord(a):'No alarm', armed=a&&String(st(a)).indexOf('armed')===0;
         return _nxwCard(w,{ic:'shield', cls:armed?'blue':'ok', k:'Security', n:word, s:(window._nxqLine?'':''), go:function(){ window._nxSecurity&&_nxSecurity('alarm', function(){ window._nxBack&&_nxBack(); }); }}); }
       case 'garage': { var G=D.filter(function(d){ return d.k.kind==='garage'&&(!w.entity||d.ents.indexOf(w.entity)>=0); }), op=G.filter(function(d){ return d.r.now; });
@@ -26622,7 +26635,8 @@ body.nx-on #device-chooser{z-index:9380}
       case 'scene': { var all=CONFIG.scenes||[], pick=(w.scenes&&w.scenes.length)?all.filter(function(s){ return w.scenes.indexOf(s.entity)>=0; }):all.slice(0,4);
         return _nxwCard(w,{k:'Scenes', extra:'<div class="scs">'+pick.map(function(s){ var i=all.indexOf(s), on=window._nxSceneOn&&_nxSceneOn(s.entity);
           return '<button type="button" class="'+(on?'on':'')+'" data-nwu="'+act(function(){ try{ triggerScene(s.entity,i); }catch(x){} },'s:'+(w.uid||w.id)+':'+s.entity)+'" style="'+(s.photo?"background-image:url('"+String(s.photo).replace(/'/g,'%27')+"')":'')+'"><span>'+e7(s.name)+'</span></button>'; }).join('')+'</div>'}); }
-      case 'media': { var M2=D.filter(function(d){ return /tv|source|receiver|speaker/.test(d.k.kind)&&!(d.r&&(d.r.tvIn||d.r.now===false))&&states[d.lead]&&(states[d.lead].state==='playing'||states[d.lead].state==='paused')&&(states[d.lead].attributes||{}).media_title; });
+      case 'media': { var _f=_nxwFace(w,r,null); if(_f!=null) return _f;
+        var M2=D.filter(function(d){ return /tv|source|receiver|speaker/.test(d.k.kind)&&!(d.r&&(d.r.tvIn||d.r.now===false))&&states[d.lead]&&(states[d.lead].state==='playing'||states[d.lead].state==='paused')&&(states[d.lead].attributes||{}).media_title; });
         if(r) M2.sort(function(a,b){ return (b.area===r.id)-(a.area===r.id); }); var m=M2[0];
         if(!m) return _nxwCard(w,{ic:'tv', k:'Now Playing', n:'Nothing playing'});
         var A2=states[m.lead].attributes, art=''; try{ var pth=(typeof _artOf==='function')?_artOf(m.lead):A2.entity_picture; art=pth?artSrc(pth):''; }catch(x){}
@@ -26659,6 +26673,8 @@ body.nx-on #device-chooser{z-index:9380}
     if(held){ held=false; ev.preventDefault(); ev.stopPropagation(); return; }
     var b=ev.target.closest&&ev.target.closest('[data-nwu]'); if(!b||!b.dataset.nwu) return; var f=ACT[b.dataset.nwu]; if(f){ ev.stopPropagation(); f(); }
   }, true);
+  // 1507: a face's own tap is heard on the way UP, after its own buttons have had theirs (they stop it, as in the old look)
+  document.addEventListener('click', function(ev){ if(!document.body.classList.contains('nx-on')||document.body.classList.contains('nxe-edit')) return; var c=ev.target.closest&&ev.target.closest('[data-nwo]'); if(!c) return; var f=ACT[c.dataset.nwo]; if(f) f(); });
   document.addEventListener('pointerdown', function(ev){ if(!document.body.classList.contains('nx-on')) return; var c=ev.target.closest&&ev.target.closest('[data-nwuid]'); if(!c||!c.dataset.nwuid) return;
     clearTimeout(holdT); var uid=c.dataset.nwuid, x0=ev.clientX, y0=ev.clientY;
     var cancel=function(e2){ if(!e2||Math.abs(e2.clientX-x0)>8||Math.abs(e2.clientY-y0)>8||e2.type!=='pointermove'){ clearTimeout(holdT); document.removeEventListener('pointermove',cancel,true); document.removeEventListener('pointerup',cancel,true); } };
@@ -28183,6 +28199,12 @@ html.mx-js .widget-cell .mo-fan{animation:none!important}
   #proos-acard .arc,#mx-sweep .arc,.player-panel.mx-on .mx-amb{animation:none!important}
   #mx-warm,#mx-sweep .mx-rt,.player-panel:not(.is-remote) .player-art{transition:none!important}
 }
+</style>
+<style>
+/* REGISTER 1507 — A WIDGET'S OWN FACE IN THE NEW LOOK (see _nxwFace). The old look's cell, in the New Look's card. */
+body.nx-on .nxw-grid>.widget-cell.nxw-face{min-height:150px;height:auto!important;border-radius:24px!important;background:#1b1c20!important;box-shadow:none!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;animation:none}
+body.nx-on .nxw-grid>.widget-cell.nxw-face.w-span2{grid-column:span 2}
+body.nx-on .nxw-grid>.widget-cell.nxw-face.w-rows2{grid-row:span 2}
 </style>
 <style>
 /* REGISTER 1506 — THE CLOSED iPHONE DUO (Dave, 27 Nov 2026: "go with your recommendation"). Its outer screen keeps a band clear
