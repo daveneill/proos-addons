@@ -844,6 +844,12 @@ def tracks_inside(br, it, limit=100):
     return []
 
 
+def _title_of(it):
+    """An item's title in words. REGISTER 1515: a bare id is a str, and a str's own .title is a METHOD — never that."""
+    t = "" if isinstance(it, str) else getattr(it, "title", "")
+    return t if isinstance(t, str) else ""
+
+
 def play(sp, service_id, item_id, account=None, time_zone=None, wait_s=10.0, limit=100, mode="now"):
     """Play an item on the speaker: a playlist/album as the speaker's own queue (first track started,
     the rest added behind it), a track or stream on its own. The answer is the SPEAKER's state.
@@ -894,13 +900,13 @@ def play(sp, service_id, item_id, account=None, time_zone=None, wait_s=10.0, lim
     if not is_open and is_stream(first[0]):
         if mode in ("next", "add"):
             raise SpeakerMusicError("a station can't go in the queue — play it instead")
-        return _stream_play(sp, first, getattr(it, "title", "") or "", wait_s)
+        return _stream_play(sp, first, _title_of(it), wait_s)
     one = locals().get("first")
     if mode in ("next", "add"):
         return _enqueue(sp, s, tracks, lambda t: one if (one is not None and t is it) else prepare(br, t),
-                        mode, getattr(it, "title", "") or "")
+                        mode, _title_of(it))
     return _queue_play(sp, s, tracks, lambda t: one if (one is not None and t is it) else prepare(br, t),
-                       getattr(it, "title", "") or "", wait_s)
+                       _title_of(it), wait_s)
 
 
 # PLAY NEXT / ADD TO QUEUE (register 785; Dave 10:57 "go" on 781). Into the SPEAKER's own queue — the speaker's own
@@ -1312,7 +1318,7 @@ def add_to_playlist(sp, service_id, item_id, playlist_id=None, title=None, accou
             tracks = ([t for t in br.get_metadata(it, count=int(limit)).items if not opens(t)]
                       if opens(it) else [it])
         prep = (lambda t: prepare(br, t))
-        name = getattr(it, "title", "") or ""
+        name = _title_of(it)
     if not tracks:
         raise SpeakerMusicError("there's nothing in that to add")
     with s["lock"]:
@@ -1416,7 +1422,7 @@ def add_favourite(sp, service_id, item_id, account=None, time_zone=None):
     br = s["br"]
     with s["lock"]:
         it = s["items"].get(item_id, item_id)
-        title = getattr(it, "title", "") or str(item_id)
+        title = _title_of(it) or str(item_id)
         art = getattr(it, "album_art_uri", "") or None
         if opens(it):
             kind = _fav_kind(it)
