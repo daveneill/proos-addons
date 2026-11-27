@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112156';
+const PROOS_BUILD='2026112157';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -17670,6 +17670,7 @@ function _mfTap(el){
   // 1505: nothing here fails in silence any more — a shortcut the page cannot find, or a start that throws, is SAID
   const uid=el&&el.dataset.mfuid; const w=(loadWidgetLayout()||[]).find(x=>x&&x.uid===uid);
   if(!w){ try{ showToast('That shortcut is not on this page any more — open the page again'); }catch(e){} return; }
+  window._mfBusyUid=uid;   /* 1512: WHICH shortcut was pressed — two on one speaker both said Starting (Dave, 27 Nov 17:42) */
   _awRing(el,true);
   Promise.resolve(_mfPlay(w)).catch(e=>{ try{ showToast('Couldn’t start '+(w.title||'that')+' — '+String(e&&e.message||e)); }catch(x){} }).finally(()=>setTimeout(()=>_awRing(el,false),400));
   try{ const p=document.getElementById('nx-page'); if(p&&document.body.classList.contains('nx-on')){ p._sig=''; } }catch(e){}
@@ -26618,7 +26619,9 @@ body.nx-on #device-chooser{z-index:9380}
     // the one the old look goes by): while that mark is the same, the face handed back is the same.
     var ck=(w.uid||w.id)+'|'+dm.w+'x'+dm.h+'|'+(room?room.id:'');
     // 1505 kept: a music shortcut says "Starting…" on its own tile from the tap until the speaker is heard
-    var bz=''; if(w.id==='musicfav'){ try{ if(_musicBusy&&_musicBusy[w.speaker]) bz=(_musicPendingLabel||'Starting…'); }catch(x){} }
+    var bz=''; if(w.id==='musicfav'){ try{ var _bzOn=!!(_musicBusy&&_musicBusy[w.speaker]);
+      // 1512: only the tile that was pressed says it — the speaker being busy is not enough (two shortcuts share a speaker)
+      if(_bzOn&&window._mfBusyUid===w.uid) bz='Starting…'; else if(!_bzOn&&window._mfBusyUid===w.uid) window._mfBusyUid=null; }catch(x){} }
     // 1511 (Dave, 27 Nov 17:37: "App shortcuts have art one minute gone the next"). MY FAULT in 1507c: I kept EVERY face by its
     // change-mark. An app tile's mark is its app and device — it does not change when its logo arrives — so a tile first drawn
     // before its logo loaded was kept without it. Only the face that moves with the clock (Latest Detection) is kept this way;
@@ -28284,7 +28287,7 @@ body.nx-on .nxw-grid>.nxw.w3{grid-column:span 2}
 @media (min-width:600px){ body.nx-on .nxw-grid>.nxw.w3,body.nx-on .nxw-grid>.widget-cell.nxw-face.w-span3{grid-column:span 3} }
 /* 1508b — a shortcut is the old look's tile: no card behind it, the picture is the tile (5:3, music square), one cell, 150 tall */
 body.nx-on .nxw-grid>.widget-cell.nxw-face.w-app{background:transparent!important;padding:0!important;height:150px!important;min-height:0;grid-column:span 1}
-body.nx-on .nxw-grid>.widget-cell.nxw-face .nxw-busy{position:absolute;left:8px;right:8px;bottom:8px;padding:6px 8px;border-radius:10px;background:rgba(14,14,16,.84);color:#8A98FF;font:600 13px Inter,-apple-system,sans-serif;text-align:center;pointer-events:none;z-index:3}
+body.nx-on .nxw-grid>.widget-cell.nxw-face .nxw-busy{position:absolute;left:50%;right:auto;transform:translateX(-50%);white-space:nowrap;bottom:14px;padding:6px 12px;border-radius:10px;background:rgba(14,14,16,.84);color:#8A98FF;font:600 13px Inter,-apple-system,sans-serif;text-align:center;pointer-events:none;z-index:3}
 /* 1508 — the Back of an old-look page opened from the New Look (see _nxOldBack) */
 #nx-oldback{display:none;position:fixed;top:calc(14px + var(--proos-sat,0px));left:16px;z-index:8980}
 body.nx-on[data-page]:not([data-page="home"]):not(:has(#nx-page.open)) #nx-oldback{display:grid}
