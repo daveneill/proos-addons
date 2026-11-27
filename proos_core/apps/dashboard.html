@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112145';
+const PROOS_BUILD='2026112146';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -28188,12 +28188,12 @@ html.mx-js .widget-cell .mo-fan{animation:none!important}
 /* REGISTER 1506 — THE CLOSED iPHONE DUO (Dave, 27 Nov 2026: "go with your recommendation"). Its outer screen keeps a band clear
    down the RIGHT edge — the camera in the top corner, and where the phone stands its own bars upright. The page is told when it is
    on that screen (the band is measured from the phone, never written in) and then: the whole page ends where the band begins, and
-   the bottom bar stands upright IN the band, spaced out and centred down its height (Dave, 13:49). Every other phone, the open Duo and every tablet: nothing changes. */
+   the bottom bar stands upright IN the band, spaced evenly down the band's height BELOW THE CAMERA (Dave, 13:57 — the camera's corner is taken as a square the band's own width). Every other phone, the open Duo and every tablet: nothing changes. */
 html.duo-rail:has(body.nx-on){background:#151518}
 html.duo-rail body.nx-on{width:calc(100% - var(--duo-r,0px));margin:0;contain:layout;overflow:visible}
-html.duo-rail body.nx-on #nx-bar{left:auto;right:calc(-1 * var(--duo-r));top:0;bottom:0;width:var(--duo-r);height:auto;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:0;box-shadow:-1px 0 0 rgba(255,255,255,.05)}
+html.duo-rail body.nx-on #nx-bar{left:auto;right:calc(-1 * var(--duo-r));top:0;bottom:0;width:var(--duo-r);height:auto;flex-direction:column;align-items:center;justify-content:space-evenly;gap:0;padding:var(--duo-r) 0 env(safe-area-inset-bottom,0px);box-shadow:-1px 0 0 rgba(255,255,255,.05)}
 html.duo-rail body.nx-on #nx-bar .nb{flex:none;max-width:none;width:100%;padding:11px 0}
-html.duo-rail body.nx-on #nx-bar .nmic{top:0;margin:4px 0;width:58px;height:58px;box-shadow:0 10px 26px rgba(33,57,240,.5)}
+html.duo-rail body.nx-on #nx-bar .nmic{top:0;margin:0;width:58px;height:58px;box-shadow:0 10px 26px rgba(33,57,240,.5)}
 </style>
 <style id="proos-refresh">
 /* THE OLD TILE GLASS, ACROSS THE BOARD (register 623, 26 Sep 2026). Dave: "all
