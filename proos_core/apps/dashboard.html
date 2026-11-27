@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112150';
+const PROOS_BUILD='2026112151';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -26590,7 +26590,16 @@ body.nx-on #device-chooser{z-index:9380}
     if(d._hide) return '';
     var dm={w:1,h:1}; try{ dm=_widgetDims(w); }catch(x){}
     var tap=go||(d.onclickFn?function(){ d.onclickFn(); }:null);
-    return '<div class="widget-cell nxw-face'+(dm.w>=2?' w-span2':'')+(dm.h===2?' w-rows2':'')+(d.on?' w-on':'')+(d._mediaTile?' w-media':'')+'" data-wid="'+e7(w.id)+'" data-wsz="'+dm.w+'x'+dm.h+'" data-nwuid="'+e7(w.uid||'')+'"'+(tap?' data-nwo="'+act(tap,'f:'+(w.uid||w.id))+'"':'')+'>'+d.html+'</div>'; }
+    // 1507c (Dave's clip, 27 Nov 16:28: the room page redrew itself once a second). A face can carry things that move with the
+    // clock (Latest Detection's timeline is placed by the time NOW), so its text was never the same twice and the page — which
+    // redraws whenever its text changes — redrew every second. The widget already says when it has REALLY changed (its own mark,
+    // the one the old look goes by): while that mark is the same, the face handed back is the same.
+    var ck=(w.uid||w.id)+'|'+dm.w+'x'+dm.h+'|'+(room?room.id:'');
+    if(d.hsig!=null){ var cc=_nxwFaceC[ck]; if(cc&&cc.s===String(d.hsig)) return cc.h; }
+    var out='<div class="widget-cell nxw-face'+(dm.w>=2?' w-span2':'')+(dm.h===2?' w-rows2':'')+(d.on?' w-on':'')+(d._mediaTile?' w-media':'')+'" data-wid="'+e7(w.id)+'" data-wsz="'+dm.w+'x'+dm.h+'" data-nwuid="'+e7(w.uid||'')+'"'+(tap?' data-nwo="'+act(tap,'f:'+(w.uid||w.id))+'"':'')+'>'+d.html+'</div>';
+    if(d.hsig!=null) _nxwFaceC[ck]={s:String(d.hsig), h:out};
+    return out; }
+  var _nxwFaceC={};
   // 1507b (Dave, 27 Nov 16:07: "yes do the rest please"): where each face's own tap goes in the New Look — the page the plain card
   // opened. A widget not listed keeps the tap its face already has.
   function _nxwGo(w, r){ var back=function(){ window._nxBack&&_nxBack(); };
@@ -27597,7 +27606,9 @@ body.nx-on #widget-picker .widget-picker-grid{display:grid!important;grid-templa
 body.nx-on #widget-picker .widget-picker-grid{grid-auto-rows:max-content!important;align-items:stretch}
 body.nx-on #widget-picker .wl-it{background:#26272d!important;box-shadow:none!important;border-radius:22px;padding:14px;gap:6px;min-height:120px;height:auto!important}
 body.nx-on #widget-picker .wl-it>*{flex-shrink:0}   /* 1400a: the sizes sat half outside the card on an iPad */
-body.nx-on #widget-picker .wl-pv{display:none}
+/* 1507c (Dave, 27 Nov 16:30: "need to see previews of the widgets in the widget library that also disappeared with new look"): the
+   preview was hidden here — it is shown again; the widget draws it itself, at the size chosen */
+body.nx-on #widget-picker .wl-pv{border-radius:16px}
 body.nx-on #widget-picker .wl-tn{order:-1;display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
 body.nx-on #widget-picker .nxe-ic{width:40px;height:40px;border-radius:13px;background:rgba(255,255,255,.08);display:grid;place-items:center;flex:none}
 body.nx-on #widget-picker .nxe-ic svg{width:20px;height:20px;stroke:#fff;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
