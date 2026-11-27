@@ -3434,6 +3434,20 @@ html.pnx #px-more .px-row.on b{color:var(--px-blue2)}
 html.pnx #px-more .px-secl{max-height:62vh;overflow-y:auto}
 html.pnx #px-more .px-secl .px-ct{color:var(--px-t3);font-size:15px;margin-right:6px}
 </style>
+<style>
+/* REGISTER 1506 — THE CLOSED iPHONE DUO (Dave, 27 Nov 2026: "go with your recommendation"). Its outer screen keeps a band clear
+   down the RIGHT edge — the camera in the top corner, and where the phone stands its own bars upright. The page is told when it is
+   on that screen (the band is measured from the phone, never written in) and then: the whole page ends where the band begins, and
+   the bottom bar stands upright IN the band, from the foot up. Every other phone, the open Duo and every tablet: nothing changes. */
+html.pnx.duo-rail{background:#0e0e10}
+html.pnx.duo-rail body{position:fixed;top:0;left:0;bottom:0;right:var(--duo-r,0px);width:auto;height:auto;margin:0;contain:layout}
+html.pnx.duo-rail #app{padding-right:0}
+html.pnx.duo-rail #app.v2 .v2tabs{left:auto;right:calc(-1 * var(--duo-r));top:0;bottom:0;width:var(--duo-r);height:auto;display:flex;flex-direction:column;justify-content:flex-end;align-items:stretch;gap:2px;padding:0 0 calc(env(safe-area-inset-bottom,0px) + 10px);background:rgba(18,18,21,.92)!important}
+html.pnx.duo-rail #app.v2 .v2tabs::before{display:none}
+html.pnx.duo-rail #app.v2 .v2tabs .v2t{flex:none;padding:11px 0}
+html.pnx.duo-rail #app.v3 .v3cmd{bottom:calc(env(safe-area-inset-bottom,0px) + 14px)!important}
+html.pnx.duo-rail #app.v3 .scroll{padding-bottom:calc(env(safe-area-inset-bottom,0px) + 86px)!important}
+</style>
 </head>
 <body>
 
@@ -4539,7 +4553,7 @@ html.pnx #px-more .px-secl .px-ct{color:var(--px-t3);font-size:15px;margin-right
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026111940';
+const PROOS_BUILD='2026111941';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -25873,6 +25887,22 @@ async function tokCopy(){
       else for(var j=0;j<m.addedNodes.length;j++) fix(m.addedNodes[j]); }
   }).observe(document.documentElement,{childList:true,subtree:true,characterData:true});
   document.addEventListener('DOMContentLoaded',function(){ if(!dev()) fix(document.body); });
+})();
+</script>
+<script>
+/* REGISTER 1506 — is this the closed iPhone Duo? (see the style above) */
+(function(){
+  var p=document.createElement('div');
+  p.style.cssText='position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;pointer-events:none;padding-right:env(safe-area-inset-right,0px)';
+  var go=function(){ try{
+    var H=document.documentElement; if(!p.parentNode) H.appendChild(p);
+    var r=parseFloat(getComputedStyle(p).paddingRight)||0;
+    var on=r>=60&&window.innerWidth<=700&&window.innerHeight>window.innerWidth;
+    if(on) H.style.setProperty('--duo-r',r+'px'); else H.style.removeProperty('--duo-r');
+    H.classList.toggle('duo-rail',on);
+  }catch(e){} };
+  go(); window.addEventListener('resize',go); window.addEventListener('orientationchange',go);
+  setTimeout(go,300); setTimeout(go,1500);
 })();
 </script>
 </body>
