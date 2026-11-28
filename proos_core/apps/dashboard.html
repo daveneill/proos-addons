@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112811';
+const PROOS_BUILD='2026112812';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -25125,7 +25125,7 @@ body.nx-on #nx-page.open{display:block}
 /* 1550 (Dave 28 Nov 17:46: "a faint white line dividing the Home Name and the word summary on the Home and Room pages that just
    stretchs maybe two thirds across the screen so not full width and the words summary if stretches to 2 lines needs to also stop
    at same point"): the line and the words are ONE box, two thirds of the page wide — so they end together. No words, no line. */
-.nxr-line{font-size:16px;font-weight:300;letter-spacing:.01em;color:rgba(255,255,255,.88);margin:10px 0 12px;min-height:20px;box-sizing:border-box;max-width:66.667%;border-top:1px solid rgba(255,255,255,.16);padding-top:10px}
+.nxr-line{font-size:17px;font-weight:200;letter-spacing:0;color:rgba(255,255,255,.65);margin:10px 0 12px;min-height:20px;box-sizing:border-box;max-width:66.667%;border-top:1px solid rgba(255,255,255,.16);padding-top:10px}
 .nxr-line:empty{border-top:0;padding-top:0}
 @media (max-width:640px){.nxr-line{max-width:100%}}
 /* 1547 (Dave 28 Nov 17:31: "when a lot on on. the home you dont want lines of summary"): Home's line is two lines at most, whatever arrives */
@@ -25332,7 +25332,9 @@ body.nx-on #nx-page.open{display:block}
    line up to the left"): measured — a 44px light letter is drawn ~4px inside its box, a 15px one ~1px. The name is pulled left by
    that difference (in em, so any size), and its ink starts where the line, the summary and the tiles start. Home and rooms.
    1552 (Dave 17:58, the old look's Office beside the new Home: "needs to not be bold pic 2 is old look is how it needs to look"):
-   the summary above is light (300), a point larger, as the old look drew it. */
+   the summary above is light, as the old look drew it.
+   1555 (Dave 18:35 "still seems to look like its in bold"; 18:36 "Maybe needs to change to a grey not white"): the old look's own
+   figures, found in .home-time — weight 200, white at 65 % — are what it uses now. */
 #nx-page .nxr-name{margin-left:-.07em}
 #nx-page.nx-home-pg .nxh-top{height:0;margin:0;padding:0;overflow:hidden}
 #nx-page.nx-home-pg .nxh-greet{margin-top:200px}
