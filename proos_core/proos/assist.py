@@ -608,6 +608,9 @@ _HTTP_TIMEOUT = 75
 # 12 Sep 2026: the recommended default for agentic tool-use work is
 # claude-opus-5 and gpt-6-astra. A blank Model field in Pro means THESE.
 DEFAULT_MODELS = {"claude": "claude-opus-5", "openai": "gpt-6-astra"}
+# REGISTER 1531: the small model for the one-line "is this a name or a description?" music reading (Dave 28 Nov "B").
+# Only a supplier whose small model is known is listed; any other keeps the main model for it.
+WORDS_MODELS = {"claude": "claude-haiku-5-5"}
 
 
 # ── config ───────────────────────────────────────────────────────────────────
@@ -4751,11 +4754,21 @@ class ToolRunner:
                   "SEARCH: <two to five words to search a music service with, to find a fitting playlist> — "
                   "if they described a mood, an activity or a style." % asked)
         t0 = time.time()
+        # REGISTER 1531 (Dave 28 Nov 14:19 "B"): this ONE line is asked of a small fast model — the installer's own fast
+        # model when Pro has one set, else the supplier's small one. Everything else Assist does stays on the main model
+        # (1334's one AI for testing is untouched). If the small model is refused, the main one is asked once.
+        small = (cfg.get("fast_model") or "").strip() or WORDS_MODELS.get(cfg.get("provider") or "")
         try:
-            text = _one_answer(cfg, prompt, quick=True)
+            text = _one_answer(cfg, prompt, quick=True, model=small)
         except Exception as e:                                   # noqa: BLE001
-            print("  [assist] music words: the AI didn't answer (%s)" % e, flush=True)
-            return None
+            print("  [assist] music words: the small model didn't answer (%s) — asking the main one" % str(e)[:120], flush=True)
+            try:
+                text = _one_answer(cfg, prompt, quick=True) if small else None
+            except Exception as e2:                              # noqa: BLE001
+                print("  [assist] music words: the AI didn't answer (%s)" % e2, flush=True)
+                return None
+            if text is None:
+                return None
         print("  [assist] music words: the AI answered in %.1fs (%r)" % (time.time() - t0, (text or "")[:60]), flush=True)
         m = re.search(r"\b(NAME|SEARCH)\s*:\s*(.+)", text or "", re.I)
         if not m:
@@ -5121,22 +5134,22 @@ class ToolRunner:
         # exact title on some service, that is the answer — the AI is not waited for. It is waited for only when nothing
         # exact was found (a mood, a style, a misheard name).
         how0, cards0 = _ms.rank(res, asked, fav_names)
-        if how0 == "exact" and not self._favourites_like(area, asked):
-            ai, kind, words, how_ai = None, None, asked, "said"
-            times["ai"] = 0.0
-            times["search"] = round(time.time() - t, 1)
-        else:
-            # REGISTER 880 (read on the box 14 Oct 19:58: the reply reached the platform with 0.15 s of its 12 s wait left):
-            # the AI is waited for only within what is left of the road's budget, measured from the speaker's first
-            # read — past it the words as said stand, and the AI's answer is kept for the next ask. A spoken reply that
-            # arrives after the platform stopped waiting is "On it…" and nothing after; Dave: no "still processing".
-            th.join(timeout=max(0.5, self.MUSIC_ROAD_BUDGET_S - (time.time() - t_conn)))
-            ai = box.get("ai")
-            kind, words = ai if ai else (None, asked)
-            how_ai = "ai-name" if kind == "name" else ("ai-search" if kind == "search" else "service")
-            if words != asked:
-                res = _ms.search_all(self.client, eid, words)
-            times["ai"] = times["search"] = round(time.time() - t, 1)
+        # REGISTER 1531 (Dave 28 Nov 14:19 "B", after the Office run 1520: "Play something relaxing" → an artist CALLED
+        # Something Relaxing; "some jazz" → Queen's album "Jazz"; eight of 24 the same way). 872's shortcut stood here: an
+        # exact title for the words as said was the answer and the AI was not waited for. A music service holds a thing
+        # called almost anything, so a description nearly always HAS an exact title — and the approved design (11 Oct: a
+        # NAME plays what is named, a DESCRIPTION is the AI's choice) never got its say. The shortcut is gone: the AI's
+        # reading ALWAYS decides, waited for within the road's budget (880); it is asked of a small fast model (_ai_words),
+        # so the wait is short. No AI set up, or no answer in time → the words as said stand, as before.
+        th.join(timeout=max(0.5, self.MUSIC_ROAD_BUDGET_S - (time.time() - t_conn)))
+        ai = box.get("ai")
+        kind, words = ai if ai else (None, asked)
+        if " ".join(str(words).lower().split()) == " ".join(str(asked).lower().split()):
+            words = asked                                        # the same words — the first search already answers them
+        how_ai = "ai-name" if kind == "name" else ("ai-search" if kind == "search" else ("said" if how0 == "exact" else "service"))
+        if words != asked:
+            res = _ms.search_all(self.client, eid, words)
+        times["ai"] = times["search"] = round(time.time() - t, 1)
         tried = [x["name"] for x in res.get("services") or []]
         if kind == "search":
             # a mood, an activity, a style: the first playlist any service offers for the AI's words (register 758)
@@ -9362,16 +9375,19 @@ def proof_run(client, project_mod, user, ma=None, awareness=None) -> dict:
 _QUICK_REFUSED = {}     # model -> True once the provider refused the quick-answer setting for it
 
 
-def _one_answer(cfg, prompt, max_tokens=40, quick=False):
+def _one_answer(cfg, prompt, max_tokens=40, quick=False, model=None):
     """One short question to the configured AI, its text answer back (music design stage 3: the
     choice for a description). Same two roads as test_provider and the chat.
     quick=True (register 755, measured on the box: the choice took up to ~7 s on the main model):
     the installer's fast model when one is configured (Pro › Assist AI, the same fast_model short
     commands already use), and on the OpenAI road the provider's lowest reasoning effort — if the
     provider refuses that setting for this model, asked again without it, and remembered."""
+    _asked_model = model
     model = cfg.get("model") or DEFAULT_MODELS["claude" if cfg["provider"] == "claude" else "openai"]
     if quick and (cfg.get("fast_model") or "").strip():
         model = cfg["fast_model"].strip()
+    if _asked_model:
+        model = _asked_model                                     # register 1531: the caller names the model for this one question
     if cfg["provider"] == "claude":
         r = _http_json("https://api.anthropic.com/v1/messages",
                        {"model": model, "max_tokens": max_tokens,
