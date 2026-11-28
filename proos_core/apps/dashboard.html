@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112817';
+const PROOS_BUILD='2026112901';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -25016,8 +25016,11 @@ body.nx-on #nx-page.open{display:block}
     if(c==='Shades'&&typeof _nxShades==='function') return _nxShades(null);   // 1380: the Shades page
     if(c==='Locks & Access'&&typeof _nxLocks==='function') return _nxLocks(null);   // 1382: the Locks page
     if(c==='Cameras'&&typeof _nxCameras==='function') return _nxCameras(null);   // 1383: the Cameras page
-    if(c==='Music'&&typeof _nxMusic==='function') return _nxMusic(null);   // 1384: the Speakers page
-    if(c==='TVs & Media'&&typeof _nxMedia==='function') return _nxMedia(null);   // 1386
+    // 1564 (Dave 29 Nov 2026 06:05, the old look's two doors: "music is supposed to go to the browse music page and the TVs & Media …
+    // is supposed to go to [the cards] … supposed to include the Tv's also"): Music opens Browse Music (Back returns here); TVs &
+    // Media opens the cards page, which holds every player — speakers and TVs.
+    if(c==='Music'){ closePage(); window._nxRet=function(){ _nxGo('devices'); }; try{ showPage('music'); }catch(e){} return; }
+    if(c==='TVs & Media'&&typeof _nxMusic==='function') return _nxMusic(null);
     if(c==='Irrigation'&&typeof _nxIrrigation==='function') return _nxIrrigation(null);   // 1386
     if(typeof _nxSecurity==='function'&&({Security:1,'Garage & Gates':1,'Security & Sensors':1})[c]) return _nxSecurity(c==='Security'?'alarm':c==='Garage & Gates'?'garage':'sensors');   // 1381
     var all=nxAll().filter(function(d){ return d.cat===c; }), rooms=CONFIG.rooms||[], by={};
@@ -26387,6 +26390,7 @@ body.nx-on #pa-detail{z-index:9070}
 <script>
 (function(){
   var nxmEsc=function(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); };
+  var TVI='<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8"/></svg>';   // 1564: a TV's card wears a TV, not a note
   var BACK='<svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg>', NOTE='<svg viewBox="0 0 24 24"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>',
       PLAY='<svg viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></svg>', PAUSE='<svg viewBox="0 0 24 24"><path d="M6 4.5h4v15H6zM14 4.5h4v15h-4z"/></svg>',
       VOL='<svg viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4zM15.5 8.5a5 5 0 0 1 0 7"/></svg>', LINK='<svg viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 6 .5l3-3a4 4 0 0 0-6-6l-1 1M14 10a4 4 0 0 0-6-.5l-3 3a4 4 0 0 0 6 6l1-1"/></svg>';
@@ -26404,13 +26408,17 @@ body.nx-on #pa-detail{z-index:9070}
       vol:vol, canVol:!!(f&VOLUME_SET)&&vol!=null, canPP:!!(f&(PAUSE_F|PLAY_F)), canGroup:!!(f&GROUPING), members:(A.group_members||[]).filter(function(m){ return m!==e; })};
   }
   window._nxmRead=_nxmRead;
-  function _nxmAll(){ return (window._nxAll?_nxAll():[]).filter(function(d){ return d.cat==='Music'; }).map(function(d){
+  // 1564: every player — the speakers, then the TVs and players. One card a device: the same entity is never drawn twice, and a
+  // TV-side entry that carries a speaker's own room-and-name (an AV receiver that is both) is the speaker's card.
+  function _nxmAll(){ var seen={}, spk={}; return (window._nxAll?_nxAll():[]).filter(function(d){ return d.cat==='Music'||d.cat==='TVs & Media'; })
+    .sort(function(a,b){ return (a.cat==='Music'?0:1)-(b.cat==='Music'?0:1); }).map(function(d){
     var r=(CONFIG.rooms||[]).filter(function(x){ return x.id===d.area; })[0]; var room=r?r.name:(d.area&&typeof areaNameById!=='undefined'&&areaNameById[d.area])||'';
-    var nm=(window._pxShown?_pxShown(d):((d)||{}).name||''); return {e:d.lead, name:nm||room||d.name, room:room, label:room&&nm&&room!==nm?room+' · '+nm:(room||d.name)}; }); }
+    var nm=(window._pxShown?_pxShown(d):((d)||{}).name||''); return {e:d.lead, name:nm||room||d.name, room:room, label:room&&nm&&room!==nm?room+' · '+nm:(room||d.name), tv:d.cat!=='Music', area:d.area||''}; })
+    .filter(function(x){ if(seen[x.e]||(x.tv&&spk[x.label])) return false; seen[x.e]=1; if(!x.tv) spk[x.label]=1; return true; }); }
   function _nxmCard(x, all){
     var S=states[x.e], R=_nxmRead(x.e,S,pend), A=(S&&S.attributes)||{};
     var art=''; if(R.title){ try{ var p=(typeof _artOf==='function')?_artOf(x.e):A.entity_picture; art=p?artSrc(p):''; }catch(z){} }
-    var line=R.gone?R.word:R.title?[R.title,R.who].filter(Boolean).join(' · '):R.word;
+    var line=R.gone?R.word:R.title?[R.title,R.who].filter(Boolean).join(' · '):(x.tv&&window._nxtRead?(_nxtRead(S).word||R.word):R.word);   // 1564: a TV says what the TV page said (On, its source, Off)
     var grouped=R.members.length?all.filter(function(o){ return R.members.indexOf(o.e)>=0; }).map(function(o){ return o.room||o.name; }):[];
     if(grouped.length) line+=' · with '+grouped.join(', ');
     // join: the music playing elsewhere that this speaker can group with (both report grouping)
@@ -26420,7 +26428,7 @@ body.nx-on #pa-detail{z-index:9070}
     else if(leader) btn='<button type="button" class="nxm-btn grp" data-mjoin="'+nxmEsc(x.e)+'" data-mlead="'+nxmEsc(leader.e)+'" aria-label="Join '+nxmEsc(leader.room||leader.name)+'">'+LINK+'</button>';
     if(R.canPP&&(R.playing||R.paused)) btn+='<button type="button" class="nxm-btn'+(R.playing?'':' play')+'" data-mpp="'+nxmEsc(x.e)+'" aria-label="'+(R.playing?'Pause':'Play')+'">'+(R.playing?PAUSE:PLAY)+'</button>';
     var bgart=art?'<i class="nxm-bgart" aria-hidden="true" style="background-image:url(\''+String(art).replace(/'/g,'%27')+'\')"></i>':'';   // 1429
-    return '<div class="nxm-card'+(R.playing?' play':'')+(art?' has-art':'')+'">'+bgart+'<div class="nxm-top" data-mopen="'+nxmEsc(x.e)+'"><div class="nxm-art" style="'+(art?"background-image:url('"+String(art).replace(/'/g,'%27')+"')":'')+'">'+(art?'':NOTE)+'</div>'+
+    return '<div class="nxm-card'+(R.playing?' play':'')+(art?' has-art':'')+'">'+bgart+'<div class="nxm-top" data-mopen="'+nxmEsc(x.e)+'"><div class="nxm-art" style="'+(art?"background-image:url('"+String(art).replace(/'/g,'%27')+"')":'')+'">'+(art?'':(x.tv?TVI:NOTE))+'</div>'+
       '<div class="gr"><b>'+nxmEsc(x.label)+'</b><small class="'+(R.playing?'on':'')+'">'+nxmEsc(line)+(leader?' · join '+nxmEsc(leader.room||leader.name):'')+'</small></div><div style="display:flex;gap:8px">'+btn+'</div></div>'+
       (R.canVol&&!R.gone?'<div class="nxm-vol" data-mvol="'+nxmEsc(x.e)+'"><i style="width:'+R.vol+'%"></i><span class="l">'+VOL+'Volume</span><span class="r">'+R.vol+'</span></div>':'')+'</div>';
   }
@@ -26428,13 +26436,16 @@ body.nx-on #pa-detail{z-index:9070}
     var p=document.getElementById('nx-page'); if(!p||!p.classList.contains('open')||!p.classList.contains('nx-mus-pg')||held) return;
     var all=_nxmAll(), playing=all.filter(function(x){ return _nxmRead(x.e,states[x.e],pend).playing; });
     all.sort(function(a,b){ var ra=_nxmRead(a.e,states[a.e],pend), rb=_nxmRead(b.e,states[b.e],pend); return ((rb.playing?2:rb.paused?1:0)-(ra.playing?2:ra.paused?1:0))||a.label.localeCompare(b.label); });
-    var h='<div class="nx-in"><button type="button" class="nx-back" data-mb>'+BACK+'</button><div class="nx-hd"><div><h1>Music</h1><div class="nx-sub">'+(all.length?(playing.length?playing.length+' playing · ':'')+all.length+(all.length===1?' speaker':' speakers'):'')+'</div></div>'+
+    var h='<div class="nx-in"><button type="button" class="nx-back" data-mb>'+BACK+'</button><div class="nx-hd"><div><h1>TVs &amp; Media</h1><div class="nx-sub">'+(all.length?(playing.length?playing.length+' playing · ':'')+all.length+(all.length===1?' device':' devices'):'')+'</div></div>'+
       '<button type="button" class="nx-chip" data-mbrowse>Browse Music</button></div>'+
-      (all.length?'<div class="nxm-list">'+all.map(function(x){ return _nxmCard(x,all); }).join('')+'</div>':'<div class="nxr-quiet">No speakers yet</div>')+'</div>';
+      (all.length?'<div class="nxm-list">'+all.map(function(x){ return _nxmCard(x,all); }).join('')+'</div>':'<div class="nxr-quiet">No TVs or speakers yet</div>')+'</div>';
     if(p._sig===h) return; p._sig=h; var y=p.scrollTop; p.innerHTML=h; p.scrollTop=y;
     p.querySelector('[data-mb]').onclick=function(){ var f=from; _nxmStop(); if(f) f(); else _nxGo('devices'); };
     p.querySelector('[data-mbrowse]').onclick=function(){ var f=from; _nxmStop(); p.classList.remove('open'); window._nxRet=function(){ _nxMusic(f); }; try{ showPage('music'); }catch(z){} };   // 1508
-    p.querySelectorAll('[data-mopen]').forEach(function(b){ b.onclick=function(ev){ if(ev.target.closest('button')) return; try{ openPlayer(b.dataset.mopen); }catch(z){} }; });
+    p.querySelectorAll('[data-mopen]').forEach(function(b){ b.onclick=function(ev){ if(ev.target.closest('button')) return; var e=b.dataset.mopen, x=all.filter(function(o){ return o.e===e; })[0];
+      // 1564: a TV or player that is OFF is never switched here and has no control page to open — its room, where its scenes are (1 Nov; the TV list's own rule)
+      if(x&&x.tv&&window._nxtRead&&!_nxtRead(states[e]).on){ var i=(CONFIG.rooms||[]).findIndex(function(r){ return r.id===x.area; }); if(i>=0&&typeof _nxRoom==='function'){ _nxmStop(); _nxRoom(i); } return; }
+      try{ openPlayer(e); }catch(z){} }; });
     p.querySelectorAll('[data-mpp]').forEach(function(b){ b.onclick=function(){ svc('media_player','media_play_pause',{entity_id:b.dataset.mpp}); }; });
     p.querySelectorAll('[data-mjoin]').forEach(function(b){ b.onclick=function(){ svc('media_player','join',{entity_id:b.dataset.mlead, group_members:[b.dataset.mjoin]}); }; });
     p.querySelectorAll('[data-mleave]').forEach(function(b){ b.onclick=function(){ svc('media_player','unjoin',{entity_id:b.dataset.mleave}); }; });
@@ -26574,7 +26585,9 @@ body.nx-on #device-chooser{z-index:9380}
     p.querySelectorAll('[data-irun]').forEach(function(b){ b.onclick=function(){ _nxiRun(b.dataset.irun); p._sig=''; _nxiDraw(); }; });
   }
   function _nx6Stop(){ clearInterval(timer); timer=null; from=null; var p=document.getElementById('nx-page'); if(p){ p.classList.remove('nx-tv-pg','nx-irr-pg'); } }
-  window._nxMedia=function(back){ _nx6Page('nx-tv-pg'); from=back||null; _nxtDraw(); clearInterval(timer); timer=setInterval(_nxtDraw,1000); };
+  // 1564: the plain list is kept (not routed to) — the media page is the cards page now, speakers and TVs together
+  window._nxMediaList=function(back){ _nx6Page('nx-tv-pg'); from=back||null; _nxtDraw(); clearInterval(timer); timer=setInterval(_nxtDraw,1000); };
+  window._nxMedia=function(back){ return window._nxMusic(back); };
   window._nxIrrigation=function(back){ _nx6Page('nx-irr-pg'); from=back||null; _nxiDraw(); clearInterval(timer); timer=setInterval(_nxiDraw,1000); };
 })();
 </script>
