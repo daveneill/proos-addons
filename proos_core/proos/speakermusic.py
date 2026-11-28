@@ -737,6 +737,23 @@ def open_item(sp, service_id, item_id, account=None, time_zone=None, index=0, co
     return out
 
 
+# REGISTER 1541 (Dave 28 Nov 2026 15:49 "1. yes" — his own playlists first). Where a service keeps THE PERSON'S OWN playlists, by
+# the service's own id for that shelf. READ ON DAVE'S BOX: Spotify (12) → "Your Music" (yourmusic_root) › "Playlists" (playlists),
+# 46 of his. A service not listed here has no known shelf and offers none — nothing is guessed. (Apple Music's own shelf is the
+# signed-in person's and needs that person's sign-in on the turn; not done here.)
+LIBRARY_PLAYLISTS = {12: "playlists"}
+
+
+def library_playlists(sp, service_id, account=None, time_zone=None, count=200):
+    """The person's own playlists on this service, as cards (kept so a pick can be played); [] when the service has no
+    known shelf for them."""
+    shelf = LIBRARY_PLAYLISTS.get(int(service_id))
+    if not shelf or _apple(service_id):
+        return []
+    out = open_item(sp, int(service_id), shelf, account, time_zone, index=0, count=int(count))
+    return [c for c in (out.get("items") or []) if str(c.get("type") or "").rsplit(".", 1)[-1].lower() == "playlist"]
+
+
 def search(sp, service_id, q, account=None, time_zone=None, categories=None, count=8):
     """Search the service in each of ITS OWN search categories (the service lists them).
     REGISTER 751 (measured from the dashboard): one after another, Spotify's five categories took 4.2 s.

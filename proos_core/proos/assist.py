@@ -5226,6 +5226,20 @@ class ToolRunner:
                                            how_ai, asked, times)
             return {"error": _ms.nothing_found(res, words)}
         how, cards = _ms.rank(res, words, fav_names)
+        # REGISTER 1541 (Dave 28 Nov 15:49 "1. yes"; the Office runs: "Play Chill House 2026" played Apple Music's playlist of
+        # that name, not his own on Spotify). The person's OWN playlists come first: one whose title IS the words — or, for
+        # two words or more, begins with them — is the one named, ahead of the catalogue. An ARTIST of exactly that name is
+        # still the artist, and a kind that was said and is not "playlist" is respected.
+        _ks, _nm = _ms.kind_said(words)
+        if _ks in (None, "playlist") and not (how == "exact" and cards and cards[0].get("kind") == "artist" and not _ks):
+            for _sv in res.get("services") or []:
+                _own = _ms.own_playlist(_ms.library_playlists(self.client, eid, mod, sp, _sv.get("service_id"),
+                                                              _sv.get("account"), tz), _nm or words)
+                if _own:
+                    how, cards = "exact", [dict(_own, sid=_sv.get("service_id"), acct=_sv.get("account"),
+                                                service=_sv.get("name"), kind="playlist")]
+                    how_ai += ", own playlist"
+                    break
         options = [{"kind": "favourite", "title": f["name"], "data": f} for _r, f in favs]
         if how == "exact":
             options += [{"kind": c["kind"], "title": c["title"], "service": c["service"], "cand": c, "eid": eid, "mod": mod,

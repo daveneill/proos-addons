@@ -443,6 +443,50 @@ def rank(result, words, favourites=None):
     return "none", []
 
 
+_library = {}            # (speaker, service id, account) -> (the person's own playlists, when)
+LIBRARY_KEPT_S = 600     # plumbing: how long a read of the person's own playlists is kept
+
+
+def library_playlists(client, entity_id, mod, sp, sid, acct, tz, now=time.time):
+    """The person's own playlists on one service of the speaker (register 1541), kept a while; [] when the service module
+    offers none or it does not answer."""
+    try:
+        key = (entity_id, int(sid), acct)
+    except (TypeError, ValueError):                              # a service with no id of its own has no shelf to read
+        return []
+    t = now()
+    with _LOCK:
+        hit = _library.get(key)
+    if hit and t - hit[1] < LIBRARY_KEPT_S:
+        return hit[0]
+    fn = getattr(mod, "library_playlists", None)
+    try:
+        items = list(fn(sp, sid, acct, tz) or []) if fn else []
+    except Exception as e:                                       # noqa: BLE001
+        print("  [music] the person's own playlists on service %s didn't answer (%s)" % (sid, str(e)[:120]), flush=True)
+        return []
+    with _LOCK:
+        _library[key] = (items, t)
+    return items
+
+
+def own_playlist(items, words):
+    """The person's own playlist the words name: its title IS the words; or — for two words or more — begins with them
+    (his "Chill House 2026 🌴 | Chill Hits…" for "chill house 2026"). One word must be the whole title."""
+    w = _letters(words)
+    if not w:
+        return None
+    for c in items or []:
+        if _letters(c.get("title")) == w:
+            return c
+    if len(w) >= 2:
+        for c in items or []:
+            t = _letters(c.get("title"))
+            if len(t) > len(w) and t[:len(w)] == w:
+                return c
+    return None
+
+
 def nothing_found(result, words):
     names = [s["name"] for s in result.get("services") or [] if not s.get("pending")]
     slow = [s["name"] for s in result.get("services") or [] if s.get("pending")]
