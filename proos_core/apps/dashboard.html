@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112813';
+const PROOS_BUILD='2026112814';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -25154,7 +25154,7 @@ body.nx-on #nx-page.open{display:block}
 .nxr-live.wide{grid-column:span 2;min-height:170px}
 .nxr-live.art::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.05),rgba(0,0,0,.78))}
 .nxr-live>*{position:relative}
-.nxr-live .k{font-size:12px;font-weight:500;color:rgba(255,255,255,.62)}
+.nxr-live .k{font-size:12px;font-weight:400;color:rgba(255,255,255,.62)}
 .nxr-live .n{font-size:15px;font-weight:600;margin-top:3px;line-height:1.25}
 .nxr-live.lit{box-shadow:0 16px 40px -14px rgba(255,190,110,.45)}
 .nxr-live.warn{background:linear-gradient(180deg,rgba(255,181,71,.10),rgba(255,181,71,.03)),#1b1c20}
@@ -25383,7 +25383,10 @@ img.nxa-fit-c{object-fit:contain!important;object-position:center!important;back
 .nxh-hero .glow{position:absolute;inset:0;background:center/cover;filter:blur(40px) brightness(.45) saturate(1.3);transform:scale(1.3);opacity:.9}
 .nxh-hero .tx{position:relative;z-index:2;padding:18px;display:flex;flex-direction:column;justify-content:space-between;width:64%}
 .nxh-hero .tt{font-size:22px;font-weight:600;line-height:1.15;margin-top:4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.nxh-hero .ar{font-size:13px;font-weight:500;color:rgba(255,255,255,.7)}
+/* 1559 (Dave 28 Nov 18:55 "Yes please" to: lines under titles to regular grey — the old look's "bold and non bold"): the small line
+   beside a bold title is REGULAR and grey, on the player card, On Now tiles, Devices cards, widgets and a starting scene tile.
+   The titles keep their weight. The old look's own figure: .mwc-artist, regular, white at 55 %. */
+.nxh-hero .ar{font-size:13px;font-weight:400;color:rgba(255,255,255,.6)}
 .nxh-bars{display:inline-flex;gap:2px;align-items:flex-end;height:12px;margin-right:8px}
 .nxh-bars i{width:3px;height:100%;border-radius:2px;background:#8A98FF;transform-origin:bottom;animation:nxhBar var(--m-hold) var(--e-standard) infinite alternate}
 .nxh-bars i:nth-child(2){animation-delay:-.4s}.nxh-bars i:nth-child(3){animation-delay:-.8s}
@@ -25821,7 +25824,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
 .nxc-card.cool{background:linear-gradient(135deg,rgba(77,99,255,.22),rgba(143,214,255,.06)),#1b1c20}
 .nxc-card.heat{background:linear-gradient(135deg,rgba(255,140,80,.22),rgba(255,196,107,.06)),#1b1c20}
 .nxc-card.auto{background:linear-gradient(135deg,rgba(160,120,255,.2),rgba(143,214,255,.06)),#1b1c20}
-.nxc-card .k{font-size:12px;font-weight:500;color:rgba(255,255,255,.62)}
+.nxc-card .k{font-size:12px;font-weight:400;color:rgba(255,255,255,.62)}
 .nxc-card .n{font-size:17px;font-weight:600;margin-top:2px}
 .nxc-card .w{font-size:13px;color:rgba(255,255,255,.75);margin-top:6px}
 .nxc-card .t{font-size:40px;font-weight:300;letter-spacing:-.03em;line-height:1}
@@ -26588,7 +26591,7 @@ body.nx-on #device-chooser{z-index:9380}
 .nxw.w2{grid-column:span 2}.nxw.w3{grid-column:span 2}.nxw.h2{grid-row:span 2}
 .nxw.art::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.1),rgba(0,0,0,.78))}
 .nxw>*{position:relative}
-.nxw .k{font-size:12px;font-weight:500;color:rgba(255,255,255,.62)}
+.nxw .k{font-size:12px;font-weight:400;color:rgba(255,255,255,.62)}
 .nxw .v{font-size:28px;font-weight:300;letter-spacing:-.02em;line-height:1.1;margin-top:2px}
 .nxw .n{font-size:15px;font-weight:600;line-height:1.25}
 .nxw .s{font-size:12.5px;color:rgba(255,255,255,.62);margin-top:3px}
@@ -27149,7 +27152,7 @@ body.nx-on #atv-page .tvp-chrow button,body.nx-on #atv-page .tvp-pad button:not(
 /* 1393 — an AV scene starting on the room page: the ring fills one piece per device (no spin once the devices are known) */
 .nxr-scn .ring.prog{animation:none}
 .nxr-scn.go{box-shadow:inset 0 0 0 1px rgba(255,255,255,.14)}
-.nxr-scn b .nxr-cap{display:block;margin-top:3px;font-size:12px;font-weight:500;color:rgba(255,255,255,.72);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nxr-scn b .nxr-cap{display:block;margin-top:3px;font-size:12px;font-weight:400;color:rgba(255,255,255,.72);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .nxr-scn b .nxr-cap.ok{color:#9fe0bf}.nxr-scn b .nxr-cap.bad{color:#ffb0a8}
 @media (orientation:portrait) and (max-width:600px){
   body.nx-on #atv-page .atv-hdr{flex-wrap:wrap}
