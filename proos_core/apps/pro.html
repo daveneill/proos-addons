@@ -4583,7 +4583,7 @@ html.pnx.duo-rail #app.v3 .scroll{padding-bottom:calc(env(safe-area-inset-bottom
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026112807';
+const PROOS_BUILD='2026112808';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -6238,7 +6238,7 @@ function maCertSub(m){
 function renderCertified(){
   const host=document.getElementById('lib-certified'); if(!host) return;
   // When connected, MA moves to Configured; otherwise it's an available certified integration here.
-  const maTile = maActive() ? ''
+  const maTile = true ? ''   /* 1530: not offered on Integrations (was: maActive() ? '') */
     : `<div class="itile cert" onclick="openMusic()"><div class="itile-ico">${proosLogoIcon()}</div><div class="itile-foot"><div class="itile-body"><div class="itile-nm">ProOS Music<span class="cert-pill">CERTIFIED</span></div><div class="itile-sub">${esc(maCertSub(_maIntg))}</div></div><div class="itile-act"><span class="itile-chev">&rsaquo;</span></div></div></div>`;
   const ahTile = ahPublished() ? ''
     : `<div class="itile cert" onclick="openAppleHome()"><div class="itile-ico">${AH_HOME_ICO}</div><div class="itile-foot"><div class="itile-body"><div class="itile-nm">Apple Home<span class="cert-pill">CERTIFIED</span></div><div class="itile-sub">${ahCertSub()}</div></div><div class="itile-act"><span class="itile-chev">&rsaquo;</span></div></div></div>`;
@@ -18831,6 +18831,7 @@ async function loadMusicStatus(){
     setHTML(st, card('ProOS Music','Ready to add','#f5a623'));
     form.style.display='block';
   }
+  if(!m.connected){ st.style.display='none'; form.style.display='none'; }   /* 1530: shown only when linked */
 }
 
 function loadMusicStatusLegacy(st, form, com){
@@ -18845,7 +18846,7 @@ function loadMusicStatusLegacy(st, form, com){
       renderMusicTiles();
     } else {
       st.innerHTML='<div class="empty"><div class="et">Music not added yet</div><div class="es">Tap Add ProOS Music to link this home\'s music server.</div></div>';
-      form.style.display='block';
+      st.style.display='none'; form.style.display='none';   /* 1530 */
     }
   }).catch(e=>{
     st.innerHTML='<div class="empty"><div class="et">Couldn\'t reach ProOS Core</div><div class="es">ProOS Core (:8770) may be unreachable, or this isn\'t an add-on install.</div></div>';
