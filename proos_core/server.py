@@ -226,6 +226,25 @@ try:
     from proos import assist as _assist          # Pro Assist AI gateway (optional)
 except Exception:  # noqa: BLE001
     _assist = None
+
+
+def _home_line_ask(prompt):
+    """REGISTER 1545: the one short question behind the Home page's written line. The installer's fast model when Pro has
+    one set, else the supplier's small one (the same choice as 1531's one-line music reading). No AI set up -> None, quietly."""
+    if _assist is None:
+        return None
+    cfg = _assist.load_config()
+    if not (cfg.get("provider") and cfg.get("api_key")):
+        return None
+    small = (cfg.get("fast_model") or "").strip() or _assist.WORDS_MODELS.get(cfg.get("provider") or "")
+    return _assist._one_answer(cfg, prompt, max_tokens=120, quick=True, model=small)
+
+
+try:
+    from proos import homesummary as _hsum
+    _hsum.ASK = _home_line_ask                   # WORDS_MODELS / fast_model: see _home_line_ask
+except Exception:  # noqa: BLE001
+    _hsum = None
 try:
     # A TURN IS A JOB (register 466) — it outlives the browser that asked for
     # it, it is watched while it runs, and there is only ever one of it.

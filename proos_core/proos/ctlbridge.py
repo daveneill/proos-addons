@@ -39,6 +39,7 @@ import time
 from .membership import area_of
 
 from proos import sentence as _sent
+from proos import homesummary as _hsum
 from proos import vitals as _vitals
 
 try:                                    # additive: event journal (write-only,
@@ -1177,6 +1178,37 @@ class ActivityPublisher:
             if isinstance(c, str) and c.strip():
                 out.append(c.strip())
         return out
+
+    def _home_rooms(self, snapall: dict):
+        """REGISTER 1545: every room's served home fact WITH the room's own sentence and name — what the written home
+        line is made from — and every room's name. The same reading rule as _home_facts (this sweep's publish first)."""
+        rooms, names = [], []
+        eids = sorted(set(e for e in (snapall or {}) if str(e).startswith("sensor.proos_activity_"))
+                      | set(e for e in self._lastattrs if str(e).startswith("sensor.proos_activity_")))
+        for eid in eids:
+            sig = self._lastattrs.get(eid)
+            attrs = sig if sig is not None else ((snapall.get(eid) or {}).get("attributes") or {})
+            nm = str(attrs.get("area") or "").strip()
+            if nm:
+                names.append(nm)
+            f = attrs.get("home_fact")
+            if isinstance(f, dict) and f.get("kind"):
+                rooms.append({"fact": f, "sentence": attrs.get("sentence"), "room": nm})
+        return rooms, names
+
+    def _part_of_day(self):
+        """'morning' · 'afternoon' · 'evening' · 'night' by the HOME's clock (the platform's time zone), or None if unread."""
+        try:
+            import datetime as _dtm
+            from zoneinfo import ZoneInfo
+            from . import speakermusic as _spm_tz
+            tz = _spm_tz.home_time_zone(self.client)
+            if not tz:
+                return None
+            h = _dtm.datetime.now(ZoneInfo(tz)).hour
+            return "morning" if 5 <= h < 12 else "afternoon" if 12 <= h < 17 else "evening" if 17 <= h < 22 else "night"
+        except Exception:                                        # noqa: BLE001
+            return None
 
     @staticmethod
     def _ghost_sensors(snapall, valid):
@@ -2339,6 +2371,16 @@ class ActivityPublisher:
             _hf_all = self._home_facts(snapall)
             _hsegs = _sent.home_segments(_hf_all)
             _hs = "".join(x["t"] for x in _hsegs) if _hsegs else None
+            # REGISTER 1545 (Dave 28 Nov 17:13: "yes go with 2 with 1 as the words underneath and lights not included"):
+            # the words underneath (what is on, in each room's own words) and, over them, the AI's checked line. The
+            # AI is asked in the background — this sweep never waits; a later sweep carries its words.
+            _hsum_rule, _hsum_ai = None, None
+            try:
+                _hrooms, _hnames = self._home_rooms(snapall)
+                _hsum_rule = _hsum.rule_words(_hrooms)
+                _hsum_ai = _hsum.written(_hrooms, part=self._part_of_day(), all_rooms=_hnames)
+            except Exception:                                    # noqa: BLE001
+                pass
             self._publish("sensor.proos_home_summary",
                           "ok" if (_hel or _hs) else "empty",
                           {"friendly_name": "ProOS Home Summary",   # 1307: its name (was read as "Proos Home Summary")
@@ -2346,6 +2388,8 @@ class ActivityPublisher:
                            "area_id": (_home or {}).get("area_id"),
                            "env_line": _hel,
                            "home_sentence": _hs,
+                           "home_summary": _hsum_rule,              # 1545: the words underneath
+                           "home_summary_written": _hsum_ai,        # 1545: the AI's checked line, when there is one
                            # 321: the same sentence in tappable pieces
                            "home_segments": _hsegs})
         except Exception:                                        # noqa: BLE001
