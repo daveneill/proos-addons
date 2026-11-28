@@ -341,6 +341,18 @@ def carries(title, words):
     return any(t[i:i + len(w)] == w for i in range(len(t) - len(w) + 1))
 
 
+def with_artist(card, words):
+    """The words are this card's title together with its artist: "<title> by <artist>", "<artist> <title>" or
+    "<title> <artist>" (register 1536). False when the card names no artist."""
+    a, t, w = _letters(card.get("artist")), _letters(card.get("title")), _letters(words)
+    if not a or not t or not w:
+        return False
+    for i, x in enumerate(w):
+        if x == "by" and w[:i] == t and w[i + 1:] == a:
+            return True
+    return w == a + t or w == t + a
+
+
 def kind_said(words):
     """(the kind the words name, the words without it) — "the album rumours" → ("album", "rumours"); (None, words) when none."""
     ws = _letters(words)
@@ -398,6 +410,15 @@ def rank(result, words, favourites=None):
         for s in services:
             for c in (s.get("kinds") or {}).get("artist") or []:
                 if same_words(c.get("title"), name):
+                    return "exact", [c]
+    # REGISTER 1536 (Dave's box 28 Nov: "the album 21 by Adele" → nothing found; "Fleetwood Mac Rumours" → a playlist merely
+    # TITLED that, and Dr. Dre played). A name may be a title WITH its artist — "21 by Adele", "Fleetwood Mac Rumours",
+    # "Rumours Fleetwood Mac". The service's own cards carry the artist (read on the box), so an album or song whose title
+    # and artist together ARE the words is the one named — ahead of anything that only happens to be titled the same.
+    for s in services:
+        for k in [x for x in kinds_wanted if x in ("album", "track")]:
+            for c in (s.get("kinds") or {}).get(k) or []:
+                if with_artist(c, name):
                     return "exact", [c]
     for s in services:
         exact = []

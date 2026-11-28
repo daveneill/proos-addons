@@ -9450,11 +9450,20 @@ def _one_answer(cfg, prompt, max_tokens=40, quick=False, model=None):
     if _asked_model:
         model = _asked_model                                     # register 1531: the caller names the model for this one question
     if cfg["provider"] == "claude":
+        # REGISTER 1536 (Core's log on Dave's box, 28 Nov 15:08: for "something else" BOTH models "answered ('')" — an
+        # answer with no words in it — and the track called SOMETHING ELSE played). The one-line answer was allowed 40–60
+        # tokens in all; a model that works the question out first can spend them before it writes a word. The same room
+        # the other supplier's road already gives (max(400, …) below). And an answer with no words now says WHY in the log.
         r = _http_json("https://api.anthropic.com/v1/messages",
-                       {"model": model, "max_tokens": max_tokens,
+                       {"model": model, "max_tokens": max(400, max_tokens),
                         "messages": [{"role": "user", "content": prompt}]},
                        {"x-api-key": cfg["api_key"], "anthropic-version": "2023-06-01"})
-        return "".join(c.get("text", "") for c in (r.get("content") or []) if isinstance(c, dict))
+        _txt = "".join(c.get("text", "") for c in (r.get("content") or []) if isinstance(c, dict))
+        if not _txt.strip():
+            print("  [assist] one answer: no words from %s — stopped because %r, parts %r, tokens out %r"
+                  % (model, r.get("stop_reason"), [c.get("type") for c in (r.get("content") or []) if isinstance(c, dict)],
+                     (r.get("usage") or {}).get("output_tokens")), flush=True)
+        return _txt
     body = {"model": model, "input": prompt, "max_output_tokens": max(400, max_tokens)}
     hdrs = {"Authorization": "Bearer %s" % cfg["api_key"]}
     if quick and not _QUICK_REFUSED.get(model):
