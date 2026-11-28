@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112807';
+const PROOS_BUILD='2026112808';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -25123,6 +25123,8 @@ body.nx-on #nx-page.open{display:block}
 .nxr-top svg{width:18px;height:18px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .nxr-name{font-size:44px;font-weight:300;letter-spacing:-.03em;line-height:1.05}
 .nxr-line{font-size:15px;font-weight:500;color:rgba(255,255,255,.8);margin:8px 0 12px;min-height:20px}
+/* 1547 (Dave 28 Nov 17:31: "when a lot on on. the home you dont want lines of summary"): Home's line is two lines at most, whatever arrives */
+.nxh-sum{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;max-width:720px}
 .nxr-sec{display:flex;justify-content:space-between;align-items:baseline;margin:24px 2px 12px}
 .nxr-sec b{font-size:20px;font-weight:600;letter-spacing:-.01em}
 .nxr-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
@@ -25181,11 +25183,13 @@ body.nx-on #nx-page.open{display:block}
   // 1393 (mock S.starting; 1368): the tapped tile's ring fills one piece per device as each reads back, its words say who
   // it is waiting on; Core confirms and every device has answered → that activity's control page opens by itself. Past
   // Core's start window a device that never answered is named in red, and the tile lets go.
+  // 1549 (Dave 28 Nov 17:32, the Family Room's tile reading "Waiting on Family Room TV": "the rrom needs to not be listed as its in the room page already so just starting TV, Apple TV shield etc"): on a room's own page a device's name is said without the room's
+  function _nxrShort(n,room){ n=String(n||''); room=String(room||''); return (room&&n.length>room.length+1&&n.slice(0,room.length+1).toLowerCase()===room.toLowerCase()+' ')?n.slice(room.length+1).trim()||n:n; }
   function _nxrRing(r){ var P=null; try{ P=window._mxProofNow&&_mxProofNow(r.id); }catch(e){}
     if(!P||!P.rows.length) return {svg:'<svg class="ring" viewBox="0 0 36 36"><circle cx="18" cy="18" r="15" fill="none" stroke="rgba(255,255,255,.25)" stroke-width="3"/><circle cx="18" cy="18" r="15" fill="none" stroke="#fff" stroke-width="3" stroke-dasharray="30 95" stroke-linecap="round"/></svg>', cap:''};
     var n=P.rows.length, C=94.25, per=C/n, gap=n>1?3:0, done=P.ok.filter(Boolean).length, out='';
     P.rows.forEach(function(row,i){ out+='<circle cx="18" cy="18" r="15" fill="none" stroke="'+(P.ok[i]?'#5FB98C':(P.timedOut?'#E0564B':'rgba(255,255,255,.25)'))+'" stroke-width="3" stroke-linecap="round" stroke-dasharray="'+Math.max(per-gap,1).toFixed(2)+' '+C+'" stroke-dashoffset="'+(-(i*per)).toFixed(2)+'" transform="rotate(-90 18 18)"/>'; });
-    var w=P.rows[P.ok.indexOf(false)], cap=done===n?'Ready':P.timedOut?((w&&w.name)||'A device')+' didn’t answer':'Waiting on '+((w&&w.name)||'…');
+    var w=P.rows[P.ok.indexOf(false)], cap=done===n?'Ready':P.timedOut?((w&&_nxrShort(w.name,r.name))||'A device')+' didn’t answer':'Waiting on '+((w&&_nxrShort(w.name,r.name))||'…');
     return {svg:'<svg class="ring prog" viewBox="0 0 36 36">'+out+'</svg>', cap:cap, bad:P.timedOut&&done<n}; }
   function _nxrSettle(r){ var f=firing[r.id]; if(!f) return; var v='sensor.proos_activity_'+r.id, done=String(st(v)||'')===f.key&&att(v,'verified')===true;
     if(Date.now()-f.t>_PAC_WAIT_MS){ try{ window._mxProofTimedOut&&_mxProofTimedOut(r.id); }catch(e){} }
@@ -25514,7 +25518,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
     // (env_line, "24.2° and partly cloudy outside"), else the weather entity read here.
     if(!_ln.length){ try{ var _el=String(att('sensor.proos_home_summary','env_line')||'').trim(); if(_el) _ln.push(_el.charAt(0).toUpperCase()+_el.slice(1));
       else { var _w=CONFIG.weather, _t=_w?att(_w,'temperature'):null, _c=_w?String(st(_w)||''):''; if(_t!=null&&_t!==''&&isFinite(+_t)) _ln.push(Math.round(+_t)+'°'+(_c&&_c!=='unknown'&&_c!=='unavailable'?' '+String(wxLabel(_c)).toLowerCase():'')); } }catch(e){} }
-    html=html.replace('<div class="nxh-h1 nxr-name">Home</div>','<div class="nxh-h1 nxr-name">Home</div><div class="nxr-line">'+nxhEsc(_ln.join(' · '))+'</div>');
+    html=html.replace('<div class="nxh-h1 nxr-name">Home</div>','<div class="nxh-h1 nxr-name">Home</div><div class="nxr-line nxh-sum">'+nxhEsc(_ln.join(' · '))+'</div>');
     var _hero=function(d,room){ var hs2=states[d.lead]||{}, HA=hs2.attributes||{}, art=''; try{ var ap=(typeof _artOf==='function')?_artOf(d.lead):HA.entity_picture; art=ap?artSrc(ap):''; }catch(e){}
       var u=art?"url('"+String(art).replace(/'/g,'%27')+"')":'';
       return '<button type="button" class="nxh-hero" data-hopen="'+nxhEsc(d.lead)+'">'+(u?'<div class="glow" style="background-image:'+u+'"></div><div class="art" style="background-image:'+u+'"></div>':'')+
@@ -25529,7 +25533,8 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
       '<div class="nxr-grid" style="grid-template-columns:repeat(2,minmax(0,1fr))">'+M.cards.map(_nxhCard).join('')+'</div>':'';   // 1499: nothing on — nothing shown
     var tiles=scenes.map(function(s,i){ return '<button type="button" class="nxr-scn nxh-scn'+(lit[s.entity]?' on':'')+(ran[s.entity]&&Date.now()-ran[s.entity]<1500?' run':'')+'" data-hscene="'+i+'" style="'+(function(u){ return u?"background-image:url('"+String(u).replace(/'/g,'%27')+"')":''; })(window._nxScenePic?_nxScenePic(s.entity,s.name):s.photo)+'">'+nxhIc('spark','g')+'<b>'+nxhEsc(s.name)+'</b></button>'; });
     if(M.hasLights||M.players.length) tiles.push('<button type="button" class="nxr-scn" data-halloff>'+nxhIc('pw','g')+'<b>All Off</b></button>');
-    var sc='<div class="nxr-sec"><b>Scenes</b><button type="button" class="nxh-more" data-hscenes>All Scenes ›</button></div>'+
+    // 1548 (Dave 28 Nov 17:31: "can we remove the All Scenes > on all the home and area pages"): the heading alone — Scenes is on the bar
+    var sc='<div class="nxr-sec"><b>Scenes</b></div>'+
       (tiles.length?'<div class="nxr-grid">'+tiles.join('')+'</div>':'<div class="nxr-quiet">No scenes yet</div>');
     html+='<div class="nxr-cols nxh-cols"><div>'+sc+'</div><div>'+onNow+'</div></div>'+yw+'</div>';   // 1498: Scenes left, On Now right, as a room   // 1387a: widgets full width under both columns
     var y=p.scrollTop, _hx=(p.querySelector('.nxh-heroes')||{}).scrollLeft||0; p.innerHTML=html; p.scrollTop=y; var _hr=p.querySelector('.nxh-heroes'); if(_hr&&_hx) _hr.scrollLeft=_hx; _nxhWire(p,M);
@@ -26753,7 +26758,10 @@ body.nx-on #device-chooser{z-index:9380}
     var wl=[]; try{ wl=(typeof loadWidgetLayout==='function'?loadWidgetLayout():[])||[]; }catch(x){}
     window._nxBack=room?function(){ _nxRoom((CONFIG.rooms||[]).indexOf(room)); }:function(){ _nxHome(); };   // where a widget's page returns to
     var html=wl.map(function(w){ try{ return _nxwOne(w, room); }catch(x){ return ''; } }).join('');
-    return '<div class="nxr-sec"><b>Your Widgets</b>'+(html?'<button type="button" class="nxe-btn" data-nxe="on">Edit</button>':'')+'</div>'+(html?'<div class="nxw-grid">'+html+'</div>':'')+'<button type="button" class="nxw-add" data-nwadd>+ Add Widget</button>';
+    // 1548 (Dave 28 Nov 17:31: "widgets small blue Edit as the add widget is enough but it should disappear after first widget is added
+    // as then hold starts edit and arrange"): no Edit link. No widget yet — + Add Widget. One or more — the widgets alone; holding
+    // one starts editing, where + Add Widget and Done stand (1011, 1400).
+    return '<div class="nxr-sec"><b>Your Widgets</b></div>'+(html?'<div class="nxw-grid">'+html+'</div>':'<button type="button" class="nxw-add" data-nwadd>+ Add Widget</button>');
   };
   window._nxwOne=_nxwOne;
   window._nxwKit={card:_nxwCard, act:act, size:_nxwSize, IC:IC};   // 1401: the card kit, for the widgets redrawn there
