@@ -5301,9 +5301,10 @@ class ToolRunner:
             if out is not None:
                 return out
             if self._platform_unsupported:
-                return {"error": "the %s speaker (%s) can't search music by name — its integration doesn't offer search. "
-                                 "Ask for one of its favourites, or add ProOS Music in Pro"
-                                 % (self._room_name(area) or "room", ", ".join(self._platform_unsupported))}
+                # REGISTER 1528 (Dave 28 Nov 14:08): said plainly and nothing more — no reason, no speaker's name, no
+                # ProOS Music (ruled out of the product's music, 1527). Which speakers could not is kept for the log.
+                print("  [assist] no search on %s" % ", ".join(self._platform_unsupported), flush=True)
+                return {"error": "music search isn't available in the %s" % (self._room_name(area) or "room")}
             return {"error": "no music speaker in that room — commission one in Pro first"}
         if self._music_busy(eid):
             return {"error": "the last play for that room is still starting — I won't send another on top of it",
