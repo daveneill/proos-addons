@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112809';
+const PROOS_BUILD='2026112810';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -25328,6 +25328,10 @@ body.nx-on #nx-page.open{display:block}
 /* REGISTER 1498 (Dave 26 Nov: "Home needs to match the area/room pages in the same layout"): Home's name is the room name's own
    class, at the room name's height (220px down the photo); its columns are the room's; the greeting sits small above the name */
 .nxh-h1{margin:4px 0 0}
+/* 1551 (Dave 28 Nov 17:49: "words summary looks like it starts further back than the start of the room or home name all needs to
+   line up to the left"): measured — a 44px light letter is drawn ~4px inside its box, a 15px one ~1px. The name is pulled left by
+   that difference (in em, so any size), and its ink starts where the line, the summary and the tiles start. Home and rooms. */
+#nx-page .nxr-name{margin-left:-.07em}
 #nx-page.nx-home-pg .nxh-top{height:0;margin:0;padding:0;overflow:hidden}
 #nx-page.nx-home-pg .nxh-greet{margin-top:200px}
 #nx-page.nx-home-pg .nxh-top+.nxh-h1{margin-top:220px}
