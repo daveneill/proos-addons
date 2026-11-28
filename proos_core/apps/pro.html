@@ -3812,7 +3812,7 @@ html.pnx.duo-rail #app.v3 .scroll{padding-bottom:calc(env(safe-area-inset-bottom
         <button class="back" onclick="goHome()">‹ Back</button>
         <div class="panel-title">ProOS Music</div>
       </div>
-      <div class="wiz-hint" id="music-hint">Linking ProOS Music turns the resident's Music page into a full library — search, queues, playback and cross-brand grouping across every speaker. Without it, ProOS still runs natively on Sonos and HEOS with their saved favourites and same-brand grouping. Add it for AirPlay or Spotify-Connect homes, for one searchable library across brands, or for cross-brand groups.</div>
+      <div class="wiz-hint" id="music-hint"></div>
 
       <!-- SETTINGS HOME — status strip + section tiles.
            Everything the music engine can be configured to do lives here, so
@@ -4583,7 +4583,7 @@ html.pnx.duo-rail #app.v3 .scroll{padding-bottom:calc(env(safe-area-inset-bottom
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026112803';
+const PROOS_BUILD='2026112807';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -18801,6 +18801,7 @@ function maProvLabel(d){ return MA_PROV_LABEL[d] || (d? d.replace(/_/g,' ').repl
 
 async function loadMusicStatus(){
   const st=document.getElementById('music-status'), form=document.getElementById('music-connect'), com=document.getElementById('music-commission');
+  st.style.display='';
   setHTML(st, '<div class="empty"><div class="et">Checking…</div></div>');
   form.style.display='none';
   const rem=document.getElementById('music-remove'); if(rem) rem.style.display='none';
@@ -18817,8 +18818,7 @@ async function loadMusicStatus(){
     +'<div class="es" style="font-size:11px;color:var(--t3);font-weight:300;margin-top:3px">'+sub+'</div></div>'
     +'<div class="rr">'+dot(d)+'</div></div>';
   if(!m.installed){
-    setHTML(st, card('ProOS Music','Not installed','var(--t3)'));
-    form.style.display='block';
+    st.style.display='none';   /* 1528: hidden while it is not installed */
   } else if(!m.running){
     setHTML(st, card('ProOS Music','Installed · not running','#f5a623'));
     form.style.display='block';
