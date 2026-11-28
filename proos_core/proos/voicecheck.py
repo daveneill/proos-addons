@@ -14,6 +14,7 @@ import time
 APP_WAIT_S = 8.0        # plumbing: how long a TV or box is given to show the app after the launch was accepted
 PLAY_WAIT_S = 10.0      # plumbing: how long a speaker is given to say "playing" after the platform took the favourite
 STEP_S = 0.5
+SLOW_START_X = 2.5      # plumbing (register 1538): a speaker playing NOTHING yet is watched up to this many times the wait
 
 
 def _state(client, eid):
@@ -49,6 +50,20 @@ def check_app(client, device, app, wait_s=None, now=time.time, sleep=time.sleep)
 def _playing_sig(st):
     a = (st or {}).get("attributes") or {}
     return (a.get("media_content_id"), a.get("media_title"), a.get("media_channel"), a.get("media_playlist"))
+
+
+def _position_sig(st):
+    """The speaker's own position reading (when it last set it) — None when it gives none."""
+    a = (st or {}).get("attributes") or {}
+    return a.get("media_position_updated_at")
+
+
+def _started_over(st):
+    """The speaker's own position is at the start (within the first seconds) — the music was started, not carried on."""
+    try:
+        return float(((st or {}).get("attributes") or {}).get("media_position")) <= 20.0
+    except (TypeError, ValueError):
+        return False
 
 
 def _letters(s):
@@ -87,16 +102,27 @@ def check_play(client, entity, name, wait_s=None, now=time.time, sleep=time.slee
     last = {}
     was = _playing_sig(before) if before else None
     was_playing = bool(before) and (before or {}).get("state") == "playing"
+    was_pos = _position_sig(before) if before else None
     compare = str(kind or "").lower() in ("artist", "track")
-    while now() - t0 <= wait_s:
+    # REGISTER 1538 (read on Dave's box 28 Nov): (a) Apple Music read paused at 10 s and playing at 20 s — a speaker that is
+    # not playing ANYTHING at the end of the wait is watched half as long again, twice, before "didn't start" is said;
+    # (b) the same music taken again ("more like this" → the same Radio) was "kept playing … instead of" — the speaker's
+    # own position reading says when the same music has been started over, and that is a play.
+    limit = wait_s
+    while now() - t0 <= limit:
         st = _state(client, entity)
         a = st.get("attributes") or {}
-        if st.get("state") == "playing" and (not was_playing or _playing_sig(st) != was):
+        _same = was_playing and _playing_sig(st) == was
+        _restarted = _same and was_pos is not None and _position_sig(st) is not None and _position_sig(st) != was_pos \
+            and _started_over(st)
+        if st.get("state") == "playing" and (not _same or _restarted):
             who = a.get("friendly_name") or entity
             if compare and not names_it(a, name):
                 return False, round(now() - t0, 1), "the %s is playing %s — not %s" % (who, _what_plays(a, name), name)
             return True, round(now() - t0, 1), "%s is playing %s" % (who, _what_plays(a, name))
         last = {"state": st.get("state"), "name": a.get("friendly_name") or entity, "title": a.get("media_title")}
+        if now() - t0 + STEP_S > limit and limit < wait_s * SLOW_START_X and st.get("state") != "playing":
+            limit = min(wait_s * SLOW_START_X, limit + wait_s * 0.75)   # not playing anything yet: a slow service, not a refusal
         sleep(STEP_S)
     if was_playing and last.get("state") == "playing":
         return False, round(now() - t0, 1), "the %s kept playing %s instead of %s" % (last.get("name") or entity, last.get("title") or "what it was", name)

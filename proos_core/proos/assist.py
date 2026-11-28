@@ -5231,6 +5231,13 @@ class ToolRunner:
             if kt not in seen_t:
                 seen_t.add(kt)
                 uniq.append(o)
+        # REGISTER 1538 (Dave's box 28 Nov: "Play Triple M 80s" — his own favourite — "…as a favourite or a station on Triple
+        # M. Which would you like?"): a favourite and a STATION of the very same name are one thing, not a choice — the
+        # favourite is the household's own, and it plays. Beside a song, an album or a playlist of that name it still asks (862).
+        _fv = [o for o in uniq if o["kind"] == "favourite"]
+        if len(uniq) > 1 and len(_fv) == 1 and all(o is _fv[0] or (o["kind"] == "station" and _ms.same_words(o["title"], _fv[0]["title"]))
+                                                    for o in uniq):
+            uniq = _fv
         if len(uniq) > 1:
             return self._ask_which(area, uniq)
         if uniq:
