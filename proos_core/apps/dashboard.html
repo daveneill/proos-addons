@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112901';
+const PROOS_BUILD='2026112902';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -26428,9 +26428,16 @@ body.nx-on #pa-detail{z-index:9070}
     else if(leader) btn='<button type="button" class="nxm-btn grp" data-mjoin="'+nxmEsc(x.e)+'" data-mlead="'+nxmEsc(leader.e)+'" aria-label="Join '+nxmEsc(leader.room||leader.name)+'">'+LINK+'</button>';
     if(R.canPP&&(R.playing||R.paused)) btn+='<button type="button" class="nxm-btn'+(R.playing?'':' play')+'" data-mpp="'+nxmEsc(x.e)+'" aria-label="'+(R.playing?'Pause':'Play')+'">'+(R.playing?PAUSE:PLAY)+'</button>';
     var bgart=art?'<i class="nxm-bgart" aria-hidden="true" style="background-image:url(\''+String(art).replace(/'/g,'%27')+'\')"></i>':'';   // 1429
+    // 1565 (Dave 29 Nov 06:18: "The TV's are missing the volume that needs to be linked to control and show what is the TV's audio
+    // endpoint for the room"): a TV's card carries the ROOM's one volume — the committed endpoint every other surface shows (556,
+    // _zoneVolForEntity, the same answer the control page uses) — and names it: "Volume · Family Room". A speaker's card is its own.
+    var ve=x.e, vn='';
+    if(x.tv){ var z=null; try{ z=(typeof _zoneVolForEntity==='function')?_zoneVolForEntity(x.e):null; }catch(q){}
+      if(z&&z!==x.e){ ve=z; var zo=all.filter(function(o){ return o.e===z; })[0]; vn=zo?(zo.name||zo.room||zo.label):String(((states[z]||{}).attributes||{}).friendly_name||''); } }
+    var RV=ve===x.e?R:_nxmRead(ve,states[ve],pend);
     return '<div class="nxm-card'+(R.playing?' play':'')+(art?' has-art':'')+'">'+bgart+'<div class="nxm-top" data-mopen="'+nxmEsc(x.e)+'"><div class="nxm-art" style="'+(art?"background-image:url('"+String(art).replace(/'/g,'%27')+"')":'')+'">'+(art?'':(x.tv?TVI:NOTE))+'</div>'+
       '<div class="gr"><b>'+nxmEsc(x.label)+'</b><small class="'+(R.playing?'on':'')+'">'+nxmEsc(line)+(leader?' · join '+nxmEsc(leader.room||leader.name):'')+'</small></div><div style="display:flex;gap:8px">'+btn+'</div></div>'+
-      (R.canVol&&!R.gone?'<div class="nxm-vol" data-mvol="'+nxmEsc(x.e)+'"><i style="width:'+R.vol+'%"></i><span class="l">'+VOL+'Volume</span><span class="r">'+R.vol+'</span></div>':'')+'</div>';
+      (RV.canVol&&!RV.gone?'<div class="nxm-vol" data-mvol="'+nxmEsc(ve)+'"><i style="width:'+RV.vol+'%"></i><span class="l">'+VOL+'Volume'+(vn?' · '+nxmEsc(vn):'')+'</span><span class="r">'+RV.vol+'</span></div>':'')+'</div>';
   }
   function _nxmDraw(){
     var p=document.getElementById('nx-page'); if(!p||!p.classList.contains('open')||!p.classList.contains('nx-mus-pg')||held) return;
