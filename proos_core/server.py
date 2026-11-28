@@ -4782,6 +4782,23 @@ class _PlatformFaultReaders:
     def entries(self):
         return _client.config_entries() or []
 
+    def not_watched(self):
+        """REGISTER 1544 (Dave 28 Nov 2026: the Wi-Fi lamps set "Not watched" in the Bedroom came up again as "Not
+        Connecting"): the integrations whose devices are ALL set Not watched in their rooms. From the room's own switch
+        (roomdevices.awareness_excluded) and the platform's own list of which entities each integration made
+        (config_entry_id); an integration's settings-and-diagnostics entities are not devices and are not counted."""
+        from proos import roomdevices as _rd
+        excl = _rd.awareness_excluded()
+        if not excl:
+            return set()
+        by = {}
+        for e in _client.entity_registry() or []:
+            ce = e.get("config_entry_id")
+            if not ce or e.get("disabled_by") or e.get("entity_category") in ("config", "diagnostic"):
+                continue
+            by.setdefault(ce, []).append(e.get("entity_id"))
+        return {ce for ce, ids in by.items() if ids and all(i in excl for i in ids)}
+
     def repairs(self):
         from proos.ha_ws import ws_command
         res = ws_command(_client.base_url, _client._token, "repairs/list_issues", timeout=15) or {}

@@ -116,7 +116,13 @@ def _set_aside(e) -> bool:
     """REGISTER 1426: what the platform itself never calls a fault — an entry somebody disabled, or a discovery somebody
     IGNORED (source "ignore": the platform's own remembered "don't ask again", always not_loaded; its Integrations page
     lists it under Ignored, never as an error). Dave, 20 Nov: "it's need to be treated same as the platform"."""
-    return bool(e.get("disabled_by")) or e.get("source") == "ignore"
+    # REGISTER 1544 (Dave 28 Nov 2026: Dave's Lamp and Bec's Lamp — Wi-Fi bulbs switched off at the wall, both set "Not watched"
+    # in the Bedroom — "have come up again"): an integration whose devices are ALL set Not watched in their room is not
+    # watched here either. The room's own switch decides; this road had never asked it.
+    return bool(e.get("disabled_by")) or e.get("source") == "ignore" or e.get("entry_id") in _not_watched
+
+
+_not_watched = set()      # register 1544: the integrations whose devices are all "Not watched" in their rooms — last reading
 
 
 def refresh(read, now=None) -> dict:
@@ -125,6 +131,16 @@ def refresh(read, now=None) -> dict:
     now = now if now is not None else time.time()
     errs = []
     with _lock:
+        # 1544: the room settings are asked first, so this very read sets those integrations aside. A reader without the
+        # question, or one that does not answer, leaves the last reading standing (an unanswered question is not a fault).
+        _nw = getattr(read, "not_watched", None)
+        if _nw is not None:
+            try:
+                _got = set(_nw() or ())
+                _not_watched.clear()
+                _not_watched.update(_got)
+            except Exception as e:                               # noqa: BLE001
+                errs.append("room settings: %s" % e)
         try:
             ents = list(read.entries() or [])
             seen = _load_seen()
@@ -188,6 +204,12 @@ def cards(now=None) -> list:
     for e in snap.get("entries") or []:
         st, eid = e.get("state"), e.get("entry_id")
         if _set_aside(e):
+            # REGISTER 1544 (Dave 28 Nov 16:54: "I obviously want them to show in the integration log as offline or
+            # disconnected but anything marked as not watched should not be able to show a fault"): an integration set
+            # aside ONLY because its devices are Not watched is written to the Master Log, once, and makes no card.
+            if eid in _not_watched and st in FAILED and not e.get("disabled_by") and e.get("source") != "ignore":
+                _log_once("notwatched:%s" % eid, "The platform says %s (%s) %s. Its devices are set Not watched, so no fault is raised."
+                          % (e.get("title") or e.get("domain") or "An integration", e.get("domain"), _STATE_WORDS.get(st, st)))
             continue
         retrying = st == "setup_in_progress" and eid in failing
         if st not in FAILED and not retrying:
