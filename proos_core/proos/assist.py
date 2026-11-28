@@ -5188,6 +5188,18 @@ class ToolRunner:
             words = asked                                        # the same words — the first search already answers them
         how_ai = "ai-name" if kind == "name" else ("ai-search" if kind == "search" else ("ai-like" if kind == "like" else
                                                                                     ("said" if how0 == "exact" else "service")))
+        # REGISTER 1542 (Core's log on Dave's box, 28 Nov 16:19: "Play Legendary" read as 'SEARCH: legendary epic anthems',
+        # "Play Chill House 2026" as 'SEARCH: chill house 2026' — and his own playlists of those names were never looked at):
+        # the person's own playlists come first — BEFORE the reading is acted on. When the words as said name one of them
+        # (and are not an artist's exact name), they are a NAME, whatever the reading said; 1541's pick below then takes it.
+        _ks0, _nm0 = _ms.kind_said(asked)
+        if kind != "name" and _ks0 in (None, "playlist") \
+                and not (how0 == "exact" and cards0 and cards0[0].get("kind") == "artist" and not _ks0):
+            for _sv in res.get("services") or []:
+                if _ms.own_playlist(_ms.library_playlists(self.client, eid, mod, sp, _sv.get("service_id"),
+                                                          _sv.get("account"), tz), _nm0 or asked):
+                    kind, words, how_ai = "name", asked, "said"
+                    break
         if kind == "like":
             # REGISTER 1533: music LIKE an artist (or like what is playing) — that artist's Radio, as the services name
             # it: the first playlist or station on a streaming service whose title carries the artist and says radio or
