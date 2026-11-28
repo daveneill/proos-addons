@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112805';
+const PROOS_BUILD='2026112806';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -16824,7 +16824,7 @@ async function musicLoadFavourites(entity){
       return;
     }
     _musicItems=items;
-    _musicSearchRow(true);   // favourites exist → now show search
+    _musicSearchRow(typeof _musicBrowsable==='function'&&_musicBrowsable(entity));   /* 1528 (Dave 28 Nov 14:08: "Search does not show up for the room if player does not support search") — favourites alone are not a search; was: shown whenever favourites exist */
     if(cats) cats.innerHTML='<span style="font-size:9px;letter-spacing:0.12em;text-transform:uppercase;color:rgba(255,255,255,0.50);align-self:center">Favourites</span>';
     // A Sonos whose own services answered keeps its service chips, Favourites lit (stage 2).
     if(_spm.entity===entity && (_spm.services.length || (_spm.connect||[]).length) && _spmCan(entity)) _spmChips(true);
