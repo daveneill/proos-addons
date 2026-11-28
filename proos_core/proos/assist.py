@@ -2572,7 +2572,12 @@ def _is_home(user: dict) -> bool:
 # The installer tier (platform reads only) is unchanged.
 _PLATFORM_FIRST_KEEP = {"scene_dashboard", "rooms_overview", "room_activity", "room_off",
                         "room_activities", "activity_rewrite", "activity_test",
-                        "app_launch", "app_shortcut_create"}
+                        "app_launch", "app_shortcut_create",
+                        "music_search_play"}
+# REGISTER 1540 (Dave 28 Nov 2026 15:49 "2. yes" — to "give the AI the music tool as a tenth kept tool"): music_search_play.
+# The platform cannot search a streaming service on a Sonos or HEOS speaker at all (1519, read from its own pages), so a music
+# request that reached the AI itself ("Put some music on" — the Office run 1520: it started nothing and turned the volume up)
+# had nothing to play with. The tool is the one music road (section J of docs/ProOS_Assist_On_Top_Of_Platform_2026-11-28.md).
 # REGISTER 1388: page_widget (a widget on the asking screen's page) is NOT in this set — the set is Dave's ruling
 # (1267/1273/1279, pinned in three benches); adding it waits for his yes. Until then a platform-first login is not offered it.
 # REGISTER 1339 (Dave 14 Nov 08:01/08:07): opening an app in a room — the room's activity first, then the app the way
