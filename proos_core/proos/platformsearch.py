@@ -18,6 +18,7 @@ play(client, eid, card)    → the platform's play_media with the card's own id 
 from proos import musicsearch as _ms
 
 UNSUPPORTED = "unsupported"
+SEARCH_MEDIA = 4194304      # the platform's own flag for "this player can search" (its media-player feature list)
 _CLASS = {"artist": "artist", "track": "track", "song": "track", "album": "album", "playlist": "playlist",
           "channel": "station", "radio": "station", "podcast": "podcast", "episode": "podcast", "genre": "genre"}
 
@@ -28,6 +29,14 @@ def _kind(item):
 
 def search(client, eid, words, label=None, limit=20):
     """The speaker's own search, through the platform. Only titles the speaker says it can play are kept."""
+    # REGISTER 1532 (Dave's box, 28 Nov: "Play Adele" in the Garage — a HomePod — "I couldn't do that just then."): the
+    # platform says which players can search in the player's own reading. One that says it cannot is not asked.
+    try:
+        feats = ((client._req("GET", "/api/states/%s" % eid) or {}).get("attributes") or {}).get("supported_features")
+        if feats is not None and not (int(feats) & SEARCH_MEDIA):
+            return None, UNSUPPORTED
+    except Exception:                                            # noqa: BLE001 - no reading: ask, as before
+        pass
     try:
         r = client._req("POST", "/api/services/media_player/search_media?return_response",
                         {"entity_id": eid, "search_query": words, "limit": limit}) or {}
