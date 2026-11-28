@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112804';
+const PROOS_BUILD='2026112805';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -24898,6 +24898,15 @@ body.nx-on #nx-page.open{display:block}
     var ents=Object.keys(states||{}).map(function(e){ return {entity_id:e, device_id:entityDeviceMap[e]||null, area_id:entityAreaMap[e]||null, category:(entityCategoryMap||{})[e]||null, hidden:hiddenEntities.has(e), disabled:entityDisabled.has(e)}; });
     var rooms=(CONFIG.rooms||[]), devs=_pxDevices({ents:ents, states:states, devNames:deviceNameById||{}, rooms:rooms, roles:roles, avRooms:avRooms});
     devs.forEach(function(d){ d.onNow=!!(d.roles&&d.roles.proos_on_now); d.k=_pxKind(d,states);   /* 1389: a switch the installer put in On Now (Pro) */ d.r=_pxReading(d,d.k,states); var room=rooms.find(function(r){ return r.id===d.area; }); d.name=_pxName(d,d.k,room,states); d.cat=_pxCat(d.k.kind); });
+    /* REGISTER 1524 (Dave 28 Nov 13:35, ProOS Music just added: "This all worked before … Apple TVs are not an audio player but
+       Homepods are … this has been fixed multiple times and then breaks again"). READ ON HIS BOX: the old look's Music page
+       listed his 9 room speakers; the New Look listed 26 — every player ProOS Music made (Apple TVs, Shields, Macs, the mic, a
+       second player per room). The rule was never broken — the New Look did not use it. It does now, at the ONE place every
+       New Look list is built: a music player is a speaker here only if the old look's own rule (musicRoomSpeakers) says so, or
+       it is a real speaker in a room that is out of reach just now. */
+    try{ if(typeof musicRoomSpeakers==='function'){ var _spk={}; (musicRoomSpeakers()||[]).forEach(function(e){ _spk[e]=1; });
+      devs=devs.filter(function(d){ if(d.cat!=='Music'||String(d.lead||'').indexOf('media_player.')!==0) return true;
+        return !!_spk[d.lead]||(typeof isNativeSpeaker==='function'&&isNativeSpeaker(d.lead)&&!!entityAreaMap[d.lead]); }); } }catch(e){}
     return devs;
   }
   window._nxAll=nxAll;
