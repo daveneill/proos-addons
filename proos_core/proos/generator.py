@@ -149,6 +149,30 @@ def _assist_owned(cfg) -> bool:
     return bool(v.get("proos_tested")) or v.get("proos_built_by") == "assist"
 
 
+def owner(cfg) -> str:
+    """REGISTER 1554 (Dave 28 Nov 2026 18:08: "it cant get over ridden if edited by installer but if save room or AI built
+    it then it can be over ridden with a save room or test room"). WHO AN ACTIVITY BELONGS TO, read from the activity:
+      "generator" — its steps are exactly what the generator wrote (its stamped proos_hash still matches). A test mark
+                    changes nothing here: Prove the Room proving a generated activity does not make it anyone else's.
+      "assist"    — its steps are exactly the steps Assist wrote (proos_built_hash, stamped by activitytest.rewrite), or —
+                    for one built before that stamp existed — the steps its test mark was earned on.
+      "installer" — Pro's editor stamped it (proos_edited_by), or its steps are neither of the above. When it cannot be
+                    proved that nobody edited it by hand, it is the installer's: their work is never the thing risked."""
+    v = (cfg or {}).get("variables") or {}
+    if v.get("proos_edited_by") == "installer":
+        return "installer"
+    cur = _content_hash(cfg or {})
+    if v.get("proos_hash") and v.get("proos_hash") == cur:
+        return "generator"
+    if v.get("proos_built_by") == "assist":
+        if v.get("proos_built_hash"):
+            return "assist" if v["proos_built_hash"] == cur else "installer"
+        mark = v.get("proos_tested")
+        if isinstance(mark, dict) and mark.get("hash") == cur:
+            return "assist"
+    return "installer"
+
+
 def _as_cfg(existing):
     """Coerce whatever client.get_script() returns into the script-config dict, or
     None if it isn't one. Defensive: if the client hands back a shape we don't
@@ -761,7 +785,11 @@ def _prune_orphans(client, tmpl, planned) -> list:
 
 
 def generate(client, cluster, commissioning=None, overwrite=False) -> dict:
-    """Create-if-absent + self-heal (default), or force-regenerate (overwrite=True).
+    """Create-if-absent + self-heal. overwrite=True is SAVE ROOM (and Assist's own room save): the one caller that may
+    replace an activity Assist fitted, when the room's settings changed what it should hold. REGISTER 1554 — the rules
+    below this line are the history; who the activity belongs to (owner()) is what decides now:
+      installer's -> never touched · generator's -> rewritten when the room asks for something else ·
+      Assist's    -> rewritten the same way, but only by Save Room, never at start-up.
 
     For each activity the room should have:
       - absent            -> create it.
@@ -844,13 +872,6 @@ def generate(client, cluster, commissioning=None, overwrite=False) -> dict:
             client.upsert_script(oid, cfg)
             created.append(oid)
             continue
-        if _assist_owned(_as_cfg(existing)):
-            kept.append(oid)          # register 1338: Assist built or tested it for this room -> never replaced
-            continue
-        if overwrite:
-            client.upsert_script(oid, cfg)
-            refreshed.append(oid)
-            continue
         ecfg = _as_cfg(existing)
         if ecfg is None:
             kept.append(oid)          # present but unreadable shape -> don't touch
@@ -867,15 +888,19 @@ def generate(client, cluster, commissioning=None, overwrite=False) -> dict:
             else:
                 kept.append(oid)
             continue
-        if cur == stored:
-            # Unedited. Refresh only if the room changed what it should contain.
-            if new_hash != stored:
-                client.upsert_script(oid, cfg)
-                refreshed.append(oid)
-            else:
-                kept.append(oid)
+        # REGISTER 1554 — WHO IT BELONGS TO DECIDES (this replaces 1338's lock, which kept anything carrying a test mark —
+        # and Prove the Room marks every activity it proves, so a Verified room was never regenerated again; it also
+        # replaces "overwrite replaces everything", under which Save Room wrote over an installer's edit).
+        who = owner(ecfg)
+        if who == "installer":
+            kept.append(oid)          # the installer edited it -> never written over here (Reset to generated is theirs to press)
+        elif new_hash == stored:
+            kept.append(oid)          # the room asks for what it asked for last time -> its steps, its proof and Assist's fit all stand
+        elif who == "assist" and not overwrite:
+            kept.append(oid)          # Assist fitted it: only Save Room (overwrite) replaces it — never start-up, never an update
         else:
-            kept.append(oid)          # installer edited it -> protect
+            client.upsert_script(oid, cfg)   # the room's settings changed what it should hold -> rewritten, and untested again
+            refreshed.append(oid)
     # ── Orphan prune ─────────────────────────────────────────────────────────
     # A ProOS script for THIS room that the current plan NO LONGER includes (e.g.
     # watch_<avr> after the AVR stopped being a watchable source) would otherwise

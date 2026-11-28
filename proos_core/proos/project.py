@@ -1765,7 +1765,9 @@ def activities_status(client, project, area) -> dict:
                     "alias": ecfg.get("alias") or oid,
                     "kind": v.get("proos_kind"),
                     "source_eid": v.get("proos_source"),
-                    "edited": bool(stored) and stored != cur,
+                    # 1554: "edited" is the INSTALLER's edit — an activity Assist fitted is not theirs to be warned about
+                    "edited": bool(stored) and generator.owner(ecfg) == "installer",
+                    "owner": generator.owner(ecfg),
                     "exists": True})
     # RECORD ORDER IS THE ORDER (Dave, 9 Aug 2026: "activity icons I can move
     # around but dashboard not changing even after recommits"). The loop above

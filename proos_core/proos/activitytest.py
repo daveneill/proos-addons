@@ -81,11 +81,16 @@ def rewrite(client, oid: str, sequence, why: str = "") -> dict:
         raise ValueError("sequence must be the activity's list of steps, as the platform's script editor writes them")
     if any(str(s.get("action") or "") == "script." + oid for s in sequence):
         raise ValueError("an activity cannot run itself")
+    if _gen.owner(cfg) == "installer":
+        # REGISTER 1554 (Dave 28 Nov 18:08: "it cant get over ridden if edited by installer"): not by Save Room, and not here.
+        raise ValueError("the installer edited %s by hand, so it is left as they made it — it can be put back to the "
+                         "generated steps from the activity's own Reset in Pro" % oid)
     new = dict(cfg)
     new["sequence"] = sequence
     v = _vars(cfg)
     v.pop(TESTED, None)                       # new steps are untested steps
     v[BUILT] = "assist"
+    v["proos_built_hash"] = _gen._content_hash(new)   # 1554: the steps Assist wrote — a later hand edit no longer matches them
     v["proos_built_at"] = _now()
     if why:
         v["proos_built_why"] = str(why)[:300]

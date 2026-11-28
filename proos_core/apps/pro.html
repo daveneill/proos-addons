@@ -4583,7 +4583,7 @@ html.pnx.duo-rail #app.v3 .scroll{padding-bottom:calc(env(safe-area-inset-bottom
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026112808';
+const PROOS_BUILD='2026112809';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -11025,7 +11025,7 @@ async function openCfgEditor(o){
       CFG.triggers=asArr(cfg.triggers||cfg.trigger); CFG.conditions=asArr(cfg.conditions||cfg.condition); CFG.actions=asArr(cfg.actions||cfg.action);
       const {alias,mode,triggers,trigger,conditions,condition,actions,action,...rest}=cfg; CFG.extra=rest;
     } else {
-      CFG.actions=asArr(cfg.sequence); const {alias,mode,sequence,...rest}=cfg; CFG.extra=rest;
+      CFG.actions=asArr(cfg.sequence); const {alias,mode,sequence,...rest}=cfg; CFG.extra=rest; CFG._was=JSON.stringify([(CFG.alias||'').trim(),CFG.mode||'single',CFG.actions]);   /* 1554 */
     }
     renderCfg();
   }catch(e){ cfgNotEditable(o); }
@@ -11567,6 +11567,7 @@ async function pickCreateSave(){
 }
 
 
+function _cfgChanged(alias){ return !CFG||CFG._was!==JSON.stringify([alias,CFG.mode||'single',CFG.actions]); }   /* 1554 */
 async function saveCfg(){
   if(!CFG) return;
   if(CFG.kind==='scene') return saveSceneCfg();
@@ -11580,6 +11581,7 @@ async function saveCfg(){
   } else {
     if(!CFG.actions.length){ toast('Add at least one step'); return; }
     body=Object.assign({}, CFG.extra, {alias, mode:CFG.mode||'single', sequence:CFG.actions});
+    if(CFG.extra&&CFG.extra.variables&&CFG.extra.variables.proos_kind&&_cfgChanged(alias)) body.variables=Object.assign({}, CFG.extra.variables, {proos_edited_by:'installer', proos_edited_at:new Date().toISOString()});   /* 1554: the installer's — Save Room and Assist leave it alone */
   }
   document.getElementById('cfg-actions').innerHTML='<div class="wiz-hint">Saving…</div>';
   try{ await haRest('POST', cfgPath(CFG.kind,CFG.id), body, 30000); toast(CFG.isNew?'Created':'Saved'); const _w=CFG.isNew?{kind:CFG.kind,id:CFG.id}:null; closeCfgEdit(); await refreshAfterCfgSave(_w); }
