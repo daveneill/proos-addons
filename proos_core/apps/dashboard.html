@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112808';
+const PROOS_BUILD='2026112809';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -25122,9 +25122,14 @@ body.nx-on #nx-page.open{display:block}
 .nxr-top button{width:42px;height:42px;border-radius:50%;border:0;background:rgba(0,0,0,.38);display:grid;place-items:center;cursor:pointer}
 .nxr-top svg{width:18px;height:18px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .nxr-name{font-size:44px;font-weight:300;letter-spacing:-.03em;line-height:1.05}
-.nxr-line{font-size:15px;font-weight:500;color:rgba(255,255,255,.8);margin:8px 0 12px;min-height:20px}
+/* 1550 (Dave 28 Nov 17:46: "a faint white line dividing the Home Name and the word summary on the Home and Room pages that just
+   stretchs maybe two thirds across the screen so not full width and the words summary if stretches to 2 lines needs to also stop
+   at same point"): the line and the words are ONE box, two thirds of the page wide — so they end together. No words, no line. */
+.nxr-line{font-size:15px;font-weight:500;color:rgba(255,255,255,.8);margin:10px 0 12px;min-height:20px;box-sizing:border-box;max-width:66.667%;border-top:1px solid rgba(255,255,255,.16);padding-top:10px}
+.nxr-line:empty{border-top:0;padding-top:0}
+@media (max-width:640px){.nxr-line{max-width:100%}}
 /* 1547 (Dave 28 Nov 17:31: "when a lot on on. the home you dont want lines of summary"): Home's line is two lines at most, whatever arrives */
-.nxh-sum{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;max-width:720px}
+.nxh-sum{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
 .nxr-sec{display:flex;justify-content:space-between;align-items:baseline;margin:24px 2px 12px}
 .nxr-sec b{font-size:20px;font-weight:600;letter-spacing:-.01em}
 .nxr-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
@@ -25529,7 +25534,7 @@ body.nx-scr #nx-avatar{opacity:0;pointer-events:none}
     // 1498 (Dave: "if it has more than one thing playing you can swipe to go through them"): one card as before; more — a row that is swiped, with its dots
     if(M.heroes.length===1) html+=_hero(M.heroes[0],M.heroRooms[0]);
     else if(M.heroes.length>1) html+='<div class="nxh-heroes">'+M.heroes.map(function(d,i){ return _hero(d,M.heroRooms[i]); }).join('')+'</div><div class="nxh-dots">'+M.heroes.map(function(d,i){ return '<i'+(i===0?' class="on"':'')+'></i>'; }).join('')+'</div>';
-    var onNow=M.cards.length?'<div class="nxr-sec"><b>On Now</b><button type="button" class="nxh-more" data-hdev>All Devices ›</button></div>'+
+    var onNow=M.cards.length?'<div class="nxr-sec"><b>On Now</b></div>'+
       '<div class="nxr-grid" style="grid-template-columns:repeat(2,minmax(0,1fr))">'+M.cards.map(_nxhCard).join('')+'</div>':'';   // 1499: nothing on — nothing shown
     var tiles=scenes.map(function(s,i){ return '<button type="button" class="nxr-scn nxh-scn'+(lit[s.entity]?' on':'')+(ran[s.entity]&&Date.now()-ran[s.entity]<1500?' run':'')+'" data-hscene="'+i+'" style="'+(function(u){ return u?"background-image:url('"+String(u).replace(/'/g,'%27')+"')":''; })(window._nxScenePic?_nxScenePic(s.entity,s.name):s.photo)+'">'+nxhIc('spark','g')+'<b>'+nxhEsc(s.name)+'</b></button>'; });
     if(M.hasLights||M.players.length) tiles.push('<button type="button" class="nxr-scn" data-halloff>'+nxhIc('pw','g')+'<b>All Off</b></button>');

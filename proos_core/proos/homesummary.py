@@ -101,7 +101,7 @@ def prompt(items, part=None):
             "%s Use only these facts: add no room, device, person, reason, "
             "mood or advice that is not written here, and do not say what is off. No greeting, no quotes, no emoji.\n"
             "Reply with the sentence alone."
-            % ("\n".join("- %s" % w for _, w, _, _ in items), ("It is the %s.\n" % part) if part else "",
+            % ("\n".join("- %s" % w for _, w, _, _ in items), ("It is the %s — for tone only: you need not say so, and never add it to the end of the sentence.\n" % part) if part else "",
                "Name every room listed, by its name as written." if len(items) <= GROUP_OVER
                else "There is a lot on: you may group rooms (for example 'music in four rooms') rather than name each, and leave "
                     "out titles. Any room you do name must be one listed, by its name as written."))
