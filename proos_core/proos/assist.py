@@ -4763,19 +4763,24 @@ class ToolRunner:
         # model when Pro has one set, else the supplier's small one. Everything else Assist does stays on the main model
         # (1334's one AI for testing is untouched). If the small model is refused, the main one is asked once.
         small = (cfg.get("fast_model") or "").strip() or WORDS_MODELS.get(cfg.get("provider") or "")
+        _rx = r"\b(NAME|SEARCH|LIKE)\s*:\s*(.+)"
+        text, m = None, None
         try:
-            text = _one_answer(cfg, prompt, quick=True, model=small)
+            text = _one_answer(cfg, prompt, max_tokens=60, quick=True, model=small)
+            m = re.search(_rx, text or "", re.I)
         except Exception as e:                                   # noqa: BLE001
-            print("  [assist] music words: the small model didn't answer (%s) — asking the main one" % str(e)[:120], flush=True)
+            print("  [assist] music words: the small model didn't answer (%s)" % str(e)[:120], flush=True)
+        if m is None and small:
+            # REGISTER 1534 (Core's log on Dave's box, 28 Nov: the small model "answered in 0.9s ('')" and the artist called
+            # Something Relaxing played again): refused, silent, or not one of the three readings — the main model is asked once.
+            print("  [assist] music words: no reading from the small model (%r) — asking the main one" % (text or "")[:40], flush=True)
             try:
-                text = _one_answer(cfg, prompt, quick=True) if small else None
+                text = _one_answer(cfg, prompt, max_tokens=60, quick=True)
+                m = re.search(_rx, text or "", re.I)
             except Exception as e2:                              # noqa: BLE001
                 print("  [assist] music words: the AI didn't answer (%s)" % e2, flush=True)
                 return None
-            if text is None:
-                return None
         print("  [assist] music words: the AI answered in %.1fs (%r)" % (time.time() - t0, (text or "")[:60]), flush=True)
-        m = re.search(r"\b(NAME|SEARCH|LIKE)\s*:\s*(.+)", text or "", re.I)
         if not m:
             return None
         words = m.group(2).strip().strip('"').strip()
