@@ -4741,18 +4741,23 @@ class ToolRunner:
                                 "kind": kind, "play": it.get("play")})
         return out
 
-    def _ai_words(self, asked):
+    def _ai_words(self, asked, playing=None):
         """What to search for, from the AI: ("name", the exact name) when something specific was named,
-        ("search", a few words for a fitting playlist) for a mood, activity or style. None when no AI is
-        set up or it doesn't answer."""
+        ("search", a few words for a fitting playlist) for a mood, activity or style, ("like", whose kind of music)
+        for "something like X" / "more like this" (register 1533 — told what the speaker is playing). None when no AI
+        is set up or it doesn't answer."""
         cfg = load_config()
         if not (cfg.get("provider") and cfg.get("api_key")):
             return None
         prompt = ("Someone asked a home's speaker to play: \"%s\".\n"
+                  "%s"
                   "Reply with exactly ONE line:\n"
                   "NAME: <the name exactly> — if they named a specific artist, song, album, playlist or station\n"
                   "SEARCH: <two to five words to search a music service with, to find a fitting playlist> — "
-                  "if they described a mood, an activity or a style." % asked)
+                  "if they described a mood, an activity or a style\n"
+                  "LIKE: <the artist whose kind of music they want> — if they asked for music like, similar to or more "
+                  "of the kind of an artist or of what is playing."
+                  % (asked, ("The speaker is playing now: %s.\n" % playing) if playing else ""))
         t0 = time.time()
         # REGISTER 1531 (Dave 28 Nov 14:19 "B"): this ONE line is asked of a small fast model — the installer's own fast
         # model when Pro has one set, else the supplier's small one. Everything else Assist does stays on the main model
@@ -4770,7 +4775,7 @@ class ToolRunner:
             if text is None:
                 return None
         print("  [assist] music words: the AI answered in %.1fs (%r)" % (time.time() - t0, (text or "")[:60]), flush=True)
-        m = re.search(r"\b(NAME|SEARCH)\s*:\s*(.+)", text or "", re.I)
+        m = re.search(r"\b(NAME|SEARCH|LIKE)\s*:\s*(.+)", text or "", re.I)
         if not m:
             return None
         words = m.group(2).strip().strip('"').strip()
@@ -4833,6 +4838,8 @@ class ToolRunner:
         cands, kept = box.get("cands") or ([], False)
         times["ai"] = times["search"] = round(time.time() - t, 1)
         kind, words = ai if ai else (None, asked)
+        if kind == "like":
+            kind, words = "search", "%s radio" % words          # register 1533
         if words != asked:
             t2 = time.time()
             more, kept2 = self._cached_search(search, words)
@@ -4852,13 +4859,14 @@ class ToolRunner:
 
     _ai_words_kept = {}       # asked -> (answer, when)
 
-    def _cached_ai_words(self, asked):
-        key = " ".join(str(asked).lower().split())
+    def _cached_ai_words(self, asked, playing=None):
+        # 1533: what is playing is part of the question, so it is part of what the kept answer is kept under
+        key = " ".join(str(asked).lower().split()) + ("|" + str(playing).lower() if playing else "")
         hit = ToolRunner._ai_words_kept.get(key)
         now = time.time()
         if hit and now - hit[1] < self.MUSIC_SEARCH_KEPT_S:
             return hit[0]
-        ans = self._ai_words(asked)
+        ans = self._ai_words(asked, playing)
         if ans is not None:
             ToolRunner._ai_words_kept[key] = (ans, now)
         return ans
@@ -5116,19 +5124,41 @@ class ToolRunner:
             return None
         mod, sp, tz, svcs = had
         times = {"speaker": round(time.time() - t_conn, 1)}
+        # REGISTER 1533 (Dave 28 Nov 14:49 "yes go"; the Office re-run 1532: "Play Adele on Spotify" played from Apple
+        # Music). A service NAMED at the end of the words — one of THIS speaker's own, by its own name — is taken off the
+        # words and is the only service whose answers count. No list of services is written here: the speaker's is read.
+        only = None
+        _m = re.match(r"^(.*\S)\s+(?:on|from|using|through|via)\s+(.+?)\s*$", asked, re.I)
+        if _m:
+            _want = _ms._letters(_m.group(2))
+            only = next((n for _s, _a, n in svcs if _want and _ms._letters(n) == _want), None)
+            if only:
+                asked = _m.group(1).strip()
+
+        def _only(r):
+            return dict(r, services=[x for x in (r.get("services") or []) if x.get("name") == only]) if only else r
         favs = self._favourites_like(area, asked)
-        # The AI's reading of the words (a NAME, or SEARCH words for a mood) rides beside the first search.
+        # 1533: what the speaker is playing now, for "more like this" — its own reading, said to the AI as it reads it
+        playing = None
+        try:
+            _st = self.client._req("GET", "/api/states/%s" % eid) or {}
+            _at = _st.get("attributes") or {}
+            if _st.get("state") in ("playing", "paused") and (_at.get("media_title") or _at.get("media_artist")):
+                playing = " by ".join(x for x in (str(_at.get("media_title") or "").strip(), str(_at.get("media_artist") or "").strip()) if x)
+        except Exception:  # noqa: BLE001
+            playing = None
+        # The AI's reading of the words (a NAME, SEARCH words for a mood, or LIKE whose music) rides beside the first search.
         box = {}
 
         def _ask_ai():
             try:
-                box["ai"] = self._cached_ai_words(asked)
+                box["ai"] = self._cached_ai_words(asked, playing)
             except Exception as e:  # noqa: BLE001
                 box["err"] = e
         th = threading.Thread(target=_ask_ai, daemon=True)
         th.start()
         t = time.time()
-        res = _ms.search_all(self.client, eid, asked)
+        res = _only(_ms.search_all(self.client, eid, asked))
         fav_names = self._favourite_names(area)
         # register 872 (read on the box: the AI's reading took 3.2–5.0 s of every 8–10 s): when the words AS SAID hit an
         # exact title on some service, that is the answer — the AI is not waited for. It is waited for only when nothing
@@ -5146,9 +5176,35 @@ class ToolRunner:
         kind, words = ai if ai else (None, asked)
         if " ".join(str(words).lower().split()) == " ".join(str(asked).lower().split()):
             words = asked                                        # the same words — the first search already answers them
-        how_ai = "ai-name" if kind == "name" else ("ai-search" if kind == "search" else ("said" if how0 == "exact" else "service"))
+        how_ai = "ai-name" if kind == "name" else ("ai-search" if kind == "search" else ("ai-like" if kind == "like" else
+                                                                                    ("said" if how0 == "exact" else "service")))
+        if kind == "like":
+            # REGISTER 1533: music LIKE an artist (or like what is playing) — that artist's Radio, as the services name
+            # it: the first playlist or station on a streaming service whose title carries the artist and says radio or
+            # mix; failing that, the first playlist a streaming service offers for those words.
+            res = _only(_ms.search_all(self.client, eid, "%s radio" % words))
+            times["ai"] = times["search"] = round(time.time() - t, 1)
+            pick = fb = None
+            for svc in res.get("services") or []:
+                if _ms.is_radio(svc.get("name")) and not only:
+                    continue
+                _k = svc.get("kinds") or {}
+                for c in list(_k.get("playlist") or []) + list(_k.get("station") or []):
+                    _t = str(c.get("title") or "")
+                    if _ms.carries(_t, words) and re.search(r"\b(radio|mix)\b", _t, re.I):
+                        pick = (svc, c)
+                        break
+                if pick:
+                    break
+                if fb is None and (_k.get("playlist") or []):
+                    fb = (svc, _k["playlist"][0])
+            pick = pick or fb
+            if pick:
+                return self._play_pick(area, eid, mod, sp, pick[1]["sid"], pick[1]["acct"], pick[0]["name"], tz, pick[1],
+                                       "%s radio" % words, how_ai, asked, times)
+            return {"error": _ms.nothing_found(res, "music like %s" % words)}
         if words != asked:
-            res = _ms.search_all(self.client, eid, words)
+            res = _only(_ms.search_all(self.client, eid, words))
         times["ai"] = times["search"] = round(time.time() - t, 1)
         tried = [x["name"] for x in res.get("services") or []]
         if kind == "search":
