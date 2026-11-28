@@ -4585,7 +4585,7 @@ html.pnx.duo-rail #app.v3 .scroll{padding-bottom:calc(env(safe-area-inset-bottom
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026112901';
+const PROOS_BUILD='2026112902';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -12999,7 +12999,7 @@ async function openProve(){
     if(j&&j.state==='running'){ _proveShow(j); _provePoll(_roomHubArea); return; } }catch(e){}
   const name=(typeof _rhName==='function'&&_rhName())||'this room';
   // REGISTER 1340 (Dave 14 Nov 08:52: "prove the room is when it should have this commisioning process")
-  _recOverlay('<div class="v3dh2"><div class="t">Prove the Room</div><div class="s">Commissions '+esc(name)+': each activity is run from the room resting, then switched straight from one source to another, then each app shortcut, then TV Off. Every device is read back. An activity that passes is marked Tested. One that fails shows what was wrong, and Assist can propose the fix. The equipment will turn on and off for a few minutes.</div></div>'
+  _recOverlay('<div class="v3dh2"><div class="t">Prove the Room</div><div class="s">Commissions '+esc(name)+': each activity is run from the room resting, then switched straight from one source to another, then each app shortcut, then TV Off. Every device is read back. Stay with the room: if a step can\u2019t be confirmed it stops and asks you. The equipment will turn on and off for a few minutes.</div></div>'
     +'<div class="v3foot" style="display:flex;gap:8px;margin-top:14px"><button class="v3btn" onclick="_proveClose()">Cancel</button><button class="v3btn pri" style="flex:1" onclick="_proveRun()">Run It Now</button></div>');
 }
 let _proveLast=null;
@@ -13029,6 +13029,7 @@ function _proveWhy(s){
   // 1343: passed on the installer's own eyes — say so, and name the readings that disagreed
   const _v=(s.readings||[]).filter(r=>r.vouched);
   if(s.witnessed) return 'Passed — you confirmed it'+(bad0(s).length?' (the box read '+bad0(s).map(f=>esc(f.what)+': '+esc(String(f.reading))).join(', ')+')':'');
+  if(s.ok&&s.not_from_rest) return 'Passed — run with the room not at rest';   /* 1568 */
   if(s.ok&&_v.length) return 'Tested — '+_v.map(f=>esc(f.what)+' read '+esc(String(f.reading))).join(', ')+', which you confirmed is fine';
   if(s.ok) return s.tested?'Tested':'';
   if(bad.length) return bad.map(f=>esc(f.what)+': read '+esc(String(f.reading))).join('<br>');
@@ -13082,15 +13083,17 @@ async function _proveChangeSend(i){
 function _proveShow(j){
   let body='';
   if(j.state==='running'){
-    body='<div class="v3empty">Running'+(j.current?' — '+esc(j.current):'')+'…</div>';
+    body=(j.asking?'<div class="v3card" style="padding:14px;margin-bottom:10px"><div class="t2" style="white-space:normal">'+esc(j.asking.step||'')+'</div><div style="font-size:17px;font-weight:600;margin:6px 0 12px">'+esc(j.asking.question)+'</div><div style="display:flex;gap:8px"><button class="v3btn pri" style="flex:1" onclick="_proveAnswer('+(+j.asking.id)+',true)">Yes</button><button class="v3btn" style="flex:1" onclick="_proveAnswer('+(+j.asking.id)+',false)">No</button></div></div>'
+        :'<div class="v3empty">Running'+(j.current?' — '+esc(j.current):'')+'…</div>')
+      +((j.steps||[]).length?'<div class="v3rows">'+(j.steps||[]).map(s=>'<div class="v3row" style="cursor:default;align-items:flex-start"><div class="rt"><div class="t1" style="white-space:normal">'+esc(s.alias||s.script)+'</div><div class="t2" style="white-space:normal;line-height:1.35">'+_proveWhy(s)+'</div></div><div class="rr">'+_proveChip(s)+(s.seconds!=null?'<div class="t2" style="text-align:right;margin-top:4px">'+s.seconds+' s</div>':'')+'</div></div>').join('')+'</div>':'');   /* 1568 */
   }else if(j.state==='error'){
     body='<div class="v3empty" style="color:#e17055">'+esc(j.error||'The proof stopped')+'</div>';
   }else{
     _proveLast=j;
     const steps=j.steps||[];
     const allOk=j.passed===j.total;
-    body='<div style="margin-bottom:10px"><span class="v3chip '+(allOk?'ok':'amber')+'">'+j.passed+' of '+j.total+' Passed'+(j.sent?(' · '+j.sent+' Sent'):'')+(j.tested!=null?(' · '+j.tested+' Tested'):'')+'</span></div>'
-      +'<div class="v3rows">'+steps.map((s,i)=>'<div class="v3row" style="cursor:default;align-items:flex-start;flex-wrap:wrap"><div class="rt"><div class="t1" style="white-space:normal">'+esc(s.alias||s.script)+'</div><div class="t2" style="white-space:normal;line-height:1.35">'+_proveWhy(s)+'</div></div><div class="rr"><span class="v3chip '+(s.ok?'ok':'red')+'">'+(s.ok?'Passed':'Failed')+'</span>'+(s.seconds!=null?'<div class="t2" style="text-align:right;margin-top:4px">'+s.seconds+' s</div>':'')+'</div>'
+    body='<div style="margin-bottom:10px"><span class="v3chip '+(allOk?'ok':'amber')+'">'+j.passed+' of '+j.total+' Passed'+(j.sent?(' · '+j.sent+' Sent'):'')+(j.tested!=null?(' · '+j.tested+' Tested'):'')+(j.unconfirmed?(' · '+j.unconfirmed+(j.unconfirmed===1?' Needs':' Need')+' Your Eyes'):'')+'</span></div>'
+      +'<div class="v3rows">'+steps.map((s,i)=>'<div class="v3row" style="cursor:default;align-items:flex-start;flex-wrap:wrap"><div class="rt"><div class="t1" style="white-space:normal">'+esc(s.alias||s.script)+'</div><div class="t2" style="white-space:normal;line-height:1.35">'+_proveWhy(s)+'</div></div><div class="rr">'+_proveChip(s)+(s.seconds!=null?'<div class="t2" style="text-align:right;margin-top:4px">'+s.seconds+' s</div>':'')+'</div>'
         // 1343 (Dave 14 Nov 11:46: "there always needs to be a way to get a pass or request change during this process")
         +(s.ok?'':'<div id="prove-step-'+i+'" style="flex-basis:100%;display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap"><div class="t2" style="flex:1 1 100%;white-space:normal;color:var(--text,#fff);font-weight:600">'+esc(_proveAsk(s))+'</div><button class="v3btn pri" onclick="_proveWitness('+i+')">Yes</button><button class="v3btn" onclick="_proveChange('+i+')">No</button></div>')
         +'</div>').join('')+'</div>';
@@ -13101,6 +13104,13 @@ function _proveShow(j){
   _recOverlay('<div class="v3dh2" style="display:flex;align-items:center;justify-content:space-between;gap:12px"><div class="t">Prove the Room</div><button class="prv-x" aria-label="Close" onclick="_proveClose()">\u2715</button></div><div class="prv-scroll">'+body+'</div>'
     +'<div class="v3foot" style="display:flex;gap:8px;margin-top:14px">'+(j.state==='done'?'<button class="v3btn" onclick="_proveRun()">Prove Again</button>':'')+'<button class="v3btn" style="flex:1" onclick="_proveClose()">'+(j.state==='running'?'Hide':'Close')+'</button></div>');
   const _ps=document.querySelector('#rec-modal .prv-scroll'); if(_ps) _ps.scrollTop=_prvTop;
+}
+// 1568: Passed · Needs Your Eyes (it could not be confirmed and nobody has said) · Failed (only after a No)
+function _proveChip(s){ return s.ok?'<span class="v3chip ok">Passed</span>':(s.status==='failed'?'<span class="v3chip red">Failed</span>':'<span class="v3chip amber" data-st="unconfirmed">Needs Your Eyes</span>'); }
+async function _proveAnswer(id,yes){
+  const area=_roomHubArea;
+  try{ await fetch(proCoreUrl()+'/rooms/'+encodeURIComponent(area)+'/prove/answer',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:id,yes:!!yes})}); }catch(e){}
+  try{ const r=await fetch(proCoreUrl()+'/rooms/'+encodeURIComponent(area)+'/prove'); const j=r.ok?await r.json():null; if(j){ if(j.asking&&j.asking.id===id) delete j.asking; _proveShow(j); } }catch(e){}
 }
 let _proveFixSess=null;
 function _proveMd(t){ return esc(String(t||'')).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/\n/g,'<br>'); }

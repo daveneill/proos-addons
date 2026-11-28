@@ -36,9 +36,16 @@ TESTED = "proos_tested"
 BUILT = "proos_built_by"
 TESTABLE_KINDS = ("watch_source", "watch_tv", "tv_off")
 ASLEEP = ("off", "standby", "unavailable", "unknown")
-REST_WAIT_S = 45.0       # plumbing: how long TV Off may take to rest the room (its own speaker wait is 15 s)
-RUN_WAIT_S = 75.0        # plumbing: how long the activity may run (Display On waits 20 s; a wake retries)
-READ_WAIT_S = 20.0       # plumbing: how long a slow device may take to report what it did
+# REGISTER 1568 (Dave 29 Nov 2026 07:51: Prove the Room "seems to be getting stuck and needs the process to be perfect and if it
+# cant confirm its needs to ask for confirmation to get the pass"; 08:00 "go"). THE ROOM SETS THE PACE, NOT A STOPWATCH: an
+# activity is waited for while it is still running, and its devices while their readings are still changing. The numbers below
+# are only the OUTER limits that stop a proof hanging for ever — they were 45 / 75 / 20 s, and a room whose own TV Off takes 38 s
+# on a good day ran past them (his Family Room, 29 Nov: "The room didn't reach its resting state, so the activity was not run").
+REST_WAIT_S = 150.0      # outer limit: the room's own TV Off, while it is still running
+RUN_WAIT_S = 180.0       # outer limit: the activity, while it is still running
+READ_WAIT_S = 45.0       # how long the readings may stand still, wrong, before the proof stops waiting on them
+READ_OUTER_S = 120.0     # outer limit on reading, however much the readings keep changing
+ASK_WAIT_S = 180         # how long a question stands unanswered before the step is "not confirmed" and the proof carries on
 STEP_S = 1.0
 
 
@@ -208,8 +215,56 @@ def rest_oid(cfg, oid):
     return (oid[:i] + "_tv_off") if i > 0 else None
 
 
-def run(client, oid: str, display: str, sleep=None, clock=None, rest=True, verdict=None, mark=True) -> dict:
+def _settle(read, sleep, clock):
+    """Read until every reading passes; stop when the readings have stood still, wrong, for READ_WAIT_S — or at the outer
+    limit. A device that is still changing keeps the wait alive; one that has stopped and is wrong is not waited on."""
+    res, t0 = read(), clock()
+    last, sig = t0, [(r.get("entity_id"), r.get("reading")) for r in res]
+    while not all(r["pass"] for r in res):
+        now = clock()
+        if now - last >= READ_WAIT_S or now - t0 >= READ_OUTER_S:
+            break
+        sleep(STEP_S)
+        res = read()
+        s2 = [(r.get("entity_id"), r.get("reading")) for r in res]
+        if s2 != sig:
+            sig, last = s2, clock()
+    return res
+
+
+def question(kind, alias, failed, rest=False) -> str:
+    """A reading that could not confirm a step, as the question it could not answer (1343; asked AT THE MOMENT since 1568)."""
+    name = str(alias or "it").split(" \u00b7 ")[0]
+    where = name[6:] if name.startswith("Watch ") else name
+    if kind == "shortcut":
+        return "Did %s open?" % str(alias or "the app").split(" on ")[0]
+    if rest:
+        return "Is the room off?"
+    w = str(((failed or [{}])[0] or {}).get("what") or "")
+    low = w.lower()
+    if kind == "tv_off":
+        return "Is the TV showing its artwork?" if "art mode" in low else "Is the room off?"
+    if "art mode" in low:
+        return "Is the TV showing a picture, not artwork?"
+    if "the tv is on" in low:
+        return "Is the TV on?"
+    if "source is awake" in low:
+        return "Is the %s on?" % where
+    if low.startswith("input "):
+        return "Is the TV showing the %s?" % where
+    if low.startswith("the sound on "):
+        return "Is the sound playing through the room\u2019s speakers?"
+    if "proos shows" in low:
+        return "Is the room on the %s?" % where
+    return "Is %s working?" % name
+
+
+def run(client, oid: str, display: str, sleep=None, clock=None, rest=True, verdict=None, mark=True,
+        ask=None, label=None, who="installer") -> dict:
     """Rest the room, run the activity, read every expectation back. Marks it tested only when all are seen.
+    REGISTER 1568: ask(question, step, still_failing) -> "yes" | "no" | "seen" | None is the installer, asked AT THE MOMENT
+    the proof cannot confirm something (the room still in that state). "seen" = the readings came good while the question
+    stood. A room that will not rest is tried twice, then asked about — the activity is ALWAYS run.
     REGISTER 1340: rest=False runs it straight from whatever the room is on (Prove the Room's source-to-source switch);
     verdict = the room's activity sensor, read as one more expectation; mark=False never ADDS a test mark (a switch
     only takes one off when it fails)."""
@@ -227,36 +282,65 @@ def run(client, oid: str, display: str, sleep=None, clock=None, rest=True, verdi
         if not rcfg or _vars(rcfg).get("proos_kind") != "tv_off" or \
                 _vars(rcfg).get("proos_area_id") != v.get("proos_area_id"):
             raise ValueError("this room has no TV Off to rest it with — can't test from rest")
-        took = _run_and_wait(client, roid, REST_WAIT_S, sleep, clock)
         art = _gen._art_mode_switch(client, display) if display else None
         rest = [{"entity_id": display, "what": "the TV is resting", "state_in": list(ASLEEP)}]
-        rested, t0 = [], clock()
-        while True:
-            rested = check(client, rest)
-            if art and not rested[0]["pass"]:
+
+        def _rested():
+            got = check(client, rest)
+            if art and not got[0]["pass"]:
                 a = check(client, [{"entity_id": art, "what": "the TV is resting in Art Mode", "state_in": ["on"]}])
-                rested = a if a[0]["pass"] else rested + a
-            if all(r["pass"] for r in rested) or clock() - t0 >= READ_WAIT_S:
+                got = a if a[0]["pass"] else got + a
+            return got
+
+        took, rested, tries = None, [], 0
+        while tries < 2:                       # 1568: the room's own TV Off, and once more if the room did not rest
+            tries += 1
+            took = _run_and_wait(client, roid, REST_WAIT_S, sleep, clock)
+            rested = _settle(_rested, sleep, clock)
+            if all(r["pass"] for r in rested):
                 break
-            sleep(STEP_S)
-        out["rest"] = {"by": "script." + roid, "seconds": took, "readings": rested}
-        if took is None or not all(r["pass"] for r in rested):
-            out.update(passed=False, stage="rest",
-                       say="The room didn't reach its resting state, so the activity was not run.")
-            return out
+        out["rest"] = {"by": "script." + roid, "seconds": took, "readings": rested, "tries": tries}
+        if not all(r["pass"] for r in rested):
+            # NEVER SKIPPED (1568; it used to stop here with "the activity was not run", and be shown as Failed).
+            ans = ask(question(kind, label or cfg.get("alias"), rested, rest=True), label or cfg.get("alias"),
+                      lambda: not all(r["pass"] for r in _rested())) if ask else None
+            out["rest"]["answer"] = ans
+            if ans not in ("yes", "seen"):
+                out["not_from_rest"] = True    # run from where the room is — and never marked as a from-rest test
+                mark = False
     exp = expectations(client, cfg, display)
     if verdict:
         exp.append(verdict_check(verdict, kind, v.get("proos_source")))
     ovr = overrides(cfg)
     took = _run_and_wait(client, oid, RUN_WAIT_S, sleep, clock)
-    res, t0 = _vouched(check(client, exp), ovr), clock()
-    while not all(r["pass"] for r in res) and clock() - t0 < READ_WAIT_S:
-        sleep(STEP_S)
-        res = _vouched(check(client, exp), ovr)
+
+    def _readings():
+        return _vouched(check(client, exp), ovr)
+
+    res = _settle(_readings, sleep, clock) if took is not None else _readings()
     passed = took is not None and bool(res) and all(r["pass"] for r in res)
-    out.update(seconds=took, readings=res, passed=passed, stage="run")
+    out.update(seconds=took, readings=res, passed=passed, stage="run", status="passed" if passed else "unconfirmed")
     if took is None:
         out["say"] = "The activity was still running after %d seconds." % RUN_WAIT_S
+    if not passed and ask:
+        # ASKED AT THE MOMENT (1568): the room is still on this activity, so there is something to look at.
+        bad = [r for r in res if not r["pass"]]
+        q = question(kind, label or cfg.get("alias"), bad if took is not None else [])
+        out["question"] = q
+        ans = ask(q, label or cfg.get("alias"),
+                  lambda: took is None or not all(r["pass"] for r in _readings()))
+        out["answer"] = ans
+        if ans == "seen":                      # the readings came good while the question stood
+            res = _readings()
+            passed = bool(res) and all(r["pass"] for r in res)
+            out.update(readings=res, passed=passed, status="passed" if passed else "unconfirmed")
+        elif ans == "yes":
+            out.update(passed=True, status="witnessed", witnessed=True)
+            if mark and took is not None:
+                witness(client, oid, bad, who=who)
+            return out
+        elif ans == "no":
+            out["status"] = "failed"           # the only road to "Failed": the installer looked and said no
     new = dict(cfg)
     nv = _vars(cfg)
     if passed and not mark:
@@ -293,7 +377,8 @@ def summary(client, area_slug: str) -> list:
     return rows
 
 
-def prove(client, plan, display, verdict=None, launch=None, progress=None, sleep=None, clock=None) -> dict:
+def prove(client, plan, display, verdict=None, launch=None, progress=None, sleep=None, clock=None, ask=None,
+          who="installer") -> dict:
     """PROVE THE ROOM IS ITS COMMISSIONING (register 1340, Dave 14 Nov 08:52: "I think prove the room is when it should
     have this commisioning process"). plan: [{script, alias, kind, sc?}] — the room's Watch activities, its TV Off and
     its app shortcuts. In order:
@@ -301,7 +386,10 @@ def prove(client, plan, display, verdict=None, launch=None, progress=None, sleep
       2 · each Watch SWITCHED TO straight from another (W_last → W1 → W2 … → W_last) — a failure takes its mark off
       3 · each app shortcut, by 1084's rule (passes when the device shows it; taken but unseen = SENT)
       4 · TV Off, read back → marked tested
-    A failed step never stops the run, and the room always ends with TV Off."""
+    A failed step never stops the run, and the room always ends with TV Off.
+    REGISTER 1568: ask = the installer, asked at the moment a step cannot be confirmed (see run()); every finished step is
+    handed to progress({"steps": […]}) as it finishes; a step's status is passed · witnessed (their Yes) · failed (their
+    No — the only road to that word) · unconfirmed (nobody answered, or nobody was there to ask)."""
     sleep, clock = sleep or time.sleep, clock or time.time
     watches = [p for p in plan if p.get("kind") in ("watch_source", "watch_tv")]
     offs = [p for p in plan if p.get("kind") == "tv_off"]
@@ -319,16 +407,21 @@ def prove(client, plan, display, verdict=None, launch=None, progress=None, sleep
         note({"alias": label})
         t0 = clock()
         try:
-            r = run(client, p["script"], display, sleep=sleep, clock=clock, verdict=verdict, **kw)
+            r = run(client, p["script"], display, sleep=sleep, clock=clock, verdict=verdict, ask=ask, label=label,
+                    who=who, **kw)
         except Exception as e:                # noqa: BLE001
-            r = {"passed": False, "error": str(e)}
+            r = {"passed": False, "error": str(e), "status": "unconfirmed"}
         bad = [x for x in (r.get("readings") or []) if not x["pass"]]
         rest_bad = [x for x in ((r.get("rest") or {}).get("readings") or []) if not x["pass"]]
         steps.append({"script": p["script"], "alias": label, "kind": p.get("kind"), "phase": phase,
                       "ok": bool(r.get("passed")), "seconds": r.get("seconds"),
                       "readings": r.get("readings") or [], "failed": bad, "rest_failed": rest_bad,
-                      "tested": bool(r.get("passed")) and kw.get("mark", True),
+                      "tested": bool(r.get("passed")) and kw.get("mark", True) and not r.get("not_from_rest"),
+                      "status": r.get("status") or ("passed" if r.get("passed") else "unconfirmed"),
+                      "witnessed": r.get("witnessed"), "question": r.get("question"),
+                      "not_from_rest": r.get("not_from_rest"),
                       "final": {"error": r.get("error") or r.get("say")}})
+        note({"steps": list(steps)})
 
     for p in watches:
         one(p, "from_rest", "%s · from rest" % p.get("alias"))
@@ -360,17 +453,27 @@ def prove(client, plan, display, verdict=None, launch=None, progress=None, sleep
         unc = res.get("unconfirmed") or []
         ok = bool(res.get("ok")) and not unc
         cant_tell = ok and res.get("opened") is not True
+        status, seen_it = ("passed" if ok else "unconfirmed"), None
+        if not ok and ask:                    # 1568: asked at the moment — the app is on the screen, or it is not
+            ans = ask(question("shortcut", p.get("alias"), []), p.get("alias"), lambda: True)
+            if ans == "yes":
+                ok, status, seen_it = True, "witnessed", True
+            elif ans == "no":
+                status = "failed"
         steps.append({"script": p.get("script"), "alias": p.get("alias"), "kind": "shortcut", "phase": "shortcut",
-                      "ok": ok, "sent": cant_tell, "sent_again": again,
+                      "ok": ok, "sent": cant_tell, "sent_again": again, "status": status, "witnessed": seen_it,
                       "seconds": round(clock() - t0, 1),
                       "final": {"shows": res.get("shows") if res.get("opened") is True else None,
                                 "error": res.get("error") or (("couldn't confirm %s is on" % " and ".join(unc))
                                                               if unc else None)}})
+        note({"steps": list(steps)})
     for p in offs:
         one(p, "off", p.get("alias") or "TV Off")
     return {"steps": steps, "passed": sum(1 for s in steps if s["ok"]),
             "sent": 0, "total": len(steps),                          # 1342: a shortcut sent to a confirmed-on device passed
-            "tested": sum(1 for s in steps if s.get("tested"))}
+            "tested": sum(1 for s in steps if s.get("tested")),
+            "unconfirmed": sum(1 for s in steps if s.get("status") == "unconfirmed"),
+            "failed": sum(1 for s in steps if s.get("status") == "failed")}
 
 
 # ── REGISTER 1343 (Dave 14 Nov 11:46: "watch shield seems to keep failing but looks like it's working this is where

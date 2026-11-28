@@ -8379,6 +8379,11 @@ class Handler(BaseHTTPRequestHandler):
                 room = unquote(parts[1])
                 with _proof_lock:
                     st = _proof_runs.get(room)
+                    if st and isinstance(st.get("asking"), dict):
+                        # 1568: the question it is standing on — without the runner's own handles
+                        st = dict(st, asking={k: v for k, v in st["asking"].items() if not k.startswith("_")})
+                    elif st:
+                        st = dict(st)
                 return self._send(200, st or {"state": "never_run"})
             if len(parts) == 3 and parts[0] == "rooms" and parts[2] == "fire_plan":
                 # SINGLE SOURCE OF TRUTH for firing an activity: return the exact ordered
@@ -10543,6 +10548,21 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(status, {"error": str(e), "kind": e.kind})
                 except Exception as e:
                     return self._send(500, {"error": str(e)})
+            if len(parts) == 4 and parts[0] == "rooms" and parts[2] == "prove" and parts[3] == "answer":
+                # REGISTER 1568: the installer's answer to the question the running proof is standing on. {id, yes}.
+                u = getattr(self, "_user", None)
+                if not (users and u and (u.get("is_admin") or u.get("is_owner")
+                                         or users.is_tech(u.get("id")))):
+                    return self._send(403, {"error": "installer access required"})
+                room = unquote(parts[1])
+                b = self._body() or {}
+                with _proof_lock:
+                    a = (_proof_runs.get(room) or {}).get("asking")
+                    if not a or a.get("id") != b.get("id"):
+                        return self._send(409, {"error": "that question is no longer being asked"})
+                    a["_ans"] = "yes" if b.get("yes") is True else "no"
+                    a["_ev"].set()
+                return self._send(200, {"ok": True})
             if len(parts) == 4 and parts[0] == "rooms" and parts[2] == "prove" and parts[3] == "witness":
                 # REGISTER 1343 (Dave 14 Nov 11:46: "there always needs to be a way to get a pass"): the installer saw a
                 # failed step working. The activity is marked tested AS THE INSTALLER'S, keeping the readings that
@@ -10661,7 +10681,47 @@ class Handler(BaseHTTPRequestHandler):
                     with _proof_lock:
                         r = _proof_runs.get(room)
                         if r:
-                            r["current"] = step.get("alias")
+                            if "steps" in step:
+                                # REGISTER 1568: the steps done so far, as each finishes — the sheet shows the run as it goes
+                                r["steps"] = step["steps"]
+                                r["passed"] = sum(1 for x in step["steps"] if x.get("ok"))
+                            else:
+                                r["current"] = step.get("alias")
+
+                _who = ((getattr(self, "_user", None) or {}).get("name") or "installer")
+
+                def _ask(q, step_alias, still_failing):
+                    """REGISTER 1568 (Dave 29 Nov 08:00 "go"): the proof stops AT THE MOMENT it cannot confirm a step and
+                    asks. The question stands on the running proof (GET …/prove → asking); POST …/prove/answer answers
+                    it. While it stands the readings are still read — if they come good the question is withdrawn. No
+                    answer in ASK_WAIT_S → None (the step is "not confirmed" and the proof carries on)."""
+                    from proos import activitytest as _at_q
+                    ev = threading.Event()
+                    with _proof_lock:
+                        r = _proof_runs.get(room)
+                        if not r:
+                            return None
+                        _n = int(r.get("asked") or 0) + 1
+                        r["asked"] = _n
+                        r["asking"] = {"id": _n, "question": q, "step": step_alias,
+                                       "until": time.time() + _at_q.ASK_WAIT_S, "_ev": ev, "_ans": None}
+                    ans, t0 = None, time.time()
+                    while time.time() - t0 < _at_q.ASK_WAIT_S:
+                        if ev.wait(2.0):
+                            with _proof_lock:
+                                ans = ((_proof_runs.get(room) or {}).get("asking") or {}).get("_ans")
+                            break
+                        try:
+                            if not still_failing():
+                                ans = "seen"
+                                break
+                        except Exception:                # noqa: BLE001
+                            pass
+                    with _proof_lock:
+                        r = _proof_runs.get(room)
+                        if r:
+                            r.pop("asking", None)
+                    return ans
 
                 def _runner():
                     try:
@@ -10674,7 +10734,7 @@ class Handler(BaseHTTPRequestHandler):
                         if not _disp:
                             raise RuntimeError("this room has no committed display to read back")
                         out = _at_mod.prove(_client, plan, _disp, verdict=sensor, launch=_launch,
-                                            progress=_progress)
+                                            progress=_progress, ask=_ask, who=_who)
                         out.update({"state": "done", "room": room, "area_id": slug,
                                     "finished": time.time()})
                     except Exception as e:               # noqa: BLE001
