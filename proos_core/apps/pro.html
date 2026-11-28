@@ -3395,6 +3395,8 @@ html.pnx #danger-msg .dg-ver svg{width:20px;height:20px;stroke:var(--px-t2);fill
 html.pnx #v3cmd .v3cp{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 html.pnx #rec-modal>div{width:min(520px,92vw);max-width:520px!important;min-width:0!important;background:#1b1c20!important;border:0!important;border-radius:28px!important;padding:24px!important;box-shadow:0 30px 80px rgba(0,0,0,.6)}
 html.pnx #rec-modal .v3dh2{padding:0 0 4px}
+.prv-scroll{max-height:calc(88vh - 210px);overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;margin-right:-8px;padding-right:8px}   /* 1566 */
+.prv-x{flex:none;width:40px;height:40px;border-radius:50%;border:0;background:rgba(255,255,255,.1);color:#fff;font-size:16px;line-height:1;cursor:pointer}
 html.pnx #rec-modal .v3dh2 .t{font-size:24px}
 html.pnx #rec-modal .v3dh2 .s{font-size:15px;line-height:1.5}
 html.pnx #rec-modal .v3foot>.v3btn{flex:1!important;height:46px;border-radius:14px;font-size:15px}
@@ -4583,7 +4585,7 @@ html.pnx.duo-rail #app.v3 .scroll{padding-bottom:calc(env(safe-area-inset-bottom
 // ── Self-updater (cache-proof): identical mechanism to the dashboard. Bump PROOS_BUILD
 //    when you deploy and every device reloads itself to the new file within a second —
 //    the reload URL carries a UNIQUE token so the HTTP cache can never serve a stale copy.
-const PROOS_BUILD='2026112809';
+const PROOS_BUILD='2026112901';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -12997,7 +12999,7 @@ async function openProve(){
     if(j&&j.state==='running'){ _proveShow(j); _provePoll(_roomHubArea); return; } }catch(e){}
   const name=(typeof _rhName==='function'&&_rhName())||'this room';
   // REGISTER 1340 (Dave 14 Nov 08:52: "prove the room is when it should have this commisioning process")
-  _recOverlay('<div class="v3dh2"><div class="t">Prove the Room</div><div class="s">Commissions '+esc(name)+': each activity is run from the room resting, then switched straight from one source to another, then each app shortcut, then TV Off. Every device is read back. An activity that passes is marked Tested. One that fails shows what was wrong, and Jarvis can propose the fix. The equipment will turn on and off for a few minutes.</div></div>'
+  _recOverlay('<div class="v3dh2"><div class="t">Prove the Room</div><div class="s">Commissions '+esc(name)+': each activity is run from the room resting, then switched straight from one source to another, then each app shortcut, then TV Off. Every device is read back. An activity that passes is marked Tested. One that fails shows what was wrong, and Assist can propose the fix. The equipment will turn on and off for a few minutes.</div></div>'
     +'<div class="v3foot" style="display:flex;gap:8px;margin-top:14px"><button class="v3btn" onclick="_proveClose()">Cancel</button><button class="v3btn pri" style="flex:1" onclick="_proveRun()">Run It Now</button></div>');
 }
 let _proveLast=null;
@@ -13070,11 +13072,11 @@ async function _proveChangeSend(i){
   const name=(typeof _rhName==='function'&&_rhName())||_roomHubArea;
   _proveFixSess='prove-'+_roomHubArea+'-'+Date.now();
   const ask='In the '+name+', '+(s.alias||s.script)+' failed in Prove the Room ('+(bad0(s).map(x=>x.what+' read '+x.reading).join('; ')||((s.final||{}).error)||'did not finish')+'). The installer answered No to "'+_proveAsk(s)+'" and says: "'+words+'". Make the change that fixes it to the room\u2019s own activity, test it with activity_test (consented=true \u2014 the installer tapped Send, that is their yes), and answer in ONE line: "fixed, passes now" or "still failing: <the reading>".';
-  setHTML(b,'<div class="v3empty" style="flex:1">Jarvis is changing it and testing — the equipment will turn on and off…</div>');
+  setHTML(b,'<div class="v3empty" style="flex:1">Assist is changing it and testing — the equipment will turn on and off…</div>');
   try{
     const r=await fetch(proCoreUrl()+'/assist/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session:_proveFixSess, text:ask, area_id:_roomHubArea, consent:'tapped'})});
     const k=await r.json().catch(()=>({}));
-    setHTML(b,'<div class="v3card" style="flex:1;padding:10px;font-size:13px">'+_proveMd(k.reply||k.error||('Jarvis could not answer ('+r.status+')'))+'</div>');
+    setHTML(b,'<div class="v3card" style="flex:1;padding:10px;font-size:13px">'+_proveMd(k.reply||k.error||('Assist could not answer ('+r.status+')'))+'</div>');
   }catch(e){ setHTML(b,'<div class="v3hint" style="color:#e17055">Could not reach ProOS Core</div>'); }
 }
 function _proveShow(j){
@@ -13095,8 +13097,10 @@ function _proveShow(j){
     const failed=steps.filter(s=>!s.ok&&!s.sent&&s.kind!=='shortcut');
     if(failed.length) body+='<div id="prove-fix" style="margin-top:14px"><button class="v3btn pri" style="width:100%" onclick="_proveFixAsk()">Fix and Test Again</button><div class="v3hint" style="margin-top:6px">The equipment will turn on and off.</div></div>';
   }
-  _recOverlay('<div class="v3dh2"><div class="t">Prove the Room</div></div>'+body
+  const _prvTop=(document.querySelector('#rec-modal .prv-scroll')||{}).scrollTop||0;   /* 1566: keep the place */
+  _recOverlay('<div class="v3dh2" style="display:flex;align-items:center;justify-content:space-between;gap:12px"><div class="t">Prove the Room</div><button class="prv-x" aria-label="Close" onclick="_proveClose()">\u2715</button></div><div class="prv-scroll">'+body+'</div>'
     +'<div class="v3foot" style="display:flex;gap:8px;margin-top:14px">'+(j.state==='done'?'<button class="v3btn" onclick="_proveRun()">Prove Again</button>':'')+'<button class="v3btn" style="flex:1" onclick="_proveClose()">'+(j.state==='running'?'Hide':'Close')+'</button></div>');
+  const _ps=document.querySelector('#rec-modal .prv-scroll'); if(_ps) _ps.scrollTop=_prvTop;
 }
 let _proveFixSess=null;
 function _proveMd(t){ return esc(String(t||'')).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/\n/g,'<br>'); }
@@ -13106,7 +13110,7 @@ async function _proveFixSay(text, busy, tapped){
   try{
     const r=await fetch(proCoreUrl()+'/assist/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({session:_proveFixSess, text:text, area_id:_roomHubArea}, tapped?{consent:'tapped'}:{}))});
     const j=await r.json().catch(()=>({}));
-    if(!r.ok||!j.reply){ setHTML(box, '<div class="v3empty" style="color:#e17055">'+esc((j&&j.error)||('Jarvis could not answer ('+r.status+')'))+'</div>'); return null; }
+    if(!r.ok||!j.reply){ setHTML(box, '<div class="v3empty" style="color:#e17055">'+esc((j&&j.error)||('Assist could not answer ('+r.status+')'))+'</div>'); return null; }
     return j;
   }catch(e){ setHTML(box, '<div class="v3empty" style="color:#e17055">Could not reach ProOS Core</div>'); return null; }
 }
@@ -13121,12 +13125,12 @@ async function _proveFixAsk(){
   const ask='Prove the Room just ran in the '+name+'. These failed, with what the platform read:\n'+lines.join('\n')
     +'\nRead the devices and fix the room’s own activities, then test each one you changed with activity_test (consented=true — I tapped Fix and Test Again, that is my yes).'
     +' Reply with ONE short line per activity and nothing else: "<activity> — fixed, passes now" or "<activity> — still failing: <the reading>". No explanation; I’ll ask what you changed if I want to know.';
-  const r=await _proveFixSay(ask,'Jarvis is fixing and testing — the equipment will turn on and off…',true); if(!r) return;
+  const r=await _proveFixSay(ask,'Assist is fixing and testing — the equipment will turn on and off…',true); if(!r) return;
   setHTML(document.getElementById('prove-fix'), '<div class="v3card" style="padding:12px;font-size:13px;line-height:1.45">'+_proveMd(r.reply)+'</div>'
     +'<div style="display:flex;gap:8px;margin-top:10px"><button class="v3btn" onclick="_proveFixWhat()">What Did You Change?</button><button class="v3btn pri" style="flex:1" onclick="_proveRun()">Prove the Room Again</button></div>');
 }
 async function _proveFixWhat(){
-  const r=await _proveFixSay('What did you change? Short — one line per activity.','Asking Jarvis…'); if(!r) return;
+  const r=await _proveFixSay('What did you change? Short — one line per activity.','Asking Assist…'); if(!r) return;
   setHTML(document.getElementById('prove-fix'), '<div class="v3card" style="padding:12px;font-size:13px;line-height:1.45">'+_proveMd(r.reply)+'</div>'
     +'<button class="v3btn pri" style="width:100%;margin-top:10px" onclick="_proveRun()">Prove the Room Again</button>');
 }
@@ -13136,6 +13140,7 @@ function _recOverlay(inner){
   ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:99999';
   ov.innerHTML='<div style="background:#14151a;border:1px solid #2a2c34;border-radius:16px;padding:20px;min-width:320px;max-width:92vw;max-height:88vh;overflow:auto;color:#fff;font-family:inherit">'+inner+'</div>';
   document.body.appendChild(ov);
+  ov.onclick=function(e){ if(e.target===ov) _proveClose(); };   /* 1566: a tap outside the sheet closes it */
 }
 function _recClose(){ const ov=document.getElementById('rec-modal'); if(ov) ov.remove(); }
 function _recList(){
