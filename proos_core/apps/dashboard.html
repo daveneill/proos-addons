@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112158';
+const PROOS_BUILD='2026112804';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -26346,7 +26346,7 @@ body.nx-on #pa-detail{z-index:9070}
   // a speaker's reading: playing / paused with what it reports; anything else is not playing — never a stale title (31 Oct)
   function _nxmRead(e, S, P, now){
     var s=S&&S.state, A=(S&&S.attributes)||{}, f=parseInt(A.supported_features||0,10);
-    if(!S||s==='unavailable'||s==='unknown') return {gone:true, word:'Can’t reach it'};
+    if(!S||s==='unavailable'||s==='unknown') return {gone:true, word:'Can’t reach it', members:[]};   /* 1523: a whole reading — the card reads members (Dave 28 Nov: the Music tile did nothing once three speakers were out of reach) */
     var live=s==='playing'||s==='paused', title=live?(A.media_title||A.media_channel||''):'';
     var who=live?(A.media_artist||A.app_name||A.source||''):'';
     var vol=A.volume_level!=null?Math.round(A.volume_level*100):null, p=P&&P[e];
