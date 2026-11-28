@@ -5081,7 +5081,7 @@ window.__pr=window.__pr||{replay:null,live:false,booted:false,waiters:[],rec:{ws
 //    (HA serves over HTTP with no service worker, so this JS is the whole mechanism.)
 //    The 'seen' guard only stops a same-session reload loop and clears the moment we're
 //    in sync, so it can never permanently pin a device to an old build.
-const PROOS_BUILD='2026112816';
+const PROOS_BUILD='2026112817';
 // 1116 — A DIAGNOSTIC (Dave 31 Oct 13:48: in the Mac app "clicks are unresponsive for maybe 10 seconds and it does not
 // show the hand pointer"). The page notes any moment its own 100 ms clock stood still for over half a second, with what
 // was last clicked, and posts the notes to Core (/ui/stall, proos/uistall.py) every 15 s. It changes nothing on the
@@ -25134,6 +25134,10 @@ body.nx-on #nx-page.open{display:block}
 @media (max-width:640px){.nxr-line{max-width:100%}}
 /* 1547 (Dave 28 Nov 17:31: "when a lot on on. the home you dont want lines of summary"): Home's line is two lines at most, whatever arrives */
 .nxh-sum{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+/* 1563 (Dave 28 Nov 19:24, the closed iPhone Duo — Home's line cut off at "…in the Fami..."): on a phone the summary is the old
+   look's own phone size (14px, .ra-line) and Home's may run to three lines — the AI's line is held under 140 characters, which
+   is three lines of a phone. Wider screens keep two. */
+@media (max-width:640px){.nxr-line{font-size:14px}.nxh-sum{-webkit-line-clamp:3}}
 .nxr-sec{display:flex;justify-content:space-between;align-items:baseline;margin:24px 2px 12px}
 .nxr-sec b{font-size:20px;font-weight:600;letter-spacing:-.01em}
 .nxr-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
@@ -28391,6 +28395,11 @@ html.duo-rail:has(body.nx-on){background:#151518}
 html.duo-rail body.nx-on{width:calc(100% - var(--duo-r,0px));margin:0;contain:layout;overflow:visible}
 html.duo-rail body.nx-on #nx-bar{left:auto;right:calc(-1 * var(--duo-r));top:0;bottom:0;width:var(--duo-r);height:auto;flex-direction:column;align-items:center;justify-content:space-evenly;gap:0;padding:var(--duo-r) 0 env(safe-area-inset-bottom,0px);box-shadow:-1px 0 0 rgba(255,255,255,.05)}
 html.duo-rail body.nx-on #nx-bar .nb{flex:none;max-width:none;width:100%;padding:11px 0}
+/* 1563 (Dave 28 Nov 19:24: "control screens seemed to not scaled correctly" — the remote drawn a band narrower than the page): the
+   remote keeps clear of the phone's right-hand band by itself (its padding), and here the page already ends where the band begins
+   — the band was left out twice. On the closed Duo the remote runs the page's full width. */
+html.duo-rail body.nx-on #atv-page{padding-right:16px}
+html.duo-rail body.nx-on #atv-page{padding-bottom:calc(env(safe-area-inset-bottom,0px) + 28px)}   /* the bar stands in the band here, not under the remote — no room is kept for it below */
 /* 1506g (Dave's simulator picture, 27 Nov 14:14: Pro's Assist panel cut off at the left). Anything sized from the SCREEN's width
    (vw) was 84 too wide for the page beside the band. --duo-vw is the page's own width; each such size is restated from it. */
 html.duo-rail{--duo-vw:calc(100vw - var(--duo-r))}
